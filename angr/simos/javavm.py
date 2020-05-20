@@ -196,11 +196,9 @@ class SimJavaVM(SimOS):
         Generates a new symbolic cmd line argument string.
         :return: The string reference.
         """
-        str_ref = SimSootValue_StringRef(state.memory.get_new_uuid())
         str_sym = StringS("cmd_line_arg", max_length)
         state.solver.add(str_sym != StringV(""))
-        state.memory.store(str_ref, str_sym)
-        return str_ref
+        return SimSootValue_StringRef.new_object(state, str_sym, symbolic=True)
 
     def state_call(self, addr, *args, **kwargs):
         """
@@ -297,7 +295,7 @@ class SimJavaVM(SimOS):
         if type_ == 'double':
             return FPS('default_value_{}'.format(type_), FSORT_DOUBLE)
         if type_ == 'java.lang.String':
-            return SimSootValue_StringRef.new_string(state, StringS('default_value_{}'.format(type_), 1000))
+            return SimSootValue_StringRef.new_object(state, StringS('default_value_{}'.format(type_), 1000), symbolic=True)
         if type_.endswith('[][]'):
             raise NotImplementedError
             # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
@@ -378,7 +376,7 @@ class SimJavaVM(SimOS):
         field_ref = SimSootValue_StaticFieldRef.get_ref(state, field_class_name,
                                                         field_name, field_type)
         field_val = SimSootValue_ThisRef.new_object(state, field_type)
-        state.memory.store(field_ref, field_val)
+        state.javavm_memory.store(field_ref, field_val)
 
     @staticmethod
     def get_cmd_line_args(state):
@@ -387,8 +385,8 @@ class SimJavaVM(SimOS):
         args = []
         for idx in range(no_of_args):
             array_ref = SimSootValue_ArrayRef(args_array, idx)
-            str_ref = state.memory.load(array_ref)
-            cmd_line_arg = state.memory.load(str_ref)
+            str_ref = state.javavm_memory.load(array_ref)
+            cmd_line_arg = state.javavm_memory.load(str_ref)
             args.append(cmd_line_arg)
         return args
 

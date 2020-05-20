@@ -4,7 +4,7 @@ import logging
 import pyvex
 
 from ...engines.light import SimEngineLightVEXMixin, SpOffset
-from .values import TOP, BOTTOM
+from .values import Top, Bottom
 from .engine_base import SimEnginePropagatorBase
 from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 
@@ -34,7 +34,7 @@ class SimEnginePropagatorVEX(
         return state
 
     def _allow_loading(self, addr, size):
-        if addr in (TOP, BOTTOM):
+        if type(addr) in (Top, Bottom):
             return False
         if self._load_callback is None:
             return True
@@ -43,7 +43,7 @@ class SimEnginePropagatorVEX(
     def _expr(self, expr):
         v = super()._expr(expr)
 
-        if v not in {None, BOTTOM, TOP} and v is not expr:
+        if v is not None and type(v) not in {Bottom, Top} and v is not expr:
             # Record the replacement
             if type(expr) is pyvex.IRExpr.Get:
                 if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
@@ -97,7 +97,7 @@ class SimEnginePropagatorVEX(
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
 
-        if data is not BOTTOM:
+        if type(data) is not Bottom:
             self.state.store_register(stmt.offset, size, data)
 
     def _store_data(self, addr, data, size, endness):
@@ -162,7 +162,7 @@ class SimEnginePropagatorVEX(
     def _handle_Load(self, expr):
 
         addr = self._expr(expr.addr)
-        if addr in (None, TOP, BOTTOM):
+        if addr is None or type(addr) in (Top, Bottom):
             return None
         size = expr.result_size(self.tyenv) // self.arch.byte_width
 

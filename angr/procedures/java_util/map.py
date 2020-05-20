@@ -14,7 +14,7 @@ MAP_KEYS = 'keys'
 
 def get_map_key(state, key_ref):
     if isinstance(key_ref, SimSootValue_StringRef):
-        string = state.memory.load(key_ref)
+        string = state.javavm_memory.load(key_ref)
         if string.concrete:
             return state.solver.eval(string)
         else:

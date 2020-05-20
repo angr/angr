@@ -11,7 +11,7 @@ import claripy
 import cle
 import pyvex
 from cle.address_translator import AT
-from archinfo.arch_soot import SootAddressDescriptor
+from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData
@@ -936,6 +936,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 break
 
         instr_alignment = self._initial_state.arch.instruction_alignment
+        if not instr_alignment:
+            instr_alignment = 4
         if start_addr % instr_alignment > 0:
             # occupy those few bytes
             self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), 'alignment')
@@ -1277,7 +1279,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # If they asked for it, give it to them.  All of it.
         if self._cross_references:
-            self._do_full_xrefs()
+            self.do_full_xrefs()
 
         r = True
         while r:
@@ -1287,10 +1289,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._finish_progress()
 
-    def _do_full_xrefs(self):
+    def do_full_xrefs(self, overlay_state=None):
+        """
+        Perform xref recovery on all functions.
+
+        :param SimState overlay:    An overlay state for loading constant data.
+        :return:                    None
+        """
+
         l.info("Building cross-references...")
         # Time to make our CPU hurt
-        state = self.project.factory.blank_state()
+        state = self.project.factory.blank_state() if overlay_state is None else overlay_state
         for f_addr in self.functions:
             f = None
             try:
@@ -1541,9 +1550,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [ ]
 
-        last_ins_addr = None
-        ins_addr = addr
         if irsb.statements:
+            last_ins_addr = None
+            ins_addr = addr
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
                     successors.append((i,
@@ -1557,23 +1566,37 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     ins_addr = stmt.addr + stmt.delta
         else:
             for ins_addr, stmt_idx, exit_stmt in irsb.exit_statements:
+                branch_ins_addr = ins_addr
+                if self.project.arch.branch_delay_slot \
+                        and irsb.instruction_addresses \
+                        and ins_addr in irsb.instruction_addresses:
+                    idx_ = irsb.instruction_addresses.index(ins_addr)
+                    if idx_ > 0:
+                        branch_ins_addr = irsb.instruction_addresses[idx_ - 1]
                 successors.append((
                     stmt_idx,
-                    last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                    branch_ins_addr,
                     exit_stmt.dst,
                     exit_stmt.jumpkind
                 ))
 
-        successors.append((DEFAULT_STATEMENT,
-                           last_ins_addr if self.project.arch.branch_delay_slot else ins_addr, irsb_next, jumpkind)
-                          )
+        # default statement
+        default_branch_ins_addr = None
+        if irsb.instruction_addresses:
+            if self.project.arch.branch_delay_slot:
+                if len(irsb.instruction_addresses) > 1:
+                    default_branch_ins_addr = irsb.instruction_addresses[-2]
+            else:
+                default_branch_ins_addr = irsb.instruction_addresses[-1]
+
+        successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, irsb_next, jumpkind))
 
         # exception handling
         exc = self._exception_handling_by_endaddr.get(addr + irsb.size, None)
         if exc is not None:
             successors.append(
                 (DEFAULT_STATEMENT,
-                 last_ins_addr if self.project.arch.branch_delay_slot else ins_addr,
+                 default_branch_ins_addr,
                  exc.handler_addr,
                  'Ijk_Exception')
             )
@@ -1658,8 +1681,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # This is an indirect jump. Try to resolve it.
                 # FIXME: in some cases, a statementless irsb will be missing its instr addresses
                 # and this next part will fail. Use the real IRSB instead
-                irsb = cfg_node.block.vex
-                cfg_node.instruction_addrs = irsb.instruction_addresses
+                block = cfg_node.block
+                _ = getattr(block, "codenode")
+                cfg_node.instruction_addrs = block.instruction_addrs
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb,
                                                                                  current_function_addr, stmt_idx)
                 if resolved:
@@ -1812,7 +1836,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if irsb is None:
             return_site = None
         else:
-            if self.project.arch.name != 'Soot':
+            if not isinstance(ins_addr, SootAddressDescriptor):
                 return_site = addr + irsb.size  # We assume the program will always return to the succeeding position
             else:
                 # For Soot, we return to the next statement, which is not necessarily the next block (as Shimple does
@@ -1820,15 +1844,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 assert isinstance(ins_addr, SootAddressDescriptor)
                 soot_block = irsb
                 return_block_idx = ins_addr.block_idx
-                if stmt_idx + 1 >= soot_block.label + len(soot_block.statements):
+                return_stmt_idx = stmt_idx + 1
+                if return_stmt_idx >= len(soot_block.statements):
                     # tick the block ID
                     return_block_idx += 1
-                return_site = SootAddressDescriptor(ins_addr.method, return_block_idx, stmt_idx + 1)
+                    return_stmt_idx -= len(soot_block.statements)
+                return_site = SootAddressDescriptor(ins_addr.method, return_block_idx, return_stmt_idx)
 
         edge = None
         if new_function_addr is not None:
             edge = FunctionCallEdge(cfg_node, new_function_addr, return_site, current_function_addr, syscall=is_syscall,
-                                    ins_addr=ins_addr, stmt_idx=ins_addr,
+                                    ins_addr=ins_addr, stmt_idx=stmt_idx,
                                     )
 
         if new_function_addr is not None:
@@ -2471,9 +2497,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb = self.project.factory.block(irsb.addr, size=irsb.size).vex
 
         # try to resolve the jump target
-        simsucc = self.project.factory.default_engine.process(self._initial_state, irsb, force_addr=addr)
+        if isinstance(self.project.arch, ArchSoot) and self.project.simos.is_javavm_with_jni_support:
+            state = self.project.simos.native_simos.state_blank(mode="fastpath", addr=addr)
+        else:
+            state = self._initial_state
+        simsucc = self.project.factory.default_engine.process(state, irsb, force_addr=addr)
         if len(simsucc.successors) == 1:
             ip = simsucc.successors[0].ip
+            if isinstance(ip, SootAddressDescriptor):
+                return False
             if ip._model_concrete is not ip:
                 target_addr = ip._model_concrete.value
                 if (self.project.loader.find_object_containing(target_addr, membership_check=False) is not
@@ -3019,6 +3051,32 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return endpoints
 
+    def _get_tail_caller(self, tailnode, seen):
+        """
+        recursively search predecessors for the actual caller
+        for a tailnode that we will return to
+
+        :return: list of callers for a possible tailnode
+        """
+
+        if tailnode.addr in seen:
+            return []
+        seen.add(tailnode.addr)
+
+        callers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Call')
+        direct_jumpers = self.model.get_predecessors(tailnode, jumpkind='Ijk_Boring')
+        jump_callers = []
+
+        for jn in direct_jumpers:
+            jf = self.model.get_any_node(jn.function_address)
+            if jf is not None:
+                jump_callers.extend(self._get_tail_caller(jf, seen))
+
+        callers.extend(jump_callers)
+
+        return callers
+
+
     def _make_return_edges(self):
         """
         For each returning function, create return edges in self.graph.
@@ -3045,6 +3103,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             # get all callers
             callers = self.model.get_predecessors(startpoint, jumpkind='Ijk_Call')
+
+            # handle callers for tailcall optimizations if flag is enabled
+            if self._detect_tail_calls and startpoint.addr in self._tail_calls:
+                l.debug("Handling return address for tail call for func %x", func_addr)
+                seen = set()
+                tail_callers = self._get_tail_caller(startpoint, seen)
+                callers.extend(tail_callers)
+
             # for each caller, since they all end with a call instruction, get the immediate successor
             return_targets = itertools.chain.from_iterable(
                 self.model.get_successors(caller, excluding_fakeret=False, jumpkind='Ijk_FakeRet') for caller in callers
@@ -3403,9 +3469,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 return addr, current_function_addr, cfg_node, irsb
 
-            is_x86_x64_arch = self.project.arch.name in ('X86', 'AMD64')
+            object = self.project.loader.find_object_containing(addr)
+            arch = object.arch if object else self.project.arch
 
-            if is_arm_arch(self.project.arch):
+            is_x86_x64_arch = arch.name in ('X86', 'AMD64')
+
+            if is_arm_arch(arch):
                 real_addr = addr & (~1)
             else:
                 real_addr = addr
@@ -3438,7 +3507,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # we don't want to have a basic block that spans across function boundaries
             next_func = self.functions.ceiling_func(addr + 1)
             if next_func is not None:
-                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) - real_addr
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch(arch) else next_func.addr) - real_addr
                 if distance_to_func != 0:
                     if distance is None:
                         distance = distance_to_func
@@ -3465,7 +3534,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 nodecode = True
 
             if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and \
-                    is_arm_arch(self.project.arch) and \
+                    is_arm_arch(arch) and \
                     self._arch_options.switch_mode_on_nodecode:
                 # maybe the current mode is wrong?
                 nodecode = False
@@ -3515,7 +3584,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     irsb_size = irsb.size
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
-                if irsb_string[-2:] == b'\x0f\x0b' and self.project.arch.name == 'AMD64':
+                if irsb_string[-2:] == b'\x0f\x0b' and arch.name == 'AMD64':
                     # VEX supports ud2 and make it part of the block size, only in AMD64.
                     valid_ins = True
                     nodecode_size = 0
@@ -3546,7 +3615,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             is_thumb = False
             # Occupy the block in segment list
             if irsb.size > 0:
-                if is_arm_arch(self.project.arch) and addr % 2 == 1:
+                if is_arm_arch(arch) and addr % 2 == 1:
                     # thumb mode
                     is_thumb=True
                 self._seg_list.occupy(real_addr, irsb.size, "code")

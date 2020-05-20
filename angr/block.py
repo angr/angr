@@ -3,6 +3,8 @@ l = logging.getLogger(name=__name__)
 
 import pyvex
 from archinfo import ArchARM
+from archinfo import ArchSoot
+from archinfo import ArchX86
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
@@ -23,7 +25,8 @@ class Block(Serializable):
 
         # set up arch
         if project is not None:
-            self.arch = project.arch
+            object = project.loader.find_object_containing(addr)
+            self.arch = object.arch if object else project.arch
         else:
             self.arch = arch
 
@@ -54,6 +57,7 @@ class Block(Serializable):
             else:
                 vex = self._vex_engine.lift_vex(
                         clemory=project.loader.memory,
+                        arch=self.arch,
                         state=backup_state,
                         insn_bytes=byte_string,
                         addr=addr,

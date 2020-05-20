@@ -26,7 +26,7 @@ class InvokeBase(SimSootExpr):
         if isinstance(self, SimSootExpr_VirtualInvoke) or \
            isinstance(self, SimSootExpr_SpecialInvoke):
             this_ref_base = self._translate_value(self.expr.base)
-            this_ref = self.state.memory.load(this_ref_base, none_if_missing=True)
+            this_ref = self.state.javavm_memory.load(this_ref_base, none_if_missing=True)
             this_ref_type = this_ref.type if this_ref is not None else None
             args += [SootArgument(this_ref, this_ref_type, is_this_ref=True)]
 
@@ -39,7 +39,7 @@ class InvokeBase(SimSootExpr):
             else:
                 # argument is a variable
                 # => load value from memory
-                arg_value = self.state.memory.load(self._translate_value(arg),
+                arg_value = self.state.javavm_memory.load(self._translate_value(arg),
                                                    none_if_missing=True)
             args += [SootArgument(arg_value, arg.type)]
 

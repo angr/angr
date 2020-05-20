@@ -132,6 +132,9 @@ class SimEngineLightVEXMixin:
     def _handle_Store(self, stmt):
         raise NotImplementedError('Please implement the Store handler with your own logic.')
 
+    def _handle_StoreG(self, stmt):
+        raise NotImplementedError('Please implement the StoreG handler with your own logic.')
+
     #
     # Expression handlers
     #
@@ -157,6 +160,9 @@ class SimEngineLightVEXMixin:
 
     def _handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
+
+    def _handle_LoadG(self, stmt):
+        raise NotImplementedError('Please implement the LoadG handler with your own logic.')
 
     def _handle_Exit(self, stmt):
         self._expr(stmt.guard)
@@ -549,7 +555,7 @@ class SimEngineLightAILMixin:
             self.stmt_idx = stmt_idx
             self.ins_addr = stmt.ins_addr
 
-            self._ail_handle_Stmt(stmt)
+            self._handle_Stmt(stmt)
 
     def _expr(self, expr):
 
@@ -570,12 +576,19 @@ class SimEngineLightAILMixin:
     # Statement handlers
     #
 
-    def _ail_handle_Stmt(self, stmt):
-        handler = "_ail_handle_%s" % type(stmt).__name__
+    def _handle_Stmt(self, stmt):
+        handler = "_handle_%s" % type(stmt).__name__
         if hasattr(self, handler):
             getattr(self, handler)(stmt)
-        else:
-            self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
+            return
+
+        # compatibility
+        old_handler = "_ail_handle_%s" % type(stmt).__name__
+        if hasattr(self, old_handler):
+            getattr(self, old_handler)(stmt)
+            return
+
+        self.l.warning('Unsupported statement type %s.', type(stmt).__name__)
 
     def _ail_handle_Jump(self, stmt):
         raise NotImplementedError('Please implement the Jump handler with your own logic.')

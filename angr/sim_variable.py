@@ -98,6 +98,10 @@ class SimRegisterVariable(SimVariable):
         self.size = size
         self._hash = None
 
+    @property
+    def bits(self):
+        return self.size * 8
+
     def __repr__(self):
 
         ident_str = "[%s]" % self.ident if self.ident else ""

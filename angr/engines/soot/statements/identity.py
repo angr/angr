@@ -12,4 +12,4 @@ class SimSootStmt_Identity(SimSootStmt):
         src_expr = self._translate_expr(self.stmt.right_op)
         src_val = src_expr.expr
         l.debug("Identity %s := %s", dst, src_val)
-        self.state.memory.store(dst, src_val)
+        self.state.javavm_memory.store(dst, src_val)

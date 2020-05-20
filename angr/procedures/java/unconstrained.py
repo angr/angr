@@ -34,9 +34,8 @@ class UnconstrainedMethod(JavaSimProcedure):
         elif method_descriptor.ret == 'double':
             ret_value = claripy.FPS('unc_double_{}'.format(method_descriptor.name), claripy.FSORT_DOUBLE)
         elif method_descriptor.ret == 'java.lang.String':
-            str_ref = SimSootValue_StringRef.new_string(
-                self.state, claripy.StringS("unc_string_{}".format(method_descriptor.name), 1000))
-            ret_value = str_ref
+            str_sym = claripy.StringS("unc_string_{}".format(method_descriptor.name), 1000)
+            ret_value = SimSootValue_StringRef.new_object(self.state, str_sym, symbolic=True)
         elif method_descriptor.ret.endswith('[][]'):
             raise NotImplementedError
         elif method_descriptor.ret.endswith('[]'):

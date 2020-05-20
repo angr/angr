@@ -174,5 +174,6 @@ def run_all():
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.calling_convention").setLevel(logging.INFO)
-    run_all()
+    # run_all()
+    test_armel_fauxware()
     # test_dir_gcc_O0()

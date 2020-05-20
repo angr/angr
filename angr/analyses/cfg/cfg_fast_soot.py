@@ -16,7 +16,7 @@ from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 l = logging.getLogger(name=__name__)
 
 try:
-    from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
+    from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt, ReturnStmt, ReturnVoidStmt
     from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
         SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr  # pylint:disable=unused-import
     PYSOOT_INSTALLED = True
@@ -26,13 +26,15 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
 
-    def __init__(self, **kwargs):
+    def __init__(self, skip_android_classes=False, **kwargs):
 
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
 
         if self.project.arch.name != 'Soot':
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
+
+        self.skip_android_classes = skip_android_classes
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
@@ -52,6 +54,7 @@ class CFGFastSoot(CFGFast):
         self._updated_nonreturning_functions = set()
 
         self._function_returns = defaultdict(set)
+        self._function_exits = defaultdict(set)
 
         entry = self.project.entry  # type:SootAddressDescriptor
         entry_func = entry.method
@@ -89,6 +92,9 @@ class CFGFastSoot(CFGFast):
         # add all other methods as well
         for cls in self.project.loader.main_object.classes.values():
             for method in cls.methods:
+                # Do not add classes containing android in its name
+                if self.skip_android_classes and method.class_name.startswith("android"):
+                    continue
                 total_methods += 1
                 if method.blocks:
                     method_des = SootMethodDescriptor(cls.name, method.name, method.params)
@@ -117,6 +123,9 @@ class CFGFastSoot(CFGFast):
     def _generate_cfgnode(self, cfg_job, current_function_addr):
         addr = cfg_job.addr
 
+        if self.skip_android_classes and addr.method.fullname.startswith("android"):
+            return None, None, None, None
+
         try:
 
             cfg_node = self.model.get_node(addr)
@@ -125,12 +134,22 @@ class CFGFastSoot(CFGFast):
             else:
                 soot_block = self.project.factory.block(addr).soot
 
-                soot_block_size = self._soot_block_size(soot_block, addr.stmt_idx)
+                soot_block_size = 0
+                if soot_block:
+                    soot_block_size = self._soot_block_size(soot_block, soot_block.label + addr.stmt_idx)
 
                 cfg_node = CFGNode(addr, soot_block_size, self.model,
                                    function_address=current_function_addr, block_id=addr,
                                    soot_block=soot_block
                                    )
+
+                if soot_block:
+                    statements = soot_block.statements[addr.stmt_idx:addr.stmt_idx+soot_block_size]
+                    if any(filter(lambda n: isinstance(n, ReturnStmt), statements)):
+                        cfg_node.has_return = True
+                    if any(filter(lambda n: isinstance(n, ReturnVoidStmt), statements)):
+                        cfg_node.has_return = True
+
             return addr, current_function_addr, cfg_node, soot_block
 
         except (SimMemoryError, SimEngineError):
@@ -166,10 +185,10 @@ class CFGFastSoot(CFGFast):
             has_default_exit = False
 
         # scan through block statements, looking for those that generate new exits
-        for stmt in block.statements[addr.stmt_idx - block.label : ]:
+        for stmt in block.statements[addr.stmt_idx:]:
             if isinstance(stmt, IfStmt):
-                succ = (stmt.label, addr,
-                        SootAddressDescriptor(function_id, method.block_by_label[stmt.target].idx, stmt.target),
+                succ = (0, addr,
+                        SootAddressDescriptor(function_id, method.block_by_label[stmt.target].idx, 0),
                         'Ijk_Boring'
                         )
                 successors.append(succ)
@@ -184,8 +203,7 @@ class CFGFastSoot(CFGFast):
                     break
 
             elif isinstance(stmt, GotoStmt):
-                target = stmt.target
-                succ = (stmt.label, addr, SootAddressDescriptor(function_id, method.block_by_label[target].idx, target),
+                succ = (0, addr, SootAddressDescriptor(function_id, method.block_by_label[stmt.target].idx, 0),
                         'Ijk_Boring')
                 successors.append(succ)
 
@@ -204,10 +222,17 @@ class CFGFastSoot(CFGFast):
                         has_default_exit = False
                         break
 
+            elif isinstance(stmt, ReturnVoidStmt) or isinstance(stmt, ReturnStmt):
+
+                succ = (0, addr, None, 'Ijk_Ret')
+                successors.append(succ)
+                cfg_node.has_return = True
+                break
+
 
         if has_default_exit:
             successors.append((DEFAULT_STATEMENT, addr,
-                               SootAddressDescriptor(function_id, method.block_by_label[next_stmt_id].idx, next_stmt_id),
+                               SootAddressDescriptor(function_id, method.block_by_label[next_stmt_id].idx, 0),
                                'Ijk_Boring'
                                )
                               )
@@ -224,16 +249,18 @@ class CFGFastSoot(CFGFast):
         callee_soot_method = self.project.loader.main_object.get_soot_method(method_desc, none_if_missing=True)
         caller_soot_method = self.project.loader.main_object.get_soot_method(addr.method)
 
+        offset = caller_soot_method.blocks[addr.block_idx].label
+
         if callee_soot_method is None:
             # this means the called method is external
-            return [(stmt.label, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')]
+            return [(stmt.label - offset, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')]
 
         targets = self._soot_class_hierarchy.resolve_invoke(invoke_expr, callee_soot_method, caller_soot_method)
 
         successors = []
         for target in targets:
             target_desc = SootMethodDescriptor(target.class_name, target.name, target.params)
-            successors.append((stmt.label, addr, SootAddressDescriptor(target_desc, 0, 0), 'Ijk_Call'))
+            successors.append((stmt.label - offset, addr, SootAddressDescriptor(target_desc, 0, 0), 'Ijk_Call'))
 
         return successors
 
@@ -271,8 +298,8 @@ class CFGFastSoot(CFGFast):
         if soot_block is not None:
             stmts = soot_block.statements
             if stmts_count is None:
-                stmts_count = self._soot_block_size(soot_block, addr.stmt_idx)
-            stmts = stmts[addr.stmt_idx - soot_block.label : addr.stmt_idx - soot_block.label + stmts_count]
+                stmts_count = self._soot_block_size(soot_block, soot_block.label + addr.stmt_idx)
+            stmts = stmts[addr.stmt_idx : addr.stmt_idx + stmts_count]
         else:
             stmts = None
             stmts_count = 0
@@ -337,6 +364,10 @@ class CFGFastSoot(CFGFast):
 
         if cfg_node is None:
             # exceptions occurred, or we cannot get a CFGNode for other reasons
+            return [ ]
+
+        if soot_block is None:
+            # TODO: In this case we might have a transition to native code
             return [ ]
 
         self._graph_add_edge(cfg_node, cfg_job.src_node, cfg_job.jumpkind, cfg_job.src_ins_addr,

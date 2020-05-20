@@ -84,6 +84,7 @@ class CFGBase(Analysis):
         self._loop_back_edges = None
         self._overlapped_loop_headers = None
         self._thumb_addrs = set()
+        self._tail_calls = set()
 
         # Store all the functions analyzed before the set is cleared
         # Used for performance optimization
@@ -1833,8 +1834,8 @@ class CFGBase(Analysis):
 
     def _graph_traversal_handler(self, g, src, dst, data, blockaddr_to_function, known_functions, all_edges):
         """
-        Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
-        functions accordingly. Oh, it also create edges on the transition map of functions.
+        Graph traversal handler. It takes in a node or an edge, and creates new functions or adds nodes to existing
+        functions accordingly. Oh, it also creates edges on the transition map of functions.
 
         :param g:           The control flow graph that is currently being traversed.
         :param CFGNode src: Beginning of the edge, or a single node when dst is None.
@@ -1910,13 +1911,18 @@ class CFGBase(Analysis):
 
             if dst_function.returning:
                 returning_target = src.addr + src.size
-                if returning_target not in blockaddr_to_function:
-                    if returning_target not in known_functions:
+                if isinstance(returning_target, SootAddressDescriptor):
+                    returning_target_function = returning_target.method
+                else:
+                    returning_target_function = returning_target
+
+                if returning_target_function not in blockaddr_to_function:
+                    if returning_target_function not in known_functions:
                         blockaddr_to_function[returning_target] = src_function
                     else:
                         self._addr_to_function(returning_target, blockaddr_to_function, known_functions)
 
-                to_outside = not blockaddr_to_function[returning_target] is src_function
+                to_outside = not blockaddr_to_function[returning_target_function] is src_function
 
                 n = self.model.get_any_node(returning_target)
                 if n is None:
@@ -1956,6 +1962,7 @@ class CFGBase(Analysis):
                     self.kb.functions._add_outside_transition_to(src_function.addr, src_node, dst_node,
                                                                  to_function_addr=dst_addr
                                                                  )
+                    self._tail_calls.add(dst_addr)
 
             # is it a jump to another function?
             if isinstance(dst_addr, SootAddressDescriptor):

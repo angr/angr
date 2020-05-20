@@ -27,7 +27,7 @@ class SimSootValue_InstanceFieldRef(SimSootValue):
         field_type = soot_value.type
         # get heap allocation id from base object
         fixed_base = translate_value(soot_value.base, state)
-        field_ref_base = state.memory.load(fixed_base)
+        field_ref_base = state.javavm_memory.load(fixed_base)
         obj_alloc_id = field_ref_base.heap_alloc_id
         # return field reference
         return cls.get_ref(state, obj_alloc_id, field_class_name, field_name, field_type)

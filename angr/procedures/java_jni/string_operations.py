@@ -19,7 +19,7 @@ class GetStringUTFChars(JNISimProcedure):
     return_ty = 'reference'
 
     def run(self, ptr_env, str_ref_, ptr_isCopy):
-         # get string value
+        # get string value
         str_ref = self.state.jni_references.lookup(str_ref_)
         str_val = self.state.javavm_memory.load(str_ref)
 
@@ -68,8 +68,7 @@ class NewStringUTF(JNISimProcedure):
         str_val = self._load_string_from_native_memory(ptr_str_bytes)
 
         # create java string and return the reference
-        str_ref = SimSootValue_StringRef(self.state.javavm_memory.get_new_uuid())
-        self.state.javavm_memory.store(str_ref, StringV(str_val))
+        str_ref = SimSootValue_StringRef.new_object(self.state, StringV(str_val))
         return self.state.jni_references.create_new_reference(str_ref)
 
 #

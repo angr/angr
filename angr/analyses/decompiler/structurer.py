@@ -8,6 +8,7 @@ import claripy
 import ailment
 
 from .. import Analysis, register_analysis
+from ..cfg.cfg_utils import CFGUtils
 from .region_identifier import GraphRegion
 from .structurer_nodes import BaseNode, SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, \
     SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode
@@ -28,8 +29,9 @@ class RecursiveStructurer(Analysis):
     """
     Recursively structure a region and all of its subregions.
     """
-    def __init__(self, region):
+    def __init__(self, region, cond_proc=None):
         self._region = region
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
 
         self.result = None
 
@@ -42,8 +44,6 @@ class RecursiveStructurer(Analysis):
         # visit the region in post-order DFS
         parent_map = { }
         stack = [ region ]
-
-        cond_proc = ConditionProcessor()
 
         while stack:
             current_region = stack[-1]
@@ -68,7 +68,7 @@ class RecursiveStructurer(Analysis):
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
                 st = self.project.analyses.Structurer(current_region, parent_map=parent_map,
-                                                      condition_processor=cond_proc)
+                                                      condition_processor=self.cond_proc)
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
@@ -77,7 +77,7 @@ class RecursiveStructurer(Analysis):
 
                 self._replace_region(parent_region, current_region, st.result)
 
-        self.result = cond_proc.remove_claripy_bool_asts(self.result)
+        self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
     def _replace_region(parent_region, sub_region, node):
@@ -105,9 +105,19 @@ class Structurer(Analysis):
 
     def _analyze(self):
 
-        if self._has_cycle():
+        has_cycle = self._has_cycle()
+        # sanity checks
+        if self._region.cyclic:
+            if not has_cycle:
+                l.critical("Region %r is supposed to be a cyclic region but there is no cycle inside. This is usually "
+                           "due to the existence of loop headers with more than one in-edges, which angr decompiler "
+                           "does not support yet. The decompilation result will be wrong.", self._region)
             self._analyze_cyclic()
         else:
+            if has_cycle:
+                l.critical("Region %r is supposed to be an acyclic region but there are cycles inside. This is usually "
+                           "due to the existence of loop headers with more than one in-edges, which angr decompiler "
+                           "does not support yet. The decompilation result will be wrong.", self._region)
             self._analyze_acyclic()
 
     def _analyze_cyclic(self):
@@ -368,20 +378,28 @@ class Structurer(Analysis):
                     last_stmt.false_target.value not in loop_successor_addrs:
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
+                new_node = ConditionalBreakNode(
+                    last_stmt.ins_addr,
+                    self.cond_proc.claripy_ast_from_ail_condition(cond),
+                    target
+                )
             elif last_stmt.false_target.value in loop_successor_addrs and \
                     last_stmt.true_target.value not in loop_successor_addrs:
                 cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
                 target = last_stmt.false_target.value
+                new_node = ConditionalBreakNode(
+                    last_stmt.ins_addr,
+                    self.cond_proc.claripy_ast_from_ail_condition(cond),
+                    target
+                )
+            elif last_stmt.false_target.value in loop_successor_addrs and \
+                    last_stmt.true_target.value in loop_successor_addrs:
+                # both targets are pointing outside the loop
+                # we should use just add a break node
+                new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
             else:
-                l.warning("I'm not sure which branch is jumping out of the loop...")
+                l.warning("None of the branches is jumping to outside of the loop")
                 raise Exception()
-            # remove the last statement from the node
-            # self._remove_last_statement(node)
-            new_node = ConditionalBreakNode(
-                last_stmt.ins_addr,
-                self.cond_proc.claripy_ast_from_ail_condition(cond),
-                target
-            )
 
         return new_node
 
@@ -389,7 +407,7 @@ class Structurer(Analysis):
 
         seq = SequenceNode()
 
-        for node in networkx.topological_sort(self._region.graph):
+        for node in CFGUtils.quasi_topological_sort_nodes(self._region.graph):
             seq.add_node(CodeNode(node, self.cond_proc.reaching_conditions.get(node, None)))
 
         return seq
@@ -999,7 +1017,7 @@ class Structurer(Analysis):
     @staticmethod
     def _rewrite_jumps_to_continues(loop_seq):
 
-        def _rewrite_jump_to_continue(node, parent=None, index=None, **kwargs):  # pylint:disable=unused-argument
+        def _rewrite_jump_to_continue(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -1010,7 +1028,9 @@ class Structurer(Analysis):
                     # create a continue node
                     continue_node = ContinueNode(stmt.ins_addr, loop_seq.addr)
                     # insert this node to the parent
-                    insert_node(parent, index + 1, continue_node, index)
+                    insert_idx = None if index is None else index + 1
+                    insert_loc = 'after'
+                    insert_node(parent, insert_idx, continue_node, index, label=label, insert_location=insert_loc)
                     # remove this statement
                     node.statements = node.statements[:-1]
 

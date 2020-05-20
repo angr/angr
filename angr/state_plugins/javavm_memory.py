@@ -4,6 +4,7 @@ import logging
 import os
 
 from .. import concretization_strategies
+from ..engines.soot.expressions.constants import SootNullConstant
 from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_InstanceFieldRef,
                                    SimSootValue_Local, SimSootValue_ParamRef,
@@ -90,7 +91,7 @@ class SimJavaVmMemory(SimMemory):
 
         elif type(addr) is SimSootValue_StaticFieldRef:
             value = self.vm_static_table.load(addr.id, none_if_missing=none_if_missing)
-            if value is None:
+            if value is None or isinstance(value, SootNullConstant):
                 # initialize field
                 value = self.state.project.simos.get_default_value_by_type(addr.type, state=self.state)
                 l.debug("Initializing static field %s with %s.", addr, value)
@@ -107,7 +108,7 @@ class SimJavaVmMemory(SimMemory):
             return value
 
         elif type(addr) is SimSootValue_StringRef:
-            return self.heap.load(addr.id, none_if_missing=none_if_missing)
+            return addr.get_field(self.state, 'value', addr.type)
 
         else:
             l.error("Unknown addr type %s", addr)

@@ -31,6 +31,9 @@ def condition_to_lambda(condition, default=False):
             if not isinstance(state.project.factory.default_engine, engines.vex.VEXLifter):
                 return False
 
+            if state.ip_is_soot_addr:
+                return False
+
             try:
                 # If the address is not in the set (which could mean it is
                 # not at the top of a block), check directly in the blocks

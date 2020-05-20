@@ -64,7 +64,7 @@ class SimSootValue_ArrayRef(SimSootValue):
     @classmethod
     def from_sootvalue(cls, soot_value, state):
         base_local = translate_value(soot_value.base, state)
-        base = state.memory.load(base_local)
+        base = state.javavm_memory.load(base_local)
         idx = cls.translate_array_index(soot_value.index, state)
         cls.check_array_bounds(idx, base, state)
         return cls(base, idx)
@@ -78,7 +78,7 @@ class SimSootValue_ArrayRef(SimSootValue):
         else:
             # idx is a variable
             # => load value from memory
-             return state.memory.load(idx_value)
+             return state.javavm_memory.load(idx_value)
 
     @staticmethod
     def check_array_bounds(idx, array, state):

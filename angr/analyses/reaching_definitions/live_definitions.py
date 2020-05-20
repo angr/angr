@@ -23,7 +23,7 @@ class LiveDefinitions:
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'register_definitions', 'stack_definitions',
                  'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses',
-                 'uses_by_codeloc', 'tmp_uses', 'all_definitions', )
+                 'uses_by_codeloc', 'tmp_uses', 'all_definitions', 'current_codeloc', 'codeloc_uses')
 
     """
     Represents the internal state of the ReachingDefinitionsAnalysis.
@@ -60,6 +60,8 @@ class LiveDefinitions:
         self.memory_uses = Uses()
         self.uses_by_codeloc = defaultdict(set)
         self.tmp_uses = defaultdict(set)
+        self.current_codeloc = None
+        self.codeloc_uses = set()
 
     def __repr__(self):
         ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d memdefs" % (
@@ -182,9 +184,9 @@ class LiveDefinitions:
         return state
 
     def _cycle(self, code_loc):
-        if code_loc != self.analysis.current_codeloc:
-            self.analysis.current_codeloc = code_loc
-            self.analysis.codeloc_uses = set()
+        if code_loc != self.current_codeloc:
+            self.current_codeloc = code_loc
+            self.codeloc_uses = set()
 
     def kill_definitions(self, atom, code_loc, data=None, dummy=True):
         """
@@ -220,8 +222,7 @@ class LiveDefinitions:
             self.all_definitions.add(definition)
 
             if self.dep_graph is not None:
-                self.dep_graph.add_node(definition)
-                for used in self.analysis.codeloc_uses:
+                for used in self.codeloc_uses:
                     # Moderately confusing misnomers. This is an edge from a def to a use, since the
                     # "uses" are actually the definitions that we're using and the "definition" is the
                     # new definition; i.e. The def that the old def is used to construct so this is
@@ -232,7 +233,7 @@ class LiveDefinitions:
 
     def add_use(self, atom, code_loc):
         self._cycle(code_loc)
-        self.analysis.codeloc_uses.update(self.get_definitions(atom))
+        self.codeloc_uses.update(self.get_definitions(atom))
 
         if type(atom) is Register:
             self._add_register_use(atom, code_loc)
@@ -243,15 +244,18 @@ class LiveDefinitions:
         elif type(atom) is Tmp:
             self._add_tmp_use(atom, code_loc)
 
-    def add_use_by_def(self, def_, code_loc):
-        if type(def_.atom) is Register:
-            self._add_register_use_by_def(def_, code_loc)
-        elif type(def_.atom) is SpOffset:
-            self._add_stack_use_by_def(def_, code_loc)
-        elif type(def_.atom) is MemoryLocation:
-            self._add_memory_use_by_def(def_, code_loc)
-        elif type(def_.atom) is Tmp:
-            self._add_tmp_use_by_def(def_, code_loc)
+    def add_use_by_def(self, definition, code_loc):
+        self._cycle(code_loc)
+        self.codeloc_uses.update({definition})
+
+        if type(definition.atom) is Register:
+            self._add_register_use_by_def(definition, code_loc)
+        elif type(definition.atom) is SpOffset:
+            self._add_stack_use_by_def(definition, code_loc)
+        elif type(definition.atom) is MemoryLocation:
+            self._add_memory_use_by_def(definition, code_loc)
+        elif type(definition.atom) is Tmp:
+            self._add_tmp_use_by_def(definition, code_loc)
         else:
             raise TypeError()
 
@@ -276,8 +280,7 @@ class LiveDefinitions:
         kinda_definition = Definition(atom, code_loc, data)
 
         if self.dep_graph is not None:
-            self.dep_graph.add_node(kinda_definition)
-            for used in self.analysis.codeloc_uses:
+            for used in self.codeloc_uses:
                 self.dep_graph.add_edge(used, kinda_definition)
 
     #
@@ -341,9 +344,6 @@ class LiveDefinitions:
     def _add_stack_use_by_def(self, def_, code_loc):
         self.stack_uses.add_use(def_, code_loc)
         self.uses_by_codeloc[code_loc].add(def_)
-
-        if self.dep_graph is not None:
-            self.dep_graph.add_edge(def_, code_loc)
 
     def _add_memory_use(self, atom, code_loc):
 

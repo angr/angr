@@ -274,14 +274,16 @@ class AngrObjectFactory(object):
                 sp_delta=sp_delta,
                 func_ty=func_ty)
 
-    def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+    def block(self, addr, arch=None, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
               strict_block_end=None, collect_data_refs=False,
               ):
 
-        if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
-            return SootBlock(addr, arch=self.project.arch, project=self.project)
+        arch = self.project.arch if arch is None else arch
+
+        if isinstance(arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
+            return SootBlock(addr, arch=arch, project=self.project)
 
         if insn_bytes is not None and insn_text is not None:
             raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
@@ -290,7 +292,7 @@ class AngrObjectFactory(object):
             byte_string = insn_bytes
 
         if insn_text is not None:
-            byte_string = self.project.arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
+            byte_string = arch.asm(insn_text, addr=addr, as_bytes=True, thumb=thumb)
             if byte_string is None:
                 # assembly failed
                 raise AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
