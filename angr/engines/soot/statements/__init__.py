@@ -26,3 +26,5 @@ from .invoke import SimSootStmt_Invoke
 from .if_ import SimSootStmt_If
 from .switch import SimSootStmt_TableSwitch, SimSootStmt_LookupSwitch
 from .throw import SimSootStmt_Throw
+from .entermonitor import SimSootStmt_EnterMonitor
+from .exitmonitor import SimSootStmt_ExitMonitor
