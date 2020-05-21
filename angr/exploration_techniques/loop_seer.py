@@ -41,7 +41,6 @@ class LoopSeer(ExplorationTechnique):
         self.use_header = use_header
         self.limit_concrete_loops = limit_concrete_loops
         self.loops = {}
-        self.cut_succs = []
         if type(loops) is Loop:
             loops = [loops]
 
