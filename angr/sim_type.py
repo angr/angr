@@ -24,8 +24,9 @@ class SimType:
     SimType exists to track type information for SimProcedures.
     """
 
+    __slots__ = ('label', '_arch', )
+
     _fields = ()
-    _arch = None
     _size = None
     _can_refine_int = False
     base = True
@@ -35,6 +36,7 @@ class SimType:
         :param label: the type label.
         """
         self.label = label
+        self._arch = None
 
     def __eq__(self, other):
         if type(self) != type(other):
@@ -825,6 +827,9 @@ class SimTypeDouble(SimTypeFloat):
 
 
 class SimStruct(SimType):
+
+    __slots__ = ('_pack', '_name', '_align', '_pack', 'fields', '_arch_memo', )
+
     _fields = ('name', 'fields')
 
     def __init__(self, fields, name=None, pack=False, align=None):
