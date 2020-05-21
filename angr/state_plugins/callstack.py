@@ -2,6 +2,7 @@
 import collections
 from itertools import dropwhile
 import logging
+from typing import Iterator, Optional
 
 from .plugin import SimStatePlugin
 from ..errors import AngrError, SimEmptyCallStackError
@@ -13,7 +14,7 @@ class CallStack(SimStatePlugin):
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address.
     """
-    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame=None,
+    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame: Optional['CallStack'] = None,
                  invoke_return_variable=None):
         super(CallStack, self).__init__()
         self.state = None
@@ -79,7 +80,7 @@ class CallStack(SimStatePlugin):
     def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening not implemented for callstacks")
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator['CallStack']:
         """
         Iterate through the callstack, from top to bottom
         (most recent first).

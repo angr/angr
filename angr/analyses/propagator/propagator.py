@@ -8,8 +8,8 @@ import ailment
 from ... import sim_options
 from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
+from ...code_location import CodeLocation  # pylint:disable=unused-import
 from .. import register_analysis
-from ..code_location import CodeLocation  # pylint:disable=unused-import
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .values import Top
@@ -272,13 +272,19 @@ class PropagatorAILState(PropagatorState):
     def add_replacement(self, codeloc, old, new):
 
         prop_count = 0
-        if isinstance(new, ailment.Expr.Expression) and not isinstance(new, ailment.Expr.Const):
+        if not isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Expression) \
+                and not isinstance(new, ailment.Expr.Const):
             self._prop_count[new] += 1
             prop_count = self._prop_count[new]
 
         if prop_count <= 1:
             # we can propagate this expression
             super().add_replacement(codeloc, old, new)
+        else:
+            # eliminate the past propagation of this expression
+            for codeloc_ in self._replacements:
+                if old in self._replacements[codeloc_]:
+                    del self._replacements[codeloc_][old]
 
     def filter_replacements(self):
 
@@ -382,9 +388,12 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             block_key = node.addr
             engine = self._engine_ail
         else:
-            block = self.project.factory.block(node.addr, node.size, opt_level=0)
+            block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
             block_key = node.addr
             engine = self._engine_vex
+            if block.size == 0:
+                # maybe the block is not decodeable
+                return False, state
 
         state = state.copy()
         # Suppress spurious output
@@ -404,6 +413,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             self.replacements.update(state._replacements)
 
         self.equivalence |= state._equivalence
+
+        # TODO: Clear registers according to calling conventions
 
         if self._node_iterations[block_key] < self._max_iterations:
             return True, state

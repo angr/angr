@@ -7,7 +7,7 @@ import angr # type annotations; pylint: disable=unused-import
 
 from ... import BP, BP_AFTER
 from ...sim_variable import SimRegisterVariable, SimStackVariable
-from ..code_location import CodeLocation
+from ...code_location import CodeLocation
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .annotations import StackLocationAnnotation
@@ -479,8 +479,8 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         successors = self.project.factory.successors(concrete_state,
                                                      addr=node.addr,
                                                      size=node.size,
-                                                     opt_level=0  # disable the optimization in order to have
-                                                                  # instruction-level analysis results
+                                                     opt_level=1,
+                                                     cross_insn_opt=False,
                                                      )
         output_states = successors.all_successors
 

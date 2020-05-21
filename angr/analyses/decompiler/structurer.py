@@ -1,4 +1,4 @@
-
+from typing import Dict
 import logging
 from collections import defaultdict
 
@@ -7,6 +7,7 @@ import networkx
 import claripy
 import ailment
 
+from ...knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from .. import Analysis, register_analysis
 from ..cfg.cfg_utils import CFGUtils
 from .region_identifier import GraphRegion
@@ -520,17 +521,6 @@ class Structurer(Analysis):
         """
         Search for nodes that look like switch-cases and convert them to switch cases.
 
-        A typical jump table involves multiple nodes, which look like the following:
-
-        Head:  s_50 = Conv(32->64, (Load(addr=stack_base-28, size=4, endness=Iend_LE) - 0x3f<32>))<8>
-               if (((Load(addr=stack_base-28, size=4, endness=Iend_LE) - 0x3f<32>) <= 0x36<32>))
-                    { Goto A<64> } else { Goto B<64> }
-
-        A:     (with an indirect jump)
-               Goto((Conv(32->64, Load(addr=(0x40964c<64> + (Load(addr=stack_base-80, size=8, endness=Iend_LE) Mul 0x4<8>)), size=4, endness=Iend_LE)) + 0x40964c<64>))
-
-        B:     (the default case)
-
         :param seq:     The Sequence node.
         :return:        None
         """
@@ -544,76 +534,158 @@ class Structurer(Analysis):
 
                 node = seq.nodes[i]
 
-                try:
-                    last_stmt = self.cond_proc.get_last_statement(node)
-                except EmptyBlockNotice:
-                    continue
-                successor_addrs = extract_jump_targets(last_stmt)
-                if len(successor_addrs) != 2:
-                    continue
+                # Jumptable_AddressLoadedFromMemory
+                r = self._make_switch_cases_address_loaded_from_memory(seq, i, node, addr2nodes, jump_tables)
+                if r:
+                    # we found a node that looks like a switch-case. seq.nodes are changed. resume to find the next such
+                    # case
+                    break
 
-                for t in successor_addrs:
-                    if t in addr2nodes and t in jump_tables:
-                        # this is a candidate!
-                        target = t
-                        break
-                else:
-                    continue
+                # Jumptable_AddressComputed
+                r = self._make_switch_cases_address_computed(seq, i, node, addr2nodes, jump_tables)
+                if r:
+                    break
 
-                # extract the comparison expression, lower-, and upper-bounds from the last statement
-                cmp = switch_extract_cmp_bounds(last_stmt)
-                if not cmp:
-                    continue
-                cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
-
-                jump_table = jump_tables[target]
-                # the real indirect jump
-                node_a = addr2nodes[target]
-                # the default case
-                node_b_addr = next(iter(t for t in successor_addrs if t != target))
-
-                # Node A might have been structured. Un-structure it if that is the case.
-                r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table.jumptable_entries,
-                                                              addr2nodes)
-                if not r:
-                    continue
-
-                # build switch-cases
-                cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jump_table.jumptable_entries,
-                                                                          node_b_addr, addr2nodes)
-                if node_default is None:
-                    switch_end_addr = node_b_addr
-                else:
-                    # we don't know what the end address of this switch-case structure is. let's figure it out
-                    switch_end_addr = None
-                self._switch_handle_gotos(cases, node_default, switch_end_addr)
-
-                scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=last_stmt.ins_addr)
-                scnode = CodeNode(scnode, node.reaching_condition)
-
-                # insert the switch-case node
-                seq.insert_node(i + 1, scnode)
-                # remove all those entry nodes
-                if node_default is not None:
-                    to_remove.add(node_default)
-                for node_ in to_remove:
-                    seq.remove_node(node_)
-                    del addr2nodes[node_.addr]
-                # remove the last statement in node
-                remove_last_statement(node)
-                if BaseNode.test_empty_node(node):
-                    seq.remove_node(node)
-                # remove the last statement in node_a
-                remove_last_statement(node_a)
-                if BaseNode.test_empty_node(node_a):
-                    seq.remove_node(node_a)
-
-                # we found a node that looks like a switch-case. seq.nodes are changed. resume to find the next such
-                # case
-                break
             else:
                 # we did not find any node that looks like a switch-case. exit.
                 break
+
+    def _make_switch_cases_address_loaded_from_memory(self, seq, i, node, addr2nodes: Dict,
+                                                      jump_tables: Dict[int,IndirectJump]) -> bool:
+        """
+        A typical jump table involves multiple nodes, which look like the following:
+
+        Head:  s_50 = Conv(32->64, (Load(addr=stack_base-28, size=4, endness=Iend_LE) - 0x3f<32>))<8>
+               if (((Load(addr=stack_base-28, size=4, endness=Iend_LE) - 0x3f<32>) <= 0x36<32>))
+                    { Goto A<64> } else { Goto B<64> }
+
+        A:     (with an indirect jump)
+               Goto((Conv(32->64, Load(addr=(0x40964c<64> + (Load(addr=stack_base-80, size=8, endness=Iend_LE) Mul 0x4<8>)), size=4, endness=Iend_LE)) + 0x40964c<64>))
+
+        B:     (the default case)
+        """
+
+        try:
+            last_stmt = self.cond_proc.get_last_statement(node)
+        except EmptyBlockNotice:
+            return False
+        successor_addrs = extract_jump_targets(last_stmt)
+        if len(successor_addrs) != 2:
+            return False
+
+        for t in successor_addrs:
+            if t in addr2nodes and t in jump_tables:
+                # this is a candidate!
+                target = t
+                break
+        else:
+            return False
+
+        jump_table = jump_tables[target]
+        if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
+            return False
+
+        # extract the comparison expression, lower-, and upper-bounds from the last statement
+        cmp = switch_extract_cmp_bounds(last_stmt)
+        if not cmp:
+            return False
+        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+
+        # the real indirect jump
+        node_a = addr2nodes[target]
+        # the default case
+        node_b_addr = next(iter(t for t in successor_addrs if t != target))
+
+        # Node A might have been structured. Un-structure it if that is the case.
+        r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table.jumptable_entries,
+                                                      addr2nodes)
+        if not r:
+            return False
+
+        # build switch-cases
+        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jump_table.jumptable_entries,
+                                                                  node_b_addr, addr2nodes)
+        if node_default is None:
+            switch_end_addr = node_b_addr
+        else:
+            # we don't know what the end address of this switch-case structure is. let's figure it out
+            switch_end_addr = None
+        self._switch_handle_gotos(cases, node_default, switch_end_addr)
+
+        self._make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, last_stmt.ins_addr, addr2nodes,
+                                     to_remove, node_a=node_a)
+
+        return True
+
+    def _make_switch_cases_address_computed(self, seq, i, node, addr2nodes: Dict,
+                                            jump_tables: Dict[int,IndirectJump]) -> bool:
+        if node.addr not in jump_tables:
+            return False
+        jump_table = jump_tables[node.addr]
+        if jump_table.type != IndirectJumpType.Jumptable_AddressComputed:
+            return False
+
+        try:
+            last_stmts = self.cond_proc.get_last_statements(node)
+        except EmptyBlockNotice:
+            return False
+        if len(last_stmts) != 1:
+            return False
+        last_stmt = last_stmts[0]
+
+        if not isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+            return False
+
+        # Typical look:
+        #   t2 = (r5<4> - 0x22<32>)
+        #   if ((t2 <= 0x1c<32>)) { Goto (0x41d10c<32> + (t2 << 0x2<8>)) } else { Goto 0x41d108<32> }
+        #
+        # extract the comparison expression, lower-, and upper-bounds from the last statement
+        cmp = switch_extract_cmp_bounds(last_stmt)
+        if not cmp:
+            return False
+        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+
+        jumptable_entries = jump_table.jumptable_entries
+
+        if isinstance(last_stmt.false_target, ailment.Expr.Const):
+            default_addr = last_stmt.false_target.value
+        else:
+            return False
+
+        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, default_addr,
+                                                                  addr2nodes)
+        if node_default is None:
+            # there must be a default case
+            return False
+
+        self._make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, node.addr, addr2nodes, to_remove)
+
+        return True
+
+    @staticmethod
+    def _make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, addr, addr2nodes, to_remove, node_a=None):
+
+        scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
+        scnode = CodeNode(scnode, node.reaching_condition)
+
+        # insert the switch-case node
+        seq.insert_node(i + 1, scnode)
+        # remove all those entry nodes
+        if node_default is not None:
+            to_remove.add(node_default)
+        for node_ in to_remove:
+            seq.remove_node(node_)
+            del addr2nodes[node_.addr]
+        # remove the last statement in node
+        remove_last_statement(node)
+        if BaseNode.test_empty_node(node):
+            seq.remove_node(node)
+        if node_a is not None:
+            # remove the last statement in node_a
+            remove_last_statement(node_a)
+            if BaseNode.test_empty_node(node_a):
+                seq.remove_node(node_a)
 
     @staticmethod
     def _switch_unpack_sequence_node(seq, node_a, node_b_addr, jumptable_entries, addr2nodes):

@@ -1,3 +1,5 @@
+from typing import cast
+
 import angr # type annotations; pylint: disable=unused-import
 import logging
 
@@ -15,7 +17,7 @@ class SimStatePlugin(object):
     STRONGREF_STATE = False
 
     def __init__(self):
-        self.state = None # type: angr.SimState
+        self.state = cast(angr.SimState, None) # type: angr.SimState
 
     def set_state(self, state):
         """

@@ -1,4 +1,4 @@
-
+from typing import Optional, List
 import logging
 from collections import defaultdict
 
@@ -8,7 +8,7 @@ import ailment
 from ...block import Block
 from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
-from ...sim_variable import SimStackVariable
+from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
 from ...engines.vex.claripy.irop import vexop_to_simop
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
 from ..typehoon.typevars import Equivalence, TypeVariable
@@ -206,7 +206,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     accurately. However, it is not a requirement.
     """
 
-    def __init__(self, func, func_graph=None, max_iterations=1, low_priority=False, track_sp=True):
+    def __init__(self, func, func_graph=None, max_iterations=1, low_priority=False, track_sp=True,
+                 func_args: Optional[List[SimVariable]]=None):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -227,6 +228,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._low_priority = low_priority
         self._job_ctr = 0
         self._track_sp = track_sp
+        self._func_args = func_args
 
         self._ail_engine = SimEngineVRAIL(self.project, self.kb)
         self._vex_engine = SimEngineVRVEX(self.project, self.kb)
@@ -288,6 +290,17 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                                             )
             state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
 
+        if self._func_args:
+            for arg in self._func_args:
+                if isinstance(arg, SimRegisterVariable):
+                    state.register_region.set_variable(arg.reg, arg)
+                    self.variable_manager[self.function.addr].add_variable('register', arg.reg, arg)
+                elif isinstance(arg, SimStackVariable):
+                    state.stack_region.set_variable(arg.offset, arg)
+                    self.variable_manager[self.function.addr].add_variable('stack', arg.offset, arg)
+                else:
+                    raise TypeError("Unsupported function argument type %s." % type(arg))
+
         return state
 
     def _merge_states(self, node, *states):
@@ -310,7 +323,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             block = node
         else:
             # VEX mode, get the block again
-            block = self.project.factory.block(node.addr, node.size, opt_level=0)
+            block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
 
         if node.addr in self._instates:
             prev_state = self._instates[node.addr]

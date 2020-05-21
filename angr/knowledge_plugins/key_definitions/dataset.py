@@ -1,6 +1,8 @@
+from typing import Union, Set
 import logging
 import operator
 
+from ...engines.light import RegisterOffset
 from .constants import DEBUG
 from .undefined import Undefined, undefined
 
@@ -22,18 +24,18 @@ class DataSet:
     """
     maximum_size = 5
 
-    def __init__(self, data, bits):
-        self.data = data if type(data) is set else {data}
+    def __init__(self, data: Union[Set[Union[Undefined,RegisterOffset,int]],Undefined,RegisterOffset,int], bits: int):
+        self.data: Set[Union[Undefined,RegisterOffset,int]] = data if isinstance(data, set) else {data}
         self._bits = bits
         self._mask = (1 << bits) - 1
         self._limit()
 
     @property
-    def bits(self):
+    def bits(self) -> int:
         return self._bits
 
     @property
-    def mask(self):
+    def mask(self) -> int:
         return self._mask
 
     def _limit(self):
@@ -97,8 +99,8 @@ class DataSet:
 
         res = set()
 
-        if self._bits != other.bits:
-            l.warning('Binary operation with different sizes.')
+        #if self._bits != other.bits:
+        #    l.warning('Binary operation with different sizes.')
 
         for o in other:
             for s in self:

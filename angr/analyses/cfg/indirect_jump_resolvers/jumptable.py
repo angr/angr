@@ -1,11 +1,12 @@
-
+from typing import Tuple
 import logging
 from collections import defaultdict, OrderedDict
 
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
-from angr.engines.vex.claripy import ccall
+from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
+from ....engines.vex.claripy import ccall
 from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
 from ....errors import AngrError, SimError
 from ....blade import Blade
@@ -287,7 +288,7 @@ class JumpTableProcessor(
             return
 
         if isinstance(arg1_src, tuple):
-            arg1_src_stmt = self.project.factory.block(arg1_src[0]).vex.statements[arg1_src[1]]
+            arg1_src_stmt = self.project.factory.block(arg1_src[0], cross_insn_opt=True).vex.statements[arg1_src[1]]
             if isinstance(arg1_src_stmt, pyvex.IRStmt.Store):
                 # Storing a constant/variable in memory
                 # We will need to overwrite it when executing the slice to guarantee the full recovery of jump table
@@ -467,13 +468,13 @@ class JumpTableResolver(IndirectJumpResolver):
 
         self._max_targets = cfg._indirect_jump_target_limit
 
-        for slice_steps in range(2, 4):
+        for slice_steps in range(1, 4):
             # Perform a backward slicing from the jump target
             # Important: Do not go across function call boundaries
             b = Blade(cfg.graph, addr, -1,
                 cfg=cfg, project=self.project,
                 ignore_sp=False, ignore_bp=False,
-                max_level=slice_steps, base_state=self.base_state, stop_at_calls=True)
+                max_level=slice_steps, base_state=self.base_state, stop_at_calls=True, cross_insn_opt=True)
 
             l.debug("Try resolving %#x with a %d-level backward slice...", addr, slice_steps)
             r, targets = self._resolve(cfg, addr, func_addr, b)
@@ -507,10 +508,18 @@ class JumpTableResolver(IndirectJumpResolver):
 
         load_stmt_loc, load_stmt, load_size, stmts_to_remove, stmts_adding_base_addr, all_addr_holders = \
             self._find_load_statement(b, stmt_loc)
+        ite_stmt, ite_stmt_loc = None, None
 
         if load_stmt_loc is None:
             # the load statement is not found
-            return False, None
+            # maybe it's a typical ARM-style jump table like the following:
+            #   SUB    R3, R5, #34
+            #   CMP    R3, #28
+            #   ADDLS  PC, PC, R3,LSL#2
+            if is_arm_arch(self.project.arch):
+                ite_stmt, ite_stmt_loc, stmts_to_remove = self._find_load_pc_ite_statement(b, stmt_loc)
+            if ite_stmt is None:
+                return False, None
 
         try:
             jump_target = self._try_resolve_single_constant_loads(load_stmt, cfg, addr)
@@ -580,7 +589,13 @@ class JumpTableResolver(IndirectJumpResolver):
             simgr = self.project.factory.simulation_manager(start_state, resilience=True)
             slicecutor = Slicecutor(annotatedcfg, force_taking_exit=True)
             simgr.use_technique(slicecutor)
-            simgr.use_technique(Explorer(find=load_stmt_loc[0]))
+            if load_stmt is not None:
+                explorer = Explorer(find=load_stmt_loc[0])
+            elif ite_stmt is not None:
+                explorer = Explorer(find=ite_stmt_loc[0])
+            else:
+                raise TypeError("Unsupported type of jump table.")
+            simgr.use_technique(explorer)
 
             # Run it!
             try:
@@ -593,17 +608,32 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # Get the jumping targets
             for r in simgr.found:
-                ret = self._try_resolve_targets(r, addr, cfg, annotatedcfg, load_stmt, load_size,
-                                                                     stmts_adding_base_addr, all_addr_holders)
-                if ret is None:
-                    # Try the next state
-                    continue
-                # unpack
-                jump_table, jumptable_addr, entry_size, jumptable_size, all_targets = ret
+                if load_stmt is not None:
+                    ret = self._try_resolve_targets_load(r, addr, cfg, annotatedcfg, load_stmt, load_size,
+                                                         stmts_adding_base_addr, all_addr_holders)
+                    if ret is None:
+                        # Try the next state
+                        continue
+                    jump_table, jumptable_addr, entry_size, jumptable_size, all_targets = ret
+                    ij_type = IndirectJumpType.Jumptable_AddressLoadedFromMemory
+                elif ite_stmt is not None:
+                    ret = self._try_resolve_targets_ite(r, addr, cfg, annotatedcfg, ite_stmt)
+                    if ret is None:
+                        # Try the next state
+                        continue
+                    jumptable_addr = None
+                    jump_table, jumptable_size, entry_size = ret
+                    all_targets = jump_table
+                    ij_type = IndirectJumpType.Jumptable_AddressComputed
+                else:
+                    raise TypeError("Unsupported type of jump table.")
+
+                assert ret is not None
+
                 l.info("Resolved %d targets from %#x.", len(all_targets), addr)
 
                 # write to the IndirectJump object in CFG
-                ij = cfg.indirect_jumps[addr]
+                ij: IndirectJump = cfg.indirect_jumps[addr]
                 if len(all_targets) > 1:
                     # It can be considered a jump table only if there are more than one jump target
                     ij.jumptable = True
@@ -612,6 +642,7 @@ class JumpTableResolver(IndirectJumpResolver):
                     ij.jumptable_entry_size = entry_size
                     ij.resolved_targets = set(jump_table)
                     ij.jumptable_entries = jump_table
+                    ij.type = ij_type
                 else:
                     ij.jumptable = False
                     ij.resolved_targets = set(jump_table)
@@ -625,6 +656,8 @@ class JumpTableResolver(IndirectJumpResolver):
         """
         Find the location of the final Load statement that loads indirect jump targets from the jump table.
         """
+
+        # pylint:disable=no-else-continue
 
         # shorthand
         project = self.project
@@ -655,7 +688,7 @@ class JumpTableResolver(IndirectJumpResolver):
             if len(preds) != 1:
                 break
             block_addr, stmt_idx = stmt_loc = preds[0]
-            block = project.factory.block(block_addr, backup_state=self.base_state).vex
+            block = project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state).vex
             if stmt_idx == DEFAULT_STATEMENT:
                 # it's the default exit. continue
                 continue
@@ -848,6 +881,67 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return load_stmt_loc, load_stmt, load_size, stmts_to_remove, stmts_adding_base_addr, all_addr_holders
 
+    def _find_load_pc_ite_statement(self, b: Blade, stmt_loc: Tuple[int,int]):
+        """
+        Find the location of the final ITE statement that loads indirect jump targets into a tmp.
+
+        The slice looks like the following:
+
+               IRSB 0x41d0fc
+          00 | ------ IMark(0x41d0fc, 4, 0) ------
+        + 01 | t0 = GET:I32(r5)
+        + 02 | t2 = Sub32(t0,0x00000022)
+          03 | PUT(r3) = t2
+          04 | ------ IMark(0x41d100, 4, 0) ------
+          05 | PUT(cc_op) = 0x00000002
+          06 | PUT(cc_dep1) = t2
+          07 | PUT(cc_dep2) = 0x0000001c
+          08 | PUT(cc_ndep) = 0x00000000
+          09 | ------ IMark(0x41d104, 4, 0) ------
+        + 10 | t25 = CmpLE32U(t2,0x0000001c)
+          11 | t24 = 1Uto32(t25)
+        + 12 | t8 = Shl32(t2,0x02)
+        + 13 | t10 = Add32(0x0041d10c,t8)
+        + 14 | t26 = ITE(t25,t10,0x0041d104)    <---- this is the statement that we are looking for. Note that
+                                                      0x0041d104 *must* be ignored since it is a side effect generated
+                                                      by the VEX ARM lifter
+          15 | PUT(pc) = t26
+          16 | t21 = Xor32(t24,0x00000001)
+          17 | t27 = 32to1(t21)
+          18 | if (t27) { PUT(offset=68) = 0x41d108; Ijk_Boring }
+        + Next: t26
+
+        :param b:           The Blade instance, which comes with the slice.
+        :param stmt_loc:    The location of the final statement.
+        :return:
+        """
+
+        project = self.project
+        ite_stmt, ite_stmt_loc = None, None
+        stmts_to_remove = [stmt_loc]
+
+        while True:
+            preds = list(b.slice.predecessors(stmt_loc))
+            if len(preds) != 1:
+                break
+            block_addr, stmt_idx = stmt_loc = preds[0]
+            stmts_to_remove.append(stmt_loc)
+            block = project.factory.block(block_addr, cross_insn_opt=True).vex
+            if stmt_idx == DEFAULT_STATEMENT:
+                # we should not reach the default exit (which belongs to a predecessor block)
+                break
+            if not isinstance(block.next, pyvex.IRExpr.RdTmp):
+                # next must be an RdTmp
+                break
+            stmt = block.statements[stmt_idx]
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) and stmt.tmp == block.next.tmp and \
+                    isinstance(stmt.data, pyvex.IRExpr.ITE):
+                # yes!
+                ite_stmt, ite_stmt_loc = stmt, stmt_loc
+                break
+
+        return ite_stmt, ite_stmt_loc, stmts_to_remove
+
     def _jumptable_precheck(self, b):
         """
         Perform a pre-check on the slice to determine whether it is a jump table or not. Please refer to the docstring
@@ -875,7 +969,7 @@ class JumpTableResolver(IndirectJumpResolver):
                 state._tmpvar_source.clear()
                 block_addr, _ = src
 
-                block = self.project.factory.block(block_addr, backup_state=self.base_state)
+                block = self.project.factory.block(block_addr, cross_insn_opt=True, backup_state=self.base_state)
                 stmt_whitelist = annotatedcfg.get_whitelisted_statements(block_addr)
                 engine.process(state, block=block, whitelist=stmt_whitelist)
 
@@ -948,8 +1042,8 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return None
 
-    def _try_resolve_targets(self, r, addr, cfg, annotatedcfg, load_stmt, load_size, stmts_adding_base_addr,
-                             all_addr_holders):
+    def _try_resolve_targets_load(self, r, addr, cfg, annotatedcfg, load_stmt, load_size, stmts_adding_base_addr,
+                                  all_addr_holders):
         """
         Try loading all jump targets from a jump table.
         """
@@ -1111,6 +1205,52 @@ class JumpTableResolver(IndirectJumpResolver):
 
         return jump_table, min_jumptable_addr, load_size, total_cases * load_size, all_targets
 
+    def _try_resolve_targets_ite(self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp):  # pylint:disable=unused-argument
+        """
+        Try loading all jump targets from parsing an ITE block.
+        """
+        project = self.project
+
+        try:
+            whitelist = annotatedcfg.get_whitelisted_statements(r.addr)
+            last_stmt = annotatedcfg.get_last_statement_index(r.addr)
+            succ = project.factory.successors(r, whitelist=whitelist, last_stmt=last_stmt)
+        except (AngrError, SimError):
+            # oops there are errors
+            l.warning('Cannot get jump successor states from a path that has reached the target. Skip it.')
+            return None
+
+        all_states = succ.flat_successors + succ.unconstrained_successors
+        if not all_states:
+            l.warning("Slicecutor failed to execute the program slice. No output state is available.")
+            return None
+
+        state = all_states[0]  # Just take the first state
+        temps = state.scratch.temps
+        if not isinstance(ite_stmt.data, pyvex.IRExpr.ITE):
+            return None
+        # load the default
+        if not isinstance(ite_stmt.data.iffalse, pyvex.IRExpr.Const):
+            return None
+        # ite_stmt.data.iffalse.con.value is garbage introduced by the VEX ARM lifter and should be ignored
+        if not isinstance(ite_stmt.data.iftrue, pyvex.IRExpr.RdTmp):
+            return None
+        if not isinstance(ite_stmt.data.cond, pyvex.IRExpr.RdTmp):
+            return None
+        cond = temps[ite_stmt.data.cond.tmp]
+        # apply the constraint
+        state.add_constraints(cond == 1)
+        # load the target
+        target_expr = temps[ite_stmt.data.iftrue.tmp]
+        jump_table = state.solver.eval_upto(target_expr, self._max_targets + 1)
+        entry_size = len(target_expr) // self.project.arch.byte_width
+
+        if len(jump_table) == self._max_targets + 1:
+            # so many targets! failed
+            return None
+
+        return jump_table, len(jump_table), entry_size
+
     @staticmethod
     def _instrument_statements(state, stmts_to_instrument, regs_to_initialize):
         """
@@ -1244,7 +1384,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         for addr in sorted(stmts.keys()):
             stmt_ids = stmts[addr]
-            irsb = self.project.factory.block(addr, backup_state=self.base_state).vex
+            irsb = self.project.factory.block(addr, cross_insn_opt=True, backup_state=self.base_state).vex
 
             print("  ####")
             print("  #### Block %#x" % addr)
@@ -1349,7 +1489,7 @@ class JumpTableResolver(IndirectJumpResolver):
     def _is_jumptarget_legal(self, target):
 
         try:
-            vex_block = self.project.factory.block(target).vex_nostmt
+            vex_block = self.project.factory.block(target, cross_insn_opt=True).vex_nostmt
         except (AngrError, SimError):
             return False
         if vex_block.jumpkind == 'Ijk_NoDecode':

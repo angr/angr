@@ -13,6 +13,18 @@ class TrackActionsMixin(HeavyVEXMixin):
 
     __tls = ('__tmp_deps',)
 
+    def _is_true(self, v):
+        return super()._is_true(v[0])
+
+    def _is_false(self, v):
+        return super()._is_false(v[0])
+
+    def _optimize_guarded_addr(self, addr, guard):
+        addr, addr_deps = addr
+        guard, _ = guard
+        addr = super()._optimize_guarded_addr(addr, guard)
+        return addr, addr_deps
+
     def handle_vex_block(self, irsb):
         self.__tmp_deps = {}
         super().handle_vex_block(irsb)
@@ -91,18 +103,33 @@ class TrackActionsMixin(HeavyVEXMixin):
             a = frozenset()
         return result, a
 
-    def _perform_vex_expr_Load(self, addr_bundle, ty, end, **kwargs):
+    def _perform_vex_expr_Load(self, addr_bundle, ty, end, condition=None, **kwargs):
         addr, addr_deps = addr_bundle
-        result = super()._perform_vex_expr_Load(addr, ty, end, **kwargs)
+
+        if condition is not None:
+            condition, condition_deps = condition
+        else:
+            condition_deps = None
+
+        result = super()._perform_vex_expr_Load(addr, ty, end, condition=condition, **kwargs)
 
         if o.TRACK_MEMORY_ACTIONS in self.state.options:
             addr_ao = SimActionObject(addr, deps=addr_deps, state=self.state)
-            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao, size=pyvex.get_type_size(ty), data=result)
+            condition_ao = SimActionObject(condition, deps=condition_deps, state=self.state) \
+                if condition is not None else None
+            r = SimActionData(self.state, self.state.memory.id, SimActionData.READ, addr=addr_ao,
+                              size=pyvex.get_type_size(ty), data=result, condition=condition_ao)
             self.state.history.add_action(r)
             a = frozenset((r,))
         else:
             a = frozenset()
         return result, a
+
+    def _perform_vex_stmt_LoadG_guard_condition(self, guard):
+        return super()._perform_vex_stmt_LoadG_guard_condition(guard[0]), guard[1]
+
+    def _perform_vex_stmt_StoreG_guard_condition(self, guard):
+        return super()._perform_vex_stmt_StoreG_guard_condition(guard[0]), guard[1]
 
     # statements
 

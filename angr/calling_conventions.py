@@ -2,8 +2,10 @@ import logging
 
 import claripy
 import archinfo
-from typing import Union, Optional, List
+from archinfo import RegisterName
+from typing import Union, Optional, List, Dict
 
+from .sim_type import SimType
 from .sim_type import SimTypeChar
 from .sim_type import SimTypePointer
 from .sim_type import SimTypeFixedSizeArray
@@ -92,7 +94,7 @@ class SimRegArg(SimFunctionArgument):
     :ivar string reg_name:    The name of the represented register.
     :ivar int size:           The size of the register, in number of bytes.
     """
-    def __init__(self, reg_name, size, alt_offsets=None):
+    def __init__(self, reg_name: RegisterName, size: int, alt_offsets=None):
         SimFunctionArgument.__init__(self, size)
         self.reg_name = reg_name
         self.alt_offsets = {} if alt_offsets is None else alt_offsets
@@ -346,12 +348,12 @@ class SimCC:
     # Here are all the things a subclass needs to specify!
     #
 
-    ARG_REGS: List[SimFunctionArgument] = None                  # A list of all the registers used for integral args, in order (names or offsets)
-    FP_ARG_REGS: List[SimFunctionArgument] = None               # A list of all the registers used for floating point args, in order
+    ARG_REGS: List[str] = None                                  # A list of all the registers used for integral args, in order (names or offsets)
+    FP_ARG_REGS: List[str] = None                               # A list of all the registers used for floating point args, in order
     STACKARG_SP_BUFF = 0                                        # The amount of stack space reserved between the saved return address
                                                                 # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0                                        # The amount of stack space reserved for the return address
-    CALLER_SAVED_REGS: List[SimFunctionArgument] = None         # Caller-saved registers
+    CALLER_SAVED_REGS: List[str] = None                         # Caller-saved registers
     RETURN_ADDR: SimFunctionArgument = None                     # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL: SimFunctionArgument = None                      # The location where the return value is stored, as a SimFunctionArgument
     OVERFLOW_RETURN_VAL: Optional[SimFunctionArgument] = None   # The second half of the location where a double-length return value is stored
@@ -459,7 +461,7 @@ class SimCC:
         if self.func_ty is not None and \
                 self.func_ty.returnty is not None and \
                 self.OVERFLOW_RETURN_VAL is not None and \
-                self.func_ty.returnty.size is not None and \
+                self.func_ty.returnty.size not in (None, NotImplemented) and \
                 self.func_ty.returnty.size > self.RETURN_VAL.size * self.arch.byte_width:
             return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
         return self.RETURN_VAL
@@ -500,11 +502,25 @@ class SimCC:
         else:
             # let's rely on the func_ty or self.args for the number of arguments and whether each argument is FP or not
             if self.func_ty is not None:
-                args = self.func_ty.args
+                args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
             is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) else False
                       for arg in args ]
+            if sizes is None:
+                # initialize sizes from args
+                sizes = [ ]
+                for a in args:
+                    if isinstance(a, SimType):
+                        if a.size is NotImplemented:
+                            sizes.append(self.arch.bytes)
+                        else:
+                            sizes.append(a.size // 8)  # SimType.size is in bits
+                    elif isinstance(a, SimFunctionArgument):
+                        sizes.append(a.size)  # SimFunctionArgument.size is in bytes
+                    else:
+                        # fallback to use self.arch.bytes
+                        sizes.append(self.arch.bytes)
 
         if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
         return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
@@ -912,7 +928,10 @@ class SimCC:
             raise TypeError("I don't know how to serialize %s." % repr(arg))
 
     def __repr__(self):
-        return "<" + self.__class__.__name__ + '>'
+        return "<{}: {}->{}, sp_delta={}>".format(self.__class__.__name__,
+                                                  self.args,
+                                                  self.ret_val,
+                                                  self.sp_delta)
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -1375,7 +1394,7 @@ CC = {
 }
 
 
-DEFAULT_CC = {
+DEFAULT_CC: Dict[str,type] = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
     'ARMEL': SimCCARM,

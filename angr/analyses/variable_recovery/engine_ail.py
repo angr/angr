@@ -57,9 +57,10 @@ class SimEngineVRAIL(
 
     def _ail_handle_Call(self, stmt):
         target = stmt.target
+        args = [ ]
         if stmt.args:
             for arg in stmt.args:
-               self._expr(arg)
+               args.append(self._expr(arg))
 
         ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
         if ret_expr is not None:
@@ -96,6 +97,15 @@ class SimEngineVRAIL(
                 self.state.arch.bytes,
                 dst=ret_expr,
             )
+
+        if prototype is not None and args:
+            # add type constraints
+            for arg, arg_type in zip(args, prototype.args):
+                arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                type_constraint = typevars.Subtype(
+                    arg.typevar, arg_ty
+                )
+                self.state.add_type_constraint(type_constraint)
 
     # Expression handlers
 
@@ -153,6 +163,12 @@ class SimEngineVRAIL(
         return RichR(
             SpOffset(self.arch.bits, expr.offset, is_base=False)
         )
+
+    def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
+        # pylint:disable=unused-variable
+        cond = self._expr(expr.cond)
+        r0 = self._expr(expr.iftrue)
+        r1 = self._expr(expr.iffalse)
 
     def _ail_handle_Cmp(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])

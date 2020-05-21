@@ -287,6 +287,24 @@ def test_decompiling_1after999():
         assert False
 
 
+def test_decompiling_libsoap():
+
+    bin_path = os.path.join(test_location, "armel", "libsoap.so")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions[0x41d000]
+    dec = p.analyses.Decompiler(func, cfg=cfg)
+    if dec.codegen is not None:
+        code = dec.codegen.text
+        print(code)
+        assert code
+    else:
+        print("Failed to decompile function %r." % func)
+        assert False
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):

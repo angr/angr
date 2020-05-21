@@ -167,6 +167,13 @@ class SimEnginePropagatorAIL(
     def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
         return expr
 
+    def _ail_handle_ITE(self, expr: Expr.ITE):
+        cond = self._expr(expr.cond)  # pylint:disable=unused-variable
+        iftrue = self._expr(expr.iftrue)  # pylint:disable=unused-variable
+        iffalse = self._expr(expr.iffalse)  # pylint:disable=unused-variable
+
+        return expr
+
     def _ail_handle_CmpLE(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])

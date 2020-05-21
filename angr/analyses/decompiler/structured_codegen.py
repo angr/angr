@@ -1,4 +1,4 @@
-
+from typing import Optional, Dict, List
 from collections import defaultdict
 import logging
 
@@ -7,7 +7,7 @@ from sortedcontainers import SortedDict
 from ailment import Block, Expr, Stmt
 
 from ...sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
-    SimTypeBottom, SimTypeArray)
+    SimTypeBottom, SimTypeArray, SimTypeFunction)
 from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...utils.constants import is_alignment_mask
 from ...errors import UnsupportedNodeTypeError
@@ -40,28 +40,15 @@ class PositionMappingElement:
 
 class PositionMapping:
 
-    __slots__ = ('_pos', '_posmap')
+    __slots__ = ('_posmap', )
 
     DUPLICATION_CHECK = True
 
     def __init__(self):
-        self._pos = 0
         self._posmap = SortedDict()
 
     def items(self):
         return self._posmap.items()
-
-    #
-    # Properties
-    #
-
-    @property
-    def pos(self):
-        return self._pos
-
-    @pos.setter
-    def pos(self, v):
-        self._pos = v
 
     #
     # Public methods
@@ -78,9 +65,6 @@ class PositionMapping:
                 pass
 
         self._posmap[start_pos] = PositionMappingElement(start_pos, length, obj)
-
-    def tick_pos(self, delta):
-        self._pos += delta
 
     def get_node(self, pos):
         element = self.get_element(pos)
@@ -105,10 +89,24 @@ class CConstruct:
     Represents a program construct in C.
     """
 
+    __slots__ = ()
+
     def __init__(self):
         pass
 
     def c_repr(self, indent=0, posmap=None):
+
+        def mapper(chunks, posmap):
+            pos = 0
+            for s, obj in chunks:
+                if obj is not None:
+                    posmap.add_mapping(pos, len(s), obj)
+                pos += len(s)
+                yield s
+
+        return ''.join(mapper(self.c_repr_chunks(indent), posmap))
+
+    def c_repr_chunks(self, indent=0):
         raise NotImplementedError()
 
     @staticmethod
@@ -120,69 +118,84 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a function in C.
     """
-    def __init__(self, name, statements, variables, demangled_name=None):
+
+    __slots__ = ('name', 'functy', 'arg_list', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
+
+    def __init__(self, name, functy: SimTypeFunction, arg_list: List['CExpression'], statements, variables_in_use,
+                 variable_manager, demangled_name=None):
 
         super(CFunction, self).__init__()
 
         self.name = name
+        self.functy = functy
+        self.arg_list = arg_list
         self.statements = statements
-        self.variables = variables
+        self.variables_in_use = variables_in_use
+        self.variable_manager = variable_manager
         self.demangled_name = demangled_name
 
-    def variable_list_repr(self, indent=0, posmap=None):
+    def variable_list_repr_chunks(self, indent=0):
 
-        s = ""
-
-        varname_to_types = defaultdict(set)
+        variable_to_types = defaultdict(set)
 
         # output each variable and its type
-        for var in self.variables.get_variables():
-            var_type = self.variables.get_variable_type(var)
+        for var, cvar in self.variables_in_use.items():
+            var_type = self.variable_manager.get_variable_type(var)
 
-            if isinstance(var_type, SimTypeBottom) or var_type is None:
-                l.debug("Skipping variable %s because its type cannot be determined.", var_type)
-                continue
+            if var_type is None:
+                var_type = SimTypeBottom()
 
-            varname_to_types[var.name].add(var_type)
+            variable_to_types[(var, cvar)].add(var_type)
 
-        for varname, vartypes in varname_to_types.items():
+        indent_str = self.indent_str(indent)
 
-            s0 = self.indent_str(indent)
-            s += s0
-            if posmap: posmap.tick_pos(len(s0))
+        for (variable, cvariable), vartypes in variable_to_types.items():
 
-            s1 = ""
-            for var_type in vartypes:
-                if s1:
-                    s1 += "|"
-                    if posmap: posmap.tick_pos(1)
-                s_vartype = var_type.c_repr() if isinstance(var_type, SimType) else str(var_type)  # type
-                s1 += s_vartype
-                if posmap: posmap.tick_pos(len(s_vartype))
-            s += s1
-            s += " "
-            if posmap: posmap.tick_pos(1)
-            s2 = varname  # name
-            s += s2
-            if posmap: posmap.tick_pos(len(s2))
-            s += ";\n"
-            if posmap: posmap.tick_pos(2)
+            yield indent_str, None
 
-        return s
+            for i, var_type in enumerate(vartypes):
+                if i:
+                    yield "|", None
 
-    def c_repr(self, indent=0, posmap=None):
-        if self.demangled_name:
-            func_header = "void %s()" % self.demangled_name
-        else:
-            func_header = "void %s()" % self.name
-        func_header = self.indent_str(indent) + func_header
-        s0 = "\n" + self.indent_str(indent) + "{\n"
-        if posmap: posmap.tick_pos(len(func_header + s0))
-        func_var_list = self.variable_list_repr(indent=indent + INDENT_DELTA, posmap=posmap) + "\n"
-        if posmap: posmap.tick_pos(1)
-        func_body = self.statements.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
+                if isinstance(var_type, SimType):
+                    yield var_type.c_repr(), None
+                else:
+                    yield str(var_type), None
 
-        return func_header + s0 + func_var_list + func_body + "\n" + self.indent_str(indent) + "}\n"
+            yield " ", None
+            if variable.name:
+                yield variable.name, cvariable
+            else:
+                yield str(variable), cvariable
+            yield ";\n", None
+
+    def c_repr_chunks(self, indent=0):
+
+        indent_str = self.indent_str(indent)
+
+        yield indent_str, None
+        # return type
+        yield self.functy.returnty.c_repr(), None
+        yield " ", None
+        # function name
+        yield self.demangled_name or self.name, None
+        # argument list
+        yield "(", None
+        for i, (arg_type, arg) in enumerate(zip(self.functy.args, self.arg_list)):
+            yield arg_type.c_repr(), None
+            yield " ", None
+            yield from arg.c_repr_chunks()
+            if i != len(self.arg_list) - 1:
+                yield ", ", None
+        yield ")\n", None
+        # function body
+        yield indent_str, None
+        yield "{\n", None
+        yield from self.variable_list_repr_chunks(indent=indent + INDENT_DELTA)
+        yield "\n", None
+        yield from self.statements.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}\n", None
 
 
 class CStatement(CConstruct):  # pylint:disable=abstract-method
@@ -190,55 +203,49 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     Represents a statement in C.
     """
 
+    __slots__ = ()
+
 
 class CStatements(CStatement):
     """
     Represents a sequence of statements in C.
     """
+
+    __slots__ = ('statements', )
+
     def __init__(self, statements):
 
         super(CStatements, self).__init__()
 
         self.statements = statements
 
-    def c_repr(self, indent=0, posmap=None):
-        stmt_strings = [ ]
-        for stmt in self.statements:
-            if posmap:
-                old_pos = posmap.pos
-            stmt_str = stmt.c_repr(indent=indent, posmap=posmap)
-            if not stmt_str:
-                continue
-            if posmap:
-                posmap.pos = old_pos + len(stmt_str) + 1  # account for the newline
-            stmt_strings.append(stmt_str)
+    def c_repr_chunks(self, indent=0):
 
-        if posmap and stmt_strings:
-            posmap.pos -= 1  # no newline at the end
-        return "\n".join(stmt_strings)
+        for stmt in self.statements:
+            yield from stmt.c_repr_chunks(indent=indent)
 
 
 class CAILBlock(CStatement):
     """
     Represents a block of AIL statements.
     """
+
+    __slots__ = ('block', )
+
     def __init__(self, block):
 
         super(CAILBlock, self).__init__()
 
         self.block = block
 
-    def c_repr(self, indent=0, posmap=None):
-
-        lines = [ ]
-
-        r = str(self.block)
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
-        for line in r.split("\n"):
-            lines.append(indent_str + line)
-
-        return "\n".join(lines)
+        r = str(self.block)
+        for stmt in r.split("\n"):
+            yield indent_str
+            yield stmt, None
+            yield "\n", None
 
 
 class CLoop(CStatement):  # pylint:disable=abstract-method
@@ -246,11 +253,16 @@ class CLoop(CStatement):  # pylint:disable=abstract-method
     Represents a loop in C.
     """
 
+    __slots__ = ()
+
 
 class CWhileLoop(CLoop):
     """
     Represents a while loop in C.
     """
+
+    __slots__ = ('condition', 'body', )
+
     def __init__(self, condition, body):
 
         super(CWhileLoop, self).__init__()
@@ -258,58 +270,31 @@ class CWhileLoop(CLoop):
         self.condition = condition
         self.body = body
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        lines = [ ]
-
+        yield indent_str, None
+        yield "while(", None
         if self.condition is None:
-            # while(true)
-            line = indent_str + 'while (true)'
-            if posmap: posmap.tick_pos(len(line) + 1)
-            lines.append(line)
-
-            line = indent_str + '{'
-            if posmap: posmap.tick_pos(len(line) + 1)
-            lines.append(line)
-
-            if posmap: old_pos = posmap.pos
-            line = self.body.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
-            if posmap: posmap.pos = old_pos + len(line) + 1
-            lines.append(line)
-
-            line = indent_str + '}'
-            if posmap: posmap.tick_pos(len(line) + 1)
-            lines.append(line)
+            yield "true", None
         else:
-            # while(cond)
-            line = indent_str + 'while ('
-            if posmap: posmap.tick_pos(len(line))
-            line_ = '%s)' % self.condition.c_repr(posmap=posmap)
-            if posmap: posmap.tick_pos(2)
-            line += line_
-            lines.append(line)
-
-            line = indent_str + '{'
-            if posmap: posmap.tick_pos(len(line) + 1)
-            lines.append(line)
-
-            line = self.body.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
-            if posmap: posmap.tick_pos(1)
-            lines.append(line)
-
-            line = indent_str + '}'
-            if posmap: posmap.tick_pos(len(line) + 1)
-            lines.append(line)
-
-        return "\n".join(lines)
+            yield from self.condition.c_repr_chunks()
+        yield ")\n", None
+        yield indent_str, None
+        yield "{\n", None
+        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}\n", None
 
 
 class CDoWhileLoop(CLoop):
     """
     Represents a do-while loop in C.
     """
+
+    __slots__ = ('condition', 'body', )
+
     def __init__(self, condition, body):
 
         super().__init__()
@@ -317,32 +302,31 @@ class CDoWhileLoop(CLoop):
         self.condition = condition
         self.body = body
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        lines = [ ]
-
+        yield indent_str, None
+        yield "do\n", None
+        yield indent_str, None
+        yield "{\n", None
+        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "} while(", None
         if self.condition is None:
-            # do-while true
-            lines.append(indent_str + 'do')
-            lines.append(indent_str + '{')
-            lines.append(self.body.c_repr(indent=indent + INDENT_DELTA, posmap=posmap))
-            lines.append(indent_str + '} while(true);')
+            yield "true", None
         else:
-            # do-while(cond)
-            lines.append(indent_str + 'do')
-            lines.append(indent_str + '{')
-            lines.append(self.body.c_repr(indent=indent + INDENT_DELTA, posmap=posmap))
-            lines.append(indent_str + '} while(%s);' % (self.condition.c_repr(posmap=posmap)))
-
-        return "\n".join(lines)
+            yield from self.condition.c_repr_chunks()
+        yield ");\n", None
 
 
 class CIfElse(CStatement):
     """
     Represents an if-else construct in C.
     """
+
+    __slots__ = ('condition', 'true_node', 'false_node', )
+
     def __init__(self, condition, true_node=None, false_node=None):
 
         super(CIfElse, self).__init__()
@@ -354,99 +338,98 @@ class CIfElse(CStatement):
         if self.true_node is None and self.false_node is None:
             raise ValueError("'true_node' and 'false_node' cannot be both unspecified.")
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        line_0 = indent_str + "if ("
-        if posmap:
-            old_pos = posmap.pos
-            posmap.tick_pos(len(line_0))
-        line_0 += self.condition.c_repr(posmap=posmap) + ")"
-        if posmap: posmap.pos = old_pos + len(line_0) + 1
-        line_1 = indent_str + "{"
-        if posmap: posmap.tick_pos(len(line_1) + 1)
-        lines = [ line_0, line_1 ]
+        yield indent_str, None
+        yield "if (", None
+        yield from self.condition.c_repr_chunks()
+        yield ")\n", None
+        yield indent_str, None
+        yield "{\n", None
+        yield from self.true_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}\n", None
 
-        if posmap:
-            old_pos = posmap.pos
-        lines.append(self.true_node.c_repr(indent=indent + INDENT_DELTA, posmap=posmap))
-        if posmap:
-            posmap.pos = old_pos
-            posmap.tick_pos(len(lines[-1]) + 1)  # newline
-
-        line_2 = indent_str + "}"
-        if posmap: posmap.tick_pos(len(line_2) + 1)
-        lines.append(line_2)
 
         if self.false_node is not None:
-            line_3 = indent_str + 'else'
-            line_4 = indent_str + '{'
-            lines.append(line_3)
-            lines.append(line_4)
-            if posmap: posmap.tick_pos(len(line_3) + 1 + len(line_4) + 1)
-            lines.append(self.false_node.c_repr(indent=indent + INDENT_DELTA, posmap=posmap))
-            if posmap: posmap.tick_pos(1)
-            lines.append(indent_str + "}")
-            if posmap: posmap.tick_pos(len(lines[-1]))
 
-        return "\n".join(lines)
+            yield indent_str, None
+            yield "else\n", None
+            yield indent_str, None
+            yield "{\n", None
+            yield from self.false_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield indent_str, None
+            yield "}\n", None
 
 
 class CIfBreak(CStatement):
     """
     Represents an if-break statement in C.
     """
+
+    __slots__ = ('condition', )
+
     def __init__(self, condition):
 
         super(CIfBreak, self).__init__()
 
         self.condition = condition
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        lines = [
-            indent_str + "if (%s)" % self.condition.c_repr(posmap=posmap),
-            indent_str + "{",
-            indent_str + self.indent_str(indent=INDENT_DELTA) + "break;",
-            indent_str + "}",
-        ]
-
-        return "\n".join(lines)
+        yield indent_str, None
+        yield "if (", None
+        yield from self.condition.c_repr_chunks()
+        yield ")\n", None
+        yield indent_str, None
+        yield "{\n", None
+        yield self.indent_str(indent=indent + INDENT_DELTA), None
+        yield "break;\n", None
+        yield indent_str, None
+        yield "}\n", None
 
 
 class CBreak(CStatement):
     """
     Represents a break statement in C.
     """
-    def c_repr(self, indent=0, posmap=None):
+
+    __slots__ = ()
+
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
-        s = indent_str + "break;"
-        if posmap: posmap.tick_pos(len(s))
 
-        return s
+        yield indent_str, None
+        yield "break;\n", None
 
 
 class CContinue(CStatement):
     """
     Represents a continue statement in C.
     """
-    def c_repr(self, indent=0, posmap=None):
+
+    __slots__ = ()
+
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
-        s = indent_str + "continue;"
-        if posmap: posmap.tick_pos(len(s))
 
-        return s
+        yield indent_str, None
+        yield "continue;\n", None
 
 
 class CSwitchCase(CStatement):
     """
     Represents a switch-case statement in C.
     """
+
+    __slots__ = ('switch', 'cases', 'default', )
+
     def __init__(self, switch, cases, default):
         super().__init__()
 
@@ -454,57 +437,39 @@ class CSwitchCase(CStatement):
         self.cases = cases
         self.default = default
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        r = ""
-        # switch
-        a = indent_str + "switch ("
-        if posmap: posmap.tick_pos(len(a))
-        b = self.switch.c_repr(posmap=posmap)
-        c = ")\n"
-        if posmap: posmap.tick_pos(len(c))
-        r = a + b + c
+        yield indent_str, None
+        yield "switch (", None
+        yield from self.switch.c_repr_chunks()
+        yield ")\n", None
+        yield indent_str, None
+        yield "{\n", None
 
         # cases
-        opening = indent_str + "{\n"
-        if posmap: posmap.tick_pos(len(opening))
-        r += opening
         for idx, case in self.cases:
-            case_str_a = indent_str + "case "
-            if posmap: posmap.tick_pos(len(case_str_a))
-            case_str_b = str(idx)
-            if posmap: posmap.tick_pos(len(case_str_b))
-            case_str_c = ":\n"
-            if posmap: posmap.tick_pos(len(case_str_c))
-
-            # case body
-            case_str_d = case.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
-            case_str_e = "\n"
-            if posmap: posmap.tick_pos(len(case_str_e))
-
-            r += case_str_a + case_str_b + case_str_c + case_str_d + case_str_e
+            yield indent_str, None
+            yield "case {}:\n".format(idx), None
+            yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
 
         if self.default is not None:
-            default_str_a = indent_str + "default:\n"
-            if posmap: posmap.tick_pos(len(default_str_a))
-            default_str_b = self.default.c_repr(indent=indent + INDENT_DELTA, posmap=posmap)
-            default_str_c = "\n"
-            if posmap: posmap.tick_pos(len(default_str_c))
-            r += default_str_a + default_str_b + default_str_c
+            yield indent_str, None
+            yield "default:\n", None
+            yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
 
-        ending = indent_str + "}"
-        r += ending
-        if posmap: posmap.tick_pos(len(ending))
-
-        return r
+        yield indent_str, None
+        yield "}\n", None
 
 
 class CAssignment(CStatement):
     """
     a = b
     """
+
+    __slots__ = ('lhs', 'rhs', )
+
     def __init__(self, lhs, rhs):
 
         super(CAssignment, self).__init__()
@@ -512,32 +477,15 @@ class CAssignment(CStatement):
         self.lhs = lhs
         self.rhs = rhs
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
-        if posmap:
-            old_pos = posmap.pos
-            posmap.tick_pos(len(indent_str))
 
-        if isinstance(self.lhs, CExpression):
-            lhs_str = self.lhs.c_repr(posmap=posmap)
-        else:
-            lhs_str = str(self.lhs)
-            if posmap: posmap.tick_pos(len(lhs_str))
-
-        s_equal = " = "
-        if posmap:
-            posmap.tick_pos(len(s_equal))
-
-        if isinstance(self.rhs, CExpression):
-            rhs_str = self.rhs.c_repr(posmap=posmap)
-        else:
-            rhs_str = str(self.rhs)
-            if posmap: posmap.tick_pos(len(rhs_str))
-
-        s = indent_str + lhs_str + s_equal + rhs_str + ";"
-        if posmap: posmap.pos = old_pos + len(s)
-        return s
+        yield indent_str, None
+        yield from CExpression._try_c_repr_chunks(self.lhs)
+        yield " = ", None
+        yield from CExpression._try_c_repr_chunks(self.rhs)
+        yield ";\n", None
 
 
 class CFunctionCall(CStatement):
@@ -546,6 +494,9 @@ class CFunctionCall(CStatement):
 
     :ivar Function callee_func:  The function getting called.
     """
+
+    __slots__ = ('callee_target', 'callee_func', 'args', 'returning', 'ret_expr', )
+
     def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None):
         super().__init__()
 
@@ -555,111 +506,106 @@ class CFunctionCall(CStatement):
         self.returning = returning
         self.ret_expr = ret_expr
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
-        if posmap: posmap.tick_pos(len(indent_str))
 
-        ret_expr_str = ""
+        yield indent_str, None
+
         if self.ret_expr is not None:
-            if isinstance(self.ret_expr, CExpression):
-                ret_expr_str = self.ret_expr.c_repr(posmap=posmap)
-            else:
-                ret_expr_str = str(self.ret_expr)
-                if posmap: posmap.tick_pos(len(ret_expr_str))
-            ret_expr_str += " = "
-            if posmap: posmap.tick_pos(3)
+            yield from CExpression._try_c_repr_chunks(self.ret_expr)
+            yield " = ", None
 
         if self.callee_func is not None:
-            func_name = self.callee_func.demangled_name
-            if not func_name:
-                # fall back to the normal name
-                func_name = self.callee_func.name
-            tickpos = True
-        elif isinstance(self.callee_target, CExpression):
-            func_name = self.callee_target.c_repr(posmap=posmap)
-            tickpos = False
+            func_name = self.callee_func.demangled_name or self.callee_func.name
+            yield func_name, self
         else:
-            func_name = str(self.callee_target)
-            tickpos = True
-        s_func = func_name + "("
-        if posmap and tickpos:
-            posmap.add_mapping(posmap.pos, len(func_name), self)
-            posmap.tick_pos(len(s_func))
+            yield from CExpression._try_c_repr_chunks(self.callee_target)
 
-        args_list = [ ]
+        yield "(", None
+
         for i, arg in enumerate(self.args):
-            if isinstance(arg, CExpression):
-                arg_str = arg.c_repr(posmap=posmap)
-                if i != len(self.args) - 1 and posmap: posmap.tick_pos(len(", "))
-            else:
-                arg_str = str(arg)
-                if i != len(self.args) - 1 and posmap: posmap.tick_pos(len(arg_str) + len(", "))
-            args_list.append(arg_str)
-        args_str = ", ".join(args_list)
+            if i:
+                yield ", ", None
+            yield from CExpression._try_c_repr_chunks(arg)
 
-        return indent_str + ret_expr_str +  s_func + "%s);%s" % (
-            args_str,
-            " /* do not return */" if not self.returning else ""
-        )
+        yield ");", None
+
+        if not self.returning:
+            yield " /* do not return */", None
+
+        yield "\n",  None
 
 
 class CReturn(CStatement):
+
+    __slots__ = ('retval', )
+
     def __init__(self, retval):
         super().__init__()
 
         self.retval = retval
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
         if self.retval is None:
-            return indent_str + "return;"
+            yield indent_str, None
+            yield "return;", None
         else:
-            return indent_str + "return %s;" % (self.retval.c_repr(posmap=posmap))
+            yield indent_str, None
+            yield "return ", None
+            yield from self.retval.c_repr_chunks()
+            yield ";\n", None
 
 
 class CGoto(CStatement):
+
+    __slots__ = ('target', )
+
     def __init__(self, target):
         super().__init__()
 
         self.target = target
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        s = indent_str
-        if posmap: posmap.tick_pos(len(indent_str))
-        s1 = "goto "
-        if posmap: posmap.tick_pos(len(s1))
-        s2 = self.target.c_repr(posmap=posmap)
-        s3 = ";"
-        if posmap: posmap.tick_pos(len(s3))
-        return s + s1 + s2 + s3
+        yield indent_str, None
+        yield "goto ", None
+        yield from self.target.c_repr_chunks()
+        yield ";\n", None
 
 
 class CUnsupportedStatement(CStatement):
     """
     A wrapper for unsupported AIL statement.
     """
+
+    __slots__ = ('stmt', )
+
     def __init__(self, stmt):
         super().__init__()
 
         self.stmt = stmt
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
 
-        return indent_str + str(self.stmt)
+        yield indent_str, None
+        yield str(self.stmt), None
+        yield "\n", None
 
 
 class CExpression:
     """
     Base class for C expressions.
     """
+
+    __slots__ = ('_type', )
 
     def __init__(self):
         self._type = None
@@ -671,20 +617,18 @@ class CExpression:
     def set_type(self, v):
         self._type = v
 
-    def c_repr(self, posmap=None):
-        raise NotImplementedError()
-
     @staticmethod
-    def _try_c_repr(expr, posmap=None):
-        if hasattr(expr, 'c_repr'):
-            return expr.c_repr(posmap=posmap)
+    def _try_c_repr_chunks(expr):
+        if hasattr(expr, 'c_repr_chunks'):
+            yield from expr.c_repr_chunks()
         else:
-            s = str(expr)
-            if posmap: posmap.tick_pos(len(s))
-            return s
+            yield str(expr), None
 
 
 class CStructField(CExpression):
+
+    __slots__ = ('struct_type', 'offset', 'field', )
+
     def __init__(self, struct_type, offset, field):
 
         super().__init__()
@@ -697,18 +641,17 @@ class CStructField(CExpression):
     def type(self):
         return self.struct_type
 
-    def c_repr(self, posmap=None):
-        s = "%s" % self.field
-        if posmap:
-            posmap.add_mapping(posmap.pos, len(s), self)
-            posmap.tick_pos(len(s))
-        return s
+    def c_repr_chunks(self):
+        yield str(self.field), self
 
 
 class CVariable(CExpression):
     """
     Read value from a variable.
     """
+
+    __slots__ = ('variable', 'offset', 'variable_type', )
+
     def __init__(self, variable, offset=None, variable_type=None):
 
         super().__init__()
@@ -721,68 +664,51 @@ class CVariable(CExpression):
     def type(self):
         return self.variable_type
 
-    def _get_offset_string(self, in_hex=False, posmap=None):
+    def _get_offset_string_chunks(self, in_hex=False):
         if type(self.offset) is int:
             if in_hex:
-                return "%#x" % self.offset
-            return "%d" % self.offset
+                yield "%#x" % self.offset, None
+            else:
+                yield "%d" % self.offset, None
         else:
-            return self.offset.c_repr(posmap=posmap)
+            yield from self.offset.c_repr_chunks()
 
-    def c_repr(self, posmap=None):
+    def c_repr_chunks(self):
         if self.offset is None:
             if isinstance(self.variable, SimVariable):
-                s = str(self.variable.name)
-                if posmap:
-                    posmap.add_mapping(posmap.pos, len(s), self)
-                    posmap.tick_pos(len(s))
-                return s
+                yield str(self.variable.name), self
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
                     if isinstance(self.variable.type, SimTypePointer):
                         if isinstance(self.variable.type.pts_to, SimStruct) and self.variable.type.pts_to.fields:
                             # is it pointing to a struct? if so, we take the first field
-                            first_field = next(iter(self.variable.type.pts_to.fields))
+                            first_field, *_ = self.variable.type.pts_to.fields
                             c_field = CStructField(self.variable.type.pts_to, 0, first_field)
-                            s = self.variable.c_repr(posmap=posmap)
-                            s0 = "->"
-                            if posmap: posmap.tick_pos(2)
-                            s1 = c_field.c_repr(posmap=posmap)
-                            return s + s0 + s1
+                            yield from self.variable.c_repr_chunks()
+                            yield "->", None
+                            yield from c_field.c_repr_chunks()
+                            return
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
                             # is it pointing to an array? if so, we take the first element
-                            s = self.variable.c_repr(posmap=posmap)
-                            s0 = "["
-                            if posmap: posmap.tick_pos(1)
-                            s1 = "0"
-                            if posmap:
-                                posmap.add_mapping(posmap.pos, len(s1), 0)
-                                posmap.tick_pos(1)
-                            s2 = "]"
-                            if posmap: posmap.tick_pos(1)
-                            return s + s0 + s1 + s2
+                            yield from self.variable.c_repr_chunks()
+                            yield "[", None
+                            yield "0", 0
+                            yield "]", None
+                            return
 
                 # default output
-                s0 = "*("
-                if posmap: posmap.tick_pos(len(s0))
-                s = self.variable.c_repr(posmap=posmap)
-                s1 = ")"
-                if posmap: posmap.tick_pos(len(s1))
-                return s0 + s + s1
+                yield "*(", None
+                yield from self.variable.c_repr_chunks()
+                yield ")", None
             else:
-                s = str(self.variable)
-                if posmap: posmap.tick_pos(len(s))
-                return s
+                yield str(self.variable), None
         else:  # self.offset is not None
             if isinstance(self.variable, SimVariable):
-                s_v = self.variable.name
-                if posmap: posmap.add_mapping(posmap.pos, len(s_v), self)
-                s1 = "["
-                if posmap: posmap.tick_pos(len(s_v) + len(s1))
-                s2 = self._get_offset_string(posmap=posmap)
-                s3 = "]"
-                if posmap: posmap.tick_pos(len(s2))
-                return s_v + s1 + s2 + s3
+                yield self.variable.name, self
+                yield "[", None
+                yield from self._get_offset_string_chunks()
+                yield "]", None
+
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
                     if isinstance(self.variable.type, SimTypePointer):
@@ -793,130 +719,110 @@ class CVariable(CExpression):
                                 offset_to_field = dict((v, k) for k, v in t.offsets.items())
                                 if self.offset in offset_to_field:
                                     field = offset_to_field[self.offset]
-                                    s_v = self.variable.c_repr(posmap=posmap)
-                                    s0 = "->"
-                                    if posmap: posmap.tick_pos(2)
                                     c_field = CStructField(t, self.offset, field)
-                                    s1 = c_field.c_repr(posmap=posmap)
-                                    return s_v + s0 + s1
+                                    yield from self.variable.c_repr_chunks()
+                                    yield "->", None
+                                    yield from c_field.c_repr_chunks()
+                                    return
+
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
                             # it's pointing to an array!
-                            s_v = self.variable.c_repr(posmap=posmap)
-                            s0 = "["
-                            if posmap: posmap.tick_pos(1)
-                            s1 = str(self.offset)
-                            if posmap:
-                                posmap.add_mapping(posmap.pos, len(s1), self.offset)
-                                posmap.tick_pos(len(s1))
-                            s2 = "]"
-                            if posmap: posmap.tick_pos(1)
-                            return s_v + s0 + s1 + s2
+                            yield from self.variable.c_repr_chunks()
+                            yield "[", None
+                            yield str(self.offset), self.offset
+                            yield "]", None
+                            return
 
                 # default output
-                s0 = "*("
-                if posmap: posmap.tick_pos(len(s0))
-                s_v = self.variable.c_repr(posmap=posmap)
-                s1 = ":"
-                if posmap: posmap.tick_pos(len(s1))
-                s2 = self._get_offset_string(posmap=posmap)
-                s3 = ")"
-                if posmap: posmap.tick_pos(len(s3))
-                return s0 + s_v + s1 + s2 + s3
+                yield "*(", None
+                yield from self.variable.c_repr_chunks()
+                yield ":", None
+                yield from self._get_offset_string_chunks()
+                yield ")", None
+
             elif isinstance(self.variable, Expr.Register):
-                s0 = self.variable.reg_name if hasattr(self.variable, 'reg_name') else str(self.variable)
-                if posmap:
-                    posmap.add_mapping(posmap.pos, len(s0), self)
-                    posmap.tick_pos(len(s0))
-                s1 = ":"
-                if posmap: posmap.tick_pos(len(s1))
-                s2 = self._get_offset_string(in_hex=True, posmap=posmap)
-                return s0 + s1 + s2
+                yield self.variable.reg_name if hasattr(self.variable, 'reg_name') else str(self.variable), self
+                yield ":", None
+                yield from self._get_offset_string_chunks(in_hex=True)
+
             else:
-                s0 = "*("
-                if posmap: posmap.tick_pos(len(s0))
-                s = str(self.variable)
-                if posmap:
-                    posmap.add_mapping(posmap.pos, len(s), self)
-                    posmap.tick_pos(len(s))
-                s1 = ":"
-                if posmap: posmap.tick_pos(len(s1))
-                s2 = self._get_offset_string(posmap=posmap)
-                s3 = ")"
-                if posmap: posmap.tick_pos(len(s3))
-                return s0 + s + s1 + s2 + s3
+                yield "*(", None
+                yield str(self.variable), self
+                yield ":", None
+                yield from self._get_offset_string_chunks()
+                yield ")", None
 
 
 class CUnaryOp(CExpression):
     """
     Unary operations.
     """
-    def __init__(self, op, operand, referenced_variable):
+
+    __slots__ = ('op', 'operand', 'variable', )
+
+    def __init__(self, op, operand, variable):
 
         super().__init__()
 
         self.op = op
         self.operand = operand
-        self.referenced_variable = referenced_variable
+        self.variable = variable
 
     @property
     def type(self):
         if self._type is None:
-            if self.referenced_variable is not None:
-                self._type = self.referenced_variable.type
+            if self.variable is not None:
+                self._type = self.variable.type
             if self.operand is not None and hasattr(self.operand, 'type'):  # FIXME: This is hackish
                 self._type = self.operand.type
         return self._type
 
-    def c_repr(self, posmap=None):
-        if self.referenced_variable is not None:
-            if posmap:
-                posmap.tick_pos(1)
-            s = self.referenced_variable.c_repr(posmap=posmap)
-            return "&" + s
+    def c_repr_chunks(self):
+        if self.variable is not None:
+            yield "&", None
+            yield from self.variable.c_repr_chunks()
+            return
 
         OP_MAP = {
-            'Not': self._c_repr_not,
-            'Reference': self._c_repr_reference,
+            'Not': self._c_repr_chunks_not,
+            'Reference': self._c_repr_chunks_reference,
         }
 
         handler = OP_MAP.get(self.op, None)
         if handler is not None:
-            return handler(posmap=posmap)
-        return "UnaryOp %s" % (self.op)
+            yield from handler()
+        else:
+            yield "UnaryOp %s" % (self.op), None
 
     #
     # Handlers
     #
 
-    def _c_repr_not(self, posmap=None):
-        if posmap: posmap.tick_pos(2)
-        s = "!(%s)" % (self.operand.c_repr(posmap=posmap))
-        if posmap: posmap.tick_pos(1)
-        return s
+    def _c_repr_chunks_not(self):
+        yield "!(", None
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", None
 
-    def _c_repr_reference(self, posmap=None):
-        s0 = "&"
-        if posmap: posmap.tick_pos(1)
-        if isinstance(self.operand, CExpression):
-            s1 = self.operand.c_repr(posmap=posmap)
-        else:
-            s1 = str(self.operand)
-            if posmap: posmap.tick_pos(len(s1))
-        return s0 + s1
+    def _c_repr_chunks_reference(self):
+        yield "&", None
+        yield from CExpression._try_c_repr_chunks(self.operand)
 
 
 class CBinaryOp(CExpression):
     """
     Binary operations.
     """
-    def __init__(self, op, lhs, rhs, referenced_variable):
+
+    __slots__ = ('op', 'lhs', 'rhs', 'variable', )
+
+    def __init__(self, op, lhs, rhs, variable):
 
         super().__init__()
 
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
-        self.referenced_variable = referenced_variable
+        self.variable = variable
 
     @property
     def type(self):
@@ -924,172 +830,141 @@ class CBinaryOp(CExpression):
             return self.lhs.type
         return self._type
 
-    def c_repr(self, posmap=None):
+    def c_repr_chunks(self):
 
-        if self.referenced_variable is not None:
-            if posmap:
-                posmap.tick_pos(1)
-            return "&%s" % self.referenced_variable.c_repr(posmap=posmap)
+        if self.variable is not None:
+            yield "&", None
+            yield from self.variable.c_repr_chunks()
+            return
 
         OP_MAP = {
-            'Add': self._c_repr_add,
-            'Sub': self._c_repr_sub,
-            'Mul': self._c_repr_mul,
-            'Div': self._c_repr_div,
-            'And': self._c_repr_and,
-            'Xor': self._c_repr_xor,
-            'Or': self._c_repr_or,
-            'Shr': self._c_repr_shr,
-            'Shl': self._c_repr_shl,
-            'Sar': self._c_repr_sar,
-            'LogicalAnd': self._c_repr_logicaland,
-            'LogicalOr': self._c_repr_logicalor,
-            'CmpLE': self._c_repr_cmple,
-            'CmpLT': self._c_repr_cmplt,
-            'CmpGT': self._c_repr_cmpgt,
-            'CmpGE': self._c_repr_cmpge,
-            'CmpEQ': self._c_repr_cmpeq,
-            'CmpNE': self._c_repr_cmpne,
+            'Add': self._c_repr_chunks_add,
+            'Sub': self._c_repr_chunks_sub,
+            'Mul': self._c_repr_chunks_mul,
+            'Div': self._c_repr_chunks_div,
+            'And': self._c_repr_chunks_and,
+            'Xor': self._c_repr_chunks_xor,
+            'Or': self._c_repr_chunks_or,
+            'Shr': self._c_repr_chunks_shr,
+            'Shl': self._c_repr_chunks_shl,
+            'Sar': self._c_repr_chunks_sar,
+            'LogicalAnd': self._c_repr_chunks_logicaland,
+            'LogicalOr': self._c_repr_chunks_logicalor,
+            'CmpLE': self._c_repr_chunks_cmple,
+            'CmpLT': self._c_repr_chunks_cmplt,
+            'CmpGT': self._c_repr_chunks_cmpgt,
+            'CmpGE': self._c_repr_chunks_cmpge,
+            'CmpEQ': self._c_repr_chunks_cmpeq,
+            'CmpNE': self._c_repr_chunks_cmpne,
         }
 
         handler = OP_MAP.get(self.op, None)
         if handler is not None:
-            return handler(posmap=posmap)
-        return "BinaryOp %s" % (self.op)
+            yield from handler()
+        else:
+            yield "BinaryOp %s" % (self.op), None
 
     #
     # Handlers
     #
 
-    def _c_repr_add(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " + "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_add(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " + ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_sub(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " - "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_sub(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " - ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_mul(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " * "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_mul(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " * ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_div(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " / "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_div(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " / ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_and(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " & "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_and(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " & ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_xor(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " ^ "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_xor(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " ^ ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_or(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " | "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_or(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " | ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_shr(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " >> "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_shr(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " >> ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_shl(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " << "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_shl(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " << ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_sar(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " >> "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_sar(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " >> ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_logicaland(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " && "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_logicaland(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " && ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_logicalor(self, posmap=None):
-        if posmap: posmap.tick_pos(1)
-        lhs = "(" + self._try_c_repr(self.lhs, posmap=posmap)
-        op = ") || ("
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs + ")"
+    def _c_repr_chunks_logicalor(self):
+        yield "(", None
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield ") || (", None
+        yield from self._try_c_repr_chunks(self.rhs)
+        yield ")", None
 
-    def _c_repr_cmple(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " <= "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_cmple(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " <= ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_cmplt(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " < "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_cmplt(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " < ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_cmpgt(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " > "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_cmpgt(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " > ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_cmpge(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " >= "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_cmpge(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " >= ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_cmpeq(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " == "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_cmpeq(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " == ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
-    def _c_repr_cmpne(self, posmap=None):
-        lhs = self._try_c_repr(self.lhs, posmap=posmap)
-        op = " != "
-        if posmap: posmap.tick_pos(len(op))
-        rhs = self._try_c_repr(self.rhs, posmap=posmap)
-        return lhs + op + rhs
+    def _c_repr_chunks_cmpne(self):
+        yield from self._try_c_repr_chunks(self.lhs)
+        yield " != ", None
+        yield from self._try_c_repr_chunks(self.rhs)
 
 
 class CTypeCast(CExpression):
+
+    __slots__ = ('src_type', 'dst_type', 'expr', )
+
     def __init__(self, src_type, dst_type, expr):
 
         super().__init__()
@@ -1104,66 +979,58 @@ class CTypeCast(CExpression):
             return self.dst_type
         return self._type
 
-    def c_repr(self, posmap=None):
-        s_pre = "(%s)" % (self.dst_type)
-        if posmap: posmap.tick_pos(len(s_pre))
-        if not isinstance(self.expr, CExpression):
-            expr_str = str(self.expr)
-            if posmap: posmap.tick_pos(len(expr_str))
-        else:
-            expr_str = self.expr.c_repr(posmap=posmap)
-        return s_pre + expr_str
+    def c_repr_chunks(self):
+        yield "({})".format(self.dst_type), None
+        yield from CExpression._try_c_repr_chunks(self.expr)
 
 
 class CConstant(CExpression):
-    def __init__(self, value, type_, reference_values=None, reference_variable=None):
+
+    __slots__ = ('value', 'reference_values', 'variable', )
+
+    def __init__(self, value, type_, reference_values=None, variable=None):
 
         super().__init__()
 
         self.value = value
         self._type = type_
         self.reference_values = reference_values
-        self.reference_variable = reference_variable
+        self.variable = variable
 
     @property
     def type(self):
         return self._type
 
-    def c_repr(self, posmap=None):
-        s = None
-        if self.reference_variable is not None:
-            s = self.reference_variable.c_repr(posmap=posmap)
-            return s
+    def c_repr_chunks(self):
 
-        if self.reference_values is not None and self._type is not None:
-            if self._type in self.reference_values:
-                if isinstance(self._type, SimTypeInt):
-                    s = hex(self.reference_values[self._type])
-                elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
-                    refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                    s = '"' + repr(refval.content.decode('utf-8')).strip("'").strip('"') + '"'
-                else:
-                    s = self.reference_values[self.type]
+        if self.variable is not None:
+            yield from self.variable.c_repr_chunks()
 
-        if s is None:
-            if isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
-                # print NULL instead
-                s = "NULL"
+        elif self.reference_values is not None and self._type is not None and self._type in self.reference_values:
+            if isinstance(self._type, SimTypeInt):
+                yield hex(self.reference_values[self._type]), self
+            elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
+                refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
+                yield '"' + repr(refval.content.decode('utf-8')).strip("'").strip('"') + '"', self
+            else:
+                yield self.reference_values[self.type], self
 
-            elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
-                # Print pointers in hex
-                s = hex(self.value)
+        elif isinstance(self.value, int) and self.value == 0 and isinstance(self.type, SimTypePointer):
+            # print NULL instead
+            yield "NULL", self
 
-        if s is None:
-            s = str(self.value)
+        elif isinstance(self._type, SimTypePointer) and isinstance(self.value, int):
+            # Print pointers in hex
+            yield hex(self.value), self
 
-        if posmap:
-            posmap.add_mapping(posmap.pos, len(s), self)
-            posmap.tick_pos(len(s))
-        return s
+        else:
+            yield str(self.value), self
 
 
 class CRegister(CExpression):
+
+    __slots__ = ('reg', )
+
     def __init__(self, reg):
 
         super().__init__()
@@ -1175,10 +1042,32 @@ class CRegister(CExpression):
         # FIXME
         return SimTypeInt()
 
-    def c_repr(self, posmap=None):
-        s = str(self.reg)
-        if posmap: posmap.tick_pos(len(s))
-        return s
+    def c_repr_chunks(self):
+        yield str(self.reg), None
+
+
+class CITE(CExpression):
+
+    __slots__ = ('cond', 'iftrue', 'iffalse', )
+
+    def __init__(self, cond, iftrue, iffalse):
+        super().__init__()
+        self.cond = cond
+        self.iftrue = iftrue
+        self.iffalse = iffalse
+
+    @property
+    def type(self):
+        return SimTypeInt()
+
+    def c_repr_chunks(self):
+        yield "(", None
+        yield from self.cond.c_repr_chunks()
+        yield "? ", None
+        yield from self.iftrue.c_repr_chunks()
+        yield " : ", None
+        yield from self.iffalse.c_repr_chunks()
+        yield ")", None
 
 
 class CDirtyExpression(CExpression):
@@ -1186,6 +1075,9 @@ class CDirtyExpression(CExpression):
     Ideally all dirty expressions should be handled and converted to proper conversions during conversion from VEX to
     AIL. Eventually this class should not be used at all.
     """
+
+    __slots__ = ('dirty', )
+
     def __init__(self, dirty):
         super().__init__()
         self.dirty = dirty
@@ -1194,14 +1086,13 @@ class CDirtyExpression(CExpression):
     def type(self):
         return SimTypeInt()
 
-    def c_repr(self, posmap=None):
-        s = str(self.dirty)
-        if posmap: posmap.tick_pos(len(s))
-        return s
+    def c_repr_chunks(self):
+        yield str(self.dirty), None
 
 
 class StructuredCodeGenerator(Analysis):
-    def __init__(self, func, sequence, indent=0, cfg=None):
+    def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
+                 func_args: Optional[List[SimVariable]]=None):
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1229,6 +1120,7 @@ class StructuredCodeGenerator(Analysis):
             Expr.Convert: self._handle_Expr_Convert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
+            Expr.ITE: self._handle_Expr_ITE,
             # SimVariables
             SimStackVariable: self._handle_Variable_SimStackVariable,
             SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
@@ -1236,8 +1128,12 @@ class StructuredCodeGenerator(Analysis):
         }
 
         self._func = func
+        self._func_args = func_args
         self._cfg = cfg
         self._sequence = sequence
+        self._variable_kb = variable_kb if variable_kb is not None else self.kb
+
+        self._variables_in_use: Optional[Dict] = None
 
         self.text = None
         self.posmap = None
@@ -1248,9 +1144,16 @@ class StructuredCodeGenerator(Analysis):
 
     def _analyze(self):
 
+        self._variables_in_use = {}
+        if self._func_args:
+            arg_list = [self._handle(arg) for arg in self._func_args]
+        else:
+            arg_list = [ ]
         obj = self._handle(self._sequence)
 
-        func = CFunction(self._func.name, obj, self.kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
+        func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
+                         self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
+        self._variables_in_use = None
 
         self.posmap = PositionMapping()
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap)
@@ -1274,9 +1177,9 @@ class StructuredCodeGenerator(Analysis):
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self.kb.variables['global'].get_variable_type(var)
+            return self._variable_kb.variables['global'].get_variable_type(var)
         else:
-            return self.kb.variables[self._func.addr].get_variable_type(var)
+            return self._variable_kb.variables[self._func.addr].get_variable_type(var)
 
     #
     # Util methods
@@ -1319,6 +1222,12 @@ class StructuredCodeGenerator(Analysis):
 
         l.warning("Unsupported address expression %r", addr)
         return expr, None
+
+    def _cvariable(self, variable, offset=None, variable_type=None):
+        cvariable = CVariable(variable, offset=offset, variable_type=variable_type)
+        if isinstance(variable, SimVariable):
+            self._variables_in_use[variable] = cvariable
+        return cvariable
 
     #
     # Handlers
@@ -1448,9 +1357,9 @@ class StructuredCodeGenerator(Analysis):
                     offset = None
 
             if base is not None and offset is not None:
-                cvariable = CVariable(base, offset=offset, variable_type=base.variable_type)
+                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type)
             else:
-                cvariable = CVariable(cvariable, offset=None)
+                cvariable = self._cvariable(cvariable, offset=None)
         else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
@@ -1509,8 +1418,7 @@ class StructuredCodeGenerator(Analysis):
                             type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                             reference_values[type_] = self._cfg.memory_data[arg.value]
                     new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
-                                        reference_variable=self._handle(arg.referenced_variable)
-                                                           if hasattr(arg, 'referenced_variable') else None)
+                                        variable=self._handle(arg.variable) if arg.variable is not None else None)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1540,7 +1448,7 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Load(self, expr):
 
-        if hasattr(expr, 'variable') and expr.variable is not None:
+        if expr.variable is not None:
             if expr.variable_offset is not None:
                 if isinstance(expr.variable_offset, int):
                     offset = expr.variable_offset
@@ -1548,32 +1456,31 @@ class StructuredCodeGenerator(Analysis):
                     offset = self._handle(expr.variable_offset)
             else:
                 offset = None
-            return CVariable(expr.variable, offset=offset,
-                             variable_type=self._get_variable_type(expr.variable),
-                             )
+            return self._cvariable(expr.variable, offset=offset,
+                                   variable_type=self._get_variable_type(expr.variable),
+                                   )
 
         variable, offset = self._parse_load_addr(expr.addr)
 
         if variable is not None:
-            return CVariable(variable, offset=offset,
-                             variable_type=self._get_variable_type(variable))
+            return self._cvariable(variable, offset=offset,
+                                   variable_type=self._get_variable_type(variable))
         else:
-            return CVariable(CConstant(offset, SimTypePointer(SimTypeInt)))
+            return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt)))
 
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
         l.warning("FIXME: Leftover Tmp expressions are found.")
-        return CVariable(SimTemporaryVariable(expr.tmp_idx))
+        return self._cvariable(SimTemporaryVariable(expr.tmp_idx))
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
-        return CConstant(expr.value, int, reference_variable=self._handle(expr.referenced_variable)
-                                                             if hasattr(expr, 'referenced_variable') else None)
+        return CConstant(expr.value, int, variable=self._handle(expr.variable) if expr.variable is not None else None)
 
     def _handle_Expr_UnaryOp(self, expr):
 
         return CUnaryOp(expr.op, self._handle(expr.operand),
-                        referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
+                        variable=self._handle(expr.variable) if expr.variable is not None else None,
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
@@ -1583,7 +1490,7 @@ class StructuredCodeGenerator(Analysis):
         rhs.set_type(lhs.type)
 
         return CBinaryOp(expr.op, lhs, rhs,
-                         referenced_variable=self._handle(expr.referenced_variable) if hasattr(expr, 'referenced_variable') else None
+                         variable=self._handle(expr.variable) if expr.variable is not None else None,
                          )
 
     def _handle_Expr_Convert(self, expr):
@@ -1606,24 +1513,27 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_Dirty(self, expr):  # pylint:disable=no-self-use
         return CDirtyExpression(expr)
 
+    def _handle_Expr_ITE(self, expr: Expr.ITE):
+        return CITE(self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse))
+
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
-        if hasattr(expr, 'referenced_variable') and expr.referenced_variable is not None:
-            return CUnaryOp('Reference', expr, referenced_variable=self._handle(expr.referenced_variable))
+        if expr.variable is not None:
+            return CUnaryOp('Reference', expr, variable=self._handle(expr.variable))
 
         # FIXME
-        r = CUnaryOp('Reference', expr, referenced_variable=None)
+        r = CUnaryOp('Reference', expr, variable=None)
         r.set_type(SimTypeLongLong())
         return r
 
     def _handle_Variable_SimStackVariable(self, variable):  # pylint:disable=no-self-use
-        return CVariable(variable, variable_type=self._get_variable_type(variable))
+        return self._cvariable(variable, variable_type=self._get_variable_type(variable))
 
     def _handle_Variable_SimRegisterVariable(self, variable):  # pylint:disable=no-self-use
-        return CVariable(variable, variable_type=self._get_variable_type(variable))
+        return self._cvariable(variable, variable_type=self._get_variable_type(variable))
 
     def _handle_Variable_SimMemoryVariable(self, variable):  # pylint:disable=no-self-use
-        return CVariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
+        return self._cvariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
 
 
 register_analysis(StructuredCodeGenerator, 'StructuredCodeGenerator')

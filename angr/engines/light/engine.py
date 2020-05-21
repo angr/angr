@@ -5,10 +5,11 @@ import logging
 
 import ailment
 import pyvex
+import archinfo
 
 from ..engine import SimEngine
 from angr.engines.vex.claripy.irop import operations as vex_operations
-from ...analyses.code_location import CodeLocation
+from ...code_location import CodeLocation
 
 
 class SimEngineLight(SimEngine):
@@ -63,7 +64,7 @@ class SimEngineLightVEXMixin:
         self.state = state
 
         if state is not None:
-            self.arch = state.arch
+            self.arch: archinfo.Arch = state.arch
 
         self.tyenv = block.vex.tyenv
 
@@ -135,6 +136,9 @@ class SimEngineLightVEXMixin:
     def _handle_StoreG(self, stmt):
         raise NotImplementedError('Please implement the StoreG handler with your own logic.')
 
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        raise NotImplementedError('Please implement the LLSC handler with your own logic.')
+
     #
     # Expression handlers
     #
@@ -183,7 +187,7 @@ class SimEngineLightVEXMixin:
 
         # All conversions are handled by the Conversion handler
         simop = vex_operations.get(expr.op)
-        if simop is not None and simop.op_attrs['conversion']:
+        if simop is not None and simop.op_attrs.get('conversion', None):
             handler = '_handle_Conversion'
         # Notice order of "Not" comparisons
         elif expr.op == 'Iop_Not1':

@@ -3,6 +3,14 @@
 from itertools import count
 import logging
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..project import Project
+    from ..knowledge_plugins import FunctionManager
+    from ..knowledge_plugins import VariableManager
+    from ..knowledge_plugins import KeyDefinitionManager
+    from ..knowledge_plugins import CFGManager
+
 from ..knowledge_plugins.plugin import default_plugins
 
 
@@ -17,6 +25,12 @@ class KnowledgeBase:
 
     Contains things like a CFG, data references, etc.
     """
+    functions: 'FunctionManager'
+    variables: 'VariableManager'
+    defs: 'KeyDefinitionManager'
+    cfgs: 'CFGManager'
+    _project: 'Project'
+
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
             l.warning("The obj parameter in KnowledgeBase.__init__() has been deprecated.")
@@ -49,7 +63,7 @@ class KnowledgeBase:
         return s
 
     def __dir__(self):
-        x = super(KnowledgeBase, self).__dir__()
+        x = list(super(KnowledgeBase, self).__dir__())
         x.extend(default_plugins.keys())
         return x
 

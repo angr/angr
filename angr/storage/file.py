@@ -581,7 +581,7 @@ class SimPacketsStream(SimPackets):
         super(SimPacketsStream, self).__init__(name, **kwargs)
         self.pos = pos
 
-    def read(self, _, size, **kwargs):
+    def read(self, pos, size, **kwargs):
         no_stream = kwargs.pop('no_stream', False)
         if not no_stream:
             pos = self.pos

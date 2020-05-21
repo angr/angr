@@ -2,6 +2,7 @@
 import collections
 import itertools
 import logging
+from typing import Optional
 
 from archinfo import ArchSoot
 from claripy import BVV, StrSubstr
@@ -20,7 +21,7 @@ class JNISimProcedure(SimProcedure):
     """
 
     # Java type of return value
-    return_ty = None
+    return_ty = None # type: Optional[str]
 
     # jboolean constants
     JNI_TRUE = 1
@@ -199,7 +200,7 @@ class JNISimProcedure(SimProcedure):
 #
 # JNI function table
 # => Map all interface function to the name of their corresponding SimProcedure
-jni_functions = collections.OrderedDict()
+jni_functions = collections.OrderedDict() # type: collections.OrderedDict[str, str]
 not_implemented = "UnsupportedJNIFunction"
 
 # Reserved Entries

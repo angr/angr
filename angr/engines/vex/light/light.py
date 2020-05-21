@@ -1,13 +1,14 @@
-import pyvex
 import logging
 from typing import Optional
+
+import pyvex
 
 from ...engine import SimEngineBase
 from ....utils.constants import DEFAULT_STATEMENT
 
 l = logging.getLogger(name=__name__)
 
-#pylint: disable=arguments-differ
+#pylint:disable=arguments-differ,unused-argument,no-self-use
 
 class VEXMixin(SimEngineBase):
     def __init__(self, project, **kwargs):
@@ -289,6 +290,7 @@ class VEXMixin(SimEngineBase):
     def _perform_vex_stmt_LoadG_widen(self, *a, **kw): return self. _perform_vex_expr_Op(*a, **kw)
     def _perform_vex_stmt_LoadG_ite(self, *a, **kw): return self. _perform_vex_expr_ITE(*a, **kw)
     def _perform_vex_stmt_LoadG_wrtmp(self, *a, **kw): return self. _perform_vex_stmt_WrTmp(*a, **kw)
+    def _perform_vex_stmt_LoadG_guard_condition(self, guard): return guard == 1
     def _perform_vex_stmt_LoadG(self, addr, alt, guard, dst, cvt, end):
         cvt_properties = {
             'ILGop_IdentV128': ('Ity_V128', None), # 128 bit vector, no conversion */
@@ -300,8 +302,42 @@ class VEXMixin(SimEngineBase):
             'ILGop_8Sto32':    ('Ity_I8', 'Iop_8Sto32')     # 8 bit load, S-widen to 32 */
         }
 
+        # Because of how VEX's ARM lifter works, we may introduce non-existent register loads.
+        # Here is an example:
+        #
+        # .text:0800408C ITTTT MI
+        # .text:0800408E LDRMI   R2, =0x40020004
+        # .text:08004090 LDRMI   R3
+        #
+        # 116 | ------ IMark(0x800408e, 2, 1) ------
+        # 117 | t247 = Or32(t225,0x00000040)
+        # 118 | t254 = armg_calculate_condition(t247,t227,t229,t231):Ity_I32
+        # 119 | t262 = GET:I32(r2)
+        # 120 | t263 = CmpNE32(t254,0x00000000)
+        # 121 | t66 = if (t263) ILGop_Ident32(LDle(0x080040bc)) else t262
+        # 122 | PUT(r2) = t66
+        # 123 | PUT(pc) = 0x08004091
+        # 124 | ------ IMark(0x8004090, 2, 1) ------
+        # 125 | t280 = t263
+        # 126 | t73 = if (t280) ILGop_Ident32(LDle(t66)) else t222
+        #
+        # t280 == t263 == the condition inside t66. Now t66 looks like this:
+        #   <BV32 cond then 0x40020004 else reg_r2_861_32{UNINITIALIZED}>. since t280 is guarding the load from t66,
+        # if the load from t66 is not aware of the condition that t280 is True, we will end up reading from r2_861_32,
+        # which is not what the original instruction intended.
+        # Therefore, the load from t66 should be aware of the condition that t280 is True. Or even better, don't
+        # perform the read if the condition is evaluated to False.
+        # We can perform another optimization: Let this condition be cond. When cond can be evaluated to either True or
+        # False, we don't want to perform the read when the cond is the guard (which is a relatively cheap check) and
+        # is False. When the cond is True, we perform the read with only the intended address (instead of the entire
+        # guarded address). This way we get rid of the redundant load that should have existed in the first place.
+
         ty, cvt_op = cvt_properties[cvt]
-        load_result = self._perform_vex_stmt_LoadG_load(addr, ty, end)
+        if self._is_false(guard):
+            self._perform_vex_stmt_LoadG_wrtmp(dst, alt)
+            return
+        load_result = self._perform_vex_stmt_LoadG_load(addr, ty, end,
+                                                        condition=self._perform_vex_stmt_LoadG_guard_condition(guard))
         if cvt_op is None:
             cvt_result = load_result
         else:
@@ -323,10 +359,14 @@ class VEXMixin(SimEngineBase):
     def _perform_vex_stmt_StoreG_load(self, *a, **kw): return self. _perform_vex_expr_Load(*a, **kw)
     def _perform_vex_stmt_StoreG_ite(self, *a, **kw): return self. _perform_vex_expr_ITE(*a, **kw)
     def _perform_vex_stmt_StoreG_store(self, *a, **kw): return self. _perform_vex_stmt_Store(*a, **kw)
+    def _perform_vex_stmt_StoreG_guard_condition(self, guard): return guard == 1
     def _perform_vex_stmt_StoreG(self, addr, data, guard, ty, endness, **kwargs):
-        load_result = self._perform_vex_stmt_StoreG_load(addr, ty, endness)
-        ite_result = self._perform_vex_stmt_StoreG_ite(guard, data, load_result)
-        self._perform_vex_stmt_StoreG_store(addr, ite_result, endness, **kwargs)
+        # perform the same optimization as in _perform_vex_stmt_LoadG
+        if self._is_false(guard):
+            return
+        self._perform_vex_stmt_StoreG_store(addr, data, endness,
+                                            condition=self._perform_vex_stmt_StoreG_guard_condition(guard),
+                                            **kwargs)
 
     def _analyze_vex_stmt_CAS_addr(self, *a, **kw): return self. _handle_vex_expr(*a, **kw)
     def _analyze_vex_stmt_CAS_dataLo(self, *a, **kw): return self. _handle_vex_expr(*a, **kw)
@@ -415,4 +455,3 @@ class VEXMixin(SimEngineBase):
 
     def _perform_vex_defaultexit(self, expr, jumpkind):
         pass
-

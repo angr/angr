@@ -1,12 +1,28 @@
+from collections import defaultdict
+from typing import Optional, Set, List, Tuple, Dict, TYPE_CHECKING
 import logging
 
 from archinfo.arch_arm import is_arm_arch
 
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
+from ..knowledge_plugins.key_definitions.atoms import Register
+from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from . import Analysis, register_analysis
 
+if TYPE_CHECKING:
+    from ..knowledge_plugins.functions import Function
+    from ..knowledge_plugins.cfg import CFGModel
+    from ..knowledge_plugins.key_definitions.uses import Uses
+    from ..knowledge_plugins.key_definitions.definition import Definition
+
 l = logging.getLogger(name=__name__)
+
+
+
+class CallSiteFact:
+    def __init__(self, return_value_used):
+        self.return_value_used: bool = return_value_used
 
 
 class CallingConventionAnalysis(Analysis):
@@ -21,22 +37,31 @@ class CallingConventionAnalysis(Analysis):
 
     :ivar _function:    The function to recover calling convention for.
     :ivar _variable_manager:    A handy accessor to the variable manager.
+    :ivar _cfg:         A reference of the CFGModel of the current binary. It is used to discover call sites of the
+                        current function in order to perform analysis at call sites.
+    :ivar analyze_callsites:    True if we should analyze all call sites of the current function to determine the
+                                calling convention and arguments. This can be time-consuming if there are many call
+                                sites to analyze.
     :ivar cc:           The recovered calling convention for the function.
     """
 
-    def __init__(self, func):
+    def __init__(self, func: 'Function', cfg: Optional['CFGModel']=None, analyze_callsites: bool=False):
 
         self._function = func
         self._variable_manager = self.kb.variables
+        self._cfg = cfg
+        self.analyze_callsites = analyze_callsites
 
-        self.cc = None
+        self.cc: Optional[SimCC] = None
+
+        if self._cfg is None and 'CFGFast' in self.kb.cfgs:
+            self._cfg = self.kb.cfgs['CFGFast']
 
         self._analyze()
 
     def _analyze(self):
         """
-
-        :return:
+        The major analysis routine.
         """
 
         if self._function.is_simprocedure:
@@ -49,17 +74,17 @@ class CallingConventionAnalysis(Analysis):
             self.cc = self._analyze_plt()
             return
 
-        cc_0 = self._analyze_function()
-        callsite_ccs = self._analyze_callsites()
-
-        cc = self._merge_cc(cc_0, *callsite_ccs)
+        cc = self._analyze_function()
+        if self.analyze_callsites:
+            callsite_facts = self._analyze_callsites()
+            cc = self._adjust_cc(cc, callsite_facts)
 
         if cc is None:
             l.warning('Cannot determine calling convention for %r.', self._function)
 
         self.cc = cc
 
-    def _analyze_plt(self):
+    def _analyze_plt(self) -> Optional[SimCC]:
         """
         Get the calling convention for a PLT stub.
 
@@ -87,12 +112,10 @@ class CallingConventionAnalysis(Analysis):
 
         return real_func.calling_convention
 
-    def _analyze_function(self):
+    def _analyze_function(self) -> Optional[SimCC]:
         """
         Go over the variable information in variable manager for this function, and return all uninitialized
         register/stack variables.
-
-        :return:
         """
 
         if self._function.is_simprocedure or self._function.is_plt:
@@ -109,7 +132,7 @@ class CallingConventionAnalysis(Analysis):
 
         input_args = self._args_from_vars(input_variables)
 
-        # TODO: properly decide sp_delta
+        # TODO: properly determine sp_delta
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
         cc = SimCC.find_cc(self.project.arch, list(input_args), sp_delta)
@@ -124,21 +147,105 @@ class CallingConventionAnalysis(Analysis):
 
         return cc
 
-    def _analyze_callsites(self):  # pylint:disable=no-self-use
+    def _analyze_callsites(self) -> List[CallSiteFact]:  # pylint:disable=no-self-use
+        """
+        Analyze all call sites of the function and determine the possible number of arguments and if the function
+        returns anything or not.
         """
 
-        :return:
-        """
+        if self._cfg is None:
+            l.warning("CFG is not provided. Skip calling convention analysis at call sites.")
+            return []
 
-        # TODO: finish it
+        node = self._cfg.get_any_node(self._function.addr)
+        if node is None:
+            l.warning("%r is not in the CFG. Skip calling convention analysis at call sites.", self._function)
 
-        return []
+        facts = [ ]
+        in_edges = self._cfg.graph.in_edges(node, data=True)
 
-    def _merge_cc(self, *cc_lst):  # pylint:disable=no-self-use
+        call_sites_by_function: Dict['Function',List[Tuple[int,int]]] = defaultdict(list)
+        for src, _, data in in_edges:
+            edge_type = data.get('jumpkind', 'Ijk_Call')
+            if edge_type != 'Ijk_Call':
+                continue
+            if not self.project.kb.functions.contains_addr(src.function_address):
+                continue
+            caller = self.project.kb.functions[src.function_address]
+            if caller.is_simprocedure:
+                # do not analyze SimProcedures
+                continue
+            call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
 
-        # TODO: finish it
+        # only take the first 5 cuz running reaching definition analysis on all functions is costly
+        call_sites_by_function_list = list(call_sites_by_function.items())[:5]
 
-        return cc_lst[0]
+        rda_by_function: Dict[int,Optional[ReachingDefinitionsModel]] = {}
+        for caller, call_site_tuples in call_sites_by_function_list:
+            rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
+            rda_by_function[caller.addr] = rda_model
+
+        for caller, call_site_tuples in call_sites_by_function_list:
+            if rda_by_function[caller.addr] is None:
+                continue
+            for call_site_tuple in call_site_tuples:
+                fact = self._analyze_callsite(call_site_tuple[0], rda_by_function[caller.addr])
+                facts.append(fact)
+
+        return facts
+
+    def _analyze_callsite(self, caller_block_addr: int, rda: ReachingDefinitionsModel) -> CallSiteFact:
+
+        fact = CallSiteFact(
+            True, # by default we treat all return values as used
+        )
+
+        state = rda.observed_results[('node', caller_block_addr, 1)]
+        all_uses: 'Uses' = rda.all_uses
+
+        default_cc_cls = DefaultCC.get(self.project.arch.name, None)
+
+        if default_cc_cls is not None:
+
+            default_cc: SimCC = default_cc_cls(self.project.arch)
+            all_defs: Set['Definition'] = state.register_definitions.get_all_variables()
+
+            return_val = default_cc.RETURN_VAL
+            if return_val is not None and isinstance(return_val, SimRegArg):
+                return_reg_offset, _ = self.project.arch.registers[return_val.reg_name]
+
+                # find the def of the return val
+                try:
+                    return_def = next(iter(d for d in all_defs
+                                           if isinstance(d.atom, Register) and d.atom.reg_offset == return_reg_offset))
+                except StopIteration:
+                    return_def = None
+
+                if return_def is not None:
+                    # is it used?
+                    uses = all_uses.get_uses(return_def)
+                    if uses:
+                        # the return value is used!
+                        fact.return_value_used = True
+                    else:
+                        fact.return_value_used = False
+
+            # TODO: Detect if arguments are used
+
+        return fact
+
+    def _adjust_cc(self, cc: SimCC, facts: List[CallSiteFact]):  # pylint:disable=no-self-use
+
+        if cc is None:
+            return cc
+
+        # is the return value used anywhere?
+        if facts and all(fact.return_value_used is False for fact in facts):
+            cc.ret_val = None
+        else:
+            cc.ret_val = cc.RETURN_VAL
+
+        return cc
 
     def _args_from_vars(self, variables):
         """
@@ -168,7 +275,8 @@ class CallingConventionAnalysis(Analysis):
                 # a register variable, convert it to a register argument
                 if not self._is_sane_register_variable(variable):
                     continue
-                arg = SimRegArg(self.project.arch.register_size_names[(variable.reg, variable.size)], variable.size)
+                reg_name = self.project.arch.translate_register_name(variable.reg, size=variable.size)
+                arg = SimRegArg(reg_name, variable.size)
                 args.add(arg)
             else:
                 l.error('Unsupported type of variable %s.', type(variable))
@@ -222,7 +330,7 @@ class CallingConventionAnalysis(Analysis):
         :return:            A reordered list of args.
         """
 
-        new_args = [ ]
+        reg_args = [ ]
 
         for reg_name in cc.ARG_REGS:
             try:
@@ -234,13 +342,14 @@ class CallingConventionAnalysis(Analysis):
                     arg = SimRegArg(reg_name, self.project.arch.bytes)
                 else:
                     break
-            new_args.append(arg)
+            reg_args.append(arg)
             if arg in args:
                 args.remove(arg)
 
-        new_args += args
+        stack_args = sorted([a for a in args if isinstance(a, SimStackArg)], key=lambda a: a.stack_offset)
+        args = [ a for a in args if not isinstance(a, SimStackArg) ]
 
-        return new_args
+        return reg_args + args + stack_args
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

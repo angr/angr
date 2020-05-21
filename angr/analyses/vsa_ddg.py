@@ -4,7 +4,7 @@ from collections import defaultdict
 import networkx
 from . import Analysis
 
-from .code_location import CodeLocation
+from ..code_location import CodeLocation
 from ..errors import AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable
 

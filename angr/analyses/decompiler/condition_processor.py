@@ -46,7 +46,11 @@ class ConditionProcessor:
                     edge = src, dst
                     edge_data = region.graph.get_edge_data(*edge)
                     edge_type = edge_data.get('type', 'transition')
-                    predicate = self._extract_predicate(src, dst, edge_type)
+                    try:
+                        predicate = self._extract_predicate(src, dst, edge_type)
+                    except EmptyBlockNotice:
+                        # catch empty block notice - although this should not really happen
+                        predicate = claripy.true
                     edge_conditions[edge] = predicate
                     predicate_mapping[predicate] = dst
 
@@ -139,14 +143,17 @@ class ConditionProcessor:
                 edge = node_a, addr2nodes[entry_addr]
                 edge_conditions[edge] = cond
 
-    def remove_claripy_bool_asts(self, node):
+    def remove_claripy_bool_asts(self, node, memo=None):
 
         # Convert claripy Bool ASTs to AIL expressions
+
+        if memo is None:
+            memo = {}
 
         if isinstance(node, SequenceNode):
             new_nodes = [ ]
             for n in node.nodes:
-                new_node = self.remove_claripy_bool_asts(n)
+                new_node = self.remove_claripy_bool_asts(n, memo=memo)
                 new_nodes.append(new_node)
             new_seq_node = SequenceNode(new_nodes)
             return new_seq_node
@@ -154,21 +161,21 @@ class ConditionProcessor:
         elif isinstance(node, MultiNode):
             new_nodes = [ ]
             for n in node.nodes:
-                new_node = self.remove_claripy_bool_asts(n)
+                new_node = self.remove_claripy_bool_asts(n, memo=memo)
                 new_nodes.append(new_node)
             new_multinode = MultiNode(nodes=new_nodes)
             return new_multinode
 
         elif isinstance(node, CodeNode):
-            node = CodeNode(self.remove_claripy_bool_asts(node.node),
+            node = CodeNode(self.remove_claripy_bool_asts(node.node, memo=memo),
                             None if node.reaching_condition is None
-                            else self.convert_claripy_bool_ast(node.reaching_condition))
+                            else self.convert_claripy_bool_ast(node.reaching_condition, memo=memo))
             return node
 
         elif isinstance(node, ConditionalBreakNode):
 
             return ConditionalBreakNode(node.addr,
-                                        self.convert_claripy_bool_ast(node.condition),
+                                        self.convert_claripy_bool_ast(node.condition, memo=memo),
                                         node.target,
                                         )
 
@@ -176,25 +183,25 @@ class ConditionProcessor:
 
             return ConditionNode(node.addr,
                                  None if node.reaching_condition is None else
-                                    self.convert_claripy_bool_ast(node.reaching_condition),
-                                 self.convert_claripy_bool_ast(node.condition),
-                                 self.remove_claripy_bool_asts(node.true_node),
-                                 self.remove_claripy_bool_asts(node.false_node),
+                                    self.convert_claripy_bool_ast(node.reaching_condition, memo=memo),
+                                 self.convert_claripy_bool_ast(node.condition, memo=memo),
+                                 self.remove_claripy_bool_asts(node.true_node, memo=memo),
+                                 self.remove_claripy_bool_asts(node.false_node, memo=memo),
                                  )
 
         elif isinstance(node, LoopNode):
 
             return LoopNode(node.sort,
-                            self.convert_claripy_bool_ast(node.condition) if node.condition is not None else None,
-                            self.remove_claripy_bool_asts(node.sequence_node),
+                            self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None,
+                            self.remove_claripy_bool_asts(node.sequence_node, memo=memo),
                             addr=node.addr,
                             )
 
         elif isinstance(node, SwitchCaseNode):
-            return SwitchCaseNode(self.convert_claripy_bool_ast(node.switch_expr),
-                                  dict((idx, self.remove_claripy_bool_asts(case_node))
+            return SwitchCaseNode(self.convert_claripy_bool_ast(node.switch_expr, memo=memo),
+                                  dict((idx, self.remove_claripy_bool_asts(case_node, memo=memo))
                                        for idx, case_node in node.cases.items()),
-                                  self.remove_claripy_bool_asts(node.default_node),
+                                  self.remove_claripy_bool_asts(node.default_node, memo=memo),
                                   addr=node.addr)
 
         else:
@@ -360,7 +367,7 @@ class ConditionProcessor:
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
             bool_var = self.claripy_ast_from_ail_condition(last_stmt.condition)
-            if last_stmt.true_target.value == dst_block.addr:
+            if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             else:
                 return claripy.Not(bool_var)
@@ -371,13 +378,22 @@ class ConditionProcessor:
     # Expression conversion
     #
 
-    def convert_claripy_bool_ast(self, cond):
+    def convert_claripy_bool_ast(self, cond, memo=None):
         """
         Convert recovered reaching conditions from claripy ASTs to ailment Expressions
 
         :return: None
         """
 
+        if memo is None:
+            memo = {}
+        if cond in memo:
+            return memo[cond]
+        r = self.convert_claripy_bool_ast_core(cond, memo)
+        memo[cond] = r
+        return r
+
+    def convert_claripy_bool_ast_core(self, cond, memo):
         if isinstance(cond, ailment.Expr.Expression):
             return cond
 
@@ -390,80 +406,38 @@ class ConditionProcessor:
             r = None
             for arg in args:
                 if r is None:
-                    r = self.convert_claripy_bool_ast(arg)
+                    r = self.convert_claripy_bool_ast(arg, memo=memo)
                 else:
-                    r = ailment.Expr.BinaryOp(None, op, (r, self.convert_claripy_bool_ast(arg)), signed)
+                    r = ailment.Expr.BinaryOp(None, op, (r, self.convert_claripy_bool_ast(arg, memo=memo)), signed)
             return r
 
         _mapping = {
-            'Not': lambda cond_: ailment.Expr.UnaryOp(None, 'Not', self.convert_claripy_bool_ast(cond_.args[0])),
+            'Not': lambda cond_: _binary_op_reduce('Not', cond_.args),
             'And': lambda cond_: _binary_op_reduce('LogicalAnd', cond_.args),
             'Or': lambda cond_: _binary_op_reduce('LogicalOr', cond_.args),
-            '__le__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLE',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          True),
-            'SLE': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLE',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       True),
-            '__lt__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLT',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          True),
-            'SLT': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLT',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       True),
-            'UGT': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGT',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       False),
-            'UGE': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGE',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       False),
-            '__gt__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGT',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          True),
-            '__ge__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGE',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          True),
-            'SGT': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGT',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       True),
-            'SGE': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpGE',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       True),
-            'ULT': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLT',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       False),
-            'ULE': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpLE',
-                                                       tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                       False),
-            '__eq__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpEQ',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          False),
-            '__ne__': lambda cond_: ailment.Expr.BinaryOp(None, 'CmpNE',
-                                                          tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                          False),
+            '__le__': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, signed=True),
+            'SLE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, signed=True),
+            '__lt__': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, signed=True),
+            'SLT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, signed=True),
+            'UGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args),
+            'UGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args),
+            '__gt__': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, signed=True),
+            '__ge__': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, signed=True),
+            'SGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, signed=True),
+            'SGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, signed=True),
+            'ULT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args),
+            'ULE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args),
+            '__eq__': lambda cond_: _binary_op_reduce('CmpEQ', cond_.args),
+            '__ne__': lambda cond_: _binary_op_reduce('CmpNE', cond_.args),
             '__add__': lambda cond_: _binary_op_reduce('Add', cond_.args, signed=False),
-            '__sub__': lambda cond_: ailment.Expr.BinaryOp(None, 'Sub',
-                                                           tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                           False),
-            '__mul__': lambda cond_: ailment.Expr.BinaryOp(None, 'Mul',
-                                                           tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                           False),
-            '__xor__': lambda cond_: ailment.Expr.BinaryOp(None, 'Xor',
-                                                           tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                           False),
+            '__sub__': lambda cond_: _binary_op_reduce('Sub', cond_.args),
+            '__mul__': lambda cond_: _binary_op_reduce('Mul', cond_.args),
+            '__xor__': lambda cond_: _binary_op_reduce('Xor', cond_.args),
             '__or__': lambda cond_: _binary_op_reduce('Or', cond_.args, signed=False),
-            '__and__': lambda cond_: ailment.Expr.BinaryOp(None, 'And',
-                                                           tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                           False),
-            '__lshift__': lambda cond_: ailment.Expr.BinaryOp(None, 'Shl',
-                                                              tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                              False),
-            '__rshift__': lambda cond_: ailment.Expr.BinaryOp(None, 'Sar',
-                                                              tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                              False),
-            'LShR': lambda cond_: ailment.Expr.BinaryOp(None, 'Shr',
-                                                        tuple(map(self.convert_claripy_bool_ast, cond_.args)),
-                                                        False),
+            '__and__': lambda cond_: _binary_op_reduce('And', cond_.args),
+            '__lshift__': lambda cond_: _binary_op_reduce('Shl', cond_.args),
+            '__rshift__': lambda cond_: _binary_op_reduce('Sar', cond_.args),
+            'LShR': lambda cond_: _binary_op_reduce('Shr', cond_.args),
             'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
             'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
                                                                         else ailment.Expr.Const(None, None, False, 1),
@@ -517,7 +491,8 @@ class ConditionProcessor:
             'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset)):
+        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
+                                  ailment.Expr.ITE)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var

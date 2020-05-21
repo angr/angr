@@ -1,4 +1,9 @@
 
+from typing import Union
+
+from ...engines.light import SpOffset
+
+
 class Atom:
     """
     This class represents a data storage location manipulated by IR instructions.
@@ -6,6 +11,10 @@ class Atom:
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation, or a Parameter.
     """
     def __repr__(self):
+        raise NotImplementedError()
+
+    @property
+    def size(self) -> int:
         raise NotImplementedError()
 
 
@@ -16,26 +25,34 @@ class GuardUse(Atom):
     def __repr__(self):
         return '<Guard %#x>' % self.target
 
+    @property
+    def size(self) -> int:
+        raise NotImplementedError()
+
 
 class Tmp(Atom):
     """
     Represents a variable used by the IR to store intermediate values.
     """
-    __slots__ = ['tmp_idx']
+    __slots__ = ('tmp_idx', '_size', )
 
-    def __init__(self, tmp_idx):
+    def __init__(self, tmp_idx: int, size: int):
         super(Tmp, self).__init__()
         self.tmp_idx = tmp_idx
+        self._size = size
 
     def __repr__(self):
         return "<Tmp %d>" % self.tmp_idx
 
     def __eq__(self, other):
-        return type(other) is Tmp and \
-               self.tmp_idx == other.tmp_idx
+        return type(other) is Tmp and self.tmp_idx == other.tmp_idx
 
     def __hash__(self):
         return hash(('tmp', self.tmp_idx))
+
+    @property
+    def size(self) -> int:
+        return self._size
 
 
 class Register(Atom):
@@ -49,13 +66,13 @@ class Register(Atom):
     :ivar int reg_offset:    The offset from the base to define its place in the memory bloc.
     :ivar int size:          The size, in number of bytes.
     """
-    __slots__ = ['reg_offset', 'size']
+    __slots__ = ('reg_offset', '_size', )
 
-    def __init__(self, reg_offset, size):
+    def __init__(self, reg_offset: int, size: int):
         super(Register, self).__init__()
 
         self.reg_offset = reg_offset
-        self.size = size
+        self._size = size
 
     def __repr__(self):
         return "<Reg %d<%d>>" % (self.reg_offset, self.size)
@@ -69,8 +86,12 @@ class Register(Atom):
         return hash(('reg', self.reg_offset, self.size))
 
     @property
-    def bits(self):
-        return self.size * 8
+    def bits(self) -> int:
+        return self._size * 8
+
+    @property
+    def size(self) -> int:
+        return self._size
 
 
 class MemoryLocation(Atom):
@@ -79,24 +100,46 @@ class MemoryLocation(Atom):
 
     It is characterized by its address and its size.
     """
-    __slots__ = ['addr', 'size']
 
-    def __init__(self, addr, size):
+    __slots__ = ('addr', '_size')
+
+    def __init__(self, addr: Union[SpOffset,int], size: int):
+        """
+        :param int addr: The address of the beginning memory location slice.
+        :param int size: The size of the represented memory location, in bytes.
+        """
         super(MemoryLocation, self).__init__()
 
-        self.addr = addr
-        self.size = size
+        self.addr: Union[SpOffset,int] = addr
+        self._size: int = size
 
     def __repr__(self):
-        return "<Mem %s<%d>>" % (hex(self.addr) if type(self.addr) is int else self.addr, self.size)
+        address_format = hex(self.addr) if type(self.addr) is int else self.addr
+        stack_format = ' (stack)' if self.is_on_stack else ''
+        return "<Mem %s<%d>%s>" % (address_format, self.size, stack_format)
 
     @property
-    def bits(self):
+    def is_on_stack(self) -> bool:
+        """
+        True if this memory location is located on the stack.
+        """
+        return isinstance(self.addr, SpOffset)
+
+    @property
+    def bits(self) -> int:
         return self.size * 8
 
     @property
-    def symbolic(self):
-        return not type(self.addr) is int
+    def size(self) -> int:
+        return self._size
+
+    @property
+    def symbolic(self) -> bool:
+        if isinstance(self.addr, int):
+            return False
+        elif isinstance(self.addr, SpOffset):
+            return not type(self.addr.offset) is int
+        return True
 
     def __eq__(self, other):
         return type(other) is MemoryLocation and \
@@ -114,14 +157,19 @@ class Parameter(Atom):
     Can either be a <angr.engines.light.data.SpOffset> if the parameter was passed on the stack, or a <Register>, depending on the calling
     convention.
     """
-    __slots__ = ['value', 'type_', 'meta']
+    __slots__ = ('value', '_size', 'type_', 'meta')
 
-    def __init__(self, value, type_=None, meta=None):
+    def __init__(self, value, size=None, type_=None, meta=None):
         super(Parameter, self).__init__()
 
         self.value = value
+        self._size = size
         self.type_ = type_
         self.meta = meta
+
+    @property
+    def size(self) -> int:
+        return self._size
 
     def __repr__(self):
         type_ = ', type=%s' % self.type_ if self.type_ is not None else ''

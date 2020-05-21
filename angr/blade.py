@@ -12,7 +12,8 @@ class Blade:
     It is meant to be used in angr for small or on-the-fly analyses.
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
-                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False):
+                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False,
+                 cross_insn_opt=False):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
@@ -38,6 +39,7 @@ class Blade:
         self._max_level = max_level
         self._base_state = base_state
         self._stop_at_calls = stop_at_calls
+        self._cross_insn_opt = cross_insn_opt
 
         self._slice = networkx.DiGraph()
 
@@ -93,7 +95,8 @@ class Blade:
         for block_addr in block_addrs:
             block_str = "       IRSB %#x\n" % block_addr
 
-            block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
+            block = self.project.factory.block(block_addr, cross_insn_opt=self._cross_insn_opt,
+                                               backup_state=self._base_state).vex
 
             included_stmts = { stmt for _, stmt in self.slice.nodes() if _ == block_addr }
             default_exit_included = any(stmt == DEFAULT_STATEMENT for _, stmt in self.slice.nodes() if _ == block_addr)
@@ -151,7 +154,8 @@ class Blade:
                 return self._run_cache[v]
 
             if self.project:
-                irsb = self.project.factory.block(v, backup_state=self._base_state).vex
+                irsb = self.project.factory.block(v, cross_insn_opt=self._cross_insn_opt,
+                                                  backup_state=self._base_state).vex
                 self._run_cache[v] = irsb
                 return irsb
             else:
@@ -253,6 +257,10 @@ class Blade:
             self._dst_stmt_idx = len(stmts) - 1
 
             prev = (self._get_addr(self._dst_run), DEFAULT_STATEMENT)
+
+        if not temps and not regs:
+            # no dependency
+            return
 
         slicer = SimSlicer(self.project.arch, stmts,
                            target_tmps=temps,

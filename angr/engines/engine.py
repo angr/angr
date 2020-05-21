@@ -28,6 +28,12 @@ class SimEngineBase:
         self.project = state[0]
         self.state = None
 
+    def _is_true(self, v):
+        return v is True
+
+    def _is_false(self, v):
+        return v is False
+
 class SimEngine(SimEngineBase):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.

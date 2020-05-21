@@ -1,6 +1,7 @@
 
 # pylint: disable=unused-argument
 
+
 class Top:
 
     __slots__ = ('size', )
@@ -76,19 +77,25 @@ class Top:
         return "TOP"
 
     def __eq__(self, other):
-        return type(other) is Top
+        return Top(1)
 
     def __le__(self, other):
-        return type(other) is Top
+        return Top(1)
 
     def __lt__(self, other):
-        return type(other) is Top
+        return Top(1)
+
+    def __gt__(self, other):
+        return Top(1)
+
+    def __ge__(self, other):
+        return Top(1)
 
     def __neg__(self):
         return self
 
     def __hash__(self):
-        return hash(Top)
+        return hash((Top, self.size))
 
 
 class Bottom:

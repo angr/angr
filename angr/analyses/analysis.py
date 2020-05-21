@@ -5,10 +5,14 @@ from inspect import Signature
 import progressbar
 import logging
 import time
+from typing import TYPE_CHECKING
 
 from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
 from ..errors import AngrAnalysisError
+
+if TYPE_CHECKING:
+    from ..knowledge_base import KnowledgeBase
 
 l = logging.getLogger(name=__name__)
 
@@ -127,8 +131,8 @@ class Analysis:
     :ivar progressbar.ProgressBar _progressbar: The progress bar object.
     """
 
-    project = None
-    kb = None
+    project = None # type: 'angr.Project'
+    kb: 'KnowledgeBase' = None
     _fail_fast = None
     _name = None
     errors = []

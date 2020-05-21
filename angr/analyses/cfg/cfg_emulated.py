@@ -3,6 +3,7 @@ import logging
 import sys
 from collections import defaultdict
 from functools import reduce
+from typing import Dict
 
 import claripy
 import networkx
@@ -22,7 +23,7 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
-from ...knowledge_plugins.cfg import CFGENode
+from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
 from .cfg_base import CFGBase
@@ -202,7 +203,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
-        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
+        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize,
                          resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
                          indirect_jump_target_limit=indirect_jump_target_limit,
@@ -224,6 +225,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
             l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
 
+        self._iropt_level = iropt_level
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
@@ -275,6 +277,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._pending_function_hints = set()
         # A dict to log edges and the jumpkind between each basic block
         self._edge_map = defaultdict(list)
+
+        self._model._iropt_level = self._iropt_level
 
         self._start_keys = [ ]  # a list of block IDs of all starts
 
@@ -716,7 +720,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def __setstate__(self, s):
         self.project = s['project']
-        self.indirect_jumps = s['indirect_jumps']
+        self.indirect_jumps: Dict[int,IndirectJump] = s['indirect_jumps']
         self._loop_back_edges = s['_loop_back_edges']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']

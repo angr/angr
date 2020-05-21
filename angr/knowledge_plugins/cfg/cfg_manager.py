@@ -18,7 +18,7 @@ class CFGManager(KnowledgeBasePlugin):
     def __contains__(self, ident):
         return ident in self.cfgs
 
-    def __getitem__(self, ident):
+    def __getitem__(self, ident) -> CFGModel:
         if ident not in self.cfgs:
             self.cfgs[ident] = CFGModel(ident, cfg_manager=self)
         return self.cfgs[ident]

@@ -12,9 +12,11 @@ import nose
 import ailment
 import angr
 import archinfo
-from angr.analyses.reaching_definitions.atoms import GuardUse, Tmp, Register
-from angr.analyses.reaching_definitions.constants import OP_BEFORE, OP_AFTER
-from angr.analyses.reaching_definitions.live_definitions import LiveDefinitions
+from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
@@ -31,9 +33,9 @@ class InsnAndNodeObserveTestingUtils():
     @staticmethod
     def assert_equals_for_live_definitions(live_definition_1, live_definition_2):
         list(map(
-            lambda attr: {\
-                nose.tools.assert_equals(getattr(live_definition_1, attr),\
-                                         getattr(live_definition_2, attr))\
+            lambda attr: {
+                nose.tools.assert_equals(getattr(live_definition_1, attr),
+                                         getattr(live_definition_2, attr))
             },
             ["register_definitions", "stack_definitions", "memory_definitions", "tmp_definitions"]
         ))
@@ -61,11 +63,11 @@ class InsnAndNodeObserveTestingUtils():
             subject=main_function, observation_points=observation_points
         )
 
-        state = LiveDefinitions(
-           project.arch, reaching_definitions.subject, project.loader
+        state = ReachingDefinitionsState(
+           project.arch, reaching_definitions.subject,
         )
 
-        return (project, main_function, reaching_definitions, state)
+        return project, main_function, reaching_definitions, state
 
 
 class ReachingDefinitionsAnalysisTest(TestCase):
@@ -96,13 +98,12 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             binary_results_name + '.pickle'
         )
 
-
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
             unsorted_result = map(
-                lambda x: {'key': x[0],\
-                           'register_definitions': x[1].register_definitions._storage,\
-                           'stack_definitions': x[1].stack_definitions._storage,\
+                lambda x: {'key': x[0],
+                           'register_definitions': x[1].register_definitions._storage,
+                           'stack_definitions': x[1].stack_definitions._storage,
                            'memory_definitions': x[1].memory_definitions._storage},
                 rda.observed_results.items()
             )
@@ -123,10 +124,9 @@ class ReachingDefinitionsAnalysisTest(TestCase):
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
 
-
     def test_reaching_definition_analysis_visited_blocks(self):
         def _result_extractor(rda):
-            return rda.visited_blocks
+            return list(sorted(rda.visited_blocks, key=lambda b: b.addr))
 
         binaries_and_results = list(map(
             lambda binary: (self._binary_path(binary), self._result_path(binary + '_visited_blocks')),
@@ -139,7 +139,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             function = cfg.kb.functions['main']
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
-
 
     def test_node_observe(self):
         # Create several different observation points
@@ -154,10 +153,9 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             reaching_definition.observed_results,
             observation_points
         )
-        expected_results = [state]
+        expected_results = [state.live_definitions]
 
         nose.tools.assert_equals(results, expected_results)
-
 
     def test_insn_observe_an_ailment_statement(self):
         # Create several different observation points
@@ -184,7 +182,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             zip(results, expected_results)
         ))
 
-
     def test_insn_observe_before_an_imark_pyvex_statement(self):
         # Create several different observation points
         observation_points = [('node', 0x42, OP_AFTER), ('insn', 0x43, OP_BEFORE)]
@@ -209,7 +206,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             lambda x: InsnAndNodeObserveTestingUtils.assert_equals_for_live_definitions(x[0], x[1]),
             zip(results, expected_results)
         ))
-
 
     def test_insn_observe_after_a_pyvex_statement(self):
         # Create several different observation points
@@ -237,7 +233,6 @@ class ReachingDefinitionsAnalysisTest(TestCase):
             lambda x: InsnAndNodeObserveTestingUtils.assert_equals_for_live_definitions(x[0], x[1]),
             zip(results, expected_results)
         ))
-
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
@@ -267,15 +262,14 @@ class LiveDefinitionsTest(TestCase):
         arch = archinfo.arch_ppc64.ArchPPC64()
         nose.tools.assert_raises(
            ValueError,
-           LiveDefinitions, arch=arch, subject=self._MockFunctionSubject()
+           ReachingDefinitionsState, arch=arch, subject=self._MockFunctionSubject()
         )
-
 
     def test_initializing_live_definitions_for_ppc_with_rtoc_value(self):
         arch = archinfo.arch_ppc64.ArchPPC64()
         rtoc_value = random.randint(0, 0xffffffffffffffff)
 
-        live_definition = LiveDefinitions(
+        live_definition = ReachingDefinitionsState(
            arch=arch, subject=self._MockFunctionSubject(), rtoc_value=rtoc_value
         )
 
@@ -286,7 +280,6 @@ class LiveDefinitionsTest(TestCase):
         rtoc_definition_value = rtoc_definition.data.get_first_element()
 
         nose.tools.assert_equals(rtoc_definition_value, rtoc_value)
-
 
     def test_get_the_sp_from_a_reaching_definition(self):
         binary = os.path.join(TESTS_LOCATION, 'x86_64', 'all')
@@ -314,7 +307,7 @@ class LiveDefinitionsTest(TestCase):
 
         sp_value = reach_definition_at_main.get_sp()
 
-        nose.tools.assert_equal(sp_value, project.arch.initial_sp)
+        nose.tools.assert_equal(sp_value, SpOffset(project.arch.bits, 0))
 
 
 def test_dep_graph():
@@ -322,23 +315,25 @@ def test_dep_graph():
     cfg = project.analyses.CFGFast()
     main = cfg.functions['main']
 
-    # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's guard is the four cc registers
+    # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's
+    # guard is the four cc registers
     rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
     guard_use = list(filter(
         lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
         rda.dep_graph._graph.nodes()
     ))[0]
+    preds = list(rda.dep_graph._graph.pred[guard_use])
     nose.tools.assert_equal(
-        len(rda.dep_graph._graph.pred[guard_use]),
-        4
+        len(preds),
+        1
+    )
+    nose.tools.assert_is_instance(
+        preds[0].atom,
+        Register
     )
     nose.tools.assert_equal(
-        all(type(def_.atom) is Register for def_ in rda.dep_graph._graph.pred[guard_use]),
-        True
-    )
-    nose.tools.assert_equal(
-        set(def_.atom.reg_offset for def_ in rda.dep_graph._graph.pred[guard_use]),
-        {reg.vex_offset for reg in project.arch.register_list if reg.name.startswith('cc_')}
+        preds[0].atom.reg_offset,
+        project.arch.registers['rdi'][0],
     )
 
     # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
@@ -357,8 +352,50 @@ def test_dep_graph():
     )
 
 
-if __name__ == '__main__':
-    LOGGER.setLevel(logging.DEBUG)
-    logging.getLogger('angr.analyses.reaching_definitions').setLevel(logging.DEBUG)
+def test_dep_graph_stack_variables():
+    bin_path = os.path.join(TESTS_LOCATION, 'x86_64', 'fauxware')
+    project = angr.Project(bin_path, auto_load_libs=False)
+    arch = project.arch
+    cfg = project.analyses.CFGFast()
+    main = cfg.functions['authenticate']
 
-    nose.core.runmodule()
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
+    dep_graph = rda.dep_graph
+    open_rdi = next(iter(filter(
+        lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rdi'][0]
+                     and def_.codeloc.ins_addr == 0x4006a2,
+        dep_graph._graph.nodes()
+    )))
+
+    # 4006A2     mov  rdi, rax
+    preds = list(dep_graph._graph.predecessors(open_rdi))
+    assert len(preds) == 1
+    rax: Definition = preds[0]
+    assert isinstance(rax.atom, Register)
+    assert rax.atom.reg_offset == arch.registers['rax'][0]
+    assert rax.codeloc.ins_addr == 0x400699
+
+    # 400699     mov  rax, [rbp+file]
+    preds = list(dep_graph._graph.predecessors(rax))
+    assert len(preds) == 1
+    file_var: Definition = preds[0]
+    assert isinstance(file_var.atom, MemoryLocation)
+    assert isinstance(file_var.atom.addr, SpOffset)
+    assert file_var.atom.addr.offset == -32
+    assert file_var.codeloc.ins_addr == 0x40066c
+
+    # 40066C     mov  [rbp+file], rdi
+    preds = list(dep_graph._graph.predecessors(file_var))
+    assert len(preds) == 1
+    rdi: Definition = preds[0]
+    assert isinstance(rdi.atom, Register)
+    assert rdi.atom.reg_offset == arch.registers['rdi'][0]
+    assert isinstance(rdi.codeloc, ExternalCodeLocation)
+
+
+if __name__ == '__main__':
+    #LOGGER.setLevel(logging.DEBUG)
+    #logging.getLogger('angr.analyses.reaching_definitions').setLevel(logging.DEBUG)
+
+    # nose.core.runmodule()
+    test_dep_graph_stack_variables()

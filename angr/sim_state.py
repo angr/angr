@@ -4,6 +4,11 @@ import contextlib
 import weakref
 
 import logging
+
+from typing import Type, TypeVar, TYPE_CHECKING
+
+from archinfo import Arch
+
 l = logging.getLogger(name=__name__)
 
 import angr # type annotations; pylint:disable=unused-import
@@ -13,6 +18,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
+from .state_plugins import SimStatePlugin
 
 def arch_overrideable(f):
     @functools.wraps(f)
@@ -52,7 +58,18 @@ class SimState(PluginHub):
     :ivar uc_manager:   Control of under-constrained symbolic execution
     :ivar str unicorn:      Control of the Unicorn Engine
     """
-
+    # Type Annotations for default plugins to allow type inference
+    solver: 'SimSolver'
+    posix: 'SimSystemPosix'
+    registers: 'SimSymbolicMemory'
+    regs: 'SimRegNameView'
+    memory: 'SimMemory'
+    callstack: 'CallStack'
+    mem: "SimMemView"
+    callstack: 'CallStack'
+    mem: "SimMemView"
+    history: 'SimStateHistory'
+    inspect: 'SimInspector'
     def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
                  options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
                  plugin_preset='default', **kwargs):
@@ -317,7 +334,7 @@ class SimState(PluginHub):
         return self.solver.eval_one(self.regs._ip)
 
     @property
-    def arch(self):
+    def arch(self) -> Arch:
         if self._is_java_jni_project:
             return self._arch['soot'] if self.ip_is_soot_addr else self._arch['vex']
         else:
@@ -335,7 +352,8 @@ class SimState(PluginHub):
         if self.supports_inspect:
             self.inspect.action(*args, **kwargs)
 
-    def _inspect_getattr(self, attr, default_value):
+    T = TypeVar("T")
+    def _inspect_getattr(self, attr: str, default_value: T):
         if self.supports_inspect:
             if hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
@@ -365,12 +383,12 @@ class SimState(PluginHub):
         self._set_plugin_state(plugin, inhibit_init=inhibit_init)
         return super(SimState, self).register_plugin(name, plugin)
 
-    def _init_plugin(self, plugin_cls):
+    def _init_plugin(self, plugin_cls: Type[SimStatePlugin]) -> SimStatePlugin:
         plugin = plugin_cls()
         self._set_plugin_state(plugin)
         return plugin
 
-    def _set_plugin_state(self, plugin, inhibit_init=False):
+    def _set_plugin_state(self, plugin: SimStatePlugin, inhibit_init: bool =False):
         plugin.set_state(self)
         if plugin.STRONGREF_STATE:
             plugin.set_strongref_state(self)
@@ -487,9 +505,20 @@ class SimState(PluginHub):
                         continue
 
                     new_expr = constrained_si
+                    # registers
                     self.registers.replace_all(original_expr, new_expr)
+                    # memory
                     for _, region in self.memory.regions.items():
                         region.memory.replace_all(original_expr, new_expr)
+                    # tmps
+                    temps = self.scratch.temps
+                    for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
+                        t = temps[idx]
+                        if t is None:
+                            continue
+                        if t.variables.intersection(original_expr.variables):
+                            # replace
+                            temps[idx] = t.replace(original_expr, new_expr)
 
                     l.debug("SimState.add_constraints: Applied to final state.")
         elif o.SYMBOLIC not in self.options and len(args) > 0:
@@ -919,3 +948,13 @@ from .state_plugins.sim_action import SimActionConstraint
 
 from . import sim_options as o
 from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeError
+
+# Type imports for annotations
+if TYPE_CHECKING:
+    from .storage import SimMemory
+    from .state_plugins.solver import SimSolver
+    from .state_plugins.posix import SimSystemPosix
+    from .state_plugins.symbolic_memory import SimSymbolicMemory
+    from .state_plugins.view import SimRegNameView, SimMemView
+    from .state_plugins.callstack import CallStack
+    from .state_plugins.inspect import SimInspector

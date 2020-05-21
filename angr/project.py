@@ -5,6 +5,7 @@ from io import BytesIO, IOBase
 import pickle
 import string
 from collections import defaultdict
+from typing import Dict, Any
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
@@ -95,7 +96,7 @@ class Project:
                  exclude_sim_procedures_list=(),
                  arch=None, simos=None,
                  engine=None,
-                 load_options=None,
+                 load_options: Dict[str, Any]=None,
                  translation_cache=True,
                  support_selfmodifying_code=False,
                  store_function=None,
@@ -132,12 +133,11 @@ class Project:
         if isinstance(arch, str):
             self.arch = archinfo.arch_from_id(arch)  # may raise ArchError, let the user see this
         elif isinstance(arch, archinfo.Arch):
-            self.arch = arch
+            self.arch = arch # type: archinfo.Arch
         elif arch is None:
             self.arch = self.loader.main_object.arch
         else:
             raise ValueError("Invalid arch specification.")
-
         # Step 3: Set some defaults and set the public and private properties
         if not default_analysis_mode:
             default_analysis_mode = 'symbolic'

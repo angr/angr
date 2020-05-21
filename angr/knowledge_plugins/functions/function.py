@@ -4,7 +4,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union, Optional
+from typing import Union, Optional, Iterable
 from typing import Type # For some reasons the linter doesn't recognize the use in apply_definition but PyCharm needs it imported to correctly recognize it # pylint: disable=unused-import
 
 from itanium_demangler import parse
@@ -847,7 +847,7 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     def _return_from_call(self, from_func, to_node, to_outside=False):
-        self.transition_graph.add_edge(from_func, to_node, type='real_return', to_outside=to_outside)
+        self.transition_graph.add_edge(from_func, to_node, type='return', to_outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
             if 'type' in data and data['type'] == 'fake_return':
                 data['confirmed'] = True
@@ -975,11 +975,11 @@ class Function(Serializable):
                         self._callout_sites.add(the_node)
                         self._add_endpoint(the_node, 'call')
 
-    def get_call_sites(self):
+    def get_call_sites(self) -> Iterable[int]:
         """
         Gets a list of all the basic blocks that end in calls.
 
-        :return:                    A list of the addresses of the blocks that end in calls.
+        :return:                    A view of the addresses of the blocks that end in calls.
         """
         return self._call_sites.keys()
 

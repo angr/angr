@@ -1,3 +1,4 @@
+from typing import Optional, Tuple, Any
 
 import ailment
 
@@ -102,13 +103,12 @@ def extract_jump_targets(stmt):
     return targets
 
 
-def switch_extract_cmp_bounds(last_stmt):
+def switch_extract_cmp_bounds(last_stmt: ailment.Stmt.ConditionalJump) -> Optional[Tuple[Any,int,int]]:
     """
     Check the last statement of the switch-case header node, and extract lower+upper bounds for the comparison.
 
-    :param ailment.Stmt last_stmt:  The last statement of the switch-case header node.
-    :return:                        A tuple of (comparison expression, lower bound, upper bound), or None
-    :rtype:                         tuple|None
+    :param last_stmt:   The last statement of the switch-case header node.
+    :return:            A tuple of (comparison expression, lower bound, upper bound), or None
     """
 
     if not isinstance(last_stmt, ailment.Stmt.ConditionalJump):

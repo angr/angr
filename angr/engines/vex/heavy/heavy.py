@@ -24,14 +24,15 @@ class SimStateStorageMixin(VEXMixin):
     def _perform_vex_expr_RdTmp(self, tmp):
         return self.state.scratch.tmp_expr(tmp)
 
-    def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, **kwargs):
-        return self.state.memory.load(addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect)
+    def _perform_vex_expr_Load(self, addr, ty, endness, action=None, inspect=True, condition=None, **kwargs):
+        return self.state.memory.load(addr, self._ty_to_bytes(ty), endness=endness, action=action, inspect=inspect,
+                                      condition=condition)
 
     def _perform_vex_stmt_Put(self, offset, data, action=None, inspect=True):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
-        self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=None)
+        self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=condition)
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
         self.state.scratch.store_tmp(tmp, data, deps=deps)

@@ -1,15 +1,18 @@
-
+from typing import Set, List, Tuple, Dict, TYPE_CHECKING
 import logging
 from collections import defaultdict
 from itertools import count
 
 from claripy.utils.orderedset import OrderedSet
-from ...sim_variable import SimStackVariable, SimMemoryVariable, SimRegisterVariable
 
+from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
 from ...keyed_region import KeyedRegion
+from ..plugin import KnowledgeBasePlugin
 from .variable_access import VariableAccess
 
-from ..plugin import KnowledgeBasePlugin
+if TYPE_CHECKING:
+    from ...knowledge_base import KnowledgeBase
+
 
 l = logging.getLogger(name=__name__)
 
@@ -201,7 +204,7 @@ class VariableManagerInternal:
     def find_variable_by_stmt(self, block_addr, stmt_idx, sort):
         return next(iter(self.find_variables_by_stmt(block_addr, stmt_idx, sort)), None)
 
-    def find_variables_by_stmt(self, block_addr, stmt_idx, sort):
+    def find_variables_by_stmt(self, block_addr: int, stmt_idx: int, sort: str) -> List[Tuple[SimVariable,int]]:
 
         key = block_addr, stmt_idx
 
@@ -227,23 +230,23 @@ class VariableManagerInternal:
     def find_variable_by_atom(self, block_addr, stmt_idx, atom):
         return next(iter(self.find_variables_by_atom(block_addr, stmt_idx, atom)), None)
 
-    def find_variables_by_atom(self, block_addr, stmt_idx, atom):
+    def find_variables_by_atom(self, block_addr, stmt_idx, atom) -> Set[Tuple[SimVariable, int]]:
 
         key = block_addr, stmt_idx
 
         if key not in self._atom_to_variable:
-            return [ ]
+            return set()
 
         if atom not in self._atom_to_variable[key]:
-            return [ ]
+            return set()
 
         return self._atom_to_variable[key][atom]
 
-    def get_variable_accesses(self, variable, same_name=False):
+    def get_variable_accesses(self, variable: SimVariable, same_name: bool=False) -> List[VariableAccess]:
 
         if not same_name:
             if variable in self._variable_accesses:
-                return self._variable_accesses[variable]
+                return list(self._variable_accesses[variable])
 
             return [ ]
 
@@ -393,18 +396,17 @@ class VariableManager(KnowledgeBasePlugin):
     """
     def __init__(self, kb):
         super(VariableManager, self).__init__()
-        self._kb = kb
+        self._kb: 'KnowledgeBase' = kb
         self.global_manager = VariableManagerInternal(self)
-        self.function_managers = { }
+        self.function_managers: Dict[int,VariableManagerInternal] = { }
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> VariableManagerInternal:
         """
         Get the VariableManagerInternal object for a function or a region.
 
         :param str or int key: Key of the region. "global" for the global region, or a function address for the
                                function.
         :return:               The VariableManagerInternal object.
-        :rtype:                VariableManagerInternal
         """
 
         if key == 'global':  # pylint:disable=no-else-return
@@ -414,7 +416,7 @@ class VariableManager(KnowledgeBasePlugin):
             # key refers to a function address
             return self.get_function_manager(key)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key) -> None:
         """
         Remove the existing VariableManagerInternal object for a function or a region.
 
@@ -428,10 +430,10 @@ class VariableManager(KnowledgeBasePlugin):
         else:
             del self.function_managers[key]
 
-    def has_function_manager(self, key):
+    def has_function_manager(self, key: int) -> bool:
         return key in self.function_managers
 
-    def get_function_manager(self, func_addr):
+    def get_function_manager(self, func_addr) -> VariableManagerInternal:
         if not isinstance(func_addr, int):
             raise TypeError('Argument "func_addr" must be an int.')
 
@@ -440,20 +442,19 @@ class VariableManager(KnowledgeBasePlugin):
 
         return self.function_managers[func_addr]
 
-    def initialize_variable_names(self):
+    def initialize_variable_names(self) -> None:
         self.global_manager.assign_variable_names()
         for manager in self.function_managers.values():
             manager.assign_variable_names()
 
-    def get_variable_accesses(self, variable, same_name=False):
+    def get_variable_accesses(self, variable: SimVariable, same_name: bool=False) -> List[VariableAccess]:
         """
         Get a list of all references to the given variable.
 
-        :param SimVariable variable:         The variable.
-        :param bool same_name:               Whether to include all variables with the same variable name, or just
-                                             based on the variable identifier.
+        :param variable:        The variable.
+        :param same_name:       Whether to include all variables with the same variable name, or just based on the
+                                variable identifier.
         :return:                All references to the variable.
-        :rtype:                 list
         """
 
         if variable.region == 'global':

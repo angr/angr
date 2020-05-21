@@ -1,14 +1,19 @@
 from collections import defaultdict
 import logging
+from typing import List
 
 import networkx
 
 import ailment
 
+from ...knowledge_base import KnowledgeBase
 from ...codenode import BlockNode
 from ...utils import timethis
+from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
+from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
+from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from .. import Analysis, register_analysis
-from ..reaching_definitions.constants import OP_BEFORE, OP_AFTER
 from .ailgraph_walker import AILGraphWalker
 from .optimization_passes import get_default_optimization_passes
 
@@ -36,6 +41,8 @@ class Clinic(Analysis):
         self.function = func
 
         self.graph = None
+        self.arg_list = None
+        self.variable_kb = None
 
         self._func_graph = None  # type: networkx.DiGraph
         self._ail_manager = None
@@ -114,9 +121,6 @@ class Clinic(Analysis):
         # Simplify the entire function for the first time
         self._simplify_function(ail_graph)
 
-        # Recover variables on AIL blocks
-        self._recover_and_link_variables(ail_graph)
-
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
         self._blocks_by_addr_and_size = None
@@ -127,10 +131,21 @@ class Clinic(Analysis):
         # Simplify the entire function for the second time
         self._simplify_function(ail_graph)
 
+        # Make function arguments
+        arg_list = self._make_argument_list()
+
+        # Recover variables on AIL blocks
+        variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
+
+        # Make function prototype
+        self._make_function_prototype(arg_list, variable_kb)
+
         # Run simplification passes
         ail_graph = self._run_simplification_passes(ail_graph)
 
         self.graph = ail_graph
+        self.arg_list = arg_list
+        self.variable_kb = variable_kb
 
     @timethis
     def _set_function_graph(self):
@@ -270,6 +285,36 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
+    def _make_argument_list(self) -> List[SimVariable]:
+        if self.function.calling_convention is not None:
+            args: List[SimFunctionArgument] = self.function.calling_convention.args
+            arg_vars: List[SimVariable] = [ ]
+            if args:
+                for idx, arg in enumerate(args):
+                    if isinstance(arg, SimRegArg):
+                        argvar = SimRegisterVariable(
+                            self.project.arch.registers[arg.reg_name][0],
+                            arg.size,
+                            ident="arg_%d" % idx,
+                            name="a%d" % idx,
+                            region=self.function.addr,
+                        )
+                    elif isinstance(arg, SimStackArg):
+                        argvar = SimStackVariable(
+                            arg.stack_offset,
+                            arg.size,
+                            base='bp',
+                            ident="arg_%d" % idx,
+                            name="a%d" % idx,
+                            region=self.function.addr,
+                        )
+                    else:
+                        raise TypeError("Unsupported function argument type %s." % type(arg))
+                    arg_vars.append(argvar)
+            return arg_vars
+        return [ ]
+
+    @timethis
     def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
         """
         Simplify all function call statements.
@@ -294,17 +339,55 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _recover_and_link_variables(self, ail_graph):
+    def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
+        if self.function.prototype is not None:
+            # do not overwrite an existing function prototype
+            # if you want to re-generate the prototype, clear the existing one first
+            return
+
+        variables = variable_kb.variables[self.function.addr]
+        func_args = [ ]
+        for arg in arg_list:
+            func_arg = None
+            arg_ty = variables.get_variable_type(arg)
+            if arg_ty is None:
+                # determine type based on size
+                if isinstance(arg, (SimRegisterVariable, SimStackVariable)):
+                    if arg.size == 1:
+                        func_arg = SimTypeChar()
+                    elif arg.size == 2:
+                        func_arg = SimTypeShort()
+                    elif arg.size == 4:
+                        func_arg = SimTypeInt()
+                    elif arg.size == 8:
+                        func_arg = SimTypeLongLong()
+                    else:
+                        l.warning("Unsupported argument size %d.", arg.size)
+            else:
+                func_arg = arg_ty
+
+            func_args.append(func_arg)
+
+        if self.function.calling_convention is not None and self.function.calling_convention.ret_val is None:
+            returnty = SimTypeBottom(label="void")
+        else:
+            returnty = SimTypeInt()
+
+        self.function.prototype = SimTypeFunction(func_args, returnty)
+
+    @timethis
+    def _recover_and_link_variables(self, ail_graph, arg_list):
 
         # variable recovery
-        tmp_kb = self.kb
+        tmp_kb = KnowledgeBase(self.project)
         # remove existing variables for this function
         if tmp_kb.variables.has_function_manager(self.function.addr):
             l.warning("Removing existing variable recovery result for function %#x.", self.function.addr)
             del tmp_kb.variables[self.function.addr]
         # stack pointers have been removed at this point
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
-                                                        func_graph=ail_graph, kb=tmp_kb, track_sp=False)
+                                                        func_graph=ail_graph, kb=tmp_kb, track_sp=False,
+                                                        func_args=arg_list)
         # clean up existing types
         tmp_kb.variables[self.function.addr].remove_types()
         # run type inference
@@ -320,6 +403,7 @@ class Clinic(Analysis):
         # Link variables to each statement
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
+        return tmp_kb
 
     def _link_variables_on_block(self, block, kb):
         """
@@ -410,7 +494,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = offset
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[0])
@@ -420,7 +504,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = offset
             else:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands)
@@ -432,7 +516,7 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
                 var, offset = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = offset
 
         elif isinstance(expr, ailment.Expr.Const):
@@ -440,7 +524,7 @@ class Clinic(Analysis):
             variables = global_variables.get_global_variables(expr.value)
             if variables:
                 var = next(iter(variables))
-                expr.referenced_variable = var
+                expr.variable = var
                 expr.variable_offset = 0
 
     def _function_graph_to_ail_graph(self, func_graph):

@@ -1,4 +1,4 @@
-
+from typing import Dict
 import logging
 from collections import defaultdict
 
@@ -8,6 +8,7 @@ import pyvex
 from claripy.utils.orderedset import OrderedSet
 from cle import ELF, PE, Blob, TLSObject, MachO, ExternObject, KernelObject, FunctionHintSource
 from cle.backends import NamedRegion
+import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
@@ -34,7 +35,7 @@ class CFGBase(Analysis):
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
-                 iropt_level=None, base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
+                 base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
                  indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
                  sp_tracking_track_memory=True, model=None,
                  ):
@@ -45,8 +46,6 @@ class CFGBase(Analysis):
         :param bool normalize:                      Whether the CFG as well as all Function graphs should be normalized.
         :param cle.backends.Backend binary:         The binary to recover CFG on. By default the main binary is used.
         :param bool force_segment:                  Force CFGFast to rely on binary segments instead of sections.
-        :param int iropt_level:                     The optimization level of VEX IR (0, 1, 2). The default level will
-                                                    be used if `iropt_level` is None.
         :param angr.SimState base_state:            A state to use as a backer for all memory loads.
         :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps. This is necessary to resolve jump
                                                     targets from jump tables, etc.
@@ -74,7 +73,6 @@ class CFGBase(Analysis):
 
         self._binary = binary if binary is not None else self.project.loader.main_object
         self._force_segment = force_segment
-        self._iropt_level = iropt_level
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
         self._low_priority = low_priority
@@ -99,7 +97,7 @@ class CFGBase(Analysis):
 
         # IndirectJump object that describe all indirect exits found in the binary
         # stores as a map between addresses and IndirectJump objects
-        self.indirect_jumps = {}
+        self.indirect_jumps: Dict[int,IndirectJump] = {}
         self._indirect_jumps_to_resolve = set()
 
         # Indirect jump resolvers
@@ -164,7 +162,6 @@ class CFGBase(Analysis):
             self._model = model
         else:
             self._model = self.kb.cfgs.new_model(self.tag)  # type: angr.knowledge_plugins.cfg.CFGModel
-        self._model._iropt_level = self._iropt_level
 
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
@@ -326,10 +323,19 @@ class CFGBase(Analysis):
         raise NotImplementedError()
 
     def remove_edge(self, block_from, block_to):
-        edge = (block_from, block_to)
+        if self.graph is None:
+            raise TypeError("self.graph does not exist.")
 
-        if edge in self.graph:
-            self.graph.remove_edge(*edge)
+        if block_from not in self.graph:
+            raise ValueError("%r is not in CFG." % block_from)
+
+        if block_to not in self.graph:
+            raise ValueError("%r is not in CFG." % block_to)
+
+        if block_to not in self.graph[block_from]:
+            raise ValueError("Edge %r->%r does not exist." % (block_from, block_to))
+
+        self.graph.remove_edge(block_from, block_to)
 
     def _merge_cfgnodes(self, cfgnode_0, cfgnode_1):
         """
@@ -438,7 +444,7 @@ class CFGBase(Analysis):
                 return successors
 
         can_produce_exits = set()  # addresses of instructions that can produce exits
-        bb = self._lift(irsb.addr, size=irsb.size, thumb=True, opt_level=0)
+        bb = self._lift(irsb.addr, size=irsb.size, thumb=True)
 
         # step A: filter exits using capstone (since it's faster than re-lifting the entire block to VEX)
         THUMB_BRANCH_INSTRUCTIONS = {'beq', 'bne', 'bcs', 'bhs', 'bcc', 'blo', 'bmi', 'bpl', 'bvs',
@@ -1145,6 +1151,16 @@ class CFGBase(Analysis):
             else:
                 # We gotta create a new one
                 l.error('normalize(): Please report it to Fish.')
+
+        # deal with duplicated entries in self.jump_tables and self.indirect_jumps
+        if smallest_node.addr in self.model.jump_tables:
+            for n in other_nodes:
+                if n.addr in self.model.jump_tables:
+                    del self.model.jump_tables[n.addr]
+        if smallest_node.addr in self.indirect_jumps:
+            for n in other_nodes:
+                if n.addr in self.indirect_jumps:
+                    del self.indirect_jumps[n.addr]
 
     #
     # Job management
@@ -2052,29 +2068,84 @@ class CFGBase(Analysis):
     #
 
     @staticmethod
-    def _is_noop_block(arch, block):
+    def _is_noop_block(arch: archinfo.Arch, block):
         """
         Check if the block is a no-op block by checking VEX statements.
 
+        :param arch:    An architecture descriptor.
         :param block: The VEX block instance.
         :return: True if the entire block is a single-byte or multi-byte nop instruction, False otherwise.
         :rtype: bool
         """
 
-        if arch.name == "MIPS32":
+        if arch.name == "X86":
+            if set(block.bytes) == { 'b\x90' }:
+                return True
+        elif arch.name == "AMD64":
+            if set(block.bytes) == { 'b\x90' }:
+                return True
+        elif arch.name == "MIPS32":
             if arch.memory_endness == "Iend_BE":
                 MIPS32_BE_NOOPS = {
                     b"\x00\x20\x08\x25",  # move $at, $at
                 }
-                insns = set(block.bytes[i:i+4] for i in range(0, block.size, 4))
+                insns = set(block.bytes[i:i + 4] for i in range(0, block.size, 4))
                 if MIPS32_BE_NOOPS.issuperset(insns):
                     return True
 
-        # Fallback
-        # the block is a noop block if it only has IMark statements
+        elif is_arm_arch(arch):
+            if block.addr & 1 == 0:
+                # ARM mode
+                if arch.memory_endness == archinfo.Endness.LE:
+                    ARM_NOOPS = {
+                        b"\x00\x00\x00\x00",  # andeq r0, r0, r0
+                        b"\x00\x00\xa0\xe1",  # mov r0, r0
+                    }
+                else:  #if arch.memory_endness == archinfo.Endness.BE:
+                    ARM_NOOPS = {
+                        b"\x00\x00\x00\x00",  # andeq r0, r0, r0
+                        b"\xe1\xa0\x00\x00",  # mov r0, r0
+                    }
+                insns = set(block.bytes[i:i + 4] for i in range(0, block.size, 4))
+                if ARM_NOOPS.issuperset(insns):
+                    return True
 
+            else:
+                # THUMB mode, 2-byte instructions
+                if arch.memory_endness == archinfo.Endness.LE:
+                    THUMB_NOOPS = {
+                        b"\xc0\x46",  # mov r8, r8
+                        b"\xb0\x00",  # add sp, #0
+                    }
+                else:
+                    THUMB_NOOPS = {
+                        b"\x46\xc0",  # mov r8, r8
+                        b"\x00\xb0",  # add sp, #0
+                    }
+                insns = set(block.bytes[i:i+4] for i in range(0, block.size, 4))
+                if THUMB_NOOPS.issuperset(insns):
+                    return True
+
+        # Fallback
+        # the block is a noop block if it only has IMark statements. VEX will generate such blocks when opt_level==1
+        # and cross_insn_opt is True
         if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
             return True
+
+        # the block is a noop block if it only has IMark statements and IP-setting statements that set the IP to the
+        # next location. VEX will generate such blocks when opt_level==1 and cross_insn_opt is False
+        ip_offset = arch.ip_offset
+        if all((type(stmt) is pyvex.IRStmt.IMark
+                or
+                (type(stmt) is pyvex.IRStmt.Put and stmt.offset == ip_offset))
+               for stmt in block.vex.statements):
+            if block.vex.statements:
+                last_stmt = block.vex.statements[-1]
+                if isinstance(last_stmt, pyvex.IRStmt.IMark):
+                    fallthrough_addr = last_stmt.addr + last_stmt.delta + last_stmt.len
+                    n = block.vex.next
+                    if isinstance(n, pyvex.IRExpr.Const) and n.con.value == fallthrough_addr:
+                        return True
         return False
 
     @staticmethod
@@ -2151,13 +2222,13 @@ class CFGBase(Analysis):
                 return dst
         return None
 
-    def _lift(self, *args, **kwargs):
+    def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):
         """
         Lift a basic block of code. Will use the base state as a source of bytes if possible.
         """
         if 'backup_state' not in kwargs:
             kwargs['backup_state'] = self._base_state
-        return self.project.factory.block(*args, **kwargs)
+        return self.project.factory.block(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
 
     #
     # Indirect jumps processing
@@ -2165,16 +2236,27 @@ class CFGBase(Analysis):
 
     def _resolve_indirect_jump_timelessly(self, addr, block, func_addr, jumpkind):
         """
-        Checks if MIPS32 and calls MIPS32 check, otherwise false
+        Attempt to quickly resolve an indirect jump.
 
-        :param int addr: irsb address
-        :param pyvex.IRSB block: irsb
-        :param int func_addr: Function address
-        :return: If it was resolved and targets alongside it
-        :rtype: tuple
+        :param int addr:        Basic block address of this indirect jump.
+        :param block:           The basic block. The type is determined by the backend being used. It's pyvex.IRSB if
+                                pyvex is used as the backend.
+        :param int func_addr:   Address of the function that this indirect jump belongs to.
+        :param str jumpkind:    The jumpkind.
+        :return:                A tuple of a boolean indicating whether the resolution is successful or not, and a list
+                                of resolved targets (ints).
+        :rtype:                 tuple
         """
 
+        # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
+        # a constant next expression, we don't need to resolve it
+        relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
+        if isinstance(relifted.next, pyvex.IRExpr.Const):
+            # yes!
+            return True, [relifted.next.con.value]
+
         if block.statements is None:
+            # make sure there are statements
             block = self.project.factory.block(block.addr, size=block.size).vex
 
         for res in self.timeless_indirect_jump_resolvers:
@@ -2301,7 +2383,7 @@ class CFGBase(Analysis):
         resolved_by = None
         targets = None
 
-        block = self._lift(jump.addr, opt_level=1)
+        block = self._lift(jump.addr)
 
         for resolver in self.indirect_jump_resolvers:
             resolver.base_state = self._base_state

@@ -244,6 +244,11 @@ public:
 		}
 
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
+		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
+		    // handle edge case where we stop because we reached our bogus stop address (0)
+		    commit();
+		    stop_reason = STOP_ZEROPAGE;
+		}
 		rollback();
 
 		if (out == UC_ERR_INSN_INVALID) {
@@ -833,6 +838,7 @@ public:
 			used_registers = &search->second.used_registers;
 		} else {
 			// wtf i hate c++...
+			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
 			auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
 			entry.try_unicorn = true;
 			clobbered_registers = &entry.clobbered_registers;
@@ -841,7 +847,8 @@ public:
 			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
 			uc_mem_read(this->uc, address, instructions.get(), size);
 			VEXLiftResult *lift_ret = vex_lift(
-					this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0
+					this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0,
+					pxControl
 					);
 
 

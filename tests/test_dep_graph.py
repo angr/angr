@@ -4,9 +4,9 @@ import nose
 from random import randrange
 from unittest import mock
 
-from angr.analyses.code_location import CodeLocation
-from angr.analyses.reaching_definitions.dataset import DataSet
-from angr.analyses.reaching_definitions.definition import Definition
+from angr.code_location import CodeLocation
+from angr.knowledge_plugins.key_definitions.dataset import DataSet
+from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 
 _PAST_N = set()
@@ -67,51 +67,6 @@ def test_delegate_add_edge_to_the_underlying_graph_object(digraph_add_edge_mock)
     digraph_add_edge_mock.assert_called_once_with(*use, **labels)
 
 
-def test_top_predecessors():
-    dep_graph = DepGraph()
-
-    # A -> B, B -> D, C -> D
-    A = _a_mock_definition()
-    B = _a_mock_definition()
-    C = _a_mock_definition()
-    D = _a_mock_definition()
-    uses = [
-        (A, B),
-        (B, D),
-        (C, D),
-    ]
-
-    for use in uses:
-        dep_graph.add_edge(*use)
-
-    result = dep_graph.top_predecessors(D)
-
-    nose.tools.assert_list_equal(result, [A, C])
-
-
-def test_top_predecessors_should_not_contain_duplicates():
-    dep_graph = DepGraph()
-
-    # A -> B, A -> C, B -> D, C -> D
-    A = _a_mock_definition()
-    B = _a_mock_definition()
-    C = _a_mock_definition()
-    D = _a_mock_definition()
-    uses = [
-        (A, B),
-        (A, C),
-        (B, D),
-        (C, D),
-    ]
-
-    for use in uses:
-        dep_graph.add_edge(*use)
-
-    result = dep_graph.top_predecessors(D)
-
-    nose.tools.assert_list_equal(result, [A])
-
-
 def test_transitive_closure_of_a_node():
     dep_graph = DepGraph()
 
@@ -151,3 +106,29 @@ def test_transitive_closure_of_a_node_should_copy_labels_from_original_graph():
     result = dep_graph.transitive_closure(B).get_edge_data(A, B)['label']
 
     nose.tools.assert_equals(result, 'some data')
+
+
+def test_transitive_closure_of_a_node_on_a_graph_with_loops_should_still_terminate():
+    dep_graph = DepGraph()
+
+    # A -> B, B -> C, C -> D, D -> A
+    A = _a_mock_definition()
+    B = _a_mock_definition()
+    C = _a_mock_definition()
+    D = _a_mock_definition()
+    uses = [
+        (A, B),
+        (B, C),
+        (C, D),
+        (D, A),
+    ]
+
+    for use in uses:
+        dep_graph.add_edge(*use)
+
+    result = dep_graph.transitive_closure(C)
+    result_nodes = set(result.nodes)
+    result_edges = set(result.edges)
+
+    nose.tools.assert_set_equal(result_nodes, {A, B, C, D})
+    nose.tools.assert_set_equal(result_edges, {(A, B), (B, C), (C, D), (D, A)})

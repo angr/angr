@@ -34,19 +34,24 @@ class SimEngineXRefsVEX(
     def _handle_WrTmp(self, stmt):
         # Don't execute the tmp write since it has been done during constant propagation
         self._expr(stmt.data)
+        if type(stmt.data) is pyvex.IRExpr.Load:
+            self._handle_data_offset_refs(stmt.tmp)
 
     def _handle_Put(self, stmt):
         # if there is a Load, get it executed
         self._expr(stmt.data)
 
     def _handle_Store(self, stmt):
-        blockloc = self._codeloc(block_only=True)
-        # TODO: Handle constant stores
-        if type(stmt.addr) is pyvex.IRExpr.RdTmp:
+        if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
             addr_tmp = VEXTmp(stmt.addr.tmp)
+            blockloc = self._codeloc(block_only=True)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Write, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Write, self._codeloc(), addr)
+        elif isinstance(stmt.addr, pyvex.IRExpr.Const):
+            addr = stmt.addr.con.value
+            self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -54,7 +59,8 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Write, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Write, self._codeloc(), addr)
 
     def _handle_LoadG(self, stmt):
         # What are we reading?
@@ -63,8 +69,23 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Read, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Read, self._codeloc(), addr)
         self._handle_data_offset_refs(stmt.dst)
+
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        blockloc = self._codeloc(block_only=True)
+        if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):
+            addr_tmp = VEXTmp(stmt.addr.tmp)
+            if addr_tmp in self.replacements[blockloc]:
+                addr = self.replacements[blockloc][addr_tmp]
+                if isinstance(addr, int):
+                    if stmt.storedata is None:
+                        # load-link
+                        xref_type = XRefType.Read
+                    else:
+                        xref_type = XRefType.Write
+                    self.add_xref(xref_type, self._codeloc(), addr)
 
     def _handle_data_offset_refs(self, data_tmp):
         # is this thing a pointer?
@@ -93,12 +114,15 @@ class SimEngineXRefsVEX(
 
     def _handle_Load(self, expr):
         blockloc = self._codeloc(block_only=True)
-        # TODO: Handle constant reads
         if type(expr.addr) is pyvex.IRExpr.RdTmp:
             addr_tmp = VEXTmp(expr.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                self.add_xref(XRefType.Read, self._codeloc(), addr)
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Read, self._codeloc(), addr)
+        elif type(expr.addr) is pyvex.IRExpr.Const:
+            addr = expr.addr.con.value
+            self.add_xref(XRefType.Read, self._codeloc(), addr)
 
     def _handle_CCall(self, expr):
         return None
@@ -180,7 +204,10 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
 
     def _run_on_node(self, node, state):
 
-        block = self.project.factory.block(node.addr, node.size, opt_level=0)
+        block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
+        if block.size == 0:
+            # VEX couldn't decode it
+            return False, None
         block_key = node.addr
         engine = self._engine_vex
 
