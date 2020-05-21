@@ -41,6 +41,7 @@ class LoopSeer(ExplorationTechnique):
         self.use_header = use_header
         self.limit_concrete_loops = limit_concrete_loops
         self.loops = {}
+        self.cut_succs = []
         if type(loops) is Loop:
             loops = [loops]
 
@@ -85,6 +86,7 @@ class LoopSeer(ExplorationTechnique):
 
     def filter(self, simgr, state, **kwargs):
         if state in self.cut_succs:
+            self.cut_succs.remove(state)
             return self.discard_stash
         else:
             return simgr.filter(state, **kwargs)
@@ -95,7 +97,6 @@ class LoopSeer(ExplorationTechnique):
             kwargs['num_inst'] = min(kwargs.get('num_inst', float('inf')), len(node.instruction_addrs))
         succs = simgr.successors(state, **kwargs)
 
-        cut_succs = []
         for succ_state in succs.successors:
             # Processing a currently running loop
             if succ_state.loop_data.current_loop:
