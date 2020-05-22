@@ -15,7 +15,7 @@ from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNode
 from .values import Top
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
-
+from .vex_vars import VEXReg, VEXTmp
 
 _l = logging.getLogger(name=__name__)
 
@@ -421,5 +421,24 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _post_analysis(self):
         pass
 
+    ##
+    ## Results helpers
+    ##
+
+    def get_replacements_at_block(self, addr):
+        """
+        Get the set of variables and their replacements, as seen after the
+        execution of the block starting at <addr>
+
+        Returns a dictionary mapping VexReg and VexTmp objects to integers or SPOffsets
+        """
+        return self.replacements[CodeLocation(addr, None)]
+
+    def get_register_at_block(self, addr, regname):
+        """
+        Get the value of a given register after a given block is executed.
+        """
+        offset, size = self.project.arch.registers[regname]
+        return self.get_replacements_at_block(addr)[VEXReg(offset, size)]
 
 register_analysis(PropagatorAnalysis, "Propagator")
