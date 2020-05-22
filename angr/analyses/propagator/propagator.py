@@ -323,7 +323,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None, only_consts=False):
+                 load_callback=None, stack_pointer_tracker=None, only_consts=False,
+                 initial_registers=None):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -343,6 +344,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._max_iterations = max_iterations
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
+        self._initial_registers = initial_registers
         self._only_consts = only_consts
 
         self._node_iterations = defaultdict(int)
@@ -376,6 +378,19 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                  self.project.arch.bytes,
                                  SpOffset(self.project.arch.bits, 0)
                                  )
+            if self._initial_registers:
+                for reg, val in self._initial_registers.items():
+                    if val is not None:
+                        reg_offset, reg_size = self.project.arch.registers[reg]
+                        state.store_register(reg_offset, reg_size, val)
+            ## Use the registers from the base state
+            #if self._base_state:
+            #    for reg_name in dir(self._base_state.regs):
+            #        offset, size = self.project.arch.regsters[reg_name]
+            #        reg_val = getattr(self._base_state.regs, reg_name)
+            #        if reg_val.concrete:
+            #            real_regval = self._base_state.solver.eval_one(reg_val)
+            #            state.store_register(offset, size, real_regval)
         return state
 
     def _merge_states(self, node, *states):

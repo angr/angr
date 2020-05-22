@@ -53,8 +53,6 @@ class SimEnginePropagatorVEX(
         return v
 
     def _load_data(self, addr, size, endness):
-        #if addr == 0x61c:
-        #    import ipdb; ipdb.set_trace()
         if isinstance(addr, SpOffset):
             # Local variable
             v = self.state.load_local_variable(addr.offset, size)
@@ -90,8 +88,6 @@ class SimEnginePropagatorVEX(
     #
 
     def _handle_WrTmp(self, stmt):
-        #if stmt.tmp == 70 and self.block.addr == 1257:
-        #    import ipdb; ipdb.set_trace()
         super()._handle_WrTmp(stmt)
 
         if stmt.tmp in self.tmps:
