@@ -79,6 +79,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     def copy(self):
         fm = FunctionManager(self._kb)
         fm._function_map = self._function_map.copy()
+        for address, function in fm._function_map.items():
+            fm._function_map[address] = function.copy()
         fm.callgraph = networkx.MultiDiGraph(self.callgraph)
         fm._arg_registers = self._arg_registers.copy()
 
