@@ -43,16 +43,18 @@ class SimEnginePropagatorVEX(
     def _expr(self, expr):
         v = super()._expr(expr)
 
-        if v is not None and type(v) not in {Bottom, Top} and v is not expr:
-            # Record the replacement
-            if type(expr) is pyvex.IRExpr.Get:
-                if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
-                    self.state.add_replacement(self._codeloc(block_only=True),
-                                               VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
-                                               v)
+        #if v is not None and type(v) not in {Bottom, Top} and v is not expr:
+        #    # Record the replacement
+        #    if type(expr) is pyvex.IRExpr.Get:
+        #        if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
+        #            self.state.add_replacement(self._codeloc(block_only=True),
+        #                                       VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
+        #                                       v)
         return v
 
     def _load_data(self, addr, size, endness):
+        #if addr == 0x61c:
+        #    import ipdb; ipdb.set_trace()
         if isinstance(addr, SpOffset):
             # Local variable
             v = self.state.load_local_variable(addr.offset, size)
@@ -88,6 +90,8 @@ class SimEnginePropagatorVEX(
     #
 
     def _handle_WrTmp(self, stmt):
+        #if stmt.tmp == 70 and self.block.addr == 1257:
+        #    import ipdb; ipdb.set_trace()
         super()._handle_WrTmp(stmt)
 
         if stmt.tmp in self.tmps:
@@ -99,6 +103,9 @@ class SimEnginePropagatorVEX(
 
         if type(data) is not Bottom:
             self.state.store_register(stmt.offset, size, data)
+        if stmt.offset not in (self.arch.sp_offset, self.arch.ip_offset,):
+            self.state.add_replacement(self._codeloc(block_only=True),
+                                       VEXReg(stmt.offset, size), data)
 
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
