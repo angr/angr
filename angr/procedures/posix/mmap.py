@@ -1,4 +1,5 @@
 import angr
+from ...storage.file import SimFileDescriptor
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -31,8 +32,11 @@ class mmap(angr.SimProcedure):
             if self.state.solver.symbolic(offset):
                 raise angr.errors.SimPosixError("Can't map with a symbolic offset!!")
             sim_fd = self.state.posix.get_fd(fd)
-            if sim_fd is None or sim_fd.file is None:
+            if sim_fd is None:
                 l.warning("Trying to map a non-exsitent fd")
+                return -1
+            if not isinstance(sim_fd, SimFileDescriptor) or sim_fd.file is None:
+                l.warning("Trying to map fd not supporting mmap (maybe a SimFileDescriptorDuplex?)")
                 return -1
 
         #

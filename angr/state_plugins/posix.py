@@ -394,19 +394,24 @@ class SimSystemPosix(SimStatePlugin):
         return True
 
     def fstat(self, sim_fd): #pylint:disable=unused-argument
-        # sizes are AMD64-specific for now
+        # sizes are AMD64-specific for symbolic files for now
         fd = None
         sim_file = None
+        mount = None
         mode = None
 
         if not self.state.solver.symbolic(sim_fd):
             fd = self.state.solver.eval(sim_fd)
         if fd is not None:
-            sim_file = self.state.posix.get_fd(fd).file
+            fd_desc = self.state.posix.get_fd(fd)
+
+            # a fd can be SimFileDescriptorDuplex which is not backed by a file
+            if isinstance(fd_desc, SimFileDescriptor):
+                sim_file = fd_desc.file
+                mount = self.state.fs.get_mountpoint(sim_file.name)[0]
 
         # if it is mounted, let the filesystem figure out the stat
-        mount = self.state.fs.get_mountpoint(sim_file.name)[0]
-        if mount is not None:
+        if sim_file is not None and mount is not None:
             stat = mount._get_stat(sim_file.name)
             size = stat.st_size
             mode = stat.st_mode
@@ -416,7 +421,7 @@ class SimSystemPosix(SimStatePlugin):
                 mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
             else:
                 mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
-            size = self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
+            size = self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')) # st_size
 
         # return this weird bogus zero value to keep code paths in libc simple :\
         return Stat(self.state.solver.BVV(0, 64), # st_dev
