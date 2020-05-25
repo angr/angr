@@ -393,7 +393,6 @@ class SimHostFilesystem(SimConcreteFilesystem):
             return SimFile(name='file://' + path, content=content, size=len(content))
 
     def _get_stat(self, guest_path):
-        from .posix import Stat
         guest_path = guest_path.lstrip(self.pathsep)
         path = os.path.join(self.host_path, guest_path)
         try:
