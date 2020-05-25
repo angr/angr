@@ -2,7 +2,7 @@ import angr
 
 class fstat64(angr.SimProcedure):
 
-    def run(self, fd, stat_buf):
+    def run(self, fd, stat_buf): # pylint:disable=arguments-differ
         stat = self.state.posix.fstat(fd)
         # TODO: make arch-neutral
         if self.arch.bits == 32:
@@ -55,21 +55,3 @@ class fstat64(angr.SimProcedure):
         store(0x78, self.state.solver.BVV(0, 64))
         store(0x80, self.state.solver.BVV(0, 64))
         store(0x88, self.state.solver.BVV(0, 64))
-
-        # return struct.pack('<QQQLLLxxxxQqqqQqQqQxxxxxxxxxxxxxxxxxxxxxxxx',
-        #                    stat.st_dev,
-        #                    stat.st_ino,
-        #                    stat.st_nlink,
-        #                    stat.st_mode,
-        #                    stat.st_uid,
-        #                    stat.st_gid,
-        #                    stat.st_rdev,
-        #                    stat.st_size,
-        #                    stat.st_blksize,
-        #                    stat.st_blocks,
-        #                    stat.st_atime,
-        #                    stat.st_atimensec,
-        #                    stat.st_mtime,
-        #                    stat.st_mtimesec,
-        #                    stat.st_ctime,
-        #                    state.st_ctimensec)

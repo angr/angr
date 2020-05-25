@@ -413,6 +413,8 @@ class SimSystemPosix(SimStatePlugin):
         # if it is mounted, let the filesystem figure out the stat
         if sim_file is not None and mount is not None:
             stat = mount._get_stat(sim_file.name)
+            if stat is None:
+                raise SimPosixError("file %s does not exist on mount %s" % (sim_file.name, mount))
             size = stat.st_size
             mode = stat.st_mode
         else:
