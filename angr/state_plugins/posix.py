@@ -1,19 +1,13 @@
 import logging
-from collections import namedtuple
 
 from .plugin import SimStatePlugin
-from .filesystem import SimMount
+from .filesystem import SimMount, Stat
 from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from .. import sim_options as options
 
 l = logging.getLogger(name=__name__)
 
 max_fds = 8192
-
-Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
-                           'st_gid', 'st_rdev', 'st_size', 'st_blksize',
-                           'st_blocks', 'st_atime', 'st_atimensec', 'st_mtime',
-                           'st_mtimensec', 'st_ctime', 'st_ctimensec'))
 
 class PosixDevFS(SimMount): # this'll be mounted at /dev
     def get(self, path):
@@ -393,16 +387,39 @@ class SimSystemPosix(SimStatePlugin):
         del self.fd[fd]
         return True
 
-    def fstat(self, fd): #pylint:disable=unused-argument
-        # sizes are AMD64-specific for now
-        # TODO: import results from concrete FS, if using concrete FS
-        if self.state.solver.symbolic(fd):
-            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
-        else:
-            fd = self.state.solver.eval(fd)
-            mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
-            # return this weird bogus zero value to keep code paths in libc simple :\
+    def fstat(self, sim_fd): #pylint:disable=unused-argument
+        # sizes are AMD64-specific for symbolic files for now
+        fd = None
+        sim_file = None
+        mount = None
+        mode = None
 
+        if not self.state.solver.symbolic(sim_fd):
+            fd = self.state.solver.eval(sim_fd)
+        if fd is not None:
+            fd_desc = self.state.posix.get_fd(fd)
+
+            # a fd can be SimFileDescriptorDuplex which is not backed by a file
+            if isinstance(fd_desc, SimFileDescriptor):
+                sim_file = fd_desc.file
+                mount = self.state.fs.get_mountpoint(sim_file.name)[0]
+
+        # if it is mounted, let the filesystem figure out the stat
+        if sim_file is not None and mount is not None:
+            stat = mount._get_stat(sim_file.name)
+            if stat is None:
+                raise SimPosixError("file %s does not exist on mount %s" % (sim_file.name, mount))
+            size = stat.st_size
+            mode = stat.st_mode
+        else:
+            # now we know it is not mounted, do the same as before
+            if not fd:
+                mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode'))
+            else:
+                mode = self.state.solver.BVS('st_mode', 32, key=('api', 'fstat', 'st_mode')) if fd > 2 else self.state.solver.BVV(0, 32)
+            size = self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')) # st_size
+
+        # return this weird bogus zero value to keep code paths in libc simple :\
         return Stat(self.state.solver.BVV(0, 64), # st_dev
                     self.state.solver.BVV(0, 64), # st_ino
                     self.state.solver.BVV(0, 64), # st_nlink
@@ -410,7 +427,7 @@ class SimSystemPosix(SimStatePlugin):
                     self.state.solver.BVV(0, 32), # st_uid (lol root)
                     self.state.solver.BVV(0, 32), # st_gid
                     self.state.solver.BVV(0, 64), # st_rdev
-                    self.state.solver.BVS('st_size', 64, key=('api', 'fstat', 'st_size')), # st_size
+                    size, # st_size
                     self.state.solver.BVV(0, 64), # st_blksize
                     self.state.solver.BVV(0, 64), # st_blocks
                     self.state.solver.BVV(0, 64), # st_atime
