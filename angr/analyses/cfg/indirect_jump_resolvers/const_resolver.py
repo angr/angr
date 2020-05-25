@@ -3,7 +3,7 @@ import logging
 import pyvex
 
 from .resolver import IndirectJumpResolver
-from ...code_location import CodeLocation
+from ....code_location import CodeLocation
 from ...propagator import vex_vars
 
 l = logging.getLogger(name=__name__)
