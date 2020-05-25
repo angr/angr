@@ -1,19 +1,13 @@
 import logging
-from collections import namedtuple
 
 from .plugin import SimStatePlugin
-from .filesystem import SimMount
+from .filesystem import SimMount, Stat
 from ..storage.file import SimFile, SimPacketsStream, Flags, SimFileDescriptor, SimFileDescriptorDuplex
 from .. import sim_options as options
 
 l = logging.getLogger(name=__name__)
 
 max_fds = 8192
-
-Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
-                           'st_gid', 'st_rdev', 'st_size', 'st_blksize',
-                           'st_blocks', 'st_atime', 'st_atimensec', 'st_mtime',
-                           'st_mtimensec', 'st_ctime', 'st_ctimensec'))
 
 class PosixDevFS(SimMount): # this'll be mounted at /dev
     def get(self, path):

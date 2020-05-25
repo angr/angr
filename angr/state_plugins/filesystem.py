@@ -1,13 +1,18 @@
 import os
 import logging
+from collections import namedtuple
 
 from .plugin import SimStatePlugin
 from ..storage.file import SimFile
 from ..errors import SimMergeError
 from ..misc.ux import once
-from .posix import Stat
 
 l = logging.getLogger(name=__name__)
+
+Stat = namedtuple('Stat', ('st_dev', 'st_ino', 'st_nlink', 'st_mode', 'st_uid',
+                           'st_gid', 'st_rdev', 'st_size', 'st_blksize',
+                           'st_blocks', 'st_atime', 'st_atimensec', 'st_mtime',
+                           'st_mtimensec', 'st_ctime', 'st_ctimensec'))
 
 class SimFilesystem(SimStatePlugin): # pretends links don't exist
     """
@@ -388,6 +393,7 @@ class SimHostFilesystem(SimConcreteFilesystem):
             return SimFile(name='file://' + path, content=content, size=len(content))
 
     def _get_stat(self, guest_path):
+        from .posix import Stat
         guest_path = guest_path.lstrip(self.pathsep)
         path = os.path.join(self.host_path, guest_path)
         try:
