@@ -1,11 +1,4 @@
 import angr
-import claripy
-import logging
-from angr.errors import SimProcedureError
-
-l = logging.getLogger(name=__name__)
-
-# note: this does not handle skipping white space
 
 class strtoul(angr.SimProcedure):
     #pylint:disable=arguments-differ
