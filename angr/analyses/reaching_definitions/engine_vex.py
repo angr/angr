@@ -471,7 +471,6 @@ class SimEngineRDVEX(
         skip_cc = self._handle_function_core(func_addr, **kwargs)
         if not skip_cc:
             self._handle_function_cc(func_addr)
-        return None
 
     def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
 
