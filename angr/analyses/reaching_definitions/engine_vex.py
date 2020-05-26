@@ -490,7 +490,7 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
 
-        func_addr_data = next(iter(func_addr)).data
+        func_addr_data = next(iter(func_addr))
         if len(func_addr_data) != 1:
             # indirect call
             handler_name = 'handle_indirect_call'
