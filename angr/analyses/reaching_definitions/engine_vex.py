@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Union
+from typing import Optional, Iterable, Set, Union, Any
 import logging
 
 import pyvex
@@ -467,82 +467,69 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, *args, **kwargs):  # pylint:disable=unused-argument
+    def _handle_function(self, func_addr: Any, **kwargs):  # pylint:disable=unused-argument
+
         if self._current_local_call_depth > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
-            return None
-
-        defs_ip = self.state.register_definitions.get_objects_by_offset(self.arch.ip_offset)
-        if len(defs_ip) != 1:
-            l.error('Invalid definition(s) for IP.')
-            return None
-
-        ip_data = next(iter(defs_ip)).data
-        if len(ip_data) != 1:
+            skip_cc = False
+        elif not isinstance(func_addr, int):
+            # indirect call
             handler_name = 'handle_indirect_call'
             if hasattr(self._function_handler, handler_name):
                 _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 self.state = state
             else:
                 l.warning('Please implement the indirect function handler with your own logic.')
-            return None
-
-        ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, int):
-            l.warning('Invalid type %s for IP.', type(ip_addr).__name__)
-            handler_name = 'handle_unknown_call'
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                state: ReachingDefinitionsState
-                self.state = state
-            else:
-                l.warning('Please implement the unknown function handler with your own logic.')
-            return None
-
-        ext_func_name = None
-        if self.project.loader.main_object.contains_addr(ip_addr):
-            ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
+            skip_cc = False
         else:
-            symbol = self.project.loader.find_symbol(ip_addr)
-            if symbol is not None:
-                ext_func_name = symbol.name
-        is_internal = ext_func_name is None
-
-        executed_rda = False
-        if ext_func_name is not None:
-            handler_name = 'handle_%s' % ext_func_name
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                self.state = state
+            # direct calls
+            ext_func_name = None
+            if self.project.loader.main_object.contains_addr(func_addr):
+                ext_func_name = self.project.loader.find_plt_stub_name(func_addr)
             else:
-                l.warning('Please implement the external function handler for %s() with your own logic.', ext_func_name)
-                handler_name = 'handle_external_function_fallback'
+                symbol = self.project.loader.find_symbol(func_addr)
+                if symbol is not None:
+                    ext_func_name = symbol.name
+            is_internal = ext_func_name is None
+
+            executed_rda = False
+            if ext_func_name is not None:
+                handler_name = 'handle_%s' % ext_func_name
                 if hasattr(self._function_handler, handler_name):
                     executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                     self.state = state
-        elif is_internal is True:
-            handler_name = 'handle_local_function'
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
-                                                                                    ip_addr,
-                                                                                    self._current_local_call_depth + 1,
-                                                                                    self._maximum_local_call_depth,
-                                                                                    self._codeloc(),
-                                                                                    )
-                self.state = state
+                else:
+                    l.warning('Please implement the external function handler for %s() with your own logic.',
+                              ext_func_name)
+                    handler_name = 'handle_external_function_fallback'
+                    if hasattr(self._function_handler, handler_name):
+                        executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                        self.state = state
+            elif is_internal is True:
+                handler_name = 'handle_local_function'
+                if hasattr(self._function_handler, handler_name):
+                    executed_rda, state = getattr(self._function_handler, handler_name)(
+                        self.state,
+                        func_addr,
+                        self._current_local_call_depth + 1,
+                        self._maximum_local_call_depth,
+                        self._codeloc(),
+                    )
+                    self.state = state
+                else:
+                    # l.warning('Please implement the local function handler with your own logic.')
+                    pass
             else:
-                # l.warning('Please implement the local function handler with your own logic.')
-                pass
-        else:
-            l.warning('Could not find function name for external function at address %#x.', ip_addr)
-            handler_name = 'handle_unknown_call'
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                self.state = state
-            else:
-                l.warning('Please implement the unknown function handler with your own logic.')
+                l.warning('Could not find function name for external function at address %#x.', func_addr)
+                handler_name = 'handle_unknown_call'
+                if hasattr(self._function_handler, handler_name):
+                    executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                    self.state = state
+                else:
+                    l.warning('Please implement the unknown function handler with your own logic.')
+            skip_cc = executed_rda
 
-        if executed_rda is False:
+        if not skip_cc:
             default_cc = DEFAULT_CC.get(self.arch.name, None)
             if default_cc is not None:
                 # follow the default calling convention and kill return value registers as well as caller-saving
