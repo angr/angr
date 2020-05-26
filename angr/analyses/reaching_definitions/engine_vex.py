@@ -467,29 +467,19 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, *args, **kwargs):  # pylint:disable=unused-argument
+    def _handle_function(self, func_addr: Optional[DataSet], **kwargs):
+        skip_cc = self._handle_function_core(func_addr, **kwargs)
+        if not skip_cc:
+            self._handle_function_cc(func_addr)
+
+    def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
+
         if self._current_local_call_depth > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
-            return None
+            return False
 
-        defs_ip = self.state.register_definitions.get_objects_by_offset(self.arch.ip_offset)
-        if len(defs_ip) != 1:
-            l.error('Invalid definition(s) for IP.')
-            return None
-
-        ip_data = next(iter(defs_ip)).data
-        if len(ip_data) != 1:
-            handler_name = 'handle_indirect_call'
-            if hasattr(self._function_handler, handler_name):
-                _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                self.state = state
-            else:
-                l.warning('Please implement the indirect function handler with your own logic.')
-            return None
-
-        ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, int):
-            l.warning('Invalid type %s for IP.', type(ip_addr).__name__)
+        if func_addr is None:
+            l.warning('Invalid type %s for IP.', type(func_addr).__name__)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
@@ -497,13 +487,36 @@ class SimEngineRDVEX(
                 self.state = state
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
-            return None
+            return False
 
+        if len(func_addr) != 1:
+            # indirect call
+            handler_name = 'handle_indirect_call'
+            if hasattr(self._function_handler, handler_name):
+                _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                self.state = state
+            else:
+                l.warning('Please implement the indirect function handler with your own logic.')
+            return False
+
+        func_addr_int = func_addr.get_first_element()
+        if not isinstance(func_addr_int, int):
+            l.warning('Invalid type %s for IP.', type(func_addr_int).__name__)
+            handler_name = 'handle_unknown_call'
+            if hasattr(self._function_handler, handler_name):
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                state: ReachingDefinitionsState
+                self.state = state
+            else:
+                l.warning('Please implement the unknown function handler with your own logic.')
+            return False
+
+        # direct calls
         ext_func_name = None
-        if self.project.loader.main_object.contains_addr(ip_addr):
-            ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
+        if self.project.loader.main_object.contains_addr(func_addr_int):
+            ext_func_name = self.project.loader.find_plt_stub_name(func_addr_int)
         else:
-            symbol = self.project.loader.find_symbol(ip_addr)
+            symbol = self.project.loader.find_symbol(func_addr_int)
             if symbol is not None:
                 ext_func_name = symbol.name
         is_internal = ext_func_name is None
@@ -515,7 +528,8 @@ class SimEngineRDVEX(
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 self.state = state
             else:
-                l.warning('Please implement the external function handler for %s() with your own logic.', ext_func_name)
+                l.warning('Please implement the external function handler for %s() with your own logic.',
+                          ext_func_name)
                 handler_name = 'handle_external_function_fallback'
                 if hasattr(self._function_handler, handler_name):
                     executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
@@ -523,65 +537,67 @@ class SimEngineRDVEX(
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
-                                                                                    ip_addr,
-                                                                                    self._current_local_call_depth + 1,
-                                                                                    self._maximum_local_call_depth,
-                                                                                    self._codeloc(),
-                                                                                    )
+                executed_rda, state = getattr(self._function_handler, handler_name)(
+                    self.state,
+                    func_addr_int,
+                    self._current_local_call_depth + 1,
+                    self._maximum_local_call_depth,
+                    self._codeloc(),
+                )
                 self.state = state
             else:
                 # l.warning('Please implement the local function handler with your own logic.')
                 pass
         else:
-            l.warning('Could not find function name for external function at address %#x.', ip_addr)
+            l.warning('Could not find function name for external function at address %#x.', func_addr_int)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
                 self.state = state
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
+        skip_cc = executed_rda
 
-        if executed_rda is False:
-            default_cc = DEFAULT_CC.get(self.arch.name, None)
-            if default_cc is not None:
-                # follow the default calling convention and kill return value registers as well as caller-saving
-                # registers
-                if default_cc.RETURN_VAL is not None:
-                    if isinstance(default_cc.RETURN_VAL, SimRegArg):
-                        reg_offset, reg_size = self.arch.registers[default_cc.RETURN_VAL.reg_name]
-                        atom = Register(reg_offset, reg_size)
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
-                if default_cc.CALLER_SAVED_REGS is not None:
-                    for reg in default_cc.CALLER_SAVED_REGS:
-                        reg_offset, reg_size = self.arch.registers[reg]
-                        atom = Register(reg_offset, reg_size)
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
+        return skip_cc
 
-            if self.arch.call_pushes_ret is True:
-                # pop return address if necessary
-                defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
-                if len(defs_sp) == 0:
-                    raise ValueError('No definition for SP found')
-                if len(defs_sp) == 1:
-                    sp_data = next(iter(defs_sp)).data.data
-                else:  # len(defs_sp) > 1
-                    sp_data = set()
-                    for d in defs_sp:
-                        sp_data.update(d.data)
+    def _handle_function_cc(self, func_addr):  # pylint:disable=unused-argument
+        default_cc = DEFAULT_CC.get(self.arch.name, None)
+        if default_cc is not None:
+            # follow the default calling convention and kill return value registers as well as caller-saving
+            # registers
+            if default_cc.RETURN_VAL is not None:
+                if isinstance(default_cc.RETURN_VAL, SimRegArg):
+                    reg_offset, reg_size = self.arch.registers[default_cc.RETURN_VAL.reg_name]
+                    atom = Register(reg_offset, reg_size)
+                    self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
+            if default_cc.CALLER_SAVED_REGS is not None:
+                for reg in default_cc.CALLER_SAVED_REGS:
+                    reg_offset, reg_size = self.arch.registers[reg]
+                    atom = Register(reg_offset, reg_size)
+                    self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
 
-                if len(sp_data) != 1:
-                    raise ValueError('Invalid number of values for stack pointer.')
+        if self.arch.call_pushes_ret is True:
+            # pop return address if necessary
+            defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
+            if len(defs_sp) == 0:
+                raise ValueError('No definition for SP found')
+            if len(defs_sp) == 1:
+                sp_data = next(iter(defs_sp)).data.data
+            else:  # len(defs_sp) > 1
+                sp_data = set()
+                for d in defs_sp:
+                    sp_data.update(d.data)
 
-                sp_addr = next(iter(sp_data))
-                if isinstance(sp_addr, (int, SpOffset)):
-                    sp_addr -= self.arch.stack_change
-                elif isinstance(sp_addr, Undefined):
-                    pass
-                else:
-                    raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+            if len(sp_data) != 1:
+                raise ValueError('Invalid number of values for stack pointer.')
 
-                atom = Register(self.arch.sp_offset, self.arch.bytes)
-                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
+            sp_addr = next(iter(sp_data))
+            if isinstance(sp_addr, (int, SpOffset)):
+                sp_addr -= self.arch.stack_change
+            elif isinstance(sp_addr, Undefined):
+                pass
+            else:
+                raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
-        return None
+            atom = Register(self.arch.sp_offset, self.arch.bytes)
+            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
