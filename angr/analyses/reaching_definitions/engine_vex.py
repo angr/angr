@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Union, Any
+from typing import Optional, Iterable, Set, Union
 import logging
 
 import pyvex
@@ -467,7 +467,7 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, func_addr: Any, **kwargs):
+    def _handle_function(self, func_addr: Optional[DataSet], **kwargs):
         skip_cc = self._handle_function_core(func_addr, **kwargs)
         if not skip_cc:
             self._handle_function_cc(func_addr)
