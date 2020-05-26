@@ -440,9 +440,12 @@ def test_uses_function_call_arguments():
     project.analyses.CompleteCallingConventions(recover_variables=True)
     rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False)
 
-    # 4007ae
+    # 4007ae call    authenticate
     # rsi and rdi are all used by authenticate()
-    uses = rda.all_uses.get_uses_by_location(CodeLocation(0x4007a0, DEFAULT_STATEMENT))
+    context = (main.addr, )
+    code_location = CodeLocation(0x4007a0, DEFAULT_STATEMENT, ins_addr=0x4007ae, context=context)
+    uses = rda.all_uses.get_uses_by_location(code_location)
+
     assert len(uses) == 2
     auth_rdi = next(iter(filter(
         lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rdi'][0],
