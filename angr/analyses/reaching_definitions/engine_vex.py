@@ -490,8 +490,7 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
 
-        func_addr_data = next(iter(func_addr))
-        if len(func_addr_data) != 1:
+        if len(func_addr) != 1:
             # indirect call
             handler_name = 'handle_indirect_call'
             if hasattr(self._function_handler, handler_name):
@@ -501,7 +500,7 @@ class SimEngineRDVEX(
                 l.warning('Please implement the indirect function handler with your own logic.')
             return False
 
-        func_addr_int = func_addr_data.get_first_element()
+        func_addr_int = func_addr.get_first_element()
         if not isinstance(func_addr_int, int):
             l.warning('Invalid type %s for IP.', type(func_addr_int).__name__)
             handler_name = 'handle_unknown_call'
