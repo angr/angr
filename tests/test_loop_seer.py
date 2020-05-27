@@ -147,7 +147,8 @@ def test_loop_limiter_constant_loop():
     nose.tools.assert_true(simgr.deadended[0].regs.eax.concrete)
     val = simgr.deadended[0].solver.eval_one(simgr.deadended[0].regs.eax)
     nose.tools.assert_equal(val, 420)
-    
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
