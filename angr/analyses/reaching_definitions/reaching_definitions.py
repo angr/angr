@@ -325,17 +325,14 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         if isinstance(node, ailment.Block):
             block = node
-            block_key = node.addr
             engine = self._engine_ail
         elif isinstance(node, (Block, CodeNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
-            block_key = node.addr
             engine = self._engine_vex
         elif isinstance(node, CFGNode):
             if node.is_simprocedure or node.is_syscall:
                 return False, state.copy()
             block = node.block
-            block_key = node.addr
             engine = self._engine_vex
         else:
             l.warning("Unsupported node type %s.", node.__class__)
@@ -352,6 +349,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             dep_graph=self._dep_graph,
         )
 
+        block_key = node.addr
         self._node_iterations[block_key] += 1
 
         # The Slice analysis happens recursively, so there will be no need to "start" any RDA from nodes that were
