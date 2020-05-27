@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Union
+from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -6,7 +6,7 @@ import pyvex
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
-from ...calling_conventions import DEFAULT_CC, SimRegArg
+from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -15,6 +15,11 @@ from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
 
+if TYPE_CHECKING:
+    from ...calling_conventions import SimCC
+    from ...knowledge_plugins import FunctionManager
+
+
 l = logging.getLogger(name=__name__)
 
 
@@ -22,9 +27,11 @@ class SimEngineRDVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
-    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, function_handler=None):
+    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, functions=None,
+                 function_handler=None):
         super(SimEngineRDVEX, self).__init__()
         self.project = project
+        self.functions: Optional['FunctionManager'] = functions
         self._current_local_call_depth = current_local_call_depth
         self._maximum_local_call_depth = maximum_local_call_depth
         self._function_handler = function_handler
@@ -560,18 +567,40 @@ class SimEngineRDVEX(
 
         return skip_cc
 
-    def _handle_function_cc(self, func_addr):  # pylint:disable=unused-argument
-        default_cc = DEFAULT_CC.get(self.arch.name, None)
-        if default_cc is not None:
-            # follow the default calling convention and kill return value registers as well as caller-saving
-            # registers
-            if default_cc.RETURN_VAL is not None:
-                if isinstance(default_cc.RETURN_VAL, SimRegArg):
-                    reg_offset, reg_size = self.arch.registers[default_cc.RETURN_VAL.reg_name]
+    def _handle_function_cc(self, func_addr: Optional[DataSet]):  # pylint:disable=unused-argument
+
+        cc: Optional['SimCC'] = None
+        if func_addr is not None and len(func_addr) == 1 and self.functions is not None:
+            func_addr_int = next(iter(func_addr))
+            if self.functions.contains_addr(func_addr_int):
+                cc = self.functions[func_addr_int].calling_convention
+
+        if cc is None:
+            cc = DEFAULT_CC.get(self.arch.name, None)(self.arch)
+
+        if cc is not None:
+            # follow the calling convention and:
+            # - add uses for arguments
+            # - kill return value registers
+            # - caller-saving registers
+            if cc.args:
+                code_loc = self._codeloc()
+                for arg in cc.args:
+                    if isinstance(arg, SimRegArg):
+                        reg_offset, reg_size = self.arch.registers[arg.reg_name]
+                        self.state.add_use(Register(reg_offset, reg_size), code_loc)
+                    elif isinstance(arg, SimStackArg):
+                        self.state.add_use(MemoryLocation(SpOffset(self.arch.bits,
+                                                                   arg.stack_offset),
+                                                          arg.size * self.arch.byte_width),
+                                           code_loc)
+            if cc.RETURN_VAL is not None:
+                if isinstance(cc.RETURN_VAL, SimRegArg):
+                    reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                     atom = Register(reg_offset, reg_size)
                     self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
-            if default_cc.CALLER_SAVED_REGS is not None:
-                for reg in default_cc.CALLER_SAVED_REGS:
+            if cc.CALLER_SAVED_REGS is not None:
+                for reg in cc.CALLER_SAVED_REGS:
                     reg_offset, reg_size = self.arch.registers[reg]
                     atom = Register(reg_offset, reg_size)
                     self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))

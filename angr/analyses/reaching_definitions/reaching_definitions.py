@@ -107,9 +107,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
         self._engine_vex = SimEngineRDVEX(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
-                                          self._function_handler)
+                                          functions=self.kb.functions,
+                                          function_handler=self._function_handler)
         self._engine_ail = SimEngineRDAIL(self.project, self._current_local_call_depth, self._maximum_local_call_depth,
-                                          self._function_handler)
+                                          function_handler=self._function_handler)
 
         self._visited_blocks: Set[Any] = visited_blocks or set()
         self.model: ReachingDefinitionsModel = ReachingDefinitionsModel(

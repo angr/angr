@@ -15,10 +15,11 @@ import archinfo
 from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
-from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation, CodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
+from angr.utils.constants import DEFAULT_STATEMENT
 from angr.block import Block
 
 LOGGER = logging.getLogger('test_reachingdefinitions')
@@ -357,9 +358,9 @@ def test_dep_graph_stack_variables():
     project = angr.Project(bin_path, auto_load_libs=False)
     arch = project.arch
     cfg = project.analyses.CFGFast()
-    main = cfg.functions['authenticate']
+    auth = cfg.functions['authenticate']
 
-    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
+    rda = project.analyses.ReachingDefinitions(subject=auth, track_tmps=False, dep_graph=DepGraph())
     dep_graph = rda.dep_graph
     open_rdi = next(iter(filter(
         lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rdi'][0]
@@ -391,6 +392,36 @@ def test_dep_graph_stack_variables():
     assert isinstance(rdi.atom, Register)
     assert rdi.atom.reg_offset == arch.registers['rdi'][0]
     assert isinstance(rdi.codeloc, ExternalCodeLocation)
+
+
+def test_uses_function_call_arguments():
+    bin_path = os.path.join(TESTS_LOCATION, 'x86_64', 'fauxware')
+    project = angr.Project(bin_path, auto_load_libs=False)
+    arch = project.arch
+    cfg = project.analyses.CFGFast()
+    main = cfg.functions['main']
+
+    project.analyses.CompleteCallingConventions(recover_variables=True)
+    rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False)
+
+    # 4007ae
+    # rsi and rdi are all used by authenticate()
+    uses = rda.all_uses.get_uses_by_location(CodeLocation(0x4007a0, DEFAULT_STATEMENT))
+    assert len(uses) == 2
+    auth_rdi = next(iter(filter(
+        lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rdi'][0],
+        uses
+    )))
+    auth_rsi = next(iter(filter(
+        lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rsi'][0],
+        uses
+    )))
+
+    # 4007AB mov     rdi, rax
+    assert auth_rdi.codeloc.ins_addr == 0x4007ab
+
+    # 4007A8 mov     rsi, rdx
+    assert auth_rsi.codeloc.ins_addr == 0x4007a8
 
 
 if __name__ == '__main__':
