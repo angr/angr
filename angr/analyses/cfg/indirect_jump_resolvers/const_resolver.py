@@ -13,13 +13,25 @@ class ConstantResolver(IndirectJumpResolver):
     def __init__(self, project):
         super().__init__(project, timeless=True)
 
-    def filter(self, cfg, addr, func_addr, block, jumpkind):
-        """
-        Filters out calls not supported by this resolver. Supported:
-        Ijk_Boring - Indirect jumps
-        Ijk_Call - Indirect Calls
-        """
+    def _exists_in_replacements(self, replacements, block_loc, tmp_var):
+        exists = False
+        for rep in replacements:
+            if rep == block_loc:
+                exists = True
+                break
 
+        if not exists:
+            return False
+
+        exists = False
+        for var in replacements[block_loc]:
+            if var == tmp_var:
+                exists = True
+                break
+
+        return exists
+
+    def filter(self, cfg, addr, func_addr, block, jumpkind):
         # we support both an indirect call and jump since the value can be resolved
         if jumpkind in ('Ijk_Boring', 'Ijk_Call'):
             return True
@@ -29,24 +41,32 @@ class ConstantResolver(IndirectJumpResolver):
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
         This function does the actual resolve. Our process is easy:
-        Get the basic block, and find the target jump. Propagate all constants
-        across the binary until we get to the block. Load constants from mem as needed.
-        If jmp/call is a int, we return.
+        Propagate all values inside the function specified, then extract
+        the tmp_var used for the indirect jump from the basic bloc   k.
+        Use the tmp var to locate the constant value stored in the replacments.
+        If not present, returns False tuple.
+
+        :param cfg:         CFG with specified function
+        :param addr:        Address of indirect jump
+        :param func_addr:   Address of function of indirect jump
+        :param block:       Block of indirect jump (Block object)
+        :param jumpkind:    VEX jumpkind (Ijk_Boring or Ijk_Call)
+        :return:            Bool tuple with replacement address
         """
         if isinstance(block.next, pyvex.expr.RdTmp):
-            unoptimized_block = self.project.factory.block(addr, opt_level=0)
-            propagator = self.project.analyses.Propagator(block=unoptimized_block, only_consts=True)
-            replacements = propagator.replacements
+            func = self.project.kb.functions[func_addr]
+            prop = self.project.analyses.Propagator(func=func, only_consts=True)
+            replacements = prop.replacements
+
             if replacements:
-                block_loc = CodeLocation(unoptimized_block.addr, None)
-                tmp_var = vex_vars.VEXTmp(unoptimized_block.vex.next.tmp)
+                block_loc = CodeLocation(block.addr, None)
+                tmp_var = vex_vars.VEXTmp(block.next.tmp)
 
-                resolved_tmp = None
-                try:
+                if self._exists_in_replacements(replacements, block_loc, tmp_var):
                     resolved_tmp = replacements[block_loc][tmp_var]
-                except KeyError:
-                    return False, [ ]
 
-                if isinstance(resolved_tmp, int):
-                    return True, [resolved_tmp]
+                    if isinstance(resolved_tmp, int):
+                        print(f"RESOLVED: {hex(resolved_tmp)}")
+                        return True, [resolved_tmp]
+
         return False, [ ]
