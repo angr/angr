@@ -23,7 +23,6 @@ DEFAULT_RESOLVERS = {
     'MIPS64': {
         cle.MetaELF: [ MipsElfFastResolver, ],
     },
-
     'ARMEL': {
         cle.MetaELF: [ ArmElfFastResolver, ]
     },
@@ -33,8 +32,9 @@ DEFAULT_RESOLVERS = {
     'ARMCortexM': {
         cle.MetaELF: [ ArmElfFastResolver, ]
     },
-    'ALL': [ JumpTableResolver, ConstantResolver ],
+    'ALL': [ ConstantResolver, JumpTableResolver, ],
 }
+
 
 def default_indirect_jump_resolvers(obj, project):
     arch_specific = DEFAULT_RESOLVERS.get(project.arch.name, { })
