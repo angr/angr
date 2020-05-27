@@ -63,3 +63,5 @@ def test_initial_regs():
 if __name__ == "__main__":
     test_libc_x86()
     test_lwip_udpecho_bm()
+    test_register_points()
+    test_initial_regs()
