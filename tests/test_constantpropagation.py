@@ -41,6 +41,24 @@ def test_lwip_udpecho_bm():
 
     nose.tools.assert_greater(len(prop.replacements), 0)
 
+def test_register_points():
+    bin_path = os.path.join(test_location, "armel", "lol_prop")
+    p = angr.Project(bin_path, auto_load_libs=False)
+    cfg = p.analyses.CFG(data_references=True)
+    f = cfg.functions[p.entry]
+    state = p.factory.blank_state()
+    prop = p.analyses.Propagator(func=f, base_state=state)
+    nose.tools.assert_equal(prop.get_register_at_block(p.entry, 'r0'), 0x40001234)
+
+def test_initial_regs():
+    bin_path = os.path.join(test_location, "armel", "lol_prop")
+    p = angr.Project(bin_path, auto_load_libs=False)
+    cfg = p.analyses.CFG(data_references=True)
+    f = cfg.functions[p.entry]
+    state = p.factory.blank_state()
+    prop = p.analyses.Propagator(func=f, base_state=state, initial_registers={'r1': 0xface})
+    nose.tools.assert_equal(prop.get_register_at_block(p.entry, 'r1'), 0xbeef + 0xface)
+
 
 if __name__ == "__main__":
     test_libc_x86()
