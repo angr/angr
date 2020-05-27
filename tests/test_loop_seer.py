@@ -144,7 +144,9 @@ def test_loop_limiter_constant_loop():
     simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions='main', bound=5, limit_concrete_loops=False))
 
     simgr.run()
-    nose.tools.assert_equal(simgr.deadended[0].regs.eax, 420)
+    nose.tools.assert_true(simgr.deadended[0].regs.eax.concrete)
+    val = simgr.deadended[0].solver.eval_one(simgr.deadended[0].regs.eax)
+    nose.tools.assert_equal(val, 420)
     
 if __name__ == "__main__":
     if len(sys.argv) > 1:
