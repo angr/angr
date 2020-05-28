@@ -55,7 +55,8 @@ class ConstantResolver(IndirectJumpResolver):
         """
         if isinstance(block.next, pyvex.expr.RdTmp):
             func = self.project.kb.functions[func_addr]
-            prop = self.project.analyses.Propagator(func=func, only_consts=True)
+            prop = self.project.analyses.Propagator(func=func, only_consts=True,
+                                                    completed_funcs=cfg._completed_functions)
             replacements = prop.replacements
 
             if replacements:
@@ -66,7 +67,6 @@ class ConstantResolver(IndirectJumpResolver):
                     resolved_tmp = replacements[block_loc][tmp_var]
 
                     if isinstance(resolved_tmp, int):
-                        print(f"RESOLVED: {hex(resolved_tmp)}")
                         return True, [resolved_tmp]
 
         return False, [ ]

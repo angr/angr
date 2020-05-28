@@ -7,7 +7,7 @@ class Propagations(KnowledgeBasePlugin):
         self._kb = kb
         self._propagations = {}
 
-    def __exists__(self, func_loc):
+    def exists(self, func_loc):
         """
         Internal function to check if a func, specified as a CodeLocation
         exists in our known propagations
@@ -40,7 +40,7 @@ class Propagations(KnowledgeBasePlugin):
         :param func_loc:    CodeLocation of function
         :return:            Dict or None
         """
-        if self.__exists__(func_loc):
+        if self.exists(func_loc):
             return self._propagations[func_loc]
         else:
             return None
