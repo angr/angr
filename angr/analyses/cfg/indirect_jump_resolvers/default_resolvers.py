@@ -32,7 +32,7 @@ DEFAULT_RESOLVERS = {
     'ARMCortexM': {
         cle.MetaELF: [ ArmElfFastResolver, ]
     },
-    'ALL': [ ConstantResolver, JumpTableResolver, ],
+    'ALL': [ ConstantResolver, JumpTableResolver ],
 }
 
 

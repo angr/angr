@@ -47,7 +47,9 @@ class Propagations(KnowledgeBasePlugin):
 
     def copy(self):
         o = Propagations(self._kb)
-        o._propagations = {k: v for k, v in self._propagations.items()}
+        o._propagations = {}
+        for k, v in self._propagations.items():
+            o._propagations[k] = v
 
 
 KnowledgeBasePlugin.register_default('propagations', Propagations)

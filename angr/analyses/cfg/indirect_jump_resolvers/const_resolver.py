@@ -9,27 +9,28 @@ from ...propagator import vex_vars
 l = logging.getLogger(name=__name__)
 
 
+def exists_in_replacements(replacements, block_loc, tmp_var):
+    exists = False
+    for rep in replacements:
+        if rep == block_loc:
+            exists = True
+            break
+
+    if not exists:
+        return False
+
+    exists = False
+    for var in replacements[block_loc]:
+        if var == tmp_var:
+            exists = True
+            break
+
+    return exists
+
+
 class ConstantResolver(IndirectJumpResolver):
     def __init__(self, project):
         super().__init__(project, timeless=True)
-
-    def _exists_in_replacements(self, replacements, block_loc, tmp_var):
-        exists = False
-        for rep in replacements:
-            if rep == block_loc:
-                exists = True
-                break
-
-        if not exists:
-            return False
-
-        exists = False
-        for var in replacements[block_loc]:
-            if var == tmp_var:
-                exists = True
-                break
-
-        return exists
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         # we support both an indirect call and jump since the value can be resolved
@@ -55,15 +56,19 @@ class ConstantResolver(IndirectJumpResolver):
         """
         if isinstance(block.next, pyvex.expr.RdTmp):
             func = self.project.kb.functions[func_addr]
-            prop = self.project.analyses.Propagator(func=func, only_consts=True,
-                                                    completed_funcs=cfg._completed_functions)
-            replacements = prop.replacements
+            # check if function is completed
+            if func.addr in cfg._completed_functions:
+                prop = self.project.analyses.Propagator(func=func, only_consts=True,
+                                                        completed_funcs=cfg._completed_functions)
+            else:
+                prop = self.project.analyses.Propagator(block=block)
 
+            replacements = prop.replacements
             if replacements:
                 block_loc = CodeLocation(block.addr, None)
                 tmp_var = vex_vars.VEXTmp(block.next.tmp)
 
-                if self._exists_in_replacements(replacements, block_loc, tmp_var):
+                if exists_in_replacements(replacements, block_loc, tmp_var):
                     resolved_tmp = replacements[block_loc][tmp_var]
 
                     if isinstance(resolved_tmp, int):
