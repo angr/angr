@@ -13,8 +13,8 @@ class fstat(angr.SimProcedure):
 
         store(0x00, stat.st_dev)
         store(0x08, stat.st_ino)
-        store(0x10, stat.st_nlink)
-        store(0x18, stat.st_mode)
+        store(0x10, stat.st_mode)
+        store(0x18, stat.st_nlink)
         store(0x1c, stat.st_uid)
         store(0x20, stat.st_gid)
         store(0x24, self.state.solver.BVV(0, 32))

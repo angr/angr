@@ -486,12 +486,14 @@ class Tracer(ExplorationTechnique):
         elif current_bin in self._aslr_slides:
             self._current_slide = self._aslr_slides[current_bin]
             return trace_addr == state_addr + self._current_slide
-        else:
-            if ((trace_addr - state_addr) & 0xfff) == 0:
+        elif ((trace_addr - state_addr) & 0xfff) == 0:
                 self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
                 return True
-            else:
-                raise AngrTracerError("Trace desynced on jumping into %s. Did you load the right version of this library?" % current_bin.provides)
+        # error handling
+        elif current_bin:
+            raise AngrTracerError("Trace desynced on jumping into %s. Did you load the right version of this library?" % current_bin.provides)
+        else:
+            raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
 
     def _analyze_misfollow(self, state, idx):
         angr_addr = state.addr
