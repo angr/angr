@@ -55,9 +55,9 @@ class ConstantResolver(IndirectJumpResolver):
         :return:            Bool tuple with replacement address
         """
         if isinstance(block.next, pyvex.expr.RdTmp):
-            func = self.project.kb.functions[func_addr]
             # check if function is completed
-            if func.addr in cfg._completed_functions:
+            if func_addr in cfg._completed_functions:
+                func = self.project.kb.functions[func_addr]
                 prop = self.project.analyses.Propagator(func=func, only_consts=True,
                                                         completed_funcs=cfg._completed_functions)
             else:
