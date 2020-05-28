@@ -17,11 +17,12 @@ class SimEngineInitFinderVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):
-    def __init__(self, project, replacements, overlay):
+    def __init__(self, project, replacements, overlay, pointers_only=False):
         super().__init__()
         self.project = project
         self.replacements = replacements
         self.overlay = overlay
+        self.pointers_only = pointers_only
 
     #
     # Utils
@@ -45,6 +46,12 @@ class SimEngineInitFinderVEX(
                 segment = obj.find_segment_containing(addr)  # type: Segment
                 if segment is not None and segment.memsize > segment.filesize:
                     return segment.vaddr + segment.filesize <= addr < segment.vaddr + segment.memsize
+        return False
+
+    def _is_pointer(self, addr):
+        if isinstance(addr, int):
+            if addr > 0x400:
+                return self.project.loader.find_object_containing(addr) is not None
         return False
 
     #
@@ -75,9 +82,10 @@ class SimEngineInitFinderVEX(
                         data_v = self._expr(stmt.data)
                         if isinstance(data_v, int):
                             data_size = self.tyenv.sizeof(stmt.data.tmp)
-                            self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
-                                               endness=self.project.arch.memory_endness
-                                               )
+                            if not self.pointers_only or self._is_pointer(data_v):
+                                self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
+                                                   endness=self.project.arch.memory_endness
+                                                   )
 
     def _handle_StoreG(self, stmt):
         blockloc = self._codeloc(block_only=True)
@@ -106,9 +114,10 @@ class SimEngineInitFinderVEX(
 
         if isinstance(data_v, int):
             data_size = self.tyenv.sizeof(stmt.data.tmp)
-            self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
-                               endness=self.project.arch.memory_endness
-                               )
+            if not self.pointers_only or self._is_pointer(data_v):
+                self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
+                                   endness=self.project.arch.memory_endness
+                                   )
 
     #
     # Expression handlers
@@ -138,7 +147,8 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
     on.
     """
 
-    def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None, overlay=None):
+    def __init__(self, func=None, func_graph=None, block=None, max_iterations=1, replacements=None, overlay=None, pointers_only=False):
+        self.pointers_only = pointers_only
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -174,7 +184,7 @@ class InitializationFinder(ForwardAnalysis, Analysis):  # pylint:disable=abstrac
             self.overlay_state = self.project.factory.blank_state()
             self.overlay = self.overlay_state.memory
 
-        self._engine_vex = SimEngineInitFinderVEX(self.project, replacements, self.overlay)
+        self._engine_vex = SimEngineInitFinderVEX(self.project, replacements, self.overlay, pointers_only=self.pointers_only)
         self._engine_ail = None
 
         self._analyze()
