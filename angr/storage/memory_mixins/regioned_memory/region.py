@@ -1,20 +1,27 @@
 
+import copy
+
+from .. import MemoryMixin
+
+
 class MemoryRegion:
-    def __init__(self, id, state, is_stack=False, related_function_addr=None, init_memory=True, backer_dict=None, endness=None): #pylint:disable=redefined-builtin,unused-argument
+    def __init__(self, mem_id, state, related_function_addr=None, init_memory=True, cle_memory_backer=None,
+                 dict_memory_backer=None, endness=None):
         self._endness = endness
-        self._id = id
+        self._id = mem_id
         self._state = state
-        self._is_stack = id.startswith('stack_') # TODO: Fix it
+        self._is_stack = mem_id.startswith('stack_') # TODO: Fix it
         self._related_function_addr = related_function_addr
         # This is a map from tuple (basicblock_key, stmt_id) to
         # AbstractLocation objects
         self._alocs = { }
 
         if init_memory:
-            if backer_dict is None:
-                self._memory = SimSymbolicMemory(memory_id=id, endness=self._endness, abstract_backer=True)
-            else:
-                self._memory = SimSymbolicMemory(memory_backer=backer_dict, memory_id=id, endness=self._endness, abstract_backer=True)
+            # delayed import
+            from .. import RegionMemory
+            self._memory = RegionMemory(memory_id=mem_id, endness=self._endness,
+                                        cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer,
+                                        )
 
             self._memory.set_state(state)
 
@@ -70,19 +77,19 @@ class MemoryRegion:
         self._state = state
         self._memory.set_state(state)
 
-    @SimMemory.memo
+    @MemoryMixin.memo
     def copy(self, memo):
         r = MemoryRegion(self._id, self.state,
-                         is_stack=self._is_stack,
                          related_function_addr=self._related_function_addr,
-                         init_memory=False, endness=self._endness)
+                         init_memory=False,
+                         endness=self._endness,
+                         )
         r._memory = self.memory.copy(memo)
         r._alocs = copy.deepcopy(self._alocs)
         return r
 
-    def store(self, request, bbl_addr, stmt_id, ins_addr):
+    def store(self, addr, data, bbl_addr, stmt_id, ins_addr, endness=None):
         if ins_addr is not None:
-            #aloc_id = (bbl_addr, stmt_id)
             aloc_id = ins_addr
         else:
             # It comes from a SimProcedure. We'll use bbl_addr as the aloc_id
@@ -92,15 +99,14 @@ class MemoryRegion:
             self._alocs[aloc_id] = self.state.solver.AbstractLocation(bbl_addr,
                                                                   stmt_id,
                                                                   self.id,
-                                                                  region_offset=request.addr,
-                                                                  size=len(request.data) // self.state.arch.byte_width)
-            return self.memory._store(request)
+                                                                  region_offset=addr,
+                                                                  size=len(data) // self.state.arch.byte_width)
+            return self.memory.store(addr, data)
         else:
-            if self._alocs[aloc_id].update(request.addr, len(request.data) // self.state.arch.byte_width):
-                return self.memory._store(request)
+            if self._alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
+                return self.memory.store(addr, data, endness=endness)
             else:
-                #return self.memory._store_with_merge(request)
-                return self.memory._store(request)
+                return self.memory.store(addr, data, endness=endness)
 
     def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:

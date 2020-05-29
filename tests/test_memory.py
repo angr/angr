@@ -231,7 +231,7 @@ def test_abstract_memory():
 
     s = SimState(mode='static',
                  arch="AMD64",
-                 memory_backer=initial_memory,
+                 dict_memory_backer=initial_memory,
                  add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
     se = s.se
 
@@ -622,17 +622,17 @@ def test_hex_dump():
     )
 
 if __name__ == '__main__':
-    test_crosspage_read()
-    test_fast_memory()
-    test_light_memory()
-    test_false_condition()
-    test_symbolic_write()
-    test_fullpage_write()
-    test_memory()
-    test_copy()
+    # test_crosspage_read()
+    # test_fast_memory()
+    # test_light_memory()
+    # test_false_condition()
+    # test_symbolic_write()
+    # test_fullpage_write()
+    # test_memory()
+    # test_copy()
     test_abstract_memory()
-    test_abstract_memory_find()
-    test_registers()
-    test_concrete_memset()
-    test_underconstrained()
-    test_hex_dump()
+    # test_abstract_memory_find()
+    # test_registers()
+    # test_concrete_memset()
+    # test_underconstrained()
+    # test_hex_dump()

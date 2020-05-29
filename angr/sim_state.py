@@ -169,12 +169,15 @@ class SimState(PluginHub):
             elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
-                if memory_backer is not None:
-                    memory_backer = {'global': memory_backer}
+                if cle_memory_backer is not None:
+                    cle_memory_backer = {'global': cle_memory_backer}
+                if dict_memory_backer is not None:
+                    dict_memory_backer = {'global': dict_memory_backer}
 
                 # TODO: support permissions backer in SimAbstractMemory
                 sim_memory_cls = self.plugin_preset.request_plugin('abs_memory')
-                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+                sim_memory = sim_memory_cls(cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer,
+                                            memory_id='mem')
 
             elif o.FAST_MEMORY in self.options:
                 sim_memory_cls = self.plugin_preset.request_plugin('fast_memory')
