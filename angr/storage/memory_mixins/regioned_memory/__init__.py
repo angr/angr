@@ -1,1 +1,2 @@
 from .regioned_memory_mixin import RegionedMemoryMixin
+from .region_category_mixin import RegionCategoryMixin

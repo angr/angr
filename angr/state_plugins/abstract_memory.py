@@ -705,5 +705,5 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
             region.dbg_print(indent=2)
 
 
-from ..sim_state import SimState
-SimState.register_default('abs_memory', SimAbstractMemory)
+# from ..sim_state import SimState
+# SimState.register_default('abs_memory', SimAbstractMemory)
