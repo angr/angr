@@ -1362,7 +1362,7 @@ public:
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
-	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> taint_sources) {
+	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources) {
 		taint_status_result_t result;
 		result.is_symbolic = false;
 		result.depends_on_read_from_concrete_addr = false;
@@ -1392,7 +1392,7 @@ public:
 			}
 			else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
 				// Check if the memory address being read from is symbolic
-				auto mem_address_status = get_final_taint_status_vector(taint_source.mem_ref_entity_list);
+				auto mem_address_status = get_final_taint_status(taint_source.mem_ref_entity_list);
 				if ((mem_address_status.is_symbolic) || (mem_address_status.depends_on_read_from_symbolic_addr)) {
 					// Address is symbolic or depends on a read from a symbolic address.
 					// Stop concrete execution.
@@ -1419,7 +1419,7 @@ public:
 
 	// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
 	// unordered_set
-	taint_status_result_t get_final_taint_status_vector(const std::vector<taint_entity_t> taint_sources) {
+	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) {
 		std::unordered_set<taint_entity_t> taint_sources_set(taint_sources.begin(), taint_sources.end());
 		return get_final_taint_status(taint_sources_set);
 	}
@@ -1543,7 +1543,7 @@ public:
 				continue;
 			}
 			else if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
-				auto addr_taint_status = get_final_taint_status_vector(taint_sink.mem_ref_entity_list);
+				auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
 				// Check if address written to is symbolic or is read from memory
 				if (addr_taint_status.depends_on_read_from_concrete_addr ||
 					addr_taint_status.depends_on_read_from_symbolic_addr ||
