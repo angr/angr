@@ -91,7 +91,7 @@ class SimStatePlugin(object):
         """
         raise NotImplementedError("merge() not implement for %s" % self.__class__.__name__)
 
-    def widen(self, _others): #pylint:disable=unused-argument
+    def widen(self, others): #pylint:disable=unused-argument
         """
         The widening operation for plugins. Widening is a special kind of merging that produces a more general state
         from several more specific states. It is used only during intensive static analysis. The same behavior
