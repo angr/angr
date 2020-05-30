@@ -191,6 +191,7 @@ class SimAbstractMemory(SimMemory): #pylint:disable=abstract-method
     """
     def __init__(self, memory_backer=None, memory_id="mem", endness=None, stack_region_map=None,
                  generic_region_map=None):
+        raise Exception("Should not be created. Period.")
         SimMemory.__init__(self,
                            endness=endness,
                            stack_region_map=stack_region_map,
