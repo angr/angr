@@ -13,7 +13,7 @@ tag_map = { 'tag%d' % n: n for n in range(8) }
 DUMMY_SYMBOLIC_READ_VALUE = 0xc0deb4be
 
 
-class AddressWrapper(object):
+class AddressWrapper:
     """
     AddressWrapper is used in SimAbstractMemory, which provides extra meta information for an address (or a ValueSet
     object) that is normalized from an integer/BVV/StridedInterval.
@@ -53,7 +53,7 @@ class AddressWrapper(object):
         """
         return state.solver.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
 
-class RegionDescriptor(object):
+class RegionDescriptor:
     """
     Descriptor for a memory region ID.
     """
@@ -68,7 +68,7 @@ class RegionDescriptor(object):
             self.related_function_address if self.related_function_address is not None else 0
         )
 
-class RegionMap(object):
+class RegionMap:
     """
     Mostly used in SimAbstractMemory, RegionMap stores a series of mappings between concrete memory address ranges and
     memory regions, like stack frames and heap regions.
@@ -243,7 +243,7 @@ class RegionMap(object):
 
         return descriptor.region_id, absolute_address - base_address, descriptor.related_function_address
 
-class MemoryStoreRequest(object):
+class MemoryStoreRequest:
     """
     A MemoryStoreRequest is used internally by SimMemory to track memory request data.
     """

@@ -29,19 +29,21 @@ class strlen(angr.SimProcedure):
             self.max_null_index = 0
 
             # Make sure to convert s to ValueSet
-            s_list = self.state.memory.normalize_address(s, convert_to_valueset=True)
+            s_aw_iter = self.state.memory._concrete_address(s)
 
             length = self.state.solver.ESI(self.state.arch.bits)
-            for s_ptr in s_list:
+            for s_aw in s_aw_iter:
 
+                s_ptr = s_aw.to_valueset(self.state)
                 r, c, i = self.state.memory.find(s, null_seq, max_str_len, max_symbolic_bytes=max_symbolic_bytes, step=step, chunk_size=chunk_size)
 
                 self.max_null_index = max([self.max_null_index] + i)
 
                 # Convert r to the same region as s
-                r_list = self.state.memory.normalize_address(r, convert_to_valueset=True, target_region=next(iter(s_ptr._model_vsa.regions.keys())))
+                r_aw_iter = self.state.memory._concretize_address_descriptor(r, target_region=next(iter(s_ptr._model_vsa.regions.keys())))
 
-                for r_ptr in r_list:
+                for r_aw in r_aw_iter:
+                    r_ptr = r_aw.to_valueset(self.state)
                     length = length.union(r_ptr - s_ptr)
 
             return length

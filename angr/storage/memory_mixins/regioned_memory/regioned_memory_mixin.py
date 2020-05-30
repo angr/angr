@@ -13,6 +13,7 @@ from ....errors import SimMemoryError, SimAbstractMemoryError
 from ...memory import AddressWrapper, RegionMap
 from ..paged_memory.paged_memory_mixin import PagedMemoryMixin
 from .region import MemoryRegion
+from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
     from ....sim_state import SimState
@@ -63,15 +64,15 @@ class RegionedMemoryMixin(PagedMemoryMixin):
             return self.state.solver.Unconstrained(var_name, self.state.arch.bits)
 
         val = None
-        # TODO: Bad code. refactor it so that we don't end up enumerating all address wrappers
-        regioned_addrs: List[AddressWrapper] = list(self._normalize_address(addr, is_write=False, condition=condition))
+        regioned_addrs_desc = self._normalize_address(addr, condition=condition)
 
-        if (len(regioned_addrs) > 1 and AVOID_MULTIVALUED_READS in self.state.options) or \
-                (len(regioned_addrs) >= self._read_targets_limit and CONSERVATIVE_READ_STRATEGY in self.state.options):
+        if (len(regioned_addrs_desc) > 1 and AVOID_MULTIVALUED_READS in self.state.options) or \
+                (len(regioned_addrs_desc) >= self._read_targets_limit and CONSERVATIVE_READ_STRATEGY in self.state.options):
             val = self.state.solver.Unconstrained('unconstrained_read', size * self.state.arch.byte_width)
             return val
 
-        for aw in regioned_addrs:
+        gen = self._concretize_address_descriptor(regioned_addrs_desc, addr, is_write=False)
+        for aw in gen:
             new_val = self._region_load(aw.address, size, aw.region,
                                         related_function_addr=aw.function_address,
                                         )
@@ -93,14 +94,13 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         return val
 
     def store(self, addr, data, size: Optional[int]=None, endness=None, **kwargs):
-        regioned_addrs: List[AddressWrapper] = list(self._normalize_address(addr, is_write=True,
-                                                                            convert_to_valueset=False))
-        if len(regioned_addrs) >= self._write_targets_limit and CONSERVATIVE_WRITE_STRATEGY in self.state.options:
+        regioned_addrs_desc = self._normalize_address(addr)
+        if len(regioned_addrs_desc) >= self._write_targets_limit and CONSERVATIVE_WRITE_STRATEGY in self.state.options:
             return
 
-        for a in regioned_addrs:
-            self._region_store(a.address, data, a.region, endness,
-                               related_function_addr=a.function_address)
+        gen = self._concretize_address_descriptor(regioned_addrs_desc, addr, is_write=True)
+        for aw in gen:
+            self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
     #
     # Region management
@@ -172,8 +172,25 @@ class RegionedMemoryMixin(PagedMemoryMixin):
     # Address conversion
     #
 
-    def _normalize_address(self, addr: claripy.ast.Base, is_write: bool=False, convert_to_valueset: bool=False,
-                           target_region: Optional[str]=None, condition=None) -> Generator[Bits,None,None]:
+    def _concretize_address_descriptor(self, desc: AbstractAddressDescriptor, original_addr: claripy.ast.Bits,
+                                       is_write: bool=False,
+                                       target_region: Optional[str]=None) -> Generator[AddressWrapper,None,None]:
+
+        targets_limit = self._write_targets_limit if is_write else self._read_targets_limit
+
+        for region, addr_si in desc:
+            concrete_addrs = addr_si.eval(targets_limit)
+            if len(concrete_addrs) == targets_limit and HYBRID_SOLVER in self.state.options:
+                exact = True if APPROXIMATE_FIRST not in self.state.options else None
+                solutions = self.state.solver.eval_upto(original_addr, targets_limit, exact=exact)
+
+                if len(solutions) < len(concrete_addrs):
+                    concrete_addrs = [addr_si.intersection(s).eval(1)[0] for s in solutions]
+
+            for c in concrete_addrs:
+                yield self._normalize_address_core(region, c, target_region=target_region)
+
+    def _normalize_address(self, addr: claripy.ast.Bits, condition=None) -> AbstractAddressDescriptor:
         """
         Translate an address into a series of internal representation of addresses that can be used to address in
         individual regions.
@@ -184,8 +201,6 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         :param target_region:
         :return:
         """
-
-        targets_limit = self._write_targets_limit if is_write else self._read_targets_limit
 
         if type(addr) is not int:
             for constraint in self.state.solver.constraints:
@@ -201,27 +216,10 @@ class RegionedMemoryMixin(PagedMemoryMixin):
 
         addr_with_regions = self._normalize_address_type(addr)
 
-        # TODO: Refactor this method so that it returns an AbstractAddressDescriptor that
-        # TODO: - delays the creation of AddressWrapper
-        # TODO: - allows getting the total number of addresses
-        # TODO: this way we will not have to create all AddressWrapper objects in callers if there are too many addresses
-
+        desc = AbstractAddressDescriptor()
         for region, addr_si in addr_with_regions:
-            concrete_addrs = addr_si.eval(targets_limit)
-
-            if len(concrete_addrs) == targets_limit and HYBRID_SOLVER in self.state.options:
-                exact = True if APPROXIMATE_FIRST not in self.state.options else None
-                solutions = self.state.solver.eval_upto(addr, targets_limit, exact=exact)
-
-                if len(solutions) < len(concrete_addrs):
-                    concrete_addrs = [addr_si.intersection(s).eval(1)[0] for s in solutions]
-
-            for c in concrete_addrs:
-                aw = self._normalize_address_core(region, c, target_region=target_region)
-                if convert_to_valueset:
-                    yield aw.to_valueset(self.state)
-                else:
-                    yield aw
+            desc.add_regioned_address(region, addr_si)
+        return desc
 
     def _normalize_address_core(self, region_id: str, relative_address: int,
                                 target_region: Optional[str]=None) -> AddressWrapper:
