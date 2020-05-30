@@ -382,6 +382,9 @@ class SimStateHistory(SimStatePlugin):
     def jump_targets(self):
         return LambdaAttrIter(self, operator.attrgetter('jump_target'))
     @property
+    def jump_sources(self):
+        return LambdaAttrIter(self, operator.attrgetter('jump_source'))
+    @property
     def descriptions(self):
         return LambdaAttrIter(self, operator.attrgetter('recent_description'))
     @property

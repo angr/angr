@@ -116,6 +116,7 @@ class SimSuccessors:
         state.scratch.source = source if source is not None else self.addr
         state.scratch.exit_stmt_idx = exit_stmt_idx
         state.scratch.exit_ins_addr = exit_ins_addr
+        state.history.jump_source = state.scratch.exit_ins_addr
 
         self._preprocess_successor(state, add_guard=add_guard)
 
