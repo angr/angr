@@ -129,6 +129,8 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
         # https://www.python.org/dev/peps/pep-0425/
         sys.argv.append(name.replace('.', '_').replace('-', '_'))
 
+_UNICORN = "unicorn>=1.0.2rc2"
+
 setup(
     name='angr',
     version='8.20.5.27',
@@ -146,7 +148,7 @@ setup(
         'progressbar2',
         'rpyc',
         'cffi>=1.7.0',
-        'unicorn>=1.0.2rc2',
+        _UNICORN,
         'archinfo==8.20.5.27',
         'claripy==8.20.5.27',
         'cle==8.20.5.27',
@@ -158,7 +160,7 @@ setup(
         'itanium_demangler',
         'protobuf',
     ],
-    setup_requires=['unicorn', 'pyvex'],
+    setup_requires=[_UNICORN, 'pyvex'],
     extras_require={
         'AngrDB': ['sqlalchemy'],
     },
