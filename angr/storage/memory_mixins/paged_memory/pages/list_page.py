@@ -1,28 +1,26 @@
-import typing
+from typing import Optional, List
 
 from . import PageBase
 from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
 
+
 class ListPage(MemoryObjectMixin, PageBase):
     def __init__(self, memory=None, content=None, sinkhole=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: typing.List[typing.Optional[SimMemoryObject]] = content
+        self.content: List[Optional[SimMemoryObject]] = content
         if content is None:
             if memory is not None:
                 self.content = [None] * memory.page_size  # TODO: this isn't the best
 
-        self.sinkhole: typing.Optional[SimMemoryObject] = sinkhole
+        self.sinkhole: Optional[SimMemoryObject] = sinkhole
 
     def copy(self, memo):
         o = super().copy(memo)
         o.content = list(self.content)
         o.sinkhole = self.sinkhole
         return o
-
-    def merge(self, _others, _merge_conditions, _common_ancestor=None):
-        raise NotImplementedError("uh oh sisters!")
 
     def load(self, addr, size=None, endness=None, page_addr=None, memory=None, cooperate=False, **kwargs):
         result = []
@@ -73,3 +71,6 @@ class ListPage(MemoryObjectMixin, PageBase):
         else:
             for subaddr in range(addr, addr + size):
                 self.content[subaddr] = data
+
+    def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None):
+        raise NotImplementedError()

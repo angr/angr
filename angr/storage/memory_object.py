@@ -10,7 +10,7 @@ def obj_bit_size(o):
 
 # TODO: get rid of is_bytes and have the bytes-backed objects be a separate class
 
-class SimMemoryObject(object):
+class SimMemoryObject:
     """
     A MemoryObjectRef instance is a reference to a byte or several bytes in
     a specific object in memory. It should be used only by the bottom layer of memory.

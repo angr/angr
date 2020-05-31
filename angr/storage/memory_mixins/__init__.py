@@ -1,3 +1,5 @@
+from typing import Iterable, Tuple, Any
+
 from ...state_plugins.plugin import SimStatePlugin
 from ...errors import SimMemoryError
 
@@ -56,6 +58,12 @@ class MemoryMixin(SimStatePlugin):
     def store(self, addr, data, **kwargs):
         pass
 
+    def merge(self, others, merge_conditions, common_ancestor=None):
+        pass
+
+    def widen(self, others):
+        pass
+
     def permissions(self, addr, permissions=None, **kwargs):
         pass
 
@@ -81,6 +89,17 @@ class MemoryMixin(SimStatePlugin):
         """
         pass
 
+    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int):
+        """
+        Override this method to provide value merging support.
+
+        :param values:          A collection of values with their merge conditions.
+        :param merged_size:     The size (in bytes) of the merged value.
+        :return:                The merged value.
+        """
+        pass
+
+
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin
 from .bvv_conversion_mixin import DataNormalizationMixin
@@ -94,6 +113,7 @@ from .simplification_mixin import SimplificationMixin
 from .simple_interface_mixin import SimpleInterfaceMixin
 from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
 from .smart_find_mixin import SmartFindMixin
+from .symbolic_merger_mixin import SymbolicMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
@@ -129,6 +149,7 @@ class DefaultMemory(
         PrivilegedPagingMixin,
         UltraPagesMixin,
         DefaultFillerMixin,
+        SymbolicMergerMixin,
         PagedMemoryMixin,
         ):
     pass

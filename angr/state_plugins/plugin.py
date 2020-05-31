@@ -62,7 +62,7 @@ class SimStatePlugin(object):
                 return c
         return inner
 
-    def merge(self, _others, _merge_conditions, _common_ancestor=None): #pylint:disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None): #pylint:disable=unused-argument
         """
         Should merge the state plugin with the provided others. This will be called by ``state.merge()`` after copying
         the target state, so this should mutate the current instance to merge with the others.

@@ -25,7 +25,6 @@ class SlottedMemoryMixin(MemoryMixin):
         o.contents = dict(self.contents)
         return o
 
-
     def merge(self, others, merge_conditions, common_ancestor=None):
         if any(o.width != self.width for o in others):
             raise SimMergeError("Cannot merge slotted memory with disparate widths")

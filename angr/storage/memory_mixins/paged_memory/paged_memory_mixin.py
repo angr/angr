@@ -1,5 +1,5 @@
-import typing
 import cffi
+from typing import Tuple, Type, Dict, Optional, Iterable, List, Any, Set
 import logging
 
 from angr.storage.memory_mixins import MemoryMixin
@@ -11,12 +11,13 @@ ffi = cffi.FFI()
 
 l = logging.getLogger(__name__)
 
+
 class PagedMemoryMixin(MemoryMixin):
     """
     A bottom-level storage mechanism. Dispatches reads to individual pages, the type of which is the PAGE_TYPE class
     variable.
     """
-    PAGE_TYPE: typing.Type[PageType] = None  # must be provided in subclass
+    PAGE_TYPE: Type[PageType] = None  # must be provided in subclass
 
     def __init__(self,  page_size=0x1000, default_permissions=3, permissions_map=None, page_kwargs=None, **kwargs):
         super().__init__(**kwargs)
@@ -25,7 +26,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         self._permissions_map = permissions_map if permissions_map is not None else {}
         self._default_permissions = default_permissions
-        self._pages: typing.Dict[int, typing.Optional[PageType]] = {}
+        self._pages: Dict[int, Optional[PageType]] = {}
 
     def __del__(self):
         # a thought: we could support mapping pages in multiple places in memory if here we just kept a set of released
@@ -99,7 +100,7 @@ class PagedMemoryMixin(MemoryMixin):
             **self._extra_page_kwargs
         )
 
-    def _divide_addr(self, addr: int) -> typing.Tuple[int, int]:
+    def _divide_addr(self, addr: int) -> Tuple[int, int]:
         return divmod(addr, self.page_size)
 
     def load(self, addr: int, size: int=None, endness=None, **kwargs):
@@ -135,7 +136,6 @@ class PagedMemoryMixin(MemoryMixin):
         out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, **kwargs)
         l.debug("%s.load(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
         return out
-
 
     def store(self, addr: int, data, size: int=None, endness=None, **kwargs):
         if endness is None:
@@ -178,6 +178,36 @@ class PagedMemoryMixin(MemoryMixin):
             pageoff = 0
 
         sub_gen.close()
+
+    def merge(self, others: Iterable['PagedMemoryMixin'], merge_conditions, common_ancestor=None):
+        changed_pages = set()
+        for o in others:
+            changed_pages |= self.changed_pages(o)
+
+        self._merge(others, changed_pages, merge_conditions)
+
+    def _merge(self, others: Iterable['PagedMemoryMixin'], changed_pages: Iterable[int], merge_conditions):
+
+        if merge_conditions is None:
+            merge_conditions = [None] * (len(list(others)) + 1)
+
+        merged_bytes = set()
+        for page_no in sorted(changed_pages):
+            l.debug("... on page %x", page_no)
+
+            page = self._get_page(page_no, True)
+            other_pages = [ ]
+
+            for o in others:
+                if page_no in o._pages:
+                    other_pages.append(o._get_page(page_no, False))
+
+            page_addr = page_no * self.page_size
+            merged_offsets = page.merge(other_pages, merge_conditions, page_addr=page_addr, memory=self)
+            for off in merged_offsets:
+                merged_bytes.add(page_addr + off)
+
+        return merged_bytes
 
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is not int:
@@ -370,7 +400,7 @@ class PagedMemoryMixin(MemoryMixin):
 
             return data
 
-    def changed_bytes(self, other):
+    def changed_bytes(self, other) -> Set[int]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
@@ -390,6 +420,28 @@ class PagedMemoryMixin(MemoryMixin):
                 pass
             else:
                 changes.update(my_page.changed_bytes(other_page, page_addr=pageno * self.page_size))
+
+        return changes
+
+    def changed_pages(self, other) -> Set[int]:
+        my_pages = set(self._pages)
+        other_pages = set(other._pages)
+        intersection = my_pages.intersection(other_pages)
+        difference = my_pages.difference(other_pages)
+
+        changes: Set[int] = set(difference)
+
+        for pageno in intersection:
+            my_page = self._pages[pageno]
+            other_page = other._pages[pageno]
+
+            if (my_page is None) ^ (other_page is None):
+                changes.update(pageno)
+            elif my_page is None:
+                pass
+            else:
+                if my_page.changed_bytes(other_page, page_addr=pageno * self.page_size):
+                    changes.add(pageno)
 
         return changes
 
