@@ -35,8 +35,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         o.symbolic_data = SortedDict(self.symbolic_data)
         return o
 
-    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, fill_missing=True,
-             **kwargs):
+    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):
         concrete_run = []
         symbolic_run = ...
         last_run = None
@@ -56,10 +55,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         def cycle(end):
             if last_run is symbolic_run and symbolic_run is None:
-                if fill_missing:
-                    fill(end)
-                else:
-                    raise KeyError()
+                fill(end)
             elif last_run is concrete_run:
                 new_ast = claripy.BVV(concrete_run, (end - result[-1][0]) * 8)
                 new_obj = SimMemoryObject(new_ast, result[-1][0], endness)
