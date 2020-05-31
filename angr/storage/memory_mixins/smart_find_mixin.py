@@ -62,13 +62,15 @@ class SmartFindMixin(MemoryMixin):
             chunk_progress += 1
             b = chunk.get_bytes(chunk_idx, stride)
 
-            if b.symbolic and max_symbolic_bytes is not None:
+            if self._find_are_bytes_symbolic(b) and max_symbolic_bytes is not None:
                 if max_symbolic_bytes:
                     max_symbolic_bytes -= 1
                 else:
                     return
             yield subaddr, b
 
+    def _find_are_bytes_symbolic(self, b):
+        return b.symbolic
 
     def _find_condition(self, target_addr, **kwargs):
         # TODO: fill this in in order to make each load have the correct condition associated with it

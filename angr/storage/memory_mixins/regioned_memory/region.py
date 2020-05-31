@@ -1,10 +1,16 @@
-
+from typing import Optional, TYPE_CHECKING
 import copy
 
 from .. import MemoryMixin
 
+if TYPE_CHECKING:
+    from .. import RegionMemory
+
 
 class MemoryRegion:
+
+    __slots__ = ('_endness', '_id', '_state', '_is_stack', '_related_function_addr', '_alocs', '_memory', )
+
     def __init__(self, mem_id, state, related_function_addr=None, init_memory=True, cle_memory_backer=None,
                  dict_memory_backer=None, endness=None):
         self._endness = endness
@@ -15,6 +21,8 @@ class MemoryRegion:
         # This is a map from tuple (basicblock_key, stmt_id) to
         # AbstractLocation objects
         self._alocs = { }
+
+        self._memory: Optional['RegionMemory'] = None
 
         if init_memory:
             # delayed import
@@ -88,7 +96,7 @@ class MemoryRegion:
         r._alocs = copy.deepcopy(self._alocs)
         return r
 
-    def store(self, addr, data, bbl_addr, stmt_id, ins_addr, endness=None):
+    def store(self, addr, data, bbl_addr, stmt_id, ins_addr, endness=None, **kwargs):
         if ins_addr is not None:
             aloc_id = ins_addr
         else:
@@ -101,16 +109,16 @@ class MemoryRegion:
                                                                   self.id,
                                                                   region_offset=addr,
                                                                   size=len(data) // self.state.arch.byte_width)
-            return self.memory.store(addr, data)
+            return self.memory.store(addr, data, **kwargs)
         else:
             if self._alocs[aloc_id].update(addr, len(data) // self.state.arch.byte_width):
-                return self.memory.store(addr, data, endness=endness)
+                return self.memory.store(addr, data, endness=endness, **kwargs)
             else:
-                return self.memory.store(addr, data, endness=endness)
+                return self.memory.store(addr, data, endness=endness, **kwargs)
 
-    def load(self, addr, size, bbl_addr, stmt_idx, ins_addr): #pylint:disable=unused-argument
+    def load(self, addr, size, bbl_addr, stmt_idx, ins_addr, **kwargs): #pylint:disable=unused-argument
         #if bbl_addr is not None and stmt_id is not None:
-        return self.memory.load(addr, size, inspect=False)
+        return self.memory.load(addr, size, **kwargs)
 
     def _merge_alocs(self, other_region):
         """
