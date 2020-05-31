@@ -1,10 +1,10 @@
 import logging
 from itertools import count
-from typing import Dict, Optional, Generator, Union, List, TYPE_CHECKING
+from typing import Dict, Optional, Generator, Union, TYPE_CHECKING, Tuple
 
 import claripy
 from claripy.ast import Bool, Bits, BV
-from claripy.vsa import ValueSet, RegionAnnotation
+from claripy.vsa import StridedInterval, ValueSet, RegionAnnotation
 
 from ....sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY,
     KEEP_MEMORY_READS_DISCRETE, CONSERVATIVE_WRITE_STRATEGY)
@@ -75,6 +75,7 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         for aw in gen:
             new_val = self._region_load(aw.address, size, aw.region,
                                         related_function_addr=aw.function_address,
+                                        **kwargs,
                                         )
 
             if val is None:
@@ -101,6 +102,19 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         gen = self._concretize_address_descriptor(regioned_addrs_desc, addr, is_write=True)
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
+
+    def find(self, addr: Union[int,Bits], data, max_search, **kwargs):
+        # FIXME: Attempt find() on more than one region
+
+        gen = self._normalize_address_type(addr, self.state.arch.bits)
+
+        for region, si in gen:
+            si = claripy.SI(to_conv=si)
+            r, s, i = self._regions[region].memory.find(si, data, max_search, **kwargs)
+            # Post-process r so that it's still a ValueSet
+            region_base_addr = self._region_base(region)
+            r = self.state.solver.ValueSet(r.size(), region, region_base_addr, r._model_vsa)
+            return r, s, i
 
     #
     # Region management
@@ -144,7 +158,7 @@ class RegionedMemoryMixin(PagedMemoryMixin):
 
         return base_addr
 
-    def _region_load(self, addr, size, key: str, related_function_addr=None):
+    def _region_load(self, addr, size, key: str, related_function_addr=None, **kwargs):
         bbl_addr, stmt_id, ins_addr = self.state.scratch.bbl_addr, self.state.scratch.stmt_idx, self.state.scratch.ins_addr
 
         if key not in self._regions:
@@ -153,9 +167,9 @@ class RegionedMemoryMixin(PagedMemoryMixin):
                                 dict_memory_backer=self._dict_memory_backer.get(key, None) if self._dict_memory_backer is not None else None,
                                 )
 
-        return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr)
+        return self._regions[key].load(addr, size, bbl_addr, stmt_id, ins_addr, **kwargs)
 
-    def _region_store(self, addr, data, key: str, endness, related_function_addr: Optional[int]=None):
+    def _region_store(self, addr, data, key: str, endness, related_function_addr: Optional[int]=None, **kwargs):
         if key not in self._regions:
             self._create_region(key, self.state, related_function_addr, self.endness,
                                 cle_memory_backer=self._cle_memory_backer.get(key, None) if self._cle_memory_backer is not None else None,
@@ -166,7 +180,9 @@ class RegionedMemoryMixin(PagedMemoryMixin):
                                  self.state.scratch.bbl_addr,
                                  self.state.scratch.stmt_idx,
                                  self.state.scratch.ins_addr,
-                                 endness=endness)
+                                 endness=endness,
+                                 **kwargs
+                                 )
 
     #
     # Address conversion
@@ -211,10 +227,7 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         if condition is not None:
             addr = self._apply_condition_to_symbolic_addr(addr, condition)
 
-        if type(addr) is int:
-            addr = self.state.solver.BVV(addr, self.state.arch.bits)
-
-        addr_with_regions = self._normalize_address_type(addr)
+        addr_with_regions = self._normalize_address_type(addr, self.state.arch.bits)
 
         desc = AbstractAddressDescriptor()
         for region, addr_si in addr_with_regions:
@@ -272,16 +285,19 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         return addr
 
     @staticmethod
-    def _normalize_address_type(addr):
+    def _normalize_address_type(addr: Union[int,Bits], bits) -> Generator[Tuple[str,StridedInterval],None,None]:
         """
         Convert address of different types to a list of mapping between region IDs and offsets (strided intervals).
 
-        :param claripy.ast.Base addr: Address to convert
+        :param addr: Address to convert
         :return: A list of mapping between region IDs and offsets.
         :rtype: dict
         """
 
-        addr_e = _raw_ast(addr)
+        if isinstance(addr, int):
+            addr_e = claripy.BVV(addr, bits)
+        else:
+            addr_e = _raw_ast(addr)
 
         if isinstance(addr_e, (claripy.bv.BVV, claripy.vsa.StridedInterval, claripy.vsa.ValueSet)):
             raise SimMemoryError('_normalize_address_type() does not take claripy models.')
@@ -291,7 +307,8 @@ class RegionedMemoryMixin(PagedMemoryMixin):
                 # Convert it to a ValueSet first by annotating it
                 addr_e = addr_e.annotate(RegionAnnotation('global', 0, addr_e._model_vsa))
 
-            return addr_e._model_vsa.items()
+            for region, offset in addr_e._model_vsa.items():
+                yield region, offset
 
         else:
             raise SimAbstractMemoryError('Unsupported address type %s' % type(addr_e))

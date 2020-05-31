@@ -233,7 +233,7 @@ def test_abstract_memory():
                  arch="AMD64",
                  dict_memory_backer=initial_memory,
                  add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
-    se = s.se
+    se = s.solver
 
     def to_vs(region, offset):
         return s.solver.VS(s.arch.bits, region, 0, offset)
@@ -345,10 +345,10 @@ def test_abstract_memory_find():
 
     s = SimState(mode='static',
                  arch="AMD64",
-                 memory_backer=initial_memory,
+                 dict_memory_backer=initial_memory,
                  add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
 
-    se = s.se
+    se = s.solver
     BVV = se.BVV
     VS = se.VS
     SI = se.SI
@@ -358,7 +358,7 @@ def test_abstract_memory_find():
     def to_vs(region, offset):
         return VS(s.arch.bits, region, 0, offset)
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'A'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'A'), 8)
 
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=1))
@@ -366,14 +366,14 @@ def test_abstract_memory_find():
     nose.tools.assert_equal(list(r_model.regions.keys()), [ 'global' ])
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'B'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'B'), 8)
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=2))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(list(r_model.regions.keys()), ['global'])
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'\0'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'\0'), 8)
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=3))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
@@ -381,7 +381,7 @@ def test_abstract_memory_find():
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
     # Find in StridedIntervals
-    r, _, _ = s.memory.find(to_vs('global', 4), BVV(b'\0'), max_search=8)
+    r, _, _ = s.memory.find(to_vs('global', 4), BVV(b'\0'), 8)
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, stride=1, lower_bound=4, upper_bound=11))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))

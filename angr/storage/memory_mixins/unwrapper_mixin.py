@@ -17,8 +17,8 @@ class UnwrapperMixin(MemoryMixin):
             fallback=_raw_ast(fallback),
             **kwargs)
 
-    def find(self, addr, what, default=None, **kwargs):
-        return super().find(_raw_ast(addr), _raw_ast(what),
+    def find(self, addr, what, max_search, default=None, **kwargs):
+        return super().find(_raw_ast(addr), _raw_ast(what), max_search,
             default=_raw_ast(default),
             **kwargs)
 
