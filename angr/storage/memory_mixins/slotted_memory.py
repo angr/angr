@@ -2,6 +2,7 @@ import claripy
 
 from . import MemoryMixin
 from .paged_memory.pages.ispo_mixin import ISPOMixin
+from ...errors import SimMergeError
 
 class SlottedMemoryMixin(MemoryMixin):
     def __init__(self, width=None, **kwargs):
@@ -23,6 +24,18 @@ class SlottedMemoryMixin(MemoryMixin):
         o.width = self.width
         o.contents = dict(self.contents)
         return o
+
+
+    def merge(self, others, merge_conditions, common_ancestor=None):
+        if any(o.width != self.width for o in others):
+            raise SimMergeError("Cannot merge slotted memory with disparate widths")
+        addr_set = set(self.contents)
+        for o in others:
+            addr_set.update(o.contents)
+
+        for addr in addr_set:
+            self._single_store(addr, 0, self.width, self.state.solver.ite_cases(zip(merge_conditions[1:], (o._single_load(addr, 0, self.width) for o in others)), self._single_load(addr, 0, self.width)))
+        return True
 
     def _resolve_access(self, addr, size):
         """
