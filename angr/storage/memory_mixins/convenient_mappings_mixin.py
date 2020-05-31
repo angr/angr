@@ -34,10 +34,10 @@ class ConvenientMappingsMixin(MemoryMixin):
             return super().store(addr, data, size=size, **kwargs)
 
         try:
-            # remove this address for the old variables
-            old_obj = self.load(addr, size=size)
-
             if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
+                # remove this address for the old variables
+                old_obj = self.load(addr, size=size, fill_missing=False)
+
                 obj_vars = old_obj.variables
                 for v in obj_vars:
                     self._mark_updated_mapping(self._name_mapping, v)
