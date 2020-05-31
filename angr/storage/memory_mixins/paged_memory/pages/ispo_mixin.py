@@ -1,5 +1,6 @@
 from angr.storage.memory_mixins import MemoryMixin
 
+
 class ISPOMixin(MemoryMixin):
     """
     An implementation of the International Stateless Persons Organisation, a mixin which should be applied as a bottom
@@ -22,5 +23,13 @@ class ISPOMixin(MemoryMixin):
             func = memory._add_constraints
         except AttributeError as e:
             raise Exception("memory kwarg must be passed to this stateless object") from e
+        else:
+            return func(*args, **kwargs)
+
+    def _merge_values(self, *args, memory=None, **kwargs):
+        try:
+            func = memory._merge_values
+        except AttributeError as ex:
+            raise Exception("memory kwarg must be passed to this stateless object") from ex
         else:
             return func(*args, **kwargs)

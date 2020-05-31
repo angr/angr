@@ -22,6 +22,7 @@ class PageBase(RefcountMixin, CooperationBase, ISPOMixin, PermissionsMixin, Memo
     """
     pass
 
+
 PageType = typing.TypeVar('PageType', bound=PageBase)
 
 from .list_page import ListPage
