@@ -6,8 +6,14 @@ from ...misc.ux import once
 
 l = logging.getLogger(__name__)
 
+
 class DefaultFillerMixin(MemoryMixin):
-    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
+    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, fill_missing: bool=True,
+                       **kwargs):
+
+        if fill_missing is False:
+            raise KeyError("Missing %d bytes at %s." % (size, addr))
+
         bits = size * self.state.arch.byte_width
 
         if type(addr) is int:
