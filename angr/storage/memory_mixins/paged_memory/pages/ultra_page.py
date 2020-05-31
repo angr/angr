@@ -220,7 +220,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 min_size = min([mo.length - (b - mo.base) for mo, _ in memory_objects])
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
-                        if um.contains(b + i, page_addr):
+                        if um._contains(b + i, page_addr):
                             min_size = i
                             break
                 merged_to = b + min_size
@@ -297,7 +297,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         return changes
 
-    def contains(self, start: int, page_addr: int):
+    def _contains(self, start: int, page_addr: int):
         if not self.symbolic_bitmap[start]:
             # concrete data
             return True
