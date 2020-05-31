@@ -122,9 +122,10 @@ class LoopSeer(ExplorationTechnique):
                         succ_state.loop_data.header_trip_counts[succ_state.addr][-1] += 1
                 elif succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
                     succ_state.loop_data.current_loop.pop()
-                elif at_loop_exit:
+                elif at_loop_exit and self.limit_concrete_loops:
                     # We're not at the header, but we're where we exit the loop
-                    if self.limit_concrete_loops or len(succs.successors) > 1:
+                    # NOTE: this only matters if you want to not limit concrete loops
+                    if not self.limit_concrete_loops and len(succs.successors) > 1:
                         succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
                 if self.bound is not None and succ_state.loop_data.current_loop:
                     counts = 0
@@ -153,8 +154,11 @@ class LoopSeer(ExplorationTechnique):
                 exits = [e[1].addr for e in loop.break_edges]
 
                 succ_state.loop_data.back_edge_trip_counts[header].append(0)
-                for node in loop.body_nodes:
-                    succ_state.loop_data.back_edge_trip_counts[node.addr].append(0)
+                # If we are not limiting concrete loops, we also consider
+                # trip counts at the possible exits
+                if not self.limit_concrete_loops:
+                    for node in loop.body_nodes:
+                        succ_state.loop_data.back_edge_trip_counts[node.addr].append(0)
                 succ_state.loop_data.header_trip_counts[header].append(0)
                 succ_state.loop_data.current_loop.append((loop, exits))
         return succs
