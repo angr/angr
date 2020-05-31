@@ -184,10 +184,6 @@ class PagedMemoryMixin(MemoryMixin):
         for o in others:
             changed_pages |= self.changed_pages(o)
 
-        self._merge(others, changed_pages, merge_conditions)
-
-    def _merge(self, others: Iterable['PagedMemoryMixin'], changed_pages: Iterable[int], merge_conditions):
-
         if merge_conditions is None:
             merge_conditions = [None] * (len(list(others)) + 1)
 
