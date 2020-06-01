@@ -1558,7 +1558,9 @@ public:
 				}
 				else if (sink_taint_status.is_symbolic) {
 					// Save the memory location written to be marked as symbolic in write hook
-					assert(mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end());
+					if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
+						assert(false && "Multiple memory writes in same instruction not supported.");
+					}
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
 				}
 				else if (sink_taint_status.depends_on_read_from_concrete_addr) {
@@ -1576,7 +1578,9 @@ public:
 					else {
 						mem_reads_taint_dst_map.at(mem_read_instr_addr).first.emplace_back(taint_sink);
 					}
-					assert(mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end());
+					if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
+						assert(false && "Multiple memory writes in same instruction not supported.");
+					}
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
 				}
 				else {
