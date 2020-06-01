@@ -13,8 +13,5 @@ class strncat(angr.SimProcedure):
         src_len = self.inline_call(strlen, src).ret_expr
 
         self.inline_call(strncpy, dst + dst_len, src, limit, src_len=src_len)
+
         return dst
-
-
-
-
