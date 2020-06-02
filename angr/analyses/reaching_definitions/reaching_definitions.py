@@ -249,7 +249,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             return self._init_state
         else:
             return ReachingDefinitionsState(
-                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self,
+                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self
             )
 
     def _merge_states(self, node, *states):
