@@ -43,7 +43,7 @@ class ReachingDefinitionsState:
 
     def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False,
                  analysis: Optional['ReachingDefinitionsAnalysis']=None, rtoc_value=None,
-                 live_definitions=None):
+                 live_definitions=None, initialize=False):
 
         # handy short-hands
         self.arch = arch
@@ -55,7 +55,8 @@ class ReachingDefinitionsState:
             LiveDefinitions(self.arch, track_tmps=self._track_tmps)
         self.all_definitions: Set[Definition] = set()
 
-        self._set_initialization_values(subject, rtoc_value)
+        if initialize:
+            self._set_initialization_values(subject, rtoc_value)
 
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
@@ -160,7 +161,8 @@ class ReachingDefinitionsState:
             self._subject,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
-            live_definitions=self.live_definitions.copy()
+            live_definitions=self.live_definitions.copy(),
+            initialize=False,
         )
 
         return rd
