@@ -43,13 +43,13 @@ class SimEnginePropagatorVEX(
     def _expr(self, expr):
         v = super()._expr(expr)
 
-        if v is not None and type(v) not in {Bottom, Top} and v is not expr:
-            # Record the replacement
-            if type(expr) is pyvex.IRExpr.Get:
-                if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
-                    self.state.add_replacement(self._codeloc(block_only=True),
-                                               VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
-                                               v)
+        #if v is not None and type(v) not in {Bottom, Top} and v is not expr:
+        #    # Record the replacement
+        #    if type(expr) is pyvex.IRExpr.Get:
+        #        if expr.offset not in (self.arch.sp_offset, self.arch.ip_offset, ):
+        #            self.state.add_replacement(self._codeloc(block_only=True),
+        #                                       VEXReg(expr.offset, expr.result_size(self.tyenv) // 8),
+        #                                       v)
         return v
 
     def _load_data(self, addr, size, endness):
@@ -99,6 +99,9 @@ class SimEnginePropagatorVEX(
 
         if type(data) is not Bottom:
             self.state.store_register(stmt.offset, size, data)
+        if stmt.offset not in (self.arch.sp_offset, self.arch.ip_offset,):
+            self.state.add_replacement(self._codeloc(block_only=True),
+                                       VEXReg(stmt.offset, size), data)
 
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
