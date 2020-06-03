@@ -177,7 +177,7 @@ class VMDeobfuscation(Analysis):
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         ## find the replacements
 
-        prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=1, start=start_addr, max_iterations=1)
+        prop = proj.analyses.PropagatorEmulated(graph=new_cfg_graph, iropt_level=1, start=start_addr, max_iterations=2)
 
         ## do the actual replacements
         for key, value in prop.replacements.items():
@@ -366,9 +366,6 @@ class VMDeobfuscation(Analysis):
                     print("DCE version")
                     print(node.irsb.pp())
                     print("\n")
-                    if node.addr == 0x400634:
-                        import pdb
-                        pdb.set_trace()
             else:
                 print("This is a SimProcedure")
                 print(node)
