@@ -1,5 +1,6 @@
 
 from collections import defaultdict
+from functools import reduce
 
 import ailment
 
@@ -124,13 +125,36 @@ class PropagatorVEXState(PropagatorState):
         )
         return cp
 
+    def merge(self, other):
+        merged_concrete_states = self._merge_concrete_states(other)
+        return PropagatorVEXState(arch=self.arch, concrete_states=merged_concrete_states)
+
+    def _merge_concrete_states(self, other):
+        """
+
+        :param StorageState other:
+        :return:
+        :rtype:                             list
+        """
+
+        merged = [ ]
+        if not isinstance(self.concrete_states, list):
+            self.concrete_states = self.concrete_states.all_successors
+        for s in self.concrete_states:
+            other_state = other.get_concrete_state(s.ip._model_concrete.value)
+            if other_state is not None:
+                s = s.merge(other_state)
+            merged.append(s[0])
+        return merged
+
     def add_replacement(self, codeloc, old, new):
         if old not in self._replacements[codeloc]:
             self._replacements[codeloc][old] = new
 
-        ## I think we don't need this if we control the order of the visiting the nodes
-        # elif self._replacements[codeloc][old] != new:
-        #     self._replacements[codeloc][old] = TOP
+        ## If it is not the same as the previous replacement then it is not a constant and should not be replaced
+        elif self._replacements[codeloc][old] != new:
+            del self._replacements[codeloc][old]
+            #self._replacements[codeloc][old] = TOP
 
 # AIL state
 
@@ -241,15 +265,24 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             state.concrete_states = [node.input_state]
         return state
 
-    def _add_input_state(self, node, input_state):
-        successors_to_visit = []
-        successors = self._graph_visitor.successors(node)
-        for succ in successors:
-            self._state_map[succ] = input_state
-            for concrete_state in input_state.concrete_states:
-                if succ.addr == concrete_state.ip._model_concrete.value:
-                    successors_to_visit.append(succ)
-        return successors_to_visit
+    def _merge_states(self, node, *states):
+        #return states[0], True
+        ##merge abstract states
+        if len(states) == 1:
+            return states[0]
+        merged_abstract_state = reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
+        print(merged_abstract_state._replacements)
+        return merged_abstract_state
+
+    # def _add_input_state(self, node, input_state):
+    #     successors_to_visit = []
+    #     successors = self._graph_visitor.successors(node)
+    #     for succ in successors:
+    #         self._state_map[succ] = input_state
+    #         for concrete_state in input_state.concrete_states:
+    #             if succ.addr == concrete_state.ip._model_concrete.value:
+    #                 successors_to_visit.append(succ)
+    #     return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
         print("Constant-prop: "+str(node))
@@ -304,7 +337,8 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       successor.scratch.exit_stmt_idx,
                                                       successor.scratch.exit_ins_addr,
                                                       successor.scratch.source)
-
+        print(symbolic_sim_successors.all_successors)
+        print(symbolic_sim_successors)
         node.final_states = symbolic_sim_successors
         abstract_state.concrete_states = symbolic_sim_successors
         self._node_iterations[block_key] += 1
