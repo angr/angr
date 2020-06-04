@@ -15,21 +15,26 @@ class Definition:
                     definitions marked as dummy will not be removed.
     """
 
-    __slots__ = ('atom', 'codeloc', 'data', 'dummy')
+    __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tag')
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False):
+    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False, tag: str=''):
 
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
         self.data: DataSet = data
+        self.tag = tag
 
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc
 
     def __repr__(self):
-        return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
+        if self.tag == '':
+            return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
+        else:
+            return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag, self.atom, self.codeloc, self.data,
+                                                                  "" if not self.dummy else " dummy")            
 
     def __hash__(self):
         return hash((self.atom, self.codeloc))

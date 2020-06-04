@@ -117,13 +117,13 @@ class ReachingDefinitionsState:
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits))
+        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits), tag="init_sp")
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
         if self.arch.name.startswith('MIPS'):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9 = Register(self.arch.registers['t9'][0], self.arch.bytes)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits), tag="init_t9")
             self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
 
         if cc is not None and cc.args is not None:
@@ -133,13 +133,13 @@ class ReachingDefinitionsState:
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
                     reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(undefined, self.arch.bits))
+                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(undefined, self.arch.bits), tag='param_reg_{}'.format(arg.reg_name))
                     self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
                     sp_offset = SpOffset(self.arch.bits, arg.stack_offset)
                     ml = MemoryLocation(sp_offset, arg.size)
-                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8))
+                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8), tag='param_sp_{}'.format(arg.stack_offset))
                     self.stack_definitions.set_object(arg.stack_offset, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
@@ -150,12 +150,12 @@ class ReachingDefinitionsState:
                 raise TypeError("rtoc_value must be provided on PPC64.")
             offset, size = self.arch.registers['rtoc']
             rtoc = Register(offset, size)
-            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits))
+            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits), tag='init_rtoc')
             self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
         elif self.arch.name.lower().find('mips64') > -1:
             offset, size = self.arch.registers['t9']
             t9 = Register(offset, size)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet({func_addr}, self.arch.bits))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet({func_addr}, self.arch.bits), tag='init_t9')
             self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self) -> 'ReachingDefinitionsState':
@@ -196,7 +196,7 @@ class ReachingDefinitionsState:
             self.current_codeloc = code_loc
             self.codeloc_uses = set()
 
-    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True) -> None:
+    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True, tag: str='') -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
@@ -210,14 +210,14 @@ class ReachingDefinitionsState:
         if data is None:
             data = DataSet(undefined, atom.size)
 
-        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
+        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tag=tag)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
-                                dummy=False) -> Optional[Definition]:
+                                dummy=False, tag: str='') -> Optional[Definition]:
         self._cycle(code_loc)
 
         definition: Optional[Definition]
-        definition = self.live_definitions.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
+        definition = self.live_definitions.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tag=tag)
 
         if definition is not None:
             self.all_definitions.add(definition)
