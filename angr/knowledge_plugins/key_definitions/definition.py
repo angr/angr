@@ -5,7 +5,7 @@ from .dataset import DataSet
 
 class Tag:
     """
-    A tag for a Definition that can carry 
+    A tag for a Definition that can carry
     different kind of metadata.
     """
 
@@ -14,7 +14,7 @@ class Tag:
         self.metadata = metadata
 
     def __str__(self):
-        return '<Definition Tag {Log:%s, Metadata:%s}>' % (self.log, self.metadata)
+        return '<Definition Tag {Name:%s, Metadata:%s}>' % (self.name, self.metadata)
 
 class Definition:
     """
@@ -43,7 +43,7 @@ class Definition:
     def __repr__(self):
         if not self.tag:
             return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
-                                                                  "" if not self.dummy else " dummy")
+                                                                  "" if not self.dummy else "dummy")
         else:
             return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag.name, self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
