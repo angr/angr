@@ -1,7 +1,7 @@
 import angr
 import logging
 
-logger = logging.getLogger(name=__name__)
+l = logging.getLogger(name=__name__)
 
 
 class strpbrk(angr.SimProcedure):
@@ -16,10 +16,10 @@ class strpbrk(angr.SimProcedure):
         a_len_expr = a_strlen.ret_expr
         b_len_expr = b_strlen.ret_expr
 
-        logger.debug(f"'a' addr: {a_addr}")
-        logger.debug(f"'b' addr: {b_addr}")
-        logger.debug(f"'a' len expr: {a_len_expr}")
-        logger.debug(f"'b' len expr: {b_len_expr}")
+        l.debug("'a' addr: %s", a_addr)
+        l.debug("'b' addr: %s", b_addr)
+        l.debug("'a' len expr: %s", a_len_expr)
+        l.debug("'b' len expr: %s", b_len_expr)
 
         # single value or not
         sv_a_len = self.state.solver.single_valued(a_len_expr)
@@ -29,8 +29,8 @@ class strpbrk(angr.SimProcedure):
         a_len = self.state.solver.eval(a_len_expr) if sv_a_len else a_strlen.max_null_index
         b_len = self.state.solver.eval(b_len_expr) if sv_b_len else b_strlen.max_null_index
 
-        logger.debug(f"'a' len: {a_len}")
-        logger.debug(f"'b' len: {b_len}")
+        l.debug("'a' len: %s", a_len)
+        l.debug("'b' len: %s", b_len)
 
         # 0 expr when return
         ret_0 = self.state.solver.BVV(0, self.state.arch.bits)
@@ -50,8 +50,7 @@ class strpbrk(angr.SimProcedure):
         a_bytes = self.state.memory.load(a_addr, a_len, endness='Iend_BE')
         b_bytes = self.state.memory.load(b_addr, b_len, endness='Iend_BE')
 
-        logger.debug(f"'a' bytes: {a_bytes}")
-        logger.debug(f"'b' bytes: {b_bytes}")
+        l.debug("'a' bytes: %s", a_bytes)
 
         # compare a bytes and b bytes
         for i in range(a_len):
@@ -59,7 +58,7 @@ class strpbrk(angr.SimProcedure):
             a_byte = a_bytes[a_bit_index - 1: a_bit_index - 8]
             a_addr_offset = a_addr + self.state.solver.BVV(i, self.state.arch.bits)
 
-            logger.debug(f"Processing 'a' byte: {a_byte}")
+            l.debug("Processing 'a' byte: %s", a_byte)
 
             sv_a_byte = self.state.solver.single_valued(a_byte)
 
@@ -72,7 +71,7 @@ class strpbrk(angr.SimProcedure):
                     b_conc = self.state.solver.eval(b_byte)
 
                     if a_conc == b_conc:
-                        logger.debug(
+                        l.debug(
                             "... found matched concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                         return a_addr_offset
                 else:
@@ -83,10 +82,10 @@ class strpbrk(angr.SimProcedure):
                 match_constraints_list.append(byte_constraint)
 
         if concrete_run:
-            logger.debug("concrete run made it to the end!")
+            l.debug("concrete run made it to the end!")
             return ret_0
 
-        logger.debug("returning symbolic")
+        l.debug("returning symbolic")
 
         match_constraints = self.state.solver.Or(*match_constraints_list)
         nomatch_constraints = self.state.solver.Not(match_constraints)
