@@ -338,6 +338,8 @@ def x86g_dirtyhelper_FINIT(state, gsptr): #pylint:disable=unused-argument
     state.regs.ftop = 0
     return None, [ ]
 
+amd64g_dirtyhelper_FINIT = x86g_dirtyhelper_FINIT
+
 def x86g_dirtyhelper_write_cr0(state, value):
     # make a deep copy of the arch before modifying it so we don't accidentally modify it for all other states
     state.arch = state.arch.copy()
