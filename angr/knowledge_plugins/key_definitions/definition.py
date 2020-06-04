@@ -3,6 +3,18 @@ from ...code_location import CodeLocation
 from .atoms import Atom, MemoryLocation, Register
 from .dataset import DataSet
 
+class Tag:
+    """
+    A tag for a Definition that can carry 
+    different kind of metadata.
+    """
+
+    def __init__(self, name: str='', metadata: object=None):
+        self.name = name
+        self.metadata = metadata
+
+    def __str__(self):
+        return '<Definition Tag {Log:%s, Metadata:%s}>' % (self.log, self.metadata)
 
 class Definition:
     """
@@ -17,7 +29,7 @@ class Definition:
 
     __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tag')
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False, tag: str=''):
+    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False, tag: Tag=None):
 
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
@@ -29,11 +41,11 @@ class Definition:
         return self.atom == other.atom and self.codeloc == other.codeloc
 
     def __repr__(self):
-        if self.tag == '':
+        if not self.tag:
             return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
         else:
-            return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag, self.atom, self.codeloc, self.data,
+            return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag.name, self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
     def __hash__(self):
         return hash((self.atom, self.codeloc))
