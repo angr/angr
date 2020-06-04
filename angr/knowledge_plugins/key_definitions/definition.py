@@ -34,8 +34,7 @@ class Definition:
                                                                   "" if not self.dummy else " dummy")
         else:
             return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag, self.atom, self.codeloc, self.data,
-                                                                  "" if not self.dummy else " dummy")            
-
+                                                                  "" if not self.dummy else " dummy")
     def __hash__(self):
         return hash((self.atom, self.codeloc))
 
