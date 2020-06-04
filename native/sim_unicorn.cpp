@@ -1039,7 +1039,7 @@ public:
 
 	// Finds tainted data in the provided range and returns the address.
 	// Returns -1 if no tainted data is present.
-	uint64_t find_tainted(address_t address, int size)
+	int64_t find_tainted(address_t address, int size)
 	{
 		taint_t *bitmap = page_lookup(address).first;
 
