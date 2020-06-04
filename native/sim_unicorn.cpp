@@ -47,6 +47,10 @@ typedef enum taint_entity: uint8_t {
 	TAINT_ENTITY_NONE = 3,
 } taint_entity_enum_t;
 
+typedef uint64_t address_t;
+typedef uint64_t vex_reg_offset_t;
+typedef uint64_t vex_tmp_id_t;
+
 typedef struct taint_entity_t {
 	taint_entity_enum_t entity_type;
 
@@ -54,20 +58,20 @@ typedef struct taint_entity_t {
 	// This could have been in a union but std::vector has a constructor and datatypes with
 	// constructors are not allowed inside unions
 	// VEX Register ID
-	uint64_t reg_id;
+	vex_reg_offset_t reg_offset;
 	// VEX temp ID
-	uint64_t tmp_id;
+	vex_tmp_id_t tmp_id;
 	// List of registers and VEX temps. Used in case of memory references.
 	std::vector<taint_entity_t> mem_ref_entity_list;
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
-	uint64_t instr_addr;
+	address_t instr_addr;
 
 	bool operator==(const taint_entity_t &other_entity) const {
 		if (entity_type != other_entity.entity_type) {
 			return false;
 		}
 		if (entity_type == TAINT_ENTITY_REG) {
-			return (reg_id == other_entity.reg_id);
+			return (reg_offset == other_entity.reg_offset);
 		}
 		if (entity_type == TAINT_ENTITY_TMP) {
 			return (tmp_id == other_entity.tmp_id);
@@ -80,7 +84,7 @@ typedef struct taint_entity_t {
 	std::size_t operator()(const taint_entity_t &taint_entity) const {
 		if (taint_entity.entity_type == TAINT_ENTITY_REG) {
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
-				   std::hash<uint64_t>()(taint_entity.reg_id);
+				   std::hash<uint64_t>()(taint_entity.reg_offset);
 		}
 		else if (taint_entity.entity_type == TAINT_ENTITY_TMP) {
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
@@ -127,8 +131,8 @@ typedef enum stop {
 
 typedef struct block_entry {
 	bool try_unicorn;
-	std::unordered_set<uint64_t> used_registers;
-	std::unordered_set<uint64_t> clobbered_registers;
+	std::unordered_set<vex_reg_offset_t> used_registers;
+	std::unordered_set<vex_reg_offset_t> clobbered_registers;
 } block_entry_t;
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -136,7 +140,7 @@ typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>
 typedef struct block_taint_entry_t {
 	taint_vector_t taint_sink_src_data;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
-	std::unordered_map<uint64_t, std::unordered_set<taint_entity_t>> ite_cond_map;
+	std::unordered_map<address_t, std::unordered_set<taint_entity_t>> ite_cond_map;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (taint_sink_src_data == other_entry.taint_sink_src_data);
@@ -147,7 +151,7 @@ typedef struct taint_status_result_t {
 	bool is_symbolic;
 	bool depends_on_read_from_symbolic_addr;
 	bool depends_on_read_from_concrete_addr;
-	uint64_t concrete_mem_read_instr_addr;
+	address_t concrete_mem_read_instr_addr;
 } taint_status_result_t;
 
 typedef struct CachedPage {
@@ -157,27 +161,28 @@ typedef struct CachedPage {
 } CachedPage;
 
 typedef taint_t PageBitmap[PAGE_SIZE];
-typedef std::map<uint64_t, CachedPage> PageCache;
-typedef std::unordered_map<uint64_t, block_entry_t> BlockCache;
-typedef std::unordered_map<uint64_t, block_taint_entry_t> BlockTaintCache;
+typedef std::map<address_t, CachedPage> PageCache;
+typedef std::unordered_map<address_t, block_entry_t> BlockCache;
+typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 typedef struct caches {
 	PageCache *page_cache;
 	BlockCache *block_cache;
 } caches_t;
 std::map<uint64_t, caches_t> global_cache;
 
-typedef std::unordered_set<uint64_t> RegisterSet;
-typedef std::unordered_set<uint64_t> TempSet;
+typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
+typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
 typedef struct mem_access {
-	uint64_t address;
+	address_t address;
 	uint8_t value[8]; // assume size of any memory write is no more than 8
 	int size;
 	int clean; // save current page bitmap
 } mem_access_t; // actually it should be `mem_write_t` :)
 
 typedef struct mem_update {
-	uint64_t address, length;
+	address_t address;
+	uint64_t length;
 	struct mem_update *next;
 } mem_update_t;
 
@@ -209,16 +214,16 @@ private:
 	// Memory write instruction address -> is_symbolic
 	// TODO: Need to modify memory write taint handling for architectures that perform multiple
 	// memory writes in a single instruction
-	std::unordered_map<uint64_t, bool> mem_writes_taint_map;
+	std::unordered_map<address_t, bool> mem_writes_taint_map;
 
 	// List of all taint propagations depending on a memory read in a single block
 	// Memory read instruction address -> (List of entities depending on the read, is read processed)
-	std::unordered_map<uint64_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
+	std::unordered_map<address_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
 
 	// List of all conditions in ITE expressions in a block. Intermediate variable: finally cached
 	// along with taint sink-source relations of a block
 	// Instruction address -> Set of taint entitites on which ITE condition depends on
-	std::unordered_map<uint64_t, std::unordered_set<taint_entity_t>> temp_ite_cond_map;
+	std::unordered_map<address_t, std::unordered_set<taint_entity_t>> temp_ite_cond_map;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -227,29 +232,29 @@ private:
 	TempSet block_symbolic_temps;
 
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
-	std::map<uint64_t, std::pair<taint_t *, uint8_t *>> active_pages;
+	std::map<address_t, std::pair<taint_t *, uint8_t *>> active_pages;
 	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
-	uint64_t prev_block_addr;
+	address_t prev_block_addr;
 
 public:
-	std::vector<uint64_t> bbl_addrs;
-	std::vector<uint64_t> stack_pointers;
-	std::unordered_set<uint64_t> executed_pages;
-	std::unordered_set<uint64_t>::iterator *executed_pages_iterator;
+	std::vector<address_t> bbl_addrs;
+	std::vector<address_t> stack_pointers;
+	std::unordered_set<address_t> executed_pages;
+	std::unordered_set<address_t>::iterator *executed_pages_iterator;
 	uint64_t syscall_count;
 	std::vector<transmit_record_t> transmit_records;
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
 	bool stopped;
 	stop_t stop_reason;
-	uint64_t stopping_register;
-	uint64_t stopping_memory;
+	vex_reg_offset_t stopping_register;
+	address_t stopping_memory;
 
 	bool ignore_next_block;
 	bool ignore_next_selfmod;
-	uint64_t cur_address;
+	address_t cur_address;
 	int32_t cur_size;
 
 	uc_arch arch;
@@ -351,7 +356,7 @@ public:
 		uc_free(saved_regs);
 	}
 
-	uc_err start(uint64_t pc, uint64_t step = 1) {
+	uc_err start(address_t pc, uint64_t step = 1) {
 		stopped = false;
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
@@ -439,7 +444,7 @@ public:
 		uc_emu_stop(uc);
 	}
 
-	void step(uint64_t current_address, int32_t size, bool check_stop_points=true) {
+	void step(address_t current_address, int32_t size, bool check_stop_points=true) {
 		if (track_bbls) {
 			bbl_addrs.push_back(current_address);
 		}
@@ -501,11 +506,11 @@ public:
 		cur_steps++;
 
 		// Sync all block level taint statuses reads with state's taint statuses
-		for (auto &reg_id: block_symbolic_registers) {
-			mark_register_symbolic(reg_id, false);
+		for (auto &reg_offset: block_symbolic_registers) {
+			mark_register_symbolic(reg_offset, false);
 		}
-		for (auto &reg_id: block_concrete_registers) {
-			mark_register_concrete(reg_id, false);
+		for (auto &reg_offset: block_concrete_registers) {
+			mark_register_concrete(reg_offset, false);
 		}
 		for (auto &temp_id: block_symbolic_temps) {
 			mark_temp_symbolic(temp_id, false);
@@ -535,7 +540,7 @@ public:
             if (data == NULL) {
 				if (rit->clean) {
 					// should untaint some bits
-					uint64_t start = rit->address & 0xFFF;
+					address_t start = rit->address & 0xFFF;
 					int size = rit->size;
 					int clean = rit->clean;
 					for (int i = 0; i < size; i++) {
@@ -570,7 +575,7 @@ public:
 	 * return the PageBitmap only if the page is remapped for writing,
 	 * or initialized with symbolic variable, otherwise return NULL.
 	 */
-	std::pair<taint_t *, uint8_t *> page_lookup(uint64_t address) const {
+	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const {
 		address &= ~0xFFFULL;
 		auto it = active_pages.find(address);
 		if (it == active_pages.end()) {
@@ -582,7 +587,7 @@ public:
 	/*
 	 * allocate a new PageBitmap and put into active_pages.
 	 */
-	void page_activate(uint64_t address, uint8_t *taint, uint8_t *data) {
+	void page_activate(address_t address, uint8_t *taint, uint8_t *data) {
 		address &= ~0xFFFULL;
 		auto it = active_pages.find(address);
 		if (it == active_pages.end()) {
@@ -591,7 +596,7 @@ public:
                 taint_t *bitmap = new PageBitmap;
                 memcpy(bitmap, taint, sizeof(PageBitmap));
 
-                active_pages.insert(std::pair<uint64_t, std::pair<taint_t*, uint8_t*>>(address, std::pair<taint_t*, uint8_t*>(bitmap, NULL)));
+                active_pages.insert(std::pair<address_t, std::pair<taint_t*, uint8_t*>>(address, std::pair<taint_t*, uint8_t*>(bitmap, NULL)));
             } else {
                 // We can directly use the passed taint and data
                 taint_t *bitmap = (taint_t*)taint;
@@ -676,7 +681,7 @@ public:
 	 * set a list of stops to stop execution at
 	 */
 
-	void set_stops(uint64_t count, uint64_t *stops)
+	void set_stops(uint64_t count, address_t *stops)
 	{
 		stop_points.clear();
 		for (int i = 0; i < count; i++) {
@@ -684,7 +689,7 @@ public:
 		}
 	}
 
-	std::pair<uint64_t, size_t> cache_page(uint64_t address, size_t size, char* bytes, uint64_t permissions)
+	std::pair<address_t, size_t> cache_page(address_t address, size_t size, char* bytes, uint64_t permissions)
 	{
 		assert(address % 0x1000 == 0);
 		assert(size % 0x1000 == 0);
@@ -709,12 +714,12 @@ public:
 			};
 			// address should be aligned to 0x1000
 			memcpy(copy, &bytes[offset], 0x1000);
-			page_cache->insert(std::pair<uint64_t, CachedPage>(address+offset, cached_page));
+			page_cache->insert(std::pair<address_t, CachedPage>(address+offset, cached_page));
 		}
 		return std::make_pair(address, size);
 	}
 
-    void wipe_page_from_cache(uint64_t address) {
+    void wipe_page_from_cache(address_t address) {
 		auto page = page_cache->find(address);
 		if (page != page_cache->end()) {
 			//printf("Internal: unmapping %#llx size %#x, result %#x", page->first, page->second.size, uc_mem_unmap(uc, page->first, page->second.size));
@@ -729,7 +734,7 @@ public:
 		}
     }
 
-    void uncache_pages_touching_region(uint64_t address, uint64_t length)
+    void uncache_pages_touching_region(address_t address, uint64_t length)
     {
     	    address &= ~(0x1000-1);
 
@@ -748,7 +753,7 @@ public:
         }
     }
 
-	bool map_cache(uint64_t address, size_t size) {
+	bool map_cache(address_t address, size_t size) {
 		assert(address % 0x1000 == 0);
 		assert(size % 0x1000 == 0);
 
@@ -781,7 +786,7 @@ public:
 		return success;
 	}
 
-	bool in_cache(uint64_t address) {
+	bool in_cache(address_t address) const {
 		return page_cache->find(address) != page_cache->end();
 	}
 
@@ -858,14 +863,14 @@ public:
 	}
 
 	// mark the register as clobbered
-	inline void mark_register_clobbered(RegisterSet *clobbered, uint64_t offset, int size)
+	inline void mark_register_clobbered(RegisterSet *clobbered, vex_reg_offset_t offset, int size)
 	{
 		for (int i = 0; i < size; i++)
 			clobbered->insert(offset + i);
 	}
 
 	// check register access
-	inline void check_register_read(RegisterSet *clobbered, RegisterSet *danger, uint64_t offset, int size)
+	inline void check_register_read(RegisterSet *clobbered, RegisterSet *danger, vex_reg_offset_t offset, int size)
 	{
 		for (int i = 0; i < size; i++)
 		{
@@ -960,7 +965,7 @@ public:
 	}
 
 	// check if the block is feasible
-	bool check_block(uint64_t address, int32_t size)
+	bool check_block(address_t address, int32_t size)
 	{
 		// assume we're good if we're not checking symbolic registers
 		if (this->vex_guest == VexArch_INVALID) {
@@ -1018,14 +1023,14 @@ public:
 			}
 		}
 
-		for (uint64_t off : this->symbolic_registers) {
+		for (vex_reg_offset_t off : this->symbolic_registers) {
 			if (used_registers->count(off) > 0) {
 				stopping_register = off;
 				return false;
 			}
 		}
 
-		for (uint64_t off : *clobbered_registers) {
+		for (vex_reg_offset_t off : *clobbered_registers) {
 			this->symbolic_registers.erase(off);
 		}
 
@@ -1034,7 +1039,7 @@ public:
 
 	// Finds tainted data in the provided range and returns the address.
 	// Returns -1 if no tainted data is present.
-	uint64_t find_tainted(uint64_t address, int size)
+	uint64_t find_tainted(address_t address, int size)
 	{
 		taint_t *bitmap = page_lookup(address).first;
 
@@ -1072,7 +1077,7 @@ public:
 		return -1;
 	}
 
-	void handle_write(uint64_t address, int size) {
+	void handle_write(address_t address, int size) {
 	    // If the write spans a page, chop it up
 	    if ((address & 0xfff) + size > 0x1000) {
 	        int chopsize = 0x1000 - (address & 0xfff);
@@ -1148,11 +1153,11 @@ public:
 		mem_writes.push_back(record);
 	}
 
-	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, uint64_t address) {
+	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, address_t address) {
 		block_taint_entry_t block_taint_entry;
 
 		for (int i = 0; i < vex_block->stmts_used; i++) {
-			uint64_t curr_instr_addr;
+			address_t curr_instr_addr;
 			auto stmt = vex_block->stmts[i];
 			switch (stmt->tag) {
 				case Ist_Put:
@@ -1162,7 +1167,7 @@ public:
 
 					sink.entity_type = TAINT_ENTITY_REG;
 					sink.instr_addr = curr_instr_addr;
-					sink.reg_id = stmt->Ist.Put.offset;
+					sink.reg_offset = stmt->Ist.Put.offset;
 					srcs = get_taint_sources(stmt->Ist.Put.data, curr_instr_addr);
 					if (srcs.size() > 0) {
 						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
@@ -1249,7 +1254,7 @@ public:
 		return block_taint_entry;
 	}
 
-	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr, uint64_t instr_addr) {
+	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr, address_t instr_addr) {
 		std::unordered_set<taint_entity_t> sources;
 		switch (expr->tag) {
 			case Iex_RdTmp:
@@ -1264,7 +1269,7 @@ public:
 			{
 				taint_entity_t taint_entity;
 				taint_entity.entity_type = TAINT_ENTITY_REG;
-				taint_entity.reg_id = expr->Iex.Get.offset;
+				taint_entity.reg_offset = expr->Iex.Get.offset;
 				sources.emplace(taint_entity);
 				break;
 			}
@@ -1424,19 +1429,19 @@ public:
 		return get_final_taint_status(taint_sources_set);
 	}
 
-	inline void mark_register_symbolic(uint64_t reg_id, bool do_block_level) {
+	inline void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level) {
 		if (do_block_level) {
 			// Mark register as symbolic in current block
-			block_symbolic_registers.emplace(reg_id);
+			block_symbolic_registers.emplace(reg_offset);
 		}
 		else {
 			// Mark register as symbolic in the state
-			symbolic_registers.emplace(reg_id);
+			symbolic_registers.emplace(reg_offset);
 		}
 		return;
 	}
 
-	inline void mark_temp_symbolic(uint64_t temp_id, bool do_block_level) {
+	inline void mark_temp_symbolic(vex_tmp_id_t temp_id, bool do_block_level) {
 		if (do_block_level) {
 			// Mark VEX temp as symbolic in current block
 			block_symbolic_temps.emplace(temp_id);
@@ -1449,7 +1454,7 @@ public:
 
 	void mark_register_temp_symbolic(const taint_entity_t &entity, bool do_block_level) {
 		if (entity.entity_type == TAINT_ENTITY_REG) {
-			mark_register_symbolic(entity.reg_id, do_block_level);
+			mark_register_symbolic(entity.reg_offset, do_block_level);
 		}
 		else if (entity.entity_type == TAINT_ENTITY_TMP) {
 			mark_temp_symbolic(entity.tmp_id, do_block_level);
@@ -1457,47 +1462,47 @@ public:
 		return;
 	}
 
-	inline void mark_register_concrete(uint64_t reg_id, bool do_block_level) {
+	inline void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level) {
 		if (do_block_level) {
 			// Mark this register as concrete in the current block
-			block_concrete_registers.emplace(reg_id);
+			block_concrete_registers.emplace(reg_offset);
 		}
 		else {
-			symbolic_registers.erase(reg_id);
+			symbolic_registers.erase(reg_offset);
 		}
 		return;
 	}
 
-	inline bool is_symbolic_register(uint64_t reg_id) const {
+	inline bool is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		// We check if this register is symbolic or concrete in the block level taint statuses since
 		// those are more recent. If not found in either, check the state's symbolic register list.
-		if (block_symbolic_registers.count(reg_id) > 0) {
+		if (block_symbolic_registers.count(reg_offset) > 0) {
 			return true;
 		}
-		else if (block_concrete_registers.count(reg_id) > 0) {
+		else if (block_concrete_registers.count(reg_offset) > 0) {
 			return false;
 		}
-		else if (symbolic_registers.count(reg_id) > 0) {
+		else if (symbolic_registers.count(reg_offset) > 0) {
 			return true;
 		}
 		return false;
 	}
 
-	inline bool is_symbolic_temp(uint64_t temp_id) const {
+	inline bool is_symbolic_temp(vex_tmp_id_t temp_id) const {
 		// Check both the state's symbolic temp set and block's symbolic temp set
 		return ((symbolic_temps.count(temp_id) > 0) || (block_symbolic_temps.count(temp_id) > 0));
 	}
 
 	inline bool is_symbolic_register_or_temp(const taint_entity_t &entity) const {
 		if (entity.entity_type == TAINT_ENTITY_REG) {
-			return is_symbolic_register(entity.reg_id);
+			return is_symbolic_register(entity.reg_offset);
 		}
 		else if (entity.entity_type == TAINT_ENTITY_TMP) {
 			return is_symbolic_temp(entity.tmp_id);
 		}
 	}
 
-	void propagate_taints(uint64_t address, int32_t size) {
+	void propagate_taints(address_t address, int32_t size) {
 		block_taint_entry_t block_taint_entry;
 		auto result = this->block_taint_cache.find(address);
 		if (result == this->block_taint_cache.end()) {
@@ -1611,12 +1616,12 @@ public:
 						// Taint status of the register depends on a memory read so we mark it as
 						// concrete for now. If it is symbolic, the register will be marked symbolic
 						// by propagate_mem_read_taints in the memory hook.
-						mark_register_concrete(taint_sink.reg_id, true);
+						mark_register_concrete(taint_sink.reg_offset, true);
 					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 					// Mark register as not symbolic since none of it's dependencies are symbolic
-					mark_register_concrete(taint_sink.reg_id, true);
+					mark_register_concrete(taint_sink.reg_offset, true);
 				}
 			}
 		}
@@ -1625,7 +1630,7 @@ public:
 
 	void propagate_mem_read_taints() {
 		// Mark taint sinks that depend on a mem read as symbolic. called by unicorn mem read hook
-		uint64_t pc_addr = get_instruction_pointer();
+		address_t pc_addr = get_instruction_pointer();
 		if (mem_reads_taint_dst_map.at(pc_addr).second) {
 			// The taints have already been propagated. No need to process again.
 			// TODO: Added as a safety just in case unicorn behaves weirdly. Supposedly, write hooks
@@ -1681,7 +1686,7 @@ public:
 		return false;
 	}
 
-	void set_previous_block_address(uint64_t address) {
+	void set_previous_block_address(address_t address) {
 		prev_block_addr = address;
 		return;
 	}
@@ -1701,8 +1706,8 @@ public:
 		}
 	}
 
-	uint64_t get_instruction_pointer() {
-		uint64_t out = 0;
+	address_t get_instruction_pointer() {
+		address_t out = 0;
 		unsigned int reg = arch_pc_reg();
 		if (reg == -1) {
 			out = 0;
@@ -1713,8 +1718,8 @@ public:
 		return out;
 	}
 
-	uint64_t get_stack_pointer() {
-		uint64_t out = 0;
+	address_t get_stack_pointer() {
+		address_t out = 0;
 		unsigned int reg = arch_sp_reg();
 		if (reg == -1) {
 			out = 0;
@@ -1725,14 +1730,14 @@ public:
 		return out;
 	}
 
-	void set_instruction_pointer(uint64_t val) {
+	void set_instruction_pointer(address_t val) {
 		unsigned int reg = arch_pc_reg();
 		if (reg != -1) {
 			uc_reg_write(uc, reg, &val);
 		}
 	}
 
-	void set_stack_pointer(uint64_t val) {
+	void set_stack_pointer(address_t val) {
 		unsigned int reg = arch_sp_reg();
 		if (reg != -1) {
 			uc_reg_write(uc, reg, &val);
@@ -1994,7 +1999,7 @@ void simunicorn_activate_page(State *state, uint64_t address, uint8_t *taint, ui
 extern "C"
 uint64_t simunicorn_executed_pages(State *state) { // this is HORRIBLE
 	if (state->executed_pages_iterator == NULL) {
-		state->executed_pages_iterator = new std::unordered_set<uint64_t>::iterator;
+		state->executed_pages_iterator = new std::unordered_set<address_t>::iterator;
 		*state->executed_pages_iterator = state->executed_pages.begin();
 	}
 
