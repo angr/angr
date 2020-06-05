@@ -108,6 +108,7 @@ from .conditional_store_mixin import ConditionalMixin
 from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
+from .hex_dumper_mixin import HexDumperMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
 from .simple_interface_mixin import SimpleInterfaceMixin
@@ -128,6 +129,7 @@ from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFin
 
 
 class DefaultMemory(
+        HexDumperMixin,
         SmartFindMixin,
         UnwrapperMixin,
         NameResolutionMixin,

@@ -118,7 +118,7 @@ def test_state_merge_static():
     addr = a.solver.ValueSet(32, 'global', 0, 8)
     a.memory.store(addr, a.solver.BVV(42, 32))
     # Clear a_locs, so further writes will not try to merge with value 42
-    a.memory.regions['global']._alocs = { }
+    a.memory._regions['global']._alocs = { }
 
     b = a.copy()
     c = a.copy()
