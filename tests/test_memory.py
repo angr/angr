@@ -310,8 +310,12 @@ def test_abstract_memory():
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
-    c_mem = c.memory.regions['function_merge'].memory.mem
-    object_set = {c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]}
+    c_page = c.memory._regions['function_merge'].memory._pages[0]
+    object_set = {c_page._get_object(0x20, 0),
+                  c_page._get_object(0x21, 0),
+                  c_page._get_object(0x22, 0),
+                  c_page._get_object(0x23, 0),
+                  }
     nose.tools.assert_equal(len(object_set), 1)
 
     a = s.copy()
@@ -321,7 +325,11 @@ def test_abstract_memory():
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
-    object_set = {c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]}
+    object_set = {c_page._get_object(0x20, 0),
+                  c_page._get_object(0x21, 0),
+                  c_page._get_object(0x22, 0),
+                  c_page._get_object(0x23, 0),
+                  }
     nose.tools.assert_equal(len(object_set), 1)
 
     #

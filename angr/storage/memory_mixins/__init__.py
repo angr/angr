@@ -97,7 +97,7 @@ class MemoryMixin(SimStatePlugin):
         :param merged_size:     The size (in bytes) of the merged value.
         :return:                The merged value.
         """
-        pass
+        raise NotImplementedError()
 
 
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
@@ -124,7 +124,7 @@ from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
 
 from .slotted_memory import SlottedMemoryMixin
-from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin
+from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin
 
 
 class DefaultMemory(
@@ -178,13 +178,11 @@ class AbstractMemory(
         UnderconstrainedMixin,
         SizeConcretizationMixin,
         SizeNormalizationMixin,
-        AddressConcretizationMixin,
         #InspectMixinLow,
         ActionsMixinLow,
         ConditionalMixin,
-        ConvenientMappingsMixin,
+        # ConvenientMappingsMixin,
         # -----
-        StackAllocationMixin,
         RegionedMemoryMixin,
         ):
     pass
@@ -203,11 +201,11 @@ class RegionMemory(
         ConvenientMappingsMixin,
         DirtyAddrsMixin,
         # -----
-        StackAllocationMixin,
         ClemoryBackerMixin,
         DictBackerMixin,
         UltraPagesMixin,
         DefaultFillerMixin,
+        AbstractMergerMixin,
         PagedMemoryMixin,
         ):
     pass
