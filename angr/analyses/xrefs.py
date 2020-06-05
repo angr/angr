@@ -40,6 +40,13 @@ class SimEngineXRefsVEX(
     def _handle_Put(self, stmt):
         # if there is a Load, get it executed
         self._expr(stmt.data)
+        if hasattr(stmt.data, "tmp"):
+            addr_tmp = VEXTmp(stmt.data.tmp)
+            blockloc = self._codeloc(block_only=True)
+            if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
+                addr = self.replacements[blockloc][addr_tmp]
+                if isinstance(addr, int):
+                    self.add_xref(XRefType.Offset, self._codeloc(), addr)
 
     def _handle_Store(self, stmt):
         if isinstance(stmt.addr, pyvex.IRExpr.RdTmp):

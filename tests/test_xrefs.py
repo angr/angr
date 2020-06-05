@@ -9,6 +9,23 @@ from angr.knowledge_plugins.xrefs import XRef, XRefType
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
+def test_fauxware():
+    bin_path = os.path.join(test_location, "mips", "fauxware")
+    p = angr.Project(bin_path, auto_load_libs=False)
+    cfg = p.analyses.CFG(data_references=True, cross_references=True)
+
+    username_xref = p.kb.xrefs.get_xrefs_by_dst(0x400c84)
+    welcome_xref = p.kb.xrefs.get_xrefs_by_dst(0x400c4c)
+
+    nose.tools.assert_equal(len(username_xref), 1)
+    nose.tools.assert_equal(len(welcome_xref), 1)
+
+    nose.tools.assert_equal(next(iter(username_xref)),
+                            XRef(ins_addr=0x4008f0, dst=0x400c84, xref_type=XRefType.Offset))
+    nose.tools.assert_equal(next(iter(welcome_xref)),
+                            XRef(ins_addr=0x400834, dst=0x400c4c, xref_type=XRefType.Offset))
+
+
 def test_lwip_udpecho_bm():
     bin_path = os.path.join(test_location, "armel", "lwip_udpecho_bm.elf")
     p = angr.Project(bin_path, auto_load_libs=False)
@@ -74,6 +91,7 @@ def test_p2im_drone_with_inits():
 
 
 if __name__ == "__main__":
+    test_fauxware()
     test_lwip_udpecho_bm()
     test_lwip_udpecho_bm_the_better_way()
     test_p2im_drone_with_inits()
