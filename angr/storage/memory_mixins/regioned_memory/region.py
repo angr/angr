@@ -135,13 +135,11 @@ class MemoryRegion:
         return merging_occurred
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        merging_occurred = False
         for other_region in others:
-            merging_occurred |= self._merge_alocs(other_region)
-            merging_occurred |= self.memory.merge(
+            self._merge_alocs(other_region)
+            self.memory.merge(
                 [other_region.memory], merge_conditions, common_ancestor=common_ancestor
             )
-        return merging_occurred
 
     def widen(self, others):
         widening_occurred = False
