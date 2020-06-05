@@ -260,11 +260,11 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     changes.add(addr)
             else:
                 try:
-                    aself = next(self.symbolic_data.irange(maximum=addr))
+                    aself = next(self.symbolic_data.irange(maximum=addr, reverse=True))
                 except StopIteration:
                     aself = None
                 try:
-                    aother = next(other.symbolic_data.irange(maximum=addr))
+                    aother = next(other.symbolic_data.irange(maximum=addr, reverse=True))
                 except StopIteration:
                     aother = None
 

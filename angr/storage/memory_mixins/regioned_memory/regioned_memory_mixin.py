@@ -1,6 +1,6 @@
 import logging
 from itertools import count
-from typing import Dict, Optional, Generator, Union, TYPE_CHECKING, Tuple
+from typing import Dict, Optional, Generator, Union, TYPE_CHECKING, Tuple, Iterable
 
 import claripy
 from claripy.ast import Bool, Bits, BV
@@ -11,7 +11,7 @@ from ....sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED
 from ....state_plugins.sim_action_object import _raw_ast
 from ....errors import SimMemoryError, SimAbstractMemoryError
 from ...memory import AddressWrapper, RegionMap
-from ..paged_memory.paged_memory_mixin import PagedMemoryMixin
+from .. import MemoryMixin
 from .region import MemoryRegion
 from .abstract_address_descriptor import AbstractAddressDescriptor
 
@@ -24,7 +24,7 @@ _l = logging.getLogger(name=__name__)
 invalid_read_ctr = count()
 
 
-class RegionedMemoryMixin(PagedMemoryMixin):
+class RegionedMemoryMixin(MemoryMixin):
     """
     Regioned memory.
     It maps memory addresses into different pages.
@@ -103,6 +103,31 @@ class RegionedMemoryMixin(PagedMemoryMixin):
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
+    def merge(self, others: Iterable['RegionedMemoryMixin'], merge_conditions, common_ancestor=None):
+        for o in others:
+            for region_id, region in o._regions.items():
+                if region_id in self._regions:
+                    self._regions[region_id].merge([region], merge_conditions, common_ancestor=common_ancestor)
+                else:
+                    self._regions[region_id] = region
+
+    @MemoryMixin.memo
+    def copy(self, memo):
+        o: 'RegionedMemoryMixin' = super().copy(memo)
+        o._write_targets_limit = self._write_targets_limit
+        o._read_targets_limit=self._read_targets_limit
+        o._stack_size=self._stack_size
+        o._endness=self.endness
+        o._stack_region_map=self._stack_region_map
+        o._generic_region_map=self._generic_region_map
+        o._cle_memory_backer=self._cle_memory_backer
+        o._dict_memory_backer=self._dict_memory_backer
+
+        for region_id, region in self._regions.items():
+            o._regions[region_id] = region.copy(memo)
+
+        return o
+
     def find(self, addr: Union[int,Bits], data, max_search, **kwargs):
         # FIXME: Attempt find() on more than one region
 
@@ -115,6 +140,11 @@ class RegionedMemoryMixin(PagedMemoryMixin):
             region_base_addr = self._region_base(region)
             r = self.state.solver.ValueSet(r.size(), region, region_base_addr, r._model_vsa)
             return r, s, i
+
+    def set_state(self, state):
+        for region in self._regions.values():
+            region.set_state(state)
+        super().set_state(state)
 
     #
     # Region management

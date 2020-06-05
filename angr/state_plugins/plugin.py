@@ -7,7 +7,7 @@ from ..misc.ux import once
 
 l = logging.getLogger(name=__name__)
 
-class SimStatePlugin(object):
+class SimStatePlugin:
     """
     This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
     branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
