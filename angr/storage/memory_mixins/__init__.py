@@ -125,7 +125,8 @@ from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
 
 from .slotted_memory import SlottedMemoryMixin
-from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin
+from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin, \
+    MemoryRegionMetaMixin
 
 
 class DefaultMemory(
@@ -190,8 +191,9 @@ class AbstractMemory(
     pass
 
 
-class RegionMemory(
+class RegionedMemory(
         RegionCategoryMixin,
+        MemoryRegionMetaMixin,
         StaticFindMixin,
         UnwrapperMixin,
         NameResolutionMixin,

@@ -12,11 +12,11 @@ from ....state_plugins.sim_action_object import _raw_ast
 from ....errors import SimMemoryError, SimAbstractMemoryError
 from ...memory import AddressWrapper, RegionMap
 from .. import MemoryMixin
-from .region import MemoryRegion
 from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
     from ....sim_state import SimState
+    from .. import RegionedMemory
 
 
 _l = logging.getLogger(name=__name__)
@@ -38,7 +38,7 @@ class RegionedMemoryMixin(MemoryMixin):
                  dict_memory_backer: Optional[Dict]=None,
                  **kwargs):
         super().__init__(**kwargs)
-        self._regions: Dict[MemoryRegion] = { }
+        self._regions: Dict['RegionedMemory'] = { }
 
         self._cle_memory_backer = cle_memory_backer
         self._dict_memory_backer = dict_memory_backer
@@ -74,6 +74,7 @@ class RegionedMemoryMixin(MemoryMixin):
         gen = self._concretize_address_descriptor(regioned_addrs_desc, addr, is_write=False)
         for aw in gen:
             new_val = self._region_load(aw.address, size, aw.region,
+                                        endness=endness,
                                         related_function_addr=aw.function_address,
                                         **kwargs,
                                         )
@@ -135,7 +136,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
         for region, si in gen:
             si = claripy.SI(to_conv=si)
-            r, s, i = self._regions[region].memory.find(si, data, max_search, **kwargs)
+            r, s, i = self._regions[region].find(si, data, max_search, **kwargs)
             # Post-process r so that it's still a ValueSet
             region_base_addr = self._region_base(region)
             r = self.state.solver.ValueSet(r.size(), region, region_base_addr, r._model_vsa)
@@ -163,13 +164,14 @@ class RegionedMemoryMixin(MemoryMixin):
         :param backer_dict: The memory backer object.
         :return: None
         """
-        self._regions[key] = MemoryRegion(key,
-                                          state=state,
-                                          related_function_addr=related_function_addr,
-                                          endness=endness,
-                                          cle_memory_backer=cle_memory_backer,
-                                          dict_memory_backer=dict_memory_backer,
-                                          )
+        from .. import RegionedMemory
+        self._regions[key] = RegionedMemory(memory_id=key,
+                                            related_function_addr=related_function_addr,
+                                            endness=endness,
+                                            cle_memory_backer=cle_memory_backer,
+                                            dict_memory_backer=dict_memory_backer,
+                                            )
+        self._regions[key].set_state(state)
 
     def _region_base(self, region: str) -> int:
         """

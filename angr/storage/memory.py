@@ -1,7 +1,10 @@
 import logging
-import claripy
+from typing import Optional
 from sortedcontainers import SortedDict
+
+import claripy
 from archinfo.arch_arm import is_arm_arch
+
 from ..state_plugins.plugin import SimStatePlugin
 
 
@@ -19,15 +22,17 @@ class AddressWrapper:
     object) that is normalized from an integer/BVV/StridedInterval.
     """
 
-    def __init__(self, region, region_base_addr, address, is_on_stack, function_address):
+    __slots__ = ('region', 'region_base_addr', 'address', 'is_on_stack', 'function_address', )
+
+    def __init__(self, region: str, region_base_addr: int, address, is_on_stack: bool, function_address: Optional[int]):
         """
         Constructor for the class AddressWrapper.
 
-        :param str region:             Name of the memory regions it belongs to.
-        :param int region_base_addr:   Base address of the memory region
-        :param address:                An address (not a ValueSet object).
-        :param bool is_on_stack:       Whether this address is on a stack region or not.
-        :param int function_address:   Related function address (if any).
+        :param region:              Name of the memory regions it belongs to.
+        :param region_base_addr:    Base address of the memory region
+        :param address:             An address (not a ValueSet object).
+        :param is_on_stack:         Whether this address is on a stack region or not.
+        :param function_address:    Related function address (if any).
         """
         self.region = region
         self.region_base_addr = region_base_addr
@@ -53,10 +58,14 @@ class AddressWrapper:
         """
         return state.solver.VS(state.arch.bits, self.region, self.region_base_addr, self.address)
 
+
 class RegionDescriptor:
     """
     Descriptor for a memory region ID.
     """
+
+    __slots__ = ('region_id', 'base_address', 'related_function_address', )
+
     def __init__(self, region_id, base_address, related_function_address=None):
         self.region_id = region_id
         self.base_address = base_address
@@ -67,6 +76,7 @@ class RegionDescriptor:
             self.region_id,
             self.related_function_address if self.related_function_address is not None else 0
         )
+
 
 class RegionMap:
     """

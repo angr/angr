@@ -2,3 +2,4 @@ from .regioned_memory_mixin import RegionedMemoryMixin
 from .region_category_mixin import RegionCategoryMixin
 from .static_find_mixin import StaticFindMixin
 from .abstract_merger_mixin import AbstractMergerMixin
+from .region_meta_mixin import MemoryRegionMetaMixin
