@@ -4,6 +4,9 @@ from ...state_plugins.plugin import SimStatePlugin
 from ...errors import SimMemoryError
 
 class MemoryMixin(SimStatePlugin):
+
+    SUPPORTS_CONCRETE_LOAD = False
+
     def __init__(self, memory_id=None, endness='Iend_BE'):
         super().__init__()
         self.id = memory_id
@@ -74,8 +77,17 @@ class MemoryMixin(SimStatePlugin):
         pass
 
     # Optional interface:
-    # def concrete_load(self, addr, size, writing=False, **kwargs):
-    #     pass
+    def concrete_load(self, addr, size, writing=False, **kwargs) -> memoryview:
+        """
+        Set SUPPORTS_CONCRETE_LOAD to True and implement concrete_load if reading concrete bytes is faster in this
+        memory model.
+
+        :param addr:    The address to load from.
+        :param size:    Size of the memory read.
+        :param writing:
+        :return:        A memoryview into the loaded bytes.
+        """
+        raise NotImplementedError()
 
     def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
         """

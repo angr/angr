@@ -288,7 +288,10 @@ class VEXLifter(SimEngineBase):
 
         # If that didn't work, try to load from the state
         if size == 0 and state:
-            buff = state.memory.concrete_load(addr, max_size)
+            if state.memory.SUPPORTS_CONCRETE_LOAD:
+                buff = state.memory.concrete_load(addr, max_size)
+            else:
+                buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
             size = len(buff)
             if size < min(max_size, 10):  # arbitrary metric for doing the slow path
                 l.debug("SMC slow path")
