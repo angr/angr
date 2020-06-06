@@ -17,6 +17,7 @@ class PagedMemoryMixin(MemoryMixin):
     A bottom-level storage mechanism. Dispatches reads to individual pages, the type of which is the PAGE_TYPE class
     variable.
     """
+    SUPPORTS_CONCRETE_LOAD = True
     PAGE_TYPE: Type[PageType] = None  # must be provided in subclass
 
     def __init__(self,  page_size=0x1000, default_permissions=3, permissions_map=None, page_kwargs=None, **kwargs):
