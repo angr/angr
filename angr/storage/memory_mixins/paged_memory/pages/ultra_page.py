@@ -200,6 +200,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 merged_to = mo_base + list(mo_lengths)[0]
 
                 merged_val = self._merge_values(to_merge, memory_objects[0][0].length, memory=memory)
+                if merged_val is None:
+                    continue
 
                 if our_mo is None:
                     # this object does not exist in the current page. do the store
@@ -237,6 +239,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 to_merge = extracted + created
 
                 merged_val = self._merge_values(to_merge, min_size, memory=memory)
+                if merged_val is None:
+                    continue
 
                 self.store(b, merged_val, size=len(merged_val) // 8, endness='Iend_BE', inspect=False)  # do not convert endianness again
 
