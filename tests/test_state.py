@@ -127,7 +127,7 @@ def test_state_merge_static():
     c.memory.store(addr, a.solver.BVV(70, 32), endness='Iend_LE')
 
     merged, _, _ = a.merge(b, c)
-    actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4))
+    actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4, endness='Iend_LE'))
     expected = claripy.backends.vsa.convert(a.solver.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
     nose.tools.assert_true(actual.identical(expected))
 
