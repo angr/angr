@@ -97,7 +97,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
                 return new_from_shared(data, **self._page_kwargs(pageno, permissions))
 
         new_page = PagedMemoryMixin._initialize_default_page(self, pageno, permissions=permissions, **kwargs)
-        new_page.store(0, data, size=self.page_size, endness='Iend_BE', **kwargs)
+        new_page.store(0, data, size=self.page_size, page_addr=pageno*self.page_size, endness='Iend_BE', **kwargs)
         return new_page
 
     def _cle_permissions_lookup(self, addr):
