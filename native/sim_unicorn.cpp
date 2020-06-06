@@ -47,6 +47,12 @@ typedef enum taint_entity: uint8_t {
 	TAINT_ENTITY_NONE = 3,
 } taint_entity_enum_t;
 
+typedef enum taint_status_result_t {
+	TAINT_STATUS_CONCRETE = 0,
+	TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR,
+	TAINT_STATUS_SYMBOLIC,
+} taint_status_result_t;
+
 typedef uint64_t address_t;
 typedef uint64_t vex_reg_offset_t;
 typedef uint64_t vex_tmp_id_t;
@@ -111,6 +117,12 @@ struct std::hash<taint_entity_t> {
 	}
 };
 
+typedef struct mem_read_result_t {
+	address_t address;
+	size_t size;
+	bool is_value_symbolic;
+} mem_read_result_t;
+
 typedef enum stop {
 	STOP_NORMAL=0,
 	STOP_STOPPOINT,
@@ -125,6 +137,7 @@ typedef enum stop {
 	STOP_HLT,
 	STOP_VEX_LIFT_FAILED,
 	STOP_SYMBOLIC_CONDITION,
+	STOP_SYMBOLIC_PC,
 	STOP_SYMBOLIC_READ_ADDR,
 	STOP_SYMBOLIC_WRITE_ADDR,
 } stop_t;
@@ -137,22 +150,45 @@ typedef struct block_entry {
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
 
+typedef struct instruction_taint_entry_t {
+	// List of direct taint sources for a taint sink
+	taint_vector_t taint_sink_src_map;
+
+	// List of registers and memory a taint sink depends on directly or indirectly
+	taint_vector_t sink_dependencies_to_save;
+
+	// List of taint entities in ITE expression's condition, if any
+	std::unordered_set<taint_entity_t> ite_cond_entity_list;
+
+	bool has_memory_read;
+	bool has_memory_write;
+
+	bool operator==(const instruction_taint_entry_t &other_instr_deps) const {
+		return (taint_sink_src_map == other_instr_deps.taint_sink_src_map) &&
+			   (sink_dependencies_to_save == other_instr_deps.sink_dependencies_to_save) &&
+			   (has_memory_read == other_instr_deps.has_memory_read) &&
+			   (has_memory_write == other_instr_deps.has_memory_write);
+	}
+
+	void reset() {
+		sink_dependencies_to_save.clear();
+		ite_cond_entity_list.clear();
+		taint_sink_src_map.clear();
+		has_memory_read = false;
+		has_memory_write = false;
+		return;
+	}
+} instruction_taint_entry_t;
+
 typedef struct block_taint_entry_t {
-	taint_vector_t taint_sink_src_data;
+	std::map<address_t, instruction_taint_entry_t> block_instrs_taint_data_map;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
-	std::unordered_map<address_t, std::unordered_set<taint_entity_t>> ite_cond_map;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
-		return (taint_sink_src_data == other_entry.taint_sink_src_data);
+		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
+			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps);
 	}
 } block_taint_entry_t;
-
-typedef struct taint_status_result_t {
-	bool is_symbolic;
-	bool depends_on_read_from_symbolic_addr;
-	bool depends_on_read_from_concrete_addr;
-	address_t concrete_mem_read_instr_addr;
-} taint_status_result_t;
 
 typedef struct CachedPage {
 	size_t size;
@@ -236,6 +272,8 @@ private:
 	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
+	address_t current_block_start_address, current_block_size;
+	address_t taint_engine_next_instr_address;
 	address_t prev_block_addr;
 
 public:
@@ -266,7 +304,11 @@ public:
 	VexArch vex_guest;
 	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
+	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	TempSet symbolic_temps;
+
+	// Result of all memory reads executed. Instruction address -> memory read result
+	std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
 
 	bool track_bbls;
 	bool track_stack;
@@ -288,6 +330,7 @@ public:
 		syscall_count = 0;
 		uc_context_alloc(uc, &saved_regs);
 		executed_pages_iterator = NULL;
+		current_block_start_address = 0;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -374,10 +417,10 @@ public:
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
 		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		    // handle edge case where we stop because we reached our bogus stop address (0)
-		    commit();
+		    commit(true);
 		    stop_reason = STOP_ZEROPAGE;
 		}
-		rollback();
+		rollback(true);
 
 		if (out == UC_ERR_INSN_INVALID) {
 			stop_reason = STOP_NODECODE;
@@ -404,7 +447,7 @@ public:
 				break;
 			case STOP_SYSCALL:
 				msg = "unable to handle syscall";
-				commit();
+				commit(true);
 				break;
 			case STOP_ZEROPAGE:
 				msg = "accessing zero page";
@@ -482,8 +525,9 @@ public:
 
 	/*
 	 * commit all memory actions.
+	 * end_block denotes whether this is done at the end of the block or not
 	 */
-	void commit() {
+	void commit(bool end_block) {
 		// save registers
 		uc_context_save(uc, saved_regs);
 
@@ -503,7 +547,10 @@ public:
 
 		// clear memory rollback status
 		mem_writes.clear();
-		cur_steps++;
+		if (end_block) {
+			// Commit done at end of block; increase step count
+			cur_steps++;
+		}
 
 		// Sync all block level taint statuses reads with state's taint statuses
 		for (auto &reg_offset: block_symbolic_registers) {
@@ -524,8 +571,9 @@ public:
 
 	/*
 	 * undo recent memory actions.
+	 * block_level denotes whether we want to rollback fully to start of the block
 	 */
-	void rollback() {
+	void rollback(bool block_level) {
 		// roll back memory changes
 		for (auto rit = mem_writes.rbegin(); rit != mem_writes.rend(); rit++) {
             uc_err err = uc_mem_write(uc, rit->address, rit->value, rit->size);
@@ -567,8 +615,8 @@ public:
 		// restore registers
 		uc_context_restore(uc, saved_regs);
 
-		if (track_bbls) bbl_addrs.pop_back();
-		if (track_stack) stack_pointers.pop_back();
+		if (track_bbls && block_level) bbl_addrs.pop_back();
+		if (track_stack && block_level) stack_pointers.pop_back();
 	}
 
 	/*
@@ -1153,9 +1201,26 @@ public:
 		mem_writes.push_back(record);
 	}
 
+	std::pair<std::unordered_set<taint_entity_t>, bool> compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const {
+		std::unordered_set<taint_entity_t> reg_dependency_list;
+		bool has_memory_read = false;
+		for (auto &taint_source: taint_sources) {
+			// If register is an artificial VEX register, we can't save it from unicorn.
+			if ((taint_source.entity_type == TAINT_ENTITY_REG) && !is_artificial_register(taint_source.reg_offset)) {
+				reg_dependency_list.emplace(taint_source);
+			}
+			else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
+				has_memory_read = true;
+			}
+		}
+		return std::make_pair(reg_dependency_list, has_memory_read);
+	}
+
 	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, address_t address) {
 		block_taint_entry_t block_taint_entry;
+		instruction_taint_entry_t instruction_taint_entry;
 
+		instruction_taint_entry.reset();
 		for (int i = 0; i < vex_block->stmts_used; i++) {
 			address_t curr_instr_addr;
 			auto stmt = vex_block->stmts[i];
@@ -1163,54 +1228,88 @@ public:
 				case Ist_Put:
 				{
 					taint_entity_t sink;
-					std::unordered_set<taint_entity_t> srcs;
+					std::unordered_set<taint_entity_t> srcs, ite_cond_entity_list;
 
 					sink.entity_type = TAINT_ENTITY_REG;
 					sink.instr_addr = curr_instr_addr;
 					sink.reg_offset = stmt->Ist.Put.offset;
-					srcs = get_taint_sources(stmt->Ist.Put.data, curr_instr_addr);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, false);
+					srcs = result.first;
+					ite_cond_entity_list = result.second;
 					if (srcs.size() > 0) {
-						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
+						instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
+						// TODO: Should we not compute dependencies to save if sink is an artificial register?
+						auto dependencies_to_save = compute_dependencies_to_save(srcs);
+						instruction_taint_entry.has_memory_read = dependencies_to_save.second;
+						instruction_taint_entry.sink_dependencies_to_save.emplace_back(std::make_pair(sink, dependencies_to_save.first));
 					}
+					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 					break;
 				}
 				case Ist_WrTmp:
 				{
 					taint_entity_t sink;
-					std::unordered_set<taint_entity_t> srcs;
+					std::unordered_set<taint_entity_t> srcs, ite_cond_entity_list;
 
 					sink.entity_type = TAINT_ENTITY_TMP;
 					sink.instr_addr = curr_instr_addr;
 					sink.tmp_id = stmt->Ist.WrTmp.tmp;
-					srcs = get_taint_sources(stmt->Ist.WrTmp.data, curr_instr_addr);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.WrTmp.data, false);
+					srcs = result.first;
+					ite_cond_entity_list = result.second;
 					if (srcs.size() > 0) {
-						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
+						instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
 					}
+					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 					break;
 				}
 				case Ist_Store:
 				{
 					taint_entity_t sink;
-					std::unordered_set<taint_entity_t> srcs;
+					std::unordered_set<taint_entity_t> srcs, ite_cond_entity_list;
 
 					sink.entity_type = TAINT_ENTITY_MEM;
 					sink.instr_addr = curr_instr_addr;
-					auto temp = get_taint_sources(stmt->Ist.Store.addr, curr_instr_addr);
-					sink.mem_ref_entity_list.assign(temp.begin(), temp.end());
-					srcs = get_taint_sources(stmt->Ist.Store.data, curr_instr_addr);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Store.addr, false);
+					// TODO: What if memory addresses have ITE expressions in them?
+					sink.mem_ref_entity_list.assign(result.first.begin(), result.first.end());
+					result = get_taint_sources_and_ite_cond(stmt->Ist.Store.data, false);
+					srcs = result.first;
+					ite_cond_entity_list = result.second;
+					instruction_taint_entry.has_memory_write = true;
 					if (srcs.size() > 0) {
-						block_taint_entry.taint_sink_src_data.emplace_back(sink, srcs);
+						instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
+						auto dependencies_to_save = compute_dependencies_to_save(srcs);
+						instruction_taint_entry.has_memory_read = dependencies_to_save.second;
+						instruction_taint_entry.sink_dependencies_to_save.emplace_back(std::make_pair(sink, dependencies_to_save.first));
 					}
+					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 					break;
 				}
 				case Ist_Exit:
 				{
-					block_taint_entry.exit_stmt_guard_expr_deps = get_taint_sources(stmt->Ist.Exit.guard, curr_instr_addr);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Exit.guard, true);
+					block_taint_entry.exit_stmt_guard_expr_deps = result.first;
+					if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
+						auto dependencies_to_save = compute_dependencies_to_save(block_taint_entry.exit_stmt_guard_expr_deps);
+						instruction_taint_entry.has_memory_read = dependencies_to_save.second;
+						taint_entity_t dummy_sink;
+						dummy_sink.entity_type = TAINT_ENTITY_NONE;
+						dummy_sink.instr_addr = curr_instr_addr;
+						instruction_taint_entry.sink_dependencies_to_save.emplace_back(std::make_pair(dummy_sink, dependencies_to_save.first));
+					}
 					break;
 				}
 				case Ist_IMark:
+				{
+					// Save dependencies of previous instruction, if any, and clear it
+					if (instruction_taint_entry.taint_sink_src_map.size() > 0) {
+						block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
+					}
+					instruction_taint_entry.reset();
 					curr_instr_addr = stmt->Ist.IMark.addr;
 					break;
+				}
 				case Ist_PutI:
 				{
 					assert(false && "PutI statements not yet supported!");
@@ -1249,13 +1348,13 @@ public:
 				}
 			}
 		}
-		block_taint_entry.ite_cond_map = temp_ite_cond_map;
-		temp_ite_cond_map.clear();
 		return block_taint_entry;
 	}
 
-	std::unordered_set<taint_entity_t> get_taint_sources(IRExpr *expr, address_t instr_addr) {
-		std::unordered_set<taint_entity_t> sources;
+	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
+	std::pair<std::unordered_set<taint_entity_t>, std::unordered_set<taint_entity_t>> get_taint_sources_and_ite_cond(
+	  IRExpr *expr, bool is_exit_stmt) {
+		std::unordered_set<taint_entity_t> sources, ite_cond_entities;
 		switch (expr->tag) {
 			case Iex_RdTmp:
 			{
@@ -1275,71 +1374,90 @@ public:
 			}
 			case Iex_Unop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Unop.arg, instr_addr);
-				sources.insert(temp.begin(), temp.end());
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Unop.arg, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_Binop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Binop.arg1, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Binop.arg2, instr_addr);
-				sources.insert(temp.begin(), temp.end());
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg1, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg2, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_Triop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Triop.details->arg1, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Triop.details->arg2, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Triop.details->arg3, instr_addr);
-				sources.insert(temp.begin(), temp.end());
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg1, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg2, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg3, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_Qop:
 			{
-				auto temp = get_taint_sources(expr->Iex.Qop.details->arg1, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Qop.details->arg2, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Qop.details->arg3, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.Qop.details->arg4, instr_addr);
-				sources.insert(temp.begin(), temp.end());
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg1, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg2, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg3, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg4, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_ITE:
 			{
-				auto temp = get_taint_sources(expr->Iex.ITE.cond, instr_addr);
-				if (temp_ite_cond_map.find(instr_addr) == temp_ite_cond_map.end()) {
-					temp_ite_cond_map.emplace(instr_addr, temp);
+				// We store the taint entities in the condition for ITE separately in order to check
+				// if condition is symbolic and stop concrete execution if it is. However for VEX
+				// exit statement, we don't need to store it separately since we process only the
+				// guard condition for Exit statements
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.cond, false);
+				if (is_exit_stmt) {
+					sources.insert(temp.first.begin(), temp.first.end());
+					sources.insert(temp.second.begin(), temp.second.end());
 				}
 				else {
-					temp_ite_cond_map.at(instr_addr).insert(temp.begin(), temp.end());
+					ite_cond_entities.insert(temp.first.begin(), temp.first.end());
+					ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				}
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.ITE.iffalse, instr_addr);
-				sources.insert(temp.begin(), temp.end());
-				temp = get_taint_sources(expr->Iex.ITE.iftrue, instr_addr);
-				sources.insert(temp.begin(), temp.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iffalse, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iftrue, false);
+				sources.insert(temp.first.begin(), temp.first.end());
+				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_CCall:
 			{
 				IRExpr **ccall_args = expr->Iex.CCall.args;
 				for (uint64_t i = 0; ccall_args[i]; i++) {
-					auto temp = get_taint_sources(ccall_args[i], instr_addr);
-					sources.insert(temp.begin(), temp.end());
+					auto temp = get_taint_sources_and_ite_cond(ccall_args[i], false);
+					sources.insert(temp.first.begin(), temp.first.end());
+					ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				}
 				break;
 			}
 			case Iex_Load:
 			{
-				auto temp = get_taint_sources(expr->Iex.Load.addr, instr_addr);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Load.addr, false);
+				// TODO: What if memory addresses have ITE expressions in them?
 				taint_entity_t source;
 				source.entity_type = TAINT_ENTITY_MEM;
-				source.mem_ref_entity_list.assign(temp.begin(), temp.end());
+				source.mem_ref_entity_list.assign(temp.first.begin(), temp.first.end());
 				sources.emplace(source);
 				break;
 			}
@@ -1362,17 +1480,13 @@ public:
 				assert(false && "Unsupported expression type encountered! See debug log.");
 			}
 		}
-		return sources;
+		return std::make_pair(sources, ite_cond_entities);
 	}
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
 	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources) {
-		taint_status_result_t result;
-		result.is_symbolic = false;
-		result.depends_on_read_from_concrete_addr = false;
-		result.depends_on_read_from_symbolic_addr = false;
-		result.concrete_mem_read_instr_addr = 0;
+		bool is_symbolic = false;
 		for (auto &taint_source: taint_sources) {
 			if (taint_source.entity_type == TAINT_ENTITY_NONE) {
 				continue;
@@ -1381,45 +1495,33 @@ public:
 				if (is_symbolic_register_or_temp(taint_source)) {
 					// Taint sink is symbolic. We don't stop here since we need to check for read
 					// from a symbolic address
-					result.is_symbolic = true;
-				}
-				else {
-					for (auto &mem_read_entry: mem_reads_taint_dst_map) {
-						for (auto &mem_read_taint_entity: mem_read_entry.second.first) {
-							if (taint_source == mem_read_taint_entity) {
-								result.depends_on_read_from_concrete_addr = true;
-								result.concrete_mem_read_instr_addr = taint_source.instr_addr;
-								break;
-							}
-						}
-					}
+					is_symbolic = true;
 				}
 			}
 			else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
 				// Check if the memory address being read from is symbolic
 				auto mem_address_status = get_final_taint_status(taint_source.mem_ref_entity_list);
-				if ((mem_address_status.is_symbolic) || (mem_address_status.depends_on_read_from_symbolic_addr)) {
-					// Address is symbolic or depends on a read from a symbolic address.
-					// Stop concrete execution.
-					result.depends_on_read_from_symbolic_addr = true;
-					break;
-				}
-				else if (mem_address_status.depends_on_read_from_concrete_addr) {
-					// Address depends on some memory value. Since we cannot determine the taint
-					// status of that memory value because we cannot compute the address of that
-					// value without evaluating VEX statements, we assume it is symbolic. Perhaps
-					// there might be a way to determine taint status quickly in future
-					result.depends_on_read_from_symbolic_addr = true;
-					break;
+				if (mem_address_status == TAINT_STATUS_SYMBOLIC) {
+					// Address is symbolic. We have to stop concrete execution and so can stop analysing
+					return TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR;
 				}
 				else {
-					// Address is concrete.
-					result.depends_on_read_from_concrete_addr = true;
-					result.concrete_mem_read_instr_addr = taint_source.instr_addr;
+					// Address is concrete so we check result of the memory read
+					mem_read_result_t mem_read_result;
+					try {
+						mem_read_result = mem_reads_map.at(taint_source.instr_addr);
+					}
+					catch (std::out_of_range) {
+						assert(false && "Taint sink depends on a read not executed yet! This should not happen!");
+					}
+					is_symbolic = mem_read_result.is_value_symbolic;
 				}
 			}
 		}
-		return result;
+		if (is_symbolic) {
+			return TAINT_STATUS_SYMBOLIC;
+		}
+		return TAINT_STATUS_CONCRETE;
 	}
 
 	// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
@@ -1473,6 +1575,10 @@ public:
 		return;
 	}
 
+	inline bool is_artificial_register(vex_reg_offset_t reg_offset) const {
+		return artificial_vex_registers.count(reg_offset) > 0;
+	}
+
 	inline bool is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		// We check if this register is symbolic or concrete in the block level taint statuses since
 		// those are more recent. If not found in either, check the state's symbolic register list.
@@ -1502,16 +1608,102 @@ public:
 		}
 	}
 
-	void propagate_taints(address_t address, int32_t size) {
-		block_taint_entry_t block_taint_entry;
-		auto result = this->block_taint_cache.find(address);
-		if (result == this->block_taint_cache.end()) {
+	void propagate_taints() {
+		block_taint_entry_t block_taint_entry = this->block_taint_cache.at(current_block_start_address);
+		// Resume propagating taints using symbolic_registers and symbolic_temps from where we paused
+		auto instr_taint_data_entries_it = block_taint_entry.block_instrs_taint_data_map.find(taint_engine_next_instr_address);
+		auto instr_taint_data_stop_it = block_taint_entry.block_instrs_taint_data_map.end();
+		// We continue propagating taint until we encounter 1) a memory read, 2) end of block or
+		// 3) a stop state for concrete execution
+		for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped; ++instr_taint_data_entries_it) {
+			address_t curr_instr_addr = instr_taint_data_entries_it->first;
+			instruction_taint_entry_t curr_instr_taint_entry = instr_taint_data_entries_it->second;
+			if (curr_instr_taint_entry.has_memory_read) {
+				// Pause taint propagation to process the memory read and continue from instruction
+				// after the memory read.
+				taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
+				return;
+			}
+			propagate_taint_of_one_instr(curr_instr_taint_entry);
+		}
+		if (instr_taint_data_entries_it != instr_taint_data_stop_it) {
+			// We reached here because we hit some stop state. Set next instruction address as
+			// current instruction. VEX land will likely need this info.
+			taint_engine_next_instr_address = instr_taint_data_entries_it->first;
+		}
+		return;
+	}
+
+	void propagate_taint_of_one_instr(const address_t instr_addr) {
+		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
+		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
+		propagate_taint_of_one_instr(instr_taint_data_entry);
+		return;
+	}
+
+	void propagate_taint_of_one_instr(const instruction_taint_entry_t &curr_instr_taint_entry) {
+		for (auto &taint_data_entry: curr_instr_taint_entry.taint_sink_src_map) {
+			taint_entity_t taint_sink = taint_data_entry.first;
+			std::unordered_set<taint_entity_t> taint_srcs = taint_data_entry.second;
+			if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
+				auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
+				// Check if address written to is symbolic or is read from memory
+				if (addr_taint_status != TAINT_STATUS_CONCRETE) {
+					stop(STOP_SYMBOLIC_WRITE_ADDR);
+					return;
+				}
+				auto sink_taint_status = get_final_taint_status(taint_srcs);
+				if (sink_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
+				}
+				else if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
+					assert(false && "Multiple memory writes in same instruction not supported.");
+				}
+				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
+					// Save the memory location written to be marked as symbolic in write hook
+					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
+				}
+				else {
+					// Save the memory location written to be marked as concrete in the write hook
+					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
+				}
+			}
+			else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
+				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
+				if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
+				}
+				else if (final_taint_status == TAINT_STATUS_SYMBOLIC) {
+					if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg())) {
+						stop(STOP_SYMBOLIC_PC);
+						return;
+					}
+					mark_register_temp_symbolic(taint_sink, true);
+				}
+				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+					// Mark register as not symbolic since none of it's dependencies are symbolic
+					mark_register_concrete(taint_sink.reg_offset, true);
+				}
+			}
+			auto ite_cond_taint_status = get_final_taint_status(curr_instr_taint_entry.ite_cond_entity_list);
+			if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
+				stop(STOP_SYMBOLIC_CONDITION);
+				return;
+			}
+		}
+		return;
+	}
+
+	void start_propagating_taint(address_t block_address, int32_t block_size) {
+		if (this->block_taint_cache.find(block_address) == this->block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block
 			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
-			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
-			uc_mem_read(this->uc, address, instructions.get(), size);
+			std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
+			uc_mem_read(this->uc, block_address, instructions.get(), block_size);
 			VEXLiftResult *lift_ret = vex_lift(
-				this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 1,
+				this->vex_guest, this->vex_archinfo, instructions.get(), block_address, 99, block_size, 1, 0, 1,
 				1, 0, pxControl
 			);
 
@@ -1520,141 +1712,19 @@ public:
 				stop(STOP_VEX_LIFT_FAILED);
 				return;
 			}
-			block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, address);
+			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
 			// Add entry to taint relations cache
-			block_taint_cache.emplace(address, block_taint_entry);
+			block_taint_cache.emplace(block_address, block_taint_entry);
 		}
-		else {
-			block_taint_entry = result->second;
-		}
-		// Clear all memory read taint propagation data of previous block
-		mem_reads_taint_dst_map.clear();
-		// Propagate taints using symbolic_registers and symbolic_temps
-		for (auto taint_data_entry: block_taint_entry.taint_sink_src_data) {
-			auto taint_sink = taint_data_entry.first;
-			auto taint_srcs = taint_data_entry.second;
-			auto taint_sink_ite_conds_it = block_taint_entry.ite_cond_map.find(taint_sink.instr_addr);
-			if (taint_sink_ite_conds_it != block_taint_entry.ite_cond_map.end()) {
-				auto ite_cond_taint_status = get_final_taint_status(taint_sink_ite_conds_it->second);
-				if (ite_cond_taint_status.depends_on_read_from_concrete_addr ||
-					ite_cond_taint_status.depends_on_read_from_symbolic_addr ||
-					ite_cond_taint_status.is_symbolic) {
-						stop(STOP_SYMBOLIC_CONDITION);
-						return;
-				}
-			}
-			if (taint_sink.entity_type == TAINT_ENTITY_NONE) {
-				// No taint propagation needed
-				continue;
-			}
-			else if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
-				auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
-				// Check if address written to is symbolic or is read from memory
-				if (addr_taint_status.depends_on_read_from_concrete_addr ||
-					addr_taint_status.depends_on_read_from_symbolic_addr ||
-					addr_taint_status.is_symbolic) {
-						stop(STOP_SYMBOLIC_WRITE_ADDR);
-						return;
-				}
-				auto sink_taint_status = get_final_taint_status(taint_srcs);
-				if (sink_taint_status.depends_on_read_from_symbolic_addr) {
-					stop(STOP_SYMBOLIC_READ_ADDR);
-					return;
-				}
-				else if (sink_taint_status.is_symbolic) {
-					// Save the memory location written to be marked as symbolic in write hook
-					if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
-						assert(false && "Multiple memory writes in same instruction not supported.");
-					}
-					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
-				}
-				else if (sink_taint_status.depends_on_read_from_concrete_addr) {
-					// Mark the memory location written to as depending on the memory read.
-					// Also save the memory location written to be marked as concrete in write hook
-					// We update taint status to symbolic later if needed, based on memory read.
-					// This is because we propagate taints in read hook only if the memory location
-					// read is symbolic.
-					auto mem_read_instr_addr = sink_taint_status.concrete_mem_read_instr_addr;
-					if (mem_reads_taint_dst_map.find(mem_read_instr_addr) == mem_reads_taint_dst_map.end()) {
-						std::vector<taint_entity_t> dsts;
-						dsts.emplace_back(taint_sink);
-						mem_reads_taint_dst_map.emplace(mem_read_instr_addr, std::make_pair(dsts, false));
-					}
-					else {
-						mem_reads_taint_dst_map.at(mem_read_instr_addr).first.emplace_back(taint_sink);
-					}
-					if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
-						assert(false && "Multiple memory writes in same instruction not supported.");
-					}
-					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
-				}
-				else {
-					// Save the memory location written to be marked as concrete in the write hook
-					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
-				}
-			}
-			else {
-				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
-				if (final_taint_status.depends_on_read_from_symbolic_addr) {
-					stop(STOP_SYMBOLIC_READ_ADDR);
-					return;
-				}
-				else if (final_taint_status.is_symbolic) {
-					mark_register_temp_symbolic(taint_sink, true);
-				}
-				else if (final_taint_status.depends_on_read_from_concrete_addr) {
-					auto mem_read_instr_addr = final_taint_status.concrete_mem_read_instr_addr;
-					if (mem_reads_taint_dst_map.find(mem_read_instr_addr) == mem_reads_taint_dst_map.end()) {
-						std::vector<taint_entity_t> dsts;
-						dsts.emplace_back(taint_sink);
-						mem_reads_taint_dst_map.emplace(mem_read_instr_addr, std::make_pair(dsts, false));
-					}
-					else {
-						mem_reads_taint_dst_map.at(mem_read_instr_addr).first.emplace_back(taint_sink);
-					}
-					if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-						// Taint status of the register depends on a memory read so we mark it as
-						// concrete for now. If it is symbolic, the register will be marked symbolic
-						// by propagate_mem_read_taints in the memory hook.
-						mark_register_concrete(taint_sink.reg_offset, true);
-					}
-				}
-				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-					// Mark register as not symbolic since none of it's dependencies are symbolic
-					mark_register_concrete(taint_sink.reg_offset, true);
-				}
-			}
-		}
+		current_block_start_address = block_address;
+		current_block_size = block_size;
+		taint_engine_next_instr_address = block_address;
+		propagate_taints();
 		return;
 	}
 
-	void propagate_mem_read_taints() {
-		// Mark taint sinks that depend on a mem read as symbolic. called by unicorn mem read hook
-		address_t pc_addr = get_instruction_pointer();
-		if (mem_reads_taint_dst_map.at(pc_addr).second) {
-			// The taints have already been propagated. No need to process again.
-			// TODO: Added as a safety just in case unicorn behaves weirdly. Supposedly, write hooks
-			// are invoked twice on x86 64 bit so might as well have this here?
-			return;
-		}
-		auto taint_entity_list = mem_reads_taint_dst_map.at(pc_addr).first;
-		for (taint_entity_t &taint_entity: taint_entity_list) {
-			if ((taint_entity.entity_type == TAINT_ENTITY_REG) || (taint_entity.entity_type == TAINT_ENTITY_TMP)) {
-				mark_register_temp_symbolic(taint_entity, false);
-			}
-			else if (taint_entity.entity_type == TAINT_ENTITY_MEM) {
-				// The taint sink is a memory location. We update the mem_writes_taint_map to mark
-				// this address as symbolic in write hook
-				mem_writes_taint_map.at(taint_entity.instr_addr) = true;
-			}
-			else if (taint_entity.entity_type != TAINT_ENTITY_NONE) {
-				std::stringstream ss;
-				ss << "hook_mem_read: Unhandled taint entity of type " << taint_entity.entity_type;
-				assert(false && ss.str().c_str());
-			}
-		}
-		// Mark all pending taint propagations dependent on current memory read as done
-		mem_reads_taint_dst_map.at(pc_addr).second = true;
+	void continue_propagating_taint() {
+		propagate_taints();
 		return;
 	}
 
@@ -1674,21 +1744,22 @@ public:
 	}
 
 	bool is_symbolic_exit_guard_previous_block() {
-		block_taint_entry_t prev_block_taint_entry = block_taint_cache.at(prev_block_addr);
+		// Technically we have started next block but we haven't updated the address of block being
+		// executed and so current_block_start_address still works
+		if (current_block_start_address == 0) {
+			// We haven't started concrete execution yet
+			return false;
+		}
+		block_taint_entry_t prev_block_taint_entry = block_taint_cache.at(current_block_start_address);
 		auto prev_block_exit_guard_taint_status = get_final_taint_status(prev_block_taint_entry.exit_stmt_guard_expr_deps);
 		// Since this checks the exit condition of the previous block, that means the previous block
 		// was executed correctly: there was no memory read from a symbolic address. Hence, it is
 		// sufficient to check if the guard status is symbolic.
 		// (This is also why commit can be invoked before this: we need to check regs and temps)
-		if (prev_block_exit_guard_taint_status.is_symbolic) {
+		if (prev_block_exit_guard_taint_status == TAINT_STATUS_SYMBOLIC) {
 			return true;
 		}
 		return false;
-	}
-
-	void set_previous_block_address(address_t address) {
-		prev_block_addr = address;
-		return;
 	}
 
 	inline unsigned int arch_sp_reg() {
@@ -1750,12 +1821,31 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	// //LOG_D("mem_read [%#lx, %#lx] = %#lx", address, address + size);
 	//LOG_D("mem_read [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
+	mem_read_result_t mem_read_result;
 
+	// Commit the current execution state and create save point
+	state->commit(false);
+	mem_read_result.address = address;
+	mem_read_result.size = size;
 	auto tainted = state->find_tainted(address, size);
 	if (tainted != -1)
 	{
-		state->propagate_mem_read_taints();
+		mem_read_result.is_value_symbolic = true;
 	}
+	else
+	{
+		mem_read_result.is_value_symbolic = false;
+	}
+	state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
+	state->propagate_taint_of_one_instr(state->get_instruction_pointer());
+	if (!state->stopped) {
+		state->continue_propagating_taint();
+	}
+	if (state->stopped) {
+		// Since we've already executed part of the block, we rollback to the nearest save point.
+		state->rollback(false);
+	}
+	return;
 }
 
 /*
@@ -1793,7 +1883,9 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	state->commit();
+	state->commit(true);
+	// This call below also handles case when the first block is executed and there is no previous
+	// block
 	if (state->is_symbolic_exit_guard_previous_block()) {
 		// TODO: Save exit statement instruction address as to be executed symbolically
 		stop(STOP_SYMBOLIC_CONDITION);
@@ -1801,12 +1893,14 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	}
 	state->step(address, size);
 
-	// TODO: step does some execution tracking which has to be undone if taint propagation fails
 	if (!state->stopped) {
-		state->propagate_taints(address, size);
+		state->start_propagating_taint(address, size);
 	}
-
-	state->set_previous_block_address(address);
+	if (state->stopped) {
+		// Since we're only starting the block, we rollback to state at start of the block
+		state->rollback(true);
+	}
+	return;
 }
 
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
@@ -1865,7 +1959,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 				}
 
 				state->step(state->transmit_bbl_addr, 0, false);
-				state->commit();
+				state->commit(true);
 				if (state->stopped)
 				{
 					//printf("... stopped after step()\n");
@@ -2142,4 +2236,14 @@ bool simunicorn_in_cache(State *state, uint64_t address) {
 extern "C"
 void simunicorn_set_map_callback(State *state, uc_cb_eventmem_t cb) {
     state->py_mem_callback = cb;
+}
+
+// VEX artificial registers list
+extern "C"
+void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64_t count) {
+	state->artificial_vex_registers.clear();
+	for (int i = 0; i < count; i++) {
+		state->artificial_vex_registers.emplace(offsets[i]);
+	}
+	return;
 }

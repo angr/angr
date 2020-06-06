@@ -876,6 +876,14 @@ class Unicorn(SimStatePlugin):
         if self.gdt is not None:
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
 
+        # Initialize list of artificial VEX registers
+        artificial_regs_list = []
+        for reg_name in self.state.arch.artificial_registers:
+            artificial_regs_list.append(self.state.arch.get_register_offset(reg_name))
+
+        artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
+        _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
+
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
