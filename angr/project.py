@@ -12,6 +12,7 @@ from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 
 from .misc.ux import deprecated
+from .errors import AngrNoPluginError
 
 l = logging.getLogger(name=__name__)
 
@@ -188,8 +189,9 @@ class Project:
         self.factory = AngrObjectFactory(self, default_engine=engine)
 
         # Step 4.2: Analyses
-        self.analyses = AnalysesHub(self)
-        self.analyses.use_plugin_preset(analyses_preset if analyses_preset is not None else 'default')
+        self._analyses_preset = analyses_preset
+        self.analyses = None
+        self._initialize_analyses_hub()
 
         # Step 4.3: ...etc
         self.kb = KnowledgeBase(self, name="global")
@@ -220,6 +222,13 @@ class Project:
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
+
+    def _initialize_analyses_hub(self):
+        """
+        Initializes self.analyses using a given preset.
+        """
+        self.analyses = AnalysesHub(self)
+        self.analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else 'default')
 
     def _register_object(self, obj, sim_proc_arch):
         """
@@ -640,12 +649,21 @@ class Project:
         try:
             store_func, load_func = self.store_function, self.load_function
             self.store_function, self.load_function = None, None
-            return dict(self.__dict__)
+            # ignore analyses. we re-initialize analyses when restoring from pickling so that we do not lose any newly
+            # added analyses classes
+            d = dict((k, v) for k, v in self.__dict__.items() if k not in {'analyses', })
+            return d
         finally:
             self.store_function, self.load_function = store_func, load_func
 
     def __setstate__(self, s):
         self.__dict__.update(s)
+        try:
+            self._initialize_analyses_hub()
+        except AngrNoPluginError:
+            l.warning("Plugin preset %s does not exist any more. Fall back to the default preset.")
+            self._analyses_preset = 'default'
+            self._initialize_analyses_hub()
 
     def _store(self, container):
         # If container is a filename.
