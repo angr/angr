@@ -20,7 +20,7 @@ extern "C" {
 #include <pyvex.h>
 }
 
-#include "log.h"
+//#include "log.h"
 
 #define PAGE_SIZE 0x1000
 #define PAGE_SHIFT 12
@@ -1321,27 +1321,27 @@ public:
 				}
 				case Ist_PutI:
 				{
-					assert(false && "PutI statements not yet supported!");
+					assert(false && "[sim_unicorn] PutI statements not yet supported!");
 				}
 				case Ist_StoreG:
 				{
-					assert(false && "StoreG statements not yet supported!");
+					assert(false && "[sim_unicorn] StoreG statements not yet supported!");
 				}
 				case Ist_LoadG:
 				{
-					assert(false && "LoadG statements not yet supported!");
+					assert(false && "[sim_unicorn] LoadG statements not yet supported!");
 				}
 				case Ist_CAS:
 				{
-					assert(false && "CAS statements not yet supported!");
+					assert(false && "[sim_unicorn] CAS statements not yet supported!");
 				}
 				case Ist_LLSC:
 				{
-					assert(false && "LLSC statements not yet supported!");
+					assert(false && "[sim_unicorn] LLSC statements not yet supported!");
 				}
 				case Ist_Dirty:
 				{
-					assert(false && "Dirty statements not yet supported!");
+					assert(false && "[sim_unicorn] Dirty statements not yet supported!");
 				}
 				case Ist_MBE:
 				case Ist_NoOp:
@@ -1349,11 +1349,9 @@ public:
 					break;
 				default:
 				{
-					std::stringstream ss;
-					ss << "Block addr: 0x" << std::hex << address << std::dec;
-					ss << ", Statement index: " << i << ", Statement type: " << stmt->tag;
-					LOG_D("%s", ss.str().c_str());
-					assert(false && "Unsupported statement type encountered! See debug log.");
+					fprintf(stderr, "[sim_unicorn] Unsupported statement type encountered: ");
+					fprintf(stderr, "Block: 0x%zx, statement index: %d, statement type: %u\n", address, i, stmt->tag);
+					assert(false && "[sim_unicorn] Unsupported statement type encountered! See output for more info.");
 				}
 			}
 		}
@@ -1473,7 +1471,7 @@ public:
 			case Iex_GetI:
 			{
 				// TODO
-				assert(false && "GetI expression not yet supported!");
+				assert(false && "[sim_unicorn] GetI expression not yet supported!");
 			}
 			case Iex_Const:
 			case Iex_VECRET:
@@ -1482,11 +1480,8 @@ public:
 				break;
 			default:
 			{
-				// TODO: Switch to VEX engine rather than abort.
-				std::stringstream ss;
-				ss << "Unsupported expression type: " << expr->tag;
-				LOG_D("%s", ss.str().c_str());
-				assert(false && "Unsupported expression type encountered! See debug log.");
+				fprintf(stderr, "[sim_unicorn] Unsupported expression type encountered: %u\n", expr->tag);
+				assert(false && "[sim_unicorn] Unsupported expression type encountered! See output for more info.");
 			}
 		}
 		return std::make_pair(sources, ite_cond_entities);
@@ -1521,7 +1516,7 @@ public:
 						mem_read_result = mem_reads_map.at(taint_source.instr_addr);
 					}
 					catch (std::out_of_range) {
-						assert(false && "Taint sink depends on a read not executed yet! This should not happen!");
+						assert(false && "[sim_unicorn] Taint sink depends on a read not executed yet! This should not happen!");
 					}
 					is_symbolic = mem_read_result.is_value_symbolic;
 				}
@@ -1667,7 +1662,7 @@ public:
 					return;
 				}
 				else if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
-					assert(false && "Multiple memory writes in same instruction not supported.");
+					assert(false && "[sim_unicorn] Multiple memory writes in same instruction not supported.");
 				}
 				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 					// Save the memory location written to be marked as symbolic in write hook
