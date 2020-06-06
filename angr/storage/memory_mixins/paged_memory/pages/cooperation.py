@@ -71,9 +71,10 @@ class MemoryObjectMixin(CooperationBase):
         return claripy.Concat(*elements)
 
     @classmethod
-    def _decompose_objects(cls, addr, data, endness, memory=None, **kwargs):
+    def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
-        memory_object = SimMemoryObject(data, addr, endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        memory_object = SimMemoryObject(data, addr+page_addr, endness,
+                                        byte_width=memory.state.arch.byte_width if memory is not None else 8)
         size = yield
         while True:
             size = yield memory_object

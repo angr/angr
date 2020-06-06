@@ -1,4 +1,4 @@
-from typing import Iterable, Tuple, Any
+from typing import Iterable, Tuple, Any, Optional
 
 from ...state_plugins.plugin import SimStatePlugin
 from ...errors import SimMemoryError
@@ -73,8 +73,9 @@ class MemoryMixin(SimStatePlugin):
     def unmap_region(self, addr, length, **kwargs):
         pass
 
-    def concrete_load(self, addr, size, writing=False, **kwargs):
-        pass
+    # Optional interface:
+    # def concrete_load(self, addr, size, writing=False, **kwargs):
+    #     pass
 
     def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
         """
@@ -89,13 +90,13 @@ class MemoryMixin(SimStatePlugin):
         """
         pass
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int):
+    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int) -> Optional[Any]:
         """
         Override this method to provide value merging support.
 
         :param values:          A collection of values with their merge conditions.
         :param merged_size:     The size (in bytes) of the merged value.
-        :return:                The merged value.
+        :return:                The merged value, or None to skip merging of the current value.
         """
         raise NotImplementedError()
 
