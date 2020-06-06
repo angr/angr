@@ -275,7 +275,7 @@ def test_bypass_errored_irstmt():
     block_bytes = b"\xdb\x44\x24\x04"
 
     proj = angr.load_shellcode(block_bytes, "x86")
-    state = proj.factory.blank_state(addr=0, mode="fastpath", memory_backer=proj.loader.memory,
+    state = proj.factory.blank_state(addr=0, mode="fastpath", cle_memory_backer=proj.loader.memory,
                                      add_options={angr.sim_options.FAST_REGISTERS},
                                      remove_options={angr.sim_options.BYPASS_ERRORED_IRSTMT})
 
