@@ -252,15 +252,6 @@ private:
 	// memory writes in a single instruction
 	std::unordered_map<address_t, bool> mem_writes_taint_map;
 
-	// List of all taint propagations depending on a memory read in a single block
-	// Memory read instruction address -> (List of entities depending on the read, is read processed)
-	std::unordered_map<address_t, std::pair<std::vector<taint_entity_t>, bool>> mem_reads_taint_dst_map;
-
-	// List of all conditions in ITE expressions in a block. Intermediate variable: finally cached
-	// along with taint sink-source relations of a block
-	// Instruction address -> Set of taint entitites on which ITE condition depends on
-	std::unordered_map<address_t, std::unordered_set<taint_entity_t>> temp_ite_cond_map;
-
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
 	// a symbolic address
