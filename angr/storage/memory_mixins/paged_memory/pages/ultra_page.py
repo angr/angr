@@ -138,7 +138,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         all_pages = [self] + others
         merged_to = None
         merged_objects = set()
-        merged_bytes = set()
+        merged_offsets = set()
 
         changed_bytes: Set[int] = set()
         for o in others:
@@ -214,12 +214,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     merged_objects.add(new_object)
 
                 merged_objects.update(mos)
-                merged_bytes.add(b)
+                merged_offsets.add(b)
 
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
-                min_size = min([mo.length - (b - mo.base) for mo, _ in memory_objects])
+                min_size = min([mo.length - (page_addr + b - mo.base) for mo, _ in memory_objects])
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):
@@ -230,7 +230,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = [(mo.bytes_at(b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
+                extracted = [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
                 created = [
                     (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
                      fv) for
@@ -242,11 +242,11 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if merged_val is None:
                     continue
 
-                self.store(b, merged_val, size=len(merged_val) // 8, endness='Iend_BE', inspect=False)  # do not convert endianness again
+                self.store(b, merged_val, size=len(merged_val) // 8, inspect=False)  # do not convert endianness again
 
-                merged_bytes.add(b)
+                merged_offsets.add(b)
 
-        return merged_bytes
+        return merged_offsets
 
     def concrete_load(self, addr, size, **kwargs):
         if type(self.concrete_data) is bytearray:
