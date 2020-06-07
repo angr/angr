@@ -73,8 +73,6 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        merging_occured = False
-
         for o in others:
             if o.cwd != self.cwd:
                 raise SimMergeError("Can't merge filesystems with disparate cwds")
@@ -94,7 +92,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
             else:
                 common_mp = None
 
-            merging_occured |= self._mountpoints[fname].merge(subdeck, merge_conditions, common_ancestor=common_mp)
+            self._mountpoints[fname].merge(subdeck, merge_conditions, common_ancestor=common_mp)
 
         # this is a little messy
         deck = [self] + others
@@ -113,9 +111,9 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
             else:
                 common_simfile = None
 
-            merging_occured |= subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
+            subdeck[0].merge(subdeck[1:], merge_conditions, common_ancestor=common_simfile)
 
-        return merging_occured
+        return True
 
     def widen(self, others): # pylint: disable=unused-argument
         if once('fs_widen_warning'):
