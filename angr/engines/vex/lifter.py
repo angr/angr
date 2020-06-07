@@ -275,19 +275,27 @@ class VEXLifter(SimEngineBase):
         #if state is not None and issubclass(getattr(state.memory, 'PAGE_TYPE', object), UltraPage):
         #    smc = True
 
-        if (not smc or not state) and isinstance(clemory, cle.Clemory):
-            try:
-                start, backer = next(clemory.backers(addr))
-            except StopIteration:
-                pass
-            else:
-                if start <= addr:
-                    offset = addr - start
-                    buff = pyvex.ffi.from_buffer(backer) + offset
-                    size = len(backer) - offset
+        # when smc is not enabled or when state is not provided, we *always* attempt to load concrete data first
+        if not smc or not state:
+            if isinstance(clemory, cle.Clemory):
+                try:
+                    start, backer = next(clemory.backers(addr))
+                except StopIteration:
+                    pass
+                else:
+                    if start <= addr:
+                        offset = addr - start
+                        buff = pyvex.ffi.from_buffer(backer) + offset
+                        size = len(backer) - offset
+            elif state:
+                if state.memory.SUPPORTS_CONCRETE_LOAD:
+                    buff = state.memory.concrete_load(addr, max_size)
+                else:
+                    buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
+                size = len(buff)
 
-        # If that didn't work, try to load from the state
-        if size == 0 and state:
+        # If that didn't work and if smc is enabled, try to load from the state
+        if smc and state and size == 0:
             if state.memory.SUPPORTS_CONCRETE_LOAD:
                 buff = state.memory.concrete_load(addr, max_size)
             else:
