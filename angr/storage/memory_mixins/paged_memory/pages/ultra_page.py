@@ -210,7 +210,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     merged_objects.add(new_object)
                 else:
                     # do the replacement
-                    new_object = self._replace_memory_object(our_mo, merged_val)
+                    new_object = self._replace_memory_object(our_mo, merged_val, memory=memory)
                     merged_objects.add(new_object)
 
                 merged_objects.update(mos)
