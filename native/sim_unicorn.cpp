@@ -1658,9 +1658,7 @@ public:
 		if (entity.entity_type == TAINT_ENTITY_REG) {
 			return is_symbolic_register(entity.reg_offset);
 		}
-		else if (entity.entity_type == TAINT_ENTITY_TMP) {
-			return is_symbolic_temp(entity.tmp_id);
-		}
+		return is_symbolic_temp(entity.tmp_id);
 	}
 
 	void propagate_taints() {
