@@ -61,9 +61,9 @@ class SimState(PluginHub):
     # Type Annotations for default plugins to allow type inference
     solver: 'SimSolver'
     posix: 'SimSystemPosix'
-    registers: 'SimSymbolicMemory'
+    registers: 'MemoryMixin'
     regs: 'SimRegNameView'
-    memory: 'SimMemory'
+    memory: 'MemoryMixin'
     callstack: 'CallStack'
     mem: "SimMemView"
     callstack: 'CallStack'
@@ -531,11 +531,8 @@ class SimState(PluginHub):
                         continue
 
                     new_expr = constrained_si
-                    # registers
                     self.registers.replace_all(original_expr, new_expr)
-                    # memory
-                    for _, region in self.memory.regions.items():
-                        region.memory.replace_all(original_expr, new_expr)
+                    self.memory.replace_all(original_expr, new_expr)
                     # tmps
                     temps = self.scratch.temps
                     for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
@@ -977,10 +974,9 @@ from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeEr
 
 # Type imports for annotations
 if TYPE_CHECKING:
-    from .storage import SimMemory
+    from .storage import MemoryMixin
     from .state_plugins.solver import SimSolver
     from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.symbolic_memory import SimSymbolicMemory
     from .state_plugins.view import SimRegNameView, SimMemView
     from .state_plugins.callstack import CallStack
     from .state_plugins.inspect import SimInspector

@@ -1,6 +1,9 @@
 import cffi
 from typing import Tuple, Type, Dict, Optional, Iterable, List, Any, Set
 import logging
+from collections import defaultdict
+
+import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage
@@ -441,6 +444,19 @@ class PagedMemoryMixin(MemoryMixin):
                     changes.add(pageno)
 
         return changes
+
+    def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
+
+        page_offsets: Dict[Set[int]] = defaultdict(set)
+        for addr in addrs:
+            page_no, page_offset = self._divide_addr(addr)
+            page_offsets[page_no].add(page_offset)
+
+        for page_no, offsets in page_offsets.items():
+            page = self._pages[page_no]
+            page = page.acquire_unique()
+            self._pages[page_no] = page
+            page.replace_all_with_offsets(offsets, old, new, memory=self)
 
 
 class ListPagesMixin(PagedMemoryMixin):

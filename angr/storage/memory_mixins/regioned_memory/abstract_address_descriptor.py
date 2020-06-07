@@ -15,6 +15,7 @@ class AbstractAddressDescriptor:
         self._regioned_addrs: List[Tuple[str,StridedInterval]] = [ ]
 
     def __len__(self) -> int:
+        # this may raise an OverflowError if self.cardinality is greater than sys.maxint
         return self.cardinality
 
     def __iter__(self) -> Generator[Tuple[str,StridedInterval],None,None]:
