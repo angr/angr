@@ -1,6 +1,9 @@
-from . import MemoryMixin
-from ... import sim_options as o
+from typing import Optional
+
 from ...state_plugins.sim_action import SimActionData, SimActionObject
+from ... import sim_options as o
+from . import MemoryMixin
+
 
 class ActionsMixinHigh(MemoryMixin):
     def load(self, addr, size=None, condition=None, fallback=None, disable_actions=False, action=None, **kwargs):
@@ -13,8 +16,8 @@ class ActionsMixinHigh(MemoryMixin):
             if o.AST_DEPS in self.state.options and self.category == 'reg':
                 r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
-            if action is not None:
-                action.data = r
+            if o.AUTO_REFS in self.state.options and action is not None:
+                action.data = action._make_object(r)
                 if action.size is None:
                     action.size = len(r)
 
@@ -28,7 +31,7 @@ class ActionsMixinHigh(MemoryMixin):
 
         super().store(addr, data, size=size, action=action, condition=condition, **kwargs)
 
-        if not disable_actions and action is not None:
+        if not disable_actions and o.AUTO_REFS in self.state.options and action is not None:
             self.state.history.add_action(action)
 
     def __make_action(self, kind, addr, size, data, condition, fallback):
@@ -41,8 +44,6 @@ class ActionsMixinHigh(MemoryMixin):
                                condition=condition,
                                fallback=fallback)
 
-        action.actual_addrs = []
-        action.actual_values = []
         action.added_constraints = self.state.solver.true
         return action
 
@@ -51,15 +52,20 @@ class ActionsMixinHigh(MemoryMixin):
             action.added_constraints = self.state.solver.And(action.added_constraints, c)
         return super()._add_constraints(c, action=action, **kwargs)
 
+
 class ActionsMixinLow(MemoryMixin):
     def load(self, addr, action=None, **kwargs):
         if action is not None:
+            if action.actual_addrs is None:
+                action.actual_addrs = [ ]
             action.actual_addrs.append(addr)
         return super().load(addr, action=action, **kwargs)
 
-    def store(self, addr, data, action=None, **kwargs):
+    def store(self, addr, data, action: Optional[SimActionData]=None, **kwargs):
         if action is not None:
+            if action.actual_addrs is None:
+                action.actual_addrs = [ ]
             action.actual_addrs.append(addr)
-            action.actual_values.append(addr)
+            action.actual_value = action._make_object(data)
         return super().store(addr, data, action=action, **kwargs)
 
