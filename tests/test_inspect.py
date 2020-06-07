@@ -69,7 +69,7 @@ def test_inspect():
 
     s.inspect.b('reg_read', when=BP_AFTER, action=act_reg_read)
     nose.tools.assert_equal(counts.reg_read, 0)
-    s.registers.load(16)
+    s.registers.load(16, size=8)
     nose.tools.assert_equal(counts.reg_read, 1)
 
     s.inspect.b('reg_write', when=BP_AFTER, action=act_reg_write)
