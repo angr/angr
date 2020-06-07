@@ -186,6 +186,7 @@ class FastMemory(
         NameResolutionMixin,
         SimpleInterfaceMixin,
         SimplificationMixin,
+        InspectMixinHigh,
         ExplicitFillerMixin,
         DefaultFillerMixin,
         SlottedMemoryMixin,
