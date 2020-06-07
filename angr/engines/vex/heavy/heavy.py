@@ -298,4 +298,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         if expr is None:
             expr = self.state.regs.ip
         self.successors.add_successor(self.state, expr, self.state.scratch.guard, jumpkind,
-                                 exit_stmt_idx=DEFAULT_STATEMENT, exit_ins_addr=self.state.scratch.ins_addr)
+                                      add_guard=False,  # if there is any guard, it has been added by the Exit statement
+                                                        # that we come across prior to the default exit. adding guard
+                                                        # again is unnecessary and will cause trouble in abstract solver
+                                                        # mode,
+                                      exit_stmt_idx=DEFAULT_STATEMENT, exit_ins_addr=self.state.scratch.ins_addr)
