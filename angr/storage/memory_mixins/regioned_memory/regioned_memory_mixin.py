@@ -97,7 +97,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
     def store(self, addr, data, size: Optional[int]=None, endness=None, **kwargs):
         regioned_addrs_desc = self._normalize_address(addr)
-        if len(regioned_addrs_desc) >= self._write_targets_limit and CONSERVATIVE_WRITE_STRATEGY in self.state.options:
+        if regioned_addrs_desc.cardinality >= self._write_targets_limit and CONSERVATIVE_WRITE_STRATEGY in self.state.options:
             return
 
         gen = self._concretize_address_descriptor(regioned_addrs_desc, addr, is_write=True)
@@ -146,6 +146,10 @@ class RegionedMemoryMixin(MemoryMixin):
         for region in self._regions.values():
             region.set_state(state)
         super().set_state(state)
+
+    def replace_all(self, old: claripy.ast.BV, new: claripy.ast.BV):
+        for region in self._regions.values():
+            region.replace_all(old, new)
 
     #
     # Region management

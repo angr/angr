@@ -33,3 +33,11 @@ class ISPOMixin(MemoryMixin):
             raise Exception("memory kwarg must be passed to this stateless object") from ex
         else:
             return func(*args, **kwargs)
+
+    def _update_mappings(self, *args, memory=None, **kwargs):
+        try:
+            func = memory._update_mappings
+        except AttributeError as ex:
+            raise Exception("memory kwarg must be passed to this stateless object") from ex
+        else:
+            return func(*args, **kwargs)

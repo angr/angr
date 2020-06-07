@@ -1,5 +1,5 @@
 from sortedcontainers import SortedDict
-from typing import List, Set, Optional, Tuple, Union, Any
+from typing import List, Set, Optional, Tuple, Union, Any, Iterable
 import logging
 
 import claripy
@@ -321,7 +321,39 @@ class UltraPage(MemoryObjectMixin, PageBase):
             else:
                 return None
 
-    def _replace_memory_object(self, old: SimMemoryObject, new_content: claripy.Bits):
+    def replace_all_with_offsets(self, offsets: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV, memory=None):
+
+        memory_objects = set()
+        for offset in sorted(list(offsets)):
+            try:
+                a = next(self.symbolic_data.irange(maximum=offset, reverse=True))
+            except StopIteration:
+                a = None
+
+            if a is None:
+                continue
+            aobj = self.symbolic_data[a]
+            memory_objects.add(aobj)
+
+        replaced_objects_cache = { }
+        for mo in memory_objects:
+            replaced_object = None
+
+            if mo.object in replaced_objects_cache:
+                if mo.object is not replaced_objects_cache[mo.object]:
+                    replaced_object = replaced_objects_cache[mo.object]
+
+            else:
+                replaced_object = mo.object.replace(old, new)
+                replaced_objects_cache[mo.object] = replaced_object
+                if mo.object is replaced_object:
+                    # The replace does not really occur
+                    replaced_object = None
+
+            if replaced_object is not None:
+                self._replace_memory_object(mo, replaced_object, memory=memory)
+
+    def _replace_memory_object(self, old: SimMemoryObject, new_content: claripy.Bits, memory=None):
         """
         Replaces the memory object `old` with a new memory object containing `new_content`.
 
@@ -338,4 +370,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
         for k in list(self.symbolic_data):
             if self.symbolic_data[k] is old:
                 self.symbolic_data[k] = new
+
+        if isinstance(new.object, claripy.ast.BV):
+            for b in range(old.base, old.base+old.length):
+                self._update_mappings(b, old.object, new.object, memory=memory)
+
         return new

@@ -1,7 +1,10 @@
 from typing import Iterable, Tuple, Any, Optional
 
+import claripy
+
 from ...state_plugins.plugin import SimStatePlugin
 from ...errors import SimMemoryError
+
 
 class MemoryMixin(SimStatePlugin):
 
@@ -112,6 +115,12 @@ class MemoryMixin(SimStatePlugin):
         """
         raise NotImplementedError()
 
+    def replace_all(self, old: claripy.ast.BV, new: claripy.ast.BV):
+        raise NotImplementedError()
+
+    def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
+        raise NotImplementedError()
+
 
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin
@@ -197,7 +206,6 @@ class AbstractMemory(
         #InspectMixinLow,
         ActionsMixinLow,
         ConditionalMixin,
-        # ConvenientMappingsMixin,
         # -----
         RegionedMemoryMixin,
         ):
