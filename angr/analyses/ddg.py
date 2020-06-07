@@ -248,7 +248,7 @@ class LiveDefinitions(object):
 
     def lookup_defs(self, variable, size_threshold=32):
         """
-        Find all definitions of the varaible
+        Find all definitions of the variable.
 
         :param SimVariable variable: The variable to lookup for.
         :param int size_threshold: The maximum bytes to consider for the variable. For example, if the variable is 100
