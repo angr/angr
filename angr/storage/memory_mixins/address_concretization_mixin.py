@@ -215,10 +215,12 @@ class AddressConcretizationMixin(MemoryMixin):
     # Real shit
     #
 
-
     def load(self, addr, size=None, condition=None, **kwargs):
         if type(size) is not int:
             raise TypeError("Size must have been specified as an int before reaching address concretization")
+
+        if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
+            return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
 
         try:
             concrete_addrs = self.concretize_read_addr(addr)
