@@ -31,6 +31,8 @@ extern "C" {
 // See State::step for why this is necessary
 static const uint32_t MAX_BB_SIZE = 800;
 
+static const uint8_t MAX_MEM_ACCESS_SIZE = 8;
+
 extern "C" void x86_reg_update(uc_engine *uc, uint8_t *buf, int save);
 extern "C" void mips_reg_update(uc_engine *uc, uint8_t *buf, int save);
 
@@ -54,6 +56,7 @@ typedef enum taint_status_result_t {
 } taint_status_result_t;
 
 typedef uint64_t address_t;
+typedef uint64_t unicorn_reg_id_t;
 typedef uint64_t vex_reg_offset_t;
 typedef uint64_t vex_tmp_id_t;
 
@@ -119,9 +122,19 @@ struct std::hash<taint_entity_t> {
 
 typedef struct mem_read_result_t {
 	address_t address;
+	uint8_t value[MAX_MEM_ACCESS_SIZE]; // Assume size of read is not more than 8 just like write
 	size_t size;
 	bool is_value_symbolic;
 } mem_read_result_t;
+
+typedef struct saved_concrete_dependency_t {
+	taint_entity_enum_t dependency_type;
+	vex_reg_offset_t reg_offset;
+	uint64_t reg_value;
+	address_t mem_address;
+	size_t mem_value_size;
+	uint8_t mem_value[MAX_MEM_ACCESS_SIZE];
+} saved_concrete_dependency_t;
 
 typedef enum stop {
 	STOP_NORMAL=0,
@@ -207,11 +220,12 @@ typedef struct caches {
 std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
+typedef std::unordered_map<vex_reg_offset_t, unicorn_reg_id_t> RegisterMap;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
 typedef struct mem_access {
 	address_t address;
-	uint8_t value[8]; // assume size of any memory write is no more than 8
+	uint8_t value[MAX_MEM_ACCESS_SIZE]; // assume size of any memory write is no more than 8
 	int size;
 	int clean; // save current page bitmap
 } mem_access_t; // actually it should be `mem_write_t` :)
@@ -234,6 +248,7 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
+static void hook_save_dependencies(uc_engine *uc, uint64_t address, uint32_t size, void *user_data);
 
 class State {
 private:
@@ -251,6 +266,23 @@ private:
 	// TODO: Need to modify memory write taint handling for architectures that perform multiple
 	// memory writes in a single instruction
 	std::unordered_map<address_t, bool> mem_writes_taint_map;
+
+	// List of all concrete dependencies to save. Currently only registers; memory saved in hooks.
+	// Instruction address -> List of entitites to save
+	std::unordered_map<address_t, std::unordered_set<taint_entity_t>> symbolic_instrs_dep_save_map;
+
+	// List of all hooks inserted into a block for saving dependencies
+	std::unordered_set<uc_hook> symbolic_instrs_dep_saving_hooks;
+
+	// List of instructions that should be executed symbolically
+	std::unordered_set<address_t> symbolic_instr_addrs;
+
+	// List of instructions in a block that should be executed symbolically. These are stored
+	// separately for easy rollback in case of errors.
+	std::unordered_set<address_t> block_symbolic_instr_addrs;
+
+	// Map with all saved dependencies
+	std::unordered_map<address_t, std::vector<saved_concrete_dependency_t>> saved_dependencies_map;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -295,6 +327,7 @@ public:
 	VexArch vex_guest;
 	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
+	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	TempSet symbolic_temps;
 
@@ -543,7 +576,8 @@ public:
 			cur_steps++;
 		}
 
-		// Sync all block level taint statuses reads with state's taint statuses
+		// Sync all block level taint statuses reads with state's taint statuses and block level
+		// symbolic instruction list with state's symbolic instruction list
 		for (auto &reg_offset: block_symbolic_registers) {
 			mark_register_symbolic(reg_offset, false);
 		}
@@ -553,10 +587,12 @@ public:
 		for (auto &temp_id: block_symbolic_temps) {
 			mark_temp_symbolic(temp_id, false);
 		}
-		// Clear all block level taint status trackers
+		symbolic_instr_addrs.insert(block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
+		// Clear all block level taint status trackers and symbolic instruction list
 		block_symbolic_registers.clear();
 		block_concrete_registers.clear();
 		block_symbolic_temps.clear();
+		block_symbolic_instr_addrs.clear();
 		return;
 	}
 
@@ -1157,6 +1193,9 @@ public:
 
         clean = 0;
 		is_dst_symbolic = mem_writes_taint_map.at(get_instruction_pointer());
+		if (is_dst_symbolic) {
+			save_dependencies(get_instruction_pointer());
+		}
         if (data == NULL) {
             for (int i = start; i <= end; i++) {
                 if (is_dst_symbolic) {
@@ -1356,6 +1395,18 @@ public:
 			}
 		}
 		return block_taint_entry;
+	}
+
+	inline uint64_t get_register_value(uint64_t vex_reg_offset) const {
+		uint64_t reg_value;
+		try {
+			uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), &reg_value);
+			return reg_value;
+		}
+		catch (std::out_of_range) {
+			fprintf(stderr, "Cannot retrieve value of unrecognized register %lu", vex_reg_offset);
+			assert(false && "[sim_unicorn] Unrecognized register in get_register_value.");
+		}
 	}
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
@@ -1667,6 +1718,23 @@ public:
 				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
+					// Add instruction to list of instructions to be executed symbolically
+					block_symbolic_instr_addrs.emplace(taint_sink.instr_addr);
+
+					// Compute dependencies to save
+					std::unordered_set<taint_entity_t> deps_to_save;
+					for (auto &dependency: curr_instr_taint_entry.dependencies_to_save) {
+						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
+							deps_to_save.emplace(dependency);
+						}
+					}
+					auto instr_dep_save_entry = symbolic_instrs_dep_save_map.find(taint_sink.instr_addr);
+					if (instr_dep_save_entry == symbolic_instrs_dep_save_map.end()) {
+						symbolic_instrs_dep_save_map.emplace(taint_sink.instr_addr, deps_to_save);
+					}
+					else {
+						instr_dep_save_entry->second.insert(deps_to_save.begin(), deps_to_save.end());
+					}
 				}
 				else {
 					// Save the memory location written to be marked as concrete in the write hook
@@ -1685,6 +1753,29 @@ public:
 						return;
 					}
 					mark_register_temp_symbolic(taint_sink, true);
+					// Add instruction to list of instructions to be executed symbolically
+					block_symbolic_instr_addrs.emplace(taint_sink.instr_addr);
+
+					// Compute dependencies to save
+					std::unordered_set<taint_entity_t> deps_to_save;
+					for (auto &dependency: curr_instr_taint_entry.dependencies_to_save) {
+						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
+							deps_to_save.emplace(dependency);
+						}
+					}
+					auto instr_dep_save_entry = symbolic_instrs_dep_save_map.find(taint_sink.instr_addr);
+					if (instr_dep_save_entry == symbolic_instrs_dep_save_map.end()) {
+						symbolic_instrs_dep_save_map.emplace(taint_sink.instr_addr, deps_to_save);
+						// If there is no memory read/write, add a hook to save dependencies
+						if (!curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
+							uc_hook hook;
+							uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, taint_sink.instr_addr, taint_sink.instr_addr);
+							symbolic_instrs_dep_saving_hooks.emplace(hook);
+						}
+					}
+					else {
+						instr_dep_save_entry->second.insert(deps_to_save.begin(), deps_to_save.end());
+					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 					// Mark register as not symbolic since none of it's dependencies are symbolic
@@ -1697,6 +1788,12 @@ public:
 				return;
 			}
 		}
+		return;
+	}
+
+	inline void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const {
+		memset(result, 0, result_size);
+		uc_mem_read(uc, address, result, size);
 		return;
 	}
 
@@ -1729,6 +1826,57 @@ public:
 
 	void continue_propagating_taint() {
 		propagate_taints();
+		return;
+	}
+
+	void save_dependencies(address_t instr_addr) {
+		auto list_of_dependencies_to_save = symbolic_instrs_dep_save_map.find(instr_addr);
+		if (list_of_dependencies_to_save != symbolic_instrs_dep_save_map.end()) {
+			for (auto &dependency_to_save: list_of_dependencies_to_save->second) {
+				saved_concrete_dependency_t reg_dep;
+				reg_dep.dependency_type = TAINT_ENTITY_REG;
+				reg_dep.reg_offset = dependency_to_save.reg_offset;
+				reg_dep.reg_value = get_register_value(dependency_to_save.reg_offset);
+				auto saved_dep_entry = saved_dependencies_map.find(instr_addr);
+				if (saved_dep_entry == saved_dependencies_map.end()) {
+					std::vector<saved_concrete_dependency_t> temp;
+					temp.emplace_back(reg_dep);
+					saved_dependencies_map.emplace(instr_addr, temp);
+				}
+				else {
+					saved_dep_entry->second.emplace_back(reg_dep);
+				}
+			}
+		}
+		auto mem_read_result = mem_reads_map.find(instr_addr);
+		if (mem_read_result != mem_reads_map.end()) {
+			if (!mem_read_result->second.is_value_symbolic) {
+				saved_concrete_dependency_t mem_dep;
+				mem_dep.dependency_type = TAINT_ENTITY_MEM;
+				mem_dep.mem_address = mem_read_result->second.address;
+				mem_dep.mem_value_size = mem_read_result->second.size;
+				for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
+					mem_dep.mem_value[i] = mem_read_result->second.value[i];
+				}
+				auto saved_dep_entry = saved_dependencies_map.find(instr_addr);
+				if (saved_dep_entry == saved_dependencies_map.end()) {
+					std::vector<saved_concrete_dependency_t> temp;
+					temp.emplace_back(mem_dep);
+					saved_dependencies_map.emplace(instr_addr, temp);
+				}
+				else {
+					saved_dep_entry->second.emplace_back(mem_dep);
+				}
+			}
+		}
+		return;
+	}
+
+	void clear_dependency_saving_hooks() {
+		for (auto &hook: symbolic_instrs_dep_saving_hooks) {
+			uc_hook_del(uc, hook);
+		}
+		symbolic_instrs_dep_saving_hooks.clear();
 		return;
 	}
 
@@ -1839,9 +1987,11 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	else
 	{
 		mem_read_result.is_value_symbolic = false;
+		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
 	state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
 	state->propagate_taint_of_one_instr(state->get_instruction_pointer());
+	state->save_dependencies(state->get_instruction_pointer());
 	if (!state->stopped) {
 		state->continue_propagating_taint();
 	}
@@ -1895,6 +2045,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		stop(STOP_SYMBOLIC_CONDITION);
 		return;
 	}
+	state->clear_dependency_saving_hooks();
 	state->step(address, size);
 
 	if (!state->stopped) {
@@ -2007,6 +2158,12 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	//printf("Segfault data: %d %#llx %d %#llx\n", type, address, size, value);
 	state->stop(STOP_SEGFAULT);
 	return true;
+}
+
+static void hook_save_dependencies(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
+	State *state = (State *)user_data;
+	state->save_dependencies(address);
+	return;
 }
 
 /*
@@ -2248,6 +2405,16 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 	state->artificial_vex_registers.clear();
 	for (int i = 0; i < count; i++) {
 		state->artificial_vex_registers.emplace(offsets[i]);
+	}
+	return;
+}
+
+// VEX register offsets to unicorn register ID mappings
+extern "C"
+void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
+	state->vex_to_unicorn_map.clear();
+	for (int i = 0; i < count; i++) {
+		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
 	}
 	return;
 }

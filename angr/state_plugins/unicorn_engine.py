@@ -884,6 +884,21 @@ class Unicorn(SimStatePlugin):
         artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
         _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
 
+        # Initialize VEX register offset to unicorn register ID mappings
+        vex_reg_offsets = []
+        unicorn_reg_ids = []
+        pc_reg_name = self.state.arch.get_register_by_name("pc")
+        for reg_name, unicorn_reg_id in self.state.arch.uc_regs.items():
+            if reg_name == pc_reg_name:
+                continue
+
+            vex_reg_offsets.append(self.state.arch.get_register_offset(reg_name))
+            unicorn_reg_ids.append(unicorn_reg_id)
+
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
+        unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
+        _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
+
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
