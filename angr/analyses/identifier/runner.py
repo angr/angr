@@ -59,7 +59,7 @@ class Runner(object):
             fake_flag_data = entry_state.solver.BVV(FLAG_DATA)
             entry_state.memory.store(0x4347c000, fake_flag_data)
             # map the place where I put arguments
-            entry_state.memory.mem.map_region(0x2000, 0x10000, 7)
+            entry_state.memory.map_region(0x2000, 0x10000, 7)
 
             entry_state.unicorn._register_check_count = 100
             entry_state.unicorn._runs_since_symbolic_data = 100
