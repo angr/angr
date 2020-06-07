@@ -48,7 +48,7 @@ class ActionsMixinHigh(MemoryMixin):
 
     def _add_constraints(self, c, action=None, **kwargs):
         if action is not None:
-            action.added_constraints = self.state.solver.And(action.added_constarints, *c)
+            action.added_constraints = self.state.solver.And(action.added_constraints, c)
         return super()._add_constraints(c, action=action, **kwargs)
 
 class ActionsMixinLow(MemoryMixin):
