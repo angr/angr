@@ -53,16 +53,18 @@ class MemoryObjectMixin(CooperationBase):
     With this, load will return a list of tuple (address, MO) and store will take a MO.
     """
     @classmethod
-    def _compose_objects(cls, objects: typing.List[typing.List[typing.Tuple[int, SimMemoryObject]]], size, endness=None, **kwargs):
+    def _compose_objects(cls, objects: typing.List[typing.List[typing.Tuple[int, SimMemoryObject]]], size, endness=None,
+                         memory=None, **kwargs):
         c_objects = []
         for objlist in objects:
             for element in objlist:
                 if not c_objects or element[1] is not c_objects[-1][1]:
                     c_objects.append(element)
 
+        mask = (1 << memory.state.arch.bits) - 1
         elements = [o.bytes_at(
                 a,
-                c_objects[i+1][0] - a if i != len(c_objects)-1 else c_objects[0][0] + size - a,
+                ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else c_objects[0][0] + size - a,
                 endness=endness)
             for i, (a, o) in enumerate(c_objects)]
         if endness == 'Iend_LE':
