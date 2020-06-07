@@ -75,7 +75,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
     def init_state(self):
         super().init_state()
-        assert self.state.memory.mem._page_size == PAGE_SIZE
+        assert self.state.memory.page_size == PAGE_SIZE
 
         self._LE_FMT = self.state.arch.struct_fmt(endness='Iend_LE')
         self._BE_FMT = self.state.arch.struct_fmt(endness='Iend_BE')
@@ -241,11 +241,11 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         #   self._resymbolize_region(self.state.registers, addr_start, length)
         #self._resymbolize_region(self.state.registers, self.state.arch.sp_offset, 8)
 
-        for i, p_id in enumerate(self.state.memory.mem._pages):
+        for i, p_id in enumerate(self.state.memory._pages):
             if i % 100 == 0:
-                l.info("%s/%s memory pages symbolized", i, len(self.state.memory.mem._pages))
-            addr_start = self.state.memory.mem._page_addr(p_id)
-            length = self.state.memory.mem._page_size
+                l.info("%s/%s memory pages symbolized", i, len(self.state.memory._pages))
+            addr_start = p_id * self.state.memory.page_size
+            length = self.state.memory.page_size
             self._resymbolize_region(self.state.memory, addr_start, length)
 
     @SimStatePlugin.memo

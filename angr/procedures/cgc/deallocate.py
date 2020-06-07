@@ -21,7 +21,7 @@ class deallocate(angr.SimProcedure):
         addr = self.state.solver.max_int(addr)
 
         # into a page
-        page_size = self.state.memory.mem._page_size
+        page_size = self.state.memory.page_size
         base_page_num = addr // page_size
 
         if self.state.solver.symbolic(length):
@@ -36,7 +36,7 @@ class deallocate(angr.SimProcedure):
             # shorten length
             allowed_pages = 0
             while allowed_pages * page_size < aligned_length and \
-                    base_page_num + allowed_pages in self.state.memory.mem._pages:
+                    base_page_num + allowed_pages in self.state.memory._pages:
                 allowed_pages += 1
 
             if allowed_pages == 0:
