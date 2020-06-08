@@ -18,4 +18,4 @@ class SimKeyValueMemory(SimKVStore): # pylint: disable=abstract-method
                                  store=self._store.copy())
 
 from angr.sim_state import SimState
-SimState.register_default('keyvalue_memory', SimKeyValueMemory)
+# SimState.register_default('keyvalue_memory', SimKeyValueMemory)
