@@ -83,7 +83,7 @@ class SpecialFillerMixin(MemoryMixin):
         self._special_memory_filler = special_memory_filler
 
     def _default_value(self, addr, size, name=None, **kwargs):
-        if options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None and self.category == 'mem' and type(addr) is int:
+        if options.SPECIAL_MEMORY_FILL in self.state.options and self.state._special_memory_filler is not None and type(addr) is int:
             return self.state._special_memory_filler(name, size*self.state.arch.byte_width, self.state)
         return super()._default_value(addr, size, name=name, **kwargs)
 
