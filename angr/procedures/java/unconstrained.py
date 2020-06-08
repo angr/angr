@@ -6,6 +6,27 @@ from ...engines.soot.expressions import SimSootExpr_NewArray
 from ... import sim_options as options
 
 
+class JavaMethodAnnotation(claripy.Annotation):
+
+    def __init__(self, method):
+        super(JavaMethodAnnotation, self).__init__()
+        self.method = method
+
+    @property
+    def eliminatable(self):
+        return False
+
+    @property
+    def relocatable(self):
+        return True
+
+    def __repr__(self):
+        return self.method
+
+    def __str__(self):
+        return self.method
+
+
 class UnconstrainedMethod(JavaSimProcedure):
 
     __provides__ = (
@@ -60,6 +81,10 @@ class UnconstrainedMethod(JavaSimProcedure):
                 field_name = field_name[0].lower() + field_name[1:]
                 this_ref.set_field(self.state, field_name, method_descriptor.params[0], args[0])
                 return
-
+        # if ret_value is not None:
+        #     import ipdb; ipdb.set_trace()
+        if isinstance(ret_value, claripy.ast.Base):
+            annotation = JavaMethodAnnotation(method_descriptor.fullname)
+            ret_value = ret_value.annotate(annotation)
         return ret_value
 
