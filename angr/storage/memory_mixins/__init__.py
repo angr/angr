@@ -149,6 +149,7 @@ from .paged_memory.pages import *
 from .slotted_memory import SlottedMemoryMixin
 from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin, \
     MemoryRegionMetaMixin
+from .keyvalue_memory import KeyValueMemoryMixin
 
 
 class DefaultMemory(
@@ -237,7 +238,14 @@ class RegionedMemory(
     pass
 
 
+class KeyValueMemory(
+        KeyValueMemoryMixin,
+):
+    pass
+
+
 from angr.sim_state import SimState
 SimState.register_default('sym_memory', DefaultMemory)
 SimState.register_default('fast_memory', FastMemory)
 SimState.register_default('abs_memory', AbstractMemory)
+SimState.register_default('keyvalue_memory', KeyValueMemory)
