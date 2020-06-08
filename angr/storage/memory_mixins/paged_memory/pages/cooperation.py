@@ -67,6 +67,9 @@ class MemoryObjectMixin(CooperationBase):
                 ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else c_objects[0][0] + size - a,
                 endness=endness)
             for i, (a, o) in enumerate(c_objects)]
+        if len(elements) == 1:
+            return elements[0]
+
         if endness == 'Iend_LE':
             elements = reversed(elements)
 
