@@ -124,13 +124,14 @@ class RegionedMemoryMixin(MemoryMixin):
     def copy(self, memo):
         o: 'RegionedMemoryMixin' = super().copy(memo)
         o._write_targets_limit = self._write_targets_limit
-        o._read_targets_limit=self._read_targets_limit
-        o._stack_size=self._stack_size
-        o._endness=self.endness
-        o._stack_region_map=self._stack_region_map
-        o._generic_region_map=self._generic_region_map
-        o._cle_memory_backer=self._cle_memory_backer
-        o._dict_memory_backer=self._dict_memory_backer
+        o._read_targets_limit = self._read_targets_limit
+        o._stack_size = self._stack_size
+        o._endness = self.endness
+        o._stack_region_map = self._stack_region_map
+        o._generic_region_map = self._generic_region_map
+        o._cle_memory_backer = self._cle_memory_backer
+        o._dict_memory_backer = self._dict_memory_backer
+        o._regioned_memory_cls = self._regioned_memory_cls
 
         for region_id, region in self._regions.items():
             o._regions[region_id] = region.copy(memo)
