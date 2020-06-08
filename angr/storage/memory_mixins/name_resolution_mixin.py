@@ -43,8 +43,8 @@ class NameResolutionMixin(MemoryMixin):
     def store(self, addr, data, size=None, **kwargs):
         if isinstance(addr, str):
             named_addr, named_size = self._resolve_location_name(addr, is_write=True)
-            if isinstance(data, claripy.ast.BV) and len(data) < named_size * self.state.arch.bits:
-                data = data.zero_extend(named_size * self.state.arch.bits - len(data))
+            if isinstance(data, claripy.ast.BV) and len(data) < named_size * self.state.arch.byte_width:
+                data = data.zero_extend(named_size * self.state.arch.byte_width - len(data))
             return super().store(named_addr, data, size=named_size if size is None else size, **kwargs)
         else:
             return super().store(addr, data, size=size, **kwargs)
