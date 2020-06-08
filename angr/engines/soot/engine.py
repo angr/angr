@@ -371,6 +371,10 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         # teardown return state
         SootMixin.prepare_return_state(ret_state, ret_value)
 
+        # clear information about java caller
+        if o.JAVA_SAVE_NATIVE_ARGS in ret_state.options:
+            ret_state.globals['java_native_caller'] = ''
+
         # finally, delete all local references
         ret_state.jni_references.clear_local_references()
 
@@ -400,9 +404,20 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         # add to args
         final_args = [jni_env, ref] + args
 
-        # save args to globals for analysis
         if o.JAVA_SAVE_NATIVE_ARGS in state.options:
-            global_name = str(java_method.addr)
+            # generate unique id for this native function invocation
+
+            # we will save the native args passed ot this function, as well as
+            # return values from JNI calls made while inside this function
+            # these will all be associated with the same function invocation
+
+            import uuid
+            global_name = f'{str(java_method.addr)}_{uuid.uuid4()}'
+
+            # save ID of this native function invocation
+            state.globals['java_native_caller'] = global_name
+
+            # save args to globals for analysis
             state.globals[global_name] = args
 
         # Step 3: create native invoke state
