@@ -112,6 +112,7 @@ class SimOS:
             kwargs['cle_memory_backer'] = self.project.loader
         if kwargs.get('os_name', None) is None:
             kwargs['os_name'] = self.name
+        actual_stack_end = stack_end
         if stack_end is None:
             stack_end = self.arch.initial_sp
 
@@ -128,7 +129,7 @@ class SimOS:
         state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
         if state.arch.sp_offset is not None:
-            state.regs.sp = stack_end + (state.arch.stack_change if state.arch.stack_change is not None else 0)
+            state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -152,10 +153,9 @@ class SimOS:
                 else:
                     raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
 
-            # special case for stack pointer override
-            #if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
-            #    continue
-            # TODO ??? what is this
+            # special case for stack_end overriding sp default
+            if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
+                continue
 
             if o.ABSTRACT_MEMORY in state.options and is_addr:
                 address = claripy.ValueSet(state.arch.bits, mem_region, region_base, val)
