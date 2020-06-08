@@ -89,6 +89,7 @@ class SimState(PluginHub):
             stack_perms=None,
             stack_end=None,
             stack_size=None,
+            regioned_memory_cls=None,
             **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
@@ -177,7 +178,7 @@ class SimState(PluginHub):
                 # TODO: support permissions backer in SimAbstractMemory
                 sim_memory_cls = self.plugin_preset.request_plugin('abs_memory')
                 sim_memory = sim_memory_cls(cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer,
-                                            memory_id='mem')
+                                            memory_id='mem', regioned_memory_cls=regioned_memory_cls)
 
             elif o.FAST_MEMORY in self.options:
                 sim_memory_cls = self.plugin_preset.request_plugin('fast_memory')
