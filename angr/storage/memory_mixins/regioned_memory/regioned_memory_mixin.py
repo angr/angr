@@ -36,9 +36,17 @@ class RegionedMemoryMixin(MemoryMixin):
                  stack_size: int=65536,
                  cle_memory_backer: Optional=None,
                  dict_memory_backer: Optional[Dict]=None,
+                 regioned_memory_cls: Optional[type]=None,
                  **kwargs):
         super().__init__(**kwargs)
-        self._regions: Dict['RegionedMemory'] = { }
+
+        if regioned_memory_cls is None:
+            # delayed import
+            from .. import RegionedMemory
+            regioned_memory_cls = RegionedMemory
+
+        self._regioned_memory_cls = regioned_memory_cls
+        self._regions: Dict[regioned_memory_cls] = { }
 
         self._cle_memory_backer = cle_memory_backer
         self._dict_memory_backer = dict_memory_backer
@@ -168,13 +176,13 @@ class RegionedMemoryMixin(MemoryMixin):
         :param backer_dict: The memory backer object.
         :return: None
         """
-        from .. import RegionedMemory
-        self._regions[key] = RegionedMemory(memory_id=key,
-                                            related_function_addr=related_function_addr,
-                                            endness=endness,
-                                            cle_memory_backer=cle_memory_backer,
-                                            dict_memory_backer=dict_memory_backer,
-                                            )
+        self._regions[key] = self._regioned_memory_cls(
+            memory_id=key,
+            related_function_addr=related_function_addr,
+            endness=endness,
+            cle_memory_backer=cle_memory_backer,
+            dict_memory_backer=dict_memory_backer,
+        )
         self._regions[key].set_state(state)
 
     def _region_base(self, region: str) -> int:
