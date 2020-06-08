@@ -155,6 +155,9 @@ class ConvenientMappingsMixin(MemoryMixin):
                 self._hash_mapping[h] = set()
             self._hash_mapping[h].add(actual_addr)
 
+    def get_symbolic_addrs(self):
+        return self._symbolic_addrs
+
     def addrs_for_name(self, n):
         """
         Returns addresses that contain expressions that contain a variable named `n`.
