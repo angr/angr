@@ -15,7 +15,7 @@ class ConvenientMappingsMixin(MemoryMixin):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        self._symbolic_addrs = set()
+        self._symbolic_addrs: Set = set()
         self._name_mapping = collections.ChainMap()
         self._hash_mapping = collections.ChainMap()
         self._updated_mappings = set()
@@ -102,10 +102,10 @@ class ConvenientMappingsMixin(MemoryMixin):
             d[m] = set()
         self._updated_mappings.add(m)
 
-    def _update_mappings(self, actual_addr, old_obj: Optional[claripy.ast.BV], new_obj: claripy.ast.BV):
+    def _update_mappings(self, actual_addr: int, old_obj: Optional[claripy.ast.BV], new_obj: claripy.ast.BV):
         if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
             if self.state.solver.symbolic(new_obj):
-                self._symbolic_addrs.update(actual_addr)
+                self._symbolic_addrs.add(actual_addr)
             else:
                 self._symbolic_addrs.discard(actual_addr)
 
