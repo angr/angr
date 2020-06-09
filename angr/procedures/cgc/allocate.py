@@ -29,7 +29,7 @@ class allocate(angr.SimProcedure):
         if chosen is None:
             chosen = self.state.cgc.allocation_base - aligned_length
 
-        self.state.memory.store(addr, chosen, condition=self.state.solver.And(r == 0, addr != 0), endness='Iend_LE')
+        self.state.memory.store(addr, chosen, size=self.state.arch.bytes, condition=self.state.solver.And(r == 0, addr != 0), endness='Iend_LE')
 
         if sinkhole_chosen is None:
             self.state.cgc.allocation_base -= self.state.solver.If(r == 0,
