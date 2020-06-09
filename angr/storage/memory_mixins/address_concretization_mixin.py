@@ -277,6 +277,11 @@ class AddressConcretizationMixin(MemoryMixin):
             conditional_constraint = self.state.solver.Or(*constraint_options)
             self._add_constraints(conditional_constraint, condition=condition, **kwargs)
 
+            if len(concrete_addrs) == 1:
+                # simple case: avoid conditional write since the address has been concretized to one solution
+                super().store(concrete_addrs[0], data, size=size, **kwargs)
+                return
+
         for concrete_addr in concrete_addrs:
             # perform each of the stores as conditional
             # the implementation of conditionality must be at the bottom of the stack
