@@ -2,6 +2,10 @@ import logging
 import claripy
 import struct
 
+from .plugin import SimStatePlugin
+from ..storage.memory_mixins import PagedMemoryMixin
+
+
 l = logging.getLogger(name=__name__)
 l.setLevel('DEBUG')
 
@@ -13,7 +17,7 @@ def _page_map_cb(s): s.symbolizer._page_map_callback()
 
 PAGE_SIZE = 0x1000
 
-from .plugin import SimStatePlugin
+
 class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
     """
     The symbolizer state plugin ensures that pointers that are stored in memory are symbolic.
@@ -38,12 +42,14 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
     def _page_map_callback(self):
         if self._symbolize_all:
-            self.symbolization_target_pages.add(self.state.memory.mem._page_id(self.state.inspect.mapped_address))
+            page_id, _ = self.state.memory._divide_addr(self.state.inspect.mapped_address)
+            self.symbolization_target_pages.add(page_id)
 
     def _mem_write_callback(self):
         if not isinstance(self.state.inspect.mem_write_expr, int) and self.state.inspect.mem_write_expr.symbolic:
             return
-        if not isinstance(self.state.inspect.mem_write_length, int) and self.state.inspect.mem_write_length.symbolic:
+        mem_write_length = self.state.inspect.mem_write_length
+        if mem_write_length is not None and not isinstance(mem_write_length, int) and mem_write_length.symbolic:
             return
 
         #length = self.state.solver.eval_one(self.state.inspect.mem_write_length)
@@ -51,7 +57,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         #   return
 
         write_expr = self.state.inspect.mem_write_expr
-        byte_expr = self.state.solver.eval_one(write_expr, cast_to=bytes).rjust(write_expr.length//8)
+        byte_expr = self.state.solver.eval_one(write_expr, cast_to=bytes).rjust(write_expr.length // self.state.arch.byte_width)
         replacement_expr = self._resymbolize_data(byte_expr)
         if replacement_expr is not None:
             assert replacement_expr.length == write_expr.length
@@ -75,6 +81,10 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
 
     def init_state(self):
         super().init_state()
+
+        if not isinstance(self.state.memory, PagedMemoryMixin):
+            raise TypeError("Symbolizer only supports a paged memory model.")
+
         assert self.state.memory.page_size == PAGE_SIZE
 
         self._LE_FMT = self.state.arch.struct_fmt(endness='Iend_LE')
@@ -113,11 +123,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         Sets the symbolizer to symbolize pointers to all pages as they are written to memory..
         """
         self._symbolize_all = True
-        self.symbolization_target_pages.update(set(self.state.memory.mem._pages.keys()))
-        # handle bigger pages
-        for pg in self.state.memory.mem._pages.values():
-            if pg._page_size != PAGE_SIZE:
-                self.symbolization_target_pages.update(pg._page_size + i for i in range(0, pg._page_size, PAGE_SIZE))
+        self.symbolization_target_pages.update(set(self.state.memory._pages.keys()))
         self._update_ranges()
 
     def set_symbolized_target_range(self, base, length):
@@ -196,50 +202,43 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         #assert self.state.solver.eval_one(new_data) == self.state.solver.eval_one(claripy.BVV(data))
         return new_data
 
-    def _resymbolize_region(self, storage, addr, length):
+    def _resymbolize_region(self, storage: PagedMemoryMixin, addr, length):
         assert type(addr) is int
         assert type(length) is int
 
         self.state.scratch.push_priv(True)
-        memory_objects = storage.mem.load_objects(addr, length)
-        self.state.scratch.pop_priv()
+        i = 0
+        while i < length:
+            a = addr + i
+            aligned_a = a - a % (-self.state.arch.bytes)
+            i = aligned_a - addr
+            if i == length:
+                break
 
-        for _,mo in memory_objects:
-            if not mo.is_bytes and mo.object.symbolic:
-                l.debug("Skipping symbolic memory object %s.", mo)
+            data = storage.concrete_load(aligned_a, length - i)
+            if not data or len(data) == 0:
+                # try the next byte
+                i += 1
                 continue
-
-            aligned_base = mo.base - mo.base % (-self.state.arch.bytes)
-            remaining_len = mo.last_addr + 1 - aligned_base
-            if remaining_len < self.state.arch.bytes:
-                continue
-
-            data = mo.bytes_at(aligned_base, remaining_len, allow_concrete=True)
-            if not mo.is_bytes:
-                data = self.state.solver.eval_one(data, cast_to=bytes)
-            #assert self.state.solver.eval_one(storage.load(aligned_base, remaining_len, endness='Iend_BE'), cast_to=bytes).rjust(self.state.arch.bytes) == data
-
             replacement_content = self._resymbolize_data(
-                data,
-                base=aligned_base,
-                prefix=mo.bytes_at(mo.base, mo.length - remaining_len) if aligned_base != mo.base else b"",
+                bytearray(data),
+                base=aligned_a,
+                prefix=b"",
                 skip=() if storage is self.state.memory else (self.state.arch.ip_offset,)
             )
             if replacement_content is not None:
-                storage.mem.replace_memory_object(mo, replacement_content)
+                storage.store(aligned_a, replacement_content)
+                i += len(replacement_content) // self.state.arch.bytes
+            else:
+                i += 1
+
+        self.state.scratch.pop_priv()
 
     def resymbolize(self):
         """
         Re-symbolizes all pointers in memory. This can be called to symbolize any pointers to target regions
         that were written (and not mangled beyond recognition) before symbolization was set.
         """
-        #for i, p_id in enumerate(self.state.registers.mem._pages):
-        #   if i % 100 == 0:
-        #       l.info("%s/%s register pages symbolized", i, len(self.state.registers.mem._pages))
-        #   addr_start = self.state.registers.mem._page_addr(p_id)
-        #   length = self.state.registers.mem._page_size
-        #   self._resymbolize_region(self.state.registers, addr_start, length)
-        #self._resymbolize_region(self.state.registers, self.state.arch.sp_offset, 8)
 
         for i, p_id in enumerate(self.state.memory._pages):
             if i % 100 == 0:
@@ -261,6 +260,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         sc._max_addr = self._max_addr
         sc.page_symbols = dict(sc.page_symbols)
         return sc
+
 
 from ..sim_state import SimState
 SimState.register_default('symbolizer', SimSymbolizer)
