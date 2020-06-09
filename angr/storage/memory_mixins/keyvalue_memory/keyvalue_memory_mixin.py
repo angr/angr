@@ -22,10 +22,6 @@ class KeyValueMemoryMixin(MemoryMixin):
         return self._store[key].value
 
     def store(self, key, data, type_=None, **kwargs):
-
-        if self.id == "mem":
-            assert type_ is not None
-
         self._store[key] = TypedVariable(type_, data)
 
     @MemoryMixin.memo
