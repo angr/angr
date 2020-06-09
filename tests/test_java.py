@@ -2,9 +2,7 @@
 import os
 
 import angr
-from angr.state_plugins.javavm_memory import SimJavaVmMemory
-from angr.state_plugins.keyvalue_memory import SimKeyValueMemory
-from angr.state_plugins.symbolic_memory import SimSymbolicMemory
+from angr.storage.memory_mixins import JavaVmMemory, DefaultMemory, KeyValueMemory
 from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
 from angr.engines.soot.method_dispatcher import resolve_method
 from archinfo.arch_amd64 import ArchAMD64
@@ -13,7 +11,6 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescr
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 test_location = os.path.join(file_dir, "..", "..", "binaries", "tests", "java")
-
 
 
 def test_fauxware():
@@ -527,33 +524,33 @@ def test_toggling_of_simstate():
     state = project.factory.entry_state()
     assert state.ip_is_soot_addr
     assert isinstance(state.arch, ArchSoot)
-    assert isinstance(state.memory, SimJavaVmMemory)
-    assert isinstance(state.registers, SimKeyValueMemory)
+    assert isinstance(state.memory, JavaVmMemory)
+    assert isinstance(state.registers, KeyValueMemory)
 
     state.regs.ip = 1
     assert not state.ip_is_soot_addr
     assert isinstance(state.arch, ArchAMD64)
-    assert isinstance(state.memory, SimSymbolicMemory)
-    assert isinstance(state.registers, SimSymbolicMemory)
+    assert isinstance(state.memory, DefaultMemory)
+    assert isinstance(state.registers, DefaultMemory)
 
     state.regs._ip = project.entry
 
     assert state.ip_is_soot_addr
     assert isinstance(state.arch, ArchSoot)
-    assert isinstance(state.memory, SimJavaVmMemory)
-    assert isinstance(state.registers, SimKeyValueMemory)
+    assert isinstance(state.memory, JavaVmMemory)
+    assert isinstance(state.registers, KeyValueMemory)
 
     state.ip = 1
     assert not state.ip_is_soot_addr
     assert isinstance(state.arch, ArchAMD64)
-    assert isinstance(state.memory, SimSymbolicMemory)
-    assert isinstance(state.registers, SimSymbolicMemory)
+    assert isinstance(state.memory, DefaultMemory)
+    assert isinstance(state.registers, DefaultMemory)
 
     state_copy = state.copy()
     assert not state_copy.ip_is_soot_addr
     assert isinstance(state_copy.arch, ArchAMD64)
-    assert isinstance(state_copy.memory, SimSymbolicMemory)
-    assert isinstance(state_copy.registers, SimSymbolicMemory)
+    assert isinstance(state_copy.memory, DefaultMemory)
+    assert isinstance(state_copy.registers, DefaultMemory)
 
 
 def test_object_tracking():

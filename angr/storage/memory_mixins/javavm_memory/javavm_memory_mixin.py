@@ -1,41 +1,38 @@
-
+import os
 import binascii
 import logging
-import os
 
-from .. import concretization_strategies
-from ..engines.soot.values import (SimSootValue_ArrayRef,
-                                   SimSootValue_InstanceFieldRef,
-                                   SimSootValue_Local, SimSootValue_ParamRef,
-                                   SimSootValue_StaticFieldRef,
-                                   SimSootValue_StringRef)
-from ..errors import SimMemoryAddressError, SimUnsatError
-from ..sim_state import SimState
-from ..storage.memory import SimMemory
-from .keyvalue_memory import SimKeyValueMemory
-from .plugin import SimStatePlugin
-
-l = logging.getLogger("angr.state_plugins.javavm_memory")
-
-MAX_ARRAY_SIZE = 1000   # FIXME arbitrarily chosen limit
+from .... import concretization_strategies
+from ....errors import SimUnsatError, SimMemoryAddressError
+from ....engines.soot.values import (
+    SimSootValue_ArrayRef,
+    SimSootValue_InstanceFieldRef,
+    SimSootValue_Local, SimSootValue_ParamRef,
+    SimSootValue_StaticFieldRef,
+    SimSootValue_StringRef
+)
+from .. import MemoryMixin
 
 
-class SimJavaVmMemory(SimMemory):
-    def __init__(self, memory_id="mem", stack=None, heap=None, vm_static_table=None,
-                 load_strategies=None, store_strategies=None):
-        super(SimJavaVmMemory, self).__init__()
+l = logging.getLogger(name=__name__)
 
-        self.id = memory_id
+
+class JavaVmMemoryMixin(MemoryMixin):
+    def __init__(self, stack=None, heap=None, vm_static_table=None, load_strategies=None, store_strategies=None,
+                 max_array_size=1000):
+        super().__init__(memory_id="mem")
 
         self._stack = [] if stack is None else stack
-        self.heap = SimKeyValueMemory("mem") if heap is None else heap
-        self.vm_static_table = SimKeyValueMemory("mem") if vm_static_table is None else vm_static_table
+        # delayed import
+        from .. import KeyValueMemory
+        self.heap = KeyValueMemory("mem") if heap is None else heap
+        self.vm_static_table = KeyValueMemory("mem") if vm_static_table is None else vm_static_table
 
         # Heap helper
         # TODO: ask someone how we want to manage this
         # TODO: Manage out of memory allocation
         # self._heap_allocation_id = 0
-        self.max_array_size = MAX_ARRAY_SIZE
+        self.max_array_size = max_array_size
 
         # concretizing strategies
         self.load_strategies = load_strategies if load_strategies else []
@@ -114,7 +111,8 @@ class SimJavaVmMemory(SimMemory):
             return None
 
     def push_stack_frame(self):
-        self._stack.append(SimKeyValueMemory("mem"))
+        from .. import KeyValueMemory
+        self._stack.append(KeyValueMemory("mem"))
 
     def pop_stack_frame(self):
         self._stack = self._stack[:-1]
@@ -350,41 +348,29 @@ class SimJavaVmMemory(SimMemory):
     #
 
     def set_state(self, state):
-        super(SimJavaVmMemory, self).set_state(state)
+        super().set_state(state)
         if not self.load_strategies:
             self._create_default_load_strategies()
         if not self.store_strategies:
             self._create_default_store_strategies()
 
-    @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
-        return SimJavaVmMemory(
-            memory_id=self.id,
-            stack=[stack_frame.copy() for stack_frame in self._stack],
-            heap=self.heap.copy(),
-            vm_static_table=self.vm_static_table.copy(),
-            load_strategies=[s.copy() for s in self.load_strategies],
-            store_strategies=[s.copy() for s in self.store_strategies]
-        )
+    @MemoryMixin.memo
+    def copy(self, memo):
+        o: 'JavaVmMemoryMixin' = super().copy(memo)
+        o._stack = [stack_frame.copy() for stack_frame in self._stack]
+        o.heap = self.heap.copy()
+        o.vm_static_table = self.vm_static_table.copy()
+        o.load_strategies = [s.copy() for s in self.load_strategies]
+        o.store_strategies = [s.copy() for s in self.store_strategies]
+        o.max_array_size = self.max_array_size
+        return o
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         l.warning("Merging is not implemented for JavaVM memory!")
-        return False
 
     def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening is not implemented for JavaVM memory!")
-        return False
 
     def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1): # pylint: disable=unused-argument
         l.warning("Find is not implemented for JavaVM memory!")
         return None
-
-    def _load(self, _addr, _size, condition=None, fallback=None,  # pylint: disable=unused-argument
-              inspect=True, events=True, ret_on_segv=False):
-        raise NotImplementedError("JavaVM memory overwrites load function directly.")
-
-    def _store(self, _request):  # pylint: disable=unused-argument
-        raise NotImplementedError("JavaVM memory overwrites store function directly.")
-
-
-# SimState.register_default('javavm_memory', SimJavaVmMemory)
