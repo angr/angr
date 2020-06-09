@@ -271,8 +271,9 @@ class PagedMemoryMixin(MemoryMixin):
 
     def _unmap_page(self, pageno, **kwargs):
         try:
-            self._pages[pageno].release_shared()
-            self._pages[pageno] = None
+            if self._pages[pageno] is not None:
+                self._pages[pageno].release_shared()
+                self._pages[pageno] = None
         except KeyError:
             pass
 
