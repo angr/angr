@@ -911,7 +911,7 @@ class Unicorn(SimStatePlugin):
         # should this be in destroy?
         _UC_NATIVE.disable_symbolic_reg_tracking(self._uc_state)
 
-        # syncronize memory contents - head is a linked list of memory updates
+        # synchronize memory contents - head is a linked list of memory updates
         head = _UC_NATIVE.sync(self._uc_state)
         p_update = head
         while bool(p_update):
