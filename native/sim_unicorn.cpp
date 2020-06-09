@@ -152,6 +152,7 @@ typedef enum stop {
 	STOP_SYMBOLIC_CONDITION,
 	STOP_SYMBOLIC_PC,
 	STOP_SYMBOLIC_READ_ADDR,
+	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
 	STOP_SYMBOLIC_WRITE_ADDR,
 } stop_t;
 
@@ -499,6 +500,9 @@ public:
 				break;
 			case STOP_SYMBOLIC_READ_ADDR:
 				msg = "attempted to read from symbolic address";
+				break;
+			case STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED:
+				msg = "attempted to read symbolic data from memory but symbolic tracking is disabled";
 				break;
 			case STOP_SYMBOLIC_WRITE_ADDR:
 				msg = "attempted to write to symbolic address";
@@ -1112,6 +1116,10 @@ public:
 		return true;
 	}
 
+	inline bool is_symbolic_tracking_disabled() {
+		return (vex_guest == VexArch_INVALID);
+	}
+
 	// Finds tainted data in the provided range and returns the address.
 	// Returns -1 if no tainted data is present.
 	int64_t find_tainted(address_t address, int size)
@@ -1677,6 +1685,14 @@ public:
 				taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 				return;
 			}
+			if (is_symbolic_tracking_disabled()) {
+				// We're not checking symbolic registers so no need to propagate taints
+				continue;
+			}
+			if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
+				// There are no symbolic registers so no taint to propagate.
+				continue;
+			}
 			propagate_taint_of_one_instr(curr_instr_taint_entry);
 		}
 		if (instr_taint_data_entries_it != instr_taint_data_stop_it) {
@@ -1981,15 +1997,22 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	if (tainted != -1)
 	{
 		mem_read_result.is_value_symbolic = true;
+		if (!state->is_symbolic_tracking_disabled()) {
+			// Symbolic register tracking is disabled but memory location has symbolic data.
+			// We switch to VEX engine then.
+			stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
+		}
 	}
 	else
 	{
 		mem_read_result.is_value_symbolic = false;
 		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
-	state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
-	state->propagate_taint_of_one_instr(state->get_instruction_pointer());
-	state->save_dependencies(state->get_instruction_pointer());
+	if (!state->stopped) {
+		state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
+		state->propagate_taint_of_one_instr(state->get_instruction_pointer());
+		state->save_dependencies(state->get_instruction_pointer());
+	}
 	if (!state->stopped) {
 		state->continue_propagating_taint();
 	}
