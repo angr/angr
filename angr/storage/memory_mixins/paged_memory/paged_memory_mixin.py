@@ -36,7 +36,8 @@ class PagedMemoryMixin(MemoryMixin):
         # a thought: we could support mapping pages in multiple places in memory if here we just kept a set of released
         # page ids and never released any page more than once
         for page in self._pages.values():
-            page.release_shared()
+            if page is not None:
+                page.release_shared()
 
     @MemoryMixin.memo
     def copy(self, memo):
