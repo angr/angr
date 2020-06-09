@@ -275,8 +275,8 @@ private:
 	// List of all hooks inserted into a block for saving dependencies
 	std::unordered_set<uc_hook> symbolic_instrs_dep_saving_hooks;
 
-	// List of instructions that should be executed symbolically
-	std::unordered_set<address_t> symbolic_instr_addrs;
+	// List of instructions that should be executed symbolically in each block
+	std::unordered_map<address_t, std::unordered_set<address_t>> symbolic_instr_addrs;
 
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
@@ -591,7 +591,13 @@ public:
 		for (auto &temp_id: block_symbolic_temps) {
 			mark_temp_symbolic(temp_id, false);
 		}
-		symbolic_instr_addrs.insert(block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
+		auto block_symb_instrs_entry = symbolic_instr_addrs.find(current_block_start_address);
+		if (block_symb_instrs_entry == symbolic_instr_addrs.end()) {
+			symbolic_instr_addrs.emplace(current_block_start_address, block_symbolic_instr_addrs);
+		}
+		else {
+			block_symb_instrs_entry->second.insert(block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
+		}
 		// Clear all block level taint status trackers and symbolic instruction list
 		block_symbolic_registers.clear();
 		block_concrete_registers.clear();
