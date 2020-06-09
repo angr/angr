@@ -18,9 +18,9 @@ l = logging.getLogger(name=__name__)
 
 
 class JavaVmMemoryMixin(MemoryMixin):
-    def __init__(self, stack=None, heap=None, vm_static_table=None, load_strategies=None, store_strategies=None,
-                 max_array_size=1000):
-        super().__init__(memory_id="mem")
+    def __init__(self, memory_id="mem", stack=None, heap=None, vm_static_table=None, load_strategies=None, store_strategies=None,
+                 max_array_size=1000, **kwargs):
+        super().__init__(memory_id=memory_id, **kwargs)
 
         self._stack = [] if stack is None else stack
         # delayed import
