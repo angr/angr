@@ -285,6 +285,53 @@ class PagedMemoryMixin(MemoryMixin):
         else:
             return True
 
+    def _load_to_memoryview(self, addr, size, with_bitmap):
+        result = self.load(addr, size, endness='Iend_BE')
+        if result.op == 'BVV':
+            if with_bitmap:
+                return memoryview(result.args[0].to_bytes(size, 'big')), memoryview(bytes(size))
+            else:
+                return memoryview(result.args[0].to_bytes(size, 'big'))
+        elif result.op == 'Concat':
+            bytes_out = bytearray(size)
+            bitmap_out = bytearray(size)
+            bit_idx = 0
+            for element in result.args:
+                byte_idx = bit_idx // 8
+                byte_size = len(element) // 8
+                if bit_idx % 8 != 0:
+                    chop = 8 - bit_idx
+                    bit_idx += chop
+                    byte_idx += 1
+                else:
+                    chop = 0
+
+                if element.op == 'BVV':
+                    if chop:
+                        element = element[len(element) - 1 - chop:0]
+
+                    bytes_out[byte_idx:byte_idx + byte_size] = element.args[0].to_bytes(byte_size, 'big')
+                else:
+                    if not with_bitmap:
+                        return memoryview(bytes(bytes_out))[:byte_idx]
+                    for byte_i in range(byte_idx, byte_idx + byte_size):
+                        bitmap_out[byte_i] = 1
+
+                bit_idx += len(element)
+                if bit_idx % 8 != 0:
+                    if not with_bitmap:
+                        return memoryview(bytes(bytes_out))[:bit_idx // 8]
+                    bitmap_out[bit_idx // 8] = 1
+            if with_bitmap:
+                return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
+            else:
+                return memoryview(bytes(bytes_out))
+        else:
+            if with_bitmap:
+                return memoryview(bytes(size)), memoryview(b'\x01' * size)
+            else:
+                return memoryview(b'')
+
     def concrete_load(self, addr, size, writing=False, with_bitmap=False, **kwargs):
         pageno, offset = self._divide_addr(addr)
         subsize = min(size, self.page_size - offset)
@@ -299,52 +346,8 @@ class PagedMemoryMixin(MemoryMixin):
         try:
             concrete_load = page.concrete_load
         except AttributeError:
-            result = self.load(addr, size, endness='Iend_BE')
-            if result.op == 'BVV':
-                if with_bitmap:
-                    return memoryview(result.args[0].to_bytes(size, 'big')), memoryview(bytes(size))
-                else:
-                    return memoryview(result.args[0].to_bytes(size, 'big'))
-            elif result.op == 'Concat':
-                bytes_out = bytearray(size)
-                bitmap_out = bytearray(size)
-                bit_idx = 0
-                for element in result.args:
-                    byte_idx = bit_idx // 8
-                    byte_size = len(element) // 8
-                    if bit_idx % 8 != 0:
-                        chop = 8 - bit_idx
-                        bit_idx += chop
-                        byte_idx += 1
-                    else:
-                        chop = 0
-
-                    if element.op == 'BVV':
-                        if chop:
-                            element = element[len(element)-1-chop:0]
-
-                        bytes_out[byte_idx:byte_idx+byte_size] = element.args[0].to_bytes(byte_size, 'big')
-                    else:
-                        if not with_bitmap:
-                            return memoryview(bytes(bytes_out))[:byte_idx]
-                        for byte_i in range(byte_idx, byte_idx+byte_size):
-                            bitmap_out[byte_i] = 1
-
-                    bit_idx += len(element)
-                    if bit_idx % 8 != 0:
-                        if not with_bitmap:
-                            return memoryview(bytes(bytes_out))[:bit_idx // 8]
-                        bitmap_out[bit_idx // 8] = 1
-                if with_bitmap:
-                    return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
-                else:
-                    return memoryview(bytes(bytes_out))
-            else:
-                if with_bitmap:
-                    return memoryview(bytes(size)), memoryview(b'\x01'*size)
-                else:
-                    return memoryview(b'')
-
+            # the page does not support concrete_load
+            return self._load_to_memoryview(addr, size, with_bitmap)
         else:
             data, bitmap = concrete_load(offset, subsize, **kwargs)
             if with_bitmap:
@@ -363,6 +366,7 @@ class PagedMemoryMixin(MemoryMixin):
 
             size -= subsize
 
+            physically_adjacent = True
             while size:
                 offset = 0
                 max_pageno = (1 << self.state.arch.bits) // self.page_size
@@ -377,21 +381,24 @@ class PagedMemoryMixin(MemoryMixin):
                 else:
 
                     newdata, bitmap = concrete_load(offset, subsize, **kwargs)
-
-                    # magic: check if the memory regions are physically adjacent
-                    if not ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
-                        break
-
                     for i, byte in enumerate(bitmap):
                         if byte != 0:
                             break
                     else:
                         i = len(bitmap)
 
-                    # magic: generate a new memoryview which contains the two physically adjacent regions
-                    obj = data.obj
-                    data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP, ffi.from_buffer(obj))
-                    data = memoryview(obj)[data_offset:data_offset+len(data)+i]
+                    # magic: check if the memory regions are physically adjacent
+                    if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
+                        # magic: generate a new memoryview which contains the two physically adjacent regions
+                        obj = data.obj
+                        data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP,
+                                                                                             ffi.from_buffer(obj))
+                        data = memoryview(obj)[data_offset:data_offset + len(data) + i]
+                    else:
+                        # they are not adjacent - create a new bytearray to hold data
+                        physically_adjacent = False
+                        bytes_out = bytearray(data) + bytearray(newdata[:i])
+                        data = memoryview(bytes_out)
 
                     if i != subsize:
                         break

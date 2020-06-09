@@ -4,7 +4,13 @@ import os
 import claripy
 import nose
 
-from angr.storage.paged_memory import SimPagedMemory
+from angr.storage.memory_mixins import (
+    DataNormalizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    UltraPagesMixin,
+    PagedMemoryMixin
+)
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
 from angr.state_plugins import SimSystemPosix, SimLightRegisters
@@ -599,6 +605,29 @@ def test_underconstrained():
     state.memory.store(ptr3, b"\x41", size=1)
     state.memory.load(ptr3, size=1)
 
+
+def test_concrete_load_non_adjacent_pages():
+
+    class UltraPageMemory(
+        DataNormalizationMixin,
+        SizeNormalizationMixin,
+        AddressConcretizationMixin,
+        UltraPagesMixin,
+        PagedMemoryMixin,
+    ):
+        pass
+
+    s = SimState(arch='AMD64', mode='symbolic')
+    s.memory = UltraPageMemory()
+    s.memory.set_state(s)
+
+    s.memory.store(0x100000, b'\x01' * 4096)
+    s.memory.store(0x100000 + 4096, b'\x02' * 4096)
+    mv = s.memory.concrete_load(0x100000 + 0xffa, 400)
+    assert len(mv) == 400, "Loading data across non-physically adjacent pages failed for ultra pages."
+    assert mv == (b'\x01' * 6) + (b'\x02' * 394)
+
+
 def test_hex_dump():
     s = SimState(arch='AMD64')
     addr = s.heap.allocate(0x20)
@@ -644,3 +673,4 @@ if __name__ == '__main__':
     test_concrete_memset()
     test_underconstrained()
     test_hex_dump()
+    test_concrete_load_non_adjacent_pages()
