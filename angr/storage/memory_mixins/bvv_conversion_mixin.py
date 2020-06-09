@@ -50,7 +50,8 @@ class DataNormalizationMixin(MemoryMixin):
             return claripy.BVV(thing)
         elif type(thing) is int:
             if bits is None:
-                raise TypeError("Can't figure out size for memory data", thing)
+                l.warning("Unknown size for memory data %#x. Default to arch.bits.", thing)
+                bits = self.state.arch.bits
             return claripy.BVV(thing, bits)
         elif type(thing) is float:
             if bits == 32:
