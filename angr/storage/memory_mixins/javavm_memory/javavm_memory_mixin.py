@@ -6,6 +6,7 @@ from .... import concretization_strategies
 from ....errors import SimUnsatError, SimMemoryAddressError
 from ....engines.soot.values import (
     SimSootValue_ArrayRef,
+    SimSootValue_ArrayBaseRef,
     SimSootValue_InstanceFieldRef,
     SimSootValue_Local, SimSootValue_ParamRef,
     SimSootValue_StaticFieldRef,
@@ -249,7 +250,7 @@ class JavaVmMemoryMixin(MemoryMixin):
 
         return load_values
 
-    def _load_array_element_from_heap(self, array, idx):
+    def _load_array_element_from_heap(self, array: SimSootValue_ArrayBaseRef, idx):
         # try to load the element
         heap_elem_id = '%s[%d]' % (array.id, idx)
         value = self.heap.load(heap_elem_id, none_if_missing=True)
@@ -257,7 +258,7 @@ class JavaVmMemoryMixin(MemoryMixin):
         if value is None:
             value = array.get_default_value(self.state)
             l.debug("Init %s with %s", heap_elem_id, value)
-            element_type = value.element_type if hasattr(value, 'element_type') else None
+            element_type = array.element_type if hasattr(array, 'element_type') else None
             self.heap.store(heap_elem_id, value, type_=element_type)
         else:
             l.debug("Load %s from %s", heap_elem_id, value)
