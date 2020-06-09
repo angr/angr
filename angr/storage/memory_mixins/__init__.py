@@ -150,6 +150,7 @@ from .slotted_memory import SlottedMemoryMixin
 from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin, \
     MemoryRegionMetaMixin
 from .keyvalue_memory import KeyValueMemoryMixin
+from .javavm_memory import JavaVmMemoryMixin
 
 
 class DefaultMemory(
@@ -244,8 +245,15 @@ class KeyValueMemory(
     pass
 
 
+class JavaVmMemory(
+        JavaVmMemoryMixin,
+):
+    pass
+
+
 from angr.sim_state import SimState
 SimState.register_default('sym_memory', DefaultMemory)
 SimState.register_default('fast_memory', FastMemory)
 SimState.register_default('abs_memory', AbstractMemory)
 SimState.register_default('keyvalue_memory', KeyValueMemory)
+SimState.register_default('javavm_memory', JavaVmMemory)
