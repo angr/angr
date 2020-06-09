@@ -981,7 +981,7 @@ public:
         } else {
             for (int i = start; i <= end; i++) {
                 if (bitmap[i] == TAINT_NONE) {
-                    clean |= 1 << i;
+                    clean |= 1 << (i - start);
                 } else {
                     bitmap[i] = TAINT_NONE;
                 }
