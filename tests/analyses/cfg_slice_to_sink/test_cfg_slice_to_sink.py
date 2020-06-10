@@ -10,10 +10,6 @@ BINARIES_PATH = os.path.join(
     '..', '..', '..', '..', 'binaries-private', 'operation-mango'
 )
 BINARY_PATH = os.path.join(BINARIES_PATH, 'air-live-bu-2015', 'cgi_test.cgi')
-PROJECT = Project(BINARY_PATH, auto_load_libs=False)
-CFG = PROJECT.analyses.CFGFast()
-PRINTF = CFG.kb.functions.function(name='printf', plt=False)
-PRINTF_NODE = CFG.model.get_all_nodes(PRINTF.addr)[0]
 
 
 def test_get_transitions_from_slice():
@@ -69,10 +65,15 @@ def test_transitions_as_tuples():
 
 
 def test_emptyness():
-    printf_predecessor = PRINTF_NODE.predecessors[0]
+    project = Project(BINARY_PATH, auto_load_libs=False)
+    cfg = project.analyses.CFGFast()
+    printf = cfg.kb.functions.function(name='printf', plt=False)
+    printf_node = cfg.model.get_all_nodes(printf.addr)[0]
 
-    empty_slice = CFGSliceToSink(PRINTF, {})
-    non_empty_slice = CFGSliceToSink(PRINTF, { printf_predecessor.addr: [PRINTF.addr] })
+    printf_predecessor = printf_node.predecessors[0]
+
+    empty_slice = CFGSliceToSink(printf, {})
+    non_empty_slice = CFGSliceToSink(printf, { printf_predecessor.addr: [printf.addr] })
 
     nose.tools.assert_equals(empty_slice.is_empty(), True)
     nose.tools.assert_equals(non_empty_slice.is_empty(), False)

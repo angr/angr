@@ -1,6 +1,6 @@
 # pylint: disable=no-self-use
 import os
-from unittest import mock
+from unittest import mock, TestCase
 
 import nose
 from claripy.utils.orderedset import OrderedSet
@@ -13,8 +13,8 @@ from angr.project import Project
 
 # `reset` is called at each `__init__` and calls `sort_nodes` which lacks a good CFG mock to properly work.
 @mock.patch.object(CFGVisitor, 'reset')
-class TestCFGVisitor():
-    def __init__(self):
+class TestCFGVisitor(TestCase):
+    def setUp(self) -> None:
         binary_path = os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
             '..', '..', '..', '..', '..', 'binaries-private', 'operation-mango',
@@ -25,7 +25,6 @@ class TestCFGVisitor():
 
         self.printf = cfg.kb.functions.function(name='printf', plt=False)
         self.printf_node = cfg.model.get_all_nodes(self.printf.addr)[0]
-
 
     @mock.patch.object(CFGNode, 'successors', new_callable=mock.PropertyMock)
     def test_successors_of_a_node_delegate_the_logic_to_the_CFGNode_successor(self, mock_successors, _):

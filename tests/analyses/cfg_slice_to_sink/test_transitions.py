@@ -1,19 +1,6 @@
 import nose
-import os
 
 from angr.analyses.cfg_slice_to_sink.transitions import merge_transitions
-from angr.project import Project
-
-
-BINARIES_PATH = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)),
-    '..', '..', '..', '..', 'binaries-private', 'operation-mango'
-)
-BINARY_PATH = os.path.join(BINARIES_PATH, 'air-live-bu-2015', 'cgi_test.cgi')
-PROJECT = Project(BINARY_PATH, auto_load_libs=False)
-CFG = PROJECT.analyses.CFGFast()
-PRINTF = CFG.kb.functions.function(name='printf', plt=False)
-PRINTF_NODE = CFG.model.get_all_nodes(PRINTF.addr)[0]
 
 
 def test_merge_transitions():
