@@ -152,7 +152,7 @@ class PropagatorVEXState(PropagatorState):
             self._replacements[codeloc][old] = new
 
         ## If it is not the same as the previous replacement then it is not a constant and should not be replaced
-        elif self._replacements[codeloc][old] != new:
+        elif self._replacements[codeloc][old].con.value != new.con.value:
             del self._replacements[codeloc][old]
             #self._replacements[codeloc][old] = TOP
 
