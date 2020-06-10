@@ -11,7 +11,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..analysis import Analysis
-from ..cfg.cfg_emulated import StackTouchedAnnotation
+from ..cfg.cfg_emulated import StackPointerAnnotation, StackTouchedAnnotation
 from ... import BP, BP_BEFORE, BP_AFTER
 
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
@@ -56,14 +56,10 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
         new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         self.draw_graph(new_cfg, os.path.join(folder_name, "first_dce_result.svg"))
-        # DCE second time
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+
+        # DCE
+        for i in range(10):
+            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
 
         self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
@@ -117,7 +113,7 @@ class VMDeobfuscation(Analysis):
     def annotate_and_preconstrain_sp(self, start_state):
         actual_stack_end = start_state.solver.eval(start_state.regs.sp)
         start_state.regs.sp = start_state.solver.BVS("precon_sp", 64)
-        start_state.regs.sp = start_state.regs.sp.annotate(StackTouchedAnnotation(1))
+        start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
         start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
     def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr):
@@ -162,7 +158,7 @@ class VMDeobfuscation(Analysis):
 
         def annotate_stack_read_value(state):
             if len(state.inspect.mem_read_address.annotations) != 0 and isinstance(
-                    (state.inspect.mem_read_address.annotations[0]), StackTouchedAnnotation):
+                    (state.inspect.mem_read_address.annotations[0]), StackPointerAnnotation):
                 state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(StackTouchedAnnotation(1))
 
         initial_input_state.inspect.add_breakpoint('mem_read',
