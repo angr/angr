@@ -2,7 +2,6 @@
 import os
 from unittest import mock, TestCase
 
-import nose
 from claripy.utils.orderedset import OrderedSet
 
 from angr.analyses.cfg.cfg_utils import CFGUtils
@@ -78,4 +77,4 @@ class TestCFGVisitor(TestCase):
 
         cfg_visitor.remove_from_sorted_nodes(visited_blocks)
 
-        nose.tools.assert_list_equal(list(cfg_visitor._sorted_nodes), [self.printf_node])
+        self.assertListEqual(list(cfg_visitor._sorted_nodes), [self.printf_node])

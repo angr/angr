@@ -1,102 +1,94 @@
-import nose
 import os
+import unittest
 
 from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.project import Project
 
 
-BINARIES_PATH = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)),
-    '..', '..', '..', '..', 'binaries-private', 'operation-mango'
-)
-BINARY_PATH = os.path.join(BINARIES_PATH, 'air-live-bu-2015', 'cgi_test.cgi')
+class TestCFGSliceToSink(unittest.TestCase):
+    def test_get_transitions_from_slice(self):
+        transitions = {1: [2, 3]}
+        my_slice = CFGSliceToSink(None, transitions)
 
+        self.assertDictEqual(my_slice.transitions, transitions)
 
-def test_get_transitions_from_slice():
-    transitions = {1: [2, 3]}
-    my_slice = CFGSliceToSink(None, transitions)
+    def test_get_entrypoints_from_slice(self):
+        transitions = {0: [2], 1: [2, 3], 2: [4, 5]}
+        my_slice = CFGSliceToSink(None, transitions)
 
-    nose.tools.assert_dict_equal(my_slice.transitions, transitions)
+        self.assertListEqual(my_slice.entrypoints, [0, 1])
 
+    def test_add_transitions_updates_the_slice(self):
+        my_slice = CFGSliceToSink(None, {1: [2, 3]})
+        transitions_to_add = { 1: [4], 2: [4] }
 
-def test_get_entrypoints_from_slice():
-    transitions = {0: [2], 1: [2, 3], 2: [4, 5]}
-    my_slice = CFGSliceToSink(None, transitions)
+        result = my_slice.add_transitions(transitions_to_add)
 
-    nose.tools.assert_list_equal(my_slice.entrypoints, [0, 1])
+        expected_result = {
+            1: [2, 3, 4],
+            2: [4],
+        }
 
+        self.assertDictEqual(result, expected_result)
 
-def test_add_transitions_updates_the_slice():
-    my_slice = CFGSliceToSink(None, {1: [2, 3]})
-    transitions_to_add = { 1: [4], 2: [4] }
+    def test_nodes(self):
+        my_slice = CFGSliceToSink(None, {
+            1: [2, 3],
+            2: [3],
+        })
 
-    result = my_slice.add_transitions(transitions_to_add)
+        expected_result = [1, 2, 3]
+        result = my_slice.nodes
 
-    expected_result = {
-        1: [2, 3, 4],
-        2: [4],
-    }
+        self.assertListEqual(result, expected_result)
 
-    nose.tools.assert_dict_equal(result, expected_result)
+    def test_transitions_as_tuples(self):
+        my_slice = CFGSliceToSink(None, {
+            1: [2, 3],
+            2: [3]
+        })
 
+        expected_result = [(1, 2), (1, 3), (2, 3)]
+        result = my_slice.transitions_as_tuples
 
-def test_nodes():
-    my_slice = CFGSliceToSink(None, {
-        1: [2, 3],
-        2: [3],
-    })
+        self.assertListEqual(result, expected_result)
 
-    expected_result = [1, 2, 3]
-    result = my_slice.nodes
+    def test_emptyness(self):
+        binaries_path = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            '..', '..', '..', '..', 'binaries-private', 'operation-mango'
+        )
+        binary_path = os.path.join(binaries_path, 'air-live-bu-2015', 'cgi_test.cgi')
+        project = Project(binary_path, auto_load_libs=False)
+        cfg = project.analyses.CFGFast()
+        printf = cfg.kb.functions.function(name='printf', plt=False)
+        printf_node = cfg.model.get_all_nodes(printf.addr)[0]
 
-    nose.tools.assert_list_equal(result, expected_result)
+        printf_predecessor = printf_node.predecessors[0]
 
+        empty_slice = CFGSliceToSink(printf, {})
+        non_empty_slice = CFGSliceToSink(printf, { printf_predecessor.addr: [printf.addr] })
 
-def test_transitions_as_tuples():
-    my_slice = CFGSliceToSink(None, {
-        1: [2, 3],
-        2: [3]
-    })
+        self.assertEqual(empty_slice.is_empty(), True)
+        self.assertEqual(non_empty_slice.is_empty(), False)
 
-    expected_result = [(1, 2), (1, 3), (2, 3)]
-    result = my_slice.transitions_as_tuples
+    def test_path_between_returns_True_only_if_there_exists_at_least_a_path_between_two_nodes_in_the_slice(self):
+        my_slice = CFGSliceToSink(None, {
+            1: [2, 3],
+            2: [4]
+        })
 
-    nose.tools.assert_list_equal(result, expected_result)
+        self.assertTrue(my_slice.path_between(1, 2))
+        self.assertTrue(my_slice.path_between(1, 3))
+        self.assertTrue(my_slice.path_between(2, 4))
+        self.assertTrue(my_slice.path_between(1, 4))
 
+        self.assertFalse(my_slice.path_between(3, 4))
 
-def test_emptyness():
-    project = Project(BINARY_PATH, auto_load_libs=False)
-    cfg = project.analyses.CFGFast()
-    printf = cfg.kb.functions.function(name='printf', plt=False)
-    printf_node = cfg.model.get_all_nodes(printf.addr)[0]
+    def test_path_between_deals_with_loops(self):
+        my_slice = CFGSliceToSink(None, {
+            1: [2, 3],
+            2: [1]
+        })
 
-    printf_predecessor = printf_node.predecessors[0]
-
-    empty_slice = CFGSliceToSink(printf, {})
-    non_empty_slice = CFGSliceToSink(printf, { printf_predecessor.addr: [printf.addr] })
-
-    nose.tools.assert_equals(empty_slice.is_empty(), True)
-    nose.tools.assert_equals(non_empty_slice.is_empty(), False)
-
-
-def test_path_between_returns_True_only_if_there_exists_at_least_a_path_between_two_nodes_in_the_slice():
-    my_slice = CFGSliceToSink(None, {
-        1: [2, 3],
-        2: [4]
-    })
-
-    nose.tools.assert_true(my_slice.path_between(1, 2))
-    nose.tools.assert_true(my_slice.path_between(1, 3))
-    nose.tools.assert_true(my_slice.path_between(2, 4))
-    nose.tools.assert_true(my_slice.path_between(1, 4))
-
-    nose.tools.assert_false(my_slice.path_between(3, 4))
-
-
-def test_path_between_deals_with_loops():
-    my_slice = CFGSliceToSink(None, {
-        1: [2, 3],
-        2: [1]
-    })
-
-    nose.tools.assert_false(my_slice.path_between(1, 4))
+        self.assertFalse(my_slice.path_between(1, 4))
