@@ -1986,6 +1986,38 @@ public:
 			uc_reg_write(uc, reg, &val);
 		}
 	}
+
+	uint64_t get_count_of_blocks_with_symbolic_instrs() const {
+		return symbolic_instr_addrs.size();
+	}
+
+	uint64_t get_count_of_symbolic_instrs_in_block(address_t block_address) const {
+		return symbolic_instr_addrs.at(block_address).size();
+	}
+
+	std::unordered_set<address_t> get_blocks_with_symbolic_instrs() const {
+		std::unordered_set<address_t> block_list;
+		for (auto &block: symbolic_instr_addrs) {
+			block_list.emplace(block.first);
+		}
+		return block_list;
+	}
+
+	std::unordered_set<address_t> get_symbolic_instrs_in_block(address_t block_address) const {
+		std::unordered_set<address_t> instr_list;
+		for (auto &instr: symbolic_instr_addrs.at(block_address)) {
+			instr_list.emplace(instr);
+		}
+		return instr_list;
+	}
+
+	uint64_t get_count_of_dependencies_of_instr(address_t instr_addr) const {
+		return saved_dependencies_map.at(instr_addr).size();
+	}
+
+	std::vector<saved_concrete_dependency_t> get_dependencies_of_instr(address_t instr_addr) const {
+		return saved_dependencies_map.at(instr_addr);
+	}
 };
 
 static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data) {
@@ -2443,5 +2475,43 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 	for (int i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
 	}
+	return;
+}
+
+// VEX re-execution data
+
+extern "C"
+uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
+	return state->get_count_of_blocks_with_symbolic_instrs();
+}
+
+extern "C"
+void simunicorn_get_blocks_with_symbolic_instrs(State *state, uint64_t *block_addrs) {
+	auto block_addrs_list = state->get_blocks_with_symbolic_instrs();
+	std::copy(block_addrs_list.begin(), block_addrs_list.end(), block_addrs);
+	return;
+}
+
+extern "C"
+uint64_t simunicorn_get_count_of_symbolic_instrs_in_block(State *state, uint64_t block_address) {
+	return state->get_count_of_symbolic_instrs_in_block(block_address);
+}
+
+extern "C"
+void simunicorn_get_symbolic_instrs_in_block(State *state, uint64_t block_address, uint64_t *instr_addrs) {
+	auto instrs_list = state->get_symbolic_instrs_in_block(block_address);
+	std::copy(instrs_list.begin(), instrs_list.end(), instr_addrs);
+	return;
+}
+
+extern "C"
+uint64_t simunicorn_get_count_of_dependencies_of_instr(State *state, uint64_t instr_addr) {
+	return state->get_count_of_dependencies_of_instr(instr_addr);
+}
+
+extern "C"
+void simunicorn_get_dependencies_of_instr(State *state, uint64_t instr_addr, saved_concrete_dependency_t *deps) {
+	auto deps_list = state->get_dependencies_of_instr(instr_addr);
+	std::copy(deps_list.begin(), deps_list.end(), deps);
 	return;
 }

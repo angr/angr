@@ -43,6 +43,22 @@ TRANSMIT_RECORD._fields_ = [
         ('count', ctypes.c_uint32)
     ]
 
+class TaintEntityEnum: # taint_entity_enum_t
+    TAINT_ENTITY_REG = 0
+    TAINT_ENTITY_TMP = 1
+    TAINT_ENTITY_MEM = 2
+    TAINT_ENTITY_NONE = 3
+
+class SavedConcreteDependency(ctypes.Structure): # saved_concrete_dependency_t
+    _fields_ = [
+        ('dependency_type', TaintEntityEnum),
+        ('reg_offset', ctypes.c_uint64),
+        ('reg_value', ctypes.c_uint64),
+        ('mem_address', ctypes.c_uint64),
+        ('mem_value_size', ctypes.c_uint64),
+        ('mem_value', ctypes.c_char * 8)
+    ]
+
 class STOP:  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
@@ -248,6 +264,12 @@ def _load_native():
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'get_blocks_with_symbolic_instrs', None, state_t,ctypes.POINTER(ctypes.c_uint64))
+        _setup_prototype(h, 'get_count_of_symbolic_instrs_in_block', ctypes.c_uint64, state_t, ctypes.c_uint64)
+        _setup_prototype(h, 'get_symbolic_instrs_in_block', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
+        _setup_prototype(h, 'get_count_of_dependencies_of_instr', ctypes.c_uint64, state_t, ctypes.c_uint64)
+        _setup_prototype(h, 'get_dependencies_of_instr', None, state_t, ctypes.c_uint64, ctypes.POINTER(SavedConcreteDependency))
 
         l.info('native plugin is enabled')
 
@@ -810,6 +832,40 @@ class Unicorn(SimStatePlugin):
             self._mapped += 1
             _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
+
+    def _get_details_of_instrs_to_execute_symbolically(self):
+        return_data = {}
+        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
+        blocks_addrs = (ctypes.c_uint64 * block_count)()
+        _UC_NATIVE.get_blocks_with_symbolic_instrs(self._uc_state, blocks_addrs)
+        for block_addr in blocks_addrs:
+            instr_count = _UC_NATIVE.get_count_of_symbolic_instrs_in_block(self._uc_state, block_addr)
+            instr_addrs = (ctypes.c_uint64 * instr_count)()
+            _UC_NATIVE.get_symbolic_instrs_in_block(self._uc_state, block_addr, instr_addrs)
+            for instr_addr in instr_addrs:
+                instr_dep_count = _UC_NATIVE.get_count_of_dependencies_of_instr(self._uc_state, instr_addr)
+                instr_deps = (SavedConcreteDependency * instr_dep_count)()
+                _UC_NATIVE.get_dependencies_of_instr(self._uc_state, instr_addr, instr_deps)
+                for instr_dep in instr_deps:
+                    dep_entry = {"type": instr_dep.dependency_type}
+                    if instr_dep.dependency_type == TaintEntityEnum.TAINT_ENTITY_REG:
+                        dep_entry["reg_offset"] = instr_dep.reg_offset
+                        dep_entry["reg_value"] = instr_dep.reg_value
+                    elif instr_dep.dependency_type == TaintEntityEnum.TAINT_ENTITY_MEM:
+                        dep_entry["mem_address"] = instr_dep.mem_address
+                        dep_entry["mem_value_size"] = instr_dep.mem_value_size
+                        dep_entry["mem_value"] = instr_dep.mem_value
+                    else:
+                        # Temps and None type entities should not be dependencies but just in case
+                        # they are
+                        continue
+
+                    if block_addr not in return_data:
+                        return_data[block_addr] = {instr_addr: dep_entry}
+                    else:
+                        return_data[block_addr][instr_addr] = dep_entry
+
+        return return_data
 
     def uncache_region(self, addr, length):
         self._uncache_regions.append((addr, length))
