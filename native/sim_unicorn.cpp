@@ -136,6 +136,24 @@ typedef struct saved_concrete_dependency_t {
 	uint8_t mem_value[MAX_MEM_ACCESS_SIZE];
 } saved_concrete_dependency_t;
 
+typedef struct {
+	address_t instr_addr;
+	address_t block_addr;
+	size_t block_size;
+	std::vector<saved_concrete_dependency_t> dependencies;
+	bool are_dependencies_saved;
+} symbolic_instr_details_t;
+
+// This struct is used only to return data to the state plugin since ctypes doesn't natively handle
+// C++ STL containers
+typedef struct {
+	address_t instr_addr;
+	address_t block_addr;
+	uint64_t block_size;
+	uint64_t dependencies_count;
+	saved_concrete_dependency_t *dependencies;
+} symbolic_instr_details_ret_t;
+
 typedef enum stop {
 	STOP_NORMAL=0,
 	STOP_STOPPOINT,
@@ -168,7 +186,7 @@ typedef struct instruction_taint_entry_t {
 	// List of direct taint sources for a taint sink
 	taint_vector_t taint_sink_src_map;
 
-	// List of registers and memory a taint sink depends on directly or indirectly
+	// List of registers a taint sink depends on
 	std::unordered_set<taint_entity_t> dependencies_to_save;
 
 	// List of taint entities in ITE expression's condition, if any
@@ -268,22 +286,15 @@ private:
 	// memory writes in a single instruction
 	std::unordered_map<address_t, bool> mem_writes_taint_map;
 
-	// List of all concrete dependencies to save. Currently only registers; memory saved in hooks.
-	// Instruction address -> List of entitites to save
-	std::unordered_map<address_t, std::unordered_set<taint_entity_t>> symbolic_instrs_dep_save_map;
+	// List of all hooks inserted into a block for saving dependencies. Instruction -> hook object
+	std::unordered_map<address_t, uc_hook> symbolic_instrs_dep_saving_hooks;
 
-	// List of all hooks inserted into a block for saving dependencies
-	std::unordered_set<uc_hook> symbolic_instrs_dep_saving_hooks;
-
-	// List of instructions that should be executed symbolically in each block
-	std::unordered_map<address_t, std::unordered_set<address_t>> symbolic_instr_addrs;
+	// List of instructions that should be executed symbolically
+	std::vector<symbolic_instr_details_t> symbolic_instr_addrs;
 
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
-	std::unordered_set<address_t> block_symbolic_instr_addrs;
-
-	// Map with all saved dependencies
-	std::unordered_map<address_t, std::vector<saved_concrete_dependency_t>> saved_dependencies_map;
+	std::vector<symbolic_instr_details_t> block_symbolic_instr_addrs;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -591,13 +602,7 @@ public:
 		for (auto &temp_id: block_symbolic_temps) {
 			mark_temp_symbolic(temp_id, false);
 		}
-		auto block_symb_instrs_entry = symbolic_instr_addrs.find(current_block_start_address);
-		if (block_symb_instrs_entry == symbolic_instr_addrs.end()) {
-			symbolic_instr_addrs.emplace(current_block_start_address, block_symbolic_instr_addrs);
-		}
-		else {
-			block_symb_instrs_entry->second.insert(block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
-		}
+		symbolic_instr_addrs.insert(symbolic_instr_addrs.end(), block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
 		// Clear all block level taint status trackers and symbolic instruction list
 		block_symbolic_registers.clear();
 		block_concrete_registers.clear();
@@ -1739,22 +1744,23 @@ public:
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
 					// Add instruction to list of instructions to be executed symbolically
-					block_symbolic_instr_addrs.emplace(taint_sink.instr_addr);
+					symbolic_instr_details_t instr_details;
+					instr_details.instr_addr = taint_sink.instr_addr;
+					instr_details.block_addr = current_block_start_address;
+					instr_details.block_size = current_block_size;
 
-					// Compute dependencies to save
-					std::unordered_set<taint_entity_t> deps_to_save;
+					// Compute dependencies to save here itself since taint status can change in
+					// following instrutions
 					for (auto &dependency: curr_instr_taint_entry.dependencies_to_save) {
 						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
-							deps_to_save.emplace(dependency);
+							saved_concrete_dependency_t dep_to_save;
+							dep_to_save.dependency_type = TAINT_ENTITY_REG;
+							dep_to_save.reg_offset = dependency.reg_offset;
+							instr_details.dependencies.emplace_back(dep_to_save);
 						}
 					}
-					auto instr_dep_save_entry = symbolic_instrs_dep_save_map.find(taint_sink.instr_addr);
-					if (instr_dep_save_entry == symbolic_instrs_dep_save_map.end()) {
-						symbolic_instrs_dep_save_map.emplace(taint_sink.instr_addr, deps_to_save);
-					}
-					else {
-						instr_dep_save_entry->second.insert(deps_to_save.begin(), deps_to_save.end());
-					}
+					instr_details.are_dependencies_saved = false;
+					block_symbolic_instr_addrs.emplace_back(instr_details);
 				}
 				else {
 					// Save the memory location written to be marked as concrete in the write hook
@@ -1774,27 +1780,28 @@ public:
 					}
 					mark_register_temp_symbolic(taint_sink, true);
 					// Add instruction to list of instructions to be executed symbolically
-					block_symbolic_instr_addrs.emplace(taint_sink.instr_addr);
+					symbolic_instr_details_t instr_details;
+					instr_details.instr_addr = taint_sink.instr_addr;
+					instr_details.block_addr = current_block_start_address;
+					instr_details.block_size = current_block_size;
 
-					// Compute dependencies to save
-					std::unordered_set<taint_entity_t> deps_to_save;
+					// Compute dependencies to save here itself since taint status can change in
+					// following instrutions
 					for (auto &dependency: curr_instr_taint_entry.dependencies_to_save) {
 						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
-							deps_to_save.emplace(dependency);
+							saved_concrete_dependency_t dep_to_save;
+							dep_to_save.dependency_type = TAINT_ENTITY_REG;
+							dep_to_save.reg_offset = dependency.reg_offset;
 						}
 					}
-					auto instr_dep_save_entry = symbolic_instrs_dep_save_map.find(taint_sink.instr_addr);
-					if (instr_dep_save_entry == symbolic_instrs_dep_save_map.end()) {
-						symbolic_instrs_dep_save_map.emplace(taint_sink.instr_addr, deps_to_save);
-						// If there is no memory read/write, add a hook to save dependencies
-						if (!curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
-							uc_hook hook;
-							uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, taint_sink.instr_addr, taint_sink.instr_addr);
-							symbolic_instrs_dep_saving_hooks.emplace(hook);
-						}
-					}
-					else {
-						instr_dep_save_entry->second.insert(deps_to_save.begin(), deps_to_save.end());
+					instr_details.are_dependencies_saved = false;
+					block_symbolic_instr_addrs.emplace_back(instr_details);
+					// Add a hook if there isn't one already and instruction doesn't have a mem read/write
+					if (symbolic_instrs_dep_saving_hooks.find(taint_sink.instr_addr) == symbolic_instrs_dep_saving_hooks.end()
+					  && !curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
+						uc_hook hook;
+						uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, taint_sink.instr_addr, taint_sink.instr_addr);
+						symbolic_instrs_dep_saving_hooks.emplace(taint_sink.instr_addr, hook);
 					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
@@ -1850,51 +1857,62 @@ public:
 	}
 
 	void save_dependencies(address_t instr_addr) {
-		auto list_of_dependencies_to_save = symbolic_instrs_dep_save_map.find(instr_addr);
-		if (list_of_dependencies_to_save != symbolic_instrs_dep_save_map.end()) {
-			for (auto &dependency_to_save: list_of_dependencies_to_save->second) {
-				saved_concrete_dependency_t reg_dep;
-				reg_dep.dependency_type = TAINT_ENTITY_REG;
-				reg_dep.reg_offset = dependency_to_save.reg_offset;
-				reg_dep.reg_value = get_register_value(dependency_to_save.reg_offset);
-				auto saved_dep_entry = saved_dependencies_map.find(instr_addr);
-				if (saved_dep_entry == saved_dependencies_map.end()) {
-					std::vector<saved_concrete_dependency_t> temp;
-					temp.emplace_back(reg_dep);
-					saved_dependencies_map.emplace(instr_addr, temp);
-				}
-				else {
-					saved_dep_entry->second.emplace_back(reg_dep);
-				}
+		// Saves dependencies for instructions which do not have a memory read
+		for (auto &instr_entry: block_symbolic_instr_addrs) {
+			if ((instr_entry.instr_addr != instr_addr) || instr_entry.are_dependencies_saved) {
+				continue;
+			}
+			for (auto &dependency_to_save: instr_entry.dependencies) {
+				dependency_to_save.reg_value = get_register_value(dependency_to_save.reg_offset);
+			}
+			instr_entry.are_dependencies_saved = true;
+		}
+		return;
+	}
+
+	void check_and_save_dependencies(address_t instr_addr) {
+		// Save details of the instruction if it touches symbolic data. This is a special case
+		// because we paused taint propagation due to memory read and so haven't computed
+		// dependencies that need to be saved.
+		symbolic_instr_details_t instr_details;
+		instr_details.block_addr = current_block_start_address;
+		instr_details.block_size = current_block_size;
+		instr_details.instr_addr = instr_addr;
+		auto instr_taint_entry = block_taint_cache.at(current_block_start_address).block_instrs_taint_data_map.at(instr_addr);
+		bool has_symbolic_reg = false;
+		for (auto &dependency_to_save: instr_taint_entry.dependencies_to_save) {
+			if (!is_symbolic_register(dependency_to_save.reg_offset)) {
+				saved_concrete_dependency_t saved_reg_dependency;
+				saved_reg_dependency.dependency_type = TAINT_ENTITY_REG;
+				saved_reg_dependency.reg_offset = dependency_to_save.reg_offset;
+				saved_reg_dependency.reg_value = get_register_value(dependency_to_save.reg_offset);
+				instr_details.dependencies.emplace_back(saved_reg_dependency);
+			}
+			else {
+				has_symbolic_reg = true;
 			}
 		}
-		auto mem_read_result = mem_reads_map.find(instr_addr);
-		if (mem_read_result != mem_reads_map.end()) {
-			if (!mem_read_result->second.is_value_symbolic) {
-				saved_concrete_dependency_t mem_dep;
-				mem_dep.dependency_type = TAINT_ENTITY_MEM;
-				mem_dep.mem_address = mem_read_result->second.address;
-				mem_dep.mem_value_size = mem_read_result->second.size;
-				for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
-					mem_dep.mem_value[i] = mem_read_result->second.value[i];
-				}
-				auto saved_dep_entry = saved_dependencies_map.find(instr_addr);
-				if (saved_dep_entry == saved_dependencies_map.end()) {
-					std::vector<saved_concrete_dependency_t> temp;
-					temp.emplace_back(mem_dep);
-					saved_dependencies_map.emplace(instr_addr, temp);
-				}
-				else {
-					saved_dep_entry->second.emplace_back(mem_dep);
-				}
+		auto mem_read_result = mem_reads_map.at(instr_addr);
+		if (!mem_read_result.is_value_symbolic) {
+			saved_concrete_dependency_t saved_mem_dependency;
+			saved_mem_dependency.dependency_type = TAINT_ENTITY_MEM;
+			saved_mem_dependency.mem_address = mem_read_result.address;
+			saved_mem_dependency.mem_value_size = mem_read_result.size;
+			for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
+				saved_mem_dependency.mem_value[i] = mem_read_result.value[i];
 			}
+			instr_details.dependencies.emplace_back(saved_mem_dependency);
+		}
+		instr_details.are_dependencies_saved = true;
+		if (has_symbolic_reg || mem_read_result.is_value_symbolic) {
+			block_symbolic_instr_addrs.emplace_back(instr_details);
 		}
 		return;
 	}
 
 	void clear_dependency_saving_hooks() {
-		for (auto &hook: symbolic_instrs_dep_saving_hooks) {
-			uc_hook_del(uc, hook);
+		for (auto &hook_entry: symbolic_instrs_dep_saving_hooks) {
+			uc_hook_del(uc, hook_entry.second);
 		}
 		symbolic_instrs_dep_saving_hooks.clear();
 		return;
@@ -1987,36 +2005,12 @@ public:
 		}
 	}
 
-	uint64_t get_count_of_blocks_with_symbolic_instrs() const {
+	uint64_t get_count_of_symbolic_instrs() const {
 		return symbolic_instr_addrs.size();
 	}
 
-	uint64_t get_count_of_symbolic_instrs_in_block(address_t block_address) const {
-		return symbolic_instr_addrs.at(block_address).size();
-	}
-
-	std::unordered_set<address_t> get_blocks_with_symbolic_instrs() const {
-		std::unordered_set<address_t> block_list;
-		for (auto &block: symbolic_instr_addrs) {
-			block_list.emplace(block.first);
-		}
-		return block_list;
-	}
-
-	std::unordered_set<address_t> get_symbolic_instrs_in_block(address_t block_address) const {
-		std::unordered_set<address_t> instr_list;
-		for (auto &instr: symbolic_instr_addrs.at(block_address)) {
-			instr_list.emplace(instr);
-		}
-		return instr_list;
-	}
-
-	uint64_t get_count_of_dependencies_of_instr(address_t instr_addr) const {
-		return saved_dependencies_map.at(instr_addr).size();
-	}
-
-	std::vector<saved_concrete_dependency_t> get_dependencies_of_instr(address_t instr_addr) const {
-		return saved_dependencies_map.at(instr_addr);
+	std::vector<symbolic_instr_details_t> get_symbolic_instrs_details() const {
+		return symbolic_instr_addrs;
 	}
 };
 
@@ -2049,7 +2043,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	if (!state->stopped) {
 		state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
 		state->propagate_taint_of_one_instr(state->get_instruction_pointer());
-		state->save_dependencies(state->get_instruction_pointer());
+		state->check_and_save_dependencies(state->get_instruction_pointer());
 	}
 	if (!state->stopped) {
 		state->continue_propagating_taint();
@@ -2481,37 +2475,21 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 // VEX re-execution data
 
 extern "C"
-uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
-	return state->get_count_of_blocks_with_symbolic_instrs();
+uint64_t simunicorn_get_count_of_symbolic_instrs(State *state) {
+	return state->get_count_of_symbolic_instrs();
 }
 
 extern "C"
-void simunicorn_get_blocks_with_symbolic_instrs(State *state, uint64_t *block_addrs) {
-	auto block_addrs_list = state->get_blocks_with_symbolic_instrs();
-	std::copy(block_addrs_list.begin(), block_addrs_list.end(), block_addrs);
-	return;
-}
-
-extern "C"
-uint64_t simunicorn_get_count_of_symbolic_instrs_in_block(State *state, uint64_t block_address) {
-	return state->get_count_of_symbolic_instrs_in_block(block_address);
-}
-
-extern "C"
-void simunicorn_get_symbolic_instrs_in_block(State *state, uint64_t block_address, uint64_t *instr_addrs) {
-	auto instrs_list = state->get_symbolic_instrs_in_block(block_address);
-	std::copy(instrs_list.begin(), instrs_list.end(), instr_addrs);
-	return;
-}
-
-extern "C"
-uint64_t simunicorn_get_count_of_dependencies_of_instr(State *state, uint64_t instr_addr) {
-	return state->get_count_of_dependencies_of_instr(instr_addr);
-}
-
-extern "C"
-void simunicorn_get_dependencies_of_instr(State *state, uint64_t instr_addr, saved_concrete_dependency_t *deps) {
-	auto deps_list = state->get_dependencies_of_instr(instr_addr);
-	std::copy(deps_list.begin(), deps_list.end(), deps);
+void simunicorn_get_symbolic_instrs(State *state, symbolic_instr_details_ret_t *instr_details) {
+	auto instrs_list = state->get_symbolic_instrs_details();
+	int details_counter = 0;
+	for (auto &instr: instrs_list) {
+		instr_details[details_counter].block_addr = instr.block_addr;
+		instr_details[details_counter].block_size = instr.block_size;
+		instr_details[details_counter].instr_addr = instr.instr_addr;
+		instr_details[details_counter].dependencies_count = instr.dependencies.size();
+		instr_details[details_counter].dependencies = &(instr.dependencies[0]);
+		details_counter++;
+	}
 	return;
 }

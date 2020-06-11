@@ -59,6 +59,15 @@ class SavedConcreteDependency(ctypes.Structure): # saved_concrete_dependency_t
         ('mem_value', ctypes.c_char * 8)
     ]
 
+class SymbolicInstrDetails(ctypes.structure):
+    _fields_ = [
+        ('instr_addr', ctypes.c_uint64),
+        ('block_addr', ctypes.c_uint64),
+        ('block_size', ctypes.c_uint64),
+        ('dependencies_count', ctypes.c_uint64),
+        ('dependencies', ctypes.POINTER(SavedConcreteDependency))
+    ]
+
 class STOP:  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
@@ -264,12 +273,8 @@ def _load_native():
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'get_blocks_with_symbolic_instrs', None, state_t,ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, 'get_count_of_symbolic_instrs_in_block', ctypes.c_uint64, state_t, ctypes.c_uint64)
-        _setup_prototype(h, 'get_symbolic_instrs_in_block', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, 'get_count_of_dependencies_of_instr', ctypes.c_uint64, state_t, ctypes.c_uint64)
-        _setup_prototype(h, 'get_dependencies_of_instr', None, state_t, ctypes.c_uint64, ctypes.POINTER(SavedConcreteDependency))
+        _setup_prototype(h, 'get_count_of_symbolic_instrs', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'get_symbolic_instrs', None, state_t, ctypes.POINTER(SymbolicInstrDetails))
 
         l.info('native plugin is enabled')
 
@@ -834,36 +839,31 @@ class Unicorn(SimStatePlugin):
             return True
 
     def _get_details_of_instrs_to_execute_symbolically(self):
-        return_data = {}
-        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
-        blocks_addrs = (ctypes.c_uint64 * block_count)()
-        _UC_NATIVE.get_blocks_with_symbolic_instrs(self._uc_state, blocks_addrs)
-        for block_addr in blocks_addrs:
-            instr_count = _UC_NATIVE.get_count_of_symbolic_instrs_in_block(self._uc_state, block_addr)
-            instr_addrs = (ctypes.c_uint64 * instr_count)()
-            _UC_NATIVE.get_symbolic_instrs_in_block(self._uc_state, block_addr, instr_addrs)
-            for instr_addr in instr_addrs:
-                instr_dep_count = _UC_NATIVE.get_count_of_dependencies_of_instr(self._uc_state, instr_addr)
-                instr_deps = (SavedConcreteDependency * instr_dep_count)()
-                _UC_NATIVE.get_dependencies_of_instr(self._uc_state, instr_addr, instr_deps)
-                for instr_dep in instr_deps:
-                    dep_entry = {"type": instr_dep.dependency_type}
-                    if instr_dep.dependency_type == TaintEntityEnum.TAINT_ENTITY_REG:
-                        dep_entry["reg_offset"] = instr_dep.reg_offset
-                        dep_entry["reg_value"] = instr_dep.reg_value
-                    elif instr_dep.dependency_type == TaintEntityEnum.TAINT_ENTITY_MEM:
-                        dep_entry["mem_address"] = instr_dep.mem_address
-                        dep_entry["mem_value_size"] = instr_dep.mem_value_size
-                        dep_entry["mem_value"] = instr_dep.mem_value
-                    else:
-                        # Temps and None type entities should not be dependencies but just in case
-                        # they are
-                        continue
+        return_data = []
+        instr_count = _UC_NATIVE.get_count_of_symbolic_instrs()
+        instr_list = (SymbolicInstrDetails * instr_count)
+        _UC_NATIVE.get_symbolic_instrs(self._uc_state, instr_list)
+        for instr in instr_list:
+            instr_entry = {"instr_addr": instr.instr_addr, "block_addr": instr.block_addr,
+                           "block_size": instr.block_size, "dependencies": []}
 
-                    if block_addr not in return_data:
-                        return_data[block_addr] = {instr_addr: dep_entry}
-                    else:
-                        return_data[block_addr][instr_addr] = dep_entry
+            for instr_dependency in instr.dependencies[:instr.dependencies_count]:
+                dep_entry = {"type": instr_dependency.dependency_type}
+                if instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_REG:
+                    dep_entry["reg_offset"] = instr_dependency.reg_offset
+                    dep_entry["reg_value"] = instr_dependency.reg_value
+                elif instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_MEM:
+                    dep_entry["mem_address"] = instr_dependency.mem_address
+                    dep_entry["mem_value_size"] = instr_dependency.mem_value_size
+                    dep_entry["mem_value"] = instr_dependency.mem_value
+                else:
+                    # Temps and None type entities should not be dependencies but just in case
+                    # they are
+                    continue
+
+                instr_entry["dependencies"].append(dep_entry)
+
+            return_data.append(instr_entry)
 
         return return_data
 
