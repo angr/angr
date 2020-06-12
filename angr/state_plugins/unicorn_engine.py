@@ -51,7 +51,7 @@ class TaintEntityEnum: # taint_entity_enum_t
 
 class SavedConcreteDependency(ctypes.Structure): # saved_concrete_dependency_t
     _fields_ = [
-        ('dependency_type', TaintEntityEnum),
+        ('dependency_type', ctypes.c_uint8),
         ('reg_offset', ctypes.c_uint64),
         ('reg_value', ctypes.c_uint64),
         ('mem_address', ctypes.c_uint64),
@@ -59,7 +59,7 @@ class SavedConcreteDependency(ctypes.Structure): # saved_concrete_dependency_t
         ('mem_value', ctypes.c_char * 8)
     ]
 
-class SymbolicInstrDetails(ctypes.structure):
+class SymbolicInstrDetails(ctypes.Structure):
     _fields_ = [
         ('instr_addr', ctypes.c_uint64),
         ('block_addr', ctypes.c_uint64),
