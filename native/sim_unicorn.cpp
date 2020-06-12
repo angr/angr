@@ -1681,6 +1681,10 @@ public:
 	}
 
 	void propagate_taints() {
+		if (is_symbolic_tracking_disabled()) {
+			// We're not checking symbolic registers so no need to propagate taints
+			return;
+		}
 		block_taint_entry_t block_taint_entry = this->block_taint_cache.at(current_block_start_address);
 		// Resume propagating taints using symbolic_registers and symbolic_temps from where we paused
 		auto instr_taint_data_entries_it = block_taint_entry.block_instrs_taint_data_map.find(taint_engine_next_instr_address);
@@ -1695,10 +1699,6 @@ public:
 				// after the memory read.
 				taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 				return;
-			}
-			if (is_symbolic_tracking_disabled()) {
-				// We're not checking symbolic registers so no need to propagate taints
-				continue;
 			}
 			if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
 				// There are no symbolic registers so no taint to propagate.
@@ -1715,6 +1715,10 @@ public:
 	}
 
 	void propagate_taint_of_one_instr(const address_t instr_addr) {
+		if (is_symbolic_tracking_disabled()) {
+			// We're not checking symbolic registers so no need to propagate taints
+			return;
+		}
 		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
 		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 		propagate_taint_of_one_instr(instr_taint_data_entry);
@@ -1722,6 +1726,10 @@ public:
 	}
 
 	void propagate_taint_of_one_instr(const instruction_taint_entry_t &curr_instr_taint_entry) {
+		if (is_symbolic_tracking_disabled()) {
+			// We're not checking symbolic registers so no need to propagate taints
+			return;
+		}
 		for (auto &taint_data_entry: curr_instr_taint_entry.taint_sink_src_map) {
 			taint_entity_t taint_sink = taint_data_entry.first;
 			std::unordered_set<taint_entity_t> taint_srcs = taint_data_entry.second;
