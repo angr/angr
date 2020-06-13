@@ -854,8 +854,7 @@ class Unicorn(SimStatePlugin):
                     dep_entry["reg_value"] = instr_dependency.reg_value
                 elif instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_MEM:
                     dep_entry["mem_address"] = instr_dependency.mem_address
-                    dep_entry["mem_value_size"] = instr_dependency.mem_value_size
-                    dep_entry["mem_value"] = instr_dependency.mem_value
+                    dep_entry["mem_value"] = instr_dependency.mem_value[:instr_dependency.mem_value_size]
                 else:
                     # Temps and None type entities should not be dependencies but just in case
                     # they are
