@@ -25,16 +25,11 @@ extern "C" {
 #define PAGE_SIZE 0x1000
 #define PAGE_SHIFT 12
 
-#define MAX_REG_SIZE 0x2000 // hope it's big enough
-
 // Maximum size of a qemu/unicorn basic block
 // See State::step for why this is necessary
 static const uint32_t MAX_BB_SIZE = 800;
 
 static const uint8_t MAX_MEM_ACCESS_SIZE = 8;
-
-extern "C" void x86_reg_update(uc_engine *uc, uint8_t *buf, int save);
-extern "C" void mips_reg_update(uc_engine *uc, uint8_t *buf, int save);
 
 typedef enum taint: uint8_t {
 	TAINT_NONE = 0,
@@ -175,12 +170,6 @@ typedef enum stop {
 	STOP_SYMBOLIC_BLOCK_EXIT_STMT,
 } stop_t;
 
-typedef struct block_entry {
-	bool try_unicorn;
-	std::unordered_set<vex_reg_offset_t> used_registers;
-	std::unordered_set<vex_reg_offset_t> clobbered_registers;
-} block_entry_t;
-
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
 
 typedef struct instruction_taint_entry_t {
@@ -238,11 +227,9 @@ typedef struct CachedPage {
 
 typedef taint_t PageBitmap[PAGE_SIZE];
 typedef std::map<address_t, CachedPage> PageCache;
-typedef std::unordered_map<address_t, block_entry_t> BlockCache;
 typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 typedef struct caches {
 	PageCache *page_cache;
-	BlockCache *block_cache;
 } caches_t;
 std::map<uint64_t, caches_t> global_cache;
 
@@ -282,7 +269,6 @@ class State {
 private:
 	uc_engine *uc;
 	PageCache *page_cache;
-	BlockCache *block_cache;
 	BlockTaintCache block_taint_cache;
 	bool hooked;
 
@@ -318,7 +304,6 @@ private:
 
 	address_t current_block_start_address, current_block_size;
 	address_t taint_engine_next_instr_address;
-	address_t prev_block_addr;
 
 	uc_hook deferred_stop_hook;
 	stop_t deferred_stop_reason;
@@ -335,8 +320,6 @@ public:
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
 	bool stopped;
 	stop_t stop_reason;
-	vex_reg_offset_t stopping_register;
-	address_t stopping_memory;
 
 	bool ignore_next_block;
 	bool ignore_next_selfmod;
@@ -386,11 +369,9 @@ public:
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
 			page_cache = new PageCache();
-			block_cache = new BlockCache();
-			global_cache[cache_key] = {page_cache, block_cache};
+			global_cache[cache_key] = {page_cache};
 		} else {
 			page_cache = it->second.page_cache;
-			block_cache = it->second.block_cache;
 		}
 		arch = *((uc_arch*)uc); // unicorn hides all its internals...
 		mode = *((uc_mode*)((uc_arch*)uc + 1));
@@ -922,247 +903,11 @@ public:
 	// Feasibility checks for unicorn
 	//
 
-	// check if we can clobberedly handle this IRExpr
-	inline bool check_expr(RegisterSet *clobbered, RegisterSet *danger, IRExpr *e)
-	{
-		int i, expr_size;
-		if (e == NULL) return true;
-		switch (e->tag)
-		{
-			case Iex_Binder:
-				break;
-			case Iex_VECRET:
-				break;
-			case Iex_GSPTR:
-				break;
-			case Iex_GetI:
-				// we can't handle this for the same reasons as PutI (see below)
-				return false;
-				break;
-			case Iex_RdTmp:
-				break;
-			case Iex_Get:
-				if (e->Iex.Get.ty == Ity_I1)
-				{
-					//LOG_W("seeing a 1-bit get from a register");
-					return false;
-				}
-
-				expr_size = sizeofIRType(e->Iex.Get.ty);
-				this->check_register_read(clobbered, danger, e->Iex.Get.offset, expr_size);
-				break;
-			case Iex_Qop:
-				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg1)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg2)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg3)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.Qop.details->arg4)) return false;
-				break;
-			case Iex_Triop:
-				if (!this->check_expr(clobbered, danger, e->Iex.Triop.details->arg1)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.Triop.details->arg2)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.Triop.details->arg3)) return false;
-				break;
-			case Iex_Binop:
-				if (!this->check_expr(clobbered, danger, e->Iex.Binop.arg1)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.Binop.arg2)) return false;
-				break;
-			case Iex_Unop:
-				if (!this->check_expr(clobbered, danger, e->Iex.Unop.arg)) return false;
-				break;
-			case Iex_Load:
-				if (!this->check_expr(clobbered, danger, e->Iex.Load.addr)) return false;
-				break;
-			case Iex_Const:
-				break;
-			case Iex_ITE:
-				if (!this->check_expr(clobbered, danger, e->Iex.ITE.cond)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.ITE.iffalse)) return false;
-				if (!this->check_expr(clobbered, danger, e->Iex.ITE.iftrue)) return false;
-				break;
-			case Iex_CCall:
-				for (i = 0; e->Iex.CCall.args[i] != NULL; i++)
-				{
-					if (!this->check_expr(clobbered, danger, e->Iex.CCall.args[i])) return false;
-				}
-				break;
-		}
-
-		return true;
-	}
-
 	// mark the register as clobbered
 	inline void mark_register_clobbered(RegisterSet *clobbered, vex_reg_offset_t offset, int size)
 	{
 		for (int i = 0; i < size; i++)
 			clobbered->insert(offset + i);
-	}
-
-	// check register access
-	inline void check_register_read(RegisterSet *clobbered, RegisterSet *danger, vex_reg_offset_t offset, int size)
-	{
-		for (int i = 0; i < size; i++)
-		{
-			if (clobbered->count(offset + i) == 0) {
-				danger->insert(offset + i);
-			}
-		}
-	}
-
-	// check if we can clobberedly handle this IRStmt
-	inline bool check_stmt(RegisterSet *clobbered, RegisterSet *danger, IRTypeEnv *tyenv, IRStmt *s)
-	{
-		switch (s->tag)
-		{
-			case Ist_Put: {
-				if (!this->check_expr(clobbered, danger, s->Ist.Put.data)) return false;
-				IRType expr_type = typeOfIRExpr(tyenv, s->Ist.Put.data);
-				if (expr_type == Ity_I1)
-				{
-					//LOG_W("seeing a 1-bit write to a register");
-					return false;
-				}
-
-				int expr_size = sizeofIRType(expr_type);
-				this->mark_register_clobbered(clobbered, s->Ist.Put.offset, expr_size);
-				break;
-			}
-			case Ist_PutI:
-				// we cannot handle the PutI because:
-				// 1. in the case of symbolic registers, we need to have a good
-				//    handle on what registers need to be synced back to angr.
-				// 2. this requires us to track all the writes
-				// 3. a PutI represents an indirect write into the registerfile,
-				//    and we can't figure out where it's writing to ahead of time
-				// 4. unicorn provides no way to hook register writes (and that'd
-				//    probably be prohibitively slow anyways)
-				// 5. so we're screwed
-				return false;
-				break;
-			case Ist_WrTmp:
-				if (!this->check_expr(clobbered, danger, s->Ist.WrTmp.data)) return false;
-				break;
-			case Ist_Store:
-				if (!this->check_expr(clobbered, danger, s->Ist.Store.addr)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.Store.data)) return false;
-				break;
-			case Ist_CAS:
-				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->addr)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->dataLo)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->dataHi)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->expdLo)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.CAS.details->expdHi)) return false;
-				break;
-			case Ist_LLSC:
-				if (!this->check_expr(clobbered, danger, s->Ist.LLSC.addr)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.LLSC.storedata)) return false;
-				break;
-			case Ist_Dirty: {
-				if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->guard)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->mAddr)) return false;
-				for (int i = 0; s->Ist.Dirty.details->args[i] != NULL; i++)
-				{
-					if (!this->check_expr(clobbered, danger, s->Ist.Dirty.details->args[i])) return false;
-				}
-				break;
-							}
-			case Ist_Exit:
-				if (!this->check_expr(clobbered, danger, s->Ist.Exit.guard)) return false;
-				break;
-			case Ist_LoadG:
-				if (!this->check_expr(clobbered, danger, s->Ist.LoadG.details->addr)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.LoadG.details->alt)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.LoadG.details->guard)) return false;
-				break;
-			case Ist_StoreG:
-				if (!this->check_expr(clobbered, danger, s->Ist.StoreG.details->addr)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.StoreG.details->data)) return false;
-				if (!this->check_expr(clobbered, danger, s->Ist.StoreG.details->guard)) return false;
-				break;
-			case Ist_NoOp:
-			case Ist_IMark:
-			case Ist_AbiHint:
-			case Ist_MBE:
-				// no-ops for our purposes
-				break;
-			default:
-				//LOG_W("Encountered unknown VEX statement -- can't determine clobberedty.")
-				return false;
-		}
-
-		return true;
-	}
-
-	// check if the block is feasible
-	bool check_block(address_t address, int32_t size)
-	{
-		// assume we're good if we're not checking symbolic registers
-		if (this->vex_guest == VexArch_INVALID) {
-			return true;
-		}
-
-		// if there are no symbolic registers we're ok
-		if (this->symbolic_registers.size() == 0) {
-			return true;
-		}
-
-		// check if it's in the cache already
-		RegisterSet *clobbered_registers;
-		RegisterSet *used_registers;
-		auto search = this->block_cache->find(address);
-		if (search != this->block_cache->end()) {
-			if (!search->second.try_unicorn) {
-				return false;
-			}
-			clobbered_registers = &search->second.clobbered_registers;
-			used_registers = &search->second.used_registers;
-		} else {
-			// wtf i hate c++...
-			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
-			auto& entry = this->block_cache->emplace(std::make_pair(address, block_entry_t())).first->second;
-			entry.try_unicorn = true;
-			clobbered_registers = &entry.clobbered_registers;
-			used_registers = &entry.used_registers;
-
-			std::unique_ptr<uint8_t[]> instructions(new uint8_t[size]);
-			uc_mem_read(this->uc, address, instructions.get(), size);
-			VEXLiftResult *lift_ret = vex_lift(
-					this->vex_guest, this->vex_archinfo, instructions.get(), address, 99, size, 1, 0, 0, 1, 0,
-					pxControl
-					);
-
-
-			if (lift_ret == NULL) {
-				// TODO: how to handle?
-				return false;
-			}
-
-			IRSB *the_block = lift_ret->irsb;
-
-			for (int i = 0; i < the_block->stmts_used; i++) {
-				if (!this->check_stmt(clobbered_registers, used_registers, the_block->tyenv, the_block->stmts[i])) {
-					entry.try_unicorn = false;
-					return false;
-				}
-			}
-
-			if (!this->check_expr(clobbered_registers, used_registers, the_block->next)) {
-				entry.try_unicorn = false;
-				return false;
-			}
-		}
-
-		for (vex_reg_offset_t off : this->symbolic_registers) {
-			if (used_registers->count(off) > 0) {
-				stopping_register = off;
-				return false;
-			}
-		}
-
-		for (vex_reg_offset_t off : *clobbered_registers) {
-			this->symbolic_registers.erase(off);
-		}
-
-		return true;
 	}
 
 	inline bool is_symbolic_tracking_disabled() {
@@ -2031,20 +1776,6 @@ public:
 		return out;
 	}
 
-	void set_instruction_pointer(address_t val) {
-		unsigned int reg = arch_pc_reg();
-		if (reg != -1) {
-			uc_reg_write(uc, reg, &val);
-		}
-	}
-
-	void set_stack_pointer(address_t val) {
-		unsigned int reg = arch_sp_reg();
-		if (reg != -1) {
-			uc_reg_write(uc, reg, &val);
-		}
-	}
-
 	uint64_t get_count_of_symbolic_instrs() const {
 		return symbolic_instr_addrs.size();
 	}
@@ -2370,16 +2101,6 @@ uint64_t simunicorn_executed_pages(State *state) { // this is HORRIBLE
 extern "C"
 stop_t simunicorn_stop_reason(State *state) {
 	return state->stop_reason;
-}
-
-extern "C"
-uint64_t simunicorn_stopping_register(State *state) {
-	return state->stopping_register;
-}
-
-extern "C"
-uint64_t simunicorn_stopping_memory(State *state) {
-	return state->stopping_memory;
 }
 
 //
