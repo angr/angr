@@ -97,7 +97,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def store(self, addr, data: Union[int,SimMemoryObject], size=None, endness=None, memory=None, page_addr=None,
               cooperate=False, **kwargs):
         if not cooperate:
-            data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
+            data = self._force_store_cooperation(addr, data, size, endness, page_addr=page_addr, memory=memory,
+                                                 **kwargs)
 
         if type(data) is int or data.object.op == 'BVV':
             # mark range as not symbolic
@@ -242,7 +243,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if merged_val is None:
                     continue
 
-                self.store(b, merged_val, size=len(merged_val) // 8, inspect=False)  # do not convert endianness again
+                self.store(b, merged_val, size=len(merged_val) // 8, inspect=False, page_addr=page_addr)  # do not convert endianness again
 
                 merged_offsets.add(b)
 
