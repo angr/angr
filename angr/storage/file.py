@@ -138,6 +138,16 @@ class SimFileBase(SimStatePlugin):
         """
         raise NotImplementedError
 
+    @DefaultMemory.memo
+    def copy(self, memo):
+        o = super().copy()
+        o.ident = self.ident
+        o.name = self.name
+        o.ident = self.ident
+        o.writable = self.writable
+        o.concrete = self.concrete
+        return o
+
 
 class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
     """
