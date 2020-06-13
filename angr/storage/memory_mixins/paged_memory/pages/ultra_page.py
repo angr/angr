@@ -91,7 +91,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         cycle(page_addr + addr + size)
         if not cooperate:
-            result = self._force_load_cooperation(result, size, endness, memory=memory, **kwargs)
+            result = self._force_load_cooperation(result, size, endness, page_addr=page_addr, memory=memory, **kwargs)
         return result
 
     def store(self, addr, data: Union[int,SimMemoryObject], size=None, endness=None, memory=None, page_addr=None,

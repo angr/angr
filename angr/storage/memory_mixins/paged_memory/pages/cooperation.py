@@ -67,13 +67,16 @@ class MemoryObjectMixin(CooperationBase):
                 ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else c_objects[0][0] + size - a,
                 endness=endness)
             for i, (a, o) in enumerate(c_objects)]
+        if len(elements) == 0:
+            # nothing is read out
+            return claripy.BVV(0, 0)
         if len(elements) == 1:
             return elements[0]
 
         if endness == 'Iend_LE':
-            elements = reversed(elements)
+            elements = list(reversed(elements))
 
-        return claripy.Concat(*elements)
+        return elements[0].concat(*elements[1:])
 
     @classmethod
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, **kwargs):

@@ -73,6 +73,8 @@ class SizeConcretizationMixin(MemoryMixin):
         if condition is None:
             condition = self.state.solver.true
         for conc_size in conc_sizes:
+            if conc_size == 0:
+                continue
             super().store(addr, data, size=conc_size, condition=condition & (size == conc_size), **kwargs)
 
 
