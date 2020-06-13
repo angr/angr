@@ -172,6 +172,7 @@ typedef enum stop {
 	STOP_SYMBOLIC_READ_ADDR,
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
 	STOP_SYMBOLIC_WRITE_ADDR,
+	STOP_SYMBOLIC_BLOCK_EXIT_STMT,
 } stop_t;
 
 typedef struct block_entry {
@@ -215,6 +216,7 @@ typedef struct instruction_taint_entry_t {
 typedef struct block_taint_entry_t {
 	std::map<address_t, instruction_taint_entry_t> block_instrs_taint_data_map;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
+	address_t exit_stmt_instr_addr;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
@@ -1357,6 +1359,7 @@ public:
 				{
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Exit.guard, true);
 					block_taint_entry.exit_stmt_guard_expr_deps = result.first;
+					block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
 					if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
 						auto dependencies_to_save = compute_dependencies_to_save(block_taint_entry.exit_stmt_guard_expr_deps);
 						instruction_taint_entry.has_memory_read = dependencies_to_save.second;
@@ -1705,11 +1708,11 @@ public:
 				continue;
 			}
 			propagate_taint_of_one_instr(curr_instr_taint_entry);
-		}
-		if (instr_taint_data_entries_it != instr_taint_data_stop_it) {
-			// We reached here because we hit some stop state. Set next instruction address as
-			// current instruction. VEX land will likely need this info.
-			taint_engine_next_instr_address = instr_taint_data_entries_it->first;
+			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
+				if (is_block_exit_guard_symbolic()) {
+					stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+				}
+			}
 		}
 		return;
 	}
@@ -1722,6 +1725,11 @@ public:
 		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
 		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 		propagate_taint_of_one_instr(instr_taint_data_entry);
+		if (!stopped && (instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
+			if (is_block_exit_guard_symbolic()) {
+				stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+			}
+		}
 		return;
 	}
 
@@ -1941,23 +1949,10 @@ public:
 		}
 	}
 
-	bool is_symbolic_exit_guard_previous_block() {
-		// Technically we have started next block but we haven't updated the address of block being
-		// executed and so current_block_start_address still works
-		if (current_block_start_address == 0) {
-			// We haven't started concrete execution yet
-			return false;
-		}
-		block_taint_entry_t prev_block_taint_entry = block_taint_cache.at(current_block_start_address);
-		auto prev_block_exit_guard_taint_status = get_final_taint_status(prev_block_taint_entry.exit_stmt_guard_expr_deps);
-		// Since this checks the exit condition of the previous block, that means the previous block
-		// was executed correctly: there was no memory read from a symbolic address. Hence, it is
-		// sufficient to check if the guard status is symbolic.
-		// (This is also why commit can be invoked before this: we need to check regs and temps)
-		if (prev_block_exit_guard_taint_status == TAINT_STATUS_SYMBOLIC) {
-			return true;
-		}
-		return false;
+	inline bool is_block_exit_guard_symbolic() {
+		block_taint_entry_t block_taint_entry = block_taint_cache.at(current_block_start_address);
+		auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
+		return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
 	}
 
 	inline unsigned int arch_sp_reg() {
@@ -2040,7 +2035,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		if (!state->is_symbolic_tracking_disabled()) {
 			// Symbolic register tracking is disabled but memory location has symbolic data.
 			// We switch to VEX engine then.
-			stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
+			state->stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
 		}
 	}
 	else
@@ -2099,13 +2094,6 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	state->commit(true);
-	// This call below also handles case when the first block is executed and there is no previous
-	// block
-	if (state->is_symbolic_exit_guard_previous_block()) {
-		// TODO: Save exit statement instruction address as to be executed symbolically
-		stop(STOP_SYMBOLIC_CONDITION);
-		return;
-	}
 	state->clear_dependency_saving_hooks();
 	state->step(address, size);
 
