@@ -224,6 +224,12 @@ typedef struct block_taint_entry_t {
 	}
 } block_taint_entry_t;
 
+typedef struct {
+	address_t instr_addr;
+	address_t block_addr;
+	uint64_t block_size;
+} stopped_instr_details_t;
+
 typedef struct CachedPage {
 	size_t size;
 	uint8_t *bytes;
@@ -270,6 +276,7 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
 static void hook_save_dependencies(uc_engine *uc, uint64_t address, uint32_t size, void *user_data);
+static void hook_deferred_stop(uc_engine *uc, address_t address, uint32_t size, void *user_data);
 
 class State {
 private:
@@ -312,6 +319,11 @@ private:
 	address_t current_block_start_address, current_block_size;
 	address_t taint_engine_next_instr_address;
 	address_t prev_block_addr;
+
+	uc_hook deferred_stop_hook;
+	stop_t deferred_stop_reason;
+	stopped_instr_details_t stopped_at_instr;
+	bool deferred_stop_status;
 
 public:
 	std::vector<address_t> bbl_addrs;
@@ -369,6 +381,7 @@ public:
 		uc_context_alloc(uc, &saved_regs);
 		executed_pages_iterator = NULL;
 		current_block_start_address = 0;
+		deferred_stop_status = false;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -526,6 +539,29 @@ public:
 		stop_reason = reason;
 		//LOG_D("stop: %s", msg);
 		uc_emu_stop(uc);
+	}
+
+	void deferred_stop(address_t stop_instr_addr, stop_t reason) {
+		// We need to stop at a future instruction: hook the instruction to stop concrete execution
+		// and save details of instruction
+		deferred_stop_status = true;
+		deferred_stop_reason = reason;
+		uc_hook_add(uc, &deferred_stop_hook, UC_HOOK_CODE, (void *)hook_deferred_stop, (void *)this, stop_instr_addr, stop_instr_addr);
+		save_stopped_at_instruction_details(stop_instr_addr);
+		return;
+	}
+
+	void do_deferred_stop() {
+		stop(deferred_stop_reason);
+		return;
+	}
+
+	inline void save_stopped_at_instruction_details(address_t instr_addr) {
+		// Save details of instruction where we stopped
+		stopped_at_instr.block_addr = current_block_start_address;
+		stopped_at_instr.block_size = current_block_size;
+		stopped_at_instr.instr_addr = instr_addr;
+		return;
 	}
 
 	void step(address_t current_address, int32_t size, bool check_stop_points=true) {
@@ -1694,7 +1730,7 @@ public:
 		auto instr_taint_data_stop_it = block_taint_entry.block_instrs_taint_data_map.end();
 		// We continue propagating taint until we encounter 1) a memory read, 2) end of block or
 		// 3) a stop state for concrete execution
-		for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped; ++instr_taint_data_entries_it) {
+		for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped && !deferred_stop_status; ++instr_taint_data_entries_it) {
 			address_t curr_instr_addr = instr_taint_data_entries_it->first;
 			instruction_taint_entry_t curr_instr_taint_entry = instr_taint_data_entries_it->second;
 			if (curr_instr_taint_entry.has_memory_read) {
@@ -1707,10 +1743,10 @@ public:
 				// There are no symbolic registers so no taint to propagate.
 				continue;
 			}
-			propagate_taint_of_one_instr(curr_instr_taint_entry);
-			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
+			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
+			if (!deferred_stop_status && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 				if (is_block_exit_guard_symbolic()) {
-					stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+					deferred_stop(curr_instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 				}
 			}
 		}
@@ -1724,16 +1760,16 @@ public:
 		}
 		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
 		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
-		propagate_taint_of_one_instr(instr_taint_data_entry);
-		if (!stopped && (instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
+		propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
+		if (!deferred_stop_status && (instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 			if (is_block_exit_guard_symbolic()) {
-				stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+				deferred_stop(instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 			}
 		}
 		return;
 	}
 
-	void propagate_taint_of_one_instr(const instruction_taint_entry_t &curr_instr_taint_entry) {
+	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry) {
 		if (is_symbolic_tracking_disabled()) {
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
@@ -1745,12 +1781,12 @@ public:
 				auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
 				// Check if address written to is symbolic or is read from memory
 				if (addr_taint_status != TAINT_STATUS_CONCRETE) {
-					stop(STOP_SYMBOLIC_WRITE_ADDR);
+					deferred_stop(instr_addr, STOP_SYMBOLIC_WRITE_ADDR);
 					return;
 				}
 				auto sink_taint_status = get_final_taint_status(taint_srcs);
 				if (sink_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
-					stop(STOP_SYMBOLIC_READ_ADDR);
+					deferred_stop(instr_addr,STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
 				else if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
@@ -1786,12 +1822,12 @@ public:
 			else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
 				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
 				if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
-					stop(STOP_SYMBOLIC_READ_ADDR);
+					deferred_stop(instr_addr,STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
 				else if (final_taint_status == TAINT_STATUS_SYMBOLIC) {
 					if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg())) {
-						stop(STOP_SYMBOLIC_PC);
+						deferred_stop(instr_addr, STOP_SYMBOLIC_PC);
 						return;
 					}
 					mark_register_temp_symbolic(taint_sink, true);
@@ -1827,7 +1863,7 @@ public:
 			}
 			auto ite_cond_taint_status = get_final_taint_status(curr_instr_taint_entry.ite_cond_entity_list);
 			if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
-				stop(STOP_SYMBOLIC_CONDITION);
+				deferred_stop(instr_addr,STOP_SYMBOLIC_CONDITION);
 				return;
 			}
 		}
@@ -1854,6 +1890,7 @@ public:
 			if (lift_ret == NULL) {
 				// Failed to lift block to VEX. Stop concrete execution
 				stop(STOP_VEX_LIFT_FAILED);
+				save_stopped_at_instruction_details(block_address);
 				return;
 			}
 			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
@@ -2036,6 +2073,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 			// Symbolic register tracking is disabled but memory location has symbolic data.
 			// We switch to VEX engine then.
 			state->stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
+			state->save_stopped_at_instruction_details(state->get_instruction_pointer());
 		}
 	}
 	else
@@ -2212,6 +2250,13 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_save_dependencies(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
 	State *state = (State *)user_data;
 	state->save_dependencies(address);
+	return;
+}
+
+static void hook_deferred_stop(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
+	State *state = (State *)user_data;
+	state->commit(false);
+	state->do_deferred_stop();
 	return;
 }
 
