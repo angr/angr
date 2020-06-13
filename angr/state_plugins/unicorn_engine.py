@@ -72,17 +72,25 @@ class SymbolicInstrDetails(ctypes.Structure):
 class STOP:  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
-    STOP_SYMBOLIC_MEM   = 2
-    STOP_SYMBOLIC_REG   = 3
-    STOP_ERROR          = 4
-    STOP_SYSCALL        = 5
-    STOP_EXECNONE       = 6
-    STOP_ZEROPAGE       = 7
-    STOP_NOSTART        = 8
-    STOP_SEGFAULT       = 9
-    STOP_ZERO_DIV       = 10
-    STOP_NODECODE       = 11
-    STOP_HLT            = 12
+    STOP_ERROR          = 2
+    STOP_SYSCALL        = 3
+    STOP_EXECNONE       = 4
+    STOP_ZEROPAGE       = 5
+    STOP_NOSTART        = 6
+    STOP_SEGFAULT       = 7
+    STOP_ZERO_DIV       = 8
+    STOP_NODECODE       = 9
+    STOP_HLT            = 10
+    STOP_VEX_LIFT_FAILED        = 11
+    STOP_SYMBOLIC_CONDITION     = 12
+    STOP_SYMBOLIC_PC            = 13
+    STOP_SYMBOLIC_READ_ADDR     = 14
+    STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED = 15
+    STOP_SYMBOLIC_WRITE_ADDR    = 16
+    STOP_SYMBOLIC_BLOCK_EXIT_STMT = 17
+    symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
+        STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
+        STOP_SYMBOLIC_BLOCK_EXIT_STMT]
 
     @staticmethod
     def name_stop(num):
@@ -90,6 +98,13 @@ class STOP:  # stop_t
             if item.startswith('STOP_') and getattr(STOP, item) == num:
                 return item
         raise ValueError(num)
+
+class StoppedInstructionDetails(ctypes.Structure):
+    _fields_ = [
+        ('instr_addr', ctypes.c_uint64),
+        ('block_addr', ctypes.c_uint64),
+        ('block_size', ctypes.c_uint64)
+    ]
 
 #
 # Memory mapping errors - only used internally
@@ -263,8 +278,6 @@ def _load_native():
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, 'stopping_register', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'stopping_memory', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
         _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
@@ -276,6 +289,7 @@ def _load_native():
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_symbolic_instrs', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_symbolic_instrs', None, state_t, ctypes.POINTER(SymbolicInstrDetails))
+        _setup_prototype(h, 'get_stopping_instruction', StoppedInstructionDetails, state_t)
 
         l.info('native plugin is enabled')
 
@@ -1046,13 +1060,19 @@ class Unicorn(SimStatePlugin, HeavyVEXMixin):
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
 
         # figure out why we stopped
-        if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
-            stopping_register = _UC_NATIVE.stopping_register(self._uc_state)
-            self._report_symbolic_blocker(self.state.registers.load(stopping_register, 1), 'reg')
-        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
-            stopping_memory = _UC_NATIVE.stopping_memory(self._uc_state)
-            self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
-
+        if self.stop_reason in STOP.symbolic_stop_reasons:
+            self.stopped_instruction = _UC_NATIVE.get_stopping_instruction(self._uc__state)
+            # TODO: execute this instruction in VEX engine
+        elif self.stop_reason == STOP.STOP_VEX_LIFT_FAILED:
+            # Raise lift failed error
+            self.stopped_instruction = _UC_NATIVE.get_stopping_instruction(self._uc__state)
+            block_addr = self.stopped_instruction.block_addr
+            block_size = self.stopped_instruction.block_size
+            if not self.state.project.is_hooked(block_addr):
+                raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook instructions in "
+                                           "the block with a python replacement using project.hook"
+                                           "(%#x, your_function, length=length_of_instruction)."
+                                           % (block_addr, block_addr))
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
             # unicorn just does quits without warning if it sees hlt. detect that.
             if (self.state.memory.load(self.state.ip, 1) == 0xf4).is_true():
