@@ -66,7 +66,7 @@ class TestCFGVisitor(TestCase):
 
                 mock_quasi_topological_sort.assert_called_once_with('mock_graph_return')
 
-    def disable_remove_from_sorted_nodes(self, *args):
+    def disable_remove_from_sorted_nodes(self):
         """
         Test the side-effect of a method on an ihnerited private property...
         """
