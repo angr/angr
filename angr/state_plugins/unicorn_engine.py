@@ -13,9 +13,10 @@ import time
 import binascii
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError, SimIRSBError, SimIRSBNoDecodeError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
+from ..engines.vex import HeavyVEXMixin
 
 l = logging.getLogger(name=__name__)
 ffi = cffi.FFI()
@@ -290,7 +291,7 @@ except ImportError:
     _UC_NATIVE = None
 
 
-class Unicorn(SimStatePlugin):
+class Unicorn(SimStatePlugin, HeavyVEXMixin):
     '''
     setup the unicorn engine for a state
     '''
@@ -398,6 +399,8 @@ class Unicorn(SimStatePlugin):
 
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
+        # VEX block cache for executing instructions skipped by native interface
+        self.vex_block_cache = {}
 
     @SimStatePlugin.memo
     def copy(self, _memo):
@@ -866,6 +869,70 @@ class Unicorn(SimStatePlugin):
 
         return return_data
 
+    def _get_block_vex(self, block_addr, block_size):
+        # Mostly based on the lifting code in HeavyVEXMixin
+        irsb = self.lift_vex(addr=block_addr, state=self.state, size=block_size)
+        if irsb.size == 0:
+            if irsb.jumpkind == 'Ijk_NoDecode':
+                if not self.state.project.is_hooked(irsb.addr):
+                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
+                                            "a python replacement using project.hook"
+                                            "(%#x, your_function, length=length_of_instruction)." % (irsb.addr, irsb.addr))
+                else:
+                    raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
+
+            raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
+
+        block_statements = {}
+        curr_instr_addr = None
+        curr_instr_stmts = []
+        ignored_statement_tags = ["Ist_AbiHint", "Ist_MBE", "Ist_NoOP"]
+        for statement in irsb.statements:
+            if statement.tag == "Ist_IMark":
+                if curr_instr_addr is not None:
+                    block_statements[curr_instr_addr] = curr_instr_stmts
+                    curr_instr_stmts = []
+
+                curr_instr_addr = statement.addr
+            elif statement.tag not in ignored_statement_tags:
+                curr_instr_stmts.append(statement)
+
+        return block_statements
+
+
+    def _execute_instruction_in_vex(self, instr_entry):
+        if instr_entry["block_addr"] not in self.vex_block_cache:
+            vex_block_stmts = self._get_block_vex(instr_entry["block_addr"], instr_entry["block_size"])
+            self.vex_block_cache[instr_entry["block_addr"]] = vex_block_stmts
+        else:
+            vex_block_stmts = self.vex_block_cache[instr_entry["block_addr"]]
+
+        instr_vex_stmts = vex_block_stmts[instr_entry["instr_addr"]]
+        for dep_entry in instr_entry["dependencies"]:
+            if dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_REG:
+                # Set register
+                reg_offset = dep_entry["reg_offset"]
+                reg_value = dep_entry["reg_value"]
+                setattr(self.state.regs, reg_offset, reg_value)
+            elif dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_MEM:
+                # Set memory location value
+                address = dep_entry["mem_address"]
+                value = dep_entry["mem_value"]
+                self.state.memory.store(address, value)
+
+        for vex_stmt in instr_vex_stmts:
+            # Execute handler from HeavyVEXMixin for the statement
+            self._handle_vex_stmt(vex_stmt)
+
+        return
+
+    def _execute_symbolic_instrs(self):
+        instr_details_list = self._get_details_of_instrs_to_execute_symbolically()
+        for instr_detail_entry in instr_details_list:
+            self._execute_instruction_in_vex(instr_detail_entry)
+        return
+
+
     def uncache_region(self, addr, length):
         self._uncache_regions.append((addr, length))
 
@@ -972,6 +1039,7 @@ class Unicorn(SimStatePlugin):
         self.time = time.time() - self.time
 
     def finish(self):
+        self._execute_symbolic_instrs()
         # do the superficial synchronization
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
