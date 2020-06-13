@@ -322,7 +322,6 @@ private:
 
 	uc_hook deferred_stop_hook;
 	stop_t deferred_stop_reason;
-	stopped_instr_details_t stopped_at_instr;
 	bool deferred_stop_status;
 
 public:
@@ -356,6 +355,7 @@ public:
 	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	TempSet symbolic_temps;
+	stopped_instr_details_t stopped_at_instr;
 
 	// Result of all memory reads executed. Instruction address -> memory read result
 	std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
@@ -2533,4 +2533,9 @@ void simunicorn_get_symbolic_instrs(State *state, symbolic_instr_details_ret_t *
 		details_counter++;
 	}
 	return;
+}
+
+extern "C"
+stopped_instr_details_t simunicorn_get_stopping_instruction(State *state) {
+	return state->stopped_at_instr;
 }
