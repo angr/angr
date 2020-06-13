@@ -268,7 +268,7 @@ class PagedMemoryMixin(MemoryMixin):
         page = self._initialize_default_page(pageno, permissions=permissions, **kwargs)
         self._pages[pageno] = page
         if init_zero:
-            page.store(0, None, size=self.page_size, endness='Iend_BE', **kwargs)
+            page.store(0, None, size=self.page_size, endness='Iend_BE', page_addr=pageno*self.page_size, **kwargs)
 
     def _unmap_page(self, pageno, **kwargs):
         try:
