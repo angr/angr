@@ -1,12 +1,14 @@
-import networkx
-
+# pylint: disable=no-self-use
 from random import randrange
 from unittest import mock, TestCase
+import networkx
+
 
 from angr.code_location import CodeLocation
 from angr.knowledge_plugins.key_definitions.dataset import DataSet
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
+
 
 _PAST_N = set()
 
@@ -39,8 +41,7 @@ class TestDepGraph(TestCase):
         dep_graph = DepGraph()
         self.assertRaises(TypeError, dep_graph.add_node, 1)
 
-    @staticmethod
-    def test_delegate_add_node_to_the_underlying_graph_object():
+    def test_delegate_add_node_to_the_underlying_graph_object(self):
         with mock.patch.object(networkx.DiGraph, 'add_node') as digraph_add_node_mock:
             definition = _a_mock_definition()
             dep_graph = DepGraph()
@@ -52,8 +53,7 @@ class TestDepGraph(TestCase):
         dep_graph = DepGraph()
         self.assertRaises(TypeError, dep_graph.add_edge, 1, 2)
 
-    @staticmethod
-    def test_delegate_add_edge_to_the_underlying_graph_object():
+    def test_delegate_add_edge_to_the_underlying_graph_object(self):
         with mock.patch.object(networkx.DiGraph, 'add_edge') as digraph_add_edge_mock:
             use = (_a_mock_definition(), _a_mock_definition())
             labels = { 'attribute1': 'value1', 'attribute2': 'value2' }
