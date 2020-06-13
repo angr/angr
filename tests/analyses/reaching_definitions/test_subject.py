@@ -5,8 +5,9 @@ import nose
 import ailment
 
 from archinfo.arch_x86 import ArchX86
-from angr.analyses.forward_analysis.visitors import FunctionGraphVisitor
+from angr.analyses.forward_analysis.visitors import FunctionGraphVisitor, CFGVisitor
 from angr.analyses.reaching_definitions.subject import Subject, SubjectType
+from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.block import Block
 from angr.knowledge_plugins import Function
 
@@ -39,6 +40,15 @@ def test_can_be_instantiated_with_an_ailment_block():
 
     nose.tools.assert_equals(subject.content, block)
     nose.tools.assert_equals(subject.type, SubjectType.Block)
+
+
+@mock.patch.object(CFGVisitor, 'sort_nodes')
+def test_can_be_instantiated_with_a_slice(_):
+    cfg_slice_to_sink = CFGSliceToSink(None, {})
+    subject = Subject(cfg_slice_to_sink, None)
+
+    nose.tools.assert_equals(subject.content, cfg_slice_to_sink)
+    nose.tools.assert_equals(subject.type, SubjectType.CFGSliceToSink)
 
 
 def test_fails_when_instanciated_with_an_inadequate_object():

@@ -2,11 +2,13 @@
 import logging
 from typing import Optional, DefaultDict, Dict, Tuple, Set, Any, Union, TYPE_CHECKING
 from collections import defaultdict
+from functools import partial
 
 import ailment
 import pyvex
 
 from ...block import Block
+from ...knowledge_plugins.cfg.cfg_node import CFGNode
 from ...codenode import CodeNode
 from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
@@ -15,11 +17,11 @@ from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
+from ..cfg_slice_to_sink import slice_cfg_graph, slice_function_graph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
-from .subject import Subject
-
+from .subject import Subject, SubjectType
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
 
@@ -46,7 +48,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                  current_local_call_depth=1, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
-        :param Block|Function subject: The subject of the analysis: a function, or a single basic block.
+        :param Union[Block,Function,CFGSliceToSink] subject:
+                                                The subject of the analysis: a function, a single basic block, or the
+                                                representation of a slice to a sink.
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
@@ -71,6 +75,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
         self._graph_visitor = self._subject.visitor
+
+        if self._subject.type is SubjectType.CFGSliceToSink:
+            self._update_kb_content_from_slice()
+            self._graph_visitor.reset()
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=self._graph_visitor)
@@ -117,6 +125,27 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None)
 
         self._analyze()
+
+    def _update_kb_content_from_slice(self):
+        # Removes the nodes that are not in the slice from the CFG.
+        cfg = self.kb.cfgs['CFGFast']
+        slice_cfg_graph(cfg.graph, self._subject.content)
+        for node in cfg.nodes():
+            node._cfg_model = cfg
+
+        # Removes the functions for which entrypoints are not present in the slice.
+        for f in self.kb.functions:
+            if f not in self._subject.content.nodes:
+                del self.kb.functions[f]
+
+        # Remove the nodes that are not in the slice from the functions' graphs.
+        def _update_function_graph(cfg_slice_to_sink, function):
+            if len(function.graph.nodes()) > 1:
+                slice_function_graph(function.graph, cfg_slice_to_sink)
+        list(map(
+            partial(_update_function_graph, self._subject.content),
+            self.kb.functions._function_map.values()
+        ))
 
     @property
     def observed_results(self) -> Dict[Tuple[str,int,int],LiveDefinitions]:
@@ -273,6 +302,12 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             engine = self._engine_ail
         elif isinstance(node, (Block, CodeNode)):
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
+            block_key = node.addr
+            engine = self._engine_vex
+        elif isinstance(node, CFGNode):
+            if node.is_simprocedure or node.is_syscall:
+                return False, state.copy()
+            block = node.block
             block_key = node.addr
             engine = self._engine_vex
         else:
