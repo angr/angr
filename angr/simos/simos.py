@@ -87,7 +87,8 @@ class SimOS:
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, thread_idx=None, permissions_backer=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None,
+                    thread_idx=None, permissions_backer=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -116,7 +117,27 @@ class SimOS:
         if stack_end is None:
             stack_end = self.arch.initial_sp
 
-        state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, **kwargs)
+        if kwargs.get('permissions_map', None) is None:
+            # just a dict of address ranges to permission bits
+            permission_map = { }
+            for obj in self.project.loader.all_objects:
+                for seg in obj.segments:
+                    perms = 0
+                    # bit values based off of protection bit values from sys/mman.h
+                    if seg.is_readable:
+                        perms |= 1  # PROT_READ
+                    if seg.is_writable:
+                        perms |= 2  # PROT_WRITE
+                    if seg.is_executable:
+                        perms |= 4  # PROT_EXEC
+                    permission_map[(seg.min_addr, seg.max_addr)] = perms
+            kwargs['permissions_map'] = permission_map
+        if self.project.loader.main_object.execstack:
+            stack_perms = 1 | 2 | 4  # RWX
+        else:
+            stack_perms = 1 | 2  # RW
+
+        state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, stack_perms=stack_perms, **kwargs)
 
         if stdin is not None and not isinstance(stdin, SimFileBase):
             if type(stdin) is type:
