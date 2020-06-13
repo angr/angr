@@ -53,9 +53,10 @@ class TestCFGSliceToSink(unittest.TestCase):
 
         self.assertListEqual(result, expected_result)
 
-    def test_emptyness(self):
+    def disable_emptyness(self):
+        # disabled since binaries-private is not checked out for angr CI
         binaries_path = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
+            os.path.dirname(__file__),
             '..', '..', '..', '..', 'binaries-private', 'operation-mango'
         )
         binary_path = os.path.join(binaries_path, 'air-live-bu-2015', 'cgi_test.cgi')

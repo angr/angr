@@ -9,11 +9,12 @@ from angr.analyses.forward_analysis.visitors.cfg import CFGVisitor
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.project import Project
 
+# disabled since binaries-private is not checked out for angr CI
 
 class TestCFGVisitor(TestCase):
     def setUp(self) -> None:
         binary_path = os.path.join(
-            os.path.dirname(os.path.realpath(__file__)),
+            os.path.dirname(__file__),
             '..', '..', '..', '..', '..', 'binaries-private', 'operation-mango',
             'air-live-bu-2015', 'cgi_test.cgi'
         )
@@ -23,7 +24,7 @@ class TestCFGVisitor(TestCase):
         self.printf = cfg.kb.functions.function(name='printf', plt=False)
         self.printf_node = cfg.model.get_all_nodes(self.printf.addr)[0]
 
-    def test_successors_of_a_node_delegate_the_logic_to_the_CFGNode_successor(self):
+    def disable_successors_of_a_node_delegate_the_logic_to_the_CFGNode_successor(self):
         with mock.patch.object(CFGVisitor, 'reset'):
             with mock.patch.object(CFGNode, 'successors', new_callable=mock.PropertyMock) as mock_successors:
                 addr, size, cfg = 1, None, None
@@ -34,7 +35,7 @@ class TestCFGVisitor(TestCase):
 
                 mock_successors.assert_called_once_with()
 
-    def test_predecessors_of_a_node_delegate_the_logic_to_the_CFGNode_predecessor(self):
+    def disable_predecessors_of_a_node_delegate_the_logic_to_the_CFGNode_predecessor(self):
         with mock.patch.object(CFGVisitor, 'reset'):
             with mock.patch.object(CFGNode, 'predecessors', new_callable=mock.PropertyMock) as mock_predecessors:
                 addr, size, cfg = 1, None, None
@@ -45,7 +46,7 @@ class TestCFGVisitor(TestCase):
 
                 mock_predecessors.assert_called_once_with()
 
-    def test_sort_nodes(self):
+    def disable_sort_nodes(self):
         with mock.patch.object(CFGVisitor, 'reset'):
             with mock.patch.object(CFGUtils, 'quasi_topological_sort_nodes') as mock_quasi_topological_sort:
                 class CFGVisitorMock(CFGVisitor):
@@ -65,7 +66,7 @@ class TestCFGVisitor(TestCase):
 
                 mock_quasi_topological_sort.assert_called_once_with('mock_graph_return')
 
-    def test_remove_from_sorted_nodes(self, *args):
+    def disable_remove_from_sorted_nodes(self, *args):
         """
         Test the side-effect of a method on an ihnerited private property...
         """

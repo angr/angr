@@ -40,28 +40,28 @@ class TestDepGraph(TestCase):
         self.assertRaises(TypeError, dep_graph.add_node, 1)
 
     @staticmethod
-    @mock.patch.object(networkx.DiGraph, 'add_node')
-    def test_delegate_add_node_to_the_underlying_graph_object(digraph_add_node_mock):
-        definition = _a_mock_definition()
-        dep_graph = DepGraph()
-        dep_graph.add_node(definition)
+    def test_delegate_add_node_to_the_underlying_graph_object():
+        with mock.patch.object(networkx.DiGraph, 'add_node') as digraph_add_node_mock:
+            definition = _a_mock_definition()
+            dep_graph = DepGraph()
+            dep_graph.add_node(definition)
 
-        digraph_add_node_mock.assert_called_once_with(definition)
+            digraph_add_node_mock.assert_called_once_with(definition)
 
     def test_refuses_to_add_edge_between_non_definition_nodes(self):
         dep_graph = DepGraph()
         self.assertRaises(TypeError, dep_graph.add_edge, 1, 2)
 
     @staticmethod
-    @mock.patch.object(networkx.DiGraph, 'add_edge')
-    def test_delegate_add_edge_to_the_underlying_graph_object(digraph_add_edge_mock):
-        use = (_a_mock_definition(), _a_mock_definition())
-        labels = { 'attribute1': 'value1', 'attribute2': 'value2' }
+    def test_delegate_add_edge_to_the_underlying_graph_object():
+        with mock.patch.object(networkx.DiGraph, 'add_edge') as digraph_add_edge_mock:
+            use = (_a_mock_definition(), _a_mock_definition())
+            labels = { 'attribute1': 'value1', 'attribute2': 'value2' }
 
-        dep_graph = DepGraph()
-        dep_graph.add_edge(*use, **labels)
+            dep_graph = DepGraph()
+            dep_graph.add_edge(*use, **labels)
 
-        digraph_add_edge_mock.assert_called_once_with(*use, **labels)
+            digraph_add_edge_mock.assert_called_once_with(*use, **labels)
 
     def test_transitive_closure_of_a_node(self):
         dep_graph = DepGraph()
