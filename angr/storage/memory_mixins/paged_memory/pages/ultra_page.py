@@ -94,11 +94,21 @@ class UltraPage(MemoryObjectMixin, PageBase):
             result = self._force_load_cooperation(result, size, endness, page_addr=page_addr, memory=memory, **kwargs)
         return result
 
-    def store(self, addr, data: Union[int,SimMemoryObject], size=None, endness=None, memory=None, page_addr=None,
+    def store(self, addr, data: Union[int,SimMemoryObject], size: int=None, endness=None, memory=None, page_addr=None,
               cooperate=False, **kwargs):
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, page_addr=page_addr, memory=memory,
                                                  **kwargs)
+
+        if size >= memory.page_size - addr:
+            size = memory.page_size - addr
+
+        if data.object.op == 'BVV':
+            # trim the overflowing bytes if there are any
+            if len(data) // 8 >= size:
+                full_bits = len(data.object)
+                obj = data.object[full_bits - 1: full_bits - size * 8]
+                data = obj.args[0]
 
         if type(data) is int or data.object.op == 'BVV':
             # mark range as not symbolic
@@ -106,7 +116,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
             # store
             arange = range(addr, addr+size)
-            ival = data.object.args[0]
+            if type(data) is int:
+                ival = data
+            else:  # data.object.op == 'BVV'
+                ival = data.object.args[0]
             if endness == 'Iend_BE':
                 arange = reversed(arange)
 
