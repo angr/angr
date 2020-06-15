@@ -105,7 +105,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         if data.object.op == 'BVV':
             # trim the overflowing bytes if there are any
-            if len(data) // 8 >= size:
+            if len(data) > size * memory.state.arch.byte_width:
                 full_bits = len(data.object)
                 obj = data.object[full_bits - 1: full_bits - size * 8]
                 data = obj.args[0]
@@ -220,7 +220,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if our_mo is None:
                     # this object does not exist in the current page. do the store
                     new_object = SimMemoryObject(merged_val, page_addr + b, memory_objects[0][0].endness)
-                    self.store(b, new_object, size=list(mo_lengths)[0], cooperate=True)
+                    self.store(b, new_object, size=list(mo_lengths)[0], cooperate=True, memory=memory)
                     merged_objects.add(new_object)
                 else:
                     # do the replacement
@@ -256,7 +256,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if merged_val is None:
                     continue
 
-                self.store(b, merged_val, size=len(merged_val) // 8, inspect=False, page_addr=page_addr)  # do not convert endianness again
+                self.store(b, merged_val, size=len(merged_val) // 8, inspect=False, page_addr=page_addr, memory=memory)  # do not convert endianness again
 
                 merged_offsets.add(b)
 
