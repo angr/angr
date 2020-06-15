@@ -1,9 +1,11 @@
+from typing import Optional
 import logging
 
 from . import MemoryMixin
-from ...errors import SimMemoryLimitError, SimMemoryError
+from ...errors import SimMemoryLimitError, SimMemoryError, SimUnsatError
 
 l = logging.getLogger(__name__)
+
 
 class SizeNormalizationMixin(MemoryMixin):
     """
@@ -44,6 +46,7 @@ class SizeNormalizationMixin(MemoryMixin):
 
         super().store(addr, data, size=out_size, **kwargs)
 
+
 class SizeConcretizationMixin(MemoryMixin):
     """
     This mixin allows memory to process symbolic sizes. It will not touch any sizes which are not ASTs with non-BVV ops.
@@ -52,6 +55,15 @@ class SizeConcretizationMixin(MemoryMixin):
     - symbolic load sizes will be concretized as their maximum and a warning will be logged
     - symbolic store sizes will be dispatched as several conditional stores with concrete sizes
     """
+    def __init__(self, concretize_symbolic_write_size: bool=False, max_concretize_count: Optional[int]=256,
+                 max_symbolic_size: int=0x400000, raise_memory_limit_error: bool=False, size_limit: int=257, **kwargs):
+        super().__init__(**kwargs)
+        self._concretize_symbolic_write_size = concretize_symbolic_write_size  # in place of the state option CONCRETIZE_SYMBOLIC_WRITE_SIZES
+        self._max_concretize_count = max_concretize_count
+        self._max_symbolic_size = max_symbolic_size
+        self._raise_memory_limit_error = raise_memory_limit_error
+        self._size_limit = size_limit
+
     def load(self, addr, size=None, **kwargs):
         if getattr(size, 'op', 'BVV') == 'BVV':
             return super().load(addr, size=size, **kwargs)
@@ -66,12 +78,38 @@ class SizeConcretizationMixin(MemoryMixin):
             return
 
         max_size = len(data) // self.state.arch.byte_width
-        conc_sizes = list(self.state.solver.eval_upto(size, 257))
-        if len(conc_sizes) == 257:
-            raise SimMemoryLimitError("Extremely unconstrained store size")
+        try:
+            if self._raise_memory_limit_error:
+                conc_sizes = list(self.state.solver.eval_upto(
+                    size,
+                    self._size_limit,
+                    extra_constraints=(size <= max_size,)
+                    )
+                )
+                if len(conc_sizes) == self._size_limit:
+                    raise SimMemoryLimitError("Extremely unconstrained store size")
+            else:
+                conc_sizes = list(self.state.solver.eval_upto(
+                    size,
+                    self._max_concretize_count,
+                    extra_constraints=(size <= max_size,)
+                    )
+                )
+        except SimUnsatError:
+            # size has to be greater than max_size
+            raise SimMemoryError("Not enough data for store")
+
         conc_sizes.sort()
+        if self._max_concretize_count is not None:
+            conc_sizes = conc_sizes[:self._max_concretize_count]
         if conc_sizes[-1] > max_size:
             raise SimMemoryError("Not enough data for store")
+
+        if size.symbolic:
+            if any(cs > self._max_symbolic_size for cs in conc_sizes):
+                l.warning("At least one concretized size is over the limit of %d bytes. Constrain them to the limit.",
+                        self._max_symbolic_size)
+            conc_sizes = [min(cs, self._max_symbolic_size) for cs in conc_sizes]
 
         if condition is None:
             condition = self.state.solver.true
