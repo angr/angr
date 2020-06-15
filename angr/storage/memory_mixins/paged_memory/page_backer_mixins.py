@@ -141,7 +141,7 @@ class DictBackerMixin(PagedMemoryMixin):
                     new_page = PagedMemoryMixin._initialize_default_page(self, pageno, **kwargs)
                 new_page.store(addr % self.page_size,
                                claripy.BVV(byte[0] if type(byte) is bytes else byte, self.state.arch.byte_width),
-                               size=1, endness='Iend_BE', page_addr=page_addr, **kwargs)
+                               size=1, endness='Iend_BE', page_addr=page_addr, memory=self, **kwargs)
 
         if new_page is None:
             return super()._initialize_page(pageno, **kwargs)
