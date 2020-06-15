@@ -15,8 +15,9 @@ EXPORTS
   simunicorn_destroy
   simunicorn_step
   simunicorn_stop_reason
-  simunicorn_activate
+  simunicorn_activate_page
   simunicorn_set_stops
+  simunicorn_set_map_callback
   simunicorn_cache_page
   simunicorn_uncache_pages_touching_region
   simunicorn_clear_page_cache

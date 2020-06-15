@@ -38,6 +38,9 @@ class SizeNormalizationMixin(MemoryMixin):
 
         if out_size > max_size:
             raise SimMemoryError("Not enough data for store")
+        if out_size == 0:
+            # skip zero-sized stores
+            return
 
         super().store(addr, data, size=out_size, **kwargs)
 
