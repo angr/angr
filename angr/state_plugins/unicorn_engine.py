@@ -777,12 +777,12 @@ class Unicorn(SimStatePlugin):
             self.uc.mem_write(addr, data)
             self._mapped += 1
             # huge hack. why doesn't ctypes let you pass memoryview as void*?
-            _UC_NATIVE.activate_page(self._uc_state, addr, ffi.cast('unsigned long', ffi.from_buffer(bitmap)), None)
+            _UC_NATIVE.activate_page(self._uc_state, addr, ffi.cast('uint64_t', ffi.from_buffer(bitmap)), None)
         else:
             # new-style mapping, do it directly
-            self.uc.mem_map_ptr(addr, 0x1000, perm, int(ffi.cast('unsigned long', ffi.from_buffer(data))))
+            self.uc.mem_map_ptr(addr, 0x1000, perm, int(ffi.cast('uint64_t', ffi.from_buffer(data))))
             self._mapped += 1
-            _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('unsigned long', ffi.from_buffer(bitmap))), int(ffi.cast('unsigned long', ffi.from_buffer(data))))
+            _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))), int(ffi.cast('unsigned long', ffi.from_buffer(data))))
 
         return
 
