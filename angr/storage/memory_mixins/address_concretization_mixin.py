@@ -261,6 +261,11 @@ class AddressConcretizationMixin(MemoryMixin):
         return read_value
 
     def store(self, addr, data, size=None, condition=None, **kwargs):
+
+        if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
+            # not completed
+            return
+
         try:
             concrete_addrs = sorted(self.concretize_write_addr(addr))
         except SimMemoryError:
