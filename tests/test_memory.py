@@ -550,6 +550,14 @@ def test_light_memory():
     s.regs.cl = 0
     assert s.regs.rcx.symbolic
 
+
+def test_crosspage_store():
+    state = SimState(arch='x86')
+    state.regs.sp = 0xbaaafffc
+    state.memory.store(state.regs.sp, b"\x01\x02\x03\x04" + b"\x05\x06\x07\x08")
+    assert state.solver.eval(state.memory.load(state.regs.sp, 8)) == 0x102030405060708
+
+
 def test_crosspage_read():
     state = SimState(arch='ARM')
     state.regs.sp = 0x7fff0008
@@ -659,6 +667,7 @@ def test_hex_dump():
     )
 
 if __name__ == '__main__':
+    test_crosspage_store()
     test_crosspage_read()
     test_fast_memory()
     test_light_memory()
