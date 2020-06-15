@@ -32,7 +32,11 @@ class random(angr.SimProcedure):
             ), self.state.solver.BVV(0, self.state.arch.bits))
 
         if self.state.satisfiable(extra_constraints=[count!=0]):
-            self.state.memory.store(buf, self.state.solver.Unconstrained('random_%d' % next(rand_count), self.state.solver.max_int(count*8), key=('syscall', 'random')), size=count)
+            max_size = min(
+                    self.state.solver.max_int(count * 8),
+                    0x10000,
+                    )
+            self.state.memory.store(buf, self.state.solver.Unconstrained('random_%d' % next(rand_count), max_size, key=('syscall', 'random')), size=count)
         self.state.memory.store(rnd_bytes, count, endness='Iend_LE', condition=rnd_bytes != 0)
 
         return r
