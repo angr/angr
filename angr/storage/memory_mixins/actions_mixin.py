@@ -16,7 +16,9 @@ class ActionsMixinHigh(MemoryMixin):
             if o.AST_DEPS in self.state.options and self.category == 'reg':
                 r = SimActionObject(r, reg_deps=frozenset((addr,)))
 
-            if o.AUTO_REFS in self.state.options and action is not None:
+            if action is not None and action.actual_addrs and o.AUTO_REFS in self.state.options:
+                # ActionsMixinLow fills up action.actual_addrs. If the load fails, actual_addrs will be None or empty.
+                # In that case, we do not add the action.
                 action.data = action._make_object(r)
                 if action.size is None:
                     action.size = len(r)
@@ -31,7 +33,9 @@ class ActionsMixinHigh(MemoryMixin):
 
         super().store(addr, data, size=size, action=action, condition=condition, **kwargs)
 
-        if not disable_actions and o.AUTO_REFS in self.state.options and action is not None:
+        if action is not None and not disable_actions and action.actual_addrs and o.AUTO_REFS in self.state.options:
+            # ActionsMixinLow fills up action.actual_addrs. If the store fails, actual_addrs will be None or empty.
+            # In that case, we do not add the action.
             self.state.history.add_action(action)
 
     def __make_action(self, kind, addr, size, data, condition, fallback):
