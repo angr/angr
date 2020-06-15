@@ -301,11 +301,12 @@ class PagedMemoryMixin(MemoryMixin):
             bytes_out = bytearray(size)
             bitmap_out = bytearray(size)
             bit_idx = 0
+            byte_width = self.state.arch.byte_width
             for element in result.args:
-                byte_idx = bit_idx // 8
-                byte_size = len(element) // 8
-                if bit_idx % 8 != 0:
-                    chop = 8 - bit_idx
+                byte_idx = bit_idx // byte_width
+                byte_size = len(element) // byte_width
+                if bit_idx % byte_width != 0:
+                    chop = byte_width - bit_idx
                     bit_idx += chop
                     byte_idx += 1
                 else:
@@ -323,10 +324,10 @@ class PagedMemoryMixin(MemoryMixin):
                         bitmap_out[byte_i] = 1
 
                 bit_idx += len(element)
-                if bit_idx % 8 != 0:
+                if bit_idx % byte_width != 0:
                     if not with_bitmap:
-                        return memoryview(bytes(bytes_out))[:bit_idx // 8]
-                    bitmap_out[bit_idx // 8] = 1
+                        return memoryview(bytes(bytes_out))[:bit_idx // byte_width]
+                    bitmap_out[bit_idx // byte_width] = 1
             if with_bitmap:
                 return memoryview(bytes(bytes_out)), memoryview(bytes(bitmap_out))
             else:

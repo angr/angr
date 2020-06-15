@@ -53,7 +53,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if last_run is symbolic_run and symbolic_run is None:
                 fill(end)
             elif last_run is concrete_run:
-                new_ast = claripy.BVV(concrete_run, (end - result[-1][0]) * 8)
+                new_ast = claripy.BVV(concrete_run, (end - result[-1][0]) * memory.state.arch.byte_width)
                 new_obj = SimMemoryObject(new_ast, result[-1][0], endness)
                 result[-1] = (result[-1][0], new_obj)
 
@@ -80,9 +80,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 cur_val = self.concrete_data[subaddr]
                 if last_run is concrete_run:
                     if endness == 'Iend_LE':
-                        last_run = concrete_run = concrete_run | (cur_val << (8 * (realaddr - result[-1][0])))
+                        last_run = concrete_run = concrete_run | (cur_val << (memory.state.arch.byte_width * (realaddr - result[-1][0])))
                     else:
-                        last_run = concrete_run = (concrete_run << 8) | cur_val
+                        last_run = concrete_run = (concrete_run << memory.state.arch.byte_width) | cur_val
                     result[-1] = (result[-1][0], concrete_run)
                 else:
                     cycle(realaddr)
@@ -130,6 +130,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if endness == 'Iend_BE':
                 arange = reversed(arange)
 
+            assert memory.state.arch.byte_width == 8
+            # TODO: Make UltraPage support architectures with greater byte_widths (but are still multiples of 8)
             for subaddr in arange:
                 self.concrete_data[subaddr] = ival & 0xff
                 ival >>= 8
@@ -263,7 +265,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if merged_val is None:
                     continue
 
-                self.store(b, merged_val, size=len(merged_val) // 8, inspect=False, page_addr=page_addr, memory=memory)  # do not convert endianness again
+                self.store(b, merged_val, size=len(merged_val) // memory.state.arch.byte_width, inspect=False,
+                           page_addr=page_addr, memory=memory)  # do not convert endianness again
 
                 merged_offsets.add(b)
 
