@@ -92,9 +92,10 @@ class TestDepGraph(TestCase):
         # A -> B
         # B -> C
         # C -> D
-        lst = [ ]
-        for _ in range(4): lst.append(_a_mock_definition())
-        A, B, C, D = lst
+        A = _a_mock_definition()
+        B = _a_mock_definition()
+        C = _a_mock_definition()
+        D = _a_mock_definition()
         uses = [
             (A, B),
             (B, C),
