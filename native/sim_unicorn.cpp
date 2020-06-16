@@ -214,7 +214,6 @@ typedef struct block_taint_entry_t {
 } block_taint_entry_t;
 
 typedef struct {
-	address_t instr_addr;
 	address_t block_addr;
 	uint64_t block_size;
 } stopped_instr_details_t;
@@ -449,10 +448,10 @@ public:
 		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
 		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		    // handle edge case where we stop because we reached our bogus stop address (0)
-		    commit(true);
+		    commit();
 		    stop_reason = STOP_ZEROPAGE;
 		}
-		rollback(true);
+		rollback();
 
 		if (out == UC_ERR_INSN_INVALID) {
 			stop_reason = STOP_NODECODE;
@@ -479,7 +478,7 @@ public:
 				break;
 			case STOP_SYSCALL:
 				msg = "unable to handle syscall";
-				commit(true);
+				commit();
 				break;
 			case STOP_ZEROPAGE:
 				msg = "accessing zero page";
@@ -518,6 +517,7 @@ public:
 				msg = "unknown error";
 		}
 		stop_reason = reason;
+		save_stopped_at_instruction_details();
 		//LOG_D("stop: %s", msg);
 		uc_emu_stop(uc);
 	}
@@ -528,7 +528,6 @@ public:
 		deferred_stop_status = true;
 		deferred_stop_reason = reason;
 		uc_hook_add(uc, &deferred_stop_hook, UC_HOOK_CODE, (void *)hook_deferred_stop, (void *)this, stop_instr_addr, stop_instr_addr);
-		save_stopped_at_instruction_details(stop_instr_addr);
 		return;
 	}
 
@@ -537,11 +536,10 @@ public:
 		return;
 	}
 
-	inline void save_stopped_at_instruction_details(address_t instr_addr) {
-		// Save details of instruction where we stopped
+	inline void save_stopped_at_instruction_details() {
+		// Save details of block of instruction where we stopped
 		stopped_at_instr.block_addr = current_block_start_address;
 		stopped_at_instr.block_size = current_block_size;
-		stopped_at_instr.instr_addr = instr_addr;
 		return;
 	}
 
@@ -585,7 +583,7 @@ public:
 	 * commit all memory actions.
 	 * end_block denotes whether this is done at the end of the block or not
 	 */
-	void commit(bool end_block) {
+	void commit() {
 		// save registers
 		uc_context_save(uc, saved_regs);
 
@@ -605,10 +603,7 @@ public:
 
 		// clear memory rollback status
 		mem_writes.clear();
-		if (end_block) {
-			// Commit done at end of block; increase step count
-			cur_steps++;
-		}
+		cur_steps++;
 
 		// Sync all block level taint statuses reads with state's taint statuses and block level
 		// symbolic instruction list with state's symbolic instruction list
@@ -632,9 +627,8 @@ public:
 
 	/*
 	 * undo recent memory actions.
-	 * block_level denotes whether we want to rollback fully to start of the block
 	 */
-	void rollback(bool block_level) {
+	void rollback() {
 		// roll back memory changes
 		for (auto rit = mem_writes.rbegin(); rit != mem_writes.rend(); rit++) {
             uc_err err = uc_mem_write(uc, rit->address, rit->value, rit->size);
@@ -676,8 +670,8 @@ public:
 		// restore registers
 		uc_context_restore(uc, saved_regs);
 
-		if (track_bbls && block_level) bbl_addrs.pop_back();
-		if (track_stack && block_level) stack_pointers.pop_back();
+		if (track_bbls) bbl_addrs.pop_back();
+		if (track_stack) stack_pointers.pop_back();
 	}
 
 	/*
@@ -1489,7 +1483,7 @@ public:
 				continue;
 			}
 			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
-			if (!deferred_stop_status && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
+			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 				if (is_block_exit_guard_symbolic()) {
 					deferred_stop(curr_instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 				}
@@ -1506,7 +1500,7 @@ public:
 		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
 		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 		propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
-		if (!deferred_stop_status && (instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
+		if (!stopped && (instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 			if (is_block_exit_guard_symbolic()) {
 				deferred_stop(instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 			}
@@ -1526,12 +1520,12 @@ public:
 				auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
 				// Check if address written to is symbolic or is read from memory
 				if (addr_taint_status != TAINT_STATUS_CONCRETE) {
-					deferred_stop(instr_addr, STOP_SYMBOLIC_WRITE_ADDR);
+					stop(STOP_SYMBOLIC_WRITE_ADDR);
 					return;
 				}
 				auto sink_taint_status = get_final_taint_status(taint_srcs);
 				if (sink_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
-					deferred_stop(instr_addr,STOP_SYMBOLIC_READ_ADDR);
+					stop(STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
 				else if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
@@ -1567,12 +1561,12 @@ public:
 			else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
 				taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
 				if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
-					deferred_stop(instr_addr,STOP_SYMBOLIC_READ_ADDR);
+					stop(STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
 				else if (final_taint_status == TAINT_STATUS_SYMBOLIC) {
 					if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg())) {
-						deferred_stop(instr_addr, STOP_SYMBOLIC_PC);
+						stop(STOP_SYMBOLIC_PC);
 						return;
 					}
 					mark_register_temp_symbolic(taint_sink, true);
@@ -1608,7 +1602,7 @@ public:
 			}
 			auto ite_cond_taint_status = get_final_taint_status(curr_instr_taint_entry.ite_cond_entity_list);
 			if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
-				deferred_stop(instr_addr,STOP_SYMBOLIC_CONDITION);
+				stop(STOP_SYMBOLIC_CONDITION);
 				return;
 			}
 		}
@@ -1635,7 +1629,6 @@ public:
 			if (lift_ret == NULL) {
 				// Failed to lift block to VEX. Stop concrete execution
 				stop(STOP_VEX_LIFT_FAILED);
-				save_stopped_at_instruction_details(block_address);
 				return;
 			}
 			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
@@ -1792,37 +1785,29 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	State *state = (State *)user_data;
 	mem_read_result_t mem_read_result;
 
-	// Commit the current execution state and create save point
-	state->commit(false);
 	mem_read_result.address = address;
 	mem_read_result.size = size;
 	auto tainted = state->find_tainted(address, size);
 	if (tainted != -1)
 	{
-		mem_read_result.is_value_symbolic = true;
 		if (!state->is_symbolic_tracking_disabled()) {
 			// Symbolic register tracking is disabled but memory location has symbolic data.
 			// We switch to VEX engine then.
 			state->stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
-			state->save_stopped_at_instruction_details(state->get_instruction_pointer());
+			return;
 		}
+		mem_read_result.is_value_symbolic = true;
 	}
 	else
 	{
 		mem_read_result.is_value_symbolic = false;
 		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
-	if (!state->stopped) {
-		state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
-		state->propagate_taint_of_one_instr(state->get_instruction_pointer());
-		state->check_and_save_dependencies(state->get_instruction_pointer());
-	}
+	state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
+	state->propagate_taint_of_one_instr(state->get_instruction_pointer());
+	state->check_and_save_dependencies(state->get_instruction_pointer());
 	if (!state->stopped) {
 		state->continue_propagating_taint();
-	}
-	if (state->stopped) {
-		// Since we've already executed part of the block, we rollback to the nearest save point.
-		state->rollback(false);
 	}
 	return;
 }
@@ -1862,16 +1847,12 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	state->commit(true);
+	state->commit();
 	state->clear_dependency_saving_hooks();
 	state->step(address, size);
 
 	if (!state->stopped) {
 		state->start_propagating_taint(address, size);
-	}
-	if (state->stopped) {
-		// Since we're only starting the block, we rollback to state at start of the block
-		state->rollback(true);
 	}
 	return;
 }
@@ -1932,7 +1913,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 				}
 
 				state->step(state->transmit_bbl_addr, 0, false);
-				state->commit(true);
+				state->commit();
 				if (state->stopped)
 				{
 					//printf("... stopped after step()\n");
@@ -1986,7 +1967,6 @@ static void hook_save_dependencies(uc_engine *uc, address_t address, uint32_t si
 
 static void hook_deferred_stop(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
 	State *state = (State *)user_data;
-	state->commit(false);
 	state->do_deferred_stop();
 	return;
 }

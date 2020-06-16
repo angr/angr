@@ -101,7 +101,6 @@ class STOP:  # stop_t
 
 class StoppedInstructionDetails(ctypes.Structure):
     _fields_ = [
-        ('instr_addr', ctypes.c_uint64),
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64)
     ]
