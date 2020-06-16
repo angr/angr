@@ -1,5 +1,5 @@
-
 # pylint:disable=no-self-use
+from typing import Tuple
 
 import logging
 
@@ -48,13 +48,13 @@ class SimEngineLight(SimEngine):
     #
 
     @property
-    def _context(self):
+    def _context(self) -> Tuple[int]:
         if not self._call_stack:
-            return self._call_stack
+            return tuple()
 
-        call_stack_addresses = list(map(lambda f: f.addr, self._call_stack))
         # Convert to Tuple to make `context` hashable if not None
-        return (*call_stack_addresses, )
+        call_stack_addresses = tuple(map(lambda f: f.addr, self._call_stack))
+        return call_stack_addresses
 
     def _codeloc(self, block_only=False):
         return CodeLocation(self.block.addr,
