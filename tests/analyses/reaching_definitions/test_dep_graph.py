@@ -87,6 +87,32 @@ class TestDepGraph(TestCase):
         self.assertSetEqual(result_nodes, {D, B, C, A})
         self.assertSetEqual(result_edges, {(B, D), (C, D), (A, B)})
 
+    def test_transitive_closure_includes_beginning_node(self):
+
+        dep_graph = DepGraph()
+        # A -> B
+        # B -> C
+        # C -> D
+        lst = [ ]
+        for _ in range(4): lst.append(_a_mock_definition())
+        A, B, C, D = lst
+        uses = [
+            (A, B),
+            (B, C),
+            (C, D)
+        ]
+        for use in uses:
+            dep_graph.add_edge(*use)
+
+        closure_0 = dep_graph.transitive_closure(C)
+        assert D not in closure_0
+
+        closure_1 = dep_graph.transitive_closure(D)
+        assert D in closure_1
+        assert closure_1.has_edge(A, B)
+        assert closure_1.has_edge(B, C)
+        assert closure_1.has_edge(C, D)
+
     def test_transitive_closure_of_a_node_should_copy_labels_from_original_graph(self):
         dep_graph = DepGraph()
 

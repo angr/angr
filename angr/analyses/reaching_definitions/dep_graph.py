@@ -66,9 +66,17 @@ class DepGraph:
         :return:            A graph of the transitive closure of the given definition.
         """
 
-        def _transitive_closure(def_: Definition, graph: networkx.DiGraph, result: networkx.DiGraph, visited: Optional[Set[Definition]]=None):
+        def _transitive_closure(def_: Definition, graph: networkx.DiGraph, result: networkx.DiGraph,
+                                visited: Optional[Set[Definition]]=None):
+            """
+            Returns a joint graph that comprises the transitive closure of all defs that `def_` depends on and the
+            current graph `result`. `result` is updated.
+            """
             if def_ in self._transitive_closures.keys():
-                return self._transitive_closures[def_]
+                closure = self._transitive_closures[def_]
+                # merge closure into result
+                result.add_edges_from(closure.edges())
+                return result
 
             predecessors = list(graph.predecessors(def_))
 
@@ -85,13 +93,13 @@ class DepGraph:
             visited.add(def_)
             predecessors_to_visit = set(predecessors) - set(visited)
 
-            _ = reduce(
+            closure = reduce(
                 lambda acc, def0: _transitive_closure(def0, graph, acc, visited),
                 predecessors_to_visit,
                 result
             )
 
-            self._transitive_closures[def_] = result
-            return result
+            self._transitive_closures[def_] = closure
+            return closure
 
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
