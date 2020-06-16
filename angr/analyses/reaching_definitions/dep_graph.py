@@ -85,13 +85,13 @@ class DepGraph:
             visited.add(def_)
             predecessors_to_visit = set(predecessors) - set(visited)
 
-            closure = reduce(
-                lambda acc, definition: _transitive_closure(definition, graph, acc, visited),
+            _ = reduce(
+                lambda acc, def0: _transitive_closure(def0, graph, acc, visited),
                 predecessors_to_visit,
                 result
             )
 
-            self._transitive_closures[def_] = closure
-            return closure
+            self._transitive_closures[def_] = result
+            return result
 
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
