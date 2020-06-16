@@ -87,8 +87,7 @@ class TestDepGraph(TestCase):
         self.assertSetEqual(result_nodes, {D, B, C, A})
         self.assertSetEqual(result_edges, {(B, D), (C, D), (A, B)})
 
-    def test_transitive_closure_includes_beginning_node(self):
-
+    def test_transitive_closure_includes_beginning_node_with_memoized_content(self):
         dep_graph = DepGraph()
         # A -> B
         # B -> C
@@ -105,13 +104,13 @@ class TestDepGraph(TestCase):
             dep_graph.add_edge(*use)
 
         closure_0 = dep_graph.transitive_closure(C)
-        assert D not in closure_0
+        self.assertNotIn(D, closure_0)
 
         closure_1 = dep_graph.transitive_closure(D)
-        assert D in closure_1
-        assert closure_1.has_edge(A, B)
-        assert closure_1.has_edge(B, C)
-        assert closure_1.has_edge(C, D)
+        self.assertIn(D, closure_1)
+        self.assertTrue(closure_1.has_edge(A, B))
+        self.assertTrue(closure_1.has_edge(B, C))
+        self.assertTrue(closure_1.has_edge(C, D))
 
     def test_transitive_closure_of_a_node_should_copy_labels_from_original_graph(self):
         dep_graph = DepGraph()
