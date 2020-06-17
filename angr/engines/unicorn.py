@@ -221,27 +221,29 @@ class SimEngineUnicorn(SuccessorsMixin):
                         state._inspect('irsb', BP_AFTER, address=bbl_addr)
                     break
 
-        # If unicorn stopped for a symbolic data related reason, continue onto to VEX engine
-        # If unicorn stopped on an exit with symbolic guard condition, execute that instruction and stop.
-        if state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
-            if state.unicorn.stop_reason == STOP.STOP_SYMBOLIC_BLOCK_EXIT_STMT:
-                # Execute the instruction with exit statement and stop
-                stopping_instr_block = self.unicorn.stopped_instr_block_details
-                block_addr = stopping_instr_block.block_addr
-                block_exit_instr_addr = stopping_instr_block.block_exit_instr_addr
-                if block_addr not in self.vex_block_cache:
-                    stopped_block_size = stopping_instr_block.block_size
-                    stopping_block_stmts = self._get_block_vex(block_addr, stopped_block_size)
-                    self.vex_block_cache[block_addr] = stopping_block_stmts
-                else:
-                    stopping_block_stmts = self.vex_block_cache[block_addr]
-
-                stopping_instr_stmts = stopping_block_stmts[block_exit_instr_addr]
-                for vex_stmt in stopping_instr_stmts:
-                    # Execute handler from HeavyVEXMixin for the statement
-                    super()._handle_vex_stmt(vex_stmt)
+        if state.unicorn.stop_reason == STOP.STOP_SYMBOLIC_BLOCK_EXIT_STMT:
+            # Unicorn stopped at an instruction symbolic guard condition for exit statement.
+            # Execute the instruction and stop.
+            stopping_instr_block = self.unicorn.stopped_instr_block_details
+            block_addr = stopping_instr_block.block_addr
+            block_exit_instr_addr = stopping_instr_block.block_exit_instr_addr
+            if block_addr not in self.block_details_cache:
+                stopped_block_size = stopping_instr_block.block_size
+                stopping_block_details = self._get_block_details(block_addr, stopped_block_size)
+                self.block_details_cache[block_addr] = stopping_block_details
             else:
-                return super().process_successors(successors, **kwargs)
+                stopping_block_details = self.block_details_cache[block_addr]
+
+            stopping_block_stmts = stopping_block_details["statements"]
+            stopping_block = stopping_block_details["block"]
+            # self.state.scratch.set_tyenv(stopping_block.tyenv)
+            stopping_instr_stmts = stopping_block_stmts[block_exit_instr_addr]
+            for vex_stmt in stopping_instr_stmts:
+                # Execute handler from HeavyVEXMixin for the statement
+                super()._handle_vex_stmt(vex_stmt)
+        elif state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
+            # Unicorn stopped for a symbolic data related reason. Switch to VEX engine.
+            return super().process_successors(successors, **kwargs)
         elif state.unicorn.stop_reason in STOP.unsupported_reasons:
             # Unicorn stopped because of some unsupported VEX statement, VEX expression or some
             # other unsupported operation. Switch to VEX engine.
