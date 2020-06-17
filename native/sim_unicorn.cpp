@@ -1028,6 +1028,7 @@ public:
 		int start = address & 0xFFF;
 		int end = (address + size - 1) & 0xFFF;
 		short clean;
+		address_t instr_addr;
 		bool is_dst_symbolic;
 
 		if (!bitmap) {
@@ -1037,9 +1038,10 @@ public:
 		}
 
         clean = 0;
-		is_dst_symbolic = mem_writes_taint_map.at(get_instruction_pointer());
+		instr_addr = get_instruction_pointer();
+		is_dst_symbolic = mem_writes_taint_map.at(instr_addr);
 		if (is_dst_symbolic) {
-			save_dependencies(get_instruction_pointer());
+			save_dependencies(instr_addr);
 		}
         if (data == NULL) {
             for (int i = start; i <= end; i++) {
@@ -1861,6 +1863,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 
 	mem_read_result.address = address;
 	mem_read_result.size = size;
+	address_t curr_instr_addr = state->get_instruction_pointer();
 	auto tainted = state->find_tainted(address, size);
 	if (tainted != -1)
 	{
@@ -1877,9 +1880,9 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		mem_read_result.is_value_symbolic = false;
 		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
-	state->mem_reads_map.emplace(state->get_instruction_pointer(), mem_read_result);
-	state->propagate_taint_of_one_instr(state->get_instruction_pointer());
-	state->check_and_save_dependencies(state->get_instruction_pointer());
+	state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
+	state->propagate_taint_of_one_instr(curr_instr_addr);
+	state->check_and_save_dependencies(curr_instr_addr);
 	if (!state->stopped) {
 		state->continue_propagating_taint();
 	}
