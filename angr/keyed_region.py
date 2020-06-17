@@ -99,7 +99,7 @@ class RegionObject:
 
 class KeyedRegion:
     """
-    KeyedRegion keeps a mapping between stack offsets and all objects covering that offset. It assumes no variable in
+    KeyedRegion keeps a mapping between offsets and all objects covering that offset. It assumes no variable in
     this region overlap with another variable in this region.
 
     Registers and function frames can all be viewed as a keyed region.
