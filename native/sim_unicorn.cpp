@@ -1496,7 +1496,10 @@ public:
 				return;
 			}
 			if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
-				// There are no symbolic registers so no taint to propagate.
+				// There are no symbolic registers so no taint to propagate. Mark any memory writes as concrete.
+				if (curr_instr_taint_entry.has_memory_write) {
+					mem_writes_taint_map.emplace(curr_instr_addr, false);
+				}
 				continue;
 			}
 			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
