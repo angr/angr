@@ -520,13 +520,13 @@ class SimEngineRDVEX(
 
         # direct calls
         ext_func_name = None
-        if self.project.loader.main_object.contains_addr(func_addr_int):
-            ext_func_name = self.project.loader.find_plt_stub_name(func_addr_int)
-        else:
+        if not self.project.loader.main_object.contains_addr(func_addr_int):
+            is_internal = False
             symbol = self.project.loader.find_symbol(func_addr_int)
             if symbol is not None:
                 ext_func_name = symbol.name
-        is_internal = ext_func_name is None
+        else:
+            is_internal = True
 
         executed_rda = False
         if ext_func_name is not None:
