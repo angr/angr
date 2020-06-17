@@ -1054,10 +1054,8 @@ public:
 	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, address_t address) {
 		block_taint_entry_t block_taint_entry;
 		instruction_taint_entry_t instruction_taint_entry;
-		bool started_processing_instructions;
 		address_t curr_instr_addr;
 
-		started_processing_instructions = false;
 		for (int i = 0; i < vex_block->stmts_used; i++) {
 			auto stmt = vex_block->stmts[i];
 			switch (stmt->tag) {
@@ -1158,13 +1156,11 @@ public:
 				case Ist_IMark:
 				{
 					// Save dependencies of previous instruction and clear it
-					if (started_processing_instructions) {
-						// TODO: Many instructions will not have dependencies. Can we save memory by not storing info for them?
+					if (instruction_taint_entry.taint_sink_src_map.size() > 0) {
 						block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 					}
 					instruction_taint_entry.reset();
 					curr_instr_addr = stmt->Ist.IMark.addr;
-					started_processing_instructions = true;
 					break;
 				}
 				case Ist_PutI:
@@ -1482,7 +1478,7 @@ public:
 		}
 		block_taint_entry_t block_taint_entry = this->block_taint_cache.at(current_block_start_address);
 		// Resume propagating taints using symbolic_registers and symbolic_temps from where we paused
-		auto instr_taint_data_entries_it = block_taint_entry.block_instrs_taint_data_map.find(taint_engine_next_instr_address);
+		auto instr_taint_data_entries_it = block_taint_entry.block_instrs_taint_data_map.lower_bound(taint_engine_next_instr_address);
 		auto instr_taint_data_stop_it = block_taint_entry.block_instrs_taint_data_map.end();
 		// We continue propagating taint until we encounter 1) a memory read, 2) end of block or
 		// 3) a stop state for concrete execution
