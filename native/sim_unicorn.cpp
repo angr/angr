@@ -1054,10 +1054,11 @@ public:
 	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, address_t address) {
 		block_taint_entry_t block_taint_entry;
 		instruction_taint_entry_t instruction_taint_entry;
+		bool started_processing_instructions;
+		address_t curr_instr_addr;
 
-		instruction_taint_entry.reset();
+		started_processing_instructions = false;
 		for (int i = 0; i < vex_block->stmts_used; i++) {
-			address_t curr_instr_addr;
 			auto stmt = vex_block->stmts[i];
 			switch (stmt->tag) {
 				case Ist_Put:
@@ -1156,12 +1157,14 @@ public:
 				}
 				case Ist_IMark:
 				{
-					// Save dependencies of previous instruction, if any, and clear it
-					if (instruction_taint_entry.taint_sink_src_map.size() > 0) {
+					// Save dependencies of previous instruction and clear it
+					if (started_processing_instructions) {
+						// TODO: Many instructions will not have dependencies. Can we save memory by not storing info for them?
 						block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 					}
 					instruction_taint_entry.reset();
 					curr_instr_addr = stmt->Ist.IMark.addr;
+					started_processing_instructions = true;
 					break;
 				}
 				case Ist_PutI:
@@ -1200,6 +1203,8 @@ public:
 				}
 			}
 		}
+		// Save last instruction's entry
+		block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 		return block_taint_entry;
 	}
 
