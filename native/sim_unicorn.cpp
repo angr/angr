@@ -1068,7 +1068,7 @@ public:
 					sink.entity_type = TAINT_ENTITY_REG;
 					sink.instr_addr = curr_instr_addr;
 					sink.reg_offset = stmt->Ist.Put.offset;
-					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, false);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, curr_instr_addr, false);
 					srcs = result.first;
 					ite_cond_entity_list = result.second;
 					if (srcs.size() > 0) {
@@ -1094,7 +1094,7 @@ public:
 					sink.entity_type = TAINT_ENTITY_TMP;
 					sink.instr_addr = curr_instr_addr;
 					sink.tmp_id = stmt->Ist.WrTmp.tmp;
-					auto result = get_taint_sources_and_ite_cond(stmt->Ist.WrTmp.data, false);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.WrTmp.data, curr_instr_addr, false);
 					srcs = result.first;
 					ite_cond_entity_list = result.second;
 					if (srcs.size() > 0) {
@@ -1118,10 +1118,10 @@ public:
 
 					sink.entity_type = TAINT_ENTITY_MEM;
 					sink.instr_addr = curr_instr_addr;
-					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Store.addr, false);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Store.addr, curr_instr_addr, false);
 					// TODO: What if memory addresses have ITE expressions in them?
 					sink.mem_ref_entity_list.assign(result.first.begin(), result.first.end());
-					result = get_taint_sources_and_ite_cond(stmt->Ist.Store.data, false);
+					result = get_taint_sources_and_ite_cond(stmt->Ist.Store.data, curr_instr_addr, false);
 					srcs = result.first;
 					ite_cond_entity_list = result.second;
 					instruction_taint_entry.has_memory_write = true;
@@ -1141,7 +1141,7 @@ public:
 				}
 				case Ist_Exit:
 				{
-					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Exit.guard, true);
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Exit.guard, curr_instr_addr, true);
 					block_taint_entry.exit_stmt_guard_expr_deps = result.first;
 					block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
 					if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
@@ -1217,7 +1217,7 @@ public:
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
 	std::pair<std::unordered_set<taint_entity_t>, std::unordered_set<taint_entity_t>> get_taint_sources_and_ite_cond(
-	  IRExpr *expr, bool is_exit_stmt) {
+	  IRExpr *expr, address_t instr_addr, bool is_exit_stmt) {
 		std::unordered_set<taint_entity_t> sources, ite_cond_entities;
 		switch (expr->tag) {
 			case Iex_RdTmp:
@@ -1225,6 +1225,7 @@ public:
 				taint_entity_t taint_entity;
 				taint_entity.entity_type = TAINT_ENTITY_TMP;
 				taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
+				taint_entity.instr_addr = instr_addr;
 				sources.emplace(taint_entity);
 				break;
 			}
@@ -1233,51 +1234,52 @@ public:
 				taint_entity_t taint_entity;
 				taint_entity.entity_type = TAINT_ENTITY_REG;
 				taint_entity.reg_offset = expr->Iex.Get.offset;
+				taint_entity.instr_addr = instr_addr;
 				sources.emplace(taint_entity);
 				break;
 			}
 			case Iex_Unop:
 			{
-				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Unop.arg, false);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Unop.arg, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_Binop:
 			{
-				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg1, false);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg1, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg2, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg2, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_Triop:
 			{
-				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg1, false);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg1, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg2, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg2, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg3, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg3, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
 			}
 			case Iex_Qop:
 			{
-				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg1, false);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg1, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg2, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg2, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg3, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg3, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg4, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg4, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
@@ -1288,7 +1290,7 @@ public:
 				// if condition is symbolic and stop concrete execution if it is. However for VEX
 				// exit statement, we don't need to store it separately since we process only the
 				// guard condition for Exit statements
-				auto temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.cond, false);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.cond, instr_addr, false);
 				if (is_exit_stmt) {
 					sources.insert(temp.first.begin(), temp.first.end());
 					sources.insert(temp.second.begin(), temp.second.end());
@@ -1297,10 +1299,10 @@ public:
 					ite_cond_entities.insert(temp.first.begin(), temp.first.end());
 					ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				}
-				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iffalse, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iffalse, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
-				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iftrue, false);
+				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iftrue, instr_addr, false);
 				sources.insert(temp.first.begin(), temp.first.end());
 				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				break;
@@ -1309,7 +1311,7 @@ public:
 			{
 				IRExpr **ccall_args = expr->Iex.CCall.args;
 				for (uint64_t i = 0; ccall_args[i]; i++) {
-					auto temp = get_taint_sources_and_ite_cond(ccall_args[i], false);
+					auto temp = get_taint_sources_and_ite_cond(ccall_args[i], instr_addr, false);
 					sources.insert(temp.first.begin(), temp.first.end());
 					ite_cond_entities.insert(temp.second.begin(), temp.second.end());
 				}
@@ -1317,11 +1319,12 @@ public:
 			}
 			case Iex_Load:
 			{
-				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Load.addr, false);
+				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Load.addr, instr_addr, false);
 				// TODO: What if memory addresses have ITE expressions in them?
 				taint_entity_t source;
 				source.entity_type = TAINT_ENTITY_MEM;
 				source.mem_ref_entity_list.assign(temp.first.begin(), temp.first.end());
+				source.instr_addr = instr_addr;
 				sources.emplace(source);
 				break;
 			}
