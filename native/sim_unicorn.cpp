@@ -168,6 +168,16 @@ typedef enum stop {
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
 	STOP_SYMBOLIC_WRITE_ADDR,
 	STOP_SYMBOLIC_BLOCK_EXIT_STMT,
+	STOP_MULTIPLE_MEMORY_WRITES,
+	STOP_UNSUPPORTED_STMT_PUTI,
+	STOP_UNSUPPORTED_STMT_STOREG,
+	STOP_UNSUPPORTED_STMT_LOADG,
+	STOP_UNSUPPORTED_STMT_CAS,
+	STOP_UNSUPPORTED_STMT_LLSC,
+	STOP_UNSUPPORTED_STMT_DIRTY,
+	STOP_UNSUPPORTED_STMT_UNKNOWN,
+	STOP_UNSUPPORTED_EXPR_GETI,
+	STOP_UNSUPPORTED_EXPR_UNKNOWN,
 } stop_t;
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -339,6 +349,7 @@ public:
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	TempSet symbolic_temps;
 	stopped_instr_details_t stopped_at_instr;
+	const char *stop_reason_msg;
 
 	// Result of all memory reads executed. Instruction address -> memory read result
 	std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
@@ -466,67 +477,96 @@ public:
 
 	void stop(stop_t reason) {
 		stopped = true;
-		const char *msg = NULL;
 		switch (reason) {
 			case STOP_NORMAL:
-				msg = "reached maximum steps";
+				stop_reason_msg = "reached maximum steps";
 				break;
 			case STOP_STOPPOINT:
-				msg = "hit a stop point";
+				stop_reason_msg = "hit a stop point";
 				break;
 			case STOP_ERROR:
-				msg = "something wrong";
+				stop_reason_msg = "something wrong";
 				break;
 			case STOP_SYSCALL:
-				msg = "unable to handle syscall";
+				stop_reason_msg = "unable to handle syscall";
 				commit();
 				break;
 			case STOP_ZEROPAGE:
-				msg = "accessing zero page";
+				stop_reason_msg = "accessing zero page";
 				break;
 			case STOP_EXECNONE:
-				msg = "fetching empty page";
+				stop_reason_msg = "fetching empty page";
 				break;
 			case STOP_NOSTART:
-				msg = "failed to start";
+				stop_reason_msg = "failed to start";
 				break;
 			case STOP_SEGFAULT:
-				msg = "permissions or mapping error";
+				stop_reason_msg = "permissions or mapping error";
 				break;
 			case STOP_ZERO_DIV:
-				msg = "divide by zero";
+				stop_reason_msg = "divide by zero";
 				break;
 			case STOP_NODECODE:
-				msg = "instruction decoding error";
+				stop_reason_msg = "instruction decoding error";
 				break;
 			case STOP_VEX_LIFT_FAILED:
-				msg = "failed to lift block to VEX";
+				stop_reason_msg = "failed to lift block to VEX";
 				break;
 			case STOP_SYMBOLIC_CONDITION:
-				msg = "symbolic condition for ITE or Exit";
+				stop_reason_msg = "symbolic condition for ITE or Exit";
 				break;
 			case STOP_SYMBOLIC_READ_ADDR:
-				msg = "attempted to read from symbolic address";
+				stop_reason_msg = "attempted to read from symbolic address";
 				break;
 			case STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED:
-				msg = "attempted to read symbolic data from memory but symbolic tracking is disabled";
+				stop_reason_msg = "attempted to read symbolic data from memory but symbolic tracking is disabled";
 				break;
 			case STOP_SYMBOLIC_WRITE_ADDR:
-				msg = "attempted to write to symbolic address";
+				stop_reason_msg = "attempted to write to symbolic address";
 				break;
 			case STOP_SYMBOLIC_PC:
-				msg = "Instruction pointer became symbolic";
+				stop_reason_msg = "Instruction pointer became symbolic";
 				break;
 			case STOP_SYMBOLIC_BLOCK_EXIT_STMT:
-				msg = "Guard condition of block's exit statement is symbolic";
+				stop_reason_msg = "Guard condition of block's exit statement is symbolic";
 				commit();
 				break;
+			case STOP_MULTIPLE_MEMORY_WRITES:
+				stop_reason_msg = "Symbolic taint propagation when multiple memory writes occur in single instruction not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_PUTI:
+				stop_reason_msg = "Symbolic taint propagation for PutI statement not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_STOREG:
+				stop_reason_msg = "Symbolic taint propagation for StoreG statement not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_LOADG:
+				stop_reason_msg = "Symbolic taint propagation for LoadG statement not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_CAS:
+				stop_reason_msg = "Symbolic taint propagation for CAS statement not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_LLSC:
+				stop_reason_msg = "Symbolic taint propagation for LLSC statement not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_DIRTY:
+				stop_reason_msg = "Symbolic taint propagation for Dirty statement not yet supported";
+				break;
+			case STOP_UNSUPPORTED_EXPR_GETI:
+				stop_reason_msg = "Symbolic taint propagation for GetI expression not yet supported";
+				break;
+			case STOP_UNSUPPORTED_STMT_UNKNOWN:
+				stop_reason_msg = "Cannot propagate symbolic taint for VEX statement of unknown type. See sim_unicorn logs.";
+				break;
+			case STOP_UNSUPPORTED_EXPR_UNKNOWN:
+				stop_reason_msg = "Cannot propagate symbolic taint for VEX expression of unknown type. See sim_unicorn logs";
+				break;
 			default:
-				msg = "unknown error";
+				stop_reason_msg = "unknown error";
 		}
 		stop_reason = reason;
 		save_stopped_at_instruction_details();
-		//LOG_D("stop: %s", msg);
+		//LOG_D("stop: %s", stop_reason_msg);
 		uc_emu_stop(uc);
 	}
 
@@ -1056,7 +1096,7 @@ public:
 		instruction_taint_entry_t instruction_taint_entry;
 		address_t curr_instr_addr;
 
-		for (int i = 0; i < vex_block->stmts_used; i++) {
+		for (int i = 0; i < vex_block->stmts_used && !stopped; i++) {
 			auto stmt = vex_block->stmts[i];
 			switch (stmt->tag) {
 				case Ist_Put:
@@ -1165,27 +1205,39 @@ public:
 				}
 				case Ist_PutI:
 				{
-					assert(false && "[sim_unicorn] PutI statements not yet supported!");
+					// TODO
+					stop(STOP_UNSUPPORTED_STMT_PUTI);
+					break;
 				}
 				case Ist_StoreG:
 				{
-					assert(false && "[sim_unicorn] StoreG statements not yet supported!");
+					// TODO
+					stop(STOP_UNSUPPORTED_STMT_STOREG);
+					break;
 				}
 				case Ist_LoadG:
 				{
-					assert(false && "[sim_unicorn] LoadG statements not yet supported!");
+					// TODO
+					stop(STOP_UNSUPPORTED_STMT_LOADG);
+					break;
 				}
 				case Ist_CAS:
 				{
-					assert(false && "[sim_unicorn] CAS statements not yet supported!");
+					// TODO
+					stop(STOP_UNSUPPORTED_STMT_CAS);
+					break;
 				}
 				case Ist_LLSC:
 				{
-					assert(false && "[sim_unicorn] LLSC statements not yet supported!");
+					// TODO
+					stop(STOP_UNSUPPORTED_STMT_LLSC);
+					break;
 				}
 				case Ist_Dirty:
 				{
-					assert(false && "[sim_unicorn] Dirty statements not yet supported!");
+					// TODO
+					stop(STOP_UNSUPPORTED_STMT_DIRTY);
+					break;
 				}
 				case Ist_MBE:
 				case Ist_NoOp:
@@ -1195,7 +1247,8 @@ public:
 				{
 					fprintf(stderr, "[sim_unicorn] Unsupported statement type encountered: ");
 					fprintf(stderr, "Block: 0x%zx, statement index: %d, statement type: %u\n", address, i, stmt->tag);
-					assert(false && "[sim_unicorn] Unsupported statement type encountered! See output for more info.");
+					stop(STOP_UNSUPPORTED_STMT_UNKNOWN);
+					break;
 				}
 			}
 		}
@@ -1206,14 +1259,8 @@ public:
 
 	inline uint64_t get_register_value(uint64_t vex_reg_offset) const {
 		uint64_t reg_value;
-		try {
-			uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), &reg_value);
-			return reg_value;
-		}
-		catch (std::out_of_range) {
-			fprintf(stderr, "Cannot retrieve value of unrecognized register %lu", vex_reg_offset);
-			assert(false && "[sim_unicorn] Unrecognized register in get_register_value.");
-		}
+		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), &reg_value);
+		return reg_value;
 	}
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
@@ -1332,7 +1379,8 @@ public:
 			case Iex_GetI:
 			{
 				// TODO
-				assert(false && "[sim_unicorn] GetI expression not yet supported!");
+				stop(STOP_UNSUPPORTED_EXPR_GETI);
+				break;
 			}
 			case Iex_Const:
 			case Iex_VECRET:
@@ -1342,7 +1390,8 @@ public:
 			default:
 			{
 				fprintf(stderr, "[sim_unicorn] Unsupported expression type encountered: %u\n", expr->tag);
-				assert(false && "[sim_unicorn] Unsupported expression type encountered! See output for more info.");
+				stop(STOP_UNSUPPORTED_EXPR_UNKNOWN);
+				break;
 			}
 		}
 		return std::make_pair(sources, ite_cond_entities);
@@ -1545,7 +1594,8 @@ public:
 					return;
 				}
 				else if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
-					assert(false && "[sim_unicorn] Multiple memory writes in same instruction not supported.");
+					stop(STOP_MULTIPLE_MEMORY_WRITES);
+					return;
 				}
 				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 					// Save the memory location written to be marked as symbolic in write hook
@@ -1648,6 +1698,10 @@ public:
 				return;
 			}
 			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
+			if (stopped) {
+				// Concrete execution stopped due to some unsupported VEX statement or expression.
+				return;
+			}
 			// Add entry to taint relations cache
 			block_taint_cache.emplace(block_address, block_taint_entry);
 		}
@@ -2097,6 +2151,11 @@ uint64_t simunicorn_executed_pages(State *state) { // this is HORRIBLE
 extern "C"
 stop_t simunicorn_stop_reason(State *state) {
 	return state->stop_reason;
+}
+
+extern "C"
+const char * simunicorn_stop_message(State *state) {
+	return state->stop_reason_msg;
 }
 
 //

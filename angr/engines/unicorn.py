@@ -242,6 +242,11 @@ class SimEngineUnicorn(SuccessorsMixin):
                     super()._handle_vex_stmt(vex_stmt)
             else:
                 return super().process_successors(successors, **kwargs)
+        elif state.unicorn.stop_reason in STOP.unsupported_reasons:
+            # Unicorn stopped because of some unsupported VEX statement, VEX expression or some
+            # other unsupported operation. Switch to VEX engine.
+            l.warn(state.unicorn.stop_message)
+            return super().process_successors(successors, **kwargs)
         else:
             if state.unicorn.jumpkind.startswith('Ijk_Sys'):
                 state.ip = state.unicorn._syscall_pc

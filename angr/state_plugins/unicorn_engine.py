@@ -88,9 +88,25 @@ class STOP:  # stop_t
     STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED = 15
     STOP_SYMBOLIC_WRITE_ADDR    = 16
     STOP_SYMBOLIC_BLOCK_EXIT_STMT = 17
+    STOP_MULTIPLE_MEMORY_WRITES   = 18
+    STOP_UNSUPPORTED_STMT_PUTI    = 19
+    STOP_UNSUPPORTED_STMT_STOREG  = 20
+    STOP_UNSUPPORTED_STMT_LOADG   = 21
+    STOP_UNSUPPORTED_STMT_CAS     = 22
+    STOP_UNSUPPORTED_STMT_LLSC    = 23
+    STOP_UNSUPPORTED_STMT_DIRTY   = 24
+    STOP_UNSUPPORTED_EXPR_GETI    = 25
+    STOP_UNSUPPORTED_STMT_UNKNOWN = 26
+    STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
+
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
         STOP_SYMBOLIC_BLOCK_EXIT_STMT]
+
+    unsupported_reasons = [STOP_MULTIPLE_MEMORY_WRITES, STOP_UNSUPPORTED_STMT_PUTI,
+        STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG, STOP_UNSUPPORTED_STMT_CAS,
+        STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY, STOP_UNSUPPORTED_STMT_UNKNOWN,
+        STOP_UNSUPPORTED_EXPR_UNKNOWN]
 
     @staticmethod
     def name_stop(num):
@@ -290,6 +306,7 @@ def _load_native():
         _setup_prototype(h, 'get_count_of_symbolic_instrs', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_symbolic_instrs', None, state_t, ctypes.POINTER(SymbolicInstrDetails))
         _setup_prototype(h, 'get_stopping_instruction_details', StoppedInstructionDetails, state_t)
+        _setup_prototype(h, 'stop_message', ctypes.c_char_p, state_t)
 
         l.info('native plugin is enabled')
 
@@ -993,6 +1010,7 @@ class Unicorn(SimStatePlugin):
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
         self.stopped_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
+        self.stop_message = _UC_NATIVE.stop_message(self._uc_state)
 
         # figure out why we stopped
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
