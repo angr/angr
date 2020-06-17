@@ -513,6 +513,13 @@ public:
 			case STOP_SYMBOLIC_WRITE_ADDR:
 				msg = "attempted to write to symbolic address";
 				break;
+			case STOP_SYMBOLIC_PC:
+				msg = "Instruction pointer became symbolic";
+				break;
+			case STOP_SYMBOLIC_BLOCK_EXIT_STMT:
+				msg = "Guard condition of block's exit statement is symbolic";
+				commit();
+				break;
 			default:
 				msg = "unknown error";
 		}
