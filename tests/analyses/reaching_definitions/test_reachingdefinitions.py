@@ -292,19 +292,6 @@ class TestReachingDefinitions(TestCase):
 
         self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
 
-    def test_init_the_call_stack_with_a_slice_as_subject_does_not_change_the_call_stack(self):
-        binary_path = _binary_path('all')
-        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-
-        initial_call_stack = [ ]
-
-        reaching_definitions = project.analyses.ReachingDefinitions(
-            subject=CFGSliceToSink(None, {}),
-            call_stack=initial_call_stack
-        )
-
-        self.assertEqual(reaching_definitions._call_stack, initial_call_stack)
-
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path('all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})

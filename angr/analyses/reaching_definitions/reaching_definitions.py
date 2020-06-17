@@ -17,7 +17,6 @@ from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
-from ..cfg_slice_to_sink import slice_cfg_graph, slice_function_graph
 from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
@@ -82,8 +81,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._graph_visitor = self._subject.visitor
 
         if self._subject.type is SubjectType.CFGSliceToSink:
-            self._update_kb_content_from_slice()
-            self._graph_visitor.reset()
+            raise TypeError("Do not pass a CFGSliceToSink into ReachingDefinitionsAnalysis. It is not supported.")
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=self._graph_visitor)
@@ -154,27 +152,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             return call_stack + [self._subject.content.current_function_address()]
         else:
             raise ValueError('Unexpected subject type %s.' % self._subject.type)
-
-    def _update_kb_content_from_slice(self):
-        # Removes the nodes that are not in the slice from the CFG.
-        cfg = self.kb.cfgs['CFGFast']
-        slice_cfg_graph(cfg.graph, self._subject.content)
-        for node in cfg.nodes():
-            node._cfg_model = cfg
-
-        # Removes the functions for which entrypoints are not present in the slice.
-        for f in self.kb.functions:
-            if f not in self._subject.content.nodes:
-                del self.kb.functions[f]
-
-        # Remove the nodes that are not in the slice from the functions' graphs.
-        def _update_function_graph(cfg_slice_to_sink, function):
-            if len(function.graph.nodes()) > 1:
-                slice_function_graph(function.graph, cfg_slice_to_sink)
-        list(map(
-            partial(_update_function_graph, self._subject.content),
-            self.kb.functions._function_map.values()
-        ))
 
     @property
     def observed_results(self) -> Dict[Tuple[str,int,int],LiveDefinitions]:
