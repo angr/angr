@@ -856,8 +856,8 @@ class Unicorn(SimStatePlugin):
 
     def _get_details_of_instrs_to_execute_symbolically(self):
         return_data = []
-        instr_count = _UC_NATIVE.get_count_of_symbolic_instrs()
-        instr_list = (SymbolicInstrDetails * instr_count)
+        instr_count = _UC_NATIVE.get_count_of_symbolic_instrs(self._uc_state)
+        instr_list = (SymbolicInstrDetails * instr_count)()
         _UC_NATIVE.get_symbolic_instrs(self._uc_state, instr_list)
         for instr in instr_list:
             instr_entry = {"instr_addr": instr.instr_addr, "block_addr": instr.block_addr,
@@ -992,7 +992,7 @@ class Unicorn(SimStatePlugin):
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
-        self.stopped_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc__state)
+        self.stopped_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
 
         # figure out why we stopped
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:

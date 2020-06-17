@@ -110,7 +110,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         return
 
     def _execute_symbolic_instrs(self):
-        instr_details_list = self.unicorn._get_details_of_instrs_to_execute_symbolically()
+        instr_details_list = self.state.unicorn._get_details_of_instrs_to_execute_symbolically()
         for instr_detail_entry in instr_details_list:
             self._execute_instruction_in_vex(instr_detail_entry)
 
