@@ -3447,7 +3447,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # extra check for ARM
             if is_arm_arch(self.project.arch) and self._seg_list.occupied_by_sort(addr) == "code":
                 existing_node = self.get_any_node(addr, anyaddr=True)
-                if (addr & 1) != (existing_node.addr & 1):
+                if existing_node is not None and (addr & 1) != (existing_node.addr & 1):
                     # we are trying to break an existing ARM node with a THUMB node, or vice versa
                     # this is probably because our current node is unexpected
                     return None, None, None, None
