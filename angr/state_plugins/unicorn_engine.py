@@ -1048,14 +1048,6 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason == STOP.STOP_STOPPOINT:
             self.countdown_nonunicorn_blocks = 0
             self.countdown_stop_point = self.cooldown_stop_point
-        elif self.stop_reason == STOP.STOP_SYMBOLIC_REG:
-            #if self.steps < 128:
-            #   self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
-            self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
-            #if self.steps < 128:
-            #   self.cooldown_symbolic_memory = min(self.cooldown_symbolic_memory * 2, 256)
-            self.countdown_symbolic_memory = self.cooldown_symbolic_memory
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
@@ -1109,7 +1101,7 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC_MEM, STOP.STOP_SYMBOLIC_REG):
+        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT):
             self.delete_uc()
 
         #l.debug("Resetting the unicorn state.")
