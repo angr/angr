@@ -216,6 +216,7 @@ typedef struct block_taint_entry_t {
 typedef struct {
 	address_t block_addr;
 	uint64_t block_size;
+	address_t block_exit_stmt_instr_addr;
 } stopped_instr_details_t;
 
 typedef struct CachedPage {
@@ -547,6 +548,7 @@ public:
 		// Save details of block of instruction where we stopped
 		stopped_at_instr.block_addr = current_block_start_address;
 		stopped_at_instr.block_size = current_block_size;
+		stopped_at_instr.block_exit_stmt_instr_addr = block_taint_cache.at(current_block_start_address).exit_stmt_instr_addr;
 		return;
 	}
 
@@ -2244,6 +2246,6 @@ void simunicorn_get_symbolic_instrs(State *state, symbolic_instr_details_ret_t *
 }
 
 extern "C"
-stopped_instr_details_t simunicorn_get_stopping_instruction(State *state) {
+stopped_instr_details_t simunicorn_get_stopping_instruction_details(State *state) {
 	return state->stopped_at_instr;
 }

@@ -1,6 +1,6 @@
 import logging
 
-from ..errors import SimValueError
+from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
 from ..state_plugins.inspect import BP_AFTER
 
@@ -83,6 +83,68 @@ class SimEngineUnicorn(SuccessorsMixin):
         next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
         next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 
+    def _execute_instruction_in_vex(self, instr_entry):
+        if instr_entry["block_addr"] not in self.vex_block_cache:
+            vex_block_stmts = self._get_block_vex(instr_entry["block_addr"], instr_entry["block_size"])
+            self.vex_block_cache[instr_entry["block_addr"]] = vex_block_stmts
+        else:
+            vex_block_stmts = self.vex_block_cache[instr_entry["block_addr"]]
+
+        instr_vex_stmts = vex_block_stmts[instr_entry["instr_addr"]]
+        for dep_entry in instr_entry["dependencies"]:
+            if dep_entry["type"] == self.unicorn.TaintEntityEnum.TAINT_ENTITY_REG:
+                # Set register
+                reg_offset = dep_entry["reg_offset"]
+                reg_value = dep_entry["reg_value"]
+                setattr(self.state.regs, reg_offset, reg_value)
+            elif dep_entry["type"] == self.unicorn.TaintEntityEnum.TAINT_ENTITY_MEM:
+                # Set memory location value
+                address = dep_entry["mem_address"]
+                value = dep_entry["mem_value"]
+                self.state.memory.store(address, value)
+
+        for vex_stmt in instr_vex_stmts:
+            # Execute handler from HeavyVEXMixin for the statement
+            super()._handle_vex_stmt(vex_stmt)
+
+        return
+
+    def _execute_symbolic_instrs(self):
+        instr_details_list = self.unicorn._get_details_of_instrs_to_execute_symbolically()
+        for instr_detail_entry in instr_details_list:
+            self._execute_instruction_in_vex(instr_detail_entry)
+
+        return
+
+    def _get_block_vex(self, block_addr, block_size):
+        # Mostly based on the lifting code in HeavyVEXMixin
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
+        if irsb.size == 0:
+            if irsb.jumpkind == 'Ijk_NoDecode':
+                if not self.state.project.is_hooked(irsb.addr):
+                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
+                                            "a python replacement using project.hook"
+                                            "(%#x, your_function, length=length_of_instruction)." % (irsb.addr, irsb.addr))
+                else:
+                    raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
+
+            raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
+
+        block_statements = {}
+        curr_instr_addr = None
+        curr_instr_stmts = []
+        ignored_statement_tags = ["Ist_AbiHint", "Ist_MBE", "Ist_NoOP"]
+        for statement in irsb.statements:
+            if statement.tag == "Ist_IMark":
+                if curr_instr_addr is not None:
+                    block_statements[curr_instr_addr] = curr_instr_stmts
+                    curr_instr_stmts = []
+
+                curr_instr_addr = statement.addr
+            elif statement.tag not in ignored_statement_tags:
+                curr_instr_stmts.append(statement)
+
+        return block_statements
 
     def process_successors(self, successors, **kwargs):
         state = self.state
@@ -117,6 +179,9 @@ class SimEngineUnicorn(SuccessorsMixin):
                 # will then be handled by another engine that can more accurately step instruction-by-instruction.
                 extra_stop_points.add(bp.kwargs["instruction"])
 
+        # VEX block cache for executing instructions skipped by native interface
+        self.vex_block_cache = {}
+
         # initialize unicorn plugin
         try:
             state.unicorn.setup()
@@ -132,6 +197,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()
             state.unicorn.start(step=step)
+            self._execute_symbolic_instrs()
             state.unicorn.finish()
         finally:
             state.unicorn.destroy()
@@ -155,9 +221,31 @@ class SimEngineUnicorn(SuccessorsMixin):
                         state._inspect('irsb', BP_AFTER, address=bbl_addr)
                     break
 
-        if state.unicorn.jumpkind.startswith('Ijk_Sys'):
-            state.ip = state.unicorn._syscall_pc
-        successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
+        # If unicorn stopped for a symbolic data related reason, continue onto to VEX engine
+        # If unicorn stopped on an exit with symbolic guard condition, execute that instruction and stop.
+        if state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
+            if state.unicorn.stop_reason == STOP.STOP_SYMBOLIC_BLOCK_EXIT_STMT:
+                # Execute the instruction with exit statement and stop
+                stopping_instr_block = self.unicorn.stopped_instr_block_details
+                block_addr = stopping_instr_block.block_addr
+                block_exit_instr_addr = stopping_instr_block.block_exit_instr_addr
+                if block_addr not in self.vex_block_cache:
+                    stopped_block_size = stopping_instr_block.block_size
+                    stopping_block_stmts = self._get_block_vex(block_addr, stopped_block_size)
+                    self.vex_block_cache[block_addr] = stopping_block_stmts
+                else:
+                    stopping_block_stmts = self.vex_block_cache[block_addr]
+
+                stopping_instr_stmts = stopping_block_stmts[block_exit_instr_addr]
+                for vex_stmt in stopping_instr_stmts:
+                    # Execute handler from HeavyVEXMixin for the statement
+                    super()._handle_vex_stmt(vex_stmt)
+            else:
+                return super().process_successors(successors, **kwargs)
+        else:
+            if state.unicorn.jumpkind.startswith('Ijk_Sys'):
+                state.ip = state.unicorn._syscall_pc
+            successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True

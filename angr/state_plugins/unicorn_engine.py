@@ -13,7 +13,7 @@ import time
 import binascii
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError, SimIRSBError, SimIRSBNoDecodeError
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 from ..engines.vex import HeavyVEXMixin
@@ -102,7 +102,8 @@ class STOP:  # stop_t
 class StoppedInstructionDetails(ctypes.Structure):
     _fields_ = [
         ('block_addr', ctypes.c_uint64),
-        ('block_size', ctypes.c_uint64)
+        ('block_size', ctypes.c_uint64),
+        ('block_exit_instr_addr', ctypes.c_uint64)
     ]
 
 #
@@ -288,7 +289,7 @@ def _load_native():
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_symbolic_instrs', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_symbolic_instrs', None, state_t, ctypes.POINTER(SymbolicInstrDetails))
-        _setup_prototype(h, 'get_stopping_instruction', StoppedInstructionDetails, state_t)
+        _setup_prototype(h, 'get_stopping_instruction_details', StoppedInstructionDetails, state_t)
 
         l.info('native plugin is enabled')
 
@@ -304,7 +305,7 @@ except ImportError:
     _UC_NATIVE = None
 
 
-class Unicorn(SimStatePlugin, HeavyVEXMixin):
+class Unicorn(SimStatePlugin):
     '''
     setup the unicorn engine for a state
     '''
@@ -376,6 +377,7 @@ class Unicorn(SimStatePlugin, HeavyVEXMixin):
         # native state in libsimunicorn
         self._uc_state = None
         self.stop_reason = None
+        self.stopping_instr_block_details = None
 
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
@@ -412,8 +414,6 @@ class Unicorn(SimStatePlugin, HeavyVEXMixin):
 
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
-        # VEX block cache for executing instructions skipped by native interface
-        self.vex_block_cache = {}
 
     @SimStatePlugin.memo
     def copy(self, _memo):
@@ -882,70 +882,6 @@ class Unicorn(SimStatePlugin, HeavyVEXMixin):
 
         return return_data
 
-    def _get_block_vex(self, block_addr, block_size):
-        # Mostly based on the lifting code in HeavyVEXMixin
-        irsb = self.lift_vex(addr=block_addr, state=self.state, size=block_size)
-        if irsb.size == 0:
-            if irsb.jumpkind == 'Ijk_NoDecode':
-                if not self.state.project.is_hooked(irsb.addr):
-                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
-                                            "a python replacement using project.hook"
-                                            "(%#x, your_function, length=length_of_instruction)." % (irsb.addr, irsb.addr))
-                else:
-                    raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
-
-            raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
-
-        block_statements = {}
-        curr_instr_addr = None
-        curr_instr_stmts = []
-        ignored_statement_tags = ["Ist_AbiHint", "Ist_MBE", "Ist_NoOP"]
-        for statement in irsb.statements:
-            if statement.tag == "Ist_IMark":
-                if curr_instr_addr is not None:
-                    block_statements[curr_instr_addr] = curr_instr_stmts
-                    curr_instr_stmts = []
-
-                curr_instr_addr = statement.addr
-            elif statement.tag not in ignored_statement_tags:
-                curr_instr_stmts.append(statement)
-
-        return block_statements
-
-
-    def _execute_instruction_in_vex(self, instr_entry):
-        if instr_entry["block_addr"] not in self.vex_block_cache:
-            vex_block_stmts = self._get_block_vex(instr_entry["block_addr"], instr_entry["block_size"])
-            self.vex_block_cache[instr_entry["block_addr"]] = vex_block_stmts
-        else:
-            vex_block_stmts = self.vex_block_cache[instr_entry["block_addr"]]
-
-        instr_vex_stmts = vex_block_stmts[instr_entry["instr_addr"]]
-        for dep_entry in instr_entry["dependencies"]:
-            if dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_REG:
-                # Set register
-                reg_offset = dep_entry["reg_offset"]
-                reg_value = dep_entry["reg_value"]
-                setattr(self.state.regs, reg_offset, reg_value)
-            elif dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_MEM:
-                # Set memory location value
-                address = dep_entry["mem_address"]
-                value = dep_entry["mem_value"]
-                self.state.memory.store(address, value)
-
-        for vex_stmt in instr_vex_stmts:
-            # Execute handler from HeavyVEXMixin for the statement
-            self._handle_vex_stmt(vex_stmt)
-
-        return
-
-    def _execute_symbolic_instrs(self):
-        instr_details_list = self._get_details_of_instrs_to_execute_symbolically()
-        for instr_detail_entry in instr_details_list:
-            self._execute_instruction_in_vex(instr_detail_entry)
-        return
-
-
     def uncache_region(self, addr, length):
         self._uncache_regions.append((addr, length))
 
@@ -1052,26 +988,13 @@ class Unicorn(SimStatePlugin, HeavyVEXMixin):
         self.time = time.time() - self.time
 
     def finish(self):
-        self._execute_symbolic_instrs()
         # do the superficial synchronization
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
+        self.stopped_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc__state)
 
         # figure out why we stopped
-        if self.stop_reason in STOP.symbolic_stop_reasons:
-            self.stopped_instruction = _UC_NATIVE.get_stopping_instruction(self._uc__state)
-            # TODO: execute this instruction in VEX engine
-        elif self.stop_reason == STOP.STOP_VEX_LIFT_FAILED:
-            # Raise lift failed error
-            self.stopped_instruction = _UC_NATIVE.get_stopping_instruction(self._uc__state)
-            block_addr = self.stopped_instruction.block_addr
-            block_size = self.stopped_instruction.block_size
-            if not self.state.project.is_hooked(block_addr):
-                raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook instructions in "
-                                           "the block with a python replacement using project.hook"
-                                           "(%#x, your_function, length=length_of_instruction)."
-                                           % (block_addr, block_addr))
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
             # unicorn just does quits without warning if it sees hlt. detect that.
             if (self.state.memory.load(self.state.ip, 1) == 0xf4).is_true():
