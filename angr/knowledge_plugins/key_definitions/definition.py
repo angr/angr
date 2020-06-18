@@ -8,6 +8,7 @@ class Tag:
     A tag for a Definition that can carry
     different kind of metadata.
     """
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -15,10 +16,10 @@ class ParamTag(Tag):
     """
     A tag for a definition of a parameter.
     """
+
     def __init__(self, metadata: object=None):
         super(ParamTag, self).__init__()
         self.metadata = metadata
-    
     def __repr__(self):
         return '<ParamTag {Metadata:%s}>' % (self.metadata)
 
@@ -27,10 +28,10 @@ class RetValueTag(Tag):
     A tag for a definiton of a return value 
     of a function.
     """
+
     def __init__(self, metadata: object=None):
         super(RetValueTag, self).__init__()
         self.metadata = metadata
-    
     def __repr__(self):
         return '<RetValueTag {Metadata:%s}>' % (self.metadata)
 
@@ -38,10 +39,10 @@ class InitValueTag(Tag):
     """
     A tag for a definiton of an initial value
     """
+    
     def __init__(self, metadata: object=None):
         super(InitValueTag, self).__init__()
         self.metadata = metadata
-    
     def __repr__(self):
         return '<InitValueTag {Metadata:%s}>' % (self.metadata)
 
