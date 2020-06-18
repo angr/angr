@@ -8,7 +8,6 @@ class Tag:
     A tag for a Definition that can carry
     different kind of metadata.
     """
-    
     def __repr__(self):
         raise NotImplementedError()
 
@@ -16,7 +15,6 @@ class ParamTag(Tag):
     """
     A tag for a definition of a parameter.
     """
-
     def __init__(self, metadata: object=None):
         super(ParamTag, self).__init__()
         self.metadata = metadata
@@ -29,7 +27,6 @@ class RetValueTag(Tag):
     A tag for a definiton of a return value 
     of a function.
     """
-
     def __init__(self, metadata: object=None):
         super(RetValueTag, self).__init__()
         self.metadata = metadata
@@ -41,7 +38,6 @@ class InitValueTag(Tag):
     """
     A tag for a definiton of an initial value
     """
-
     def __init__(self, metadata: object=None):
         super(InitValueTag, self).__init__()
         self.metadata = metadata
@@ -52,7 +48,6 @@ class InitValueTag(Tag):
 class Definition:
     """
     An atom definition.
-
     :ivar atom:     The atom being defined.
     :ivar codeloc:  Where this definition is created in the original binary code.
     :ivar data:     A concrete value (or many concrete values) that the atom holds when the definition is created.

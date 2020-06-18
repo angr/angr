@@ -5,7 +5,7 @@ import archinfo
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
-from ...knowledge_plugins.key_definitions.definition import Definition, Tag, ParamTag, RetValueTag, InitValueTag
+from ...knowledge_plugins.key_definitions.definition import Definition, Tag, ParamTag, InitValueTag
 from ...knowledge_plugins.key_definitions.undefined import undefined
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg

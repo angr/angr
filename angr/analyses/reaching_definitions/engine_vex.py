@@ -7,7 +7,7 @@ from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, R
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
-from ...knowledge_plugins.key_definitions.definition import Tag, Definition, ParamTag, RetValueTag, InitValueTag
+from ...knowledge_plugins.key_definitions.definition import Definition, RetValueTag
 from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
