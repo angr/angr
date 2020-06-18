@@ -1,7 +1,7 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Tuple
 from collections import defaultdict
 
 import networkx
@@ -364,7 +364,7 @@ class CFGModel(Serializable):
                 successors.append(suc)
         return successors
 
-    def get_successors_and_jumpkind(self, node, excluding_fakeret=True):
+    def get_successors_and_jumpkinds(self, node, excluding_fakeret=True):
         """
         Get a list of tuples where the first element is the successor of the CFG node and the second element is the
         jumpkind of the successor.
@@ -380,6 +380,26 @@ class CFGModel(Serializable):
             if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
                 successors.append((suc, data['jumpkind']))
         return successors
+
+    get_successors_and_jumpkind = get_successors_and_jumpkinds
+
+    def get_predecessors_and_jumpkinds(self, node: CFGNode, excluding_fakeret: bool=True) -> List[Tuple[CFGNode,str]]:
+        """
+        Get a list of tuples where the first element is the predecessor of the CFG node and the second element is the
+        jumpkind of the predecessor.
+
+        :param node:                The node.
+        :param excluding_fakeret:   True if you want to exclude all predecessors that are fall-through predecessors.
+        :return:                    A list of predecessors and their corresponding jumpkinds.
+        """
+
+        predecessors = []
+        for pred, _, data in self.graph.in_edges([node], data=True):
+            if not excluding_fakeret or data['jumpkind'] != 'Ijk_FakeRet':
+                predecessors.append((pred, data['jumpkind']))
+        return predecessors
+
+    get_predecessors_and_jumpkind = get_predecessors_and_jumpkinds
 
     def get_all_predecessors(self, cfgnode, depth_limit=None):
         """

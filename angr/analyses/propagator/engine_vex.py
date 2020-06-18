@@ -29,7 +29,8 @@ class SimEnginePropagatorVEX(
                 # pop ret from the stack
                 sp_offset = self.arch.sp_offset
                 sp_value = state.load_register(sp_offset, self.arch.bytes)
-                state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
+                if sp_value is not None:
+                    state.store_register(sp_offset, self.arch.bytes, sp_value + self.arch.bytes)
 
         return state
 
@@ -59,11 +60,18 @@ class SimEnginePropagatorVEX(
             return v
         elif isinstance(addr, int):
             # Try loading from the state
-            if self.base_state is not None and self._allow_loading(addr, size):
-                _l.debug("Loading %d bytes from %x.", size, addr)
-                data = self.base_state.memory.load(addr, size, endness=endness)
-                if not data.symbolic:
-                    return self.base_state.solver.eval(data)
+            if self._allow_loading(addr, size):
+                if self.base_state is not None:
+                    _l.debug("Loading %d bytes from %x.", size, addr)
+                    data = self.base_state.memory.load(addr, size, endness=endness)
+                    if not data.symbolic:
+                        return self.base_state.solver.eval(data)
+                else:
+                    try:
+                        val = self.project.loader.memory.unpack_word(addr, size=size, endness=endness)
+                        return val
+                    except KeyError:
+                        return None
         return None
 
     #
@@ -76,6 +84,9 @@ class SimEnginePropagatorVEX(
                 b = self._project.loader.memory.load(addr, 4)
             except KeyError:
                 return
+            except TypeError:
+                return
+
             if b == b"\x8b\x1c\x24\xc3":
                 # getpc:
                 #   mov ebx, [esp]
@@ -184,12 +195,10 @@ class SimEnginePropagatorVEX(
         return self.state.load_register(expr.offset, size)
 
     def _handle_Load(self, expr):
-
         addr = self._expr(expr.addr)
         if addr is None or type(addr) in (Top, Bottom):
             return None
         size = expr.result_size(self.tyenv) // self.arch.byte_width
-
         return self._load_data(addr, size, expr.endness)
 
     def _handle_CCall(self, expr):
