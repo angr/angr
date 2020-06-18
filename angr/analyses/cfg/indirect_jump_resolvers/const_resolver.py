@@ -57,7 +57,7 @@ class ConstantResolver(IndirectJumpResolver):
         if isinstance(block.next, pyvex.expr.RdTmp):
             # check if function is completed
             if func_addr in cfg._completed_functions:
-                func = self.project.kb.functions[func_addr]
+                func = cfg.functions[func_addr]
                 prop = self.project.analyses.Propagator(func=func, only_consts=True,
                                                         completed_funcs=cfg._completed_functions)
             else:
