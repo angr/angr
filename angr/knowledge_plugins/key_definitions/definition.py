@@ -25,7 +25,7 @@ class ParamTag(Tag):
 
 class RetValueTag(Tag):
     """
-    A tag for a definiton of a return value 
+    A tag for a definiton of a return value
     of a function.
     """
 
@@ -39,7 +39,7 @@ class InitValueTag(Tag):
     """
     A tag for a definiton of an initial value
     """
-    
+
     def __init__(self, metadata: object=None):
         super(InitValueTag, self).__init__()
         self.metadata = metadata
