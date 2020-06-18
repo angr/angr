@@ -5,7 +5,7 @@ import archinfo
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
-from ...knowledge_plugins.key_definitions.definition import Definition, Tag
+from ...knowledge_plugins.key_definitions.definition import Definition, Tag, ParamTag, RetValueTag, InitValueTag
 from ...knowledge_plugins.key_definitions.undefined import undefined
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg
@@ -117,13 +117,13 @@ class ReachingDefinitionsState:
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
         sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits), tag=Tag(name='init_sp'))
+        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits), tag=InitValueTag())
         self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
         if self.arch.name.startswith('MIPS'):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
             t9 = Register(self.arch.registers['t9'][0], self.arch.bytes)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits), tag=Tag(name='init_sp'))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits), tag=InitValueTag())
             self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
 
         if cc is not None and cc.args is not None:
@@ -133,13 +133,13 @@ class ReachingDefinitionsState:
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
                     reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(undefined, self.arch.bits), tag=Tag(name='param'))
+                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(undefined, self.arch.bits), tag=ParamTag())
                     self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
                     sp_offset = SpOffset(self.arch.bits, arg.stack_offset)
                     ml = MemoryLocation(sp_offset, arg.size)
-                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8), tag=Tag(name='param'))
+                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8), tag=ParamTag())
                     self.stack_definitions.set_object(arg.stack_offset, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
@@ -150,12 +150,12 @@ class ReachingDefinitionsState:
                 raise TypeError("rtoc_value must be provided on PPC64.")
             offset, size = self.arch.registers['rtoc']
             rtoc = Register(offset, size)
-            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits), tag=Tag(name='init_rtoc'))
+            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits), tag=InitValueTag())
             self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
         elif self.arch.name.lower().find('mips64') > -1:
             offset, size = self.arch.registers['t9']
             t9 = Register(offset, size)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet({func_addr}, self.arch.bits), tag=Tag(name='init_t9'))
+            t9_def = Definition(t9, ExternalCodeLocation(), DataSet({func_addr}, self.arch.bits), tag=InitValueTag())
             self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
 
     def copy(self) -> 'ReachingDefinitionsState':
