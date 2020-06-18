@@ -51,11 +51,15 @@ class ReachingDefinitionsState:
         self._track_tmps = track_tmps
         self.analysis = analysis
 
-        self.live_definitions = live_definitions if live_definitions is not None else \
-            LiveDefinitions(self.arch, track_tmps=self._track_tmps)
-        self.all_definitions: Set[Definition] = set()
+        if live_definitions is None:
+            # the first time this state is created. initialize it
+            self.live_definitions = LiveDefinitions(self.arch, track_tmps=self._track_tmps)
+            self._set_initialization_values(subject, rtoc_value)
+        else:
+            # this state is a copy from a previous state. skip the initialization
+            self.live_definitions = live_definitions
 
-        self._set_initialization_values(subject, rtoc_value)
+        self.all_definitions: Set[Definition] = set()
 
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
@@ -107,6 +111,10 @@ class ReachingDefinitionsState:
             )
         elif subject.type is SubjectType.Block:
             pass
+        elif subject.type is SubjectType.CFGSliceToSink:
+            sp = Register(self.arch.sp_offset, self.arch.bytes)
+            sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits))
+            self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
 
         return self
 
@@ -160,7 +168,7 @@ class ReachingDefinitionsState:
             self._subject,
             track_tmps=self._track_tmps,
             analysis=self.analysis,
-            live_definitions=self.live_definitions.copy()
+            live_definitions=self.live_definitions.copy(),
         )
 
         return rd

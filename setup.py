@@ -129,9 +129,11 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
         # https://www.python.org/dev/peps/pep-0425/
         sys.argv.append(name.replace('.', '_').replace('-', '_'))
 
+_UNICORN = "unicorn>=1.0.2rc2"
+
 setup(
     name='angr',
-    version='8.20.1.7',
+    version='8.20.6.8',
     python_requires='>=3.6',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
@@ -146,19 +148,19 @@ setup(
         'progressbar2',
         'rpyc',
         'cffi>=1.7.0',
-        'unicorn>=1.0.2rc2',
-        'archinfo==8.20.1.7',
-        'claripy==8.20.1.7',
-        'cle==8.20.1.7',
-        'pyvex==8.20.1.7',
-        'ailment==8.20.1.7',
+        _UNICORN,
+        'archinfo==8.20.6.8',
+        'claripy==8.20.6.8',
+        'cle==8.20.6.8',
+        'pyvex==8.20.6.8',
+        'ailment==8.20.6.8',
         'GitPython',
         'psutil',
         'pycparser>=2.18',
         'itanium_demangler',
         'protobuf',
     ],
-    setup_requires=['unicorn', 'pyvex'],
+    setup_requires=[_UNICORN, 'pyvex'],
     extras_require={
         'AngrDB': ['sqlalchemy'],
     },

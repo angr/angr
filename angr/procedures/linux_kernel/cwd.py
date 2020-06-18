@@ -17,7 +17,7 @@ class getcwd(angr.SimProcedure):
 
 class chdir(angr.SimProcedure):
     def run(self, buf):
-        cwd = self.state.mem[buf].string
+        cwd = self.state.mem[buf].string.concrete
         l.info('chdir(%r)', cwd)
         self.state.fs.cwd = cwd
         return 0

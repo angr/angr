@@ -7,6 +7,9 @@ import angr
 import gc
 import os
 
+tests_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+
+
 def load_pickles():
     # This is the working case
     f = open("pickletest_good", 'rb')
@@ -19,7 +22,7 @@ def load_pickles():
     f.close()
 
 def make_pickles():
-    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests', 'i386', 'fauxware'))
+    p = angr.Project(os.path.join(tests_location, 'i386', 'fauxware'))
 
     fs = {
         '/dev/stdin': SimFile('/dev/stdin'),
@@ -82,5 +85,25 @@ def test_pickling():
     load_pickles()
 
 
+def test_project_pickling():
+
+    # AnalysesHub should not be pickled together with the project itself
+    p = angr.Project(os.path.join(tests_location, 'i386', 'fauxware'))
+
+    # make a copy of the active_preset so that we do not touch the global preset object. this is only for writing this
+    # test case.
+    p.analyses._active_preset = pickle.loads(pickle.dumps(p.analyses._active_preset, -1))
+    assert len(p.analyses._active_preset._default_plugins) > 0
+    p.analyses._active_preset = p.analyses._active_preset
+    p.analyses._active_preset._default_plugins = {}
+    assert len(p.analyses._active_preset._default_plugins) == 0
+
+    s = pickle.dumps(p, -1)
+
+    p1 = pickle.loads(s)
+    assert len(p1.analyses._active_preset._default_plugins) > 0
+
+
 if __name__ == '__main__':
     test_pickling()
+    test_project_pickling()
