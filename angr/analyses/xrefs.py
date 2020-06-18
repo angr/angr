@@ -45,7 +45,7 @@ class SimEngineXRefsVEX(
             blockloc = self._codeloc(block_only=True)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr, int):
+                if isinstance(addr, int) and (self.project.loader.min_addr <= addr <= self.project.loader.max_addr):
                     self.add_xref(XRefType.Offset, self._codeloc(), addr)
 
     def _handle_Store(self, stmt):
