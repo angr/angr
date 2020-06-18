@@ -1,4 +1,3 @@
-
 from typing import Set, Optional
 from collections import defaultdict
 import logging
@@ -16,8 +15,8 @@ from .values import Top
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 
-
 _l = logging.getLogger(name=__name__)
+
 
 # The base state
 
@@ -153,8 +152,7 @@ class PropagatorVEXState(PropagatorState):
 
 
 class Equivalence:
-
-    __slots__ = ('codeloc', 'atom0', 'atom1', )
+    __slots__ = ('codeloc', 'atom0', 'atom1',)
 
     def __init__(self, codeloc, atom0, atom1):
         self.codeloc = codeloc
@@ -166,9 +164,9 @@ class Equivalence:
 
     def __eq__(self, other):
         return type(other) is Equivalence \
-                and other.codeloc == self.codeloc \
-                and other.atom0 == self.atom0 \
-                and other.atom1 == self.atom1
+               and other.codeloc == self.codeloc \
+               and other.atom0 == self.atom0 \
+               and other.atom1 == self.atom1
 
     def __hash__(self):
         return hash((Equivalence, self.codeloc, self.atom0, self.atom1))
@@ -181,7 +179,7 @@ class PropagatorAILState(PropagatorState):
 
         self._stack_variables = KeyedRegion()
         self._registers = KeyedRegion()
-        self._tmps = { }
+        self._tmps = {}
 
     def __repr__(self):
         return "<PropagatorAILState>"
@@ -323,7 +321,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None, only_consts=False):
+                 load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -344,9 +342,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._load_callback = load_callback
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
         self._only_consts = only_consts
+        self._completed_funcs = completed_funcs
 
         self._node_iterations = defaultdict(int)
-        self._states = { }
+        self._states = {}
         self.replacements: Optional[defaultdict] = None
         self.equivalence: Set[Equivalence] = set()
 
@@ -424,8 +423,78 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _intra_analysis(self):
         pass
 
+    def _check_func_complete(self, func):
+        """
+        Checks if a function is completely created by the CFG. Completed
+        functions are passed to the Propagator at initialization. Defaults to
+        being empty if no pass is initiated.
+
+        :param func:    Function to check (knowledge_plugins.functions.function.Function)
+        :return:        Bool
+        """
+        complete = False
+        if self._completed_funcs is None:
+            return complete
+
+        if func.addr in self._completed_funcs:
+            complete = True
+
+        return complete
+
     def _post_analysis(self):
-        pass
+        """
+        Post Analysis of Propagation().
+        We add the current propagation replacements result to the kb if the
+        function has already been completed in cfg creation.
+        """
+        if self._function is not None:
+            if self._check_func_complete(self._function):
+                func_loc = CodeLocation(self._function.addr, None)
+                self.kb.propagations.update(func_loc, self.replacements)
+
+    def _check_prop_kb(self):
+        """
+        Checks, and gets, stored propagations from the KB for the current
+        Propagation state.
+
+        :return:    None or Dict of replacements
+        """
+        replacements = None
+        if self._function is not None:
+            func_loc = CodeLocation(self._function.addr, None)
+            replacements = self.kb.propagations.get(func_loc)
+
+        return replacements
+
+    def _analyze(self):
+        """
+        The main analysis for Propagator. Overwritten to include an optimization to stop
+        analysis if we have already analyzed the entire function once.
+        """
+        self._pre_analysis()
+
+        # optimization check
+        stored_replacements = self._check_prop_kb()
+        if stored_replacements is not None:
+            if self.replacements is not None:
+                self.replacements.update(stored_replacements)
+            else:
+                self.replacements = stored_replacements
+
+        # normal analysis execution
+        elif self._graph_visitor is None:
+            # There is no base graph that we can rely on. The analysis itself should generate successors for the
+            # current job.
+            # An example is the CFG recovery.
+
+            self._analysis_core_baremetal()
+
+        else:
+            # We have a base graph to follow. Just handle the current job.
+
+            self._analysis_core_graph()
+
+        self._post_analysis()
 
 
 register_analysis(PropagatorAnalysis, "Propagator")
