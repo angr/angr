@@ -1566,18 +1566,21 @@ public:
 		return;
 	}
 
-	void propagate_taint_of_one_instr(const address_t instr_addr) {
+	void propagate_taint_of_mem_read_instr(const address_t instr_addr) {
 		if (is_symbolic_tracking_disabled()) {
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
 		}
 		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
 		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
-		propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
-		if (!stopped && (instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
-			if (is_block_exit_guard_symbolic()) {
-				deferred_stop(instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
+			// There are no symbolic registers so no taint to propagate. Mark any memory writes as concrete.
+			if (instr_taint_data_entry.has_memory_write) {
+				mem_writes_taint_map.emplace(instr_addr, false);
 			}
+		}
+		else {
+			propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
 		}
 		return;
 	}
@@ -1888,7 +1891,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
 	state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
-	state->propagate_taint_of_one_instr(curr_instr_addr);
+	state->propagate_taint_of_mem_read_instr(curr_instr_addr);
 	state->check_and_save_dependencies(curr_instr_addr);
 	if (!state->stopped) {
 		state->continue_propagating_taint();
