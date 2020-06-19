@@ -1694,6 +1694,11 @@ public:
 	}
 
 	void start_propagating_taint(address_t block_address, int32_t block_size) {
+		current_block_start_address = block_address;
+		current_block_size = block_size;
+		if (is_symbolic_tracking_disabled()) {
+			return;
+		}
 		if (this->block_taint_cache.find(block_address) == this->block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block
 			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
@@ -1717,8 +1722,6 @@ public:
 			// Add entry to taint relations cache
 			block_taint_cache.emplace(block_address, block_taint_entry);
 		}
-		current_block_start_address = block_address;
-		current_block_size = block_size;
 		taint_engine_next_instr_address = block_address;
 		propagate_taints();
 		return;
