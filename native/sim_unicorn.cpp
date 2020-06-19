@@ -1587,6 +1587,14 @@ public:
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
 		}
+		symbolic_instr_details_t instr_details;
+		bool is_instr_symbolic;
+
+		is_instr_symbolic = false;
+		instr_details.instr_addr = instr_addr;
+		instr_details.block_addr = current_block_start_address;
+		instr_details.block_size = current_block_size;
+		instr_details.are_dependencies_saved = false;
 		for (auto &taint_data_entry: curr_instr_taint_entry.taint_sink_src_map) {
 			taint_entity_t taint_sink = taint_data_entry.first;
 			std::unordered_set<taint_entity_t> taint_srcs = taint_data_entry.second;
@@ -1609,11 +1617,8 @@ public:
 				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
-					// Add instruction to list of instructions to be executed symbolically
-					symbolic_instr_details_t instr_details;
-					instr_details.instr_addr = taint_sink.instr_addr;
-					instr_details.block_addr = current_block_start_address;
-					instr_details.block_size = current_block_size;
+					// Mark instruction as symbolic to list of instructions to be executed symbolically
+					is_instr_symbolic = true;
 
 					// Compute dependencies to save here itself since taint status can change in
 					// following instrutions
@@ -1625,8 +1630,6 @@ public:
 							instr_details.dependencies.emplace_back(dep_to_save);
 						}
 					}
-					instr_details.are_dependencies_saved = false;
-					block_symbolic_instr_addrs.emplace_back(instr_details);
 				}
 				else {
 					// Save the memory location written to be marked as concrete in the write hook
@@ -1645,11 +1648,8 @@ public:
 						return;
 					}
 					mark_register_temp_symbolic(taint_sink, true);
-					// Add instruction to list of instructions to be executed symbolically
-					symbolic_instr_details_t instr_details;
-					instr_details.instr_addr = taint_sink.instr_addr;
-					instr_details.block_addr = current_block_start_address;
-					instr_details.block_size = current_block_size;
+					// Mark instruction as symbolic to list of instructions to be executed symbolically
+					is_instr_symbolic = true;
 
 					// Compute dependencies to save here itself since taint status can change in
 					// following instrutions
@@ -1658,16 +1658,8 @@ public:
 							saved_concrete_dependency_t dep_to_save;
 							dep_to_save.dependency_type = TAINT_ENTITY_REG;
 							dep_to_save.reg_offset = dependency.reg_offset;
+							instr_details.dependencies.emplace_back(dep_to_save);
 						}
-					}
-					instr_details.are_dependencies_saved = false;
-					block_symbolic_instr_addrs.emplace_back(instr_details);
-					// Add a hook if there isn't one already and instruction doesn't have a mem read/write
-					if (symbolic_instrs_dep_saving_hooks.find(taint_sink.instr_addr) == symbolic_instrs_dep_saving_hooks.end()
-					  && !curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
-						uc_hook hook;
-						uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, taint_sink.instr_addr, taint_sink.instr_addr);
-						symbolic_instrs_dep_saving_hooks.emplace(taint_sink.instr_addr, hook);
 					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
@@ -1679,6 +1671,15 @@ public:
 			if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
 				stop(STOP_SYMBOLIC_CONDITION);
 				return;
+			}
+		}
+		if (is_instr_symbolic) {
+			block_symbolic_instr_addrs.emplace_back(instr_details);
+			if (symbolic_instrs_dep_saving_hooks.find(instr_addr) == symbolic_instrs_dep_saving_hooks.end()
+			  && !curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
+				uc_hook hook;
+				uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, instr_addr, instr_addr);
+				symbolic_instrs_dep_saving_hooks.emplace(instr_addr, hook);
 			}
 		}
 		return;
