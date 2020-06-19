@@ -588,11 +588,11 @@ public:
 		// Save details of block of instruction where we stopped
 		stopped_at_instr.block_addr = current_block_start_address;
 		stopped_at_instr.block_size = current_block_size;
-		if (is_symbolic_tracking_disabled()) {
-			// Exit statement address not available if symbolic tracking is disabled.
+		auto instr_taint_entry_it = block_taint_cache.find(current_block_start_address);
+		if (instr_taint_entry_it == block_taint_cache.end()) {
 			return;
 		}
-		stopped_at_instr.block_exit_stmt_instr_addr = block_taint_cache.at(current_block_start_address).exit_stmt_instr_addr;
+		stopped_at_instr.block_exit_stmt_instr_addr = instr_taint_entry_it->second.exit_stmt_instr_addr;
 		return;
 	}
 
