@@ -1120,19 +1120,19 @@ public:
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, curr_instr_addr, false);
 					srcs = result.first;
 					ite_cond_entity_list = result.second;
-					if (srcs.size() > 0) {
-						instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-						// TODO: Should we not compute dependencies to save if sink is an artificial register?
-						auto dependencies_to_save = compute_dependencies_to_save(srcs);
-						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-					}
-					if (ite_cond_entity_list.size() > 0) {
-						instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
-						auto dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
-						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-					}
+
+					// Store taint sources and compute dependencies to save
+					instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
+					// TODO: Should we not compute dependencies to save if sink is an artificial register?
+					auto dependencies_to_save = compute_dependencies_to_save(srcs);
+					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+
+					// Store ITE condition entities and compute dependencies to save
+					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
+					dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
+					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
 					break;
 				}
 				case Ist_WrTmp:
@@ -1146,18 +1146,18 @@ public:
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.WrTmp.data, curr_instr_addr, false);
 					srcs = result.first;
 					ite_cond_entity_list = result.second;
-					if (srcs.size() > 0) {
-						instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-						auto dependencies_to_save = compute_dependencies_to_save(srcs);
-						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-					}
-					if (ite_cond_entity_list.size() > 0) {
-						instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
-						auto dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
-						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-					}
+
+					// Store taint sources and compute dependencies to save
+					instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
+					auto dependencies_to_save = compute_dependencies_to_save(srcs);
+					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+
+					// Store ITE condition entities and compute dependencies to save
+					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
+					dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
+					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
 					break;
 				}
 				case Ist_Store:
@@ -1174,18 +1174,18 @@ public:
 					srcs = result.first;
 					ite_cond_entity_list = result.second;
 					instruction_taint_entry.has_memory_write = true;
-					if (srcs.size() > 0) {
-						instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-						auto dependencies_to_save = compute_dependencies_to_save(srcs);
-						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-					}
-					if (ite_cond_entity_list.size() > 0) {
-						instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
-						auto dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
-						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-					}
+
+					// Store taint sources and compute dependencies to save
+					instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
+					auto dependencies_to_save = compute_dependencies_to_save(srcs);
+					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+
+					// Store ITE condition entities and compute dependencies to save
+					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
+					dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
+					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
 					break;
 				}
 				case Ist_Exit:
