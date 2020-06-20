@@ -35,6 +35,10 @@ VEX_IRSB_MAX_SIZE = 400
 l = logging.getLogger(name=__name__)
 
 
+class ContinueScanningNotification(RuntimeError):
+    pass
+
+
 class FunctionReturn:
     """
     FunctionReturn describes a function call in a specific location and its return location. Hashable and equatable
@@ -940,13 +944,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), 'alignment')
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
+            # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
+            if not self._inside_regions(start_addr):
+                raise ContinueScanningNotification()
 
         return start_addr
 
     def _next_code_addr(self):
 
         while True:
-            addr = self._next_code_addr_core()
+            try:
+                addr = self._next_code_addr_core()
+            except ContinueScanningNotification:
+                continue
+
             if addr is None:
                 return None
 
