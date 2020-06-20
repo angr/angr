@@ -345,6 +345,7 @@ public:
 	VexArch vex_guest;
 	VexArchInfo vex_archinfo;
 	RegisterSet symbolic_registers; // tracking of symbolic registers
+	RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	TempSet symbolic_temps;
@@ -1094,7 +1095,7 @@ public:
 		bool has_memory_read = false;
 		for (auto &taint_source: taint_sources) {
 			// If register is an artificial VEX register, we can't save it from unicorn.
-			if ((taint_source.entity_type == TAINT_ENTITY_REG) && !is_artificial_register(taint_source.reg_offset)) {
+			if ((taint_source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(taint_source.reg_offset)) {
 				reg_dependency_list.emplace(taint_source);
 			}
 			else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
@@ -1503,8 +1504,8 @@ public:
 		return;
 	}
 
-	inline bool is_artificial_register(vex_reg_offset_t reg_offset) const {
-		return artificial_vex_registers.count(reg_offset) > 0;
+	inline bool is_valid_dependency_register(vex_reg_offset_t reg_offset) const {
+		return ((artificial_vex_registers.count(reg_offset) == 0) && (blacklisted_registers.count(reg_offset) == 0));
 	}
 
 	inline bool is_symbolic_register(vex_reg_offset_t reg_offset) const {
@@ -2318,6 +2319,15 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 	state->vex_to_unicorn_map.clear();
 	for (int i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
+	}
+	return;
+}
+
+extern "C"
+void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_t count) {
+	state->blacklisted_registers.clear();
+	for (int i = 0; i < count; i++) {
+		state->blacklisted_registers.emplace(reg_list[i]);
 	}
 	return;
 }

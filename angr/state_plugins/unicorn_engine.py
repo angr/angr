@@ -306,6 +306,7 @@ def _load_native():
         _setup_prototype(h, 'get_symbolic_instrs', None, state_t, ctypes.POINTER(SymbolicInstrDetails))
         _setup_prototype(h, 'get_stopping_instruction_details', StoppedInstructionDetails, state_t)
         _setup_prototype(h, 'stop_message', ctypes.c_char_p, state_t)
+        _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -987,6 +988,18 @@ class Unicorn(SimStatePlugin):
         vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
         unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
         _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
+
+        # Initialize list of blacklisted registers
+        blacklist_regs_offsets = []
+        for reg_name in self.reg_blacklist + ('gdt', 'ldt'):
+            if reg_name not in self.state.arch.registers:
+                continue
+
+            blacklist_regs_offsets.append(self.state.arch.get_register_offset(reg_name))
+
+        if len(blacklist_regs_offsets) > 0:
+            blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*map(ctypes.c_uint64, blacklist_regs_offsets))
+            _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, len(blacklist_regs_offsets))
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
