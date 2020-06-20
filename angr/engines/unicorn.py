@@ -84,28 +84,30 @@ class SimEngineUnicorn(SuccessorsMixin):
         next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 
     def _execute_instruction_in_vex(self, instr_entry):
-        if instr_entry["block_addr"] not in self.vex_block_cache:
-            vex_block_stmts = self._get_block_vex(instr_entry["block_addr"], instr_entry["block_size"])
-            self.vex_block_cache[instr_entry["block_addr"]] = vex_block_stmts
+        if instr_entry["block_addr"] not in self.block_details_cache:
+            vex_block_details = self._get_block_details(instr_entry["block_addr"], instr_entry["block_size"])
+            self.block_details_cache[instr_entry["block_addr"]] = vex_block_details
         else:
-            vex_block_stmts = self.vex_block_cache[instr_entry["block_addr"]]
+            vex_block_details = self.block_details_cache[instr_entry["block_addr"]]
 
-        instr_vex_stmts = vex_block_stmts[instr_entry["instr_addr"]]
+        vex_block = vex_block_details["block"]
+        instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
         for dep_entry in instr_entry["dependencies"]:
-            if dep_entry["type"] == self.unicorn.TaintEntityEnum.TAINT_ENTITY_REG:
+            if dep_entry["type"] == self.state.unicorn.TaintEntityEnum.TAINT_ENTITY_REG:
                 # Set register
                 reg_offset = dep_entry["reg_offset"]
                 reg_value = dep_entry["reg_value"]
                 setattr(self.state.regs, reg_offset, reg_value)
-            elif dep_entry["type"] == self.unicorn.TaintEntityEnum.TAINT_ENTITY_MEM:
+            elif dep_entry["type"] == self.state.unicorn.TaintEntityEnum.TAINT_ENTITY_MEM:
                 # Set memory location value
                 address = dep_entry["mem_address"]
                 value = dep_entry["mem_value"]
                 self.state.memory.store(address, value)
 
-        for vex_stmt in instr_vex_stmts:
+        self.state.scratch.set_tyenv(vex_block.tyenv)
+        for vex_stmt_idx in instr_vex_stmt_indices:
             # Execute handler from HeavyVEXMixin for the statement
-            super()._handle_vex_stmt(vex_stmt)
+            super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
 
         return
 
@@ -116,7 +118,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         return
 
-    def _get_block_vex(self, block_addr, block_size):
+    def _get_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
         irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
         if irsb.size == 0:
@@ -130,21 +132,21 @@ class SimEngineUnicorn(SuccessorsMixin):
 
             raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
 
-        block_statements = {}
+        instrs_stmt_indices = {}
         curr_instr_addr = None
-        curr_instr_stmts = []
-        ignored_statement_tags = ["Ist_AbiHint", "Ist_MBE", "Ist_NoOP"]
-        for statement in irsb.statements:
+        curr_instr_stmts_start_idx = 0
+        for idx, statement in enumerate(irsb.statements):
             if statement.tag == "Ist_IMark":
                 if curr_instr_addr is not None:
-                    block_statements[curr_instr_addr] = curr_instr_stmts
-                    curr_instr_stmts = []
+                    instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": idx - 1}
 
                 curr_instr_addr = statement.addr
-            elif statement.tag not in ignored_statement_tags:
-                curr_instr_stmts.append(statement)
+                curr_instr_stmts_start_idx = idx
 
-        return block_statements
+        # Adding details of the last instruction
+        instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": idx}
+        block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
+        return block_details
 
     def process_successors(self, successors, **kwargs):
         state = self.state
@@ -180,7 +182,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                 extra_stop_points.add(bp.kwargs["instruction"])
 
         # VEX block cache for executing instructions skipped by native interface
-        self.vex_block_cache = {}
+        self.block_details_cache = {}
 
         # initialize unicorn plugin
         try:
@@ -224,7 +226,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         if state.unicorn.stop_reason == STOP.STOP_SYMBOLIC_BLOCK_EXIT_STMT:
             # Unicorn stopped at an instruction symbolic guard condition for exit statement.
             # Execute the instruction and stop.
-            stopping_instr_block = self.unicorn.stopped_instr_block_details
+            stopping_instr_block = self.state.unicorn.stopped_instr_block_details
             block_addr = stopping_instr_block.block_addr
             block_exit_instr_addr = stopping_instr_block.block_exit_instr_addr
             if block_addr not in self.block_details_cache:
@@ -234,13 +236,12 @@ class SimEngineUnicorn(SuccessorsMixin):
             else:
                 stopping_block_details = self.block_details_cache[block_addr]
 
-            stopping_block_stmts = stopping_block_details["statements"]
-            stopping_block = stopping_block_details["block"]
-            # self.state.scratch.set_tyenv(stopping_block.tyenv)
-            stopping_instr_stmts = stopping_block_stmts[block_exit_instr_addr]
-            for vex_stmt in stopping_instr_stmts:
+            vex_block = stopping_block_details["block"]
+            instr_vex_stmt_indices = stopping_block_details["stmt_indices"][block_exit_instr_addr]
+            self.state.scratch.set_tyenv(vex_block.tyenv)
+            for vex_stmt_idx in instr_vex_stmt_indices:
                 # Execute handler from HeavyVEXMixin for the statement
-                super()._handle_vex_stmt(vex_stmt)
+                super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
         elif state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
             # Unicorn stopped for a symbolic data related reason. Switch to VEX engine.
             return super().process_successors(successors, **kwargs)
