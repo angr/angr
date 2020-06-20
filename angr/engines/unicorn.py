@@ -105,7 +105,9 @@ class SimEngineUnicorn(SuccessorsMixin):
                 self.state.memory.store(address, value)
 
         self.state.scratch.set_tyenv(vex_block.tyenv)
-        for vex_stmt_idx in instr_vex_stmt_indices:
+        start_index = instr_vex_stmt_indices["start"]
+        end_index = instr_vex_stmt_indices["end"]
+        for vex_stmt_idx in range(start_index, end_index + 1):
             # Execute handler from HeavyVEXMixin for the statement
             super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
 
@@ -239,7 +241,9 @@ class SimEngineUnicorn(SuccessorsMixin):
             vex_block = stopping_block_details["block"]
             instr_vex_stmt_indices = stopping_block_details["stmt_indices"][block_exit_instr_addr]
             self.state.scratch.set_tyenv(vex_block.tyenv)
-            for vex_stmt_idx in instr_vex_stmt_indices:
+            start_index = instr_vex_stmt_indices["start"]
+            end_index = instr_vex_stmt_indices["end"]
+            for vex_stmt_idx in range(start_index, end_index + 1):
                 # Execute handler from HeavyVEXMixin for the statement
                 super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
         elif state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
