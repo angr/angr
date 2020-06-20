@@ -3,14 +3,14 @@ from ...code_location import CodeLocation
 from .atoms import Atom, MemoryLocation, Register
 from .dataset import DataSet
 
+
 class Tag:
     """
-    A tag for a Definition that can carry
-    different kind of metadata.
+    A tag for a Definition that can carry different kinds of metadata.
     """
-
     def __repr__(self):
         raise NotImplementedError()
+
 
 class ParamTag(Tag):
     """
@@ -23,32 +23,34 @@ class ParamTag(Tag):
     def __repr__(self):
         return '<ParamTag {Metadata:%s}>' % (self.metadata)
 
+
 class RetValueTag(Tag):
     """
     A tag for a definiton of a return value
     of a function.
     """
-
     def __init__(self, metadata: object=None):
         super(RetValueTag, self).__init__()
         self.metadata = metadata
     def __repr__(self):
         return '<RetValueTag {Metadata:%s}>' % (self.metadata)
 
+
 class InitValueTag(Tag):
     """
     A tag for a definiton of an initial value
     """
-
     def __init__(self, metadata: object=None):
         super(InitValueTag, self).__init__()
         self.metadata = metadata
     def __repr__(self):
         return '<InitValueTag {Metadata:%s}>' % (self.metadata)
 
+
 class Definition:
     """
     An atom definition.
+
     :ivar atom:     The atom being defined.
     :ivar codeloc:  Where this definition is created in the original binary code.
     :ivar data:     A concrete value (or many concrete values) that the atom holds when the definition is created.
