@@ -4,6 +4,49 @@ from .atoms import Atom, MemoryLocation, Register
 from .dataset import DataSet
 
 
+class Tag:
+    """
+    A tag for a Definition that can carry different kinds of metadata.
+    """
+    def __repr__(self):
+        raise NotImplementedError()
+
+
+class ParamTag(Tag):
+    """
+    A tag for a definition of a parameter.
+    """
+
+    def __init__(self, metadata: object=None):
+        super(ParamTag, self).__init__()
+        self.metadata = metadata
+    def __repr__(self):
+        return '<ParamTag {Metadata:%s}>' % (self.metadata)
+
+
+class RetValueTag(Tag):
+    """
+    A tag for a definiton of a return value
+    of a function.
+    """
+    def __init__(self, metadata: object=None):
+        super(RetValueTag, self).__init__()
+        self.metadata = metadata
+    def __repr__(self):
+        return '<RetValueTag {Metadata:%s}>' % (self.metadata)
+
+
+class InitValueTag(Tag):
+    """
+    A tag for a definiton of an initial value
+    """
+    def __init__(self, metadata: object=None):
+        super(InitValueTag, self).__init__()
+        self.metadata = metadata
+    def __repr__(self):
+        return '<InitValueTag {Metadata:%s}>' % (self.metadata)
+
+
 class Definition:
     """
     An atom definition.
@@ -15,22 +58,26 @@ class Definition:
                     definitions marked as dummy will not be removed.
     """
 
-    __slots__ = ('atom', 'codeloc', 'data', 'dummy')
+    __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tag')
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False):
+    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False, tag: Tag=None):
 
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
         self.data: DataSet = data
+        self.tag = tag
 
     def __eq__(self, other):
         return self.atom == other.atom and self.codeloc == other.codeloc
 
     def __repr__(self):
-        return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
+        if not self.tag:
+            return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
+                                                                  "" if not self.dummy else "dummy")
+        else:
+            return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag.name, self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
-
     def __hash__(self):
         return hash((self.atom, self.codeloc))
 
