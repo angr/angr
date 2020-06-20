@@ -16,7 +16,6 @@ from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
-from ..engines.vex import HeavyVEXMixin
 
 l = logging.getLogger(name=__name__)
 ffi = cffi.FFI()
@@ -395,6 +394,7 @@ class Unicorn(SimStatePlugin):
         self._uc_state = None
         self.stop_reason = None
         self.stopping_instr_block_details = None
+        self.stop_message = None
 
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
@@ -1021,7 +1021,7 @@ class Unicorn(SimStatePlugin):
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
-        self.stopped_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
+        self.stopping_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
         self.stop_message = _UC_NATIVE.stop_message(self._uc_state)
 
         # figure out why we stopped

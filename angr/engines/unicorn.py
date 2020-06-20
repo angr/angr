@@ -111,14 +111,10 @@ class SimEngineUnicorn(SuccessorsMixin):
             # Execute handler from HeavyVEXMixin for the statement
             super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
 
-        return
-
     def _execute_symbolic_instrs(self):
         instr_details_list = self.state.unicorn._get_details_of_instrs_to_execute_symbolically()
         for instr_detail_entry in instr_details_list:
             self._execute_instruction_in_vex(instr_detail_entry)
-
-        return
 
     def _get_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
@@ -129,8 +125,8 @@ class SimEngineUnicorn(SuccessorsMixin):
                     raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
                                             "a python replacement using project.hook"
                                             "(%#x, your_function, length=length_of_instruction)." % (irsb.addr, irsb.addr))
-                else:
-                    raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
+
+                raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
 
             raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
 
@@ -146,7 +142,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                 curr_instr_stmts_start_idx = idx
 
         # Adding details of the last instruction
-        instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": idx}
+        instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": len(irsb.statements) - 1}
         block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
         return block_details
 
@@ -228,7 +224,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         if state.unicorn.stop_reason == STOP.STOP_SYMBOLIC_BLOCK_EXIT_STMT:
             # Unicorn stopped at an instruction symbolic guard condition for exit statement.
             # Execute the instruction and stop.
-            stopping_instr_block = self.state.unicorn.stopped_instr_block_details
+            stopping_instr_block = self.state.unicorn.stopping_instr_block_details
             block_addr = stopping_instr_block.block_addr
             block_exit_instr_addr = stopping_instr_block.block_exit_instr_addr
             if block_addr not in self.block_details_cache:
@@ -252,7 +248,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         elif state.unicorn.stop_reason in STOP.unsupported_reasons:
             # Unicorn stopped because of some unsupported VEX statement, VEX expression or some
             # other unsupported operation. Switch to VEX engine.
-            l.warn(state.unicorn.stop_message)
+            l.warning(state.unicorn.stop_message)
             return super().process_successors(successors, **kwargs)
         else:
             if state.unicorn.jumpkind.startswith('Ijk_Sys'):
