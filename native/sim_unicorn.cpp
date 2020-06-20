@@ -291,6 +291,9 @@ private:
 	// memory writes in a single instruction
 	std::unordered_map<address_t, bool> mem_writes_taint_map;
 
+	// List of instructions in a block which must be hooked for saving dependencies
+	std::unordered_set<address_t> block_instrs_to_hook_for_dep_saving;
+
 	// List of all hooks inserted into a block for saving dependencies. Instruction -> hook object
 	std::unordered_map<address_t, uc_hook> symbolic_instrs_dep_saving_hooks;
 
@@ -318,6 +321,7 @@ private:
 	uc_hook deferred_stop_hook;
 	stop_t deferred_stop_reason;
 	bool deferred_stop_status;
+	address_t unicorn_next_instr_addr;
 
 public:
 	std::vector<address_t> bbl_addrs;
@@ -448,6 +452,7 @@ public:
 		stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
+		unicorn_next_instr_addr = pc;
 		executed_pages.clear();
 
 		// error if pc is 0
@@ -458,7 +463,18 @@ public:
 			return UC_ERR_MAP;
 		}
 
-		uc_err out = uc_emu_start(uc, pc, 0, 0, 0);
+		uc_err out;
+		while (!stopped) {
+			// Restart emulation if State hasn't stopped yet. This is needed because to insert
+			// hooks to save concrete dependencies, emulation must be stopped.
+			// Relevant bug: https://github.com/unicorn-engine/unicorn/issues/537.
+			out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
+			if (!stopped && (unicorn_next_instr_addr == current_block_start_address)) {
+				// If next instruction is first instruction of the block, the block hook will be
+				// executed again and should be skipped
+				ignore_next_block = true;
+			}
+		}
 		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		    // handle edge case where we stop because we reached our bogus stop address (0)
 		    commit();
@@ -1553,7 +1569,7 @@ public:
 				// Pause taint propagation to process the memory read and continue from instruction
 				// after the memory read.
 				taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
-				return;
+				break;
 			}
 			if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
 				// There are no symbolic registers so no taint to propagate. Mark any memory writes as concrete.
@@ -1568,6 +1584,21 @@ public:
 					deferred_stop(curr_instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 				}
 			}
+		}
+		if (block_instrs_to_hook_for_dep_saving.size() > 0) {
+			uc_emu_stop(uc);
+			auto curr_unicorn_instr_addr = get_instruction_pointer();
+			if (curr_unicorn_instr_addr != current_block_start_address) {
+				// Current instruction is a memory read. Since read hooks are post-instruction hooks,
+				// emulation should resume from instruction after memory read
+				unicorn_next_instr_addr = taint_engine_next_instr_address;
+			}
+			for (auto &instr_addr: block_instrs_to_hook_for_dep_saving) {
+				uc_hook hook;
+				uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, instr_addr, instr_addr);
+				symbolic_instrs_dep_saving_hooks.emplace(instr_addr, hook);
+			}
+			block_instrs_to_hook_for_dep_saving.clear();
 		}
 		return;
 	}
@@ -1684,11 +1715,9 @@ public:
 		}
 		if (is_instr_symbolic) {
 			block_symbolic_instr_addrs.emplace_back(instr_details);
-			if (symbolic_instrs_dep_saving_hooks.find(instr_addr) == symbolic_instrs_dep_saving_hooks.end()
-			  && !curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
-				uc_hook hook;
-				uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, instr_addr, instr_addr);
-				symbolic_instrs_dep_saving_hooks.emplace(instr_addr, hook);
+			// Hook instruction for saving dependencies if it doesn't have a memory read/write
+			if (!curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
+				block_instrs_to_hook_for_dep_saving.emplace(instr_addr);
 			}
 		}
 		return;
