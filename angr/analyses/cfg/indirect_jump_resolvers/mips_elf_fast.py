@@ -73,7 +73,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         gp_offset = project.arch.registers['gp'][0]
         # see if gp is used at all
-        for stmt in project.factory.block(addr).vex.statements:
+        for stmt in project.factory.block(addr, cross_insn_opt=False).vex.statements:
             if isinstance(stmt, pyvex.IRStmt.WrTmp) \
                     and isinstance(stmt.data, pyvex.IRExpr.Get) \
                     and stmt.data.offset == gp_offset:
@@ -94,8 +94,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 gp_value = func.info['gp']
 
             if gp_value is None:
-                l.debug('Failed to determine value of register gp for function %#x.', func.addr)
-                import ipdb; ipdb.set_trace()
+                l.warning('Failed to determine value of register gp for function %#x.', func.addr)
                 return False, []
 
             # Special handling for cases where `gp` is stored on the stack

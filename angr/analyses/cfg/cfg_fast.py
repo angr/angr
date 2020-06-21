@@ -1555,6 +1555,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
 
+        caller_gp = None
         if self.project.arch.name in {'MIPS32', 'MIPS64'}:
             # the caller might have gp passed on
             caller_gp = cfg_job.gp
