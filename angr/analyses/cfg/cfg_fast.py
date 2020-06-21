@@ -1488,7 +1488,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 addr_ = new_exit['address']
                 jumpkind = new_exit['jumpkind']
                 namehint = new_exit.get('namehint', None)
-                if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
+                if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:  # pylint:disable=isinstance-second-argument-not-valid-type
                     addr_ = addr_._model_concrete.value
                 if not isinstance(addr_, int):
                     continue
@@ -2292,7 +2292,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             sort = self._seg_list.occupied_by_sort(ptr)
                             if sort == 'code':
                                 continue
-                            elif sort == 'pointer-array':
+                            if sort == 'pointer-array':
                                 continue
                             # TODO: other types
                         if ptr not in self._memory_data:
@@ -3667,7 +3667,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
             func = self.kb.functions.function(func_addr)
             if 'gp' not in func.info and addr >= func_addr and addr - func_addr < 15 * 4:
-                gp_value = self._mips_determine_function_gp(addr, irsb, func_addr, func)
+                gp_value = self._mips_determine_function_gp(addr, irsb, func_addr)
                 if gp_value is not None and self._gp_value is None:
                     self._gp_value = gp_value
                 if gp_value is None:
@@ -3676,7 +3676,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     gp_value = self._gp_value  # fallback to a previously found value
                 func.info['gp'] = gp_value
 
-    def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int, func) -> Optional[int]:
+    def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> Optional[int]:
         # check if gp is being written to
         last_gp_setting_insn_id = None
         insn_ctr = 0

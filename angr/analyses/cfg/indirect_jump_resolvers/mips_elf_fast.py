@@ -124,7 +124,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
         l.debug("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
         return False, [ ]
 
-    def _set_gp_load_callback(self, state, blade, project, gp_offset, gp_value):
+    @staticmethod
+    def _set_gp_load_callback(state, blade, project, gp_offset, gp_value):
         got_gp_stack_store = False
         tmps = {}
         for block_addr_in_slice in set(slice_node[0] for slice_node in blade.slice.nodes()):
