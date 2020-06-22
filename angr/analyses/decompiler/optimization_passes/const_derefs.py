@@ -162,9 +162,9 @@ class BlockWalker(AILBlockWalker):
 
 class ConstantDereferencesSimplifier(OptimizationPass):
     """
-    Makes the following simplifications:
+    Makes the following simplifications::
 
-    (a)  *(*(const_addr))  ==>  *(value) iff  *const_addr == value
+        *(*(const_addr))  ==>  *(value) iff  *const_addr == value
     """
 
     # TODO: This optimization pass may support more architectures and platforms
