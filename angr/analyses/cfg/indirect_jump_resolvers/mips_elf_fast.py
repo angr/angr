@@ -16,6 +16,14 @@ from .resolver import IndirectJumpResolver
 l = logging.getLogger(name=__name__)
 
 
+class OverwriteTmpValueCallback:
+    def __init__(self, gp_value):
+        self.gp_value = gp_value
+
+    def overwrite_tmp_value(self, state):
+        state.inspect.tmp_write_expr = state.solver.BVV(self.gp_value, state.arch.bits)
+
+
 class MipsElfFastResolver(IndirectJumpResolver):
     def __init__(self, project):
         super(MipsElfFastResolver, self).__init__(project, timeless=True)
@@ -41,7 +49,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         project = self.project
 
         b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
-                  ignored_regs=('gp',)
+                  ignored_regs=('gp',), cross_insn_opt=False,
                   )
 
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -56,43 +64,42 @@ class MipsElfFastResolver(IndirectJumpResolver):
         state = project.factory.blank_state(addr=source_addr, mode="fastpath",
                                             remove_options=options.refs,
                                             # suppress unconstrained stack reads for `gp`
-                                            add_options={options.SYMBOL_FILL_UNCONSTRAINED_MEMORY},
+                                            add_options={options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                                                         options.NO_CROSS_INSN_OPT
+                                                         },
                                             )
+        state.regs._t9 = func_addr
         func = cfg.kb.functions.function(addr=func_addr)
 
         gp_offset = project.arch.registers['gp'][0]
-        if 'gp' not in func.info:
-            sec = project.loader.find_section_containing(func.addr)
-            if sec is None or sec.name != '.plt':
-                # this might a special case: gp is only used once in this function, and it can be initialized right before
-                # its use site.
-                # TODO: handle this case
-                l.debug('Failed to determine value of register gp for function %#x.', func.addr)
-                return False, [ ]
-        else:
-            state.regs.gp = func.info['gp']
-
-        def overwrite_tmp_value(state):
-            state.inspect.tmp_write_expr = state.solver.BVV(func.info['gp'], state.arch.bits)
-
-        # Special handling for cases where `gp` is stored on the stack
-        got_gp_stack_store = False
-        for block_addr_in_slice in set(slice_node[0] for slice_node in b.slice.nodes()):
-            for stmt in project.factory.block(block_addr_in_slice).vex.statements:
-                if isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset and \
-                        isinstance(stmt.data, pyvex.IRExpr.RdTmp):
-                    tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
-                    # we must make sure value of that temporary variable equals to the correct gp value
-                    state.inspect.make_breakpoint('tmp_write', when=BP_BEFORE,
-                                                  condition=lambda s, bbl_addr_=block_addr_in_slice,
-                                                                   tmp_offset_=tmp_offset:
-                                                  s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
-                                                  action=overwrite_tmp_value
-                                                  )
-                    got_gp_stack_store = True
-                    break
-            if got_gp_stack_store:
+        # see if gp is used at all
+        for stmt in project.factory.block(addr, cross_insn_opt=False).vex.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                    and isinstance(stmt.data, pyvex.IRExpr.Get) \
+                    and stmt.data.offset == gp_offset:
+                gp_used = True
                 break
+        else:
+            gp_used = False
+
+        gp_value = None
+        if gp_used:
+            if 'gp' not in func.info:
+                # this might a special case: gp is only used once in this function, and it can be initialized right
+                # before its use site.
+                # however, it should have been determined in CFGFast
+                # cannot determine the value of gp. quit
+                pass
+            else:
+                gp_value = func.info['gp']
+
+            if gp_value is None:
+                l.warning('Failed to determine value of register gp for function %#x.', func.addr)
+                return False, []
+
+            # Special handling for cases where `gp` is stored on the stack
+            self._set_gp_load_callback(state, b, project, gp_offset, gp_value)
+            state.regs._gp = gp_value
 
         simgr = self.project.factory.simulation_manager(state)
         simgr.use_technique(Slicecutor(annotated_cfg))
@@ -116,3 +123,30 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
         l.debug("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
         return False, [ ]
+
+    @staticmethod
+    def _set_gp_load_callback(state, blade, project, gp_offset, gp_value):
+        got_gp_stack_store = False
+        tmps = {}
+        for block_addr_in_slice in set(slice_node[0] for slice_node in blade.slice.nodes()):
+            for stmt in project.factory.block(block_addr_in_slice, cross_insn_opt=False).vex.statements:
+                if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Load):
+                    # Load from memory to a tmp - assuming it's loading from the stack
+                    tmps[stmt.tmp] = 'stack'
+                elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == gp_offset:
+                    if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                        tmp_offset = stmt.data.tmp  # pylint:disable=cell-var-from-loop
+                        if tmps.get(tmp_offset, None) == 'stack':
+                            # found the load from stack
+                            # we must make sure value of that temporary variable equals to the correct gp value
+                            state.inspect.make_breakpoint('tmp_write', when=BP_BEFORE,
+                                                          condition=lambda s, bbl_addr_=block_addr_in_slice,
+                                                                           tmp_offset_=tmp_offset:
+                                                          s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
+                                                          action=OverwriteTmpValueCallback(
+                                                              gp_value).overwrite_tmp_value
+                                                          )
+                            got_gp_stack_store = True
+                            break
+            if got_gp_stack_store:
+                break
