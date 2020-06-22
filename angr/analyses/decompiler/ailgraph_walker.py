@@ -8,9 +8,9 @@ class RemoveNodeNotice(Exception):
 
 class AILGraphWalker:
     """
-    Walks an AIL graph, and optionally replaces each node with a new node.
+    Walks an AIL graph and optionally replaces each node with a new node.
     """
-    def __init__(self, graph, handler, replace_nodes=False):
+    def __init__(self, graph, handler, replace_nodes: bool=False):
 
         self.graph = graph  # type: networkx.DiGraph
         self.handler = handler
