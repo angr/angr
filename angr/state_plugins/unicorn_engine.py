@@ -99,7 +99,8 @@ class STOP:  # stop_t
     STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
-        STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR]
+        STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
+        STOP_SYMBOLIC_BLOCK_EXIT_STMT]
 
     unsupported_reasons = [STOP_MULTIPLE_MEMORY_WRITES, STOP_UNSUPPORTED_STMT_PUTI,
         STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG, STOP_UNSUPPORTED_STMT_CAS,
@@ -117,7 +118,6 @@ class StoppedInstructionDetails(ctypes.Structure):
     _fields_ = [
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64),
-        ('block_exit_instr_addr', ctypes.c_uint64)
     ]
 
 #

@@ -226,7 +226,6 @@ typedef struct block_taint_entry_t {
 typedef struct {
 	address_t block_addr;
 	uint64_t block_size;
-	address_t block_exit_stmt_instr_addr;
 } stopped_instr_details_t;
 
 typedef struct CachedPage {
@@ -273,7 +272,6 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
 static void hook_save_dependencies(uc_engine *uc, uint64_t address, uint32_t size, void *user_data);
-static void hook_deferred_stop(uc_engine *uc, address_t address, uint32_t size, void *user_data);
 
 class State {
 private:
@@ -318,9 +316,6 @@ private:
 	address_t current_block_start_address, current_block_size;
 	address_t taint_engine_next_instr_address;
 
-	uc_hook deferred_stop_hook;
-	stop_t deferred_stop_reason;
-	bool deferred_stop_status;
 	address_t unicorn_next_instr_addr;
 
 public:
@@ -380,7 +375,6 @@ public:
 		uc_context_alloc(uc, &saved_regs);
 		executed_pages_iterator = NULL;
 		current_block_start_address = 0;
-		deferred_stop_status = false;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -546,7 +540,6 @@ public:
 				break;
 			case STOP_SYMBOLIC_BLOCK_EXIT_STMT:
 				stop_reason_msg = "Guard condition of block's exit statement is symbolic";
-				commit();
 				break;
 			case STOP_MULTIPLE_MEMORY_WRITES:
 				stop_reason_msg = "Symbolic taint propagation when multiple memory writes occur in single instruction not yet supported";
@@ -587,29 +580,10 @@ public:
 		uc_emu_stop(uc);
 	}
 
-	void deferred_stop(address_t stop_instr_addr, stop_t reason) {
-		// We need to stop at a future instruction: hook the instruction to stop concrete execution
-		// and save details of instruction
-		deferred_stop_status = true;
-		deferred_stop_reason = reason;
-		uc_hook_add(uc, &deferred_stop_hook, UC_HOOK_CODE, (void *)hook_deferred_stop, (void *)this, stop_instr_addr, stop_instr_addr);
-		return;
-	}
-
-	void do_deferred_stop() {
-		stop(deferred_stop_reason);
-		return;
-	}
-
 	inline void save_stopped_at_instruction_details() {
 		// Save details of block of instruction where we stopped
 		stopped_at_instr.block_addr = current_block_start_address;
 		stopped_at_instr.block_size = current_block_size;
-		auto instr_taint_entry_it = block_taint_cache.find(current_block_start_address);
-		if (instr_taint_entry_it == block_taint_cache.end()) {
-			return;
-		}
-		stopped_at_instr.block_exit_stmt_instr_addr = instr_taint_entry_it->second.exit_stmt_instr_addr;
 		return;
 	}
 
@@ -1562,7 +1536,7 @@ public:
 		auto instr_taint_data_stop_it = block_taint_entry.block_instrs_taint_data_map.end();
 		// We continue propagating taint until we encounter 1) a memory read, 2) end of block or
 		// 3) a stop state for concrete execution
-		for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped && !deferred_stop_status; ++instr_taint_data_entries_it) {
+		for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped; ++instr_taint_data_entries_it) {
 			address_t curr_instr_addr = instr_taint_data_entries_it->first;
 			instruction_taint_entry_t curr_instr_taint_entry = instr_taint_data_entries_it->second;
 			if (curr_instr_taint_entry.has_memory_read) {
@@ -1581,7 +1555,7 @@ public:
 			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
 			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 				if (is_block_exit_guard_symbolic()) {
-					deferred_stop(curr_instr_addr, STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+					stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 				}
 			}
 		}
@@ -2095,12 +2069,6 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_save_dependencies(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
 	State *state = (State *)user_data;
 	state->save_dependencies(address);
-	return;
-}
-
-static void hook_deferred_stop(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
-	State *state = (State *)user_data;
-	state->do_deferred_stop();
 	return;
 }
 
