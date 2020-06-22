@@ -109,7 +109,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         end_index = instr_vex_stmt_indices["end"]
         for vex_stmt_idx in range(start_index, end_index + 1):
             # Execute handler from HeavyVEXMixin for the statement
-            super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
+            vex_stmt = vex_block.statements[vex_stmt_idx]
+            if vex_stmt.tag not in self.ignored_statement_tags:
+                super()._handle_vex_stmt(vex_stmt)
 
     def _execute_symbolic_instrs(self):
         instr_details_list = self.state.unicorn._get_details_of_instrs_to_execute_symbolically()
@@ -182,6 +184,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         # VEX block cache for executing instructions skipped by native interface
         self.block_details_cache = {}
 
+        # VEX statements to ignore when re-executing instructions that touched symbolic data
+        self.ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
+
         # initialize unicorn plugin
         try:
             state.unicorn.setup()
@@ -241,7 +246,9 @@ class SimEngineUnicorn(SuccessorsMixin):
             end_index = instr_vex_stmt_indices["end"]
             for vex_stmt_idx in range(start_index, end_index + 1):
                 # Execute handler from HeavyVEXMixin for the statement
-                super()._handle_vex_stmt(vex_block.statements[vex_stmt_idx])
+                vex_stmt = vex_block.statements[vex_stmt_idx]
+                if vex_stmt.tag not in self.ignored_statement_tags:
+                    super()._handle_vex_stmt(vex_stmt)
         elif state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
             # Unicorn stopped for a symbolic data related reason. Switch to VEX engine.
             return super().process_successors(successors, **kwargs)
