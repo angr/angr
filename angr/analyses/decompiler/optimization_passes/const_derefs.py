@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument
 from typing import Optional, TYPE_CHECKING
 import logging
 
@@ -92,7 +93,7 @@ class BlockWalker(AILBlockWalker):
                 return new_stmt
         return None
 
-    def _handle_Load(self, expr_id: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block):
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block):
         if isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
             if isinstance(expr.addr.addr, Const):
                 # *(*(const_addr))
