@@ -1026,7 +1026,7 @@ class Unicorn(SimStatePlugin):
         self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
         self.stopping_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
         self.stop_message = str(_UC_NATIVE.stop_message(self._uc_state), 'utf-8')
-        if self.stop_reason in STOP.symbolic_stop_reasons:
+        if self.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons):
             self.stop_message += f". Block 0x{self.stopping_instr_block_details.block_addr:02x}(size: {self.stopping_instr_block_details.block_size})."
 
         # figure out why we stopped
