@@ -216,6 +216,8 @@ typedef struct block_taint_entry_t {
 	std::map<address_t, instruction_taint_entry_t> block_instrs_taint_data_map;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
 	address_t exit_stmt_instr_addr;
+	bool has_unsupported_stmt_or_expr_type;
+	stop_t unsupported_stmt_stop_reason;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
@@ -227,6 +229,13 @@ typedef struct {
 	address_t block_addr;
 	uint64_t block_size;
 } stopped_instr_details_t;
+
+typedef struct {
+	std::unordered_set<taint_entity_t> sources;
+	std::unordered_set<taint_entity_t> ite_cond_entities;
+	bool has_unsupported_expr;
+	stop_t unsupported_expr_stop_reason;
+} taint_sources_and_and_ite_cond_t;
 
 typedef struct CachedPage {
 	size_t size;
@@ -1102,7 +1111,8 @@ public:
 		address_t curr_instr_addr;
 
 		started_processing_instructions = false;
-		for (int i = 0; i < vex_block->stmts_used && !stopped; i++) {
+		block_taint_entry.has_unsupported_stmt_or_expr_type = false;
+		for (int i = 0; i < vex_block->stmts_used; i++) {
 			auto stmt = vex_block->stmts[i];
 			switch (stmt->tag) {
 				case Ist_Put:
@@ -1114,8 +1124,13 @@ public:
 					sink.instr_addr = curr_instr_addr;
 					sink.reg_offset = stmt->Ist.Put.offset;
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, curr_instr_addr, false);
-					srcs = result.first;
-					ite_cond_entity_list = result.second;
+					if (result.has_unsupported_expr) {
+						block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+						block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
+						break;
+					}
+					srcs = result.sources;
+					ite_cond_entity_list = result.ite_cond_entities;
 
 					// Store taint sources and compute dependencies to save
 					instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
@@ -1140,8 +1155,13 @@ public:
 					sink.instr_addr = curr_instr_addr;
 					sink.tmp_id = stmt->Ist.WrTmp.tmp;
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.WrTmp.data, curr_instr_addr, false);
-					srcs = result.first;
-					ite_cond_entity_list = result.second;
+					if (result.has_unsupported_expr) {
+						block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+						block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
+						break;
+					}
+					srcs = result.sources;
+					ite_cond_entity_list = result.ite_cond_entities;
 
 					// Store taint sources and compute dependencies to save
 					instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
@@ -1163,13 +1183,23 @@ public:
 
 					sink.entity_type = TAINT_ENTITY_MEM;
 					sink.instr_addr = curr_instr_addr;
-					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Store.addr, curr_instr_addr, false);
-					// TODO: What if memory addresses have ITE expressions in them?
-					sink.mem_ref_entity_list.assign(result.first.begin(), result.first.end());
-					result = get_taint_sources_and_ite_cond(stmt->Ist.Store.data, curr_instr_addr, false);
-					srcs = result.first;
-					ite_cond_entity_list = result.second;
 					instruction_taint_entry.has_memory_write = true;
+					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Store.addr, curr_instr_addr, false);
+					if (result.has_unsupported_expr) {
+						block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+						block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
+						break;
+					}
+					// TODO: What if memory addresses have ITE expressions in them?
+					sink.mem_ref_entity_list.assign(result.sources.begin(), result.sources.end());
+					result = get_taint_sources_and_ite_cond(stmt->Ist.Store.data, curr_instr_addr, false);
+					if (result.has_unsupported_expr) {
+						block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+						block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
+						break;
+					}
+					srcs = result.sources;
+					ite_cond_entity_list = result.ite_cond_entities;
 
 					// Store taint sources and compute dependencies to save
 					instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
@@ -1187,7 +1217,12 @@ public:
 				case Ist_Exit:
 				{
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Exit.guard, curr_instr_addr, true);
-					block_taint_entry.exit_stmt_guard_expr_deps = result.first;
+					if (result.has_unsupported_expr) {
+						block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+						block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
+						break;
+					}
+					block_taint_entry.exit_stmt_guard_expr_deps = result.sources;
 					block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
 					if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
 						auto dependencies_to_save = compute_dependencies_to_save(block_taint_entry.exit_stmt_guard_expr_deps);
@@ -1211,37 +1246,43 @@ public:
 				case Ist_PutI:
 				{
 					// TODO
-					stop(STOP_UNSUPPORTED_STMT_PUTI);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_PUTI;
 					break;
 				}
 				case Ist_StoreG:
 				{
 					// TODO
-					stop(STOP_UNSUPPORTED_STMT_STOREG);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_STOREG;
 					break;
 				}
 				case Ist_LoadG:
 				{
 					// TODO
-					stop(STOP_UNSUPPORTED_STMT_LOADG);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_LOADG;
 					break;
 				}
 				case Ist_CAS:
 				{
 					// TODO
-					stop(STOP_UNSUPPORTED_STMT_CAS);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_CAS;
 					break;
 				}
 				case Ist_LLSC:
 				{
 					// TODO
-					stop(STOP_UNSUPPORTED_STMT_LLSC);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_LLSC;
 					break;
 				}
 				case Ist_Dirty:
 				{
 					// TODO
-					stop(STOP_UNSUPPORTED_STMT_DIRTY);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_DIRTY;
 					break;
 				}
 				case Ist_MBE:
@@ -1252,7 +1293,8 @@ public:
 				{
 					fprintf(stderr, "[sim_unicorn] Unsupported statement type encountered: ");
 					fprintf(stderr, "Block: 0x%zx, statement index: %d, statement type: %u\n", address, i, stmt->tag);
-					stop(STOP_UNSUPPORTED_STMT_UNKNOWN);
+					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+					block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_UNKNOWN;
 					break;
 				}
 			}
@@ -1269,9 +1311,9 @@ public:
 	}
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	std::pair<std::unordered_set<taint_entity_t>, std::unordered_set<taint_entity_t>> get_taint_sources_and_ite_cond(
-	  IRExpr *expr, address_t instr_addr, bool is_exit_stmt) {
-		std::unordered_set<taint_entity_t> sources, ite_cond_entities;
+	taint_sources_and_and_ite_cond_t get_taint_sources_and_ite_cond(IRExpr *expr, address_t instr_addr, bool is_exit_stmt) {
+		taint_sources_and_and_ite_cond_t result;
+		result.has_unsupported_expr = false;
 		switch (expr->tag) {
 			case Iex_RdTmp:
 			{
@@ -1279,7 +1321,7 @@ public:
 				taint_entity.entity_type = TAINT_ENTITY_TMP;
 				taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
 				taint_entity.instr_addr = instr_addr;
-				sources.emplace(taint_entity);
+				result.sources.emplace(taint_entity);
 				break;
 			}
 			case Iex_Get:
@@ -1288,53 +1330,109 @@ public:
 				taint_entity.entity_type = TAINT_ENTITY_REG;
 				taint_entity.reg_offset = expr->Iex.Get.offset;
 				taint_entity.instr_addr = instr_addr;
-				sources.emplace(taint_entity);
+				result.sources.emplace(taint_entity);
 				break;
 			}
 			case Iex_Unop:
 			{
 				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Unop.arg, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				break;
 			}
 			case Iex_Binop:
 			{
 				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg1, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg2, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				break;
 			}
 			case Iex_Triop:
 			{
 				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg1, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg2, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg3, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				break;
 			}
 			case Iex_Qop:
 			{
 				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg1, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.sources.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg2, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg3, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg4, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				break;
 			}
 			case Iex_ITE:
@@ -1344,20 +1442,37 @@ public:
 				// exit statement, we don't need to store it separately since we process only the
 				// guard condition for Exit statements
 				auto temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.cond, instr_addr, false);
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
 				if (is_exit_stmt) {
-					sources.insert(temp.first.begin(), temp.first.end());
-					sources.insert(temp.second.begin(), temp.second.end());
+					result.sources.insert(temp.sources.begin(), temp.sources.end());
+					result.sources.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				}
 				else {
-					ite_cond_entities.insert(temp.first.begin(), temp.first.end());
-					ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+					result.ite_cond_entities.insert(temp.sources.begin(), temp.sources.end());
+					result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				}
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iffalse, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+
 				temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iftrue, instr_addr, false);
-				sources.insert(temp.first.begin(), temp.first.end());
-				ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
+				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				break;
 			}
 			case Iex_CCall:
@@ -1365,26 +1480,37 @@ public:
 				IRExpr **ccall_args = expr->Iex.CCall.args;
 				for (uint64_t i = 0; ccall_args[i]; i++) {
 					auto temp = get_taint_sources_and_ite_cond(ccall_args[i], instr_addr, false);
-					sources.insert(temp.first.begin(), temp.first.end());
-					ite_cond_entities.insert(temp.second.begin(), temp.second.end());
+					if (temp.has_unsupported_expr) {
+						result.has_unsupported_expr = true;
+						result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+						break;
+					}
+					result.sources.insert(temp.sources.begin(), temp.sources.end());
+					result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				}
 				break;
 			}
 			case Iex_Load:
 			{
 				auto temp = get_taint_sources_and_ite_cond(expr->Iex.Load.addr, instr_addr, false);
+				if (temp.has_unsupported_expr) {
+					result.has_unsupported_expr = true;
+					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+					break;
+				}
 				// TODO: What if memory addresses have ITE expressions in them?
 				taint_entity_t source;
 				source.entity_type = TAINT_ENTITY_MEM;
-				source.mem_ref_entity_list.assign(temp.first.begin(), temp.first.end());
+				source.mem_ref_entity_list.assign(temp.sources.begin(), temp.sources.end());
 				source.instr_addr = instr_addr;
-				sources.emplace(source);
+				result.sources.emplace(source);
 				break;
 			}
 			case Iex_GetI:
 			{
 				// TODO
-				stop(STOP_UNSUPPORTED_EXPR_GETI);
+				result.has_unsupported_expr = true;
+				result.unsupported_expr_stop_reason = STOP_UNSUPPORTED_EXPR_GETI;
 				break;
 			}
 			case Iex_Const:
@@ -1395,11 +1521,12 @@ public:
 			default:
 			{
 				fprintf(stderr, "[sim_unicorn] Unsupported expression type encountered: %u\n", expr->tag);
-				stop(STOP_UNSUPPORTED_EXPR_UNKNOWN);
+				result.has_unsupported_expr = true;
+				result.unsupported_expr_stop_reason = STOP_UNSUPPORTED_EXPR_UNKNOWN;
 				break;
 			}
 		}
-		return std::make_pair(sources, ite_cond_entities);
+		return result;
 	}
 
 	// Determine cumulative result of taint statuses of a set of taint entities
@@ -1531,6 +1658,13 @@ public:
 			return;
 		}
 		block_taint_entry_t block_taint_entry = this->block_taint_cache.at(current_block_start_address);
+		if (((symbolic_registers.size() > 0) || (block_symbolic_instr_addrs.size() > 0))
+		   && block_taint_entry.has_unsupported_stmt_or_expr_type) {
+			// There are symbolic registers and VEX statements in block for which taint propagation
+			// is not supported. Stop concrete execution.
+			stop(block_taint_entry.unsupported_stmt_stop_reason);
+			return;
+		}
 		// Resume propagating taints using symbolic_registers and symbolic_temps from where we paused
 		auto instr_taint_data_entries_it = block_taint_entry.block_instrs_taint_data_map.find(taint_engine_next_instr_address);
 		auto instr_taint_data_stop_it = block_taint_entry.block_instrs_taint_data_map.end();
@@ -1589,6 +1723,11 @@ public:
 			if (instr_taint_data_entry.has_memory_write) {
 				mem_writes_taint_map.emplace(instr_addr, false);
 			}
+		}
+		else if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
+			// There are symbolic registers and VEX statements in block for which taint propagation
+			// is not supported. Stop concrete execution.
+			stop(block_taint_entry.unsupported_stmt_stop_reason);
 		}
 		else {
 			propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
@@ -1726,10 +1865,6 @@ public:
 				return;
 			}
 			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
-			if (stopped) {
-				// Concrete execution stopped due to some unsupported VEX statement or expression.
-				return;
-			}
 			// Add entry to taint relations cache
 			block_taint_cache.emplace(block_address, block_taint_entry);
 		}
