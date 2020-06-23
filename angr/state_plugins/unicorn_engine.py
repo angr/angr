@@ -883,7 +883,7 @@ class Unicorn(SimStatePlugin):
             for instr_dependency in instr.dependencies[:instr.dependencies_count]:
                 dep_entry = {"type": instr_dependency.dependency_type}
                 if instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_REG:
-                    dep_entry["reg_offset"] = instr_dependency.reg_offset
+                    dep_entry["reg_name"] = self.vex_reg_offset_to_name[instr_dependency.reg_offset]
                     dep_entry["reg_value"] = instr_dependency.reg_value
                 elif instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_MEM:
                     dep_entry["mem_address"] = instr_dependency.mem_address
@@ -974,7 +974,8 @@ class Unicorn(SimStatePlugin):
         artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
         _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
 
-        # Initialize VEX register offset to unicorn register ID mappings
+        # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
+        self.vex_reg_offset_to_name = {}
         vex_reg_offsets = []
         unicorn_reg_ids = []
         pc_reg_name = self.state.arch.get_register_by_name("pc")
@@ -982,7 +983,9 @@ class Unicorn(SimStatePlugin):
             if reg_name == pc_reg_name:
                 continue
 
-            vex_reg_offsets.append(self.state.arch.get_register_offset(reg_name))
+            vex_reg_offset = self.state.arch.get_register_offset(reg_name)
+            self.vex_reg_offset_to_name[vex_reg_offset] = reg_name
+            vex_reg_offsets.append(vex_reg_offset)
             unicorn_reg_ids.append(unicorn_reg_id)
 
         vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))

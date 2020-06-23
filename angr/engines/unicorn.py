@@ -95,8 +95,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         for dep_entry in instr_entry["dependencies"]:
             if dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_REG:
                 # Set register
-                reg_offset = dep_entry["reg_offset"]
+                reg_name = dep_entry["reg_name"]
                 reg_value = dep_entry["reg_value"]
+                setattr(self.state.regs, reg_name, reg_value)
             elif dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_MEM:
                 # Set memory location value
                 address = dep_entry["mem_address"]
