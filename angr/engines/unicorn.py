@@ -93,12 +93,11 @@ class SimEngineUnicorn(SuccessorsMixin):
         vex_block = vex_block_details["block"]
         instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
         for dep_entry in instr_entry["dependencies"]:
-            if dep_entry["type"] == self.state.unicorn.TaintEntityEnum.TAINT_ENTITY_REG:
+            if dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_REG:
                 # Set register
                 reg_offset = dep_entry["reg_offset"]
                 reg_value = dep_entry["reg_value"]
-                setattr(self.state.regs, reg_offset, reg_value)
-            elif dep_entry["type"] == self.state.unicorn.TaintEntityEnum.TAINT_ENTITY_MEM:
+            elif dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_MEM:
                 # Set memory location value
                 address = dep_entry["mem_address"]
                 value = dep_entry["mem_value"]
@@ -242,6 +241,6 @@ class SimEngineUnicorn(SuccessorsMixin):
         successors.description = description
         successors.processed = True
 
-from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
+from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, TaintEntityEnum, unicorn as uc_module
 from .. import sim_options as o
 from ..misc.ux import once
