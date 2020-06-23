@@ -1859,7 +1859,7 @@ public:
 				1, 0, pxControl
 			);
 
-			if (lift_ret == NULL) {
+			if ((lift_ret == NULL) || (lift_ret->size == 0)) {
 				// Failed to lift block to VEX. Stop concrete execution
 				stop(STOP_VEX_LIFT_FAILED);
 				return;
