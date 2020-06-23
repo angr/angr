@@ -226,18 +226,12 @@ class SimEngineUnicorn(SuccessorsMixin):
                         state._inspect('irsb', BP_AFTER, address=bbl_addr)
                     break
 
-        if state.unicorn.stop_reason in STOP.symbolic_stop_reasons:
-            # Unicorn stopped for a symbolic data related reason. Switch to VEX engine.
-            return super().process_successors(successors, **kwargs)
-        elif state.unicorn.stop_reason in STOP.unsupported_reasons:
-            # Unicorn stopped because of some unsupported VEX statement, VEX expression or some
-            # other unsupported operation. Switch to VEX engine.
+        if state.unicorn.stop_reason in STOP.unsupported_reasons:
             l.warning(state.unicorn.stop_message)
-            return super().process_successors(successors, **kwargs)
-        else:
-            if state.unicorn.jumpkind.startswith('Ijk_Sys'):
-                state.ip = state.unicorn._syscall_pc
-            successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
+
+        if state.unicorn.jumpkind.startswith('Ijk_Sys'):
+            state.ip = state.unicorn._syscall_pc
+        successors.add_successor(state, state.ip, state.solver.true, state.unicorn.jumpkind)
 
         successors.description = description
         successors.processed = True
