@@ -976,15 +976,23 @@ class Unicorn(SimStatePlugin):
 
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
         self.vex_reg_offset_to_name = {}
-        vex_reg_offsets = []
-        unicorn_reg_ids = []
+        vex_to_unicorn_map = {}
         pc_reg_name = self.state.arch.get_register_by_name("pc")
         for reg_name, unicorn_reg_id in self.state.arch.uc_regs.items():
             if reg_name == pc_reg_name:
                 continue
 
-            vex_reg_offset = self.state.arch.get_register_offset(reg_name)
-            self.vex_reg_offset_to_name[vex_reg_offset] = reg_name
+            vex_reg = self.state.arch.get_register_by_name(reg_name)
+            self.vex_reg_offset_to_name[vex_reg.vex_offset] = reg_name
+            vex_to_unicorn_map[vex_reg.vex_offset] = unicorn_reg_id
+            for vex_sub_reg in vex_reg.subregisters:
+                vex_sub_reg_offset = self.state.arch.get_register_offset(vex_sub_reg[0])
+                self.vex_reg_offset_to_name[vex_sub_reg_offset] = reg_name
+                vex_to_unicorn_map[vex_sub_reg_offset] = unicorn_reg_id
+
+        vex_reg_offsets = []
+        unicorn_reg_ids = []
+        for vex_reg_offset, unicorn_reg_id in vex_to_unicorn_map.items():
             vex_reg_offsets.append(vex_reg_offset)
             unicorn_reg_ids.append(unicorn_reg_id)
 
