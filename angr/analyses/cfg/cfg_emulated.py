@@ -2419,7 +2419,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors
 
-    def _backward_slice_indirect(self, cfgnode: object, sim_successors: object, current_function_addr: object) -> object:
+    def _backward_slice_indirect(self, cfgnode, sim_successors, current_function_addr):
         """
         Try to resolve an indirect jump by slicing backwards
         """

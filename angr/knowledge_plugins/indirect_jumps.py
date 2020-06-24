@@ -1,3 +1,5 @@
+from typing import List
+
 from .plugin import KnowledgeBasePlugin
 
 
@@ -18,7 +20,7 @@ class IndirectJumps(KnowledgeBasePlugin, dict):
         for k, v in self.resolved.items():
             o.resolved[k] = v
 
-    def update_resolved_addrs(self, indirect_address: int, resolved_addresses: list):
+    def update_resolved_addrs(self, indirect_address: int, resolved_addresses: List[int]):
         # sanity check on usage
         if indirect_address is None:
             return
