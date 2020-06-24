@@ -158,6 +158,7 @@ setup(
         'psutil',
         'pycparser>=2.18',
         'itanium_demangler',
+        'CppHeaderParser',
         'protobuf',
     ],
     setup_requires=[_UNICORN, 'pyvex'],

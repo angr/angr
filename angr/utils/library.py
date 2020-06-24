@@ -1,5 +1,6 @@
+from typing import Tuple, Optional
 
-from ..sim_type import parse_file
+from ..sim_type import parse_file, parse_cpp_file, SimTypeCppFunction
 
 
 def get_function_name(s):
@@ -64,6 +65,41 @@ def convert_cproto_to_py(c_decl):
         # Silently catch all parsing errors... supporting all function declarations is impossible
         try:
             func_name = get_function_name(c_decl)
+            func_proto = None
+            s.append('"%s": None,' % func_name)
+        except ValueError:
+            # Failed to extract the function name. Is it a function declaration?
+            func_name, func_proto = None, None
+
+    return func_name, func_proto, "\n".join(s)
+
+
+def convert_cppproto_to_py(cpp_decl: str,
+                           with_param_names: bool=False) -> Tuple[Optional[str],Optional[SimTypeCppFunction],Optional[str]]:
+    """
+    Pre-process a C++-style function declaration string to its corresponding SimTypes-based Python representation.
+
+    :param cpp_decl:    The C++-style function declaration string.
+    :return:            A tuple of the function name, the prototype, and a string representing the SimType-based Python
+                        representation.
+    """
+
+    s = [ ]
+    try:
+        s.append("# %s" % cpp_decl)
+
+        parsed = parse_cpp_file(cpp_decl, with_param_names=with_param_names)
+        parsed_decl = parsed[0]
+        if not parsed_decl:
+            raise ValueError("Cannot parse the function prototype.")
+
+        func_name, func_proto = next(iter(parsed_decl.items()))
+
+        s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
+
+    except Exception:  # pylint:disable=broad-except
+        try:
+            func_name = get_function_name(cpp_decl)
             func_proto = None
             s.append('"%s": None,' % func_name)
         except ValueError:
