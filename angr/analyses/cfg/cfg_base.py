@@ -2282,7 +2282,7 @@ class CFGBase(Analysis):
 
         addr = jump.addr if jump is not None else jump_addr
         l.debug('The indirect jump at %#x is successfully resolved by %s. It has %d targets.', addr, resolved_by, len(targets))
-        self.kb.resolved_indirect_jumps.add(addr)
+        self.kb.indirect_jumps.update_resolved_addrs(addr, targets)
 
     def _indirect_jump_unresolved(self, jump):
         """

@@ -2326,8 +2326,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             all_successors.insert(0, a)
 
                         l.debug('The indirect jump is successfully resolved.')
-
-                        self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                        self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, more_successors)
 
                     else:
                         l.debug('Failed to resolve the indirect jump.')
@@ -2379,7 +2378,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
                         # mark jump as resolved if we got successors
                         if successors:
-                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                            succ_addrs = [s.addr for s in successors]
+                            self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, succ_addrs)
                         else:
                             self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(successors))
@@ -2401,7 +2401,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # mark jump as resolved if we got successors
                         if successors:
-                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                            succ_addrs = [s.addr for s in successors]
+                            self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, succ_addrs)
                         else:
                             self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(successors))
