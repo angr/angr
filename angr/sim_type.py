@@ -3,7 +3,7 @@ from .misc.ux import deprecated
 import copy
 import re
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any, Tuple, List
 
 import claripy
 
@@ -17,6 +17,11 @@ try:
     import pycparser
 except ImportError:
     pycparser = None
+
+try:
+    import CppHeaderParser
+except ImportError:
+    CppHeaderParser = None
 
 
 class SimType:
@@ -461,6 +466,44 @@ class SimTypePointer(SimTypeReg):
         )
 
 
+class SimTypeReference(SimTypeReg):
+    """
+    SimTypeReference is a type that specifies a reference to some other type.
+    """
+    def __init__(self, refs, label=None):
+        super().__init__(None, label=label)
+        self.refs: SimType = refs
+
+    def __repr__(self):
+        return "{}&".format(self.refs)
+
+    def c_repr(self):
+        return "{}&".format(self.refs.c_repr())
+
+    def make(self, refs):
+        new = type(self)(refs)
+        new._arch = self._arch
+        return new
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        return self._arch.bits
+
+    def _with_arch(self, arch):
+        out = SimTypeReference(self.refs.with_arch(arch), label=self.label)
+        out._arch = arch
+        return out
+
+    def _init_str(self):
+        return "%s(%s%s)" % (
+            self.__class__.__name__,
+            self.refs._init_str(),
+            (', label="%s"' % self.label) if self.label is not None else "",
+        )
+
+
 class SimTypeFixedSizeArray(SimType):
     """
     SimTypeFixedSizeArray is a literal (i.e. not a pointer) fixed-size array.
@@ -682,7 +725,7 @@ class SimTypeFunction(SimType):
         super(SimTypeFunction, self).__init__(label=label)
         self.args = args
         self.returnty: Optional[SimType] = returnty
-        self.arg_names = arg_names if arg_names else []
+        self.arg_names = arg_names if arg_names else ()
         self.variadic = variadic
 
     def __repr__(self):
@@ -718,6 +761,39 @@ class SimTypeFunction(SimType):
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
+            (", label=%s" % self.label) if self.label else "",
+            (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
+            ", variadic=True" if self.variadic else "",
+        )
+
+
+class SimTypeCppFunction(SimTypeFunction):
+    """
+    SimTypeCppFunction is a type that specifies an actual C++-style function with information about arguments, return
+    value, and more C++-specific properties.
+
+    :ivar ctor: Whether the function is a constructor or not.
+    :ivar dtor: Whether the function is a destructor or not.
+    """
+    def __init__(self, args, returnty, label=None, arg_names: Tuple[str]=None, ctor: bool=False, dtor: bool=False):
+        super().__init__(args, returnty, label=label, arg_names=arg_names, variadic=False)
+        self.ctor = ctor
+        self.dtor = dtor
+
+    def __repr__(self):
+        argstrs = [str(a) for a in self.args]
+        if self.variadic:
+            argstrs.append('...')
+        return '({}) -> {}'.format(', '.join(argstrs), self.returnty)
+
+    def c_repr(self):
+        return '({}) -> {}'.format(', '.join(str(a) for a in self.args), self.returnty)
+
+    def _init_str(self):
+        return "%s([%s], %s%s%s%s)" % (
+            self.__class__.__name__,
+            ", ".join([arg._init_str() for arg in self.args]),
+            self.returnty,
             (", label=%s" % self.label) if self.label else "",
             (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
@@ -1003,6 +1079,40 @@ class SimUnion(SimType):
         return out
 
 
+class SimCppClass(SimStruct):
+    def __init__(self, members: Dict[str,SimStruct], name: Optional[str]=None, pack: bool=False, align=None):
+        super().__init__(members, name=name, pack=pack, align=align)
+
+
+class SimCppNamespaced(SimType):
+    """
+    Describes a type within a namespace.
+    """
+    def __init__(self, namespace: str, type_: SimType, label: Optional[str]=None):
+        super().__init__(label=label)
+        self.namespace = namespace
+        self.type = type_
+
+    def __repr__(self):
+        return "{}::{}".format(self.namespace, self.type)
+
+    def c_repr(self):
+        return "{}::{}".format(self.namespace, self.type.c_repr())
+
+    def _with_arch(self, arch):
+        out = SimCppNamespaced(self.namespace, self.type.with_arch(arch), label=self.label)
+        out._arch = arch
+        return out
+
+    def _init_str(self):
+        return "%s(%s, %s%s)" % (
+            self.__class__.__name__,
+            self.namespace,
+            self.type._init_str(),
+            (', label="%s"' % self.label) if self.label is not None else "",
+        )
+
+
 BASIC_TYPES = {
     'char': SimTypeChar(),
     'signed char': SimTypeChar(),
@@ -1065,7 +1175,11 @@ ALL_TYPES = {
     'string': SimTypeString(),
     'wstring': SimTypeWString(),
 
-    'va_list': SimStruct({}, name='va_list')
+    'va_list': SimStruct({}, name='va_list'),
+
+    # C++-specific
+    'basic_string': SimTypeString(),
+    'CharT': SimTypeChar(),
 }
 
 
@@ -1397,6 +1511,141 @@ def _parse_const(c):
         raise ValueError('Binary op %s' % c.op)
     else:
         raise ValueError(c)
+
+
+def _cpp_decl_to_type(decl: Any, extra_types: Dict[str,SimType], opaque_classes=True):
+    if isinstance(decl, CppHeaderParser.CppMethod):
+        the_func = decl
+        func_name = the_func['name']
+        if "__deleting_dtor__" in func_name:
+            the_func['destructor'] = True
+        elif "__base_dtor__" in func_name:
+            the_func['destructor'] = True
+        elif "__dtor__" in func_name:
+            the_func['destructor'] = True
+        # translate parameters
+        args = [ ]
+        arg_names: List[str] = [ ]
+        for param in the_func['parameters']:
+            arg_type = param['type']
+            args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
+            arg_name = param['name']
+            arg_names.append(arg_name)
+
+        args = tuple(args)
+        arg_names: Tuple[str] = tuple(arg_names)
+        # returns
+        if not the_func['returns'].strip():
+            returnty = SimTypeBottom()
+        else:
+            returnty = _cpp_decl_to_type(the_func['returns'].strip(), extra_types, opaque_classes=opaque_classes)
+        # other properties
+        ctor = the_func['constructor']
+        dtor = the_func['destructor']
+        func = SimTypeCppFunction(args, returnty, arg_names=arg_names, ctor=ctor, dtor=dtor)
+        return func
+
+    elif isinstance(decl, str):
+        # a string that represents type
+        if decl.endswith("&"):
+            # reference
+            subdecl = decl.rstrip("&").strip()
+            subt = _cpp_decl_to_type(subdecl, extra_types, opaque_classes=opaque_classes)
+            t = SimTypeReference(subt)
+            return t
+
+        if decl.endswith(" const"):
+            # drop const
+            return _cpp_decl_to_type(decl[:-6].strip(), extra_types, opaque_classes=opaque_classes)
+
+        # namespaced?
+        if "::" in decl:
+            splitted = decl.split("::")
+            subt = _cpp_decl_to_type(splitted[-1], extra_types, opaque_classes=opaque_classes)
+
+            if len(splitted) > 1:
+                # namespaced!
+                for namespace in reversed(splitted[:-1]):
+                    subt = SimCppNamespaced(namespace, subt)
+            return subt
+
+        key = decl
+        if key in extra_types:
+            return extra_types[key]
+        elif key in ALL_TYPES:
+            return ALL_TYPES[key]
+        elif opaque_classes is True:
+            # create a class without knowing the internal members
+            return SimCppClass({}, name=decl)
+        else:
+            raise TypeError("Unknown type '%s'" % ' '.join(key))
+
+    raise NotImplementedError()
+
+
+def parse_cpp_file(cpp_decl, with_param_names: bool=False):
+    #
+    # A series of hacks to make CppHeaderParser happy with whatever C++ function prototypes we feed in
+    #
+
+    if CppHeaderParser is None:
+        raise ImportError("Please install CppHeaderParser to parse C++ definitions")
+
+    # CppHeaderParser does not support specialization
+    _s = cpp_decl
+    s = None
+    while s != _s:
+        _s = s if s is not None else _s
+        s = re.sub(r"<[^<>]+>", "", _s)
+
+    m = re.search(r"{([a-z\s]+)}", s)
+    if m is not None:
+        s = s[:m.start()] + "__" + m.group(1).replace(" ", "_") + "__" + s[m.end():]
+
+    # CppHeaderParser does not like missing parameter names
+    # FIXME: The following logic is only dealing with *one* C++ function declaration. Support multiple declarations
+    # FIXME: when needed in the future.
+    if not with_param_names:
+        last_pos = 0
+        i = 0
+        while True:
+            idx = s.find(",", last_pos)
+            if idx == -1:
+                break
+            arg_name = "a%d" % i
+            i += 1
+            s = s[:idx] + " " + arg_name + s[idx:]
+            last_pos = idx + len(arg_name) + 1 + 1
+
+        # the last parameter
+        idx = s.find(")", last_pos)
+        if idx != -1:
+            # TODO: consider the case where there are one or multiple spaces between ( and )
+            if s[idx - 1] != "(":
+                arg_name = "a%d" % i
+                s = s[:idx] + " " + arg_name + s[idx:]
+
+    # CppHeaderParser does not like missing function body
+    s += "\n\n{}"
+
+    h = CppHeaderParser.CppHeader(s, argType="string")
+    if not h.functions:
+        return None, None
+
+    func_decls: Dict[str,SimTypeCppFunction] = { }
+    for the_func in h.functions:
+        # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
+        proto = _cpp_decl_to_type(the_func, {}, opaque_classes=True)
+        if the_func['class']:
+            func_name = the_func['class'] + "::" + the_func['name']
+            proto.args = (SimTypePointer(pts_to=SimTypeBottom(label="void")),) + proto.args
+            proto.arg_names = ("this",) + proto.arg_names
+        else:
+            func_name = the_func['name']
+        func_decls[func_name] = proto
+
+    return func_decls, { }
+
 
 if pycparser is not None:
     _accepts_scope_stack()

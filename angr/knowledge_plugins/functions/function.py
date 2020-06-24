@@ -1430,8 +1430,7 @@ class Function(Serializable):
         if not library.has_prototype(self.name):
             return
 
-        proto = library.prototypes[self.name]
-
+        proto = library.get_prototype(self.name)
         self.prototype = proto
         if self.calling_convention is not None:
             self.calling_convention.args = None
