@@ -903,7 +903,7 @@ class SimTypeDouble(SimTypeFloat):
 class SimStruct(SimType):
     _fields = ('name', 'fields')
 
-    def __init__(self, fields, name=None, pack=False, align=None):
+    def __init__(self, fields: Dict[str,SimType], name=None, pack=False, align=None):
         super(SimStruct, self).__init__(None)
         self._pack = pack
         self._name = '<anon>' if name is None else name
@@ -1080,7 +1080,7 @@ class SimUnion(SimType):
 
 
 class SimCppClass(SimStruct):
-    def __init__(self, members: Dict[str,SimStruct], name: Optional[str]=None, pack: bool=False, align=None):
+    def __init__(self, members: Dict[str,SimType], name: Optional[str]=None, pack: bool=False, align=None):
         super().__init__(members, name=name, pack=pack, align=align)
 
 

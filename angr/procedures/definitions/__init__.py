@@ -174,7 +174,7 @@ class SimLibrary:
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-            if proc.cc.func_ty is not None and proc.cc.func_ty.arg_names:
+            if proc.cc.func_ty is not None:
                 # Use inspect to extract the parameters from the run python function
                 proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
         if proc.cc is None and arch.name in self.fallback_cc:
@@ -279,7 +279,10 @@ class SimCppLibrary(SimLibrary):
     @staticmethod
     def _try_demangle(name):
         if name[0:2] == "_Z":
-            ast = itanium_demangler.parse(name)
+            try:
+                ast = itanium_demangler.parse(name)
+            except NotImplementedError:
+                return name
             if ast:
                 return str(ast)
         return name

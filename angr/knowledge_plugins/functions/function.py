@@ -1447,9 +1447,11 @@ class Function(Serializable):
 
     @property
     def demangled_name(self):
-
         if self.name[0:2] == "_Z":
-            ast = parse(self.name)
+            try:
+                ast = parse(self.name)
+            except NotImplementedError:
+                return self.name
             if ast:
                 return ast.__str__()
         return self.name
