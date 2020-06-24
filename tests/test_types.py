@@ -6,7 +6,7 @@ import claripy
 import angr
 from angr.sim_type import (SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion,
                            SimTypeDouble, SimTypeLongLong, SimTypeLong, SimTypeNum, SimTypeReference, SimTypeBottom,
-                           SimTypeString, SimCppNamespaced, SimCppClass)
+                           SimTypeString, SimCppNamespaced)
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
 
