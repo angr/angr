@@ -1,3 +1,4 @@
+# pylint:disable=unused-variable
 import nose
 
 import claripy

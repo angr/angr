@@ -4,8 +4,6 @@ import logging
 
 from archinfo.arch_arm import is_arm_arch
 
-from .. import SIM_PROCEDURES
-from ..sim_type import parse_cpp_file
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register

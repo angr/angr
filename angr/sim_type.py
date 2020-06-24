@@ -1635,8 +1635,8 @@ def parse_cpp_file(cpp_decl, with_param_names: bool=False):
     func_decls: Dict[str,SimTypeCppFunction] = { }
     for the_func in h.functions:
         # FIXME: We always assume that there is a "this" pointer but it is not the case for static methods.
-        proto = _cpp_decl_to_type(the_func, {}, opaque_classes=True)
-        if the_func['class']:
+        proto: Optional[SimTypeCppFunction] = _cpp_decl_to_type(the_func, {}, opaque_classes=True)
+        if proto is not None and the_func['class']:
             func_name = the_func['class'] + "::" + the_func['name']
             proto.args = (SimTypePointer(pts_to=SimTypeBottom(label="void")),) + proto.args
             proto.arg_names = ("this",) + proto.arg_names

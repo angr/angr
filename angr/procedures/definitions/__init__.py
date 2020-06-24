@@ -177,7 +177,7 @@ class SimLibrary:
             if proc.cc.func_ty is not None and proc.cc.func_ty.arg_names:
                 # Use inspect to extract the parameters from the run python function
                 proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
-        if proc.cc is None:
+        if proc.cc is None and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name](arch)
         if proc.display_name in self.prototypes:
             proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)

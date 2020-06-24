@@ -1,7 +1,6 @@
-import re
 from typing import Tuple, Optional
 
-from ..sim_type import parse_file, parse_cpp_file, SimTypeFunction, SimTypeCppFunction
+from ..sim_type import parse_file, parse_cpp_file, SimTypeCppFunction
 
 
 def get_function_name(s):
