@@ -21,5 +21,5 @@ class time(angr.SimProcedure):
             if self.last_time is not None:
                 self.state.add_constraints(result >= self.last_time)
             self.last_time = result
-        self.state.memory.store(pointer, result, condition=claripy.Not(pointer == 0)) 
+        self.state.memory.store(pointer, result, condition=(pointer != 0)) 
         return result
