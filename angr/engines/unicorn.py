@@ -104,14 +104,16 @@ class SimEngineUnicorn(SuccessorsMixin):
                 value = dep_entry["mem_value"]
                 self.state.memory.store(address, value)
 
+        # VEX statements to ignore when re-executing instructions that touched symbolic data
+        ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
         start_index = instr_vex_stmt_indices["start"]
         end_index = instr_vex_stmt_indices["end"]
         for vex_stmt_idx in range(start_index, end_index + 1):
             # Execute handler from HeavyVEXMixin for the statement
             vex_stmt = vex_block.statements[vex_stmt_idx]
-            if vex_stmt.tag not in self.ignored_statement_tags:
-                super()._handle_vex_stmt(vex_stmt)
+            if vex_stmt.tag not in ignored_statement_tags:
+                super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
 
     def _execute_symbolic_instrs(self):
         instr_details_list = self.state.unicorn._get_details_of_instrs_to_execute_symbolically()
@@ -120,7 +122,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     def _get_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
-        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)    # pylint:disable=no-member
         if irsb.size == 0:
             if irsb.jumpkind == 'Ijk_NoDecode':
                 if not self.state.project.is_hooked(irsb.addr):
@@ -182,10 +184,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                 extra_stop_points.add(bp.kwargs["instruction"])
 
         # VEX block cache for executing instructions skipped by native interface
-        self.block_details_cache = {}
-
-        # VEX statements to ignore when re-executing instructions that touched symbolic data
-        self.ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
+        self.block_details_cache = {}  # pylint:disable=attribute-defined-outside-init
 
         # initialize unicorn plugin
         try:
