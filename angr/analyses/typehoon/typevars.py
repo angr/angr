@@ -1,13 +1,21 @@
-
+from typing import Dict, Any, Optional
 from itertools import count
+
 
 # Type variables and constraints
 
+class TypeConstraint:
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        raise NotImplementedError()
 
-class Equivalence:
+
+class Equivalence(TypeConstraint):
     def __init__(self, type_a, type_b):
         self.type_a = type_a
         self.type_b = type_b
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return "{} == {}".format(self.type_a.pp_str(mapping), self.type_b.pp_str(mapping))
 
     def __repr__(self):
         return "%s == %s" % (self.type_a, self.type_b)
@@ -24,9 +32,12 @@ class Equivalence:
         )))
 
 
-class Existence:
+class Existence(TypeConstraint):
     def __init__(self, type_):
         self.type_ = type_
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return "V {}".format(self.type_.pp_str(mapping))
 
     def __repr__(self):
         return "V %s" % self.type_
@@ -49,10 +60,13 @@ class Existence:
             return False, self
 
 
-class Subtype:
+class Subtype(TypeConstraint):
     def __init__(self, super_type, sub_type):
         self.super_type = super_type
         self.sub_type = sub_type
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return "{} <: {}".format(self.sub_type.pp_str(mapping), self.super_type.pp_str(mapping))
 
     def __repr__(self):
         return "%s <: %s" % (self.sub_type, self.super_type)
@@ -91,15 +105,141 @@ class Subtype:
             return False, self
 
 
+class Add(TypeConstraint):
+    """
+    Describes the constraint that type_r == type0 + type1
+    """
+    def __init__(self, type_0, type_1, type_r):
+        self.type_0 = type_0
+        self.type_1 = type_1
+        self.type_r = type_r
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return "{} == {} + {}".format(
+            self.type_r.pp_str(mapping),
+            self.type_0.pp_str(mapping),
+            self.type_1.pp_str(mapping),
+        )
+
+    def __repr__(self):
+        return "%r == %r + %r" % (self.type_r, self.type_0, self.type_1)
+
+    def __eq__(self, other):
+        return type(other) is Add \
+               and self.type_0 == other.type_0 \
+               and self.type_1 == other.type_1 \
+               and self.type_r == other.type_r
+
+    def __hash__(self):
+        return hash((Add, self.type_0, self.type_1, self.type_r))
+
+    def replace(self, replacements):
+
+        t0, t1, tr = None, None, None
+
+        if self.type_0 in replacements:
+            t0 = replacements[self.type_0]
+        elif isinstance(self.type_0, DerivedTypeVariable):
+                r, newtype = self.type_0.replace(replacements)
+                if r:
+                    t0 = newtype
+
+        if self.type_1 in replacements:
+            t1 = replacements[self.type_1]
+        elif isinstance(self.type_1, DerivedTypeVariable):
+                r, newtype = self.type_1.replace(replacements)
+                if r:
+                    t1 = newtype
+
+        if self.type_r in replacements:
+            tr = replacements[self.type_r]
+        elif isinstance(self.type_r, DerivedTypeVariable):
+                r, newtype = self.type_r.replace(replacements)
+                if r:
+                    tr = newtype
+
+        if t0 is not None or t1 is not None or tr is not None:
+            # replacement has happened
+            return True, Add(t0 if t0 is not None else self.type_0,
+                             t1 if t1 is not None else self.type_1,
+                             tr if tr is not None else self.type_r)
+        else:
+            return False, self
+
+
+class Sub(TypeConstraint):
+    """
+    Describes the constraint that type_r == type0 - type1
+    """
+    def __init__(self, type_0, type_1, type_r):
+        self.type_0 = type_0
+        self.type_1 = type_1
+        self.type_r = type_r
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return "{} == {} - {}".format(
+            self.type_r.pp_str(mapping),
+            self.type_0.pp_str(mapping),
+            self.type_1.pp_str(mapping),
+        )
+
+    def __repr__(self):
+        return "%r == %r - %r" % (self.type_r, self.type_0, self.type_1)
+
+    def __eq__(self, other):
+        return type(other) is Sub \
+               and self.type_0 == other.type_0 \
+               and self.type_1 == other.type_1 \
+               and self.type_r == other.type_r
+
+    def __hash__(self):
+        return hash((Sub, self.type_0, self.type_1, self.type_r))
+
+    def replace(self, replacements):
+        t0, t1, tr = None, None, None
+
+        if self.type_0 in replacements:
+            t0 = replacements[self.type_0]
+        elif isinstance(self.type_0, DerivedTypeVariable):
+                r, newtype = self.type_0.replace(replacements)
+                if r:
+                    t0 = newtype
+
+        if self.type_1 in replacements:
+            t1 = replacements[self.type_1]
+        elif isinstance(self.type_1, DerivedTypeVariable):
+                r, newtype = self.type_1.replace(replacements)
+                if r:
+                    t1 = newtype
+
+        if self.type_r in replacements:
+            tr = replacements[self.type_r]
+        elif isinstance(self.type_r, DerivedTypeVariable):
+                r, newtype = self.type_r.replace(replacements)
+                if r:
+                    tr = newtype
+
+        if t0 is not None or t1 is not None or tr is not None:
+            # replacement has happened
+            return True, Sub(t0 if t0 is not None else self.type_0,
+                             t1 if t1 is not None else self.type_1,
+                             tr if tr is not None else self.type_r)
+        else:
+            return False, self
+
+
 _typevariable_counter = count()
 
 
 class TypeVariable:
-    def __init__(self, idx=None):
+    def __init__(self, idx: Optional[int]=None):
         if idx is None:
-            self.idx = next(_typevariable_counter)
+            self.idx: int = next(_typevariable_counter)
         else:
-            self.idx = idx
+            self.idx: int = idx
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return repr(mapping.get(self, repr(self)))
 
     def __eq__(self, other):
         return type(other) is TypeVariable and other.idx == self.idx
@@ -116,6 +256,9 @@ class DerivedTypeVariable(TypeVariable):
         super().__init__(idx=idx)
         self.type_var = type_var
         self.label = label
+
+    def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
+        return "{}.{}".format(self.type_var.pp_str(mapping), self.label)
 
     def __eq__(self, other):
         return isinstance(other, DerivedTypeVariable) and \

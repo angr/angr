@@ -392,7 +392,7 @@ class Clinic(Analysis):
         tmp_kb.variables[self.function.addr].remove_types()
         # run type inference
         try:
-            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb)
+            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar)
             tp.update_variable_types(self.function.addr, vr.var_to_typevar)
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",

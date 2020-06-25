@@ -726,12 +726,20 @@ class CVariable(CExpression):
                                     return
 
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
-                            # it's pointing to an array!
-                            yield from self.variable.c_repr_chunks()
-                            yield "[", None
-                            yield str(self.offset), self.offset
-                            yield "]", None
-                            return
+                            if isinstance(self.offset, int):
+                                # it's pointing to an array! take the corresponding element
+                                yield from self.variable.c_repr_chunks()
+                                yield "[", None
+                                yield str(self.offset), self.offset
+                                yield "]", None
+                                return
+
+                        # other cases
+                        yield from self.variable.c_repr_chunks()
+                        yield "[", None
+                        yield from self.offset.c_repr_chunks()
+                        yield "]", None
+                        return
 
                 # default output
                 yield "*(", None

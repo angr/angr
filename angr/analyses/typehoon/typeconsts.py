@@ -9,6 +9,9 @@ class TypeConstant:
 
     SIZE = None
 
+    def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument
+        return repr(self)
+
     def __eq__(self, other):
         return type(self) == type(other)
 

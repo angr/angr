@@ -1,10 +1,13 @@
-
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict, TYPE_CHECKING
 
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
-from .typeconsts import Struct, Pointer, TypeConstant, Array
+from .typeconsts import Struct, Pointer, TypeConstant, Array, Int8
+
+if TYPE_CHECKING:
+    from angr.sim_variable import SimVariable
+    from .typevars import TypeVariable, TypeConstraint
 
 
 class Typehoon(Analysis):
@@ -20,14 +23,20 @@ class Typehoon(Analysis):
 
     User may specify ground truth, which will override all types at certain program points during constraint solving.
     """
-    def __init__(self, constraints, ground_truth=None):
+    def __init__(self, constraints, ground_truth=None, var_mapping: Optional[Dict['SimVariable','TypeVariable']]=None,
+                 prioritize_char_array_over_struct: bool=True):
 
-        self._constraints = constraints
+        self._constraints: Set['TypeConstraint'] = constraints
         self._ground_truth = ground_truth
+        self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
 
+        self.bits = self.project.arch.bits
         self.solution = None
         self.structs = None
         self.simtypes_solution = None
+
+        # a bunch of arguments to tweak with
+        self._prioritize_char_array_over_struct = prioritize_char_array_over_struct
 
         # import pprint
         # pprint.pprint(self._constraints)
@@ -46,6 +55,19 @@ class Typehoon(Analysis):
                 # print("{} -> {}: {}".format(var, typevar, type_))
                 self.kb.variables[func_addr].types[var] = type_
 
+    def pp_constraints(self) -> None:
+        """
+        Pretty-print constraints between *variables* using the variable mapping.
+        """
+        if self._var_mapping is None:
+            raise ValueError("Variable mapping does not exist.")
+
+        typevar_to_var = dict((v, k) for k, v in self._var_mapping.items())
+        print("### {} constraints".format(len(self._constraints)))
+        for constraint in self._constraints:
+            print("    " + constraint.pp_str(typevar_to_var))
+        print("### end of constraints ###")
+
     #
     # Private methods
     #
@@ -57,7 +79,7 @@ class Typehoon(Analysis):
         self._translate_to_simtypes()
 
     def _solve(self):
-        solver = SimpleSolver(self._constraints)
+        solver = SimpleSolver(self.bits, self._constraints)
         self.solution = solver.solution
 
     def _specialize(self):
@@ -87,6 +109,14 @@ class Typehoon(Analysis):
             offsets: List[int] = sorted(list(tc.fields.keys()))  # get a sorted list of offsets
             offset0 = offsets[0]
             field0: TypeConstant = tc.fields[offset0]
+
+            # special case: struct {0:int8} will be translated to char if we want to prioritize char arrays over
+            # structs
+            if self._prioritize_char_array_over_struct \
+                    and len(tc.fields) == 1 \
+                    and 0 in tc.fields \
+                    and isinstance(tc.fields[0], Int8):
+                return field0
 
             # are all fields the same?
             if len(tc.fields) > 1 and all(tc.fields[off] == field0 for off in offsets):
