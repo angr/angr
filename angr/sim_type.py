@@ -1,3 +1,4 @@
+# pylint:disable=abstract-method
 from collections import OrderedDict, defaultdict
 from .misc.ux import deprecated
 import copy
@@ -477,7 +478,7 @@ class SimTypeFd(SimTypeReg):
         return "fd_t"
 
     def copy(self):
-        return SimTypeFd(label=self.lab)
+        return SimTypeFd(label=self.label)
 
 
 class SimTypePointer(SimTypeReg):
