@@ -6,7 +6,7 @@ import claripy
 import angr
 from angr.sim_type import (SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion,
                            SimTypeDouble, SimTypeLongLong, SimTypeLong, SimTypeNum, SimTypeReference, SimTypeBottom,
-                           SimTypeString, SimCppNamespaced)
+                           SimTypeString)
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
 
@@ -63,11 +63,9 @@ def test_cppproto_conversion():
     assert len(proto.args) == 3
     assert isinstance(proto.args[0], SimTypePointer)  # this
     assert isinstance(proto.args[1], SimTypeReference)
-    assert isinstance(proto.args[1].refs, SimCppNamespaced)
-    assert proto.args[1].refs.namespace == "std"
-    assert isinstance(proto.args[1].refs.type, SimCppNamespaced)
-    assert proto.args[1].refs.type.namespace == "__cxx11"
-    assert isinstance(proto.args[1].refs.type.type, SimTypeString)
+    assert isinstance(proto.args[1].refs, SimTypeString)
+    assert proto.args[1].refs.name == "std::__cxx11::basic_string"
+    assert proto.args[1].refs.unqualified_name(lang="c++") == "basic_string"
 
     proto_1 = "void std::basic_string<CharT,Traits,Allocator>::push_back(CharT ch)"
     name, proto, s = convert_cppproto_to_py(proto_1, with_param_names=True)

@@ -68,6 +68,15 @@ class SimType:
     def name(self):
         return repr(self)
 
+    @name.setter
+    def name(self, v):
+        raise NotImplementedError("Please implement name setter for %s or consider subclassing NamedTypeMixin."
+                                  % self.__class__)
+
+    def unqualified_name(self, lang: str="c++") -> str:
+        raise NotImplementedError("Please implement unqualified_name for %s or consider subclassing NamedTypeMixin."
+                                  % self.__class__)
+
     def _refine_dir(self): # pylint: disable=no-self-use
         return []
 
@@ -111,6 +120,38 @@ class SimType:
     def c_repr(self):
         raise NotImplementedError()
 
+    def copy(self):
+        raise NotImplementedError()
+
+
+class NamedTypeMixin:
+    """
+    SimType classes with this mixin in the class hierarchy allows setting custom class names. A typical use case is
+    to represent same or similar type classes with different qualified names, such as "std::basic_string" vs
+    "std::__cxx11::basic_string". In such cases, .name stores the qualified name, and .unqualified_name() returns the
+    unqualified name of the type.
+    """
+    def __init__(self, *args, name: Optional[str]=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        if self._name is None:
+            self._name = repr(self)
+        return self._name
+
+    @name.setter
+    def name(self, v):
+        self._name = v
+
+    def unqualified_name(self, lang: str="c++") -> str:
+        if lang == "c++":
+            splitter = "::"
+            n = self.name.split(splitter)
+            return n[-1]
+        raise NotImplementedError("Unsupported language %s." % lang)
+
 
 class SimTypeBottom(SimType):
     """
@@ -131,6 +172,9 @@ class SimTypeBottom(SimType):
             return self.label
         return "BOT"
 
+    def copy(self):
+        return SimTypeBottom(self.label)
+
 
 class SimTypeTop(SimType):
     """
@@ -148,6 +192,9 @@ class SimTypeTop(SimType):
 
     def c_repr(self):
         return "TOP"
+
+    def copy(self):
+        return SimTypeTop(size=self.size, label=self.label)
 
 
 class SimTypeReg(SimType):
@@ -194,6 +241,9 @@ class SimTypeReg(SimType):
 
     def c_repr(self):
         return "<Reg_%d>" % self.size
+
+    def copy(self):
+        return self.__class__(self.size, label=self.label)
 
 
 class SimTypeNum(SimType):
@@ -242,6 +292,9 @@ class SimTypeNum(SimType):
             raise TypeError("unrecognized expression type for SimType {}".format(type(self).__name__))
 
         state.memory.store(addr, value, endness=store_endness)
+
+    def copy(self):
+        return SimTypeNum(self.size, signed=self.signed, label=self.label)
 
 
 class SimTypeInt(SimTypeReg):
@@ -315,6 +368,9 @@ class SimTypeInt(SimTypeReg):
             raise KeyError(k)
         return view._deeper(ty=ty)
 
+    def copy(self):
+        return self.__class__(signed=self.signed, label=self.label)
+
 
 class SimTypeShort(SimTypeInt):
     _base_name = 'short'
@@ -375,6 +431,9 @@ class SimTypeChar(SimTypeReg):
             ('label="%s"' % self.label) if self.label is not None else "",
         )
 
+    def copy(self):
+        return self.__class__(signed=self.signed, label=self.label)
+
 
 class SimTypeBool(SimTypeChar):
     def __repr__(self):
@@ -416,6 +475,9 @@ class SimTypeFd(SimTypeReg):
 
     def c_repr(self):
         return "fd_t"
+
+    def copy(self):
+        return SimTypeFd(label=self.lab)
 
 
 class SimTypePointer(SimTypeReg):
@@ -465,6 +527,9 @@ class SimTypePointer(SimTypeReg):
             self.offset
         )
 
+    def copy(self):
+        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+
 
 class SimTypeReference(SimTypeReg):
     """
@@ -502,6 +567,9 @@ class SimTypeReference(SimTypeReg):
             self.refs._init_str(),
             (', label="%s"' % self.label) if self.label is not None else "",
         )
+
+    def copy(self):
+        return SimTypeReference(self.refs, label=self.label)
 
 
 class SimTypeFixedSizeArray(SimType):
@@ -552,6 +620,9 @@ class SimTypeFixedSizeArray(SimType):
             self.length,
         )
 
+    def copy(self):
+        return SimTypeFixedSizeArray(self.elem_type, self.length)
+
 
 class SimTypeArray(SimType):
     """
@@ -591,8 +662,11 @@ class SimTypeArray(SimType):
         out._arch = arch
         return out
 
+    def copy(self):
+        return SimTypeArray(self.elem_type, length=self.length, label=self.label)
 
-class SimTypeString(SimTypeArray):
+
+class SimTypeString(NamedTypeMixin, SimTypeArray):
     """
     SimTypeString is a type that represents a C-style string,
     i.e. a NUL-terminated array of bytes.
@@ -600,12 +674,12 @@ class SimTypeString(SimTypeArray):
 
     _fields = SimTypeArray._fields + ('length',)
 
-    def __init__(self, length=None, label=None):
+    def __init__(self, length=None, label=None, name: Optional[str]=None):
         """
         :param label:   The type label.
         :param length:  An expression of the length of the string, if known.
         """
-        super(SimTypeString, self).__init__(SimTypeChar(), label=label, length=length)
+        super().__init__(SimTypeChar(), label=label, length=length, name=name)
 
     def __repr__(self):
         return 'string_t'
@@ -650,16 +724,19 @@ class SimTypeString(SimTypeArray):
     def _with_arch(self, arch):
         return self
 
+    def copy(self):
+        return SimTypeString(length=self.length, label=self.label, name=self.name)
 
-class SimTypeWString(SimTypeArray):
+
+class SimTypeWString(NamedTypeMixin, SimTypeArray):
     """
     A wide-character null-terminated string, where each character is 2 bytes.
     """
 
     _fields = SimTypeArray._fields + ('length',)
 
-    def __init__(self, length=None, label=None):
-        super(SimTypeWString, self).__init__(SimTypeNum(16, False), label=label, length=length)
+    def __init__(self, length=None, label=None, name: Optional[str]=None):
+        super().__init__(SimTypeNum(16, False), label=label, length=length, name=name)
 
     def __repr__(self):
         return 'wstring_t'
@@ -704,6 +781,9 @@ class SimTypeWString(SimTypeArray):
 
     def _with_arch(self, arch):
         return self
+
+    def copy(self):
+        return SimTypeWString(length=self.length, label=self.label, name=self.name)
 
 
 class SimTypeFunction(SimType):
@@ -766,6 +846,10 @@ class SimTypeFunction(SimType):
             ", variadic=True" if self.variadic else "",
         )
 
+    def copy(self):
+        return SimTypeFunction(self.args, self.returnty, label=self.label, arg_names=self.arg_names,
+                               variadic=self.variadic)
+
 
 class SimTypeCppFunction(SimTypeFunction):
     """
@@ -797,6 +881,16 @@ class SimTypeCppFunction(SimTypeFunction):
             (", label=%s" % self.label) if self.label else "",
             (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
+        )
+
+    def copy(self):
+        return SimTypeCppFunction(
+            self.args,
+            self.returnty,
+            label=self.label,
+            arg_names=self.arg_names,
+            ctor=self.ctor,
+            dtor=self.dtor,
         )
 
 
@@ -838,6 +932,9 @@ class SimTypeLength(SimTypeLong):
             self.size
         )
 
+    def copy(self):
+        return SimTypeLength(signed=self.signed, addr=self.addr, length=self.length, label=self.label)
+
 
 class SimTypeFloat(SimTypeReg):
     """
@@ -872,6 +969,9 @@ class SimTypeFloat(SimTypeReg):
     def c_repr(self):
         return 'float'
 
+    def copy(self):
+        return SimTypeFloat(self.size)
+
 
 class SimTypeDouble(SimTypeFloat):
     """
@@ -899,23 +999,21 @@ class SimTypeDouble(SimTypeFloat):
             self.align_double
         )
 
+    def copy(self):
+        return SimTypeDouble(align_double=self.align_double)
 
-class SimStruct(SimType):
+
+class SimStruct(NamedTypeMixin, SimType):
     _fields = ('name', 'fields')
 
-    def __init__(self, fields: Dict[str,SimType], name=None, pack=False, align=None):
-        super(SimStruct, self).__init__(None)
+    def __init__(self, fields: Optional[Dict[str,SimType]], name=None, pack=False, align=None):
+        super().__init__(None, name='<anon>' if name is None else name)
         self._pack = pack
-        self._name = '<anon>' if name is None else name
         self._align = align
         self._pack = pack
         self.fields = fields
 
         self._arch_memo = {}
-
-    @property
-    def name(self): # required bc it's a property in the original
-        return self._name
 
     @property
     def offsets(self):
@@ -1012,6 +1110,9 @@ class SimStruct(SimType):
             self._align,
         )
 
+    def copy(self):
+        return SimStruct(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+
 
 class SimStructValue:
     """
@@ -1037,8 +1138,11 @@ class SimStructValue:
             return self._values[self._struct.fields[k]]
         return self._values[k]
 
+    def copy(self):
+        return SimStructValue(self._struct, values=defaultdict(self._values))
 
-class SimUnion(SimType):
+
+class SimUnion(NamedTypeMixin, SimType):
     _fields = ('members', 'name')
 
     def __init__(self, members, name=None, label=None):
@@ -1046,13 +1150,8 @@ class SimUnion(SimType):
         :param members:     The members of the union, as a mapping name -> type
         :param name:        The name of the union
         """
-        super(SimUnion, self).__init__(label)
-        self._name = name if name is not None else '<anon>'
+        super().__init__(label, name=name if name is not None else '<anon>')
         self.members = members
-
-    @property
-    def name(self):
-        return self._name
 
     @property
     def size(self):
@@ -1078,39 +1177,20 @@ class SimUnion(SimType):
         out._arch = arch
         return out
 
+    def copy(self):
+        return SimUnion(dict(self.members), name=self.name, label=self.label)
+
 
 class SimCppClass(SimStruct):
     def __init__(self, members: Dict[str,SimType], name: Optional[str]=None, pack: bool=False, align=None):
         super().__init__(members, name=name, pack=pack, align=align)
 
+    @property
+    def members(self):
+        return self.fields
 
-class SimCppNamespaced(SimType):
-    """
-    Describes a type within a namespace.
-    """
-    def __init__(self, namespace: str, type_: SimType, label: Optional[str]=None):
-        super().__init__(label=label)
-        self.namespace = namespace
-        self.type = type_
-
-    def __repr__(self):
-        return "{}::{}".format(self.namespace, self.type)
-
-    def c_repr(self):
-        return "{}::{}".format(self.namespace, self.type.c_repr())
-
-    def _with_arch(self, arch):
-        out = SimCppNamespaced(self.namespace, self.type.with_arch(arch), label=self.label)
-        out._arch = arch
-        return out
-
-    def _init_str(self):
-        return "%s(%s, %s%s)" % (
-            self.__class__.__name__,
-            self.namespace,
-            self.type._init_str(),
-            (', label="%s"' % self.label) if self.label is not None else "",
-        )
+    def copy(self):
+        return SimCppClass(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
 
 
 BASIC_TYPES = {
@@ -1558,27 +1638,26 @@ def _cpp_decl_to_type(decl: Any, extra_types: Dict[str,SimType], opaque_classes=
             # drop const
             return _cpp_decl_to_type(decl[:-6].strip(), extra_types, opaque_classes=opaque_classes)
 
-        # namespaced?
         if "::" in decl:
-            splitted = decl.split("::")
-            subt = _cpp_decl_to_type(splitted[-1], extra_types, opaque_classes=opaque_classes)
+            unqualified_name = decl.split("::")[-1]
+        else:
+            unqualified_name = decl
 
-            if len(splitted) > 1:
-                # namespaced!
-                for namespace in reversed(splitted[:-1]):
-                    subt = SimCppNamespaced(namespace, subt)
-            return subt
-
-        key = decl
+        key = unqualified_name
         if key in extra_types:
-            return extra_types[key]
+            t = extra_types[key]
         elif key in ALL_TYPES:
-            return ALL_TYPES[key]
+            t = ALL_TYPES[key]
         elif opaque_classes is True:
             # create a class without knowing the internal members
-            return SimCppClass({}, name=decl)
+            t = SimCppClass({}, name=decl)
         else:
             raise TypeError("Unknown type '%s'" % ' '.join(key))
+
+        if unqualified_name != decl:
+            t = t.copy()
+            t.name = decl
+        return t
 
     raise NotImplementedError()
 
