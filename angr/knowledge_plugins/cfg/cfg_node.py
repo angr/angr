@@ -1,5 +1,6 @@
 import traceback
 import logging
+from typing import TYPE_CHECKING
 
 from archinfo.arch_soot import SootAddressDescriptor
 import archinfo
@@ -9,6 +10,9 @@ from ...engines.successors import SimSuccessors
 from ...serializable import Serializable
 from ...protos import cfg_pb2
 from ...errors import AngrError, SimError
+
+if TYPE_CHECKING:
+    from .cfg_model import CFGModel
 
 _l = logging.getLogger(__name__)
 
@@ -69,7 +73,7 @@ class CFGNode(Serializable):
         self.size = size
         self.simprocedure_name = simprocedure_name
         self.no_ret = no_ret
-        self._cfg_model = cfg
+        self._cfg_model: 'CFGModel' = cfg
         self.function_address = function_address
         self.block_id = block_id  # type: int or BlockID
         self.thumb = thumb
@@ -131,6 +135,12 @@ class CFGNode(Serializable):
     @property
     def predecessors(self):
         return self._cfg_model.get_predecessors(self)
+
+    def successors_and_jumpkinds(self, excluding_fakeret=True):
+        return self._cfg_model.get_successors_and_jumpkinds(self, excluding_fakeret=excluding_fakeret)
+
+    def predecessors_and_jumpkinds(self, excluding_fakeret=True):
+        return self._cfg_model.get_predecessors_and_jumpkinds(self, excluding_fakeret=excluding_fakeret)
 
     def get_data_references(self, kb=None):
         """

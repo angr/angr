@@ -5,6 +5,7 @@ from .multi_simplifier import MultiSimplifier
 from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
 from .eager_returns import EagerReturnsSimplifier
+from .const_derefs import ConstantDereferencesSimplifier
 
 
 _all_optimization_passes = [
@@ -13,7 +14,8 @@ _all_optimization_passes = [
     (EagerReturnsSimplifier, False),
     (DivSimplifier, True),
     (MultiSimplifier, True),
-    (ModSimplifier, True)
+    (ModSimplifier, True),
+    (ConstantDereferencesSimplifier, True),
 ]
 
 def get_optimization_passes(arch, platform):

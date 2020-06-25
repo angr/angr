@@ -9,7 +9,7 @@ from ...engines.light import SpOffset
 from ...keyed_region import KeyedRegion
 from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
-from .definition import Definition
+from .definition import Definition, Tag
 from .undefined import undefined
 from .uses import Uses
 from .dataset import DataSet
@@ -95,7 +95,7 @@ class LiveDefinitions:
 
         return state
 
-    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True) -> None:
+    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True, tag: Tag=None) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
@@ -106,12 +106,12 @@ class LiveDefinitions:
         """
 
         data = DataSet(undefined, atom.size)
-        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy)
+        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tag=tag)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
-                                dummy=False) -> Optional[Definition]:
+                                dummy=False, tag: Tag=None) -> Optional[Definition]:
         data = data or DataSet(undefined, atom.size)
-        definition: Definition = Definition(atom, code_loc, data, dummy=dummy)
+        definition: Definition = Definition(atom, code_loc, data, dummy=dummy, tag=tag)
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):

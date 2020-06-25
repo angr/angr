@@ -15,7 +15,7 @@ class time(angr.SimProcedure):
     def run(self, pointer):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             ts = int(_time.time())
-            ts_bv = self.state.solver.BVV(ts, 64)
+            ts_bv = self.state.solver.BVV(ts, self.state.arch.bits)
             if self.state.solver.eval(pointer) != 0:
                 self.state.memory.store(pointer, ts_bv, endness=self.state.arch.memory_endness)
             return ts_bv

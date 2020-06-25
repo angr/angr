@@ -7,7 +7,7 @@ from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, R
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
-from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.definition import Definition, RetValueTag
 from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
@@ -27,13 +27,13 @@ class SimEngineRDVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
-    def __init__(self, project, current_local_call_depth, maximum_local_call_depth, functions=None,
+    def __init__(self, project, call_stack, maximum_local_call_depth, functions=None,
                  function_handler=None):
         super(SimEngineRDVEX, self).__init__()
         self.project = project
-        self.functions: Optional['FunctionManager'] = functions
-        self._current_local_call_depth = current_local_call_depth
+        self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
+        self.functions: Optional['FunctionManager'] = functions
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
@@ -56,7 +56,7 @@ class SimEngineRDVEX(
             if kwargs.pop('fail_fast', False) is True:
                 raise e
             l.error(e)
-        return self.state, self._visited_blocks
+        return self.state, self._visited_blocks, self._dep_graph
 
     #
     # Private methods
@@ -481,7 +481,7 @@ class SimEngineRDVEX(
 
     def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
 
-        if self._current_local_call_depth > self._maximum_local_call_depth:
+        if len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return False
 
@@ -520,13 +520,13 @@ class SimEngineRDVEX(
 
         # direct calls
         ext_func_name = None
-        if self.project.loader.main_object.contains_addr(func_addr_int):
-            ext_func_name = self.project.loader.find_plt_stub_name(func_addr_int)
-        else:
+        if not self.project.loader.main_object.contains_addr(func_addr_int):
+            is_internal = False
             symbol = self.project.loader.find_symbol(func_addr_int)
             if symbol is not None:
                 ext_func_name = symbol.name
-        is_internal = ext_func_name is None
+        else:
+            is_internal = True
 
         executed_rda = False
         if ext_func_name is not None:
@@ -544,14 +544,18 @@ class SimEngineRDVEX(
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(
+                executed_rda, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
                     self.state,
                     func_addr_int,
-                    self._current_local_call_depth + 1,
+                    self._call_stack,
                     self._maximum_local_call_depth,
+                    self._visited_blocks,
+                    self._dep_graph,
                     self._codeloc(),
                 )
                 self.state = state
+                self._visited_blocks = visited_blocks
+                self._dep_graph = dep_graph
             else:
                 # l.warning('Please implement the local function handler with your own logic.')
                 pass
@@ -598,7 +602,11 @@ class SimEngineRDVEX(
                 if isinstance(cc.RETURN_VAL, SimRegArg):
                     reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                     atom = Register(reg_offset, reg_size)
-                    self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
+                    if func_addr is not None and len(func_addr) == 1 and self.functions is not None and type(func_addr_int) != Undefined:
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=RetValueTag(metadata=hex(func_addr_int)))
+                    else:
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=RetValueTag())
+
             if cc.CALLER_SAVED_REGS is not None:
                 for reg in cc.CALLER_SAVED_REGS:
                     reg_offset, reg_size = self.arch.registers[reg]

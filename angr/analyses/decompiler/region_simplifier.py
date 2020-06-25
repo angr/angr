@@ -180,21 +180,25 @@ class IfSimplifier(SequenceWalker):
                 true_cond = False
                 if cond_stmt.true_target is not None and successor.true_node is not None:
                     # True branch exists. Test if the true target is the address
-                    if cond_stmt.true_target.value == successor.true_node.addr:
+                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
+                            and cond_stmt.true_target.value == successor.true_node.addr:
                         true_cond = True
                 if cond_stmt.true_target is not None and successor.false_node is not None:
                     # True branch exists. Test if the true target is the address
-                    if cond_stmt.true_target.value == successor.false_node.addr:
+                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
+                            and cond_stmt.true_target.value == successor.false_node.addr:
                         true_cond = True
 
                 false_cond = False
                 if cond_stmt.false_target is not None and successor.false_node is not None:
                     # False branch exists. Test if the false target is the address
-                    if cond_stmt.false_target.value == successor.false_node.addr:
+                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
+                            and cond_stmt.false_target.value == successor.false_node.addr:
                         false_cond = True
                 if cond_stmt.false_target is not None and successor.true_node is not None:
                     # True branch exists. Test if the true target is the address
-                    if cond_stmt.false_target.value == successor.true_node.addr:
+                    if isinstance(cond_stmt.true_target, ailment.Expr.Const) \
+                            and cond_stmt.false_target.value == successor.true_node.addr:
                         false_cond = True
 
                 if true_cond or false_cond:

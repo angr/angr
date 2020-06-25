@@ -16,7 +16,7 @@ def test_kb_plugins():
     nose.tools.assert_is_instance(p.kb.comments, angr.knowledge_plugins.Comments)
 
     nose.tools.assert_is_instance(p.kb.callgraph, networkx.Graph)
-    nose.tools.assert_is_instance(p.kb.resolved_indirect_jumps, set)
+    nose.tools.assert_is_instance(p.kb.resolved_indirect_jumps, dict)
     nose.tools.assert_is_instance(p.kb.unresolved_indirect_jumps, set)
 
     nose.tools.assert_is_not_none(dir(p.kb))

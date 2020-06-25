@@ -10,12 +10,12 @@ l = logging.getLogger("angr.tests")
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 insn_texts = {
-    'i386': b"add eax, 15",
-    'x86_64': b"add rax, 15",
-    'ppc': b"addi %r1, %r1, 15",
-    'armel': b"add r1, r1, 15",
+    'i386': b"add eax, 0xf",
+    'x86_64': b"add rax, 0xf",
+    'ppc': b"addi %r1, %r1, 0xf",
+    'armel': b"add r1, r1, 0xf",
     'armel_thumb': b"add.w r1, r1, #0xf",
-    'mips': b"addi $1, $1, 15"
+    'mips': b"addi $1, $1, 0xf"
 }
 
 def run_keystone(arch):

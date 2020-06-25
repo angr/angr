@@ -175,12 +175,12 @@ class SimWindows(SimOS):
 
         return state
 
-    def state_blank(self, thread_idx=0, **kwargs):
+    def state_blank(self, thread_idx=None, **kwargs):
         if self.project.loader.main_object.supports_nx:
             add_options = kwargs.get('add_options', set())
             add_options.add(o.ENABLE_NX)
             kwargs['add_options'] = add_options
-        state = super(SimWindows, self).state_blank(**kwargs)
+        state = super(SimWindows, self).state_blank(thread_idx=thread_idx, **kwargs)
 
         if not self.is_dump:
             # yikes!!!
@@ -194,6 +194,8 @@ class SimWindows(SimOS):
 
             if state.arch.name == 'X86':
                 LDR_addr = fun_stuff_addr + 0x2000
+                if thread_idx is None:
+                    thread_idx = 0
 
                 state.mem[TIB_addr + 0].dword = -1  # Initial SEH frame
                 state.mem[TIB_addr + 4].dword = state.regs.sp  # stack base (high addr)

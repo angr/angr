@@ -6,8 +6,8 @@ from . import X86ElfPicPltResolver
 from . import JumpTableResolver
 from . import X86PeIatResolver
 from . import AMD64ElfGotResolver
+from . import ConstantResolver
 from . import ArmElfFastResolver
-
 
 DEFAULT_RESOLVERS = {
     'X86': {
@@ -32,7 +32,7 @@ DEFAULT_RESOLVERS = {
     'ARMCortexM': {
         cle.MetaELF: [ ArmElfFastResolver, ]
     },
-    'ALL': [ JumpTableResolver ],
+    'ALL': [ ConstantResolver, JumpTableResolver ],
 }
 
 

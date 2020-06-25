@@ -3,7 +3,7 @@ import logging
 import math
 import re
 import string
-from typing import List
+from typing import List, Optional
 from collections import defaultdict, OrderedDict
 
 from sortedcontainers import SortedDict
@@ -33,6 +33,10 @@ VEX_IRSB_MAX_SIZE = 400
 
 
 l = logging.getLogger(name=__name__)
+
+
+class ContinueScanningNotification(RuntimeError):
+    pass
 
 
 class FunctionReturn:
@@ -319,14 +323,18 @@ class CFGJob:
     """
 
     __slots__ = ('addr', 'func_addr', 'jumpkind', 'ret_target', 'last_addr', 'src_node', 'src_ins_addr', 'src_stmt_idx',
-                 'returning_source', 'syscall', '_func_edges', 'job_type')
+                 'returning_source', 'syscall', '_func_edges', 'job_type', 'gp', )
 
     JOB_TYPE_NORMAL = "Normal"
     JOB_TYPE_FUNCTION_PROLOGUE = "Function-prologue"
     JOB_TYPE_COMPLETE_SCANNING = "Complete-scanning"
 
-    def __init__(self, addr, func_addr, jumpkind, ret_target=None, last_addr=None, src_node=None, src_ins_addr=None,
-                 src_stmt_idx=None, returning_source=None, syscall=False, func_edges=None, job_type=JOB_TYPE_NORMAL):
+    def __init__(self, addr: int, func_addr: int, jumpkind: str,
+                 ret_target: Optional[int]=None, last_addr: Optional[int]=None,
+                 src_node: Optional[CFGNode]=None, src_ins_addr:Optional[int]=None,
+                 src_stmt_idx: Optional[int]=None, returning_source=None, syscall: bool=False,
+                 func_edges: Optional[List]=None, job_type=JOB_TYPE_NORMAL,
+                 gp: Optional[int]=None):
         self.addr = addr
         self.func_addr = func_addr
         self.jumpkind = jumpkind
@@ -338,6 +346,7 @@ class CFGJob:
         self.returning_source = returning_source
         self.syscall = syscall
         self.job_type = job_type
+        self.gp = gp  # Used in MIPS32/MIPS64. Value of the gp register in the caller function. Only set at call sites.
 
         self._func_edges = func_edges
 
@@ -642,6 +651,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._traced_addresses = None
         self._function_returns = None
         self._function_exits = None
+        self._gp_value: Optional[int] = None
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -940,13 +950,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._seg_list.occupy(start_addr, instr_alignment - (start_addr % instr_alignment), 'alignment')
             start_addr = start_addr - start_addr % instr_alignment + \
                          instr_alignment
+            # trickiness: aligning the start_addr may create a new address that is outside any mapped region.
+            if not self._inside_regions(start_addr):
+                raise ContinueScanningNotification()
 
         return start_addr
 
     def _next_code_addr(self):
 
         while True:
-            addr = self._next_code_addr_core()
+            try:
+                addr = self._next_code_addr_core()
+            except ContinueScanningNotification:
+                continue
+
             if addr is None:
                 return None
 
@@ -1005,7 +1022,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             starting_points |= set(self._extra_function_starts)
 
         # Sort it
-        starting_points = sorted(list(starting_points), reverse=True)
+        starting_points = sorted(list(starting_points), reverse=False)
 
         if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry) and \
                 self.project.entry not in starting_points:
@@ -1471,7 +1488,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 addr_ = new_exit['address']
                 jumpkind = new_exit['jumpkind']
                 namehint = new_exit.get('namehint', None)
-                if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:
+                if isinstance(addr_, claripy.ast.BV) and not addr_.symbolic:  # pylint:disable=isinstance-second-argument-not-valid-type
                     addr_ = addr_._model_concrete.value
                 if not isinstance(addr_, int):
                     continue
@@ -1538,7 +1555,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # IRSB is only used once per CFGNode. We should be able to clean up the CFGNode here in order to save memory
         cfg_node.irsb = None
 
-        self._process_block_arch_specific(addr, irsb, function_addr)
+        caller_gp = None
+        if self.project.arch.name in {'MIPS32', 'MIPS64'}:
+            # the caller might have gp passed on
+            caller_gp = cfg_job.gp
+        self._process_block_arch_specific(addr, irsb, function_addr, caller_gp=caller_gp)
 
         # Scan the basic block to collect data references
         if self._collect_data_ref:
@@ -1765,7 +1786,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                               )
 
                 ce = CFGJob(target_addr, target_func_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                            src_ins_addr=ins_addr, src_stmt_idx=stmt_idx, func_edges=[ edge ])
+                            src_ins_addr=ins_addr, src_stmt_idx=stmt_idx, func_edges=[ edge ],
+                            )
                 jobs.append(ce)
 
             elif jumpkind == 'Ijk_Call' or jumpkind.startswith("Ijk_Sys"):
@@ -1855,7 +1877,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if new_function_addr is not None:
             # Keep tracing from the call
             ce = CFGJob(target_addr, new_function_addr, jumpkind, last_addr=addr, src_node=cfg_node,
-                        src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, syscall=is_syscall, func_edges=[ edge ]
+                        src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, syscall=is_syscall, func_edges=[ edge ],
+                        gp=self.kb.functions[current_function_addr].info.get('gp', None),
                         )
             jobs.append(ce)
 
@@ -2269,7 +2292,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             sort = self._seg_list.occupied_by_sort(ptr)
                             if sort == 'code':
                                 continue
-                            elif sort == 'pointer-array':
+                            if sort == 'pointer-array':
                                 continue
                             # TODO: other types
                         if ptr not in self._memory_data:
@@ -3444,6 +3467,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 real_addr = addr
 
+            # extra check for ARM
+            if is_arm_arch(self.project.arch) and self._seg_list.occupied_by_sort(addr) == "code":
+                existing_node = self.get_any_node(addr, anyaddr=True)
+                if existing_node is not None and (addr & 1) != (existing_node.addr & 1):
+                    # we are trying to break an existing ARM node with a THUMB node, or vice versa
+                    # this is probably because our current node is unexpected
+                    return None, None, None, None
+
             distance = VEX_IRSB_MAX_SIZE
             # if there is exception handling code, check the distance between `addr` and the cloest ending address
             if self._exception_handling_by_endaddr:
@@ -3602,7 +3633,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except (SimMemoryError, SimEngineError):
             return None, None, None, None
 
-    def _process_block_arch_specific(self, addr, irsb, func_addr):  # pylint: disable=unused-argument
+    def _process_block_arch_specific(self, addr: int, irsb: pyvex.IRSB, func_addr: int,
+                                     caller_gp: Optional[int]=None) -> None:  # pylint: disable=unused-argument
         """
         According to arch types ['ARMEL', 'ARMHF', 'MIPS32'] does different
         fixes
@@ -3614,10 +3646,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         adjust this value updates this function address (in function manager)
         to use a conrete global pointer
 
-        :param int addr: irsb address
-        :param pyvex.IRSB irsb: irsb
+        :param addr: irsb address
+        :param irsb: irsb
         :param func_addr: function address
-        :return: None
+        :param caller_gp:   The gp register value that the caller function has. MIPS-specific.
         """
         if is_arm_arch(self.project.arch):
             if self._arch_options.ret_jumpkind_heuristics:
@@ -3633,47 +3665,59 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._arm_track_read_lr_from_stack(irsb, self.functions[func_addr])
 
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
-            function = self.kb.functions.function(func_addr)
-            if addr >= func_addr and addr - func_addr < 15 * 4 and 'gp' not in function.info:
-                # check if gp is being written to
-                last_gp_setting_insn_id = None
-                insn_ctr = 0
+            func = self.kb.functions.function(func_addr)
+            if 'gp' not in func.info and addr >= func_addr and addr - func_addr < 15 * 4:
+                gp_value = self._mips_determine_function_gp(addr, irsb, func_addr)
+                if gp_value is not None and self._gp_value is None:
+                    self._gp_value = gp_value
+                if gp_value is None:
+                    gp_value = caller_gp  # fallback
+                if gp_value is None:
+                    gp_value = self._gp_value  # fallback to a previously found value
+                func.info['gp'] = gp_value
 
-                if not irsb.statements:
-                    # Get an IRSB with statements
-                    irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
+    def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> Optional[int]:
+        # check if gp is being written to
+        last_gp_setting_insn_id = None
+        insn_ctr = 0
 
-                for stmt in irsb.statements:
-                    if isinstance(stmt, pyvex.IRStmt.IMark):
-                        insn_ctr += 1
-                        if insn_ctr >= 10:
-                            break
-                    elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers['gp'][0]:
-                        last_gp_setting_insn_id = insn_ctr
-                        break
+        if not irsb.statements:
+            # Get an IRSB with statements
+            irsb = self.project.factory.block(irsb.addr, size=irsb.size, opt_level=1, cross_insn_opt=False).vex
 
-                if last_gp_setting_insn_id is None:
-                    return
+        for stmt in irsb.statements:
+            if isinstance(stmt, pyvex.IRStmt.IMark):
+                insn_ctr += 1
+                if insn_ctr >= 10:
+                    break
+            elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset == self.project.arch.registers['gp'][0]:
+                last_gp_setting_insn_id = insn_ctr
+                break
 
-                # Prudently search for $gp values
-                state = self.project.factory.blank_state(addr=addr, mode="fastpath",
-                                                         remove_options={o.OPTIMIZE_IR}
-                                                         )
-                state.regs.t9 = func_addr
-                state.regs.gp = 0xffffffff
-                try:
-                    succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
-                except SimIRSBNoDecodeError:
-                    # if last_gp_setting_insn_id is the last instruction, a SimIRSBNoDecodeError will be raised since
-                    # there is no instruction left in the current block
-                    return
+        if last_gp_setting_insn_id is None:
+            return None
 
-                if not succ.flat_successors:
-                    return
+        # Prudently search for $gp values
+        state = self.project.factory.blank_state(addr=addr, mode="fastpath",
+                                                 add_options={o.NO_CROSS_INSN_OPT},
+                                                 )
+        state.regs.t9 = func_addr
+        state.regs.gp = 0xffffffff
+        try:
+            succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
+        except SimIRSBNoDecodeError:
+            # if last_gp_setting_insn_id is the last instruction, a SimIRSBNoDecodeError will be raised since
+            # there is no instruction left in the current block
+            return None
 
-                state = succ.flat_successors[0]
-                if not state.regs.gp.symbolic and state.solver.is_false(state.regs.gp == 0xffffffff):
-                    function.info['gp'] = state.regs.gp._model_concrete.value
+        if not succ.flat_successors:
+            return None
+
+        state = succ.flat_successors[0]
+        gp = state.regs._gp
+        if not gp.symbolic and state.solver.is_false(gp == 0xffffffff):
+            return gp._model_concrete.value
+        return None
 
     def _find_thunks(self):
         if self.project.arch.name not in self.SPECIAL_THUNKS:

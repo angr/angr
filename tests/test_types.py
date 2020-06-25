@@ -1,10 +1,13 @@
+# pylint:disable=unused-variable
 import nose
 
 import claripy
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion, SimTypeDouble, SimTypeLongLong, SimTypeLong, SimTypeNum
-from angr.utils.library import convert_cproto_to_py
+from angr.sim_type import (SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion,
+                           SimTypeDouble, SimTypeLongLong, SimTypeLong, SimTypeNum, SimTypeReference, SimTypeBottom,
+                           SimTypeString)
+from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
 
 def test_type_annotation():
@@ -48,6 +51,55 @@ def test_cproto_conversion():
     pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_2)  # pylint:disable=unused-variable
 
     nose.tools.assert_equal(pyproto_name, "foo")
+
+
+def test_cppproto_conversion():
+
+    # a demangled class constructor prototype, without parameter names
+    proto_0 = "std::basic_ifstream<char, std::char_traits<char>>::{ctor}(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char>> const&, std::_Ios_Openmode)"
+    name, proto, s = convert_cppproto_to_py(proto_0, with_param_names=False)
+    assert proto.ctor is True
+    assert name == "std::basic_ifstream::__ctor__"
+    assert len(proto.args) == 3
+    assert isinstance(proto.args[0], SimTypePointer)  # this
+    assert isinstance(proto.args[1], SimTypeReference)
+    assert isinstance(proto.args[1].refs, SimTypeString)
+    assert proto.args[1].refs.name == "std::__cxx11::basic_string"
+    assert proto.args[1].refs.unqualified_name(lang="c++") == "basic_string"
+
+    proto_1 = "void std::basic_string<CharT,Traits,Allocator>::push_back(CharT ch)"
+    name, proto, s = convert_cppproto_to_py(proto_1, with_param_names=True)
+    assert name == "std::basic_string::push_back"
+    assert isinstance(proto.returnty, SimTypeBottom)
+    assert isinstance(proto.args[0], SimTypePointer)  # this
+    assert isinstance(proto.args[1], SimTypeChar)
+
+    proto_2 = "void std::basic_string<CharT,Traits,Allocator>::swap(basic_string& other)"
+    name, proto, s = convert_cppproto_to_py(proto_2, with_param_names=True)
+    assert name == "std::basic_string::swap"
+    assert isinstance(proto.returnty, SimTypeBottom)
+    assert isinstance(proto.args[0], SimTypePointer)  # this
+    assert isinstance(proto.args[1], SimTypeReference)
+    assert isinstance(proto.args[1].refs, SimTypeString)
+
+    proto_3 = "std::ios_base::{base dtor}()"
+    name, proto, s = convert_cppproto_to_py(proto_3, with_param_names=True)
+    assert name == "std::ios_base::__base_dtor__"
+    assert proto.dtor is True
+    assert isinstance(proto.returnty, SimTypeBottom)
+
+    proto_4 = "std::ios_base::{base dtor}()"
+    name, proto, s = convert_cppproto_to_py(proto_4, with_param_names=True)
+    assert name == "std::ios_base::__base_dtor__"
+
+    proto_5 = "void foo(int & bar);"
+    name, proto, s = convert_cppproto_to_py(proto_5, with_param_names=True)
+    assert name == "foo"
+    # note that there is no "this" pointer
+    assert isinstance(proto.args[0], SimTypeReference)
+    assert isinstance(proto.args[0].refs, SimTypeInt)
+    assert isinstance(proto.returnty, SimTypeBottom)
+
 
 def test_struct_deduplication():
     angr.types.register_types(angr.types.parse_type('struct ahdr { int a ;}'))
@@ -176,7 +228,7 @@ def test_arg_names():
 
     fdef = angr.types.parse_defns("int f();") # type: Dict[str, SimTypeFunction]
     sig = fdef['f']
-    nose.tools.assert_equal(sig.arg_names, [])
+    nose.tools.assert_equal(sig.arg_names, ())
 
 def test_varargs():
     fdef = angr.types.parse_defns("int printf(const char *fmt, ...);")
@@ -192,6 +244,7 @@ def test_varargs():
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
+    test_cppproto_conversion()
     test_struct_deduplication()
     test_parse_type()
     test_parse_type_no_basic_types()
