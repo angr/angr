@@ -375,6 +375,9 @@ class SimEngineVRBase(SimEngineLight):
             return RichR(data, variable=var, typevar=typevar)
 
         # Loading data from a pointer
+        if richr_addr.type_constraints:
+            for tc in richr_addr.type_constraints:
+                self.state.add_type_constraint(tc)
 
         # parse the loading offset
         offset = 0
@@ -385,13 +388,16 @@ class SimEngineVRBase(SimEngineLight):
         else:
             richr_addr_typevar = richr_addr.typevar
 
-        # create a type constraint
-        typevar = typevars.DerivedTypeVariable(
-            typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
-            typevars.HasField(size * 8, offset)
-        )
-        self.state.add_type_constraint(typevars.Existence(typevar))
-        return RichR(None, typevar=typevar)
+        if richr_addr_typevar is not None:
+            # create a type constraint
+            typevar = typevars.DerivedTypeVariable(
+                typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
+                typevars.HasField(size * 8, offset)
+            )
+            self.state.add_type_constraint(typevars.Existence(typevar))
+            return RichR(None, typevar=typevar)
+        else:
+            return RichR(None)
 
     def _read_from_register(self, offset, size, expr=None):
         """

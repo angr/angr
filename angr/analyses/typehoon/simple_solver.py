@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx
 
-from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField
+from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add
 from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer32, Pointer64,
                          Struct, int_type, TypeVariableReference)
 
@@ -32,7 +32,12 @@ class SimpleSolver:
     """
     SimpleSolver is, literally, a simple, unification-based type constraint solver.
     """
-    def __init__(self, constraints):
+    def __init__(self, bits: int, constraints):
+
+        if bits not in (32, 64):
+            raise ValueError("Pointer size %d is not supported. Expect 32 or 64." % bits)
+
+        self.bits = bits
         self._constraints = constraints
 
         #
@@ -51,6 +56,8 @@ class SimpleSolver:
         # pprint.pprint(self._constraints)
 
         constraints = self._handle_equivalence()
+        subtype_constraints = self._subtype_constraints_from_add()
+        constraints.update(subtype_constraints)
         subtypevars, supertypevars = self._calculate_closure(constraints)
         self._find_recursive_types(subtypevars)
         self._compute_lower_upper_bounds(subtypevars, supertypevars)
@@ -109,21 +116,11 @@ class SimpleSolver:
 
         # collect equivalence relations
         for constraint in self._constraints:
-
-            if isinstance(constraint, Existence):
-                pass
-
-            elif isinstance(constraint, Equivalence):
+            if isinstance(constraint, Equivalence):
                 # type_a == type_b
                 # we apply unification and removes one of them
                 ta, tb = constraint.type_a, constraint.type_b
                 graph.add_edge(ta, tb)
-
-            elif isinstance(constraint, Subtype):
-                pass
-
-            else:
-                raise NotImplementedError("Unsupported instance type %s." % type(constraint))
 
         for components in networkx.connected_components(graph):
             components_lst = list(components)
@@ -159,6 +156,18 @@ class SimpleSolver:
 
         self._equivalence = replacements
         return constraints
+
+    def _subtype_constraints_from_add(self):
+        """
+        Handle Add constraints.
+        """
+        new_constraints = set()
+        for constraint in self._constraints:
+            if isinstance(constraint, Add):
+                # we want to be conservative and take a guess here - normally the resulting type variable is a subtype
+                # of the first type variable
+                new_constraints.add(Subtype(constraint.type_0, constraint.type_r))
+        return new_constraints
 
     @staticmethod
     def _calculate_closure(constraints):
