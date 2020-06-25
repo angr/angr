@@ -74,7 +74,7 @@ class SimEngineVRAIL(
                 ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
             ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
 
-        # discovery the prototype
+        # discover the prototype
         prototype: Optional[SimTypeFunction] = None
         if stmt.calling_convention is not None:
             prototype = stmt.calling_convention.func_ty
@@ -90,6 +90,8 @@ class SimEngineVRAIL(
                 ret_ty = TypeLifter(self.arch.bits).lift(prototype.returnty)
             else:
                 ret_ty = None
+            if isinstance(ret_ty, typeconsts.BottomType):
+                ret_ty = None
 
             self._assign_to_register(
                 ret_reg_offset,
@@ -103,7 +105,7 @@ class SimEngineVRAIL(
             for arg, arg_type in zip(args, prototype.args):
                 arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
                 type_constraint = typevars.Subtype(
-                    arg.typevar, arg_ty
+                    arg_ty, arg.typevar
                 )
                 self.state.add_type_constraint(type_constraint)
 

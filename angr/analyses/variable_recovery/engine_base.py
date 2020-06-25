@@ -258,27 +258,34 @@ class SimEngineVRBase(SimEngineLight):
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
 
+        # Storing data into a pointer
+        if richr_addr.type_constraints:
+            for tc in richr_addr.type_constraints:
+                self.state.add_type_constraint(tc)
+
         if richr_addr.typevar is None:
             typevar = typevars.TypeVariable()
         else:
             typevar = richr_addr.typevar
-        if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.label, typevars.AddN):
-            base_typevar = typevar.type_var
-            field_offset = typevar.label.n
-        else:
-            base_typevar = typevar
-            field_offset = 0
 
-        # if addr_variable is not None:
-        #     self.variable_manager[self.func_addr].reference_at(addr_variable, field_offset, codeloc, atom=stmt)
+        if typevar is not None:
+            if isinstance(typevar, typevars.DerivedTypeVariable) and isinstance(typevar.label, typevars.AddN):
+                base_typevar = typevar.type_var
+                field_offset = typevar.label.n
+            else:
+                base_typevar = typevar
+                field_offset = 0
 
-        store_typevar = typevars.DerivedTypeVariable(
-            typevars.DerivedTypeVariable(base_typevar, typevars.Store()),
-            typevars.HasField(size * 8, field_offset)
-        )
-        if addr_variable is not None:
-            self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
-        self.state.add_type_constraint(typevars.Existence(store_typevar))
+            # if addr_variable is not None:
+            #     self.variable_manager[self.func_addr].reference_at(addr_variable, field_offset, codeloc, atom=stmt)
+
+            store_typevar = typevars.DerivedTypeVariable(
+                typevars.DerivedTypeVariable(base_typevar, typevars.Store()),
+                typevars.HasField(size * 8, field_offset)
+            )
+            if addr_variable is not None:
+                self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
+            self.state.add_type_constraint(typevars.Existence(store_typevar))
 
     def _load(self, richr_addr, size, expr=None):
         """

@@ -741,10 +741,7 @@ class CVariable(CExpression):
                         # other cases
                         yield from self.variable.c_repr_chunks()
                         yield "[", None
-                        if isinstance(self.offset, CVariable):
-                            yield from self.offset.c_repr_chunks()
-                        else:
-                            yield str(self.offset), self.offset
+                        yield from CExpression._try_c_repr_chunks(self.offset)
                         yield "]", None
                         return
 
@@ -1367,9 +1364,16 @@ class StructuredCodeGenerator(Analysis):
                 elif isinstance(cvariable.rhs, CConstant) and isinstance(cvariable.lhs, CVariable):
                     offset = cvariable.rhs.value
                     base = cvariable.lhs
+                elif isinstance(cvariable.lhs, CVariable) and isinstance(cvariable.rhs, CTypeCast):
+                    offset = cvariable.rhs
+                    base = cvariable.lhs
+                elif isinstance(cvariable.rhs, CVariable) and isinstance(cvariable.lhs, CTypeCast):
+                    offset = cvariable.lhs
+                    base = cvariable.rhs
                 else:
-                    base = None
-                    offset = None
+                    # GUESS: we need some guessing here
+                    base = cvariable.lhs
+                    offset = cvariable.rhs
 
             if base is not None and offset is not None:
                 cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type)
