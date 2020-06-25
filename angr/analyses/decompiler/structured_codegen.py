@@ -724,6 +724,10 @@ class CVariable(CExpression):
                                     yield "->", None
                                     yield from c_field.c_repr_chunks()
                                     return
+                                else:
+                                    # accessing beyond known offset - indicates a bug in type inference
+                                    l.warning("Accessing non-existent offset %d in struct %s. This indicates a bug in "
+                                              "the type inference engine.", self.offset, self.variable.type.pts_to)
 
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
                             if isinstance(self.offset, int):
@@ -737,7 +741,10 @@ class CVariable(CExpression):
                         # other cases
                         yield from self.variable.c_repr_chunks()
                         yield "[", None
-                        yield from self.offset.c_repr_chunks()
+                        if isinstance(self.offset, CVariable):
+                            yield from self.offset.c_repr_chunks()
+                        else:
+                            yield str(self.offset), self.offset
                         yield "]", None
                         return
 
