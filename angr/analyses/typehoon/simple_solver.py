@@ -395,8 +395,17 @@ class SimpleSolver:
                 else:
                     raise Exception("Impossible")
                 fields[offset] = v
-            return Struct(fields)
+            return Struct(fields=fields)
 
+        # single element and single-element struct
+        if issubclass(t2_cls, Int) and t1_cls is Struct:
+            # swap them
+            t1, t1_cls, t2, t2_cls = t2, t2_cls, t1, t1_cls
+        if issubclass(t1_cls, Int) and t2_cls is Struct and len(t2.fields) == 1 and 0 in t2.fields:
+            # e.g., char & struct {0: char}
+            return Struct(fields={0: self._join(t1, t2.fields[0], translate)})
+
+        # Struct and Pointers
         if t1_cls is Pointer64 and t2_cls is Struct:
             # swap them
             t1, t1_cls, t2, t2_cls = t2, t2_cls, t1, t1_cls
