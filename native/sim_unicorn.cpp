@@ -178,6 +178,7 @@ typedef enum stop {
 	STOP_UNSUPPORTED_STMT_UNKNOWN,
 	STOP_UNSUPPORTED_EXPR_GETI,
 	STOP_UNSUPPORTED_EXPR_UNKNOWN,
+	STOP_UNKNOWN_MEMORY_WRITE,
 } stop_t;
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -579,6 +580,10 @@ public:
 				break;
 			case STOP_UNSUPPORTED_EXPR_UNKNOWN:
 				stop_reason_msg = "Cannot propagate symbolic taint for VEX expression of unknown type";
+				break;
+			case STOP_UNKNOWN_MEMORY_WRITE:
+				// This likely happened because unicorn misreported PC value in memory write hook. See handle_write.
+				stop_reason_msg = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly";
 				break;
 			default:
 				stop_reason_msg = "unknown error";
@@ -1049,9 +1054,22 @@ public:
 		}
 		else {
 			address_t instr_addr = get_instruction_pointer();
-			is_dst_symbolic = mem_writes_taint_map.at(instr_addr);
-			if (is_dst_symbolic) {
-				save_dependencies(instr_addr);
+			auto mem_writes_taint_map_entry = mem_writes_taint_map.find(instr_addr);
+			if (mem_writes_taint_map_entry != mem_writes_taint_map.end()) {
+				is_dst_symbolic = mem_writes_taint_map_entry->second;
+				if (is_dst_symbolic) {
+					save_dependencies(instr_addr);
+				}
+			}
+			// We did not find a memory write at this instruction when processing the VEX statements.
+			// This likely means unicorn reported the current PC register value wrong.
+			// If there are no symbolic registers, assume write is concrete and ontinue concrete execution else stop.
+			else if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
+				is_dst_symbolic = false;
+			}
+			else {
+				stop(STOP_UNKNOWN_MEMORY_WRITE);
+				return;
 			}
 		}
         if (data == NULL) {
