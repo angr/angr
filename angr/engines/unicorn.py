@@ -225,7 +225,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                         state._inspect('irsb', BP_AFTER, address=bbl_addr)
                     break
 
-        if state.unicorn.stop_reason in STOP.unsupported_reasons:
+        if state.unicorn.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons):
             l.warning(state.unicorn.stop_message)
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
