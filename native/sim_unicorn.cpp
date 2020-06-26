@@ -575,10 +575,10 @@ public:
 				stop_reason_msg = "Symbolic taint propagation for GetI expression not yet supported";
 				break;
 			case STOP_UNSUPPORTED_STMT_UNKNOWN:
-				stop_reason_msg = "Cannot propagate symbolic taint for VEX statement of unknown type. See sim_unicorn logs.";
+				stop_reason_msg = "Cannot propagate symbolic taint for VEX statement of unknown type";
 				break;
 			case STOP_UNSUPPORTED_EXPR_UNKNOWN:
-				stop_reason_msg = "Cannot propagate symbolic taint for VEX expression of unknown type. See sim_unicorn logs";
+				stop_reason_msg = "Cannot propagate symbolic taint for VEX expression of unknown type";
 				break;
 			default:
 				stop_reason_msg = "unknown error";
