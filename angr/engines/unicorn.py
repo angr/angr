@@ -105,14 +105,17 @@ class SimEngineUnicorn(SuccessorsMixin):
                 self.state.memory.store(address, value)
 
         # VEX statements to ignore when re-executing instructions that touched symbolic data
-        ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
+        ignored_statement_tags = ["Ist_AbiHint", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
         start_index = instr_vex_stmt_indices["start"]
         end_index = instr_vex_stmt_indices["end"]
         for vex_stmt_idx in range(start_index, end_index + 1):
             # Execute handler from HeavyVEXMixin for the statement
             vex_stmt = vex_block.statements[vex_stmt_idx]
-            if vex_stmt.tag not in ignored_statement_tags:
+            if vex_stmt.tag == "Ist_IMark":
+                pc_reg_name = self.state.arch.get_register_by_name("pc").name
+                setattr(self.state.regs, pc_reg_name, vex_stmt.addr)
+            elif vex_stmt.tag not in ignored_statement_tags:
                 super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
 
     def _execute_symbolic_instrs(self):
