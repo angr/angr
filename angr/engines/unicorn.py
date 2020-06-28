@@ -122,7 +122,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     def _get_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
-        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)    # pylint:disable=no-member
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size, cross_insn_opt=False)    # pylint:disable=no-member
         if irsb.size == 0:
             if irsb.jumpkind == 'Ijk_NoDecode':
                 if not self.state.project.is_hooked(irsb.addr):

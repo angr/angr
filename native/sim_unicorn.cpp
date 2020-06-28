@@ -1859,7 +1859,9 @@ public:
 		}
 		if (this->block_taint_cache.find(block_address) == this->block_taint_cache.end()) {
 			// Compute and cache taint sink-source relations for this block
-			VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
+			// Disable cross instruction optimization in IR so that dependencies of symbolic
+			// instructions can be computed correctly.
+			VexRegisterUpdates pxControl = VexRegUpdLdAllregsAtEachInsn;
 			std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
 			uc_mem_read(this->uc, block_address, instructions.get(), block_size);
 			VEXLiftResult *lift_ret = vex_lift(
