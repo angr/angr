@@ -357,7 +357,6 @@ public:
 	RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
-	TempSet symbolic_temps;
 	stopped_instr_details_t stopped_at_instr;
 	const char *stop_reason_msg;
 
@@ -670,9 +669,6 @@ public:
 		}
 		for (auto &reg_offset: block_concrete_registers) {
 			mark_register_concrete(reg_offset, false);
-		}
-		for (auto &temp_id: block_symbolic_temps) {
-			mark_temp_symbolic(temp_id, false);
 		}
 		symbolic_instr_addrs.insert(symbolic_instr_addrs.end(), block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
 		// Clear all block level taint status trackers and symbolic instruction list
@@ -1607,15 +1603,10 @@ public:
 		return;
 	}
 
-	inline void mark_temp_symbolic(vex_tmp_id_t temp_id, bool do_block_level) {
-		if (do_block_level) {
-			// Mark VEX temp as symbolic in current block
-			block_symbolic_temps.emplace(temp_id);
-		}
-		else {
-			// Mark VEX temp as symbolic in the state
-			symbolic_temps.emplace(temp_id);
-		}
+	inline void mark_temp_symbolic(vex_tmp_id_t temp_id) {
+		// Mark VEX temp as symbolic in current block
+		block_symbolic_temps.emplace(temp_id);
+		return;
 	}
 
 	void mark_register_temp_symbolic(const taint_entity_t &entity, bool do_block_level) {
@@ -1623,7 +1614,7 @@ public:
 			mark_register_symbolic(entity.reg_offset, do_block_level);
 		}
 		else if (entity.entity_type == TAINT_ENTITY_TMP) {
-			mark_temp_symbolic(entity.tmp_id, do_block_level);
+			mark_temp_symbolic(entity.tmp_id);
 		}
 		return;
 	}
@@ -1659,8 +1650,7 @@ public:
 	}
 
 	inline bool is_symbolic_temp(vex_tmp_id_t temp_id) const {
-		// Check both the state's symbolic temp set and block's symbolic temp set
-		return ((symbolic_temps.count(temp_id) > 0) || (block_symbolic_temps.count(temp_id) > 0));
+		return (block_symbolic_temps.count(temp_id) > 0);
 	}
 
 	inline bool is_symbolic_register_or_temp(const taint_entity_t &entity) const {
