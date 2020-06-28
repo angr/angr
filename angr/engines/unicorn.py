@@ -116,7 +116,10 @@ class SimEngineUnicorn(SuccessorsMixin):
                 pc_reg_name = self.state.arch.get_register_by_name("pc").name
                 setattr(self.state.regs, pc_reg_name, vex_stmt.addr)
             elif vex_stmt.tag not in ignored_statement_tags:
+                self.stmt_idx = vex_stmt_idx
                 super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+
+        del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
         instr_details_list = self.state.unicorn._get_details_of_instrs_to_execute_symbolically()
