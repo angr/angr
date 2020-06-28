@@ -2039,7 +2039,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	auto tainted = state->find_tainted(address, size);
 	if (tainted != -1)
 	{
-		if (!state->is_symbolic_tracking_disabled()) {
+		if (state->is_symbolic_tracking_disabled()) {
 			// Symbolic register tracking is disabled but memory location has symbolic data.
 			// We switch to VEX engine then.
 			state->stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
