@@ -37,14 +37,14 @@ typedef enum taint: uint8_t {
 	TAINT_DIRTY = 2,
 } taint_t;
 
-typedef enum taint_entity: uint8_t {
+typedef enum : uint8_t {
 	TAINT_ENTITY_REG = 0,
 	TAINT_ENTITY_TMP = 1,
 	TAINT_ENTITY_MEM = 2,
 	TAINT_ENTITY_NONE = 3,
 } taint_entity_enum_t;
 
-typedef enum taint_status_result_t {
+typedef enum : uint8_t {
 	TAINT_STATUS_CONCRETE = 0,
 	TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR,
 	TAINT_STATUS_SYMBOLIC,
@@ -115,14 +115,14 @@ struct std::hash<taint_entity_t> {
 	}
 };
 
-typedef struct mem_read_result_t {
+typedef struct {
 	address_t address;
 	uint8_t value[MAX_MEM_ACCESS_SIZE]; // Assume size of read is not more than 8 just like write
 	size_t size;
 	bool is_value_symbolic;
 } mem_read_result_t;
 
-typedef struct saved_concrete_dependency_t {
+typedef struct {
 	taint_entity_enum_t dependency_type;
 	vex_reg_offset_t reg_offset;
 	uint64_t reg_value;
