@@ -1725,19 +1725,13 @@ public:
 			return;
 		}
 		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
-		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
-		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
-			// There are no symbolic registers so no taint to propagate. Mark any memory writes as concrete.
-			if (instr_taint_data_entry.has_memory_write) {
-				mem_writes_taint_map.emplace(instr_addr, false);
-			}
-		}
-		else if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
+		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
 			// There are symbolic registers and VEX statements in block for which taint propagation
 			// is not supported. Stop concrete execution.
 			stop(block_taint_entry.unsupported_stmt_stop_reason);
 		}
 		else {
+			auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 			propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
 		}
 		return;
