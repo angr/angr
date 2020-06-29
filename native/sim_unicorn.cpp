@@ -1056,10 +1056,11 @@ public:
 				if (is_dst_symbolic) {
 					save_dependencies(instr_addr);
 				}
+				mem_writes_taint_map.erase(instr_addr);
 			}
 			// We did not find a memory write at this instruction when processing the VEX statements.
 			// This likely means unicorn reported the current PC register value wrong.
-			// If there are no symbolic registers, assume write is concrete and ontinue concrete execution else stop.
+			// If there are no symbolic registers, assume write is concrete and continue concrete execution else stop.
 			else if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
 				is_dst_symbolic = false;
 			}
