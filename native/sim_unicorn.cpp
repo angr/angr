@@ -1766,11 +1766,12 @@ public:
 					stop(STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
-				else if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
-					stop(STOP_MULTIPLE_MEMORY_WRITES);
-					return;
-				}
 				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
+					if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
+						// Multiple memory writes in same instruction, one of which is symbolic. Stop execution.
+						stop(STOP_MULTIPLE_MEMORY_WRITES);
+						return;
+					}
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
 					// Mark instruction as symbolic to list of instructions to be executed symbolically
@@ -1787,8 +1788,8 @@ public:
 						}
 					}
 				}
-				else {
-					// Save the memory location written to be marked as concrete in the write hook
+				else if (mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end()) {
+					// Save the memory location(s) written to be marked as concrete in the write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
 				}
 			}
