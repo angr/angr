@@ -1738,7 +1738,7 @@ public:
 		return;
 	}
 
-	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry) {
+	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
 		if (is_symbolic_tracking_disabled()) {
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
@@ -1751,7 +1751,7 @@ public:
 		instr_details.block_addr = current_block_start_address;
 		instr_details.block_size = current_block_size;
 		instr_details.are_dependencies_saved = false;
-		for (auto &taint_data_entry: curr_instr_taint_entry.taint_sink_src_map) {
+		for (auto &taint_data_entry: instr_taint_entry.taint_sink_src_map) {
 			taint_entity_t taint_sink = taint_data_entry.first;
 			std::unordered_set<taint_entity_t> taint_srcs = taint_data_entry.second;
 			if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
@@ -1779,7 +1779,7 @@ public:
 
 					// Compute dependencies to save here itself since taint status can change in
 					// following instrutions
-					for (auto &dependency: curr_instr_taint_entry.dependencies_to_save) {
+					for (auto &dependency: instr_taint_entry.dependencies_to_save) {
 						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
 							saved_concrete_dependency_t dep_to_save;
 							dep_to_save.dependency_type = TAINT_ENTITY_REG;
@@ -1810,7 +1810,7 @@ public:
 
 					// Compute dependencies to save here itself since taint status can change in
 					// following instrutions
-					for (auto &dependency: curr_instr_taint_entry.dependencies_to_save) {
+					for (auto &dependency: instr_taint_entry.dependencies_to_save) {
 						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
 							saved_concrete_dependency_t dep_to_save;
 							dep_to_save.dependency_type = TAINT_ENTITY_REG;
@@ -1824,7 +1824,7 @@ public:
 					mark_register_concrete(taint_sink.reg_offset, true);
 				}
 			}
-			auto ite_cond_taint_status = get_final_taint_status(curr_instr_taint_entry.ite_cond_entity_list);
+			auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
 			if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
 				stop(STOP_SYMBOLIC_CONDITION);
 				return;
@@ -1833,7 +1833,7 @@ public:
 		if (is_instr_symbolic) {
 			block_symbolic_instr_addrs.emplace_back(instr_details);
 			// Hook instruction for saving dependencies if it doesn't have a memory read/write
-			if (!curr_instr_taint_entry.has_memory_read && !curr_instr_taint_entry.has_memory_write) {
+			if (!instr_taint_entry.has_memory_read && !instr_taint_entry.has_memory_write) {
 				block_instrs_to_hook_for_dep_saving.emplace(instr_addr);
 			}
 		}
