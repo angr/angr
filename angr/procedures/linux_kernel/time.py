@@ -2,6 +2,7 @@ import angr
 import time as _time
 
 class time(angr.SimProcedure):
+    #pylint: disable=arguments-differ
     KEY = 'sys_last_time'
 
     @property
