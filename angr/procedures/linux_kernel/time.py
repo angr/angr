@@ -2,6 +2,7 @@ import angr
 import time as _time
 
 class time(angr.SimProcedure):
+    #pylint: disable=arguments-differ
     KEY = 'sys_last_time'
 
     @property
@@ -15,13 +16,11 @@ class time(angr.SimProcedure):
     def run(self, pointer):
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             ts = int(_time.time())
-            ts_bv = self.state.solver.BVV(ts, self.state.arch.bits)
-            if self.state.solver.eval(pointer) != 0:
-                self.state.memory.store(pointer, ts_bv, endness=self.state.arch.memory_endness)
-            return ts_bv
+            result = self.state.solver.BVV(ts, self.state.arch.bits)
         else:
             result = self.state.solver.BVS('sys_time', self.state.arch.bits, key=('api', 'time'))
             if self.last_time is not None:
                 self.state.add_constraints(result >= self.last_time)
             self.last_time = result
-            return result
+        self.state.memory.store(pointer, result, condition=(pointer != 0))
+        return result
