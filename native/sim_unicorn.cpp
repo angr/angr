@@ -1050,10 +1050,11 @@ public:
 		}
 		else {
 			address_t instr_addr = get_instruction_pointer();
+			auto instr_taint_entry = block_taint_cache.at(current_block_start_address).block_instrs_taint_data_map.at(instr_addr);
 			auto mem_writes_taint_map_entry = mem_writes_taint_map.find(instr_addr);
 			if (mem_writes_taint_map_entry != mem_writes_taint_map.end()) {
 				is_dst_symbolic = mem_writes_taint_map_entry->second;
-				if (is_dst_symbolic) {
+				if (is_dst_symbolic && !instr_taint_entry.has_memory_read) {
 					save_dependencies(instr_addr);
 				}
 				mem_writes_taint_map.erase(instr_addr);
@@ -1804,7 +1805,6 @@ public:
 						stop(STOP_SYMBOLIC_PC);
 						return;
 					}
-					mark_register_temp_symbolic(taint_sink, true);
 					// Mark instruction as symbolic to list of instructions to be executed symbolically
 					is_instr_symbolic = true;
 
@@ -1818,6 +1818,7 @@ public:
 							instr_details.dependencies.emplace_back(dep_to_save);
 						}
 					}
+					mark_register_temp_symbolic(taint_sink, true);
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
 					// Mark register as not symbolic since none of it's dependencies are symbolic
@@ -1830,7 +1831,25 @@ public:
 				return;
 			}
 		}
-		if (is_instr_symbolic) {
+		address_t curr_unicorn_instr_addr = get_instruction_pointer();
+		if ((instr_addr == curr_unicorn_instr_addr) && instr_taint_entry.has_memory_read) {
+			auto mem_read_result = mem_reads_map.at(instr_addr);
+			if (is_instr_symbolic || mem_read_result.is_value_symbolic) {
+				save_dependencies_of_instruction(instr_details);
+				if (!mem_read_result.is_value_symbolic) {
+					saved_concrete_dependency_t saved_mem_dependency;
+					saved_mem_dependency.dependency_type = TAINT_ENTITY_MEM;
+					saved_mem_dependency.mem_address = mem_read_result.address;
+					saved_mem_dependency.mem_value_size = mem_read_result.size;
+					for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
+						saved_mem_dependency.mem_value[i] = mem_read_result.value[i];
+					}
+					instr_details.dependencies.emplace_back(saved_mem_dependency);
+				}
+				block_symbolic_instr_addrs.emplace_back(instr_details);
+			}
+		}
+		else if (is_instr_symbolic) {
 			block_symbolic_instr_addrs.emplace_back(instr_details);
 			// Hook instruction for saving dependencies if it doesn't have a memory read/write
 			if (!instr_taint_entry.has_memory_read && !instr_taint_entry.has_memory_write) {
@@ -1890,56 +1909,16 @@ public:
 			if ((instr_entry.instr_addr != instr_addr) || instr_entry.are_dependencies_saved) {
 				continue;
 			}
-			for (auto &dependency_to_save: instr_entry.dependencies) {
-				dependency_to_save.reg_value = get_register_value(dependency_to_save.reg_offset);
-			}
-			instr_entry.are_dependencies_saved = true;
+			save_dependencies_of_instruction(instr_entry);
 		}
 		return;
 	}
 
-	void check_and_save_dependencies(address_t instr_addr) {
-		// Save details of the instruction if it touches symbolic data. This is a special case
-		// because we paused taint propagation due to memory read and so haven't computed
-		// dependencies that need to be saved.
-		if (is_symbolic_tracking_disabled()) {
-			// We're not checking symbolic registers so no need to save anything
-			return;
+	void save_dependencies_of_instruction(symbolic_instr_details_t &instr_entry) {
+		for (auto &dependency_to_save: instr_entry.dependencies) {
+			dependency_to_save.reg_value = get_register_value(dependency_to_save.reg_offset);
 		}
-
-		symbolic_instr_details_t instr_details;
-		instr_details.block_addr = current_block_start_address;
-		instr_details.block_size = current_block_size;
-		instr_details.instr_addr = instr_addr;
-		auto instr_taint_entry = block_taint_cache.at(current_block_start_address).block_instrs_taint_data_map.at(instr_addr);
-		bool has_symbolic_reg = false;
-		for (auto &dependency_to_save: instr_taint_entry.dependencies_to_save) {
-			if (!is_symbolic_register(dependency_to_save.reg_offset)) {
-				saved_concrete_dependency_t saved_reg_dependency;
-				saved_reg_dependency.dependency_type = TAINT_ENTITY_REG;
-				saved_reg_dependency.reg_offset = dependency_to_save.reg_offset;
-				saved_reg_dependency.reg_value = get_register_value(dependency_to_save.reg_offset);
-				instr_details.dependencies.emplace_back(saved_reg_dependency);
-			}
-			else {
-				has_symbolic_reg = true;
-			}
-		}
-		auto mem_read_result = mem_reads_map.at(instr_addr);
-		if (!mem_read_result.is_value_symbolic) {
-			saved_concrete_dependency_t saved_mem_dependency;
-			saved_mem_dependency.dependency_type = TAINT_ENTITY_MEM;
-			saved_mem_dependency.mem_address = mem_read_result.address;
-			saved_mem_dependency.mem_value_size = mem_read_result.size;
-			for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
-				saved_mem_dependency.mem_value[i] = mem_read_result.value[i];
-			}
-			instr_details.dependencies.emplace_back(saved_mem_dependency);
-		}
-		instr_details.are_dependencies_saved = true;
-		if (has_symbolic_reg || mem_read_result.is_value_symbolic) {
-			block_symbolic_instr_addrs.emplace_back(instr_details);
-		}
+		instr_entry.are_dependencies_saved = true;
 		return;
 	}
 
@@ -2052,7 +2031,6 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	}
 	state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
 	state->propagate_taint_of_mem_read_instr(curr_instr_addr);
-	state->check_and_save_dependencies(curr_instr_addr);
 	if (!state->stopped) {
 		state->continue_propagating_taint();
 	}
