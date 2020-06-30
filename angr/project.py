@@ -340,13 +340,14 @@ class Project:
                 else:
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s", export.name)
+                        the_lib = missing_libs[0]
                         if export.name and export.name.startswith("_Z"):
                             # GNU C++ name. Use a C++ library to create the stub
-                            the_lib = SIM_LIBRARIES.get('libstdc++.so', None)
-                            if the_lib is None:
+                            if 'libstdc++.so' in SIM_LIBRARIES:
+                                the_lib = SIM_LIBRARIES['libstdc++.so']
+                            else:
                                 l.critical("Does not find any C++ library in SIM_LIBRARIES. We may not correctly "
                                            "create the stub or resolve the function prototype for name %s.", export.name)
-                                the_lib = missing_libs[0]
 
                         self.hook_symbol(export.rebased_addr, the_lib.get(export.name, sim_proc_arch))
 
