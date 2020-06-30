@@ -12,6 +12,7 @@ class SubjectType(Enum):
     Function = 1
     Block = 2
     CFGSliceToSink = 3
+    CallTrace = 4
 
 
 class Subject:
@@ -45,7 +46,7 @@ class Subject:
 
     @property
     def cc(self):
-        if self.type is not SubjectType.Function:
+        if self.type not in (SubjectType.Function, SubjectType.CallTrace):
             raise TypeError('There are no `cc` attribute for <%s>.' % self.type)
         return self._cc
 

@@ -119,7 +119,7 @@ class SimEngineRDAIL(
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
                 continue
 
-            if any(type(d) is Undefined for d in data):
+            if isinstance(data, DataSet) and any(type(d) is Undefined for d in data):
                 l.info('Data to write at address %s undefined, ins_addr = %#x.',
                        hex(a) if type(a) is int else a, self.ins_addr
                        )
@@ -330,7 +330,11 @@ class SimEngineRDAIL(
                 if current_defs:
                     for current_def in current_defs:
                         # self.state.add_use(current_def, codeloc)
-                        data.update(current_def.data)
+                        if isinstance(current_def.data, DataSet):
+                            data.update(current_def.data)
+                        else:
+                            # dropped
+                            l.warning("Dropping data of type %s since it is not a DataSet.", type(current_def.data))
                     if any(type(d) is Undefined for d in data):
                         l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
                 else:
@@ -392,7 +396,7 @@ class SimEngineRDAIL(
         cond = self._expr(expr.cond)
         iftrue = self._expr(expr.iftrue)
         iffalse = self._expr(expr.iffalse)
-        return ailment.Expr.ITE(expr.idx, cond, iffalse, iftrue)
+        return DataSet(ailment.Expr.ITE(expr.idx, cond, iffalse, iftrue), expr.bits)
 
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)

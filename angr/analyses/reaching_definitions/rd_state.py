@@ -100,7 +100,7 @@ class ReachingDefinitionsState:
         return "{%s}" % ctnt
 
     def _set_initialization_values(self, subject: Subject, rtoc_value: Optional[int]=None):
-        if subject.type is SubjectType.Function:
+        if subject.type == SubjectType.Function:
             if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
                 raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
 
@@ -109,9 +109,18 @@ class ReachingDefinitionsState:
                 subject.content.addr,
                 rtoc_value,
             )
-        elif subject.type is SubjectType.Block:
+        elif subject.type == SubjectType.CallTrace:
+            if isinstance(self.arch, archinfo.arch_ppc64.ArchPPC64) and not rtoc_value:
+                raise ValueError('The architecture being ppc64, the parameter `rtoc_value` should be provided.')
+
+            self._initialize_function(
+                subject.cc,
+                subject.content.current_function_address(),
+                rtoc_value,
+            )
+        elif subject.type == SubjectType.Block:
             pass
-        elif subject.type is SubjectType.CFGSliceToSink:
+        elif subject.type == SubjectType.CFGSliceToSink:
             sp = Register(self.arch.sp_offset, self.arch.bytes)
             sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits))
             self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
@@ -227,6 +236,10 @@ class ReachingDefinitionsState:
             self.all_definitions.add(definition)
 
             if self.dep_graph is not None:
+                # Add the definition to the graph. It *may* be a single node if this definition is never used by
+                # anything else afterwards.
+                # self.dep_graph.add_node(definition)
+
                 stack_use = set(filter(
                     lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack,
                     self.codeloc_uses
@@ -275,6 +288,9 @@ class ReachingDefinitionsState:
         self.live_definitions.add_use(atom, code_loc)
 
     def add_use_by_def(self, definition: Definition, code_loc: CodeLocation) -> None:
+        self._cycle(code_loc)
+        self.codeloc_uses.add(definition)
+
         self.live_definitions.add_use_by_def(definition, code_loc)
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:

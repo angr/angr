@@ -18,8 +18,14 @@ def looks_like_sql(s: str) -> bool:
     s = s.lower()
     for k in sql_keywords:
         if k in s:
+            k_index = s.find(k)
+            # what's before k? is it a whitespace if it's not empty?
+            if k_index > 0:
+                before = s[k_index - 1]
+                if before not in " /;":
+                    continue
             # what's after k? is it a whitespace?
-            following = s[s.find(k) + len(k) : ]
+            following = s[k_index + len(k) : ]
             if not following or following.startswith(" "):
                 return True
 

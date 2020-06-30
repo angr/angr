@@ -75,7 +75,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                                 to None to skip dependency graph generation.
         """
 
-        self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
+        if not isinstance(subject, Subject):
+            self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
+        else:
+            self._subject = subject
         self._graph_visitor = self._subject.visitor
 
         if self._subject.type is SubjectType.CFGSliceToSink:
@@ -98,24 +101,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         else:
             self._function_handler = function_handler.hook(self)
 
-        def _init_call_stack(call_stack, subject):
-            if self._subject.type == SubjectType.Function:
-                return call_stack + [ subject ]
-            elif self._subject.type == SubjectType.Block:
-                cfg = self.kb.cfgs['CFGFast']
-                function_address = cfg.get_any_node(subject.addr).function_address
-                function = self.kb.functions.function(function_address)
-                if len(call_stack) > 0 and call_stack[-1] == function:
-                    return call_stack
-                else:
-                    return call_stack + [ function ]
-            elif self._subject.type == SubjectType.CFGSliceToSink:
-                # CFGSliceToSink does not update the "call stack" itself.
-                return call_stack
-            else:
-                raise ValueError('self._subject.type is of unexpected kind')
-
-        self._call_stack: List[Function] = _init_call_stack(call_stack or [], subject)
+        self._call_stack: List[int] = self._init_call_stack(call_stack or [], subject)
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()
@@ -149,6 +135,25 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             func_addr=self.subject.content.addr if isinstance(self.subject.content, Function) else None)
 
         self._analyze()
+
+    def _init_call_stack(self, call_stack: List[int], subject) -> List[int]:
+        if self._subject.type == SubjectType.Function:
+            return call_stack + [subject.addr]
+        elif self._subject.type == SubjectType.Block:
+            cfg = self.kb.cfgs['CFGFast']
+            function_address = cfg.get_any_node(subject.addr).function_address
+            function = self.kb.functions.function(function_address)
+            if len(call_stack) > 0 and call_stack[-1] == function.addr:
+                return call_stack
+            else:
+                return call_stack + [function.addr]
+        elif self._subject.type == SubjectType.CFGSliceToSink:
+            # CFGSliceToSink does not update the "call stack" itself.
+            return call_stack
+        elif self._subject.type == SubjectType.CallTrace:
+            return call_stack + [self._subject.content.current_function_address()]
+        else:
+            raise ValueError('Unexpected subject type %s.' % self._subject.type)
 
     def _update_kb_content_from_slice(self):
         # Removes the nodes that are not in the slice from the CFG.
