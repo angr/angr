@@ -143,7 +143,7 @@ class Server:
 
             if self._worker_exit_callback:
                 # Do not initialize the lock if no callback is provided
-                self._worker_exit_args_lock = manager.Lock()
+                self._worker_exit_args_lock = manager.Lock()  # pylint:disable=no-member
                 self._worker_exit_args = manager.dict()
 
             for i in range(self.max_workers):
@@ -167,16 +167,16 @@ class Server:
 
                 if self._worker_exit_callback and self._worker_exit_args:
                     with self._worker_exit_args_lock:
-                        for worker_id, args in self._worker_exit_args.items():
+                        for _, args in self._worker_exit_args.items():
                             self._worker_exit_callback(*args)
 
             server_state['stopped'] = self.stopped
             for worker in self._workers:
                 # wait for 10 seconds then kill the process
                 _l.info("Joining worker %d.", worker.worker_id)
-                w._proc.join(10)
-                if w._proc.is_alive():
+                worker._proc.join(10)
+                if worker._proc.is_alive():
                     _l.info("Worker %d is still running. Kill it", worker.worker_id)
-                    w._proc.kill()
+                    worker._proc.kill()
 
             self._workers = [ ]
