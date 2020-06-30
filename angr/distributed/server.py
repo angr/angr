@@ -11,7 +11,7 @@ from .worker import Worker
 
 
 _l = logging.getLogger(__name__)
-_l.setLevel(logging.DEBUG)
+_l.setLevel(logging.INFO)
 
 
 class Server:
@@ -138,13 +138,18 @@ class Server:
 
         # create workers
         with multiprocessing.Manager() as manager:
+            server_state = manager.dict()
+            server_state['stopped'] = self.stopped
+
             if self._worker_exit_callback:
                 # Do not initialize the lock if no callback is provided
-                self._worker_exit_args_lock = manager.Lock()
+                self._worker_exit_args_lock = manager.Lock()  # pylint:disable=no-member
                 self._worker_exit_args = manager.dict()
 
             for i in range(self.max_workers):
-                worker = Worker(i, self, recursion_limit=self._recursion_limit, techniques=self.techniques,
+                _l.info("### Creating worker %d", i)
+                worker = Worker(i, self, server_state, recursion_limit=self._recursion_limit,
+                                techniques=self.techniques,
                                 add_options=self.add_options, remove_options=self.remove_options)
                 self._workers.append(worker)
 
@@ -156,10 +161,22 @@ class Server:
             time.sleep(3)
 
             i = 0
-            while not self._stopped and self.active_workers > 0:
+            while not self.stopped or self.active_workers > 0:
+                server_state['stopped'] = self.stopped
                 time.sleep(1)
 
                 if self._worker_exit_callback and self._worker_exit_args:
                     with self._worker_exit_args_lock:
-                        for worker_id, args in self._worker_exit_args.items():
+                        for _, args in self._worker_exit_args.items():
                             self._worker_exit_callback(*args)
+
+            server_state['stopped'] = self.stopped
+            for worker in self._workers:
+                # wait for 10 seconds then kill the process
+                _l.info("Joining worker %d.", worker.worker_id)
+                worker._proc.join(10)
+                if worker._proc.is_alive():
+                    _l.info("Worker %d is still running. Kill it", worker.worker_id)
+                    worker._proc.kill()
+
+            self._workers = [ ]

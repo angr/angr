@@ -33,7 +33,7 @@ class VaultPickler(pickle.Pickler):
         if pid is None:
             return None
 
-        l.debug("Persistent store: %s %s", obj, pid)
+        # l.debug("Persistent store: %s %s", obj, pid)
         return self.vault._store(obj, pid)
 
 class VaultUnpickler(pickle.Unpickler):
@@ -145,12 +145,12 @@ class Vault(collections.abc.MutableMapping):
 
         :param oid: an ID to use
         """
-        l.debug("LOAD: %s", oid)
+        # l.debug("LOAD: %s", oid)
         try:
-            l.debug("... trying cached")
+            # l.debug("... trying cached")
             return self._object_cache[oid]
         except KeyError:
-            l.debug("... cached failed")
+            # l.debug("... cached failed")
             with self._read_context(oid) as u:
                 return VaultUnpickler(self, u).load()
 
@@ -170,14 +170,14 @@ class Vault(collections.abc.MutableMapping):
 
         actual_id = oid
 
-        l.debug("STORE: %s %s", o, actual_id)
+        # l.debug("STORE: %s %s", o, actual_id)
 
         # this handles recursive objects
         if actual_id in self.storing:
             return actual_id
 
         if self.is_stored(actual_id):
-            l.debug("... already stored")
+            # l.debug("... already stored")
             return actual_id
 
         with self._write_context(actual_id) as output:

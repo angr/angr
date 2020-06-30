@@ -1,4 +1,4 @@
-
+# pylint:disable=no-member
 import logging
 import datetime
 
@@ -97,14 +97,14 @@ class PickledStatesDb(PickledStatesBase):
     def sort(self):
         pass
 
-    def add(self, prio, sid, taken=False, stash="spilled"):
+    def add(self, prio, sid, taken=False, stash="spilled"):  # pylint:disable=arguments-differ
         record = PickledState(id=sid, priority=prio, taken=taken, stash=stash)
         session = self.Session()
         session.add(record)
         session.commit()
         session.close()
 
-    def pop_n(self, n, stash="spilled"):
+    def pop_n(self, n, stash="spilled"):  # pylint:disable=arguments-differ
         session = self.Session()
         q = session.query(PickledState)\
             .filter_by(taken=False)\
@@ -118,6 +118,7 @@ class PickledStatesDb(PickledStatesBase):
             r.taken = True
             ss.append((r.priority, r.id))
         session.commit()
+        session.close()
         return ss
 
     def get_recent_n(self, n, stash="spilled"):
@@ -131,11 +132,13 @@ class PickledStatesDb(PickledStatesBase):
         ss = []
         for r in q:
             ss.append((r.timestamp, r.id))
+        session.close()
         return ss
 
     def count(self):
         session = self.Session()
         q = session.query(PickledState).count()
+        session.close()
         return q
 
 
