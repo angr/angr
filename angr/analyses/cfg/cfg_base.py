@@ -2364,7 +2364,7 @@ class CFGBase(Analysis):
         all_targets = set()
         for idx, jump in enumerate(self._indirect_jumps_to_resolve):  # type:int,IndirectJump
             if self._low_priority:
-                self._release_gil(idx, 20, 0.0001)
+                self._release_gil(idx, 20, 0.000001)
             all_targets |= self._process_one_indirect_jump(jump)
 
         self._indirect_jumps_to_resolve.clear()
