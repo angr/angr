@@ -96,7 +96,14 @@ class SimEngineUnicorn(SuccessorsMixin):
             if dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_REG:
                 # Set register
                 reg_name = dep_entry["reg_name"]
-                reg_value = dep_entry["reg_value"]
+                if reg_name == 'd':
+                    # DFLAG should be 1 in VEX if the bit is 0 else -1. See vex/priv/guest_x86_toIR.c.
+                    if dep_entry["reg_value"] == 0:
+                        reg_value = 1
+                    else:
+                        reg_value = -1
+                else:
+                    reg_value = dep_entry["reg_value"]
                 setattr(self.state.regs, reg_name, reg_value)
             elif dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_MEM:
                 # Set memory location value

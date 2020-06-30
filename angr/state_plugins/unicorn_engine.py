@@ -307,6 +307,8 @@ def _load_native():
         _setup_prototype(h, 'get_stopping_instruction_details', StoppedInstructionDetails, state_t)
         _setup_prototype(h, 'stop_message', ctypes.c_char_p, state_t)
         _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_unicorn_flags_register_id', None, state_t, ctypes.c_int64)
 
         l.info('native plugin is enabled')
 
@@ -1000,6 +1002,29 @@ class Unicorn(SimStatePlugin):
         vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
         unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
         _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
+
+        # Initial VEX to unicorn mappings for flag register
+        if self.state.arch.name in ('x86', 'AMD64'):
+            cpu_flags_vex_names = [('d', 10), ('ac', 18), ('id', 21)]
+            unicorn_flag_register = unicorn.x86_const.UC_X86_REG_EFLAGS
+        else:
+            if self.state.arch.name.startswith("ARM"):
+                l.warning(f"Flag registers for {self.state.arch.name} not known and not pushed to unicorn.")
+
+            cpu_flags_vex_names = []
+            unicorn_flag_register = None
+
+        if unicorn_flag_register:
+            cpu_flag_vex_offsets = []
+            cpu_flag_bitmasks = []
+            for cpu_flag in cpu_flags_vex_names:
+                cpu_flag_vex_offsets.append(self.state.arch.get_register_offset(cpu_flag[0]))
+                cpu_flag_bitmasks.append(1 << (cpu_flag[1] - 1))
+
+            cpu_flag_vex_offsets_array = (ctypes.c_uint64 * len(cpu_flag_vex_offsets))(*map(ctypes.c_uint64, cpu_flag_vex_offsets))
+            cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
+            _UC_NATIVE.set_cpu_flags_details(self._uc_state, cpu_flag_vex_offsets_array, cpu_flag_bitmasks_array,len(cpu_flag_vex_offsets))
+            _UC_NATIVE.set_unicorn_flags_register_id(self._uc_state, unicorn_flag_register)
 
         # Initialize list of blacklisted registers
         blacklist_regs_offsets = []

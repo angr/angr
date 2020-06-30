@@ -357,6 +357,8 @@ public:
 	RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
+	std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
+	int64_t cpu_flags_register;
 	stopped_instr_details_t stopped_at_instr;
 	const char *stop_reason_msg;
 
@@ -384,6 +386,7 @@ public:
 		uc_context_alloc(uc, &saved_regs);
 		executed_pages_iterator = NULL;
 		current_block_start_address = 0;
+		cpu_flags_register = -1;
 
 		auto it = global_cache.find(cache_key);
 		if (it == global_cache.end()) {
@@ -1321,6 +1324,17 @@ public:
 
 	inline uint64_t get_register_value(uint64_t vex_reg_offset) const {
 		uint64_t reg_value;
+		if (cpu_flags_register != -1) {
+			// Check if VEX register is actually a CPU flag
+			auto cpu_flags_entry = cpu_flags.find(vex_reg_offset);
+			if (cpu_flags_entry != cpu_flags.end()) {
+				uc_reg_read(uc, cpu_flags_register, &reg_value);
+				if ((reg_value & cpu_flags_entry->second) == 0) {
+					return 0;
+				}
+				return 1;
+			}
+		}
 		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), &reg_value);
 		return reg_value;
 	}
@@ -2433,6 +2447,23 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 	for (int i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
 	}
+	return;
+}
+
+// Mapping details for flags registers
+extern "C"
+void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
+	state->cpu_flags.clear();
+	for (int i = 0; i < count; i++) {
+		state->cpu_flags.emplace(flag_vex_id[i], bitmasks[i]);
+	}
+	return;
+}
+
+// Flag register ID in unicorn
+extern "C"
+void simunicorn_set_unicorn_flags_register_id(State *state, int64_t reg_id) {
+	state->cpu_flags_register = reg_id;
 	return;
 }
 
