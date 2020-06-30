@@ -1596,6 +1596,7 @@ public:
 		if (do_block_level) {
 			// Mark register as symbolic in current block
 			block_symbolic_registers.emplace(reg_offset);
+			block_concrete_registers.erase(reg_offset);
 		}
 		else {
 			// Mark register as symbolic in the state
@@ -1624,6 +1625,7 @@ public:
 		if (do_block_level) {
 			// Mark this register as concrete in the current block
 			block_concrete_registers.emplace(reg_offset);
+			block_symbolic_registers.erase(reg_offset);
 		}
 		else {
 			symbolic_registers.erase(reg_offset);
