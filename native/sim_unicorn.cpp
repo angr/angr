@@ -1718,7 +1718,7 @@ public:
 				}
 			}
 		}
-		if (block_instrs_to_hook_for_dep_saving.size() > 0) {
+		if (!stopped && (block_instrs_to_hook_for_dep_saving.size() > 0)) {
 			uc_emu_stop(uc);
 			unicorn_next_instr_addr = get_instruction_pointer();
 			for (auto &instr_addr: block_instrs_to_hook_for_dep_saving) {
