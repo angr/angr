@@ -6,7 +6,7 @@ import re
 import copy
 import os
 from collections import defaultdict
-from angr.analyses.code_location import CodeLocation
+from angr.code_location import CodeLocation
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
