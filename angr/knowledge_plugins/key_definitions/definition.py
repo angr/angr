@@ -20,6 +20,7 @@ class ParamTag(Tag):
     def __init__(self, metadata: object=None):
         super(ParamTag, self).__init__()
         self.metadata = metadata
+
     def __repr__(self):
         return '<ParamTag {Metadata:%s}>' % (self.metadata)
 
@@ -32,6 +33,7 @@ class RetValueTag(Tag):
     def __init__(self, metadata: object=None):
         super(RetValueTag, self).__init__()
         self.metadata = metadata
+
     def __repr__(self):
         return '<RetValueTag {Metadata:%s}>' % (self.metadata)
 
@@ -43,6 +45,7 @@ class InitValueTag(Tag):
     def __init__(self, metadata: object=None):
         super(InitValueTag, self).__init__()
         self.metadata = metadata
+
     def __repr__(self):
         return '<InitValueTag {Metadata:%s}>' % (self.metadata)
 
@@ -76,7 +79,7 @@ class Definition:
             return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else "dummy")
         else:
-            return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.tag.name, self.atom, self.codeloc, self.data,
+            return '<Definition {Tag:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (repr(self.tag), self.atom, self.codeloc, self.data,
                                                                   "" if not self.dummy else " dummy")
     def __hash__(self):
         return hash((self.atom, self.codeloc))

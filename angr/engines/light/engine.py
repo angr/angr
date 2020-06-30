@@ -53,7 +53,7 @@ class SimEngineLight(SimEngine):
             return tuple()
 
         # Convert to Tuple to make `context` hashable if not None
-        call_stack_addresses = tuple(map(lambda f: f.addr, self._call_stack))
+        call_stack_addresses = tuple(self._call_stack)
         return call_stack_addresses
 
     def _codeloc(self, block_only=False):
@@ -103,6 +103,13 @@ class SimEngineLightVEXMixin:
 
             self._handle_Stmt(stmt)
 
+        self._process_block_end()
+
+    def _process_block_end(self):
+        # handle calls to another function
+        # Note that without global information, we cannot handle cases where we *jump* to another function (jumpkind ==
+        # "Ijk_Boring"). Users are supposed to overwrite this method, detect these cases with the help of global
+        # information (such as CFG or symbol addresses), and handle them accordingly.
         if self.block.vex.jumpkind == 'Ijk_Call':
             self.stmt_idx = DEFAULT_STATEMENT
             handler = '_handle_function'

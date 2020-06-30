@@ -7,11 +7,13 @@ from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, R
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
+from ...utils.constants import DEFAULT_STATEMENT
 from ...knowledge_plugins.key_definitions.definition import Definition, RetValueTag
 from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
+from ...code_location import CodeLocation
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
 
@@ -57,6 +59,21 @@ class SimEngineRDVEX(
                 raise e
             l.error(e)
         return self.state, self._visited_blocks, self._dep_graph
+
+    def _process_block_end(self):
+        self.stmt_idx = DEFAULT_STATEMENT
+        if self.block.vex.jumpkind == "Ijk_Call":
+            # it has to be a function
+            addr = self._expr(self.block.vex.next)
+            self._handle_function(addr)
+        elif self.block.vex.jumpkind == "Ijk_Boring":
+            # test if the target addr is a function or not
+            addr = self._expr(self.block.vex.next)
+            if len(addr) == 1:
+                addr_int = next(iter(addr.data))
+                if isinstance(addr_int, int) and addr_int in self.functions:
+                    # yes it's a jump to a function
+                    self._handle_function(addr)
 
     #
     # Private methods
@@ -489,7 +506,7 @@ class SimEngineRDVEX(
             l.warning('Invalid type %s for IP.', type(func_addr).__name__)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
                 state: ReachingDefinitionsState
                 self.state = state
             else:
@@ -500,7 +517,7 @@ class SimEngineRDVEX(
             # indirect call
             handler_name = 'handle_indirect_call'
             if hasattr(self._function_handler, handler_name):
-                _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                _, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
                 self.state = state
             else:
                 l.warning('Please implement the indirect function handler with your own logic.')
@@ -511,7 +528,8 @@ class SimEngineRDVEX(
             l.warning('Invalid type %s for IP.', type(func_addr_int).__name__)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
+                                                                                    src_codeloc=self._codeloc())
                 state: ReachingDefinitionsState
                 self.state = state
             else:
@@ -532,7 +550,8 @@ class SimEngineRDVEX(
         if ext_func_name is not None:
             handler_name = 'handle_%s' % ext_func_name
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, codeloc)
                 self.state = state
             else:
                 l.warning('Please implement the external function handler for %s() with your own logic.',
@@ -544,6 +563,7 @@ class SimEngineRDVEX(
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
+                codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
                 executed_rda, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
                     self.state,
                     func_addr_int,
@@ -551,11 +571,14 @@ class SimEngineRDVEX(
                     self._maximum_local_call_depth,
                     self._visited_blocks,
                     self._dep_graph,
-                    self._codeloc(),
+                    src_ins_addr=self.ins_addr,
+                    codeloc=codeloc,
                 )
-                self.state = state
-                self._visited_blocks = visited_blocks
-                self._dep_graph = dep_graph
+                if executed_rda:
+                    # update everything
+                    self.state = state
+                    self._visited_blocks = visited_blocks
+                    self._dep_graph = dep_graph
             else:
                 # l.warning('Please implement the local function handler with your own logic.')
                 pass
@@ -563,7 +586,8 @@ class SimEngineRDVEX(
             l.warning('Could not find function name for external function at address %#x.', func_addr_int)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
+                                                                                    src_codeloc=self._codeloc())
                 self.state = state
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
@@ -626,7 +650,8 @@ class SimEngineRDVEX(
                     sp_data.update(d.data)
 
             if len(sp_data) != 1:
-                raise ValueError('Invalid number of values for stack pointer.')
+                l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                           'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
 
             sp_addr = next(iter(sp_data))
             if isinstance(sp_addr, (int, SpOffset)):

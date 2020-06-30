@@ -1,4 +1,10 @@
+from typing import TYPE_CHECKING, List, Set, Optional
 from abc import ABC, abstractmethod
+
+if TYPE_CHECKING:
+    from angr.code_location import CodeLocation
+    from angr.analyses.reaching_definitions.dep_graph import DepGraph
+    from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
 
 class FunctionHandler(ABC):
@@ -23,19 +29,18 @@ class FunctionHandler(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def handle_local_function(self, state, function_address, call_stack, maximum_local_call_depth, visited_blocks, dep_graph, codeloc=None):
+    def handle_local_function(self, state: 'ReachingDefinitionsState', function_address: int, call_stack: List,
+                              maximum_local_call_depth: int, visited_blocks: Set[int], dep_graph: 'DepGraph',
+                              src_ins_addr: Optional[int]=None,
+                              codeloc: Optional['CodeLocation']=None):
         """
-        :param angr.analyses.reaching_definitions.reaching_definitions.LiveDefinitions state:
-            The state at the entry of the function, i.e. the function's input state.
-        :param int function_address: The address of the function to handle.
-        :param List[Function] call_stack:
-        :param int maximum_local_call_depth:
-        :param List<ailment.Block|Block|CodeNode|CFGNode> visited_blocks:
-            A list of previously visited blocks.
-        :param angr.analyses.reaching_definitions.dep_graph.DepGraph dep_graph:
-            A definition-use graph, where nodes represent definitions, and edges represent uses.
-        :param angr.analyses.code_location.CodeLocation.CodeLocation codeloc:
-            The code location of the call to the analysed function.
+        :param state: The state at the entry of the function, i.e. the function's input state.
+        :param function_address: The address of the function to handle.
+        :param call_stack:
+        :param maximum_local_call_depth:
+        :param visited_blocks: A set of the addresses of the previously visited blocks.
+        :param dep_graph: A definition-use graph, where nodes represent definitions, and edges represent uses.
+        :param codeloc: The code location of the call to the analysed function.
 
         :return Tuple[Boolean,LiveDefinitions,List<ailment.Block|Block|CodeNode|CFGNode>,DepGraph]:
         """
