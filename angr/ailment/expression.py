@@ -435,6 +435,10 @@ class ITE(Expression):
         else:
             return False, self
 
+    @property
+    def size(self):
+        return self.bits // 8
+
 
 class DirtyExpression(Expression):
 
