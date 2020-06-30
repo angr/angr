@@ -1,4 +1,4 @@
-
+from typing import TYPE_CHECKING
 import time
 import multiprocessing
 import logging
@@ -8,8 +8,12 @@ from ..exploration_techniques import ExplorationTechnique, Spiller, Bucketizer
 from ..exploration_techniques.spiller import PickledStatesDb
 from ..vaults import VaultDirShelf
 
+if TYPE_CHECKING:
+    from .server import Server
+
+
 _l = logging.getLogger(__name__)
-_l.setLevel(logging.DEBUG)
+_l.setLevel(logging.INFO)
 
 
 class BadStatesDropper(ExplorationTechnique):
@@ -32,7 +36,24 @@ class BadStatesDropper(ExplorationTechnique):
                 _l.debug("Dropping states in stash %s." % k)
                 simgr.drop(stash=k)
 
-        return super().step(simgr, stash=stash, **kwargs)
+        super().step(simgr, stash=stash, **kwargs)
+
+
+class ExplorationStatusNotifier(ExplorationTechnique):
+    """
+    Force the exploration to stop if the server.stop is True.
+    """
+    def __init__(self, server: 'Server'):
+        super().__init__()
+        self.server = server
+
+    def step(self, simgr, stash='active', **kwargs):
+        if not self.server.stopped:
+            super().step(simgr, stash=stash, **kwargs)
+        else:
+            _l.info("Server is marked as stopped. Stop stepping and drop %d active states.", len(simgr.active))
+            # clear the active stash
+            simgr.stashes['active'] = [ ]
 
 
 class Worker:
@@ -82,13 +103,14 @@ class Worker:
         )
         simgr.use_technique(spiller)
         simgr.use_technique(BadStatesDropper(vault, db))
+        simgr.use_technique(ExplorationStatusNotifier(self.server))
         if self._techniques is not None:
             for tech in self._techniques:
                 simgr.use_technique(tech)
 
         if self.worker_id == 0:
             # bootstrap: the very first worker - start exploring right away!
-            _l.debug('Worker 0 starts exploring...')
+            _l.info('Worker 0 starts exploring...')
             self.server.inc_active_workers()
             simgr.explore()
             self.server.dec_active_workers()
@@ -106,13 +128,13 @@ class Worker:
                     _, state_oid = popped[0]
                 else:
                     # oops no job available
-                    _l.debug("Worker %d is waiting for jobs...", self.worker_id)
+                    _l.info("Worker %d is waiting for jobs...", self.worker_id)
                     time.sleep(1)
 
             if state_oid is None:
                 break
 
-            _l.debug("Worker %d got state %s.", self.worker_id, state_oid)
+            _l.info("Worker %d got state %s.", self.worker_id, state_oid)
             state = spiller._load_state(state_oid)
             # update simgr._project
             simgr._project = state.project
@@ -121,7 +143,7 @@ class Worker:
             simgr.explore()
             self.server.dec_active_workers()
 
-        _l.debug("Worker %d exits.", self.worker_id)
+        _l.info("Worker %d exits.", self.worker_id)
         self.server.on_worker_exit(self.worker_id, simgr.stashes)
 
     #
