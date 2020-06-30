@@ -8,8 +8,8 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
 from ..block import Block
-from ..statement import Assignment
-from ..expression import Tmp, Register, Load
+from ..statement import Assignment, ConditionalJump
+from ..expression import Expression, Convert, Tmp, Register, Load, BinaryOp, UnaryOp, Const, ITE
 
 _l = logging.getLogger(name=__name__)
 
@@ -67,6 +67,7 @@ class BlockSimplifier(Analysis):
             return block
         new_block = self._replace_and_build(block, replacements)
         new_block = self._eliminate_dead_assignments(new_block)
+        new_block = self._peephole_optimize(new_block)
         return new_block
 
     @staticmethod
@@ -171,6 +172,80 @@ class BlockSimplifier(Analysis):
 
         new_block = block.copy(statements=new_statements)
         return new_block
+
+    #
+    # Peephole optimization
+    #
+
+    def _peephole_optimize(self, block):
+
+        statements = [ ]
+        any_update = False
+        for idx, stmt in enumerate(block.statements):
+            if isinstance(stmt, ConditionalJump):
+                new_stmt = self._peephole_optimize_ConditionalJump(stmt)
+                if new_stmt is not stmt:
+                    statements.append(new_stmt)
+                    any_update = True
+                    continue
+
+            statements.append(stmt)
+
+        if not any_update:
+            return block
+        new_block = block.copy(statements=statements)
+        return new_block
+
+    def _peephole_optimize_ConditionalJump(self, stmt: ConditionalJump):
+
+        new_condition = self._peephole_optimize_Expr(stmt.condition)
+
+        # if (!cond) {} else { ITE(cond, true_branch, false_branch } ==> if (cond) { ITE(...) } else {}
+        if isinstance(stmt.false_target, ITE) and \
+                isinstance(new_condition, UnaryOp) and \
+                new_condition.op == "Not":
+            new_true_target = stmt.false_target
+            new_false_target = stmt.true_target
+            new_condition = new_condition.operand
+        else:
+            new_true_target = stmt.true_target
+            new_false_target = stmt.false_target
+
+        if new_condition is not stmt.condition or \
+                new_true_target is not stmt.true_target or \
+                new_false_target is not stmt.false_target:
+            # it's updated
+            return self._peephole_optimize_ConditionalJump(
+                ConditionalJump(stmt.idx, new_condition, new_true_target, new_false_target, **stmt.tags)
+            )
+
+        # if (cond) {ITE(cond, true_branch, false_branch)} else {} ==> if (cond) {true_branch} else {}
+        if isinstance(stmt.true_target, ITE) and new_condition == stmt.true_target.cond:
+            new_true_target = stmt.true_target.iftrue
+        else:
+            new_true_target = stmt.true_target
+
+        if new_condition is not stmt.condition or new_true_target is not stmt.true_target:
+            # it's updated
+            return self._peephole_optimize_ConditionalJump(
+                ConditionalJump(stmt.idx, new_condition, new_true_target, stmt.false_target, **stmt.tags)
+            )
+
+        return stmt
+
+    def _peephole_optimize_Expr(self, expr: Expression):
+
+        # Convert(N->1, (Convert(1->N, t_x) ^ 0x1<N>) ==> Not(t_x)
+        if isinstance(expr, Convert) and \
+                isinstance(expr.operand, BinaryOp) and \
+                expr.operand.op == "Xor" and \
+                isinstance(expr.operand.operands[0], Convert) and \
+                isinstance(expr.operand.operands[1], Const) and \
+                expr.operand.operands[1].value == 1:
+            new_expr = UnaryOp(None, "Not", expr.operand.operands[0].operand)
+            return self._peephole_optimize_Expr(new_expr)
+
+        return expr
 
 
 register_analysis(BlockSimplifier, 'AILBlockSimplifier')
