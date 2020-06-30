@@ -1,6 +1,6 @@
 from typing import Tuple, Optional
 
-from ..sim_type import parse_file, parse_cpp_file, SimTypeCppFunction
+from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction
 
 
 def get_function_name(s):
@@ -127,3 +127,22 @@ def cprotos2py(cprotos):
         func_name, proto_, str_ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
         s += " " * 8 + str_.replace("\n", "\n" + " " * 8) + "\n"
     return s
+
+
+def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
+    if not specialized:
+        # remove "<???>"s
+        name = normalize_cpp_function_name(demangled_name)
+    else:
+        name = demangled_name
+
+    if not qualified:
+        # remove leading namespaces
+        chunks = name.split("::")
+        name = "::".join(chunks[-2:])
+
+    # remove arguments
+    if "(" in name:
+        name = name[: name.find("(")]
+
+    return name

@@ -4,15 +4,16 @@ from collections import defaultdict
 
 from . import Analysis
 
-from .disassembly_utils import decode_instruction
+from ..utils.library import get_cpp_function_name
 from ..block import CapstoneInsn, SootBlockNode
+from .disassembly_utils import decode_instruction
 
 l = logging.getLogger(name=__name__)
 
 # pylint: disable=unidiomatic-typecheck
 
 
-class DisassemblyPiece(object):
+class DisassemblyPiece:
     addr = None
     ident = float('nan')
 
@@ -702,14 +703,29 @@ class Value(OperandPiece):
                 elif style[0] == 'label':
                     labeloffset = style[1]
                     if labeloffset == 0:
-                        return [self.project.kb.labels[self.val]]
+                        lbl = self.project.kb.labels[self.val]
+                        return [lbl]
                     return ['%s%s%#+x' % ('+' if self.render_with_sign else '', self.project.kb.labels[self.val + labeloffset], labeloffset)]
             except KeyError:
                 pass
 
         # default case
+        try:
+            func = self.project.kb.functions.get_by_addr(self.val)
+        except KeyError:
+            func = None
+
         if self.val in self.project.kb.labels:
-            return [('+' if self.render_with_sign else '') + self.project.kb.labels[self.val]]
+            lbl = self.project.kb.labels[self.val]
+            if func is not None:
+                # see if lbl == func.name and func.demangled_name != func.name. if so, we prioritize the
+                # demangled name
+                if lbl == func.name and func.name != func.demangled_name:
+                    normalized_name = get_cpp_function_name(func.demangled_name, specialized=False, qualified=True)
+                    return [normalized_name]
+            return [('+' if self.render_with_sign else '') + lbl]
+        elif func is not None:
+            return [func.demangled_name]
         else:
             if self.render_with_sign:
                 return ['%#+x' % self.val]
