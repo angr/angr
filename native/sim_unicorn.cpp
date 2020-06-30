@@ -1705,12 +1705,7 @@ public:
 		}
 		if (block_instrs_to_hook_for_dep_saving.size() > 0) {
 			uc_emu_stop(uc);
-			auto curr_unicorn_instr_addr = get_instruction_pointer();
-			if (curr_unicorn_instr_addr != current_block_start_address) {
-				// Current instruction is a memory read. Since read hooks are post-instruction hooks,
-				// emulation should resume from instruction after memory read
-				unicorn_next_instr_addr = taint_engine_next_instr_address;
-			}
+			unicorn_next_instr_addr = get_instruction_pointer();
 			for (auto &instr_addr: block_instrs_to_hook_for_dep_saving) {
 				uc_hook hook;
 				uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, instr_addr, instr_addr);
