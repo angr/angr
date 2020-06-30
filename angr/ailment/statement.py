@@ -102,7 +102,7 @@ class Store(Statement):
             return "STORE(addr=%s, data=%s, size=%s, endness=%s, guard=%s)" % (self.addr, str(self.data), self.size,
                                                                                self.endness, self.guard)
         else:
-            return "%s =%s %s<%d>%s" % (self.variable.name, self.endness[0], str(self.data), self.size,
+            return "%s =%s %s<%d>%s" % (self.variable.name, "L" if self.endness == "Iend_LE" else "B", str(self.data), self.size,
                                         "" if self.guard is None else "[%s]" % self.guard)
 
     def replace(self, old_expr, new_expr):
