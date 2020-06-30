@@ -118,6 +118,7 @@ class PickledStatesDb(PickledStatesBase):
             r.taken = True
             ss.append((r.priority, r.id))
         session.commit()
+        session.close()
         return ss
 
     def get_recent_n(self, n, stash="spilled"):
@@ -131,11 +132,13 @@ class PickledStatesDb(PickledStatesBase):
         ss = []
         for r in q:
             ss.append((r.timestamp, r.id))
+        session.close()
         return ss
 
     def count(self):
         session = self.Session()
         q = session.query(PickledState).count()
+        session.close()
         return q
 
 
