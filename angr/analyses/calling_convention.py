@@ -301,8 +301,9 @@ class CallingConventionAnalysis(Analysis):
 
         elif arch.name == 'AMD64':
             return (24 <= variable.reg < 40 or  # rcx, rdx
-                    64 <= variable.reg < 104 or  # rsi, rdi, r8, r9, r10
-                    224 <= variable.reg < 480)  # xmm0-xmm7
+                    64 <= variable.reg < 104  # rsi, rdi, r8, r9, r10
+                    )
+                    # 224 <= variable.reg < 480)  # xmm0-xmm7
 
         elif is_arm_arch(arch):
             return 8 <= variable.reg < 24  # r0-r3
