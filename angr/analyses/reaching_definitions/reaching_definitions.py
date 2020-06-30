@@ -143,7 +143,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             cfg = self.kb.cfgs['CFGFast']
             function_address = cfg.get_any_node(subject.addr).function_address
             function = self.kb.functions.function(function_address)
-            if len(call_stack) > 0 and call_stack[-1] == function:
+            if len(call_stack) > 0 and call_stack[-1] == function.addr:
                 return call_stack
             else:
                 return call_stack + [function.addr]
