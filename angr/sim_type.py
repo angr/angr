@@ -1663,6 +1663,19 @@ def _cpp_decl_to_type(decl: Any, extra_types: Dict[str,SimType], opaque_classes=
     raise NotImplementedError()
 
 
+def normalize_cpp_function_name(name: str) -> str:
+    _s = name
+    s = None
+    while s != _s:
+        _s = s if s is not None else _s
+        s = re.sub(r"<[^<>]+>", "", _s)
+
+    m = re.search(r"{([a-z\s]+)}", s)
+    if m is not None:
+        s = s[:m.start()] + "__" + m.group(1).replace(" ", "_") + "__" + s[m.end():]
+    return s
+
+
 def parse_cpp_file(cpp_decl, with_param_names: bool=False):
     #
     # A series of hacks to make CppHeaderParser happy with whatever C++ function prototypes we feed in
@@ -1672,15 +1685,7 @@ def parse_cpp_file(cpp_decl, with_param_names: bool=False):
         raise ImportError("Please install CppHeaderParser to parse C++ definitions")
 
     # CppHeaderParser does not support specialization
-    _s = cpp_decl
-    s = None
-    while s != _s:
-        _s = s if s is not None else _s
-        s = re.sub(r"<[^<>]+>", "", _s)
-
-    m = re.search(r"{([a-z\s]+)}", s)
-    if m is not None:
-        s = s[:m.start()] + "__" + m.group(1).replace(" ", "_") + "__" + s[m.end():]
+    s = normalize_cpp_function_name(cpp_decl)
 
     # CppHeaderParser does not like missing parameter names
     # FIXME: The following logic is only dealing with *one* C++ function declaration. Support multiple declarations
