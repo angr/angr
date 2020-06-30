@@ -1852,7 +1852,7 @@ public:
 		else if (is_instr_symbolic) {
 			block_symbolic_instr_addrs.emplace_back(instr_details);
 			// Hook instruction for saving dependencies if it doesn't have a memory read/write
-			if (!instr_taint_entry.has_memory_read && !instr_taint_entry.has_memory_write) {
+			if (!instr_taint_entry.has_memory_read && !instr_taint_entry.has_memory_write && instr_details.dependencies.size() > 0) {
 				block_instrs_to_hook_for_dep_saving.emplace(instr_addr);
 			}
 		}
