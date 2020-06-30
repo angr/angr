@@ -25,14 +25,14 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vm_vpc_addr, start_addr=None):
+    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None):
 
         # Delayed import
         import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
 
         # start_addr = 0x4006d1
         start_addr = start_addr
-        cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr)
+        cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state)
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
 
         folder_name = os.path.dirname(self.project.filename)
@@ -116,18 +116,19 @@ class VMDeobfuscation(Analysis):
         start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
         start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
-    def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr):
+    def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr, start_state):
         logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
         #proj = angr.Project(filename)
         proj = self.project
 
-        if start_addr == None:
-            main = proj.loader.main_object.get_symbol("main")
-            start_addr = main.rebased_addr
+        if start_state is None:
+            if start_addr is None:
+                main = proj.loader.main_object.get_symbol("main")
+                start_addr = main.rebased_addr
 
-        start_state = proj.factory.blank_state(addr=start_addr,
-                                               add_options={angr.sim_options.REPLACEMENT_SOLVER,
-                                                              angr.sim_options.DO_CCALLS})
+            start_state = proj.factory.blank_state(addr=start_addr,
+                                                   add_options={angr.sim_options.REPLACEMENT_SOLVER,
+                                                                  angr.sim_options.DO_CCALLS})
         self.annotate_and_preconstrain_sp(start_state)
 
         cfg = proj.analyses.CFGEmulated(fail_fast=True,
