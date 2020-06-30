@@ -235,14 +235,14 @@ class TestReachingDefinitions(TestCase):
 
         _start = cfg.kb.functions['_start']
         __libc_start_main = cfg.kb.functions['__libc_start_main']
-        call_stack = [ _start, __libc_start_main ]
+        call_stack = [ _start.addr, __libc_start_main.addr ]
 
         main_function = cfg.kb.functions['main']
         main_address = main_function.addr
         main_block = Block(addr=main_address, project=project)
 
         reaching_definitions = project.analyses.ReachingDefinitions(subject=main_block, call_stack=call_stack)
-        expected_call_stack = call_stack + [ main_function ]
+        expected_call_stack = call_stack + [ main_function.addr ]
 
         self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
 
@@ -253,7 +253,7 @@ class TestReachingDefinitions(TestCase):
 
         _start = cfg.kb.functions['_start']
         __libc_start_main = cfg.kb.functions['__libc_start_main']
-        initial_call_stack = [ _start, __libc_start_main ]
+        initial_call_stack = [ _start.addr, __libc_start_main.addr ]
 
         main_function = cfg.kb.functions['main']
         main_address = main_function.addr
@@ -269,7 +269,7 @@ class TestReachingDefinitions(TestCase):
             subject=another_block_in_main,
             call_stack=new_call_stack
         )
-        expected_call_stack = initial_call_stack + [ main_function ]
+        expected_call_stack = initial_call_stack + [ main_function.addr ]
 
         self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
 
@@ -280,7 +280,7 @@ class TestReachingDefinitions(TestCase):
 
         _start = cfg.kb.functions['_start']
         __libc_start_main = cfg.kb.functions['__libc_start_main']
-        initial_call_stack = [ _start, __libc_start_main ]
+        initial_call_stack = [ _start.addr, __libc_start_main.addr ]
 
         main_function = cfg.kb.functions['main']
 
@@ -288,7 +288,7 @@ class TestReachingDefinitions(TestCase):
             subject=main_function,
             call_stack=initial_call_stack
         )
-        expected_call_stack = initial_call_stack + [ main_function ]
+        expected_call_stack = initial_call_stack + [ main_function.addr ]
 
         self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
 
