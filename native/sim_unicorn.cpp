@@ -674,7 +674,6 @@ public:
 		// Clear all block level taint status trackers and symbolic instruction list
 		block_symbolic_registers.clear();
 		block_concrete_registers.clear();
-		block_symbolic_temps.clear();
 		block_symbolic_instr_addrs.clear();
 		return;
 	}
@@ -1889,6 +1888,7 @@ public:
 			block_taint_cache.emplace(block_address, block_taint_entry);
 		}
 		taint_engine_next_instr_address = block_address;
+		block_symbolic_temps.clear();
 		propagate_taints();
 		return;
 	}
