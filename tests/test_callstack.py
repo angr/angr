@@ -21,7 +21,7 @@ def test_empty_stack():
     cs = cs.call(0x400000, 0x401000, 0x400004, 0xffffff00)
     
     nose.tools.assert_equal(cs.current_function_address, 0x401000)
-    nose.tools.assert_equal(cs.current_stack_pointer, 0xfffffe00)
+    nose.tools.assert_equal(cs.current_stack_pointer, 0xffffff00)
 
     cs = cs.call(0x401008, 0x402000, 0x40100c, 0xfffffe80)
 
