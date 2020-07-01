@@ -19,6 +19,9 @@ def test_empty_stack():
     # the stack and modifies the stack pointer, the user should adjust stack pointer accordingly (minus 4 or 8, for
     # example) before passing to CallStack.call(). CallStack has no way to know what the architecture it is used on.
     cs = cs.call(0x400000, 0x401000, 0x400004, 0xffffff00)
+    
+    nose.tools.assert_equal(cs.current_function_address, 0x401000)
+    nose.tools.assert_equal(cs.current_stack_pointer, 0xfffffe00)
 
     cs = cs.call(0x401008, 0x402000, 0x40100c, 0xfffffe80)
 
