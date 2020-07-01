@@ -10,9 +10,9 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 plate={
     'mipsel':0x400768,
     'i386':0x804845B,
-    'amd64':0x400571,
-    'arm':0x1048c,
-    'ppc32':0x10000498
+    'x86_64':0x400571,
+    'armel':0x1048c,
+    'ppc':0x10000498
 }
 def test_mips():
     proj = angr.Project(os.path.join(test_location, 'mips', 'argv_test'))
