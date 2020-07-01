@@ -52,7 +52,7 @@ def test(arch):
 
     nose.tools.assert_equal(len(xpl.found), 0)
 
-    # symbolic command
+    # symbolic args
     s = proj.factory.entry_state(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
