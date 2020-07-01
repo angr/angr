@@ -632,10 +632,14 @@ def test_light_memory():
     s = SimState(arch='AMD64', plugins={'registers': SimLightRegisters()})
     assert type(s.registers) is SimLightRegisters
 
+    assert s.regs.rax.symbolic
     s.regs.rax = 0x4142434445464748
-    s.regs.rbx = 0x5555555544444444
     assert (s.regs.rax == 0x4142434445464748).is_true()
+
+    assert s.regs.rbx.symbolic
+    s.regs.rbx = 0x5555555544444444
     assert (s.regs.rbx == 0x5555555544444444).is_true()
+
     assert s.regs.rcx.symbolic
 
     s.regs.ah = 0
@@ -656,10 +660,15 @@ def test_crosspage_read():
     state.stack_push(0x5)
     state.stack_push(0x105c8)
     state.stack_push(0x11223344)
+
+
+    r1 = state.memory.load(state.regs.sp, 36)
+    assert bytes.fromhex("77665544") in state.solver.eval(r1, cast_to=bytes)
+
     state.stack_push(0x10564)
 
-    r = state.memory.load(state.regs.sp, 40)
-    assert bytes.fromhex("77665544") in state.solver.eval(r, cast_to=bytes)
+    r2 = state.memory.load(state.regs.sp, 40)
+    assert bytes.fromhex("77665544") in state.solver.eval(r2, cast_to=bytes)
     #assert s.solver.eval(r, 2) == ( 0xffeeddccbbaa998877665544, )
 
 def test_underconstrained():
