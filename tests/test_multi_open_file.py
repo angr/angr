@@ -27,12 +27,10 @@ def test_multi_open_file():
 
         # Check that the deleted temp file contained the appropriate string
         for event in p.history.events:
-            if event.type == 'fs_unlink':
-                simfile = p.fs.unlinks[event.objects['unlink_idx']][1]
-                nose.tools.assert_equal(simfile.concretize(), b'foobar and baz')
-                break
-        else:
-            assert False
+            assert event.type == 'fs_unlink'
+            simfile = p.fs.unlinks[event.objects['unlink_idx']][1]
+            nose.tools.assert_equal(simfile.concretize(), b'foobar and baz')
+            break
 
 
 if __name__ == "__main__":
