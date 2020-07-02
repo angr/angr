@@ -349,69 +349,67 @@ class PagedMemoryMixin(MemoryMixin):
             else:
                 return memoryview(b'')
 
-        try:
-            concrete_load = page.concrete_load
-        except AttributeError:
+        if not page.SUPPORTS_CONCRETE_LOAD:
             # the page does not support concrete_load
             return self._load_to_memoryview(addr, size, with_bitmap)
+
+        data, bitmap = page.concrete_load(offset, subsize, **kwargs)
+        if with_bitmap:
+            return data, bitmap
+
+        # everything from here on out has exactly one goal: to maximize the amount of concrete data
+        # we can return (up to the limit!)
+        for i, byte in enumerate(bitmap):
+            if byte != 0:
+                break
         else:
-            data, bitmap = concrete_load(offset, subsize, **kwargs)
-            if with_bitmap:
-                return data, bitmap
+            i = len(bitmap)
 
-            # everything from here on out has exactly one goal: to maximize the amount of concrete data
-            # we can return (up to the limit!)
-            for i, byte in enumerate(bitmap):
-                if byte != 0:
-                    break
+        if i != subsize:
+            return data[:i]
+
+        size -= subsize
+
+        physically_adjacent = True
+        while size:
+            offset = 0
+            max_pageno = (1 << self.state.arch.bits) // self.page_size
+            pageno = (pageno + 1) % max_pageno
+            subsize = min(size, self.page_size)
+
+            try:
+                page = self._get_page(pageno, writing, **kwargs)
+                concrete_load = page.concrete_load
+            except (SimMemoryError, AttributeError):
+                break
             else:
-                i = len(bitmap)
 
-            if i != subsize:
-                return data[:i]
-
-            size -= subsize
-
-            physically_adjacent = True
-            while size:
-                offset = 0
-                max_pageno = (1 << self.state.arch.bits) // self.page_size
-                pageno = (pageno + 1) % max_pageno
-                subsize = min(size, self.page_size)
-
-                try:
-                    page = self._get_page(pageno, writing, **kwargs)
-                    concrete_load = page.concrete_load
-                except (SimMemoryError, AttributeError):
-                    break
-                else:
-
-                    newdata, bitmap = concrete_load(offset, subsize, **kwargs)
-                    for i, byte in enumerate(bitmap):
-                        if byte != 0:
-                            break
-                    else:
-                        i = len(bitmap)
-
-                    # magic: check if the memory regions are physically adjacent
-                    if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
-                        # magic: generate a new memoryview which contains the two physically adjacent regions
-                        obj = data.obj
-                        data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP,
-                                                                                             ffi.from_buffer(obj))
-                        data = memoryview(obj)[data_offset:data_offset + len(data) + i]
-                    else:
-                        # they are not adjacent - create a new bytearray to hold data
-                        physically_adjacent = False
-                        bytes_out = bytearray(data) + bytearray(newdata[:i])
-                        data = memoryview(bytes_out)
-
-                    if i != subsize:
+                newdata, bitmap = concrete_load(offset, subsize, **kwargs)
+                for i, byte in enumerate(bitmap):
+                    if byte != 0:
                         break
+                else:
+                    i = len(bitmap)
 
-                    size -= subsize
+                # magic: check if the memory regions are physically adjacent
+                if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
+                    # magic: generate a new memoryview which contains the two physically adjacent regions
+                    obj = data.obj
+                    data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP,
+                                                                                         ffi.from_buffer(obj))
+                    data = memoryview(obj)[data_offset:data_offset + len(data) + i]
+                else:
+                    # they are not adjacent - create a new bytearray to hold data
+                    physically_adjacent = False
+                    bytes_out = bytearray(data) + bytearray(newdata[:i])
+                    data = memoryview(bytes_out)
 
-            return data
+                if i != subsize:
+                    break
+
+                size -= subsize
+
+        return data
 
     def changed_bytes(self, other) -> Set[int]:
         my_pages = set(self._pages)

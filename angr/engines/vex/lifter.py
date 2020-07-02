@@ -1,8 +1,11 @@
+import logging
+
+from cachetools import LRUCache
+
 import pyvex
 import cle
 from archinfo import ArchARM
-from cachetools import LRUCache
-import logging
+import claripy
 
 from ..engine import SimEngineBase
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
@@ -218,7 +221,10 @@ class VEXLifter(SimEngineBase):
             else:
                 buff, size = self._load_bytes(addr, size, state, clemory)
 
-        if not buff or size == 0:
+        if isinstance(buff, claripy.ast.BV):
+            if len(buff) == 0:
+                raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
+        elif not buff:
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
 
         # phase 5: call into pyvex
@@ -285,8 +291,18 @@ class VEXLifter(SimEngineBase):
                 else:
                     if start <= addr:
                         offset = addr - start
-                        buff = pyvex.ffi.from_buffer(backer) + offset
-                        size = len(backer) - offset
+                        if isinstance(backer, (bytes, bytearray)):
+                            buff = pyvex.ffi.from_buffer(backer) + offset
+                            size = len(backer) - offset
+                        elif isinstance(backer, list):
+                            buff_lst = backer[offset:offset+max_size]
+                            if self.project is None:
+                                raise ValueError("You must set self.project if a list of integers are used as backers.")
+                            byte_width = self.project.arch.byte_width
+                            buff = claripy.Concat(*map(lambda v: claripy.BVV(v, byte_width), buff_lst))
+                            size = len(buff_lst)
+                        else:
+                            raise TypeError("Unsupported backer type %s." % type(backer))
             elif state:
                 if state.memory.SUPPORTS_CONCRETE_LOAD:
                     buff = state.memory.concrete_load(addr, max_size)

@@ -154,99 +154,130 @@ from .javavm_memory import JavaVmMemoryMixin
 
 
 class DefaultMemory(
-        HexDumperMixin,
-        SmartFindMixin,
-        UnwrapperMixin,
-        NameResolutionMixin,
-        DataNormalizationMixin,
-        SimplificationMixin,
-        InspectMixinHigh,
-        ActionsMixinHigh,
-        UnderconstrainedMixin,
-        SizeConcretizationMixin,
-        SizeNormalizationMixin,
-        AddressConcretizationMixin,
-        #InspectMixinLow,
-        ActionsMixinLow,
-        ConditionalMixin,
-        ConvenientMappingsMixin,
-        DirtyAddrsMixin,
-        # -----
-        StackAllocationMixin,
-        ClemoryBackerMixin,
-        DictBackerMixin,
-        PrivilegedPagingMixin,
-        UltraPagesMixin,
-        DefaultFillerMixin,
-        SymbolicMergerMixin,
-        PagedMemoryMixin,
-        ):
+    HexDumperMixin,
+    SmartFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    InspectMixinHigh,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    #InspectMixinLow,
+    ActionsMixinLow,
+    ConditionalMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    StackAllocationMixin,
+    ClemoryBackerMixin,
+    DictBackerMixin,
+    PrivilegedPagingMixin,
+    UltraPagesMixin,
+    DefaultFillerMixin,
+    SymbolicMergerMixin,
+    PagedMemoryMixin,
+):
+    pass
+
+
+class DefaultListPagesMemory(
+    HexDumperMixin,
+    SmartFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    InspectMixinHigh,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    #InspectMixinLow,
+    ActionsMixinLow,
+    ConditionalMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    StackAllocationMixin,
+    ClemoryBackerMixin,
+    DictBackerMixin,
+    PrivilegedPagingMixin,
+    ListPagesMixin,
+    DefaultFillerMixin,
+    SymbolicMergerMixin,
+    PagedMemoryMixin,
+):
     pass
 
 
 class FastMemory(
-        NameResolutionMixin,
-        SimpleInterfaceMixin,
-        SimplificationMixin,
-        InspectMixinHigh,
-        ExplicitFillerMixin,
-        DefaultFillerMixin,
-        SlottedMemoryMixin,
-        ):
+    NameResolutionMixin,
+    SimpleInterfaceMixin,
+    SimplificationMixin,
+    InspectMixinHigh,
+    ExplicitFillerMixin,
+    DefaultFillerMixin,
+    SlottedMemoryMixin,
+):
     pass
 
 
 class AbstractMemory(
-        UnwrapperMixin,
-        NameResolutionMixin,
-        DataNormalizationMixin,
-        SimplificationMixin,
-        InspectMixinHigh,
-        ActionsMixinHigh,
-        UnderconstrainedMixin,
-        SizeConcretizationMixin,
-        SizeNormalizationMixin,
-        #InspectMixinLow,
-        ActionsMixinLow,
-        ConditionalMixin,
-        # -----
-        RegionedMemoryMixin,
-        ):
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    InspectMixinHigh,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    #InspectMixinLow,
+    ActionsMixinLow,
+    ConditionalMixin,
+    # -----
+    RegionedMemoryMixin,
+):
     pass
 
 
 class RegionedMemory(
-        RegionCategoryMixin,
-        MemoryRegionMetaMixin,
-        StaticFindMixin,
-        UnwrapperMixin,
-        NameResolutionMixin,
-        DataNormalizationMixin,
-        SimplificationMixin,
-        SizeConcretizationMixin,
-        SizeNormalizationMixin,
-        AddressConcretizationMixin,
-        ConvenientMappingsMixin,
-        DirtyAddrsMixin,
-        # -----
-        ClemoryBackerMixin,
-        DictBackerMixin,
-        UltraPagesMixin,
-        DefaultFillerMixin,
-        AbstractMergerMixin,
-        PagedMemoryMixin,
-        ):
+    RegionCategoryMixin,
+    MemoryRegionMetaMixin,
+    StaticFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    ClemoryBackerMixin,
+    DictBackerMixin,
+    UltraPagesMixin,
+    DefaultFillerMixin,
+    AbstractMergerMixin,
+    PagedMemoryMixin,
+):
     pass
 
 
 class KeyValueMemory(
-        KeyValueMemoryMixin,
+    KeyValueMemoryMixin,
 ):
     pass
 
 
 class JavaVmMemory(
-        JavaVmMemoryMixin,
+    JavaVmMemoryMixin,
 ):
     pass
 
