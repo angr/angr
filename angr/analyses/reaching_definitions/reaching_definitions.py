@@ -42,13 +42,12 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     * Some more documentation and examples would be nice.
     """
 
-    def __init__(self, subject=None, func_graph=None, max_iterations=3, track_tmps=False,
-                 observation_points=None, init_state: ReachingDefinitionsState=None, cc=None, function_handler=None,
-                 call_stack=None, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
-                 dep_graph: Optional['DepGraph']=None, observe_callback=None):
+    def __init__(self, subject: [Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=3,
+                 track_tmps=False, observation_points=None, init_state: ReachingDefinitionsState=None, cc=None,
+                 function_handler=None, call_stack=None, maximum_local_call_depth=5, observe_all=False,
+                 visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
-        :param Union[Block,Function] subject:
-                                                The subject of the analysis: a function, or a single basic block
+        :param subject:                         The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
