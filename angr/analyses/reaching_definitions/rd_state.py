@@ -120,10 +120,6 @@ class ReachingDefinitionsState:
             )
         elif subject.type == SubjectType.Block:
             pass
-        elif subject.type == SubjectType.CFGSliceToSink:
-            sp = Register(self.arch.sp_offset, self.arch.bytes)
-            sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits))
-            self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
 
         return self
 

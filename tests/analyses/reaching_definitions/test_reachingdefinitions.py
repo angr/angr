@@ -12,7 +12,6 @@ from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLoca
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
-from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.block import Block
 from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER

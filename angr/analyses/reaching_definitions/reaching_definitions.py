@@ -47,9 +47,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                  call_stack=None, maximum_local_call_depth=5, observe_all=False, visited_blocks=None,
                  dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
-        :param Union[Block,Function,CFGSliceToSink] subject:
-                                                The subject of the analysis: a function, a single basic block, or the
-                                                representation of a slice to a sink.
+        :param Union[Block,Function] subject:
+                                                The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
         :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
@@ -79,9 +78,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         else:
             self._subject = subject
         self._graph_visitor = self._subject.visitor
-
-        if self._subject.type is SubjectType.CFGSliceToSink:
-            raise TypeError("Do not pass a CFGSliceToSink into ReachingDefinitionsAnalysis. It is not supported.")
 
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=self._graph_visitor)
@@ -145,9 +141,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                 return call_stack
             else:
                 return call_stack + [function.addr]
-        elif self._subject.type == SubjectType.CFGSliceToSink:
-            # CFGSliceToSink does not update the "call stack" itself.
-            return call_stack
         elif self._subject.type == SubjectType.CallTrace:
             return call_stack + [self._subject.content.current_function_address()]
         else:
@@ -333,11 +326,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         block_key = node.addr
         self._node_iterations[block_key] += 1
-
-        # The Slice analysis happens recursively, so there will be no need to "start" any RDA from nodes that were
-        # analysed "down the stack" during a run on a node.
-        if self._subject.type == SubjectType.CFGSliceToSink:
-            self._graph_visitor.remove_from_sorted_nodes(self._visited_blocks)
 
         self.node_observe(node.addr, state, OP_AFTER)
 
