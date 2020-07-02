@@ -1061,6 +1061,7 @@ class SimCCMicrosoftAMD64(SimCC):
     FP_RETURN_VAL = SimRegArg('xmm0', 32)
     RETURN_ADDR = SimStackArg(0, 8)
     ARCH = archinfo.ArchAMD64
+    STACK_ALIGNMENT = 16
 
 class SimCCX86LinuxSyscall(SimCC):
     ARG_REGS = ['ebx', 'ecx', 'edx', 'esi', 'edi', 'ebp']
