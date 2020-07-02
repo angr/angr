@@ -771,13 +771,17 @@ class Unicorn(SimStatePlugin):
         if not bitmap:
             raise SimMemoryError('No bytes available in memory? when would this happen...')
 
+        # unicorn does not support memoryviews. convert to bytes
+        if isinstance(data, memoryview):
+            data = data.tobytes()
+
         if bitmap.readonly:
             # old-style mapping, do it via copy
             self.uc.mem_map(addr, 0x1000, perm)
             self.uc.mem_write(addr, data)
             self._mapped += 1
             # huge hack. why doesn't ctypes let you pass memoryview as void*?
-            _UC_NATIVE.activate_page(self._uc_state, addr, ffi.cast('uint64_t', ffi.from_buffer(bitmap)), None)
+            _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))), None)
         else:
             # new-style mapping, do it directly
             self.uc.mem_map_ptr(addr, 0x1000, perm, int(ffi.cast('uint64_t', ffi.from_buffer(data))))
