@@ -107,8 +107,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if data.object.op == 'BVV':
                 # trim the unnecessary leading bytes if there are any
                 full_bits = len(data.object)
-                start = page_addr + addr - data.base
-                if start < 0:
+                start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
+                if start >= data.base + data.length:
                     raise SimMemoryError("Not enough bytes to store.")
                 start_bits = full_bits - start * memory.state.arch.byte_width - 1
                 # trim the overflowing bytes if there are any
