@@ -1,10 +1,15 @@
+from typing import Union, List, Generator, Tuple
 import logging
+
 import claripy
 import cle
 
 from .paged_memory_mixin import PagedMemoryMixin
 
 l = logging.getLogger(__name__)
+
+BackerType = Union[bytes,bytearray,List[int]]
+BackerIterType = Generator[Tuple[int,BackerType],None,None]
 
 
 # since memoryview isn't pickleable, we make do...
@@ -48,7 +53,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         addr = pageno * self.page_size
 
         try:
-            backer_iter = self._clemory_backer.backers(addr)
+            backer_iter: BackerIterType = self._clemory_backer.backers(addr)
             backer_start, backer = next(backer_iter)
         except StopIteration:
             return super()._initialize_page(pageno, **kwargs)
@@ -56,34 +61,8 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         if backer_start >= addr + self.page_size:
             return super()._initialize_page(pageno, **kwargs)
 
-        if backer_start <= addr and backer_start + len(backer) > addr + self.page_size:
-            # fast case
-            data = NotMemoryview(backer, addr-backer_start, self.page_size)
-        else:
-            page_data = bytearray(self.page_size)
-            while backer_start < addr + self.page_size:
-                # lord help me. why do I keep having to write code that looks like this
-                # why have I found myself entangled in a briar patch of address spaces embedded in other address spaces
-                if addr >= backer_start:
-                    backer_first_relevant_byte = addr - backer_start
-                    page_first_relevant_byte = 0
-                else:
-                    backer_first_relevant_byte = 0
-                    page_first_relevant_byte = backer_start - addr
-
-                transfer_size = len(backer) - backer_first_relevant_byte
-                if page_first_relevant_byte + transfer_size > self.page_size:
-                    transfer_size = self.page_size - page_first_relevant_byte
-
-                backer_relevant_data = memoryview(backer)[backer_first_relevant_byte:backer_first_relevant_byte+transfer_size]
-                page_data[page_first_relevant_byte:page_first_relevant_byte+transfer_size] = backer_relevant_data
-
-                try:
-                    backer_start, backer = next(backer_iter)
-                except StopIteration:
-                    break
-
-            data = claripy.BVV(bytes(page_data))
+        # Load data from backere
+        data = self._data_from_backer(addr, backer, backer_start, backer_iter)
 
         permissions = self._cle_permissions_lookup(addr)
 
@@ -101,6 +80,72 @@ class ClemoryBackerMixin(PagedMemoryMixin):
                        **kwargs)
         return new_page
 
+    def _data_from_backer(self, addr: int, backer: BackerType, backer_start: int,
+                          backer_iter: BackerIterType) -> claripy.ast.BV:
+        # initialize the page
+        if isinstance(backer, (bytes, bytearray)):
+            return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
+        elif isinstance(backer, list):
+            return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
+        raise TypeError("Unsupported backer type %s." % type(backer))
+
+    def _calc_page_starts(self, addr: int, backer_start: int, backer_length: int) -> Tuple[int,int,int]:
+        # lord help me. why do I keep having to write code that looks like this
+        # why have I found myself entangled in a briar patch of address spaces embedded in other address spaces
+        if addr >= backer_start:
+            backer_first_relevant_byte = addr - backer_start
+            page_first_relevant_byte = 0
+        else:
+            backer_first_relevant_byte = 0
+            page_first_relevant_byte = backer_start - addr
+
+        transfer_size = backer_length - backer_first_relevant_byte
+        if page_first_relevant_byte + transfer_size > self.page_size:
+            transfer_size = self.page_size - page_first_relevant_byte
+
+        return backer_first_relevant_byte, page_first_relevant_byte, transfer_size
+
+    def _data_from_bytes_backer(self, addr: int, backer: Union[bytes,bytearray], backer_start: int,
+                                backer_iter: Generator[Tuple[int,Union[bytes,bytearray]],None,None]) -> claripy.ast.BV:
+        if backer_start <= addr and backer_start + len(backer) > addr + self.page_size:
+            # fast case
+            data = NotMemoryview(backer, addr-backer_start, self.page_size)
+        else:
+            page_data = bytearray(self.page_size)
+            while backer_start < addr + self.page_size:
+                backer_first_relevant_byte, page_first_relevant_byte, transfer_size = \
+                    self._calc_page_starts(addr, backer_start, len(backer))
+
+                backer_relevant_data = memoryview(backer)[backer_first_relevant_byte:backer_first_relevant_byte+transfer_size]
+                page_data[page_first_relevant_byte:page_first_relevant_byte+transfer_size] = backer_relevant_data
+
+                try:
+                    backer_start, backer = next(backer_iter)
+                except StopIteration:
+                    break
+
+            data = claripy.BVV(bytes(page_data))
+
+        return data
+
+    def _data_from_lists_backer(self, addr: int, backer: List[int], backer_start: int,
+                                backer_iter: Generator[Tuple[int,List[int]],None,None]) -> claripy.ast.BV:
+        page_data = [0] * self.page_size
+        while backer_start < addr + self.page_size:
+            backer_first_relevant_byte, page_first_relevant_byte, transfer_size = \
+                self._calc_page_starts(addr, backer_start, len(backer))
+
+            backer_relevant_data = backer[backer_first_relevant_byte:backer_first_relevant_byte + transfer_size]
+            page_data[page_first_relevant_byte:page_first_relevant_byte + transfer_size] = backer_relevant_data
+
+            try:
+                backer_start, backer = next(backer_iter)
+            except StopIteration:
+                break
+
+        data = claripy.Concat(*map(lambda v: claripy.BVV(v, self.state.arch.byte_width), page_data))
+        return data
+
     def _cle_permissions_lookup(self, addr):
         if self._cle_loader is None:
             return None
@@ -115,6 +160,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         if seg.is_executable: out |= 4
 
         return out
+
 
 class DictBackerMixin(PagedMemoryMixin):
     def __init__(self, dict_memory_backer=None, **kwargs):
