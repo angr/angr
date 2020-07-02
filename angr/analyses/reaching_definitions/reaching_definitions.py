@@ -2,7 +2,6 @@
 import logging
 from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
 from collections import defaultdict
-from functools import partial
 
 import ailment
 import pyvex
@@ -73,7 +72,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         """
 
         if not isinstance(subject, Subject):
-            self._subject = Subject(subject, self.kb.cfgs['CFGFast'], func_graph, cc)
+            self._subject = Subject(subject, func_graph, cc)
         else:
             self._subject = subject
         self._graph_visitor = self._subject.visitor

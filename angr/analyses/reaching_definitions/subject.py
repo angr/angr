@@ -4,7 +4,7 @@ import ailment
 
 from ...block import Block
 from ...knowledge_plugins.functions.function_manager import Function
-from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, CFGVisitor
+from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
 
 
 class SubjectType(Enum):
@@ -14,14 +14,12 @@ class SubjectType(Enum):
 
 
 class Subject:
-    def __init__(self, content, cfg, func_graph=None, cc=None):
+    def __init__(self, content, func_graph=None, cc=None):
         """
         The thing being analysed, and the way (visitor) to analyse it.
 
         :param Union[ailment.Block, angr.Block, Function] content:
             Thing to be analysed.
-        :param angr.knowledge_plugins.cfg.cfg_model.CFGModel cfg:
-            CFG of the program the thing was found in. Only used when analysing a slice.
         :param networkx.DiGraph func_graph: Alternative graph for function.graph.
         :param SimCC cc: Calling convention of the function.
         """
