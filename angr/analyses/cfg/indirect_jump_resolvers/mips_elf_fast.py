@@ -1,4 +1,4 @@
-
+from typing import Dict, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -11,6 +11,9 @@ from ....annocfg import AnnotatedCFG
 from ....exploration_techniques import Slicecutor
 
 from .resolver import IndirectJumpResolver
+
+if TYPE_CHECKING:
+    from angr.block import Block
 
 
 l = logging.getLogger(name=__name__)
@@ -49,7 +52,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
         project = self.project
 
         b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
-                  ignored_regs=('gp',), cross_insn_opt=False,
+                  ignored_regs=('gp',), cross_insn_opt=False, stop_at_calls=True
                   )
 
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -71,16 +74,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
         state.regs._t9 = func_addr
         func = cfg.kb.functions.function(addr=func_addr)
 
-        gp_offset = project.arch.registers['gp'][0]
-        # see if gp is used at all
-        for stmt in project.factory.block(addr, cross_insn_opt=False).vex.statements:
-            if isinstance(stmt, pyvex.IRStmt.WrTmp) \
-                    and isinstance(stmt.data, pyvex.IRExpr.Get) \
-                    and stmt.data.offset == gp_offset:
-                gp_used = True
-                break
-        else:
-            gp_used = False
+        # see if gp is used on this slice at all
+        gp_used = self._is_gp_used_on_slice(project, b)
 
         gp_value = None
         if gp_used:
@@ -98,11 +93,12 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 return False, []
 
             # Special handling for cases where `gp` is stored on the stack
+            gp_offset = project.arch.registers['gp'][0]
             self._set_gp_load_callback(state, b, project, gp_offset, gp_value)
             state.regs._gp = gp_value
 
         simgr = self.project.factory.simulation_manager(state)
-        simgr.use_technique(Slicecutor(annotated_cfg))
+        simgr.use_technique(Slicecutor(annotated_cfg, force_sat=True))
         simgr.run()
 
         if simgr.cut:
@@ -110,7 +106,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
             try:
                 target_state = next(iter(cut for cut in simgr.cut if cut.history.addr == addr))
             except StopIteration:
-                l.debug("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
+                l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
                 return False, [ ]
             target = target_state.addr
 
@@ -118,10 +114,10 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)
                 return True, [ target ]
 
-            l.debug("Indirect jump at %#x is resolved to target %#x, which seems to be invalid.", addr, target)
+            l.info("Indirect jump at %#x is resolved to target %#x, which seems to be invalid.", addr, target)
             return False, [ ]
 
-        l.debug("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
+        l.info("Indirect jump at %#x cannot be resolved by %s.", addr, repr(self))
         return False, [ ]
 
     @staticmethod
@@ -150,3 +146,22 @@ class MipsElfFastResolver(IndirectJumpResolver):
                             break
             if got_gp_stack_store:
                 break
+
+    @staticmethod
+    def _is_gp_used_on_slice(project, b: Blade) -> bool:
+        gp_offset = project.arch.registers['gp'][0]
+        blocks_on_slice: Dict[int, 'Block'] = { }
+        for block_addr, block_stmt_idx in b.slice.nodes():
+            if block_addr not in blocks_on_slice:
+                blocks_on_slice[block_addr] = project.factory.block(block_addr, cross_insn_opt=False)
+            block = blocks_on_slice[block_addr]
+            stmt = block.vex.statements[block_stmt_idx]
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                    and isinstance(stmt.data, pyvex.IRExpr.Get) \
+                    and stmt.data.offset == gp_offset:
+                gp_used = True
+                break
+        else:
+            gp_used = False
+
+        return gp_used
