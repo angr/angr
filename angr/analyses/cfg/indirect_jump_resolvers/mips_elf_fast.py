@@ -147,7 +147,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
             if got_gp_stack_store:
                 break
 
-    def _is_gp_used_on_slice(self, project, b: Blade) -> bool:
+    @staticmethod
+    def _is_gp_used_on_slice(project, b: Blade) -> bool:
         gp_offset = project.arch.registers['gp'][0]
         blocks_on_slice: Dict[int, 'Block'] = { }
         for block_addr, block_stmt_idx in b.slice.nodes():

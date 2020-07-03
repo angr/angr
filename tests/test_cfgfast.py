@@ -30,7 +30,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
     proj = angr.Project(path, load_options={'auto_load_libs': False})
 
     cfg = proj.analyses.CFGFast()
-    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -39,7 +39,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     # Segment only
     cfg = proj.analyses.CFGFast(force_segment=True)
-    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -48,7 +48,7 @@ def cfg_fast_functions_check(arch, binary_path, func_addrs, func_features):
 
     # with normalization enabled
     cfg = proj.analyses.CFGFast(force_segment=True, normalize=True)
-    nose.tools.assert_true({k for k in cfg.kb.functions.keys()}.issuperset(func_addrs))
+    nose.tools.assert_true(set(cfg.kb.functions.keys()).issuperset(func_addrs))
 
     for func_addr, feature_dict in func_features.items():
         returning = feature_dict.get("returning", "undefined")
@@ -547,10 +547,10 @@ def test_cfg_copy():
 
     cfg = proj.analyses.CFGFast()
     cfg_copy = cfg.copy()
-    for attr in cfg_copy.__dict__:
-        if attr in ['_graph', '_seg_list', '_model']:
+    for attribute in cfg_copy.__dict__:
+        if attribute in ['_graph', '_seg_list', '_model']:
             continue
-        nose.tools.assert_equal(getattr(cfg, attr), getattr(cfg_copy, attr))
+        nose.tools.assert_equal(getattr(cfg, attribute), getattr(cfg_copy, attribute))
 
     nose.tools.assert_not_equal(id(cfg.model), id(cfg_copy.model))
     nose.tools.assert_not_equal(id(cfg.model.graph), id(cfg_copy.model.graph))
