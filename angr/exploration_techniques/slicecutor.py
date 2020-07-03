@@ -10,18 +10,21 @@ class Slicecutor(ExplorationTechnique):
     The Slicecutor is an exploration that executes provided code slices.
     """
 
-    def __init__(self, annotated_cfg, force_taking_exit=False):
+    def __init__(self, annotated_cfg, force_taking_exit=False, force_sat: bool=False):
         """
         All parameters except `annotated_cfg` are optional.
 
         :param annotated_cfg:       The AnnotatedCFG that provides the code slice.
         :param force_taking_exit:   Set to True if you want to create a successor based on our slice in case of
                                     unconstrained successors.
+        :param force_sat:           If a branch specified by the slice is unsatisfiable, set this option to True if you
+                                    want to force it to be satisfiable and be taken anyway.
         """
         super(Slicecutor, self).__init__()
 
         self._annotated_cfg = annotated_cfg
         self._force_taking_exit = force_taking_exit
+        self._force_sat = force_sat
 
     def setup(self, simgr):
         for stash in ('cut', 'mysteries'):
@@ -74,6 +77,32 @@ class Slicecutor(ExplorationTechnique):
                 successor.regs._ip = target
                 new_active.append(successor)
             l.debug('Got unconstrained: %d new states are created based on AnnotatedCFG.', len(new_active))
+
+        unsat_successors = stashes.get('unsat', None)
+        if not new_active and unsat_successors and self._force_sat:
+            stashes['unsat'] = []
+            # find the state
+            targets = self._annotated_cfg.get_targets(state.addr)
+            if targets is None:
+                targets = [ ]
+            for target in targets:
+                try:
+                    suc = next(iter(u for u in unsat_successors if u.addr == target))
+                except StopIteration:
+                    continue
+
+                # drop all constraints
+                if suc.mode == "fastpath":
+                    # dropping constraints and making the state satisfiable again under fastpath mode is easy
+                    suc.solver._solver.constraints = [ ]
+                    suc._satisfiable = True
+                    new_active.append(suc)
+                    l.debug("Forced unsat at %#x to be sat again.", suc.addr)
+                else:
+                    # with multiple possible solver frontends, dropping states in other state modes is not
+                    # straightforward. I'll leave it to the next person who uses this feature
+                    l.warning("force_sat is not implemented for solver mode %s.", suc.moe)
+
 
         stashes[None] = new_active
         stashes['mystery'] = new_mystery

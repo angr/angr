@@ -2,6 +2,7 @@ import os
 import logging
 import sys
 
+from nose.plugins.attrib import attr
 import nose.tools
 
 import archinfo
@@ -117,6 +118,22 @@ def test_cfg_0_pe():
 
     for arch in arches:
         yield cfg_fast_functions_check, arch, filename, functions[arch], function_features[arch]
+
+
+@attr(speed='slow')
+def test_busybox():
+    filename = "busybox"
+    edges = {
+        "mipsel": {
+            (0x4091ec, 0x408de0),
+            (0x449acc, 0x5003b8),  # call to putenv. address of putenv may change in the future
+            (0x467cfc, 0x500014),  # call to free. address of free may change in the future
+        }
+    }
+
+    for arch, edges_ in edges.items():
+        yield cfg_fast_edges_check, arch, filename, edges_
+
 
 def test_fauxware():
     filename = "fauxware"
