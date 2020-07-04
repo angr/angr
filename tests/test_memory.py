@@ -666,6 +666,50 @@ def test_hex_dump():
         'c0000010: efbeadde ???????? ???????? ???????? ....????????????\n'
     )
 
+
+def test_concrete_load():
+    state = SimState(arch="amd64", mode="symbolic")
+    state.memory.store(0x20000, b"aaaabbbbccccdddd")
+
+    data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
+    assert data.tobytes() == b"aaaa"
+    assert bitmap.tobytes() == b"\x00\x00\x00\x00"
+
+
+    data, bitmap = state.memory.concrete_load(0x20004, 8, with_bitmap=True)
+    assert data.tobytes() == b"bbbbcccc"
+    assert bitmap.tobytes() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
+
+    state.memory.store(0x20001, claripy.BVS("flag", 8))
+    data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
+    assert data.tobytes() == b"a\x00aa"
+    assert bitmap.tobytes() == b"\x00\x01\x00\x00"
+
+    expr = claripy.Concat(
+            claripy.BVS("flag_0", 1),
+            claripy.BVS("flag_1", 2),
+            claripy.BVS("flag_2", 3),
+            claripy.BVS("flag_3", 6),
+            claripy.BVS("flag_4", 4),
+            )
+    state.memory.store(0x20001, expr)
+    data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
+    assert data.tobytes() == b"a\x00\x00a"
+    assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+    expr = claripy.Concat(
+            claripy.BVS("flag_0", 1),
+            claripy.BVV(1, 2),
+            claripy.BVV(3, 3),
+            claripy.BVV(6, 6),
+            claripy.BVS("flag_4", 4),
+            )
+    state.memory.store(0x20005, expr)
+    data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
+    assert data.tobytes() == b"b\x00\x00b"
+    assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+
 if __name__ == '__main__':
     test_crosspage_store()
     test_crosspage_read()
@@ -683,3 +727,4 @@ if __name__ == '__main__':
     test_underconstrained()
     test_hex_dump()
     test_concrete_load_non_adjacent_pages()
+    test_concrete_load()
