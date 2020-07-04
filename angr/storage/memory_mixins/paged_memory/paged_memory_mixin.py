@@ -305,18 +305,52 @@ class PagedMemoryMixin(MemoryMixin):
             for element in result.args:
                 byte_idx = bit_idx // byte_width
                 byte_size = len(element) // byte_width
+
+                if len(element) + bit_idx < (byte_idx + 1) * byte_width:
+                    # the current element is not long enough to reach the next byte
+                    # it is impossible to have multiple concrete BVV objects straddling byte boundaries
+                    bit_idx += len(element)
+                    if not with_bitmap:
+                        return memoryview(bytes(bytes_out))[:byte_idx]
+                    if byte_idx < size:
+                        bitmap_out[byte_idx] = 1
+                    continue
+
                 if bit_idx % byte_width != 0:
-                    chop = byte_width - bit_idx
-                    bit_idx += chop
-                    byte_idx += 1
+                    # if the current element has at least byte_width bits, the top `hi_chop` bits should be removed
+                    hi_chop = byte_width - (bit_idx % byte_width)
                 else:
-                    chop = 0
+                    hi_chop = 0
+
+                if (bit_idx + len(element)) % byte_width != 0:
+                    # if the current element does not have enough bits to extend to the next byte boundary, the
+                    # bottom `lo_chop` bits should be removed
+                    lo_chop = byte_width - ((bit_idx + len(element)) % byte_width)
+                else:
+                    lo_chop = 0
+
+                if hi_chop + lo_chop == len(element):
+                    # the entire element will be removed
+                    bit_idx += len(element)
+                    if not with_bitmap:
+                        return memoryview(bytes(bytes_out))[:byte_idx]
+                    if byte_idx < size:
+                        bitmap_out[byte_idx] = 1
+                    continue
+
+                if hi_chop:
+                    bit_idx += hi_chop
+                    byte_idx += 1
 
                 if element.op == 'BVV':
-                    if chop:
-                        element = element[len(element) - 1 - chop:0]
+                    chopped = element
+                    if hi_chop:
+                        chopped = chopped[len(chopped) - 1 - hi_chop:0]
+                    if lo_chop:
+                        chopped = chopped[:lo_chop]
 
-                    bytes_out[byte_idx:byte_idx + byte_size] = element.args[0].to_bytes(byte_size, 'big')
+                    if len(chopped) > 0:
+                        bytes_out[byte_idx:byte_idx + byte_size] = chopped.args[0].to_bytes(byte_size, 'big')
                 else:
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
