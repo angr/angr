@@ -19,7 +19,7 @@ arches={
 def test():
     for arch in arches:
         proj = angr.Project(os.path.join(test_location, arch, 'argv_test'))
-        r_addr = plate[arch]
+        r_addr = arches[arch]
         
         s = proj.factory.entry_state(args = ['aaa', "Yan is a noob"], env ={"HOME": "/home/angr"})
         xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
