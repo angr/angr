@@ -2532,7 +2532,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         jump.resolved_targets = targets
         all_targets = set(targets)
         for addr in all_targets:
-            to_outside = addr in self.functions or not self._addrs_belong_to_same_section(jump.addr, addr)
+            to_outside = jump.jumpkind == 'Ijk_Call' or addr in self.functions or not self._addrs_belong_to_same_section(jump.addr, addr)
 
             # TODO: get a better estimate of the function address
             target_func_addr = jump.func_addr if not to_outside else addr
