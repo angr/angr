@@ -26,6 +26,7 @@ class StringBuilderAppend(JavaSimProcedure):
     __provides__ = (
         ('java.lang.StringBuilder', 'append(java.lang.String)'),
         ('java.lang.StringBuilder', 'append(int)'),
+        ('java.lang.StringBuilder', 'append(long)'),
         ('java.lang.StringBuilder', 'append(boolean)'),
         ('java.lang.StringBuilder', 'append(char)'),
         ('java.lang.StringBuilder', 'append(java.lang.CharSequence)'),
