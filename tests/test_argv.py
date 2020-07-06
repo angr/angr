@@ -16,7 +16,7 @@ arches={
     'ppc':0x10000498
 }
 
-def test(arch):
+def run_test(arch):
     proj = angr.Project(os.path.join(test_location, arch, 'argv_test'))
     r_addr = plate[arch]
 
@@ -41,6 +41,7 @@ def test(arch):
     
 def test_argv():
     for arch in arches:
-        yield run_test, arch
+        yield run_test(arch)
 if __name__ == "__main__":
-    test_argv()
+    for test in test_argv()
+        test
