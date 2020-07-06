@@ -16,32 +16,29 @@ arches={
     'ppc':0x10000498
 }
 
-def run_test(arch):
-    proj = angr.Project(os.path.join(test_location, arch, 'argv_test'))
-    r_addr = plate[arch]
-
-    s = proj.factory.entry_state(args = ['aaa', "Yan is a noob"], env ={"HOME": "/home/angr"})
-    xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
-
-    nose.tools.assert_equal(len(xpl.found), 1)
-
-    s = proj.factory.entry_state(args = ['aaa', 'Yan is not a noob'], env ={"HOME": "/home/angr"})
-    xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
-
-    nose.tools.assert_equal(len(xpl.found), 0)
-
-    # symbolic args
-    s = proj.factory.entry_state(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
-    xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
-
-    found = xpl.found[0]
-    conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
-
-    nose.tools.assert_equal(b"Yan is a noob" in conc, True)
-    
-def test_argv():
+def test():
     for arch in arches:
-        yield run_test,arch
+        proj = angr.Project(os.path.join(test_location, arch, 'argv_test'))
+        r_addr = plate[arch]
+        
+        s = proj.factory.entry_state(args = ['aaa', "Yan is a noob"], env ={"HOME": "/home/angr"})
+        xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
+        
+        nose.tools.assert_equal(len(xpl.found), 1)
+        
+        s = proj.factory.entry_state(args = ['aaa', 'Yan is not a noob'], env ={"HOME": "/home/angr"})
+        xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
+        
+        nose.tools.assert_equal(len(xpl.found), 0)
+        
+        # symbolic args
+        s = proj.factory.entry_state(args = ['aaa', claripy.BVS('arg_2', 50*8)], env ={"HOME": "/home/angr"})
+        xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
+        
+        found = xpl.found[0]
+        conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
+        
+        nose.tools.assert_equal(b"Yan is a noob" in conc, True)
+    
 if __name__ == "__main__":
-    for test in test_argv()
-        test
+        test()
