@@ -25,7 +25,10 @@ class StringBuilderAppend(JavaSimProcedure):
 
     __provides__ = (
         ('java.lang.StringBuilder', 'append(java.lang.String)'),
-        ('java.lang.StringBuilder', 'append(int)')
+        ('java.lang.StringBuilder', 'append(int)'),
+        ('java.lang.StringBuilder', 'append(boolean)'),
+        ('java.lang.StringBuilder', 'append(char)'),
+        ('java.lang.StringBuilder', 'append(java.lang.CharSequence)'),
     )
 
     def run(self, this_ref, thing):
@@ -38,6 +41,10 @@ class StringBuilderAppend(JavaSimProcedure):
 
         elif isinstance(thing, claripy.ast.BV):
             thing_str = claripy.IntToStr(thing)
+
+        elif thing.type == 'java.lang.StringBuilder':
+            thing_str_ref = thing.get_field(self.state, 'str', 'java.lang.String')
+            thing_str = self.state.javavm_memory.load(thing_str_ref)
 
         else:
             log.error('NotImplemented, unsupported type for StringBuilder.append')
