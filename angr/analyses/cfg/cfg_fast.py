@@ -3697,11 +3697,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             return None
 
         # Prudently search for $gp values
-        state = self.project.factory.blank_state(addr=addr, mode="fastpath",
+        state = self.project.factory.blank_state(addr=addr, mode="fastpath", remove_options=o.refs,
                                                  add_options={o.NO_CROSS_INSN_OPT},
                                                  )
-        state.regs.t9 = func_addr
-        state.regs.gp = 0xffffffff
+        state.regs._t9 = func_addr
+        state.regs._gp = 0xffffffff
         try:
             succ = self.project.factory.successors(state, num_inst=last_gp_setting_insn_id + 1)
         except SimIRSBNoDecodeError:
