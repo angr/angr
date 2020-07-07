@@ -1,6 +1,6 @@
+from typing import Dict, Tuple, Union
 
-from typing import Union
-
+from ...calling_conventions import SimFunctionArgument, SimRegArg
 from ...engines.light import SpOffset
 
 
@@ -16,6 +16,19 @@ class Atom:
     @property
     def size(self) -> int:
         raise NotImplementedError()
+
+    @staticmethod
+    def from_argument(argument: SimFunctionArgument, registers: Dict[str,Tuple[int,int]]):
+        """
+        Instanciate an `Atom` from a given argument.
+
+        :param argument: The argument to create a new atom from.
+        :param registers: A mapping representing the registers of a given architecture.
+        """
+        if isinstance(argument, SimRegArg):
+            return Register(registers[argument.reg_name][0], argument.size)
+        else:
+            raise TypeError("Argument type %s is not yet supported." % type(argument))
 
 
 class GuardUse(Atom):
