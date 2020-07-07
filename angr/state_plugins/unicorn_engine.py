@@ -771,12 +771,10 @@ class Unicorn(SimStatePlugin):
         if not bitmap:
             raise SimMemoryError('No bytes available in memory? when would this happen...')
 
-        # unicorn does not support memoryviews. convert to bytes
-        if isinstance(data, memoryview):
-            data = data.tobytes()
-
         if bitmap.readonly:
             # old-style mapping, do it via copy
+            if isinstance(data, memoryview):
+                data = data.tobytes()
             self.uc.mem_map(addr, 0x1000, perm)
             self.uc.mem_write(addr, data)
             self._mapped += 1
