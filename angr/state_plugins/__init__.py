@@ -31,3 +31,4 @@ from .concrete import *
 from .jni_references import *
 from .javavm_classloader import *
 from .symbolizer import *
+from .rebaseable_stack import SimRebaseableStack
