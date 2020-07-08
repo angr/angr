@@ -12,7 +12,6 @@ from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLoca
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
-from angr.analyses.cfg_slice_to_sink import CFGSliceToSink
 from angr.block import Block
 from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -291,19 +290,6 @@ class TestReachingDefinitions(TestCase):
         expected_call_stack = initial_call_stack + [ main_function.addr ]
 
         self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
-
-    def test_init_the_call_stack_with_a_slice_as_subject_does_not_change_the_call_stack(self):
-        binary_path = _binary_path('all')
-        project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-
-        initial_call_stack = [ ]
-
-        reaching_definitions = project.analyses.ReachingDefinitions(
-            subject=CFGSliceToSink(None, {}),
-            call_stack=initial_call_stack
-        )
-
-        self.assertEqual(reaching_definitions._call_stack, initial_call_stack)
 
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path('all')

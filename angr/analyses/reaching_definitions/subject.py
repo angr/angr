@@ -4,26 +4,22 @@ import ailment
 
 from ...block import Block
 from ...knowledge_plugins.functions.function_manager import Function
-from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, CFGVisitor
-from ..cfg_slice_to_sink import CFGSliceToSink
+from ..forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor
 
 
 class SubjectType(Enum):
     Function = 1
     Block = 2
-    CFGSliceToSink = 3
-    CallTrace = 4
+    CallTrace = 3
 
 
 class Subject:
-    def __init__(self, content, cfg, func_graph=None, cc=None):
+    def __init__(self, content, func_graph=None, cc=None):
         """
         The thing being analysed, and the way (visitor) to analyse it.
 
-        :param Union[ailment.Block, angr.Block, Function, CFGSliceToSink] content:
+        :param Union[ailment.Block, angr.Block, Function] content:
             Thing to be analysed.
-        :param angr.knowledge_plugins.cfg.cfg_model.CFGModel cfg:
-            CFG of the program the thing was found in. Only used when analysing a slice.
         :param networkx.DiGraph func_graph: Alternative graph for function.graph.
         :param SimCC cc: Calling convention of the function.
         """
@@ -38,9 +34,6 @@ class Subject:
         elif isinstance(content, (ailment.Block, Block)):
             self._type = SubjectType.Block
             self._visitor = SingleNodeGraphVisitor(content)
-        elif isinstance(content, CFGSliceToSink):
-            self._type = SubjectType.CFGSliceToSink
-            self._visitor = CFGVisitor(cfg)
         else:
             raise TypeError('Unsupported analysis target.')
 
