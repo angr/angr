@@ -163,6 +163,7 @@ class LoopSeer(ExplorationTechnique):
                 succ_state.loop_data.current_loop.append((loop, exits))
         return succs
     
+    # pylint: disable=R0201
     def _inside_current_loops(self, succ_state):
         current_loops_addrs = [x[0].entry.addr for x in succ_state.loop_data.current_loop]
         if succ_state.addr in current_loops_addrs:
