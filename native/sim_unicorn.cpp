@@ -988,13 +988,6 @@ public:
 	// Feasibility checks for unicorn
 	//
 
-	// mark the register as clobbered
-	inline void mark_register_clobbered(RegisterSet *clobbered, vex_reg_offset_t offset, int size)
-	{
-		for (int i = 0; i < size; i++)
-			clobbered->insert(offset + i);
-	}
-
 	inline bool is_symbolic_tracking_disabled() {
 		return (vex_guest == VexArch_INVALID);
 	}
