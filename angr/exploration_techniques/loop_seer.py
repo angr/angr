@@ -48,7 +48,7 @@ class LoopSeer(ExplorationTechnique):
         if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
                 if loop.entry_edges:
-                    self.loops[loop.entry_edges[0][0].addr] = loop
+                    self.loops[loop.entry_edges[0][1].addr] = loop
 
         elif loops is not None:
             raise TypeError("Invalid type for 'loops' parameter!")
@@ -81,7 +81,7 @@ class LoopSeer(ExplorationTechnique):
 
             for loop in loop_finder.loops:
                 if loop.entry_edges:
-                    entry = loop.entry_edges[0][0]
+                    entry = loop.entry_edges[0][1]
                     self.loops[entry.addr] = loop
 
     def filter(self, simgr, state, **kwargs):
@@ -148,7 +148,7 @@ class LoopSeer(ExplorationTechnique):
             # Loop entry detected. This test is put here because in case of
             # nested loops, we want to handle the outer loop before proceeding
             # the inner loop.
-            if succ_state.addr in self.loops:
+            if succ_state.addr in self.loops and not self._inside_current_loops(succ_state):
                 loop = self.loops[succ_state.addr]
                 header = loop.entry.addr
                 exits = [e[1].addr for e in loop.break_edges]
@@ -162,6 +162,13 @@ class LoopSeer(ExplorationTechnique):
                 succ_state.loop_data.header_trip_counts[header].append(0)
                 succ_state.loop_data.current_loop.append((loop, exits))
         return succs
+    
+    def _inside_current_loops(self, succ_state):
+        current_loops_addrs = [x[0].entry.addr for x in succ_state.loop_data.current_loop]
+        if succ_state.addr in current_loops_addrs:
+            return True
+        return False
+    
     def _get_function(self, func):
         f = None
         if type(func) is str:
