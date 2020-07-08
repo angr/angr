@@ -83,57 +83,47 @@ class SimEngineUnicorn(SuccessorsMixin):
         next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
         next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 
-    def _execute_instruction_in_vex(self, instr_entry):
-        if instr_entry["block_addr"] not in self.block_details_cache:
-            vex_block_details = self._get_block_details(instr_entry["block_addr"], instr_entry["block_size"])
-            self.block_details_cache[instr_entry["block_addr"]] = vex_block_details
+    def _execute_block_instrs_in_vex(self, block_details):
+        if block_details["block_addr"] not in self.block_details_cache:
+            vex_block_details = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
+            self.block_details_cache[block_details["block_addr"]] = vex_block_details
         else:
-            vex_block_details = self.block_details_cache[instr_entry["block_addr"]]
+            vex_block_details = self.block_details_cache[block_details["block_addr"]]
 
         vex_block = vex_block_details["block"]
-        instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
-        for dep_entry in instr_entry["dependencies"]:
-            if dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_REG:
-                # Set register
-                reg_name = dep_entry["reg_name"]
-                if reg_name == 'd':
-                    # DFLAG should be 1 in VEX if the bit is 0 else -1. See vex/priv/guest_x86_toIR.c.
-                    if dep_entry["reg_value"] == 0:
-                        reg_value = 1
-                    else:
-                        reg_value = -1
-                else:
-                    reg_value = dep_entry["reg_value"]
-                setattr(self.state.regs, reg_name, reg_value)
-            elif dep_entry["type"] == TaintEntityEnum.TAINT_ENTITY_MEM:
-                # Set memory location value
-                address = dep_entry["mem_address"]
-                value = dep_entry["mem_value"]
-                self.state.memory.store(address, value)
+        for reg_name, reg_value in block_details["registers"].items():
+            setattr(self.state.regs, reg_name, reg_value)
 
         # VEX statements to ignore when re-executing instructions that touched symbolic data
-        ignored_statement_tags = ["Ist_AbiHint", "Ist_MBE", "Ist_NoOP"]
+        ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
-        start_index = instr_vex_stmt_indices["start"]
-        end_index = instr_vex_stmt_indices["end"]
-        for vex_stmt_idx in range(start_index, end_index + 1):
-            # Execute handler from HeavyVEXMixin for the statement
-            vex_stmt = vex_block.statements[vex_stmt_idx]
-            if vex_stmt.tag == "Ist_IMark":
-                pc_reg_name = self.state.arch.get_register_by_name("pc").name
-                setattr(self.state.regs, pc_reg_name, vex_stmt.addr)
-            elif vex_stmt.tag not in ignored_statement_tags:
-                self.stmt_idx = vex_stmt_idx
-                super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+        for instr_entry in block_details["instrs"]:
+            if "mem_dep" in instr_entry:
+                address = instr_entry["mem_dep"]["address"]
+                value = instr_entry["mem_dep"]["value"]
+                self.state.memory.store(address, value)
+
+            instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
+            start_index = instr_vex_stmt_indices["start"]
+            end_index = instr_vex_stmt_indices["end"]
+            for vex_stmt_idx in range(start_index, end_index + 1):
+                # Execute handler from HeavyVEXMixin for the statement
+                vex_stmt = vex_block.statements[vex_stmt_idx]
+                if vex_stmt.tag not in ignored_statement_tags:
+                    self.stmt_idx = vex_stmt_idx
+                    super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
 
         del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
-        instr_details_list = self.state.unicorn._get_details_of_instrs_to_execute_symbolically()
-        for instr_detail_entry in instr_details_list:
-            self._execute_instruction_in_vex(instr_detail_entry)
+        block_details_list = self.state.unicorn._get_details_of_blocks_with_symbolic_instrs()
+        for block_details in block_details_list:
+            try:
+                self._execute_block_instrs_in_vex(block_details)
+            except SimValueError as e:
+                l.error(e)
 
-    def _get_block_details(self, block_addr, block_size):
+    def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
         irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size, cross_insn_opt=False)    # pylint:disable=no-member
         if irsb.size == 0:

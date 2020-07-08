@@ -31,6 +31,9 @@ static const uint32_t MAX_BB_SIZE = 800;
 
 static const uint8_t MAX_MEM_ACCESS_SIZE = 8;
 
+// The size of the longest register in archinfo's uc_regs for all architectures
+static const uint8_t MAX_REGISTER_BYTE_SIZE = 32;
+
 typedef enum taint: uint8_t {
 	TAINT_NONE = 0,
 	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
@@ -122,32 +125,59 @@ typedef struct {
 	bool is_value_symbolic;
 } mem_read_result_t;
 
-typedef struct {
-	taint_entity_enum_t dependency_type;
-	vex_reg_offset_t reg_offset;
-	uint64_t reg_value;
-	address_t mem_address;
-	size_t mem_value_size;
-	uint8_t mem_value[MAX_MEM_ACCESS_SIZE];
-} saved_concrete_dependency_t;
+typedef struct memory_value_t {
+	uint64_t address;
+    uint8_t value[MAX_MEM_ACCESS_SIZE];
+    uint64_t size;
+
+	bool operator==(const memory_value_t &other_mem_value) {
+		if ((address != other_mem_value.address) || (size != other_mem_value.size)) {
+			return false;
+		}
+		return (memcmp(value, other_mem_value.value, size) == 0);
+	}
+} memory_value_t;
 
 typedef struct {
+	uint64_t offset;
+	uint8_t value[MAX_REGISTER_BYTE_SIZE];
+} register_value_t;
+
+typedef struct instr_details_t {
 	address_t instr_addr;
+	bool has_memory_dep;
+	memory_value_t memory_value;
+
+	bool operator==(const instr_details_t &other_instr) {
+		return ((instr_addr == other_instr.instr_addr) && (has_memory_dep == other_instr.has_memory_dep) &&
+			(memory_value == other_instr.memory_value));
+	}
+} instr_details_t;
+
+typedef struct {
 	address_t block_addr;
-	size_t block_size;
-	std::vector<saved_concrete_dependency_t> dependencies;
-	bool are_dependencies_saved;
-} symbolic_instr_details_t;
+	uint64_t block_size;
+	std::vector<instr_details_t> symbolic_instrs;
+	std::vector<register_value_t> register_values;
+
+	void reset() {
+		block_addr = 0;
+		block_size = 0;
+		symbolic_instrs.clear();
+		register_values.clear();
+	}
+} block_details_t;
 
 // This struct is used only to return data to the state plugin since ctypes doesn't natively handle
 // C++ STL containers
 typedef struct {
-	address_t instr_addr;
-	address_t block_addr;
-	uint64_t block_size;
-	uint64_t dependencies_count;
-	saved_concrete_dependency_t *dependencies;
-} symbolic_instr_details_ret_t;
+	uint64_t block_addr;
+    uint64_t block_size;
+    instr_details_t *symbolic_instrs;
+    uint64_t symbolic_instrs_count;
+    register_value_t *register_values;
+    uint64_t register_values_count;
+} block_details_ret_t;
 
 typedef enum stop {
 	STOP_NORMAL=0,
@@ -281,7 +311,6 @@ static bool hook_mem_unmapped(uc_engine *uc, uc_mem_type type, uint64_t address,
 static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data);
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
-static void hook_save_dependencies(uc_engine *uc, uint64_t address, uint32_t size, void *user_data);
 
 class State {
 private:
@@ -299,18 +328,18 @@ private:
 	// memory writes in a single instruction
 	std::unordered_map<address_t, bool> mem_writes_taint_map;
 
-	// List of instructions in a block which must be hooked for saving dependencies
-	std::unordered_set<address_t> block_instrs_to_hook_for_dep_saving;
-
-	// List of all hooks inserted into a block for saving dependencies. Instruction -> hook object
-	std::unordered_map<address_t, uc_hook> symbolic_instrs_dep_saving_hooks;
-
-	// List of instructions that should be executed symbolically
-	std::vector<symbolic_instr_details_t> symbolic_instr_addrs;
+	// Slice of current block to set the value of a register
+	std::unordered_map<vex_reg_offset_t, std::vector<instr_details_t>> reg_instr_slice;
 
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
-	std::vector<symbolic_instr_details_t> block_symbolic_instr_addrs;
+	block_details_t block_details;
+
+	// List of registers which are concrete dependencies of a block's instructions executed symbolically
+	std::unordered_set<vex_reg_offset_t> block_concrete_dependencies;
+
+	// List of register values at start of block
+	std::unordered_map<vex_reg_offset_t, register_value_t> block_start_reg_values;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -323,7 +352,6 @@ private:
 	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
-	address_t current_block_start_address, current_block_size;
 	address_t taint_engine_next_instr_address;
 
 	address_t unicorn_next_instr_addr;
@@ -356,6 +384,7 @@ public:
 	RegisterSet symbolic_registers; // tracking of symbolic registers
 	RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
+	RegisterMap vex_sub_reg_map; // Mapping of VEX sub-registers to their main register
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
 	int64_t cpu_flags_register;
@@ -364,6 +393,9 @@ public:
 
 	// Result of all memory reads executed. Instruction address -> memory read result
 	std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
+
+	// List of instructions that should be executed symbolically
+	std::vector<block_details_t> blocks_with_symbolic_instrs;
 
 	bool track_bbls;
 	bool track_stack;
@@ -385,7 +417,6 @@ public:
 		syscall_count = 0;
 		uc_context_alloc(uc, &saved_regs);
 		executed_pages_iterator = NULL;
-		current_block_start_address = 0;
 		cpu_flags_register = -1;
 
 		auto it = global_cache.find(cache_key);
@@ -469,18 +500,16 @@ public:
 			return UC_ERR_MAP;
 		}
 
-		uc_err out;
-		while (!stopped) {
-			// Restart emulation if State hasn't stopped yet. This is needed because to insert
-			// hooks to save concrete dependencies, emulation must be stopped.
-			// Relevant bug: https://github.com/unicorn-engine/unicorn/issues/537.
-			out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
-			if (!stopped && (unicorn_next_instr_addr == current_block_start_address)) {
-				// If next instruction is first instruction of the block, the block hook will be
-				// executed again and should be skipped
-				ignore_next_block = true;
-			}
+		// Initialize slice tracker for registers and flags
+		for (auto &reg_entry: vex_to_unicorn_map) {
+			reg_instr_slice.emplace(reg_entry.first, std::vector<instr_details_t>());
 		}
+
+		for (auto &cpu_flag_entry: cpu_flags) {
+			reg_instr_slice.emplace(cpu_flag_entry.first, std::vector<instr_details_t>());
+		}
+
+		uc_err out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
 		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		    // handle edge case where we stop because we reached our bogus stop address (0)
 		    commit();
@@ -598,8 +627,8 @@ public:
 
 	inline void save_stopped_at_instruction_details() {
 		// Save details of block of instruction where we stopped
-		stopped_at_instr.block_addr = current_block_start_address;
-		stopped_at_instr.block_size = current_block_size;
+		stopped_at_instr.block_addr = block_details.block_addr;
+		stopped_at_instr.block_size = block_details.block_size;
 		return;
 	}
 
@@ -673,11 +702,17 @@ public:
 		for (auto &reg_offset: block_concrete_registers) {
 			mark_register_concrete(reg_offset, false);
 		}
-		symbolic_instr_addrs.insert(symbolic_instr_addrs.end(), block_symbolic_instr_addrs.begin(), block_symbolic_instr_addrs.end());
+		if (block_details.symbolic_instrs.size() > 0) {
+			for (auto &concrete_reg: block_concrete_dependencies) {
+				block_details.register_values.emplace_back(block_start_reg_values.at(concrete_reg));
+			}
+			blocks_with_symbolic_instrs.emplace_back(block_details);
+		}
 		// Clear all block level taint status trackers and symbolic instruction list
 		block_symbolic_registers.clear();
 		block_concrete_registers.clear();
-		block_symbolic_instr_addrs.clear();
+		block_details.reset();
+		block_concrete_dependencies.clear();
 		return;
 	}
 
@@ -1052,13 +1087,10 @@ public:
 		}
 		else {
 			address_t instr_addr = get_instruction_pointer();
-			auto instr_taint_entry = block_taint_cache.at(current_block_start_address).block_instrs_taint_data_map.at(instr_addr);
+			auto instr_taint_entry = block_taint_cache.at(block_details.block_addr).block_instrs_taint_data_map.at(instr_addr);
 			auto mem_writes_taint_map_entry = mem_writes_taint_map.find(instr_addr);
 			if (mem_writes_taint_map_entry != mem_writes_taint_map.end()) {
 				is_dst_symbolic = mem_writes_taint_map_entry->second;
-				if (is_dst_symbolic && !instr_taint_entry.has_memory_read) {
-					save_dependencies(instr_addr);
-				}
 				mem_writes_taint_map.erase(instr_addr);
 			}
 			// We did not find a memory write at this instruction when processing the VEX statements.
@@ -1245,7 +1277,6 @@ public:
 					if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
 						auto dependencies_to_save = compute_dependencies_to_save(block_taint_entry.exit_stmt_guard_expr_deps);
 						instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-						instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
 					}
 					break;
 				}
@@ -1322,21 +1353,25 @@ public:
 		return block_taint_entry;
 	}
 
-	inline uint64_t get_register_value(uint64_t vex_reg_offset) const {
+	inline void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const {
 		uint64_t reg_value;
 		if (cpu_flags_register != -1) {
 			// Check if VEX register is actually a CPU flag
 			auto cpu_flags_entry = cpu_flags.find(vex_reg_offset);
 			if (cpu_flags_entry != cpu_flags.end()) {
 				uc_reg_read(uc, cpu_flags_register, &reg_value);
-				if ((reg_value & cpu_flags_entry->second) == 0) {
-					return 0;
+				if ((reg_value & cpu_flags_entry->second) == 1) {
+					// This hack assumes that a flag register is not MAX_REGISTER_BYTE_SIZE bytes long
+					// so that it works on both big and little endian registers.
+					out_reg_value[0] = 1;
+					out_reg_value[MAX_REGISTER_BYTE_SIZE - 1] = 1;
 				}
-				return 1;
 			}
 		}
-		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), &reg_value);
-		return reg_value;
+		else {
+			uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), out_reg_value);
+		}
+		return;
 	}
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
@@ -1625,16 +1660,6 @@ public:
 		return;
 	}
 
-	void mark_register_temp_symbolic(const taint_entity_t &entity, bool do_block_level) {
-		if (entity.entity_type == TAINT_ENTITY_REG) {
-			mark_register_symbolic(entity.reg_offset, do_block_level);
-		}
-		else if (entity.entity_type == TAINT_ENTITY_TMP) {
-			mark_temp_symbolic(entity.tmp_id);
-		}
-		return;
-	}
-
 	inline void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level) {
 		if (do_block_level) {
 			// Mark this register as concrete in the current block
@@ -1682,8 +1707,8 @@ public:
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
 		}
-		block_taint_entry_t block_taint_entry = this->block_taint_cache.at(current_block_start_address);
-		if (((symbolic_registers.size() > 0) || (block_symbolic_instr_addrs.size() > 0))
+		block_taint_entry_t block_taint_entry = this->block_taint_cache.at(block_details.block_addr);
+		if (((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))
 		   && block_taint_entry.has_unsupported_stmt_or_expr_type) {
 			// There are symbolic registers and VEX statements in block for which taint propagation
 			// is not supported. Stop concrete execution.
@@ -1718,16 +1743,6 @@ public:
 				}
 			}
 		}
-		if (!stopped && (block_instrs_to_hook_for_dep_saving.size() > 0)) {
-			uc_emu_stop(uc);
-			unicorn_next_instr_addr = get_instruction_pointer();
-			for (auto &instr_addr: block_instrs_to_hook_for_dep_saving) {
-				uc_hook hook;
-				uc_hook_add(uc, &hook, UC_HOOK_CODE, (void *)hook_save_dependencies, (void *)this, instr_addr, instr_addr);
-				symbolic_instrs_dep_saving_hooks.emplace(instr_addr, hook);
-			}
-			block_instrs_to_hook_for_dep_saving.clear();
-		}
 		return;
 	}
 
@@ -1736,7 +1751,7 @@ public:
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
 		}
-		auto block_taint_entry = block_taint_cache.at(current_block_start_address);
+		auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
 			// There are symbolic registers and VEX statements in block for which taint propagation
 			// is not supported. Stop concrete execution.
@@ -1754,14 +1769,44 @@ public:
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
 		}
-		symbolic_instr_details_t instr_details;
+		instr_details_t instr_details;
 		bool is_instr_symbolic;
 
 		is_instr_symbolic = false;
 		instr_details.instr_addr = instr_addr;
-		instr_details.block_addr = current_block_start_address;
-		instr_details.block_size = current_block_size;
-		instr_details.are_dependencies_saved = false;
+		if (instr_taint_entry.has_memory_read) {
+			auto mem_read_result = mem_reads_map.at(instr_addr);
+			if (!mem_read_result.is_value_symbolic) {
+				instr_details.memory_value.address = mem_read_result.address;
+				instr_details.memory_value.size = mem_read_result.size;
+				for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
+					instr_details.memory_value.value[i] = mem_read_result.value[i];
+				}
+				instr_details.has_memory_dep = true;
+			}
+			else {
+				// Compute slice of instructions needed to setup concrete registers used by the instruction
+				// here itself since their taint status can change in following statements
+				for (auto &dependency: instr_taint_entry.dependencies_to_save) {
+					if (dependency.entity_type == TAINT_ENTITY_REG) {
+						vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
+						if (!is_symbolic_register(dependency_full_register_offset)) {
+							block_concrete_dependencies.emplace(dependency_full_register_offset);
+							for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
+								if (dep_slice_instr.instr_addr != instr_details.instr_addr) {
+									block_details.symbolic_instrs.emplace_back(dep_slice_instr);
+								}
+							}
+						}
+					}
+				}
+				is_instr_symbolic = true;
+				instr_details.has_memory_dep = false;
+			}
+		}
+		else {
+			instr_details.has_memory_dep = false;
+		}
 		for (auto &taint_data_entry: instr_taint_entry.taint_sink_src_map) {
 			taint_entity_t taint_sink = taint_data_entry.first;
 			std::unordered_set<taint_entity_t> taint_srcs = taint_data_entry.second;
@@ -1785,18 +1830,25 @@ public:
 					}
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
-					// Mark instruction as symbolic to list of instructions to be executed symbolically
-					is_instr_symbolic = true;
-
-					// Compute dependencies to save here itself since taint status can change in
-					// following instrutions
-					for (auto &dependency: instr_taint_entry.dependencies_to_save) {
-						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
-							saved_concrete_dependency_t dep_to_save;
-							dep_to_save.dependency_type = TAINT_ENTITY_REG;
-							dep_to_save.reg_offset = dependency.reg_offset;
-							instr_details.dependencies.emplace_back(dep_to_save);
+					if (!is_instr_symbolic) {
+						// This is the first symbolic VEX statement in this instruction. Compute slice
+						// of instructions needed to setup concrete registers used by the instruction
+						// here itself since their taint status can change in following statements
+						for (auto &dependency: instr_taint_entry.dependencies_to_save) {
+							if (dependency.entity_type == TAINT_ENTITY_REG) {
+								vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
+								if (!is_symbolic_register(dependency_full_register_offset)) {
+									block_concrete_dependencies.emplace(dependency_full_register_offset);
+									for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
+										if (dep_slice_instr.instr_addr != instr_details.instr_addr) {
+											block_details.symbolic_instrs.emplace_back(dep_slice_instr);
+										}
+									}
+								}
+							}
 						}
+						// Mark instruction as needing symbolic execution
+						is_instr_symbolic = true;
 					}
 				}
 				else if (mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end()) {
@@ -1815,24 +1867,58 @@ public:
 						stop(STOP_SYMBOLIC_PC);
 						return;
 					}
-					// Mark instruction as symbolic to list of instructions to be executed symbolically
-					is_instr_symbolic = true;
 
-					// Compute dependencies to save here itself since taint status can change in
-					// following instrutions
-					for (auto &dependency: instr_taint_entry.dependencies_to_save) {
-						if ((dependency.entity_type == TAINT_ENTITY_REG) && (!is_symbolic_register(dependency.reg_offset))) {
-							saved_concrete_dependency_t dep_to_save;
-							dep_to_save.dependency_type = TAINT_ENTITY_REG;
-							dep_to_save.reg_offset = dependency.reg_offset;
-							instr_details.dependencies.emplace_back(dep_to_save);
+					if (!is_instr_symbolic) {
+						// This is the first symbolic VEX statement in this instruction. Compute slice
+						// of instructions needed to setup concrete registers used by the instruction
+						// here itself since their taint status can change in following statements
+						for (auto &dependency: instr_taint_entry.dependencies_to_save) {
+							if (dependency.entity_type == TAINT_ENTITY_REG) {
+								vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
+								if (!is_symbolic_register(dependency_full_register_offset)) {
+									block_concrete_dependencies.emplace(dependency_full_register_offset);
+									for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
+										if (dep_slice_instr.instr_addr != instr_details.instr_addr) {
+											block_details.symbolic_instrs.emplace_back(dep_slice_instr);
+										}
+									}
+								}
+							}
 						}
+						// Mark instruction as needing symbolic execution
+						is_instr_symbolic = true;
 					}
-					mark_register_temp_symbolic(taint_sink, true);
+
+					// Mark sink as symbolic
+					if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+						mark_register_symbolic(get_full_register_offset(taint_sink.reg_offset), true);
+					}
+					else {
+						mark_temp_symbolic(taint_sink.tmp_id);
+					}
 				}
 				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-					// Mark register as not symbolic since none of it's dependencies are symbolic
-					mark_register_concrete(taint_sink.reg_offset, true);
+					// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
+					vex_reg_offset_t taint_sink_full_register_offset = get_full_register_offset(taint_sink.reg_offset);
+					mark_register_concrete(taint_sink_full_register_offset, true);
+
+					if (is_valid_dependency_register(taint_sink_full_register_offset)) {
+						bool is_sink_source = false;
+						for (auto &dependency: instr_taint_entry.dependencies_to_save) {
+							if (dependency.entity_type != TAINT_ENTITY_REG) {
+								continue;
+							}
+							vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
+							if (taint_sink_full_register_offset == dependency_full_register_offset) {
+								is_sink_source = true;
+								break;
+							}
+						}
+						if (!is_sink_source) {
+							reg_instr_slice.at(taint_sink_full_register_offset).clear();
+						}
+						reg_instr_slice.at(taint_sink_full_register_offset).emplace_back(instr_details);
+					}
 				}
 			}
 			auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
@@ -1841,30 +1927,8 @@ public:
 				return;
 			}
 		}
-		address_t curr_unicorn_instr_addr = get_instruction_pointer();
-		if ((instr_addr == curr_unicorn_instr_addr) && instr_taint_entry.has_memory_read) {
-			auto mem_read_result = mem_reads_map.at(instr_addr);
-			if (is_instr_symbolic || mem_read_result.is_value_symbolic) {
-				save_dependencies_of_instruction(instr_details);
-				if (!mem_read_result.is_value_symbolic) {
-					saved_concrete_dependency_t saved_mem_dependency;
-					saved_mem_dependency.dependency_type = TAINT_ENTITY_MEM;
-					saved_mem_dependency.mem_address = mem_read_result.address;
-					saved_mem_dependency.mem_value_size = mem_read_result.size;
-					for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
-						saved_mem_dependency.mem_value[i] = mem_read_result.value[i];
-					}
-					instr_details.dependencies.emplace_back(saved_mem_dependency);
-				}
-				block_symbolic_instr_addrs.emplace_back(instr_details);
-			}
-		}
-		else if (is_instr_symbolic) {
-			block_symbolic_instr_addrs.emplace_back(instr_details);
-			// Hook instruction for saving dependencies if it doesn't have a memory read/write
-			if (!instr_taint_entry.has_memory_read && !instr_taint_entry.has_memory_write && instr_details.dependencies.size() > 0) {
-				block_instrs_to_hook_for_dep_saving.emplace(instr_addr);
-			}
+		if (is_instr_symbolic) {
+			block_details.symbolic_instrs.emplace_back(instr_details);
 		}
 		return;
 	}
@@ -1876,8 +1940,8 @@ public:
 	}
 
 	void start_propagating_taint(address_t block_address, int32_t block_size) {
-		current_block_start_address = block_address;
-		current_block_size = block_size;
+		block_details.block_addr = block_address;
+		block_details.block_size = block_size;
 		if (is_symbolic_tracking_disabled()) {
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
@@ -1905,39 +1969,30 @@ public:
 		}
 		taint_engine_next_instr_address = block_address;
 		block_symbolic_temps.clear();
+		block_start_reg_values.clear();
+		for (auto &reg_instr_slice_entry: reg_instr_slice) {
+			// Save value of all registers
+			register_value_t reg_value;
+			reg_value.offset = reg_instr_slice_entry.first;
+			memset(reg_value.value, 0, MAX_REGISTER_BYTE_SIZE);
+			get_register_value(reg_value.offset, reg_value.value);
+			block_start_reg_values.emplace(reg_value.offset, reg_value);
+			// Reset the slice of register
+			reg_instr_slice_entry.second.clear();
+		}
+		for (auto &cpu_flag: cpu_flags) {
+			register_value_t flag_value;
+			flag_value.offset = cpu_flag.first;
+			memset(flag_value.value, 0, MAX_REGISTER_BYTE_SIZE);
+			get_register_value(cpu_flag.first, flag_value.value);
+			block_start_reg_values.emplace(flag_value.offset, flag_value);
+		}
 		propagate_taints();
 		return;
 	}
 
 	void continue_propagating_taint() {
 		propagate_taints();
-		return;
-	}
-
-	void save_dependencies(address_t instr_addr) {
-		// Saves dependencies for instructions which do not have a memory read
-		for (auto &instr_entry: block_symbolic_instr_addrs) {
-			if ((instr_entry.instr_addr != instr_addr) || instr_entry.are_dependencies_saved) {
-				continue;
-			}
-			save_dependencies_of_instruction(instr_entry);
-		}
-		return;
-	}
-
-	void save_dependencies_of_instruction(symbolic_instr_details_t &instr_entry) {
-		for (auto &dependency_to_save: instr_entry.dependencies) {
-			dependency_to_save.reg_value = get_register_value(dependency_to_save.reg_offset);
-		}
-		instr_entry.are_dependencies_saved = true;
-		return;
-	}
-
-	void clear_dependency_saving_hooks() {
-		for (auto &hook_entry: symbolic_instrs_dep_saving_hooks) {
-			uc_hook_del(uc, hook_entry.second);
-		}
-		symbolic_instrs_dep_saving_hooks.clear();
 		return;
 	}
 
@@ -1961,7 +2016,7 @@ public:
 			// We're not checking symbolic registers so this will not be symbolic
 			return false;
 		}
-		block_taint_entry_t block_taint_entry = block_taint_cache.at(current_block_start_address);
+		block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
 		auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
 		return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
 	}
@@ -2005,12 +2060,12 @@ public:
 		return out;
 	}
 
-	uint64_t get_count_of_symbolic_instrs() const {
-		return symbolic_instr_addrs.size();
-	}
-
-	std::vector<symbolic_instr_details_t> get_symbolic_instrs_details() const {
-		return symbolic_instr_addrs;
+	inline vex_reg_offset_t get_full_register_offset(vex_reg_offset_t reg_offset) {
+		auto vex_sub_reg_mapping_entry = vex_sub_reg_map.find(reg_offset);
+		if (vex_sub_reg_mapping_entry != vex_sub_reg_map.end()) {
+			return vex_sub_reg_mapping_entry->second;
+		}
+		return reg_offset;
 	}
 };
 
@@ -2084,7 +2139,6 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	state->commit();
-	state->clear_dependency_saving_hooks();
 	state->step(address, size);
 
 	if (!state->stopped) {
@@ -2194,12 +2248,6 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	//printf("Segfault data: %d %#llx %d %#llx\n", type, address, size, value);
 	state->stop(STOP_SEGFAULT);
 	return true;
-}
-
-static void hook_save_dependencies(uc_engine *uc, address_t address, uint32_t size, void *user_data) {
-	State *state = (State *)user_data;
-	state->save_dependencies(address);
-	return;
 }
 
 /*
@@ -2450,6 +2498,16 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 	return;
 }
 
+// VEX sub-registers to full register mapping
+extern "C"
+void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_reg_offsets, uint64_t *vex_reg_offsets, uint64_t count) {
+	state->vex_sub_reg_map.clear();
+	for (int i = 0; i < count; i++) {
+		state->vex_sub_reg_map.emplace(vex_sub_reg_offsets[i], vex_reg_offsets[i]);
+	}
+	return;
+}
+
 // Mapping details for flags registers
 extern "C"
 void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
@@ -2479,21 +2537,19 @@ void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_
 // VEX re-execution data
 
 extern "C"
-uint64_t simunicorn_get_count_of_symbolic_instrs(State *state) {
-	return state->get_count_of_symbolic_instrs();
+uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
+	return state->blocks_with_symbolic_instrs.size();
 }
 
 extern "C"
-void simunicorn_get_symbolic_instrs(State *state, symbolic_instr_details_ret_t *instr_details) {
-	auto instrs_list = state->get_symbolic_instrs_details();
-	int details_counter = 0;
-	for (auto &instr: instrs_list) {
-		instr_details[details_counter].block_addr = instr.block_addr;
-		instr_details[details_counter].block_size = instr.block_size;
-		instr_details[details_counter].instr_addr = instr.instr_addr;
-		instr_details[details_counter].dependencies_count = instr.dependencies.size();
-		instr_details[details_counter].dependencies = &(instr.dependencies[0]);
-		details_counter++;
+void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, block_details_ret_t *ret_block_details) {
+	for (auto i = 0; i < state->blocks_with_symbolic_instrs.size(); i++) {
+		ret_block_details[i].block_addr = state->blocks_with_symbolic_instrs[i].block_addr;
+		ret_block_details[i].block_size = state->blocks_with_symbolic_instrs[i].block_size;
+		ret_block_details[i].symbolic_instrs = &(state->blocks_with_symbolic_instrs[i].symbolic_instrs[0]);
+		ret_block_details[i].symbolic_instrs_count = state->blocks_with_symbolic_instrs[i].symbolic_instrs.size();
+		ret_block_details[i].register_values = &(state->blocks_with_symbolic_instrs[i].register_values[0]);
+		ret_block_details[i].register_values_count = state->blocks_with_symbolic_instrs[i].register_values.size();
 	}
 	return;
 }

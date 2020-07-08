@@ -49,23 +49,37 @@ class TaintEntityEnum: # taint_entity_enum_t
     TAINT_ENTITY_MEM = 2
     TAINT_ENTITY_NONE = 3
 
-class SavedConcreteDependency(ctypes.Structure): # saved_concrete_dependency_t
+class MemoryValue(ctypes.Structure): # memory_value_t
+    _MAX_MEM_ACCESS_SIZE = 8
+
     _fields_ = [
-        ('dependency_type', ctypes.c_uint8),
-        ('reg_offset', ctypes.c_uint64),
-        ('reg_value', ctypes.c_uint64),
-        ('mem_address', ctypes.c_uint64),
-        ('mem_value_size', ctypes.c_uint64),
-        ('mem_value', ctypes.c_char * 8)
+        ('address', ctypes.c_uint64),
+        ('value', ctypes.c_uint8 * _MAX_MEM_ACCESS_SIZE),
+        ('size', ctypes.c_uint64)
     ]
 
-class SymbolicInstrDetails(ctypes.Structure):
+class RegisterValue(ctypes.Structure): # register_value_t
+    _MAX_REGISTER_BYTE_SIZE = 32
+
+    _fields_ = [
+        ('offset', ctypes.c_uint64),
+        ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE)
+    ]
+class InstrDetails(ctypes.Structure): # instr_details_t
     _fields_ = [
         ('instr_addr', ctypes.c_uint64),
+        ('has_memory_dep', ctypes.c_bool),
+        ('memory_value', MemoryValue)
+    ]
+
+class BlockDetails(ctypes.Structure): # block_details_ret_t
+    _fields_ = [
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64),
-        ('dependencies_count', ctypes.c_uint64),
-        ('dependencies', ctypes.POINTER(SavedConcreteDependency))
+        ('symbolic_instrs', ctypes.POINTER(InstrDetails)),
+        ('symbolic_instrs_count', ctypes.c_uint64),
+        ('register_values', ctypes.POINTER(RegisterValue)),
+        ('register_values_count', ctypes.c_uint64),
     ]
 
 class STOP:  # stop_t
@@ -301,9 +315,10 @@ def _load_native():
         _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_vex_sub_reg_to_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, 'get_count_of_symbolic_instrs', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'get_symbolic_instrs', None, state_t, ctypes.POINTER(SymbolicInstrDetails))
+        _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'get_details_of_blocks_with_symbolic_instrs', None, state_t, ctypes.POINTER(BlockDetails))
         _setup_prototype(h, 'get_stopping_instruction_details', StoppedInstructionDetails, state_t)
         _setup_prototype(h, 'stop_message', ctypes.c_char_p, state_t)
         _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
@@ -875,31 +890,44 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
 
-    def _get_details_of_instrs_to_execute_symbolically(self):
+    def _get_details_of_blocks_with_symbolic_instrs(self):
         return_data = []
-        instr_count = _UC_NATIVE.get_count_of_symbolic_instrs(self._uc_state)
-        instr_list = (SymbolicInstrDetails * instr_count)()
-        _UC_NATIVE.get_symbolic_instrs(self._uc_state, instr_list)
-        for instr in instr_list:
-            instr_entry = {"instr_addr": instr.instr_addr, "block_addr": instr.block_addr,
-                           "block_size": instr.block_size, "dependencies": []}
+        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
+        if block_count == 0:
+            return return_data
 
-            for instr_dependency in instr.dependencies[:instr.dependencies_count]:
-                dep_entry = {"type": instr_dependency.dependency_type}
-                if instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_REG:
-                    dep_entry["reg_name"] = self.vex_reg_offset_to_name[instr_dependency.reg_offset]
-                    dep_entry["reg_value"] = instr_dependency.reg_value
-                elif instr_dependency.dependency_type == TaintEntityEnum.TAINT_ENTITY_MEM:
-                    dep_entry["mem_address"] = instr_dependency.mem_address
-                    dep_entry["mem_value"] = instr_dependency.mem_value[:instr_dependency.mem_value_size]
+        block_details_list = (BlockDetails * block_count)()
+        # register_values_list = (ctypes.POINTER(RegisterValue) * block_count)()
+        # symbolic_instrs_list = (ctypes.POINTER(InstrDetails) * block_count)()
+        _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
+        for block_details in block_details_list:
+            block_entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size, "registers": {}}
+            block_register_values = block_details.register_values[:block_details.register_values_count]
+            block_symbolic_instrs = block_details.symbolic_instrs[:block_details.symbolic_instrs_count]
+
+            for register_value in block_register_values:
+                # Convert the register value in bytes to number of appropriate size and endianness
+                reg_name, reg_size = self.vex_reg_offset_to_name[register_value.offset]
+                if self.state.arch.register_endness == 'Iend_LE':
+                    reg_value = int.from_bytes(register_value.value, "little")
                 else:
-                    # Temps and None type entities should not be dependencies but just in case
-                    # they are
-                    continue
+                    reg_value = int.from_bytes(register_value.value, "big")
 
-                instr_entry["dependencies"].append(dep_entry)
+                reg_value = reg_value & (pow(2, reg_size * 8) - 1)
+                block_entry["registers"][reg_name] = reg_value
 
-            return_data.append(instr_entry)
+            block_symbolic_instrs = []
+            for symbolic_instr in block_symbolic_instrs:
+                instr_entry = {"instr_addr": symbolic_instr.instr_addr}
+                if symbolic_instr.has_memory_dep:
+                    mem_address = symbolic_instr.memory_value.address
+                    mem_val = symbolic_instr.memory_value.value[:symbolic_instr.memory_value.size]
+                    instr_entry["mem_dep"] = {"address": mem_address, "value": mem_val}
+
+                block_symbolic_instrs.append(instr_entry)
+
+            block_entry["instrs"] = block_symbolic_instrs
+            return_data.append(block_entry)
 
         return return_data
 
@@ -980,18 +1008,19 @@ class Unicorn(SimStatePlugin):
 
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
         vex_to_unicorn_map = {}
+        vex_sub_reg_to_reg_map = {}
         pc_reg_name = self.state.arch.get_register_by_name("pc")
         for reg_name, unicorn_reg_id in self.state.arch.uc_regs.items():
             if reg_name == pc_reg_name:
                 continue
 
             vex_reg = self.state.arch.get_register_by_name(reg_name)
-            self.vex_reg_offset_to_name[vex_reg.vex_offset] = reg_name
+            self.vex_reg_offset_to_name[vex_reg.vex_offset] = (reg_name, vex_reg.size)
             vex_to_unicorn_map[vex_reg.vex_offset] = unicorn_reg_id
             for vex_sub_reg in vex_reg.subregisters:
                 vex_sub_reg_offset = self.state.arch.get_register_offset(vex_sub_reg[0])
-                self.vex_reg_offset_to_name[vex_sub_reg_offset] = reg_name
-                vex_to_unicorn_map[vex_sub_reg_offset] = unicorn_reg_id
+                self.vex_reg_offset_to_name[vex_sub_reg_offset] = (reg_name, vex_sub_reg[2])
+                vex_sub_reg_to_reg_map[vex_sub_reg_offset] = vex_reg.vex_offset
 
         vex_reg_offsets = []
         unicorn_reg_ids = []
@@ -1002,6 +1031,16 @@ class Unicorn(SimStatePlugin):
         vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
         unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
         _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
+
+        vex_reg_offsets = []
+        vex_sub_reg_offsets = []
+        for vex_sub_reg_offset, vex_reg_offset in vex_sub_reg_to_reg_map.items():
+            vex_reg_offsets.append(vex_reg_offset)
+            vex_sub_reg_offsets.append(vex_sub_reg_offset)
+
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
+        vex_sub_reg_offsets_array = (ctypes.c_uint64 * len(vex_sub_reg_offsets))(*map(ctypes.c_uint64, vex_sub_reg_offsets))
+        _UC_NATIVE.set_vex_sub_reg_to_reg_mappings(self._uc_state, vex_sub_reg_offsets_array, vex_reg_offsets_array, len(vex_sub_reg_offsets_array))
 
         # Initial VEX to unicorn mappings for flag register
         if self.state.arch.name in ('x86', 'AMD64'):
