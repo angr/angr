@@ -1821,16 +1821,21 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
 
 def _get_flags(state) -> claripy.ast.bv.BV:
     if state.arch.name == 'X86':
-        return x86g_calculate_eflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+        func = x86g_calculate_eflags_all
     elif state.arch.name == 'AMD64':
-        return amd64g_calculate_rflags_all(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+        func = amd64g_calculate_rflags_all
     elif is_arm_arch(state.arch):
-        return armg_calculate_flags_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+        func = armg_calculate_flags_nzcv
     elif state.arch.name == 'AARCH64':
-        return arm64g_calculate_data_nzcv(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+        func = arm64g_calculate_data_nzcv
     else:
         l.warning("No such thing as a flags register for arch %s", state.arch.name)
         return None
+    try:
+        return func(state, state.regs.cc_op, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)
+    except CCallMultivaluedException as e:
+        cases = e.args[0]
+        return claripy.ite_cases([(case, func(state, value, state.regs.cc_dep1, state.regs.cc_dep2, state.regs.cc_ndep)) for case, value in cases], 0)
 
 def _concat_flags(nbits, flags_vec):
     """
