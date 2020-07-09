@@ -17,9 +17,11 @@ def get_map_key(state, key_ref):
         string = state.javavm_memory.load(key_ref)
         if string.concrete:
             return state.solver.eval(string)
+        # TODO: Decide how we want to handle symbolic keys
         else:
             return state.solver.eval(string)
-
+    elif key_ref.type == 'java.lang.Integer':
+        return key_ref.get_field(state, 'value', 'int')
     else:
         return key_ref.id
 
