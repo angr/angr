@@ -46,7 +46,7 @@ class RegionedMemoryMixin(MemoryMixin):
             regioned_memory_cls = RegionedMemory
 
         self._regioned_memory_cls = regioned_memory_cls
-        self._regions: Dict[regioned_memory_cls] = { }
+        self._regions: Dict[str,regioned_memory_cls] = { }
 
         self._cle_memory_backer = cle_memory_backer
         self._dict_memory_backer = dict_memory_backer
