@@ -172,7 +172,7 @@ class Veritesting(Analysis):
     def __init__(
         self, input_state, boundaries=None, loop_unrolling_limit=10, enable_function_inlining=False,
         terminator=None, deviation_filter=None
-    ):
+        ):
         """
         SSE stands for Static Symbolic Execution, and we also implemented an extended version of Veritesting (Avgerinos,
         Thanassis, et al, ICSE 2014).
@@ -493,7 +493,7 @@ class Veritesting(Analysis):
         if (
             ip in self._loop_heads # This is the beginning of the loop
             or state.history.jumpkind == 'Ijk_Call' # We also wanna catch recursive function calls
-        ):
+            ):
             state.globals['loop_ctrs'][ip] += 1
             if state.globals['loop_ctrs'][ip] >= self._loop_unrolling_limit + 1:
                 l.debug('... terminating Veritesting due to overlooping')
@@ -528,40 +528,45 @@ class Veritesting(Analysis):
         state = self._input_state
         ip_int = state.addr
 
+        # if the cfg is cached, simply return the cached cfg
         cfg_key = (ip_int, state.history.jumpkind, self.project.filename)
         if cfg_key in self.cfg_cache:
             cfg, cfg_graph_with_loops = self.cfg_cache[cfg_key]
+            return cfg, cfg_graph_with_loops
+
+        if self._enable_function_inlining:
+            call_tracing_filter = CallTracingFilter(self.project, depth=0)
+            filter = call_tracing_filter.filter #pylint:disable=redefined-builtin
         else:
-            if self._enable_function_inlining:
-                call_tracing_filter = CallTracingFilter(self.project, depth=0)
-                filter = call_tracing_filter.filter #pylint:disable=redefined-builtin
-            else:
-                filter = None
+            filter = None
 
-            # To better handle syscalls, we make a copy of all registers if they are not symbolic
-            cfg_initial_state = self.project.factory.blank_state(mode='fastpath')
+        # To better handle syscalls, we make a copy of all registers if they are not symbolic
+        cfg_initial_state = self.project.factory.blank_state(mode='fastpath')
 
-            # FIXME: This is very hackish
-            # FIXME: And now only Linux-like syscalls are supported
-            if self.project.arch.name == 'X86':
-                if not state.solver.symbolic(state.regs.eax):
-                    cfg_initial_state.regs.eax = state.regs.eax
-            elif self.project.arch.name == 'AMD64':
-                if not state.solver.symbolic(state.regs.rax):
-                    cfg_initial_state.regs.rax = state.regs.rax
+        # FIXME: This is very hackish
+        # FIXME: And now only Linux-like syscalls are supported
+        if self.project.arch.name == 'X86':
+            if not state.solver.symbolic(state.regs.eax):
+                cfg_initial_state.regs.eax = state.regs.eax
+        elif self.project.arch.name == 'AMD64':
+            if not state.solver.symbolic(state.regs.rax):
+                cfg_initial_state.regs.rax = state.regs.rax
 
-            cfg = self.project.analyses.CFGEmulated(
-                starts=((ip_int, state.history.jumpkind),),
-                context_sensitivity_level=0,
-                call_depth=1,
-                call_tracing_filter=filter,
-                initial_state=cfg_initial_state,
-                normalize=True,
-                kb=KnowledgeBase(self.project)
-            )
-            cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
-            cfg.force_unroll_loops(self._loop_unrolling_limit)
-            self.cfg_cache[cfg_key] = (cfg, cfg_graph_with_loops)
+        # generate the cfg and perform loop unrolling
+        cfg = self.project.analyses.CFGEmulated(
+            starts=((ip_int, state.history.jumpkind),),
+            context_sensitivity_level=0,
+            call_depth=1,
+            call_tracing_filter=filter,
+            initial_state=cfg_initial_state,
+            normalize=True,
+            kb=KnowledgeBase(self.project)
+        )
+        cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
+        cfg.force_unroll_loops(self._loop_unrolling_limit)
+
+        # cache the generated cfg
+        self.cfg_cache[cfg_key] = (cfg, cfg_graph_with_loops)
 
         return cfg, cfg_graph_with_loops
 
