@@ -159,10 +159,12 @@ typedef struct {
 	uint64_t block_size;
 	std::vector<instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
+	bool vex_lift_failed;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		vex_lift_failed = false;
 		symbolic_instrs.clear();
 		register_values.clear();
 	}
@@ -1073,9 +1075,11 @@ public:
 		}
 
         clean = 0;
-		if (is_interrupt || is_symbolic_tracking_disabled()) {
+		if (is_interrupt || is_symbolic_tracking_disabled() || block_details.vex_lift_failed) {
 			// If symbolic tracking is disabled, all writes are concrete
 			// is_interrupt flag is a workaround for CGC transmit syscall, which never passes symbolic data
+			// If VEX lift failed, then write is definitely concrete since execution continues only
+			// if no symbolic data is present
 			is_dst_symbolic = false;
 		}
 		else {
@@ -1731,7 +1735,13 @@ public:
 			}
 			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
 			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
-				if (is_block_exit_guard_symbolic()) {
+				if (block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
+					// There are symbolic registers but VEX lift failed so we can't determine
+					// status of guard condition
+					stop(STOP_VEX_LIFT_FAILED);
+					return;
+				}
+				else if (is_block_exit_guard_symbolic()) {
 					stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
 				}
 			}
@@ -1744,11 +1754,29 @@ public:
 			// We're not checking symbolic registers so no need to propagate taints
 			return;
 		}
+		auto mem_read_result = mem_reads_map.at(instr_addr);
+		if (!mem_read_result.is_value_symbolic && (symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
+			// Memory value is concrete and all registers are concrete. No change in taint status
+			// will happen on executing this instruction
+			return;
+		}
+
+		if (block_details.vex_lift_failed) {
+			// Either the memory value is symbolic or there are symbolic registers: thus, taint
+			// status of registers could change. But since VEX lift failed, the taint relations
+			// are not known and so we can't propagate taint. Stop concrete execution.
+			stop(STOP_VEX_LIFT_FAILED);
+			return;
+		}
+
 		auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
-			// There are symbolic registers and VEX statements in block for which taint propagation
-			// is not supported. Stop concrete execution.
-			stop(block_taint_entry.unsupported_stmt_stop_reason);
+			if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+				// There are symbolic registers and/or memory read was symbolic and there are VEX
+				// statements in block for which taint propagation is not supported.
+				stop(block_taint_entry.unsupported_stmt_stop_reason);
+				return;
+			}
 		}
 		else {
 			auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
@@ -1758,10 +1786,6 @@ public:
 	}
 
 	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
-		if (is_symbolic_tracking_disabled()) {
-			// We're not checking symbolic registers so no need to propagate taints
-			return;
-		}
 		instr_details_t instr_details;
 		bool is_instr_symbolic;
 
@@ -1952,8 +1976,8 @@ public:
 			);
 
 			if ((lift_ret == NULL) || (lift_ret->size == 0)) {
-				// Failed to lift block to VEX. Stop concrete execution
-				stop(STOP_VEX_LIFT_FAILED);
+				// Failed to lift block to VEX.
+				block_details.vex_lift_failed = true;
 				return;
 			}
 			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
@@ -1985,7 +2009,20 @@ public:
 	}
 
 	void continue_propagating_taint() {
-		propagate_taints();
+		if (is_symbolic_tracking_disabled()) {
+			// We're not checking symbolic registers so no need to propagate taints
+			return;
+		}
+		if (block_details.vex_lift_failed) {
+			if ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+				// There are symbolic registers but VEX lift failed so we can't propagate taint
+				stop(STOP_VEX_LIFT_FAILED);
+				return;
+			}
+		}
+		else {
+			propagate_taints();
+		}
 		return;
 	}
 
@@ -2005,10 +2042,6 @@ public:
 	}
 
 	inline bool is_block_exit_guard_symbolic() {
-		if (is_symbolic_tracking_disabled()) {
-			// We're not checking symbolic registers so this will not be symbolic
-			return false;
-		}
 		block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
 		auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
 		return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
