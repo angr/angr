@@ -296,9 +296,9 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
     # Symbolicizing!
     #
 
-    def make_symbolic(self, name, addr, length=None):
+    def make_symbolic(self, name, addr, length=None, add_constraints=True):
         """
-        Replaces `length` bytes starting at `addr` with a symbolic variable named name. Adds a constraint equaling that
+        Replaces `length` bytes starting at `addr` with a symbolic variable named name. Optionally adds a constraint equaling that
         symbolic variable to the value previously at `addr`, and returns the variable.
         """
         l.debug("making %s bytes symbolic", length)
@@ -312,9 +312,12 @@ class SimSymbolicMemory(SimMemory): #pylint:disable=abstract-method
         r = self.load(addr, length)
 
         v = self.get_unconstrained_bytes(name, r.size())
-        self.store(addr, v)
-        self.state.add_constraints(r == v)
-        l.debug("... eq constraints: %s", r == v)
+        self.store(addr, v, add_constraints=add_constraints)
+
+        if add_constraints:
+            self.state.add_constraints(r == v)
+            l.debug("... eq constraints: %s", r == v)
+
         return v
 
     #
