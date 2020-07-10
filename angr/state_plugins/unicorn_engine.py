@@ -1058,7 +1058,7 @@ class Unicorn(SimStatePlugin):
             cpu_flag_bitmasks = []
             for cpu_flag in cpu_flags_vex_names:
                 cpu_flag_vex_offsets.append(self.state.arch.get_register_offset(cpu_flag[0]))
-                cpu_flag_bitmasks.append(1 << (cpu_flag[1] - 1))
+                cpu_flag_bitmasks.append(1 << cpu_flag[1])
 
             cpu_flag_vex_offsets_array = (ctypes.c_uint64 * len(cpu_flag_vex_offsets))(*map(ctypes.c_uint64, cpu_flag_vex_offsets))
             cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
