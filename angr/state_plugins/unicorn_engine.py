@@ -1018,7 +1018,8 @@ class Unicorn(SimStatePlugin):
             vex_to_unicorn_map[vex_reg.vex_offset] = unicorn_reg_id
             for vex_sub_reg in vex_reg.subregisters:
                 vex_sub_reg_offset = self.state.arch.get_register_offset(vex_sub_reg[0])
-                self.vex_reg_offset_to_name[vex_sub_reg_offset] = (reg_name, vex_sub_reg[2])
+                if vex_sub_reg_offset not in self.vex_reg_offset_to_name:
+                    self.vex_reg_offset_to_name[vex_sub_reg_offset] = (reg_name, vex_reg.size)
                 vex_sub_reg_to_reg_map[vex_sub_reg_offset] = vex_reg.vex_offset
 
         vex_reg_offsets = []
