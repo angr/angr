@@ -916,7 +916,7 @@ class Unicorn(SimStatePlugin):
                 reg_value = reg_value & (pow(2, reg_size * 8) - 1)
                 block_entry["registers"][reg_name] = reg_value
 
-            block_symbolic_instrs = []
+            block_entry["instrs"] = []
             for symbolic_instr in block_symbolic_instrs:
                 instr_entry = {"instr_addr": symbolic_instr.instr_addr}
                 if symbolic_instr.has_memory_dep:
@@ -924,9 +924,8 @@ class Unicorn(SimStatePlugin):
                     mem_val = symbolic_instr.memory_value.value[:symbolic_instr.memory_value.size]
                     instr_entry["mem_dep"] = {"address": mem_address, "value": mem_val}
 
-                block_symbolic_instrs.append(instr_entry)
+                block_entry["instrs"].append(instr_entry)
 
-            block_entry["instrs"] = block_symbolic_instrs
             return_data.append(block_entry)
 
         return return_data
