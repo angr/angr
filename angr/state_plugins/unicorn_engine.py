@@ -921,7 +921,12 @@ class Unicorn(SimStatePlugin):
                 instr_entry = {"instr_addr": symbolic_instr.instr_addr}
                 if symbolic_instr.has_memory_dep:
                     mem_address = symbolic_instr.memory_value.address
+                    # Convert the memory value in bytes to number of appropriate size and endianness
                     mem_val = symbolic_instr.memory_value.value[:symbolic_instr.memory_value.size]
+                    if self.state.arch.memory_endness == 'Iend_LE':
+                        mem_val = int.from_bytes(mem_val, "little")
+                    else:
+                        mem_val = int.from_bytes(mem_val, "big")
                     instr_entry["mem_dep"] = {"address": mem_address, "value": mem_val}
 
                 block_entry["instrs"].append(instr_entry)
