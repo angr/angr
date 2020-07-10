@@ -1363,11 +1363,10 @@ public:
 					out_reg_value[0] = 1;
 					out_reg_value[MAX_REGISTER_BYTE_SIZE - 1] = 1;
 				}
+				return;
 			}
 		}
-		else {
-			uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), out_reg_value);
-		}
+		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), out_reg_value);
 		return;
 	}
 
