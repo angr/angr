@@ -1821,10 +1821,16 @@ public:
 				}
 				is_instr_symbolic = true;
 				instr_details.has_memory_dep = false;
-			}
+				instr_details.memory_value.address = 0;
+				instr_details.memory_value.size = 0;
+				memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
+			};
 		}
 		else {
 			instr_details.has_memory_dep = false;
+			instr_details.memory_value.address = 0;
+			instr_details.memory_value.size = 0;
+			memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
 		}
 		for (auto &taint_data_entry: instr_taint_entry.taint_sink_src_map) {
 			taint_entity_t taint_sink = taint_data_entry.first;
