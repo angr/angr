@@ -1151,6 +1151,36 @@ public:
 		return std::make_pair(reg_dependency_list, has_memory_read);
 	}
 
+	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
+		for (auto &dependency: instr_taint_entry.dependencies_to_save) {
+			if (dependency.entity_type == TAINT_ENTITY_REG) {
+				vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
+				if (!is_symbolic_register(dependency_full_register_offset)) {
+					auto dep_reg_slice = reg_instr_slice.at(dependency_full_register_offset);
+					if (dep_reg_slice.size() == 0) {
+						// The register was not modified in this block by any preceding instruction
+						// and so it's value at start of block is a dependency of the block
+						block_concrete_dependencies.emplace(dependency_full_register_offset);
+					}
+					else {
+						// The register was modified by some instructions in the block. We add those
+						// instructions to the slice of this instruction and also any instructions
+						// they depend on
+						for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
+							if (dep_slice_instr.instr_addr != instr_addr) {
+								auto block_entry = block_taint_cache.at(block_details.block_addr);
+								auto dep_slice_instr_taint_entry = block_entry.block_instrs_taint_data_map.at(dep_slice_instr.instr_addr);
+								compute_slice_of_instrs(dep_slice_instr.instr_addr, dep_slice_instr_taint_entry);
+								block_details.symbolic_instrs.emplace_back(dep_slice_instr);
+							}
+						}
+					}
+				}
+			}
+		}
+		return;
+	}
+
 	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, address_t address) {
 		block_taint_entry_t block_taint_entry;
 		instruction_taint_entry_t instruction_taint_entry;
@@ -1806,19 +1836,7 @@ public:
 			else {
 				// Compute slice of instructions needed to setup concrete registers used by the instruction
 				// here itself since their taint status can change in following statements
-				for (auto &dependency: instr_taint_entry.dependencies_to_save) {
-					if (dependency.entity_type == TAINT_ENTITY_REG) {
-						vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
-						if (!is_symbolic_register(dependency_full_register_offset)) {
-							block_concrete_dependencies.emplace(dependency_full_register_offset);
-							for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
-								if (dep_slice_instr.instr_addr != instr_details.instr_addr) {
-									block_details.symbolic_instrs.emplace_back(dep_slice_instr);
-								}
-							}
-						}
-					}
-				}
+				compute_slice_of_instrs(instr_addr, instr_taint_entry);
 				is_instr_symbolic = true;
 				instr_details.has_memory_dep = false;
 				instr_details.memory_value.address = 0;
@@ -1859,19 +1877,7 @@ public:
 						// This is the first symbolic VEX statement in this instruction. Compute slice
 						// of instructions needed to setup concrete registers used by the instruction
 						// here itself since their taint status can change in following statements
-						for (auto &dependency: instr_taint_entry.dependencies_to_save) {
-							if (dependency.entity_type == TAINT_ENTITY_REG) {
-								vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
-								if (!is_symbolic_register(dependency_full_register_offset)) {
-									block_concrete_dependencies.emplace(dependency_full_register_offset);
-									for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
-										if (dep_slice_instr.instr_addr != instr_details.instr_addr) {
-											block_details.symbolic_instrs.emplace_back(dep_slice_instr);
-										}
-									}
-								}
-							}
-						}
+						compute_slice_of_instrs(instr_addr, instr_taint_entry);
 						// Mark instruction as needing symbolic execution
 						is_instr_symbolic = true;
 					}
@@ -1897,19 +1903,7 @@ public:
 						// This is the first symbolic VEX statement in this instruction. Compute slice
 						// of instructions needed to setup concrete registers used by the instruction
 						// here itself since their taint status can change in following statements
-						for (auto &dependency: instr_taint_entry.dependencies_to_save) {
-							if (dependency.entity_type == TAINT_ENTITY_REG) {
-								vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
-								if (!is_symbolic_register(dependency_full_register_offset)) {
-									block_concrete_dependencies.emplace(dependency_full_register_offset);
-									for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
-										if (dep_slice_instr.instr_addr != instr_details.instr_addr) {
-											block_details.symbolic_instrs.emplace_back(dep_slice_instr);
-										}
-									}
-								}
-							}
-						}
+						compute_slice_of_instrs(instr_addr, instr_taint_entry);
 						// Mark instruction as needing symbolic execution
 						is_instr_symbolic = true;
 					}
