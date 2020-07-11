@@ -7,16 +7,17 @@ l = logging.getLogger("angr_tests")
 import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-arches={
-    'mips':0x400768,
-    'mipsel':0x400768,
-    'i386':0x804845B,
-    'x86_64':0x400571,
-    'armel':0x1048c,
-    'ppc':0x10000498
-}
+
 
 def test():
+    arches={
+        'mips':0x400768,
+        'mipsel':0x400768,
+        'i386':0x804845B,
+        'x86_64':0x400571,
+        'armel':0x1048c,
+        'ppc':0x10000498
+    }
     for arch in arches:
         proj = angr.Project(os.path.join(test_location, arch, 'argv_test'))
         r_addr = arches[arch]
