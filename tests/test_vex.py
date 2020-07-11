@@ -278,6 +278,34 @@ def test_some_vector_ops():
     correct_result = claripy.BVV(0x100100000000000000000000f000000, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
+    k = claripy.BVV(0xe7, 8)
+    l = claripy.BVV(0x1234, 16)
+    m = claripy.BVV(0x12345678, 32)
+
+    calc_result = translate(s, 'Iop_Dup8x8', (k,))
+    correct_result = claripy.BVV(0xe7e7e7e7e7e7e7e7, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup8x16', (k,))
+    correct_result = claripy.BVV(0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup16x4', (l,))
+    correct_result = claripy.BVV(0x1234123412341234, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup16x8', (l,))
+    correct_result = claripy.BVV(0x12341234123412341234123412341234, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup32x2', (m,))
+    correct_result = claripy.BVV(0x1234567812345678, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup32x4', (m,))
+    correct_result = claripy.BVV(0x12345678123456781234567812345678, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
 def test_store_simplification():
     state = SimState(arch='X86')
     state.regs.esp = state.solver.BVS('stack_pointer', 32)
