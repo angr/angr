@@ -101,7 +101,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             if "mem_dep" in instr_entry:
                 address = instr_entry["mem_dep"]["address"]
                 value = instr_entry["mem_dep"]["value"]
-                self.state.memory.store(address, value)
+                self.state.memory.store(address, value, endness=self.state.arch.memory_endness)
 
             instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
             start_index = instr_vex_stmt_indices["start"]
