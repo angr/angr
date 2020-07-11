@@ -1754,18 +1754,21 @@ public:
 			return;
 		}
 		auto mem_read_result = mem_reads_map.at(instr_addr);
-		if (!mem_read_result.is_value_symbolic && (symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
-			// Memory value is concrete and all registers are concrete. No change in taint status
-			// will happen on executing this instruction
-			return;
-		}
-
 		if (block_details.vex_lift_failed) {
-			// Either the memory value is symbolic or there are symbolic registers: thus, taint
-			// status of registers could change. But since VEX lift failed, the taint relations
-			// are not known and so we can't propagate taint. Stop concrete execution.
-			stop(STOP_VEX_LIFT_FAILED);
-			return;
+			if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+				// Either the memory value is symbolic or there are symbolic registers: thus, taint
+				// status of registers could change. But since VEX lift failed, the taint relations
+				// are not known and so we can't propagate taint. Stop concrete execution.
+				stop(STOP_VEX_LIFT_FAILED);
+				return;
+			}
+			else {
+				// We cannot propagate taint since VEX lift failed and so we stop here. But, since
+				// there are no symbolic values, we do need need to propagate taint. Of course,
+				// the register slices cannot be updated but those won't be needed since this
+				// block will never be executed partially concretely and rest in VEX engine.
+				return;
+			}
 		}
 
 		auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
