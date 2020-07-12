@@ -1894,7 +1894,7 @@ public:
 					return;
 				}
 				else if (final_taint_status == TAINT_STATUS_SYMBOLIC) {
-					if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg())) {
+					if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg_vex_offset())) {
 						stop(STOP_SYMBOLIC_PC);
 						return;
 					}
@@ -2026,6 +2026,27 @@ public:
 			propagate_taints();
 		}
 		return;
+	}
+
+	inline unsigned int arch_pc_reg_vex_offset() {
+		const unsigned int pc_reg_offset_x86 = 68;
+		const unsigned int pc_reg_offset_amd64 = 184;
+		const unsigned int pc_reg_offset_arm = 68;
+		const unsigned int pc_reg_offset_arm64 = 272;
+		const unsigned int pc_reg_offset_mips32 = 136;
+		const unsigned int pc_reg_offset_mips64 = 272;
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? pc_reg_offset_amd64 : pc_reg_offset_x86;
+			case UC_ARCH_ARM:
+				return pc_reg_offset_arm;
+			case UC_ARCH_ARM64:
+				return pc_reg_offset_arm64;
+			case UC_ARCH_MIPS:
+				return mode == UC_MODE_64 ? pc_reg_offset_mips64 : pc_reg_offset_mips32;
+			default:
+				return -1;
+		}
 	}
 
 	inline unsigned int arch_pc_reg() {
