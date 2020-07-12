@@ -1916,7 +1916,7 @@ public:
 						mark_temp_symbolic(taint_sink.tmp_id);
 					}
 				}
-				else if (taint_sink.entity_type == TAINT_ENTITY_REG) {
+				else if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset != arch_pc_reg_vex_offset())) {
 					// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
 					vex_reg_offset_t taint_sink_full_register_offset = get_full_register_offset(taint_sink.reg_offset);
 					mark_register_concrete(taint_sink_full_register_offset, true);
