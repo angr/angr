@@ -567,7 +567,7 @@ public:
 				stop_reason_msg = "failed to lift block to VEX";
 				break;
 			case STOP_SYMBOLIC_CONDITION:
-				stop_reason_msg = "symbolic condition for ITE or Exit";
+				stop_reason_msg = "symbolic condition for ITE";
 				break;
 			case STOP_SYMBOLIC_READ_ADDR:
 				stop_reason_msg = "attempted to read from symbolic address";
