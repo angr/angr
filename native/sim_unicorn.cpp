@@ -152,6 +152,10 @@ typedef struct instr_details_t {
 		return ((instr_addr == other_instr.instr_addr) && (has_memory_dep == other_instr.has_memory_dep) &&
 			(memory_value == other_instr.memory_value));
 	}
+
+	bool operator<(const instr_details_t &other_instr) const {
+		return (instr_addr < other_instr.instr_addr);
+	}
 } instr_details_t;
 
 typedef struct {
@@ -270,6 +274,11 @@ typedef struct {
 	stop_t unsupported_expr_stop_reason;
 } taint_sources_and_and_ite_cond_t;
 
+typedef struct {
+	std::set<instr_details_t> dependent_instrs;
+	std::unordered_set<vex_reg_offset_t> concrete_registers;
+} instr_slice_details_t;
+
 typedef struct CachedPage {
 	size_t size;
 	uint8_t *bytes;
@@ -332,6 +341,9 @@ private:
 
 	// Slice of current block to set the value of a register
 	std::unordered_map<vex_reg_offset_t, std::vector<instr_details_t>> reg_instr_slice;
+
+	// Slice of current block for an instruction
+	std::unordered_map<address_t, instr_slice_details_t> instr_slice_details_map;
 
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
@@ -715,6 +727,7 @@ public:
 		block_concrete_registers.clear();
 		block_details.reset();
 		block_concrete_dependencies.clear();
+		instr_slice_details_map.clear();
 		return;
 	}
 
@@ -1152,32 +1165,32 @@ public:
 	}
 
 	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
+		instr_slice_details_t instr_slice_details;
 		for (auto &dependency: instr_taint_entry.dependencies_to_save) {
 			if (dependency.entity_type == TAINT_ENTITY_REG) {
 				vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
 				if (!is_symbolic_register(dependency_full_register_offset)) {
-					auto dep_reg_slice = reg_instr_slice.at(dependency_full_register_offset);
-					if (dep_reg_slice.size() == 0) {
+					auto dep_reg_slice_instrs = reg_instr_slice.at(dependency_full_register_offset);
+					if (dep_reg_slice_instrs.size() == 0) {
 						// The register was not modified in this block by any preceding instruction
 						// and so it's value at start of block is a dependency of the block
-						block_concrete_dependencies.emplace(dependency_full_register_offset);
+						instr_slice_details.concrete_registers.emplace(dependency_full_register_offset);
 					}
 					else {
 						// The register was modified by some instructions in the block. We add those
 						// instructions to the slice of this instruction and also any instructions
 						// they depend on
-						for (auto &dep_slice_instr: reg_instr_slice.at(dependency_full_register_offset)) {
-							if (dep_slice_instr.instr_addr != instr_addr) {
-								auto block_entry = block_taint_cache.at(block_details.block_addr);
-								auto dep_slice_instr_taint_entry = block_entry.block_instrs_taint_data_map.at(dep_slice_instr.instr_addr);
-								compute_slice_of_instrs(dep_slice_instr.instr_addr, dep_slice_instr_taint_entry);
-								block_details.symbolic_instrs.emplace_back(dep_slice_instr);
-							}
+						for (auto &dep_reg_slice_instr: dep_reg_slice_instrs) {
+							auto dep_instr_slice_details = instr_slice_details_map.at(dep_reg_slice_instr.instr_addr);
+							instr_slice_details.concrete_registers.insert(dep_instr_slice_details.concrete_registers.begin(), dep_instr_slice_details.concrete_registers.end());
+							instr_slice_details.dependent_instrs.insert(dep_instr_slice_details.dependent_instrs.begin(), dep_instr_slice_details.dependent_instrs.end());
+							instr_slice_details.dependent_instrs.emplace(dep_reg_slice_instr);
 						}
 					}
 				}
 			}
 		}
+		instr_slice_details_map.emplace(instr_addr, instr_slice_details);
 		return;
 	}
 
@@ -1823,6 +1836,7 @@ public:
 
 		is_instr_symbolic = false;
 		instr_details.instr_addr = instr_addr;
+		compute_slice_of_instrs(instr_addr, instr_taint_entry);
 		if (instr_taint_entry.has_memory_read) {
 			auto mem_read_result = mem_reads_map.at(instr_addr);
 			if (!mem_read_result.is_value_symbolic) {
@@ -1834,9 +1848,6 @@ public:
 				instr_details.has_memory_dep = true;
 			}
 			else {
-				// Compute slice of instructions needed to setup concrete registers used by the instruction
-				// here itself since their taint status can change in following statements
-				compute_slice_of_instrs(instr_addr, instr_taint_entry);
 				is_instr_symbolic = true;
 				instr_details.has_memory_dep = false;
 				instr_details.memory_value.address = 0;
@@ -1873,14 +1884,8 @@ public:
 					}
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
-					if (!is_instr_symbolic) {
-						// This is the first symbolic VEX statement in this instruction. Compute slice
-						// of instructions needed to setup concrete registers used by the instruction
-						// here itself since their taint status can change in following statements
-						compute_slice_of_instrs(instr_addr, instr_taint_entry);
-						// Mark instruction as needing symbolic execution
-						is_instr_symbolic = true;
-					}
+					// Mark instruction as needing symbolic execution
+					is_instr_symbolic = true;
 				}
 				else if (mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end()) {
 					// Save the memory location(s) written to be marked as concrete in the write hook
@@ -1899,14 +1904,8 @@ public:
 						return;
 					}
 
-					if (!is_instr_symbolic) {
-						// This is the first symbolic VEX statement in this instruction. Compute slice
-						// of instructions needed to setup concrete registers used by the instruction
-						// here itself since their taint status can change in following statements
-						compute_slice_of_instrs(instr_addr, instr_taint_entry);
-						// Mark instruction as needing symbolic execution
-						is_instr_symbolic = true;
-					}
+					// Mark instruction as needing symbolic execution
+					is_instr_symbolic = true;
 
 					// Mark sink as symbolic
 					if (taint_sink.entity_type == TAINT_ENTITY_REG) {
@@ -1947,6 +1946,13 @@ public:
 			}
 		}
 		if (is_instr_symbolic) {
+			auto instr_slice_details = instr_slice_details_map.at(instr_addr);
+			block_concrete_dependencies.insert(instr_slice_details.concrete_registers.begin(), instr_slice_details.concrete_registers.end());
+
+			std::set<instr_details_t> symbolic_instrs_set(block_details.symbolic_instrs.begin(), block_details.symbolic_instrs.end());
+			block_details.symbolic_instrs.clear();
+			symbolic_instrs_set.insert(instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
+			block_details.symbolic_instrs.insert(block_details.symbolic_instrs.end(), symbolic_instrs_set.begin(), symbolic_instrs_set.end());
 			block_details.symbolic_instrs.emplace_back(instr_details);
 		}
 		return;
