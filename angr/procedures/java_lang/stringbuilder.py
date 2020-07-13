@@ -13,6 +13,9 @@ class StringBuilderInit(JavaSimProcedure):
         ('java.lang.StringBuilder', '<init>()'),
         ('java.lang.StringBuilder', '<init>(java.lang.String)'),
         ('java.lang.StringBuilder', '<init>(java.lang.CharSequence)'),
+        ('java.lang.StringBuffer', '<init>()'),
+        ('java.lang.StringBuffer', '<init>(java.lang.String)'),
+        ('java.lang.StringBuffer', '<init>(java.lang.CharSequence)'),
     )
 
     def run(self, this_ref, thing=None):
@@ -47,6 +50,12 @@ class StringBuilderAppend(JavaSimProcedure):
         ('java.lang.StringBuilder', 'append(boolean)'),
         ('java.lang.StringBuilder', 'append(char)'),
         ('java.lang.StringBuilder', 'append(java.lang.CharSequence)'),
+        ('java.lang.StringBuffer', 'append(java.lang.String)'),
+        ('java.lang.StringBuffer', 'append(int)'),
+        ('java.lang.StringBuffer', 'append(long)'),
+        ('java.lang.StringBuffer', 'append(boolean)'),
+        ('java.lang.StringBuffer', 'append(char)'),
+        ('java.lang.StringBuffer', 'append(java.lang.CharSequence)'),
     )
 
     def run(self, this_ref, thing):
