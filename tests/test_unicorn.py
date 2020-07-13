@@ -134,8 +134,8 @@ def test_fauxware_aggressive():
         add_options=so.unicorn | { so.UNICORN_AGGRESSIVE_CONCRETIZATION },
         remove_options={ so.LAZY_SOLVES }
     ) # unicorn
-    s_unicorn.unicorn.cooldown_symbolic_registers = 0
-    s_unicorn.unicorn.cooldown_symbolic_memory = 0
+    s_unicorn.unicorn.cooldown_symbolic_stop = 2
+    s_unicorn.unicorn.cooldown_unsupported_stop = 2
     s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
 
     pg = p.factory.simulation_manager(s_unicorn)
@@ -188,9 +188,9 @@ def test_unicorn_pickle():
         # try pickling out paths that went through unicorn
         s_unicorn = p.factory.entry_state(add_options=so.unicorn)
         s_unicorn.unicorn.countdown_nonunicorn_blocks = 0
-        s_unicorn.unicorn.countdown_symbolic_registers = 0
+        s_unicorn.unicorn.countdown_symbolic_stop = 2
         s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
-        s_unicorn.unicorn.cooldown_symbolic_registers = 0
+        s_unicorn.unicorn.cooldown_symbolic_stop = 2
         return s_unicorn
 
     pg = p.factory.simulation_manager(_uni_state())

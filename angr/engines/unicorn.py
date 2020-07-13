@@ -50,11 +50,11 @@ class SimEngineUnicorn(SuccessorsMixin):
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False
-        if unicorn.countdown_symbolic_registers > 0:
-            l.debug("not enough blocks since symbolic registers (%d more)", unicorn.countdown_symbolic_registers)
+        if unicorn.countdown_symbolic_stop > 0:
+            l.info("not enough blocks since symbolic stop (%d more)", unicorn.countdown_symbolic_stop)
             return False
-        if unicorn.countdown_symbolic_memory > 0:
-            l.info("not enough blocks since symbolic memory (%d more)", unicorn.countdown_symbolic_memory)
+        if unicorn.countdown_unsupported_stop > 0:
+            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)", unicorn.countdown_unsupported)
             return False
         if unicorn.countdown_nonunicorn_blocks > 0:
             l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
@@ -63,7 +63,6 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("not enough blocks since stop point (%d more)", unicorn.countdown_stop_point)
         elif o.UNICORN_SYM_REGS_SUPPORT not in state.options and not unicorn._check_registers():
             l.info("failed register check")
-            unicorn.countdown_symbolic_registers = unicorn.cooldown_symbolic_registers
             return False
 
         return True
@@ -71,15 +70,14 @@ class SimEngineUnicorn(SuccessorsMixin):
     @staticmethod
     def __countdown(state):
         state.unicorn.countdown_nonunicorn_blocks -= 1
-        state.unicorn.countdown_symbolic_registers -= 1
-        state.unicorn.countdown_symbolic_memory -= 1
-        state.unicorn.countdown_symbolic_memory -= 1
+        state.unicorn.countdown_symbolic_stop -= 1
+        state.unicorn.countdown_unsupported_stop -= 1
         state.unicorn.countdown_stop_point -= 1
 
     @staticmethod
     def __reset_countdowns(state, next_state):
-        next_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
-        next_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
+        next_state.unicorn.countdown_symbolic_stop = state.unicorn.countdown_symbolic_stop
+        next_state.unicorn.countdown_unsupported_stop = state.unicorn.countdown_unsupported_stop
         next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
         next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 

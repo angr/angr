@@ -66,8 +66,8 @@ class Runner(object):
             entry_state.unicorn._runs_since_unicorn = 100
 
             # cooldowns
-            entry_state.unicorn.cooldown_symbolic_registers = 0
-            entry_state.unicorn.cooldown_symbolic_memory = 0
+            entry_state.unicorn.cooldown_symbolic_stop = 2
+            entry_state.unicorn.cooldown_unsupported_stop = 2
             entry_state.unicorn.cooldown_nonunicorn_blocks = 1
             entry_state.unicorn.max_steps = 10000
 
@@ -131,8 +131,8 @@ class Runner(object):
         entry_state.unicorn._runs_since_unicorn = 100
 
         # cooldowns
-        entry_state.unicorn.cooldown_symbolic_registers = 0
-        entry_state.unicorn.cooldown_symbolic_memory = 0
+        entry_state.unicorn.cooldown_symbolic_stop = 2
+        entry_state.unicorn.cooldown_unsupported_stop = 2
         entry_state.unicorn.cooldown_nonunicorn_blocks = 1
         entry_state.unicorn.max_steps = 10000
 

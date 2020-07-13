@@ -360,8 +360,8 @@ class Unicorn(SimStatePlugin):
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
-        cooldown_symbolic_registers=100,
-        cooldown_symbolic_memory=100,
+        cooldown_symbolic_stop=2,
+        cooldown_unsupported_stop=2,
         cooldown_nonunicorn_blocks=100,
         cooldown_stop_point=1,
         max_steps=1000000,
@@ -387,12 +387,12 @@ class Unicorn(SimStatePlugin):
         # the cooldown vars are the settings for what the countdown should start at
         # the val is copied from cooldown to countdown on check fail
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
-        self.cooldown_symbolic_registers = cooldown_symbolic_registers
-        self.cooldown_symbolic_memory = cooldown_symbolic_memory
+        self.cooldown_symbolic_stop = cooldown_symbolic_stop
+        self.cooldown_unsupported_stop = cooldown_unsupported_stop
         self.cooldown_stop_point = cooldown_stop_point
         self.countdown_nonunicorn_blocks = 0
-        self.countdown_symbolic_registers = 0
-        self.countdown_symbolic_memory = 0
+        self.countdown_symbolic_stop = 0
+        self.countdown_unsupported_stop = 0
         self.countdown_stop_point = 0
 
         # the default step limit
@@ -467,13 +467,13 @@ class Unicorn(SimStatePlugin):
             concretization_threshold_registers = self.concretization_threshold_registers,
             concretization_threshold_instruction = self.concretization_threshold_instruction,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
-            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
-            cooldown_symbolic_memory=self.cooldown_symbolic_memory,
+            cooldown_symbolic_stop=self.cooldown_symbolic_stop,
+            cooldown_unsupported_stop=self.cooldown_unsupported_stop,
             max_steps=self.max_steps,
         )
         u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
-        u.countdown_symbolic_registers = self.countdown_symbolic_registers
-        u.countdown_symbolic_memory = self.countdown_symbolic_memory
+        u.countdown_symbolic_stop = self.countdown_symbolic_stop
+        u.countdown_unsupported_stop = self.countdown_unsupported_stop
         u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
         u._uncache_regions = list(self._uncache_regions)
@@ -485,25 +485,25 @@ class Unicorn(SimStatePlugin):
             self.cooldown_nonunicorn_blocks,
             max(o.cooldown_nonunicorn_blocks for o in others)
         )
-        self.cooldown_symbolic_registers = max(
-            self.cooldown_symbolic_registers,
-            max(o.cooldown_symbolic_registers for o in others)
+        self.cooldown_symbolic_stop = max(
+            self.cooldown_symbolic_stop,
+            max(o.cooldown_symbolic_stop for o in others)
         )
-        self.cooldown_symbolic_memory = max(
-            self.cooldown_symbolic_memory,
-            max(o.cooldown_symbolic_memory for o in others)
+        self.cooldown_unsupported_stop = max(
+            self.cooldown_unsupported_stop,
+            max(o.cooldown_unsupported_stop for o in others)
         )
         self.countdown_nonunicorn_blocks = max(
             self.countdown_nonunicorn_blocks,
             max(o.countdown_nonunicorn_blocks for o in others)
         )
-        self.countdown_symbolic_registers = max(
-            self.countdown_symbolic_registers,
-            max(o.countdown_symbolic_registers for o in others)
+        self.countdown_symbolic_stop = max(
+            self.countdown_symbolic_stop,
+            max(o.countdown_symbolic_stop for o in others)
         )
-        self.countdown_symbolic_memory = max(
-            self.countdown_symbolic_memory,
-            max(o.countdown_symbolic_memory for o in others)
+        self.countdown_unsupported_stop = max(
+            self.countdown_unsupported_stop,
+            max(o.countdown_unsupported_stop for o in others)
         )
         self.countdown_stop_point = max(
             self.countdown_stop_point,
@@ -1139,11 +1139,6 @@ class Unicorn(SimStatePlugin):
 
         _UC_NATIVE.destroy(head)    # free the linked list
 
-        # adjust the countdowns
-        #if self.steps >= 128:
-        #   self.cooldown_symbolic_registers = 16
-        #   self.cooldown_symbolic_memory = 16
-
         # process the concrete transmits
         i = 0
         stdout = self.state.posix.get_fd(1)
@@ -1162,6 +1157,12 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason == STOP.STOP_STOPPOINT:
             self.countdown_nonunicorn_blocks = 0
             self.countdown_stop_point = self.cooldown_stop_point
+        elif self.stop_reason in STOP.symbolic_stop_reasons:
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_symbolic_stop = self.cooldown_symbolic_stop
+        elif self.stop_reason in STOP.unsupported_reasons:
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_unsupported_stop = self.cooldown_unsupported_stop
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
