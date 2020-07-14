@@ -14,7 +14,12 @@ class ListInit(JavaSimProcedure):
     __provides__ = (
         ('java.util.List', '<init>()'),
         ('java.util.LinkedList', '<init>()'),
-        ('java.util.ArrayList', '<init>()')
+        ('java.util.ArrayList', '<init>()'),
+        # Lists with initial capacity are already modeled using the default generator
+        # so we can use the same constructor we use in the default case
+        ('java.util.List', '<init>(int)'),
+        ('java.util.LinkedList', '<init>(int)'),
+        ('java.util.ArrayList', '<init>(int)')
     )
 
     def run(self, this_ref):
