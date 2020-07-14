@@ -132,6 +132,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         if self._subject.type == SubjectType.Function:
             return call_stack + [subject.addr]
         elif self._subject.type == SubjectType.Block:
+            if 'CFGFast' not in self.kb.cfgs:
+                # no CFG exists
+                return call_stack
             cfg = self.kb.cfgs['CFGFast']
             cfg_node = cfg.get_any_node(subject.addr)
             if cfg_node is None:
