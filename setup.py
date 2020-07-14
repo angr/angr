@@ -147,7 +147,7 @@ setup(
         'networkx>=2.0',
         'progressbar2',
         'rpyc',
-        'cffi>=1.7.0',
+        'cffi>=1.14.0',
         _UNICORN,
         'archinfo==8.20.7.6',
         'claripy==8.20.7.6',
