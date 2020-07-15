@@ -312,8 +312,7 @@ class PagedMemoryMixin(MemoryMixin):
                     bit_idx += len(element)
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
-                    if byte_idx < size:
-                        bitmap_out[byte_idx] = 1
+                    bitmap_out[byte_idx] = 1
                     continue
 
                 if bit_idx % byte_width != 0:
@@ -325,7 +324,7 @@ class PagedMemoryMixin(MemoryMixin):
                 if (bit_idx + len(element)) % byte_width != 0:
                     # if the current element does not have enough bits to extend to the next byte boundary, the
                     # bottom `lo_chop` bits should be removed
-                    lo_chop = byte_width - ((bit_idx + len(element)) % byte_width)
+                    lo_chop = (bit_idx + len(element)) % byte_width
                 else:
                     lo_chop = 0
 
@@ -334,8 +333,7 @@ class PagedMemoryMixin(MemoryMixin):
                     bit_idx += len(element)
                     if not with_bitmap:
                         return memoryview(bytes(bytes_out))[:byte_idx]
-                    if byte_idx < size:
-                        bitmap_out[byte_idx] = 1
+                    bitmap_out[byte_idx] = 1
                     continue
 
                 if hi_chop:
@@ -429,6 +427,9 @@ class PagedMemoryMixin(MemoryMixin):
                 if physically_adjacent and ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) + len(data) == ffi.cast(ffi.BVoidP, ffi.from_buffer(newdata)):
                     # magic: generate a new memoryview which contains the two physically adjacent regions
                     obj = data.obj
+                    if obj is None:
+                        # XXX HACK FOR PYPY
+                        obj = page.concrete_data.obj
                     data_offset = ffi.cast(ffi.BVoidP, ffi.from_buffer(data)) - ffi.cast(ffi.BVoidP,
                                                                                          ffi.from_buffer(obj))
                     data = memoryview(obj)[data_offset:data_offset + len(data) + i]

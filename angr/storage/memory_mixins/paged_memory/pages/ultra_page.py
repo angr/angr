@@ -13,6 +13,8 @@ l = logging.getLogger(name=__name__)
 
 
 class UltraPage(MemoryObjectMixin, PageBase):
+    SUPPORTS_CONCRETE_LOAD = True
+
     def __init__(self, memory=None, init_zero=False, **kwargs):
         super().__init__(**kwargs)
 

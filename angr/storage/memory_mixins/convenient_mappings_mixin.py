@@ -7,6 +7,7 @@ import claripy
 from angr import sim_options as options
 from ...errors import SimMemoryError
 from . import MemoryMixin
+from .default_filler_mixin import MemoryMissingException
 
 l = logging.getLogger(name=__name__)
 
@@ -59,7 +60,7 @@ class ConvenientMappingsMixin(MemoryMixin):
                     self._hash_mapping[h].difference_update(range(addr, addr+size))
                     if len(self._hash_mapping[h]) == 0:
                         self._hash_mapping.pop(h, None)
-        except KeyError:
+        except MemoryMissingException:
             pass
 
         if options.REVERSE_MEMORY_NAME_MAP in self.state.options:

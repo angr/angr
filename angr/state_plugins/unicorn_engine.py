@@ -769,12 +769,11 @@ class Unicorn(SimStatePlugin):
 
         if bitmap.readonly:
             # old-style mapping, do it via copy
-            if isinstance(data, memoryview):
-                data = data.tobytes()
             self.uc.mem_map(addr, 0x1000, perm)
-            self.uc.mem_write(addr, data)
-            self._mapped += 1
             # huge hack. why doesn't ctypes let you pass memoryview as void*?
+            unicorn.unicorn._uc.uc_mem_write(self.uc._uch, addr, ctypes.cast(int(ffi.cast('uint64_t', ffi.from_buffer(data))), ctypes.c_void_p), len(data))
+            #self.uc.mem_write(addr, data)
+            self._mapped += 1
             _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))), None)
         else:
             # new-style mapping, do it directly
