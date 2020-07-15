@@ -1682,6 +1682,9 @@ public:
 	}
 
 	inline void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level) {
+		if (!is_valid_dependency_register(reg_offset)) {
+			return;
+		}
 		if (do_block_level) {
 			// Mark register as symbolic in current block
 			block_symbolic_registers.emplace(reg_offset);
@@ -1703,6 +1706,9 @@ public:
 	}
 
 	inline void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level) {
+		if (!is_valid_dependency_register(reg_offset)) {
+			return;
+		}
 		if (do_block_level) {
 			// Mark this register as concrete in the current block
 			block_concrete_registers.emplace(reg_offset);
