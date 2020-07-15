@@ -337,7 +337,7 @@ class PagedMemoryMixin(MemoryMixin):
                     continue
 
                 if hi_chop:
-                    bit_idx += hi_chop
+                    bitmap_out[byte_idx] = 1
                     byte_idx += 1
 
                 if element.op == 'BVV':

@@ -678,17 +678,20 @@ def test_concrete_load():
         state.memory.store(0x20000, b"aaaabbbbccccdddd")
 
         data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
-        assert data.tobytes() == b"aaaa"
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"aaaa"
         assert bitmap.tobytes() == b"\x00\x00\x00\x00"
 
 
         data, bitmap = state.memory.concrete_load(0x20004, 8, with_bitmap=True)
-        assert data.tobytes() == b"bbbbcccc"
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"bbbbcccc"
         assert bitmap.tobytes() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
 
         state.memory.store(0x20001, claripy.BVS("flag", 8))
         data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
-        assert data.tobytes() == b"a\x00aa"
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"a\x00aa"
         assert bitmap.tobytes() == b"\x00\x01\x00\x00"
 
         expr = claripy.Concat(
@@ -700,7 +703,8 @@ def test_concrete_load():
                 )
         state.memory.store(0x20001, expr)
         data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
-        assert data.tobytes() == b"a\x00\x00a"
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"a\x00\x00a"
         assert bitmap.tobytes() == b"\x00\x01\x01\x00"
 
         expr = claripy.Concat(
@@ -712,7 +716,8 @@ def test_concrete_load():
                 )
         state.memory.store(0x20005, expr)
         data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
-        assert data.tobytes() == b"b\x00\x00b"
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"b\x00\x00b"
         assert bitmap.tobytes() == b"\x00\x01\x01\x00"
 
         expr = claripy.Concat(
@@ -722,11 +727,24 @@ def test_concrete_load():
         )
         state.memory.store(0x20005, expr)
         data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
-        assert data.tobytes() == b"b\x00\x00b"
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"b\x00\x00b"
+        assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+        expr = claripy.Concat(
+            claripy.BVV(1, 1),
+            claripy.BVS('flag_0', 14),
+            claripy.BVV(1, 1),
+        )
+        state.memory.store(0x20005, expr)
+        data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"b\x00\x00b"
         assert bitmap.tobytes() == b"\x00\x01\x01\x00"
 
 
 if __name__ == '__main__':
+    test_concrete_load()
     test_crosspage_store()
     test_crosspage_read()
     test_fast_memory()
@@ -743,4 +761,3 @@ if __name__ == '__main__':
     test_underconstrained()
     test_hex_dump()
     test_concrete_load_non_adjacent_pages()
-    test_concrete_load()
