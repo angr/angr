@@ -316,6 +316,7 @@ def _load_native():
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_vex_sub_reg_to_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_vex_offset_to_register_size_mapping', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_details_of_blocks_with_symbolic_instrs', None, state_t, ctypes.POINTER(BlockDetails))
@@ -1013,6 +1014,7 @@ class Unicorn(SimStatePlugin):
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
         vex_to_unicorn_map = {}
         vex_sub_reg_to_reg_map = {}
+        vex_reg_to_size_map = {}
         pc_reg_name = self.state.arch.get_register_by_name("pc")
         for reg_name, unicorn_reg_id in self.state.arch.uc_regs.items():
             if reg_name == pc_reg_name:
@@ -1021,6 +1023,7 @@ class Unicorn(SimStatePlugin):
             vex_reg = self.state.arch.get_register_by_name(reg_name)
             self.vex_reg_offset_to_name[vex_reg.vex_offset] = (reg_name, vex_reg.size)
             vex_to_unicorn_map[vex_reg.vex_offset] = unicorn_reg_id
+            vex_reg_to_size_map[vex_reg.vex_offset] = vex_reg.size
             for vex_sub_reg in vex_reg.subregisters:
                 vex_sub_reg_offset = self.state.arch.get_register_offset(vex_sub_reg[0])
                 if vex_sub_reg_offset not in self.vex_reg_offset_to_name:
@@ -1046,6 +1049,16 @@ class Unicorn(SimStatePlugin):
         vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
         vex_sub_reg_offsets_array = (ctypes.c_uint64 * len(vex_sub_reg_offsets))(*map(ctypes.c_uint64, vex_sub_reg_offsets))
         _UC_NATIVE.set_vex_sub_reg_to_reg_mappings(self._uc_state, vex_sub_reg_offsets_array, vex_reg_offsets_array, len(vex_sub_reg_offsets_array))
+
+        vex_reg_offsets = []
+        vex_reg_sizes = []
+        for vex_reg_offset, vex_reg_size in vex_reg_to_size_map.items():
+            vex_reg_offsets.append(vex_reg_offset)
+            vex_reg_sizes.append(vex_reg_size)
+
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
+        vex_reg_sizes_array = (ctypes.c_uint64 * len(vex_reg_sizes))(*map(ctypes.c_uint64, vex_reg_sizes))
+        _UC_NATIVE.set_vex_offset_to_register_size_mapping(self._uc_state, vex_reg_offsets_array, vex_reg_sizes_array, len(vex_reg_offsets_array))
 
         # Initial VEX to unicorn mappings for flag register
         if self.state.arch.name in ('x86', 'AMD64'):

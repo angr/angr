@@ -399,6 +399,7 @@ public:
 	RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 	RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
 	RegisterMap vex_sub_reg_map; // Mapping of VEX sub-registers to their main register
+	std::unordered_map<vex_reg_offset_t, uint64_t> reg_size_map;
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
 	int64_t cpu_flags_register;
@@ -1688,7 +1689,9 @@ public:
 		}
 		else {
 			// Mark register as symbolic in the state
-			symbolic_registers.emplace(reg_offset);
+			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+				symbolic_registers.emplace(reg_offset + i);
+			}
 		}
 		return;
 	}
@@ -1706,7 +1709,9 @@ public:
 			block_symbolic_registers.erase(reg_offset);
 		}
 		else {
-			symbolic_registers.erase(reg_offset);
+			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+				symbolic_registers.erase(reg_offset + i);
+			}
 		}
 		return;
 	}
@@ -2539,6 +2544,16 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 	state->artificial_vex_registers.clear();
 	for (int i = 0; i < count; i++) {
 		state->artificial_vex_registers.emplace(offsets[i]);
+	}
+	return;
+}
+
+// Register sizes mapping
+extern "C"
+void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *vex_offsets, uint64_t *reg_sizes, uint64_t count) {
+	state->reg_size_map.clear();
+	for (int i = 0; i < count; i++) {
+		state->reg_size_map.emplace(vex_offsets[i], reg_sizes[i]);
 	}
 	return;
 }
