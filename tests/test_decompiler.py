@@ -264,6 +264,8 @@ def test_decompiling_1after999():
     dec = p.analyses.Decompiler(f, cfg=cfg)
     if dec.codegen is not None:
         code = dec.codegen.text
+        assert "stack_base" not in code, "Some stack variables are not recognized"
+        assert "strncmp(s_78, &s_58, 0x40);" in code
         print(code)
     else:
         print("Failed to decompile function %r." % f)

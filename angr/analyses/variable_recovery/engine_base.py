@@ -1,4 +1,4 @@
-from typing import Optional, Set
+from typing import Optional, Set, List, Tuple
 import logging
 
 from ...engines.light import SimEngineLight, SpOffset, ArithmeticExpression
@@ -72,6 +72,47 @@ class SimEngineVRBase(SimEngineLight):
     # Logic
     #
 
+    def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
+        data = richr.data
+        stack_offset = data.offset
+        existing_vars: List[Tuple[SimVariable,int]] = self.variable_manager[self.func_addr].find_variables_by_stmt(
+            self.block.addr,
+            self.stmt_idx,
+            'memory')
+
+        # find the correct variable
+        variable = None
+        for v, offset in existing_vars:
+            if offset == stack_offset:
+                variable = v
+                break
+
+        if variable is None:
+            # TODO: how to determine the size for a lea?
+            existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
+            if not existing_vars:
+                lea_size = 1
+                variable = SimStackVariable(stack_offset, lea_size, base='bp',
+                                            ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                'stack'),
+                                            region=self.func_addr,
+                                            )
+
+                self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+            else:
+                variable = next(iter(existing_vars))
+
+        self.state.stack_region.add_variable(stack_offset, variable)
+        typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
+        self.state.typevars.add_type_variable(variable, codeloc, typevar)
+        base_offset = self.state.stack_region.get_base_addr(stack_offset)
+        for var in self.state.stack_region.get_variables_by_offset(base_offset):
+            offset_into_var = stack_offset - base_offset
+            if offset_into_var == 0: offset_into_var = None
+            self.variable_manager[self.func_addr].reference_at(var, offset_into_var, codeloc,
+                                                               atom=src)
+
     def _assign_to_register(self, offset, richr, size, src=None, dst=None):
         """
 
@@ -81,7 +122,7 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
-        codeloc = self._codeloc()  # type: CodeLocation
+        codeloc: CodeLocation = self._codeloc()
         data = richr.data
 
         if offset == self.arch.sp_offset:
@@ -114,40 +155,7 @@ class SimEngineVRBase(SimEngineLight):
 
         if type(data) is SpOffset and isinstance(data.offset, int):
             # lea
-            stack_offset = data.offset
-            existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
-                                                                                         self.stmt_idx,
-                                                                                         'memory')
-
-            if not existing_vars:
-                # TODO: how to determine the size for a lea?
-                existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
-                if not existing_vars:
-                    lea_size = 1
-                    variable = SimStackVariable(stack_offset, lea_size, base='bp',
-                                                ident=self.variable_manager[self.func_addr].next_variable_ident(
-                                                    'stack'),
-                                                region=self.func_addr,
-                                                )
-
-                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-                else:
-                    variable = next(iter(existing_vars))
-
-            else:
-                variable, _ = existing_vars[0]
-
-            self.state.stack_region.add_variable(stack_offset, variable)
-            typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-            self.state.typevars.add_type_variable(variable, codeloc, typevar)
-            base_offset = self.state.stack_region.get_base_addr(stack_offset)
-            for var in self.state.stack_region.get_variables_by_offset(base_offset):
-                offset_into_var = stack_offset - base_offset
-                if offset_into_var == 0: offset_into_var = None
-                self.variable_manager[self.func_addr].reference_at(var, offset_into_var, codeloc,
-                                                                   atom=src)
-
+            self._reference(richr, codeloc, src=src)
         else:
             pass
 

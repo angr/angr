@@ -161,10 +161,10 @@ class SimEngineVRAIL(
 
         return RichR(r.data, typevar=typevar)
 
-    def _ail_handle_StackBaseOffset(self, expr):
-        return RichR(
-            SpOffset(self.arch.bits, expr.offset, is_base=False)
-        )
+    def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
+        richr = RichR(SpOffset(self.arch.bits, expr.offset, is_base=False))
+        self._reference(richr, self._codeloc(), src=expr)
+        return richr
 
     def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
         # pylint:disable=unused-variable
