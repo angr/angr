@@ -484,8 +484,6 @@ class SimIROp:
         arg_num = len(args)
         if arg_num != 1:
             raise SimOperationError("expect exactly one vector to be duplicated, got %d" % arg_num)
-        # Size of the vector to be duplicated
-        vector_size = self._vector_size
         # Duplicate the vector for this many times
         vector_count = self._vector_count
         # Extend the vector to be duplicated
