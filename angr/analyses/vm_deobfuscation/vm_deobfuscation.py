@@ -11,9 +11,10 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..analysis import Analysis
-from ..cfg.cfg_emulated import StackPointerAnnotation, StackTouchedAnnotation
+from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation
 from ... import BP, BP_BEFORE, BP_AFTER
 
+logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
 filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
@@ -25,14 +26,14 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None):
+    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None):
 
         # Delayed import
         import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
 
         # start_addr = 0x4006d1
         start_addr = start_addr
-        cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state)
+        cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph)
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
 
         folder_name = os.path.dirname(self.project.filename)
@@ -51,7 +52,7 @@ class VMDeobfuscation(Analysis):
         initial_cfg = cfg
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         print("Doing constant propagation")
-        new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
         new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
@@ -116,8 +117,7 @@ class VMDeobfuscation(Analysis):
         start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
         start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
-    def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr, start_state):
-        logger = logging.getLogger('angr.analyses.cfg.cfg_emulated').setLevel(logging.DEBUG)
+    def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr, start_state, cfg_fast_graph):
         #proj = angr.Project(filename)
         proj = self.project
 
@@ -131,20 +131,21 @@ class VMDeobfuscation(Analysis):
                                                                   angr.sim_options.DO_CCALLS})
         self.annotate_and_preconstrain_sp(start_state)
 
-        cfg = proj.analyses.CFGEmulated(fail_fast=True,
+        cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                         data_sensitive=True ,
                                         vm_vpc_addr=vm_vpc_addr,
                                         starts=[start_addr],
                                         initial_state=start_state,
-                                        max_iterations=1,
+                                        max_iterations=2,
                                         resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
                                         keep_state=True,
                                         state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
-                                        iropt_level=1,)
+                                        iropt_level=1,
+                                        cfg_fast_graph=cfg_fast_graph)
         return cfg, proj
 
     ####### Constant Propagation
-    def constant_propagation(self, cfg, proj, start_addr, vm_vpc_addr):
+    def constant_propagation(self, cfg, proj, start_addr, vm_vpc_addr, start_state=None):
         old_graph = cfg.graph
         new_model = self.new_model_graph(old_graph, proj, "temporary1")
         new_cfg_graph = new_model.graph
@@ -153,9 +154,12 @@ class VMDeobfuscation(Analysis):
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
-        initial_input_state = proj.factory.blank_state(addr=start_addr,
-                                                       mode='fastpath',
-                                                       add_options=angr.sim_options.refs | {angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
 
         def annotate_stack_read_value(state):
             if len(state.inspect.mem_read_address.annotations) != 0 and isinstance(
@@ -200,10 +204,10 @@ class VMDeobfuscation(Analysis):
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
 
         #Run the emulation on the new graph to update the state attributes
-        new_cfg = proj.analyses.CFGEmulated(model=new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=False, max_iterations=1,
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=False, max_iterations=1,
                                             vm_vpc_addr=vm_vpc_addr)
 
-        ### Returning a new CFGEmulated object with the updated graph
+        ### Returning a new CFGVMDeobfuscation object with the updated graph
         return new_cfg
 
     #### This method removes stuff like empty blocks, empty instructions(Imark, AbiHints etc)
@@ -247,14 +251,14 @@ class VMDeobfuscation(Analysis):
                 print("\n")
 
 
-        ### Returning a new CFGEmulated object with the updated graph
+        ### Returning a new CFGVMDeobfuscation object with the updated graph
         dce_new_model = self.new_model_graph(cfg.graph, proj, 'dce')
         initial_input_state = proj.factory.blank_state(addr=start_addr,
                                                        mode='fastpath',
                                                        add_options=angr.sim_options.refs | {
                                                        angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1)
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1)
         return new_cfg
 
     def simplifications(self, cfg, proj, start_addr, vm_vpc_addr):
@@ -273,7 +277,7 @@ class VMDeobfuscation(Analysis):
                 print(simplified_ail_block.result_block)
                 print("\n\n")
 
-        ### Returning a new CFGEmulated object with the updated graph
+        ### Returning a new CFGVMDeobfuscation object with the updated graph
         simplified_new_model = self.new_model_graph(cfg.graph, proj, 'simplify1')
         initial_input_state = proj.factory.blank_state(addr=start_addr,
                                                        mode='fastpath',
@@ -282,7 +286,7 @@ class VMDeobfuscation(Analysis):
                                                        angr.sim_options.DO_CCALLS})
 
         simplified_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=simplified_new_model, keep_state=True, iropt_level=1,
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=simplified_new_model, keep_state=True, iropt_level=1,
                                             resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
 
@@ -368,14 +372,14 @@ class VMDeobfuscation(Analysis):
                 print(node)
                 print("\n")
 
-        ### Returning a new CFGEmulated object with the updated graph
+        ### Returning a new CFGVMDeobfuscation object with the updated graph
         dce_new_model = self.new_model_graph(cfg.graph, proj, 'dce')
         initial_input_state = proj.factory.blank_state(addr=start_addr,
                                                        mode='fastpath',
                                                        add_options=angr.sim_options.refs | {
                                                        angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
-        new_cfg = proj.analyses.CFGEmulated(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
 
     ### Draw the graph with vex statements
