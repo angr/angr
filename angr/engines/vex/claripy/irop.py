@@ -309,10 +309,6 @@ class SimIROp:
             assert self._from_side is None
             self._calculate = self._op_mapped
 
-        # generic vector duplication
-        elif self._generic_name == 'Dup':
-            self._calculate = self._op_vector_dup
-
         # generic mapping operations
         elif    self._generic_name in arithmetic_operation_map or \
                 self._generic_name in shift_operation_map:
@@ -473,7 +469,8 @@ class SimIROp:
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
 
-    def _op_vector_dup(self, args):
+    @supports_vector
+    def _op_generic_Dup(self, args):
         """
         Vector duplication
 
@@ -494,12 +491,11 @@ class SimIROp:
         # How many bits we will have as the result
         result_size = vector_size * vector_count
         # Extend the vector to be duplicated
-        elem = args[0].zero_extend(result_size - vector_size)
+        elem = args[0]
         # Do the duplication
         expr = elem
-        # Maybe Concat is a better way?
-        for i in range(1, vector_count):
-            expr |= elem << (vector_size * i)
+        for _ in range(1, vector_count):
+            expr = claripy.Concat(elem, expr)
         return expr
 
     def _op_concat(self, args):
