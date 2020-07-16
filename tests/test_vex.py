@@ -256,14 +256,14 @@ def test_some_vector_ops():
     correct_result = s.solver.BVV(0x0000ffffff020202, 64)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
-    g = claripy.BVV(0x111111112222222233333333ffffffff, 128)
+    gg = claripy.BVV(0x111111112222222233333333ffffffff, 128)
     h = claripy.BVV(0x1111111100000000ffffffffffffffff, 128)
 
-    calc_result = translate(s, 'Iop_CmpEQ32Fx4', (g, h))
+    calc_result = translate(s, 'Iop_CmpEQ32Fx4', (gg, h))
     correct_result = claripy.BVV(0xffffffff000000000000000000000000, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
-    calc_result = translate(s, 'Iop_Clz32x4', (g,))
+    calc_result = translate(s, 'Iop_Clz32x4', (gg,))
     correct_result = claripy.BVV(0x00000003000000020000000200000000, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
@@ -279,7 +279,7 @@ def test_some_vector_ops():
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
     k = claripy.BVV(0xe7, 8)
-    l = claripy.BVV(0x1234, 16)
+    ll = claripy.BVV(0x1234, 16)
     m = claripy.BVV(0x12345678, 32)
 
     calc_result = translate(s, 'Iop_Dup8x8', (k,))
@@ -290,11 +290,11 @@ def test_some_vector_ops():
     correct_result = claripy.BVV(0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
-    calc_result = translate(s, 'Iop_Dup16x4', (l,))
+    calc_result = translate(s, 'Iop_Dup16x4', (ll,))
     correct_result = claripy.BVV(0x1234123412341234, 64)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
-    calc_result = translate(s, 'Iop_Dup16x8', (l,))
+    calc_result = translate(s, 'Iop_Dup16x8', (ll,))
     correct_result = claripy.BVV(0x12341234123412341234123412341234, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
