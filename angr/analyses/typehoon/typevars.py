@@ -295,7 +295,7 @@ class DerivedTypeVariable(TypeVariable):
 
 class TypeVariables:
     def __init__(self):
-        self._typevars: Dict[SimVariable,TypeVariable] = { }
+        self._typevars: Dict['SimVariable',TypeVariable] = { }
 
     def merge(self, tvs):
         merged = TypeVariables()
