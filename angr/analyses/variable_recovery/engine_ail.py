@@ -1,5 +1,4 @@
-
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import logging
 
 import ailment
@@ -10,6 +9,10 @@ from ...engines.light import SimEngineLightAILMixin, SpOffset
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
+
+if TYPE_CHECKING:
+    from .variable_recovery_fast import VariableRecoveryFastState
+
 
 l = logging.getLogger(name=__name__)
 
@@ -169,8 +172,22 @@ class SimEngineVRAIL(
         return RichR(r.data, typevar=typevar)
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
+        self.state: 'VariableRecoveryFastState'
+
+        typevar = None
+        existing_vars = self.state.stack_region.get_variables_by_offset(expr.offset)
+        if existing_vars:
+            v = next(iter(existing_vars))
+            try:
+                typevar = self.state.typevars.get_type_variable(v, self._codeloc())
+            except KeyError:
+                pass
+        if typevar is None:
+            # allocate a new type variable
+            typevar = typevars.TypeVariable()
+
         richr = RichR(SpOffset(self.arch.bits, expr.offset, is_base=False),
-                      typevar=typevars.TypeVariable(),
+                      typevar=typevar,
                       )
         if self._reference_spoffset:
             self._reference(richr, self._codeloc(), src=expr)
