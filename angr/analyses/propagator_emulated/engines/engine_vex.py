@@ -2,7 +2,7 @@ import claripy
 import pyvex
 
 from ....code_location import CodeLocation
-from ...cfg.cfg_emulated import StackTouchedAnnotation
+from ...cfg.cfg_vm_deobfuscation import StackTouchedAnnotation
 from ....engines.vex.heavy.heavy import HeavyVEXMixin
 
 
