@@ -18,6 +18,10 @@ class SimEngineVRAIL(
     SimEngineLightAILMixin,
     SimEngineVRBase,
 ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._reference_spoffset: bool = False
 
     # Statement handlers
 
@@ -60,7 +64,10 @@ class SimEngineVRAIL(
         args = [ ]
         if stmt.args:
             for arg in stmt.args:
-               args.append(self._expr(arg))
+                self._reference_spoffset = True
+                richr = self._expr(arg)
+                self._reference_spoffset = False
+                args.append(richr)
 
         ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
         if ret_expr is not None:
@@ -162,8 +169,11 @@ class SimEngineVRAIL(
         return RichR(r.data, typevar=typevar)
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        richr = RichR(SpOffset(self.arch.bits, expr.offset, is_base=False))
-        self._reference(richr, self._codeloc(), src=expr)
+        richr = RichR(SpOffset(self.arch.bits, expr.offset, is_base=False),
+                      typevar=typevars.TypeVariable(),
+                      )
+        if self._reference_spoffset:
+            self._reference(richr, self._codeloc(), src=expr)
         return richr
 
     def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
