@@ -14,7 +14,7 @@ from ...engines.soot import SootMixin
 from ..cfg.cfg_utils import CFGUtils
 from .. import register_analysis
 from ..analysis import Analysis
-from ..cfg.cfg_emulated import StackTouchedAnnotation
+from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
@@ -319,6 +319,12 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       # successor.history.jumpkind, True,
                                                       # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
                                                       # successor.scratch.source)
+            if successor.history.jumpkind == 'Ijk_FakeRet':
+                symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                      successor.history.jumpkind, True,
+                                                      successor.scratch.exit_stmt_idx,
+                                                      successor.scratch.exit_ins_addr,
+                                                      successor.scratch.source)
             is_stack_tainted = False
             for annotation in successor.scratch.guard.annotations:
                 if isinstance(annotation, StackTouchedAnnotation):
