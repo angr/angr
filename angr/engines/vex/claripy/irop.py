@@ -488,8 +488,6 @@ class SimIROp:
         vector_size = self._vector_size
         # Duplicate the vector for this many times
         vector_count = self._vector_count
-        # How many bits we will have as the result
-        result_size = vector_size * vector_count
         # Extend the vector to be duplicated
         elem = args[0]
         # Do the duplication
