@@ -1,5 +1,8 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from itertools import count
+
+if TYPE_CHECKING:
+    from angr.sim_variable import SimVariable
 
 
 # Type variables and constraints
@@ -292,7 +295,7 @@ class DerivedTypeVariable(TypeVariable):
 
 class TypeVariables:
     def __init__(self):
-        self._typevars = { }
+        self._typevars: Dict['SimVariable',TypeVariable] = { }
 
     def merge(self, tvs):
         merged = TypeVariables()
@@ -315,7 +318,7 @@ class TypeVariables:
         #)
         return "{TypeVars: %d items}" % len(self._typevars)
 
-    def add_type_variable(self, var, codeloc, typevar):  # pylint:disable=unused-argument
+    def add_type_variable(self, var: 'SimVariable', codeloc, typevar: TypeVariable):  # pylint:disable=unused-argument
 
         #if var not in self._typevars:
         #    self._typevars[var] = { }
@@ -328,7 +331,7 @@ class TypeVariables:
 
         return self._typevars[var] #[codeloc]
 
-    def has_type_variable_for(self, var, codeloc):  # pylint:disable=unused-argument
+    def has_type_variable_for(self, var: 'SimVariable', codeloc):  # pylint:disable=unused-argument
         if var not in self._typevars:
             return False
         return True
