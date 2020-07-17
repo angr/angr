@@ -423,6 +423,9 @@ class SimEngineLightVEXMixin:
         except TypeError as e:
             self.l.warning(e)
             return None
+        except ZeroDivisionError as e:
+            self.l.warning(e)
+            return None
 
     def _handle_Xor(self, expr):
         arg0, arg1 = expr.args
