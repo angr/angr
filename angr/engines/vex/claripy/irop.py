@@ -469,6 +469,31 @@ class SimIROp:
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
 
+    @supports_vector
+    def _op_generic_Dup(self, args):
+        """
+        Vector duplication
+
+        Iop_Dup8x8
+        Iop_Dup8x16
+        Iop_Dup16x4
+        Iop_Dup16x8
+        Iop_Dup32x2
+        Iop_Dup32x4
+        """
+        arg_num = len(args)
+        if arg_num != 1:
+            raise SimOperationError("expect exactly one vector to be duplicated, got %d" % arg_num)
+        # Duplicate the vector for this many times
+        vector_count = self._vector_count
+        # Keep a copy of the vector to be duplicated
+        elem = args[0]
+        # Do the duplication
+        expr = elem
+        for _ in range(1, vector_count):
+            expr = claripy.Concat(elem, expr)
+        return expr
+
     def _op_concat(self, args):
         return claripy.Concat(*args)
 
