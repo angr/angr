@@ -500,7 +500,7 @@ class SimIROp:
                     piece = piece.raw_to_fp()
                 pieces.append(piece)
             yield pieces
-    
+
     @supports_vector
     def _op_generic_GetElem(self, args):
         """
