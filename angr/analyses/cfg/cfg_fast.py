@@ -2542,8 +2542,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             job = CFGJob(addr, target_func_addr, jump.jumpkind,
                          last_addr=source_addr,
                          src_node=self._nodes[source_addr],
-                         src_ins_addr=None,
-                         src_stmt_idx=None,
+                         src_ins_addr=jump.ins_addr,
+                         src_stmt_idx=jump.stmt_idx,
                          func_edges=[func_edge],
                          )
             self._insert_job(job)

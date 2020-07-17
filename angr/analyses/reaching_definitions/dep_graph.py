@@ -3,6 +3,7 @@ from functools import reduce
 
 import networkx
 
+from ...knowledge_plugins.key_definitions.atoms import Atom
 from ...knowledge_plugins.key_definitions.definition import Definition
 
 
@@ -103,3 +104,9 @@ class DepGraph:
             return closure
 
         return _transitive_closure(definition, self._graph, networkx.DiGraph())
+
+    def contains_atom(self, atom: Atom) -> bool:
+        return any(map(
+            lambda definition: definition.atom == atom,
+            self.graph.nodes()
+        ))

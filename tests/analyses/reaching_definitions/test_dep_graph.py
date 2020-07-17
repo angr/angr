@@ -6,6 +6,7 @@ import networkx
 
 from angr.code_location import CodeLocation
 from angr.knowledge_plugins.key_definitions.dataset import DataSet
+from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 
@@ -21,11 +22,11 @@ def unique_randrange(range_):
     return n
 
 
-def _a_mock_definition():
+def _a_mock_definition(atom: Atom=None):
     # Randomise code locations to forcefully produce "different" <Definition>s.
     statement_index = unique_randrange(1000)
     code_location = CodeLocation(0x42, statement_index)
-    return Definition(None, code_location, DataSet(set(), 8), None)
+    return Definition(atom, code_location, DataSet(set(), 8), None)
 
 
 class TestDepGraph(TestCase):
@@ -152,3 +153,35 @@ class TestDepGraph(TestCase):
 
         self.assertSetEqual(result_nodes, {A, B, C, D})
         self.assertSetEqual(result_edges, {(A, B), (B, C), (C, D), (D, A)})
+
+    def test_contains_atom_returns_true_if_the_dependency_graph_contains_a_definition_of_the_given_atom(self):
+        dep_graph = DepGraph()
+
+        r0 = Register(8, 4)
+
+        # A -> B
+        A = _a_mock_definition(r0)
+        B = _a_mock_definition()
+
+        uses = [ (A, B) ]
+
+        for use in uses:
+            dep_graph.add_edge(*use)
+
+        result = dep_graph.contains_atom(r0)
+        self.assertTrue(result)
+
+    def test_contains_atom_returns_false_if_the_dependency_graph_does_not_contain_a_definition_of_the_given_atom(self):
+        dep_graph = DepGraph()
+
+        # A -> B
+        A = _a_mock_definition()
+        B = _a_mock_definition()
+
+        uses = [ (A, B) ]
+
+        for use in uses:
+            dep_graph.add_edge(*use)
+
+        result = dep_graph.contains_atom(Register(8, 4))
+        self.assertFalse(result)

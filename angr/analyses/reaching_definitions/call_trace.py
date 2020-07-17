@@ -8,16 +8,24 @@ class CallSite:
 
     __slots__ = ('caller_func_addr', 'block_addr', 'callee_func_addr', )
 
-    def __init__(self, caller_func_addr: int, block_addr:int, callee_func_addr: int):
+    def __init__(self, caller_func_addr: int, block_addr: Optional[int], callee_func_addr: int):
         self.caller_func_addr = caller_func_addr
         self.callee_func_addr = callee_func_addr
         self.block_addr = block_addr
 
     def __repr__(self):
-        return "<CallSite in function %#x, calling #%x at block %#x>" % (
-            self.caller_func_addr,
-            self.callee_func_addr,
-            self.block_addr
+        result = "<CallSite in function %#x, calling #%x" % (self.caller_func_addr,
+                                                             self.callee_func_addr,)
+        if self.block_addr is not None:
+            result += "at block %#x" % self.block_addr
+        result += ">"
+        return result
+
+    def __eq__(self, other):
+        return (
+            self.caller_func_addr == other.caller_func_addr and
+            self.callee_func_addr == other.callee_func_addr and
+            self.block_addr == other.block_addr
         )
 
 

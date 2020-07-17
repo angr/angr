@@ -74,6 +74,7 @@ def _result_path(binary_results_name):
         binary_results_name + '.pickle'
     )
 
+
 class TestReachingDefinitions(TestCase):
     def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
@@ -442,3 +443,10 @@ class TestReachingDefinitions(TestCase):
 
         # 4007A8 mov     rsi, rdx
         self.assertEqual(auth_rsi.codeloc.ins_addr, 0x4007a8)
+
+    def test_rda_on_a_block_without_cfg(self):
+        bin_path = _binary_path('fauxware')
+        project = angr.Project(bin_path, auto_load_libs=False)
+
+        block = project.factory.block(project.entry, cross_insn_opt=False)
+        _ = project.analyses.ReachingDefinitions(subject=block, track_tmps=False)  # it should not crash
