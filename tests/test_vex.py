@@ -256,14 +256,14 @@ def test_some_vector_ops():
     correct_result = s.solver.BVV(0x0000ffffff020202, 64)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
-    g = claripy.BVV(0x111111112222222233333333ffffffff, 128)
+    gg = claripy.BVV(0x111111112222222233333333ffffffff, 128)
     h = claripy.BVV(0x1111111100000000ffffffffffffffff, 128)
 
-    calc_result = translate(s, 'Iop_CmpEQ32Fx4', (g, h))
+    calc_result = translate(s, 'Iop_CmpEQ32Fx4', (gg, h))
     correct_result = claripy.BVV(0xffffffff000000000000000000000000, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
-    calc_result = translate(s, 'Iop_Clz32x4', (g,))
+    calc_result = translate(s, 'Iop_Clz32x4', (gg,))
     correct_result = claripy.BVV(0x00000003000000020000000200000000, 128)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
@@ -276,6 +276,76 @@ def test_some_vector_ops():
 
     calc_result = translate(s, 'Iop_Mull16Ux4', (i, j))
     correct_result = claripy.BVV(0x100100000000000000000000f000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    k = claripy.BVV(0x0123456789abcdef, 64)
+    ll = claripy.BVV(0xaf, 8)
+    m = claripy.BVV(0xdfec, 16)
+    n = claripy.BVV(0xbfcfdfef, 32)
+    
+    # According to the source code of LibVex, the index is a U8 constant
+    calc_result = translate(s, 'Iop_GetElem8x8', (k, claripy.BVV(0, 8)))
+    correct_result = claripy.BVV(0xef, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem8x8', (k, claripy.BVV(1, 8)))
+    correct_result = claripy.BVV(0xcd, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem8x8', (k, claripy.BVV(6, 8)))
+    correct_result = claripy.BVV(0x23, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem8x8', (k, claripy.BVV(7, 8)))
+    correct_result = claripy.BVV(0x01, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem16x4', (k, claripy.BVV(0, 8)))
+    correct_result = claripy.BVV(0xcdef, 16)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem16x4', (k, claripy.BVV(3, 8)))
+    correct_result = claripy.BVV(0x0123, 16)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem32x2', (k, claripy.BVV(0, 8)))
+    correct_result = claripy.BVV(0x89abcdef, 32)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_GetElem32x2', (k, claripy.BVV(1, 8)))
+    correct_result = claripy.BVV(0x01234567, 32)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem8x8', (k, claripy.BVV(0, 8), ll))
+    correct_result = claripy.BVV(0x0123456789abcdaf, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem8x8', (k, claripy.BVV(1, 8), ll))
+    correct_result = claripy.BVV(0x0123456789abafef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem8x8', (k, claripy.BVV(6, 8), ll))
+    correct_result = claripy.BVV(0x01af456789abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem8x8', (k, claripy.BVV(7, 8), ll))
+    correct_result = claripy.BVV(0xaf23456789abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem16x4', (k, claripy.BVV(0, 8), m))
+    correct_result = claripy.BVV(0x0123456789abdfec, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem16x4', (k, claripy.BVV(3, 8), m))
+    correct_result = claripy.BVV(0xdfec456789abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem32x2', (k, claripy.BVV(0, 8), n))
+    correct_result = claripy.BVV(0x01234567bfcfdfef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+    
+    calc_result = translate(s, 'Iop_SetElem32x2', (k, claripy.BVV(1, 8), n))
+    correct_result = claripy.BVV(0xbfcfdfef89abcdef, 64)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
 def test_store_simplification():

@@ -500,6 +500,57 @@ class SimIROp:
                     piece = piece.raw_to_fp()
                 pieces.append(piece)
             yield pieces
+    
+    @supports_vector
+    def _op_generic_GetElem(self, args):
+        """
+        Transfers one byte/half-word/word of a vector to a general-purpose register.
+
+        Iop_GetElem8x8
+        Iop_GetElem16x4
+        Iop_GetElem32x2
+        Iop_GetElem8x16
+        Iop_GetElem16x8
+        Iop_GetElem32x4
+        Iop_GetElem64x2
+        """
+        # Size of the element
+        vector_size = self._vector_size
+        # Extension register value, element index
+        dReg, index = args
+        if index.op != 'BVV':
+            raise SimOperationError('expect element index to be a constant')
+        index = index.args[0]
+        return dReg[((index + 1) * vector_size - 1):(index * vector_size)]
+
+    @supports_vector
+    def _op_generic_SetElem(self, args):
+        """
+        Transfers one byte/half-word/word to a vector from a general-purpose register.
+
+        Iop_SetElem8x8
+        Iop_SetElem16x4
+        Iop_SetElem32x2
+        Iop_SetElem8x16
+        Iop_SetElem16x8
+        Iop_SetElem32x4
+        Iop_SetElem64x2
+        """
+        # Size of the element
+        vector_size = self._vector_size
+        # Element count
+        vector_count = self._vector_count
+        # Extension register value, element index, element to set
+        dReg, index, element = args
+        if index.op != 'BVV':
+            raise SimOperationError('expect element index to be a constant')
+        index = index.args[0]
+        # Elements generator
+        elements = map(
+            lambda i: dReg[((i + 1) * vector_size - 1):(i * vector_size)] if i != index else element,
+            range(vector_count - 1, -1, -1)
+        )
+        return claripy.Concat(*elements)
 
     def _op_generic_Mull(self, args):
         op1, op2 = args
