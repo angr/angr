@@ -526,6 +526,71 @@ class SimIROp:
                 pieces.append(piece)
             yield pieces
 
+    @supports_vector
+    def _op_generic_GetElem(self, args):
+        """
+        Transfers one byte/half-word/word of a vector to a general-purpose register.
+
+        NOTE: the index should starts from the least significant bits.
+        For example, index 0 for Iop_GetElem32x2 returns the low half of a vector
+
+        Iop_GetElem8x8
+        Iop_GetElem16x4
+        Iop_GetElem32x2
+        Iop_GetElem8x16
+        Iop_GetElem16x8
+        Iop_GetElem32x4
+        Iop_GetElem64x2
+        """
+        # Size of the element
+        vector_size = self._vector_size
+        # Vector count
+        vector_count = self._vector_count
+        # Extension register value, element index
+        dReg, index = args
+        # Chopped elements; there should be `vector_count` elements in total
+        elements = dReg.chop(vector_size)
+
+        # Handle the index as symbolic
+        expr = elements[vector_count - 1]
+        for i in range(vector_count - 2, -1, -1):
+            # Iterate through the element from the second from LSB to the first from the MSB
+            expr = claripy.If(index == vector_count - i - 1, elements[i], expr)
+            # Example output: <BV32 if index == 0x1 then d0[63:32] else d0[31:0]>
+        return expr
+
+    @supports_vector
+    def _op_generic_SetElem(self, args):
+        """
+        Transfers one byte/half-word/word to a vector from a general-purpose register.
+
+        NOTE: the index should starts from the least significant bits.
+        For example, index 0 for Iop_SetElem32x2 sets the low half of a vector
+
+        Iop_SetElem8x8
+        Iop_SetElem16x4
+        Iop_SetElem32x2
+        Iop_SetElem8x16
+        Iop_SetElem16x8
+        Iop_SetElem32x4
+        Iop_SetElem64x2
+        """
+        # Size of the element
+        vector_size = self._vector_size
+        # Element count
+        vector_count = self._vector_count
+        # Extension register value, element index, element to set
+        dReg, index, element = args
+        # Chopped elements; there should be `vector_count` elements in total
+        elements = dReg.chop(vector_size)
+
+        # Generate new elements
+        new_elements = map(
+            lambda i: claripy.If(vector_count - 1 - i == index, element, elements[i]),
+            range(vector_count)
+        )
+        return claripy.Concat(*new_elements)
+
     def _op_generic_Mull(self, args):
         op1, op2 = args
         op1 = self.extend_size(op1)
