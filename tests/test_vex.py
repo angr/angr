@@ -310,6 +310,8 @@ def test_some_vector_ops():
     o = claripy.BVV(0xaf, 8)
     p = claripy.BVV(0xdfec, 16)
     q = claripy.BVV(0xbfcfdfef, 32)
+    r = claripy.BVV(0x0102030405060708, 64)
+    ss = claripy.BVS('index', 8)
 
     # According to the source code of LibVex, the index is a U8 constant
     calc_result = translate(s, 'Iop_GetElem8x8', (n, claripy.BVV(0, 8)))
@@ -374,6 +376,61 @@ def test_some_vector_ops():
 
     calc_result = translate(s, 'Iop_SetElem32x2', (n, claripy.BVV(1, 8), q))
     correct_result = claripy.BVV(0xbfcfdfef89abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    # Symbolic indexes
+    calc_result = translate(ss, 'Iop_GetElem8x8', (r, ss))
+    correct_result = claripy.If(ss == 7, claripy.BVV(0x01, 8),
+        claripy.If(ss == 6, claripy.BVV(0x02, 8),
+        claripy.If(ss == 5, claripy.BVV(0x03, 8),
+        claripy.If(ss == 4, claripy.BVV(0x04, 8),
+        claripy.If(ss == 3, claripy.BVV(0x05, 8),
+        claripy.If(ss == 2, claripy.BVV(0x06, 8),
+        claripy.If(ss == 1, claripy.BVV(0x07, 8),
+            claripy.BVV(0x08, 8))))))))
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem16x4', (r, ss))
+    correct_result = claripy.If(ss == 3, claripy.BVV(0x0102, 16),
+        claripy.If(ss == 2, claripy.BVV(0x0304, 16),
+        claripy.If(ss == 1, claripy.BVV(0x0506, 16),
+            claripy.BVV(0x0708, 16))))
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem32x2', (r, ss))
+    correct_result = claripy.If(ss == 1, claripy.BVV(0x01020304, 32), claripy.BVV(0x05060708, 32))
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    r_slices = r.chop(8)
+    calc_result = translate(s, 'Iop_SetElem8x8', (r, ss, o))
+    correct_result = claripy.Concat(
+        claripy.If(ss == 7, o, r_slices[0]),
+        claripy.If(ss == 6, o, r_slices[1]),
+        claripy.If(ss == 5, o, r_slices[2]),
+        claripy.If(ss == 4, o, r_slices[3]),
+        claripy.If(ss == 3, o, r_slices[4]),
+        claripy.If(ss == 2, o, r_slices[5]),
+        claripy.If(ss == 1, o, r_slices[6]),
+        claripy.If(ss == 0, o, r_slices[7])
+    )
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    r_slices = r.chop(16)
+    calc_result = translate(s, 'Iop_SetElem16x4', (r, ss, p))
+    correct_result = claripy.Concat(
+        claripy.If(ss == 3, p, r_slices[0]),
+        claripy.If(ss == 2, p, r_slices[1]),
+        claripy.If(ss == 1, p, r_slices[2]),
+        claripy.If(ss == 0, p, r_slices[3])
+    )
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    r_slices = r.chop(32)
+    calc_result = translate(s, 'Iop_SetElem32x2', (r, ss, q))
+    correct_result = claripy.Concat(
+        claripy.If(ss == 1, q, r_slices[0]),
+        claripy.If(ss == 0, q, r_slices[1]),
+    )
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
 def test_store_simplification():
