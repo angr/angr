@@ -583,7 +583,7 @@ class SimIROp:
         dReg, index, element = args
         # Chopped elements; there should be `vector_count` elements in total
         elements = dReg.chop(vector_size)
-        
+
         # Generate new elements
         new_elements = map(
             lambda i: claripy.If(vector_count - 1 - i == index, element, elements[i]),
