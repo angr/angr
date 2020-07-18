@@ -1996,7 +1996,14 @@ public:
 
 			if ((lift_ret == NULL) || (lift_ret->size == 0)) {
 				// Failed to lift block to VEX.
-				block_details.vex_lift_failed = true;
+				if (symbolic_registers.size() > 0) {
+					// There are symbolic registers but VEX lift failed so we can't propagate taint
+					stop(STOP_VEX_LIFT_FAILED);
+				}
+				else {
+					// There are no symbolic registers so attempt to execute block. Mark block as VEX lift failed.
+					block_details.vex_lift_failed = true;
+				}
 				return;
 			}
 			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
