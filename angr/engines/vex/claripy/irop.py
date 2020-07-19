@@ -290,9 +290,9 @@ class SimIROp:
             if f is not None:
                 f = partial(f, claripy.fp.RM.default()) # always? really?
 
-            f = f if f is not None else getattr(self, '_fgeneric_' + self._generic_name, None)
+            f = f if f is not None else getattr(self, '_op_fgeneric_' + self._generic_name, None)
             if f is None:
-                raise SimOperationError("no implementation found for operation {}".format(self._generic_name))
+                raise SimOperationError("no fp implementation found for operation {}".format(self._generic_name))
 
             self._calculate = partial(self._auto_vectorize, f)
 
@@ -876,9 +876,19 @@ class SimIROp:
             (claripy.fpEQ(a, b), claripy.BVV(0x40, 32)),
             ), claripy.BVV(0x45, 32))
 
-    def _op_fgeneric_CmpEQ(self, a0, a1): # pylint: disable=no-self-use
+    @staticmethod
+    def _fp_vector_comparison(cmp, a0, a1):
         # for cmpps_eq stuff, i.e. Iop_CmpEQ32Fx4
-        return claripy.If(claripy.fpEQ(a0, a1), claripy.BVV(-1, len(a0)), claripy.BVV(0, len(a0)))
+        return claripy.If(cmp(a0, a1), claripy.BVV(-1, len(a0)), claripy.BVV(0, len(a0)))
+
+    def _op_fgeneric_CmpEQ(self, a0, a1):
+        return self._fp_vector_comparison(claripy.fpEQ, a0, a1)
+
+    def _op_fgeneric_CmpLE(self, a0, a1):
+        return self._fp_vector_comparison(claripy.fpLT, a0, a1)
+
+    def _op_fgeneric_CmpLT(self, a0, a1):
+        return self._fp_vector_comparison(claripy.fpLEQ, a0, a1)
 
     def _auto_vectorize(self, f, args, rm=None, rm_passed=False):
         if rm is not None:
@@ -911,10 +921,10 @@ class SimIROp:
         a, b = a.raw_to_fp(), b.raw_to_fp()
         return claripy.If(cmp_op(a, b), a, b)
 
-    def _fgeneric_Min(self, a, b):
+    def _op_fgeneric_Min(self, a, b):
         return self._fgeneric_minmax(claripy.fpLT, a, b)
 
-    def _fgeneric_Max(self, a, b):
+    def _op_fgeneric_Max(self, a, b):
         return self._fgeneric_minmax(claripy.fpGT, a, b)
 
     def _op_fgeneric_Reinterp(self, args):
