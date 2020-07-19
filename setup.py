@@ -51,8 +51,8 @@ def _build_native():
     try:
         import unicorn
         import pyvex
-    except ImportError:
-        raise LibError("You must install unicorn and pyvex before building angr")
+    except ImportError as e:
+        raise LibError("You must install unicorn and pyvex before building angr: %s" % e)
 
     env = os.environ.copy()
     env_data = (('UNICORN_INCLUDE_PATH', 'unicorn', 'include'),
