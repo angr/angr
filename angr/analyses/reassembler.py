@@ -2228,6 +2228,16 @@ class Reassembler(Analysis):
         :return: None
         """
 
+        # determine if the binary is compiled against glibc
+        is_glibc = False
+        for dep in self.project.loader.main_object.deps:
+            if dep.lower() in {'libc.so.6', 'libc.so'}:
+                is_glibc = True
+                break
+        if is_glibc:
+            self.remove_unnecessary_stuff_glibc()
+
+    def remove_unnecessary_stuff_glibc(self):
         glibc_functions_blacklist = {
             '_start',
             '_init',
