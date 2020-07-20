@@ -302,6 +302,7 @@ typedef struct mem_access {
 	uint8_t value[MAX_MEM_ACCESS_SIZE]; // assume size of any memory write is no more than 8
 	int size;
 	int clean; // save current page bitmap
+	bool is_symbolic;
 } mem_access_t; // actually it should be `mem_write_t` :)
 
 typedef struct mem_update {
@@ -698,9 +699,14 @@ public:
 		for (auto it = mem_writes.begin(); it != mem_writes.end(); it++) {
 			if (it->clean == -1) {
 				taint_t *bitmap = page_lookup(it->address);
-				memset(&bitmap[it->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * it->size);
-				it->clean = (1 << it->size) - 1;
-				//LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
+				if (it->is_symbolic) {
+					memset(&bitmap[it->address & 0xFFFULL], TAINT_SYMBOLIC, sizeof(taint_t) * it->size);
+				}
+				else {
+					memset(&bitmap[it->address & 0xFFFULL], TAINT_DIRTY, sizeof(taint_t) * it->size);
+					it->clean = (1 << it->size) - 1;
+					//LOG_D("commit: lazy initialize mem_write [%#lx, %#lx]", it->address, it->address + it->size);
+				}
 			}
 		}
 		*/
