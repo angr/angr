@@ -51,6 +51,22 @@ class VMProgramCounterAnnotation(claripy.Annotation):
     def relocate(self, src, dst):
         return self
 
+class DataRegionAnnotation(claripy.Annotation):
+    def __init__(self, taint):
+        self.taint = taint
+        claripy.Annotation.__init__(self)
+
+    @property
+    def eliminatable(self):
+        return False
+
+    @property
+    def relocatable(self):
+        return True
+
+    def relocate(self, src, dst):
+        return self
+
 class StackTouchedAnnotation(claripy.Annotation):
     def __init__(self, taint):
         self.taint = taint
@@ -1056,7 +1072,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     def save_vm_vpc_from_reg(self, state):
         # Save the vm program counter to state and use it in _pre_job_handling
         l.debug("Modifying vm_vpc...... ")
-        state.globals['cur_vm_vpc'] = state.solver.eval_one(state.regs.rax)
+        state.globals['cur_vm_vpc'] = state.solver.eval_one(state.regs.ebx)
         l.debug("The value of PROGRAM COUNTER is: " + str(hex(state.globals.get('cur_vm_vpc'))))
 
     def annotate_vm_vpc(self, state):
@@ -1175,31 +1191,28 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
             if self.data_sensitive:
-                ### This is for RCTF2018
-                # def check_after_block(state):
-                #     if 'after_0x400896' in state.globals:
-                #         return True
-                #     return False
-                # state.inspect.add_breakpoint('reg_write',
-                #                                 BP(
-                #                                     BP_AFTER,
-                #                                     reg_write_offset=40,
-                #                                     action=self.save_vm_vpc_from_reg,
-                #                                     condition=check_after_block
-                #                                 )
-                #                                 )
-                # def add_to_globals(state):
-                #     state.globals['after_0x400896'] = True
-                # state.inspect.add_breakpoint('irsb',
-                #                              BP(
-                #                                  BP_BEFORE,
-                #                                  address=0x400896,
-                #                                  action=add_to_globals
-                #                              )
-                #                              )
+                ### These are for RCTF2018
+                state.inspect.add_breakpoint('reg_write',
+                                                BP(
+                                                    BP_AFTER,
+                                                    reg_write_offset=40,
+                                                    action=self.save_vm_vpc_from_reg,
+                                                )
+                                                )
+                #state.inspect.add_breakpoint('instruction',BP(BP_BEFORE, instruction=0x400a53, action=self.save_vm_vpc_from_reg))
 
-                ### This is for RCTF2018
-                state.inspect.add_breakpoint('instruction',BP(BP_BEFORE, instruction=0x400a53, action=self.save_vm_vpc_from_reg))
+                ### annotating the data region in RCTF 2018
+                def annotate_data_region(state):
+                    state.mem[state.mem[0x601098].uint64_t.resolved+0x100].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x100].byte.resolved.annotate(DataRegionAnnotation(1))
+                    state.mem[state.mem[0x601098].uint64_t.resolved+0x110].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x110].byte.resolved.annotate(DataRegionAnnotation(1))
+                    state.mem[state.mem[0x601098].uint64_t.resolved+0x145].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x145].byte.resolved.annotate(DataRegionAnnotation(1))
+                    state.mem[state.mem[0x601098].uint64_t.resolved+0x146].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x146].byte.resolved.annotate(DataRegionAnnotation(1))
+                    for i in range(32):
+                        state.mem[state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x111+ i].byte.resolved.annotate(DataRegionAnnotation(1))
+                        state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte.resolved.annotate(DataRegionAnnotation(1))
+
+                state.inspect.add_breakpoint('instruction',BP(BP_BEFORE, instruction=0x400896, action=annotate_data_region))
+
 
                 # Adding breakpoint to set the data offset: TEMPORARILY REMOVED THIS TO TEST A CTF CHALLENGE
                 # state.inspect.add_breakpoint('mem_write',
@@ -1478,12 +1491,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Get a SimSuccessors out of current job
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
-        # if block_id.addr == 0x4008a2 and job.vm_vpc==206:
-        #     import  ipdb; ipdb.set_trace()
-
-        # if job.vm_vpc == 0x169:
-        #     import ipdb; ipdb.set_trace()
-
         l.debug("All possible successors: " + str(sim_successors.all_successors))
         #### Keeping only symbolic and True successors
         if self.data_sensitive:
@@ -1503,19 +1510,45 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                           successor.scratch.exit_ins_addr,
                                                           successor.scratch.source)
 
-                # ## Only add those successors whose guard is tainted by the stack, this essentially adds False branches also if they belong to the bytecode logic
+                ### Only add those successors whose guard is tainted by the stack, this essentially adds False branches also if they belong to the bytecode logic
+                ### Also add both the branches if the guard is tainted by the data region of the VM, but add the false branch to the list of pending jobs
+                ### Should I separate these two into two different loops?????????????????????
                 is_stack_tainted = False
+                is_data_region_tainted = False
                 for annotation in successor.scratch.guard.annotations:
-                    if isinstance(annotation, StackTouchedAnnotation):
+                    if isinstance(annotation, DataRegionAnnotation):
+                        is_data_region_tainted = True
+                        if successor.solver.eval(successor.scratch.guard):
+                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                  successor.scratch.guard,
+                                                                  successor.history.jumpkind, True,
+                                                                  successor.scratch.exit_stmt_idx,
+                                                                  successor.scratch.exit_ins_addr,
+                                                                  successor.scratch.source)
+                            break
+                        elif successor.solver.eval(successor.scratch.guard) is False:
+                            successor.history.jumpkind = "Ijk_FakeRet"
+                            symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                                  successor.scratch.guard,
+                                                                  successor.history.jumpkind, True,
+                                                                  successor.scratch.exit_stmt_idx,
+                                                                  successor.scratch.exit_ins_addr,
+                                                                  successor.scratch.source)
+                            break
+                    elif isinstance(annotation, StackTouchedAnnotation):
                         is_stack_tainted = True
-                        symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                              successor.scratch.guard,
                                                               successor.history.jumpkind, True,
-                                                              successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
+                                                              successor.scratch.exit_stmt_idx,
+                                                              successor.scratch.exit_ins_addr,
                                                               successor.scratch.source)
                         break
+
                 # Only add those successors which have symbolic guard or which evaluates to True, if the guard is not stack tainted
-                if is_stack_tainted is False and (successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard)):
-                    symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                if is_stack_tainted is False and is_data_region_tainted is False and (successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard)):
+                    symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                          successor.scratch.guard,
                                                           successor.history.jumpkind, True,
                                                           successor.scratch.exit_stmt_idx,
                                                           successor.scratch.exit_ins_addr,
@@ -1532,17 +1565,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         l.debug("After pruning: " + str(sim_successors.all_successors))
 
-
+        # Should we skip tracing this block?
+        should_skip = False
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc, job.branch_trace)][addr] >= self._max_iterations:
-            #l.debug("Block SKIPPED! due to max_iterations")
+            l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
              self._call_depth is not None and \
              len(job.call_stack) > self._call_depth and \
              (self._call_tracing_filter is None or self._call_tracing_filter(job.state, job.jumpkind)):
             should_skip = True
-        # Should we skip tracing this block?
-        should_skip = False
 
         # determine the depth of this basic block
         if self._max_steps is None:
