@@ -35,7 +35,7 @@ class SystemArrayCopy(JavaSimProcedure):
 
         # TODO: Implement checks for OOB exceptions
         for cur_src_idx, cur_dst_idx in zip(
-                range(src_idx_concrete, dst_idx_concrete+length_concrete),
+                range(src_idx_concrete, src_idx_concrete+length_concrete),
                 range(dst_idx_concrete, dst_idx_concrete+length_concrete)):
             src_elem = self.state.javavm_memory.load_array_element(array_ref_src, cur_src_idx)
             self.state.javavm_memory.store_array_element(array_ref_dst, cur_dst_idx, src_elem)
