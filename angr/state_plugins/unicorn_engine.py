@@ -1060,7 +1060,7 @@ class Unicorn(SimStatePlugin):
 
             start, size = self.state.arch.registers[r]
             if v.symbolic:
-                self._symbolic_offsets.update(b for b,vb in enumerate(v.chop(8), start) if vb.symbolic)
+                self._symbolic_offsets.update(b for b,vb in enumerate(reversed(v.chop(8)), start) if vb.symbolic)
 
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
