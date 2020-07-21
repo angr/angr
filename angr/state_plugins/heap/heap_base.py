@@ -108,6 +108,8 @@ class SimHeapBase(SimStatePlugin):
                                                                  self.__class__.__name__))
 
     def init_state(self):
+        # TODO: should this property be moved onto the heap plugin proper?
+        self.state.posix.brk = self.heap_base + self.heap_size
         if opts.ABSTRACT_MEMORY in self.state.options:
             return
 
