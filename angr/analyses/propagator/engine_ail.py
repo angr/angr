@@ -158,7 +158,7 @@ class SimEnginePropagatorAIL(
             value &= mask
             return Expr.Const(expr.idx, operand_expr.variable, value, expr.to_bits)
 
-        converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, operand_expr)
+        converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, operand_expr, **expr.tags)
         return converted
 
     def _ail_handle_Const(self, expr):
@@ -181,7 +181,7 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(1)
 
-        return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpLT(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -190,7 +190,7 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(1)
 
-        return Expr.BinaryOp(expr.idx, 'CmpLT', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'CmpLT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpGE(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -199,7 +199,7 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(1)
 
-        return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpGT(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -208,7 +208,7 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(1)
 
-        return Expr.BinaryOp(expr.idx, 'CmpGT', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'CmpGT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpEQ(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -217,7 +217,7 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(1)
 
-        return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpNE(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -226,7 +226,7 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(1)
 
-        return Expr.BinaryOp(expr.idx, 'CmpNE', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'CmpNE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_Add(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -264,7 +264,8 @@ class SimEnginePropagatorAIL(
         return Expr.BinaryOp(expr.idx, 'Sub', [ operand_0 if operand_0 is not None else expr.operands[0],
                                                 operand_1 if operand_1 is not None else expr.operands[1]
                                                 ],
-                             expr.signed)
+                             expr.signed,
+                             **expr.tags)
 
     def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
@@ -281,7 +282,7 @@ class SimEnginePropagatorAIL(
                 type(operand_1) is Expr.Const and is_alignment_mask(operand_1.value):
             return operand_0
 
-        return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_Xor(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -290,4 +291,4 @@ class SimEnginePropagatorAIL(
         if type(operand_0) is Top or type(operand_1) is Top:
             return Top(operand_0.size)
 
-        return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed)
+        return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed, **expr.tags)
