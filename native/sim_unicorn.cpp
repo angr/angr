@@ -2020,6 +2020,8 @@ public:
 		block_symbolic_temps.clear();
 		block_start_reg_values.clear();
 		for (auto &reg_instr_slice_entry: reg_instr_slice) {
+			// Clear slice for register
+			reg_instr_slice_entry.second.clear();
 			// Save value of all registers
 			register_value_t reg_value;
 			reg_value.offset = reg_instr_slice_entry.first;
