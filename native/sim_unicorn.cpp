@@ -2174,7 +2174,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		mem_read_result.is_value_symbolic = false;
 		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
-	state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
+	state->mem_reads_map[curr_instr_addr] = mem_read_result;
 	state->propagate_taint_of_mem_read_instr(curr_instr_addr);
 	if (!state->stopped) {
 		state->continue_propagating_taint();
