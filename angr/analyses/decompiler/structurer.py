@@ -1020,11 +1020,13 @@ class Structurer(Analysis):
         self._new_sequences.append(new_node_0.node)
         self._new_sequences.append(new_node_1.node)
 
+        seq_addr = seq.addr
+
         # erase all nodes in the candidates
         for idx, _, _ in node_0_kids + node_1_kids:
             seq.nodes[idx] = None
 
-        seq.insert_node(pos, ConditionNode(seq.addr, None, node_0.reaching_condition, new_node_0,
+        seq.insert_node(pos, ConditionNode(seq_addr, None, node_0.reaching_condition, new_node_0,
                                            new_node_1))
         seq.nodes = [ n for n in seq.nodes if n is not None ]
 
