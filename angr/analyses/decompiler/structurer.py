@@ -1066,7 +1066,7 @@ class Structurer(Analysis):
 
     def _rewrite_conditional_jumps_to_breaks(self, loop_node, successor_addrs):
 
-        def _rewrite_conditional_jump_to_break(node, parent=None, index=None, **kwargs):  # pylint:disable=unused-argument
+        def _rewrite_conditional_jump_to_break(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
                 return
             stmt = node.statements[-1]
@@ -1077,9 +1077,21 @@ class Structurer(Analysis):
                     # create a break or a conditional break node
                     break_node = self._loop_create_break_node(stmt, successor_addrs)
                     # insert this node to the parent
-                    insert_node(parent, index + 1, break_node, index)
-                    # remove this statement
-                    node.statements = node.statements[:-1]
+                    if isinstance(parent, SwitchCaseNode) and index is None:
+                        # the current node is not a container. insert_node() handles it for us.
+                        insert_node(parent, None, break_node, index, label=label, insert_location="before")
+                        # now remove the node from the newly created container
+                        if label == "case":
+                            # parent.cases[index] is a SequenceNode now
+                            parent.cases[index].remove_node(node)
+                        elif label == "default":
+                            parent.default_node.remove_node(node)
+                        else:
+                            raise TypeError("Unsupported label %s." % label)
+                    else:
+                        insert_node(parent, index + 1, break_node, index)
+                        # remove this statement
+                        node.statements = node.statements[:-1]
 
         handlers = {
             ailment.Block: _rewrite_conditional_jump_to_break,
