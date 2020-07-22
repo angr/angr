@@ -1,9 +1,6 @@
 import os
 
-import pyvex
 import angr
-from angr.analyses.decompiler.structured_codegen import CBinaryOp
-from angr.analyses.viscosity.edits import BytesEdit, MaskedBytesEdit
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
