@@ -28,7 +28,10 @@ class TagsAnnotation(claripy.Annotation):
 
     @property
     def relocatable(self):
-        return False
+        return True
+
+    def relocate(self, src, dst):
+        return self
 
 
 class ConditionProcessor:
