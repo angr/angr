@@ -41,7 +41,23 @@ def test_lwip_udpecho_bm():
 
     nose.tools.assert_greater(len(prop.replacements), 0)
 
+def test_mips_drapa_ping():
+    bin_path = os.path.join(test_location, "mipsel", "darpa_ping")
+    p = angr.Project(bin_path, auto_load_libs=False)
+    cfg = p.analyses.CFG(data_references=False)
+    func = cfg.functions[0x402f54]
+    state = p.factory.blank_state()
+    state.regs.t9 = func.addr
+    prop = p.analyses.Propagator(func=func, base_state=state, only_consts=True)
+    target_replacement = None
+    for loc, replacement in prop.replacements.items():
+        if loc.block_addr == 0x403338:
+            target_replacement = replacement
+
+    consts = list(filter(lambda x: type(x) == int, target_replacement.values()))
+    nose.tools.assert_in(0x408198, consts)
 
 if __name__ == "__main__":
     test_libc_x86()
     test_lwip_udpecho_bm()
+    test_mips_drapa_ping()

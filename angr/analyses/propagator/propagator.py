@@ -370,7 +370,16 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             state = PropagatorAILState(arch=self.project.arch, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts)
+            # load registers from base_state
+            registers = {}
+            if self._base_state:
+                for reg_name in self.project.arch.register_names.values():
+                    bv = self._base_state.registers.load(reg_name)
+                    if bv.concrete:
+                        value = self._base_state.solver.eval(bv)
+                        registers[self.project.arch.get_register_offset(reg_name)] = value
+
+            state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts, registers=registers)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  SpOffset(self.project.arch.bits, 0)
