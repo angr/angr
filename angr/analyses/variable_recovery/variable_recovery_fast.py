@@ -84,11 +84,11 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     :ivar KeyedRegion stack_region: The stack store.
     :ivar KeyedRegion register_region:  The register store.
     """
-    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None,
+    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
                  typevars=None, type_constraints=None, delayed_type_constraints=None, processor_state=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
-                         typevars=typevars, type_constraints=type_constraints,
+                         global_region=global_region, typevars=typevars, type_constraints=type_constraints,
                          delayed_type_constraints=delayed_type_constraints)
 
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
@@ -111,6 +111,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             self.function,
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
+            global_region=self.global_region.copy(),
             typevars=self.typevars.copy(),
             type_constraints=self.type_constraints.copy(),
             processor_state=self.processor_state.copy(),
@@ -140,6 +141,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                                                                                    replacements=replacements)
         merged_register_region = self.register_region.copy().replace(replacements).merge(other.register_region,
                                                                                          replacements=replacements)
+        merged_global_region = self.global_region.copy().merge(other.global_region)
         merged_typevars = self.typevars.merge(other.typevars)
         merged_typeconstraints = self.type_constraints.copy() | other.type_constraints
         delayed_typeconstraints = self.delayed_type_constraints.copy()
@@ -171,6 +173,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             self.function,
             stack_region=merged_stack_region,
             register_region=merged_register_region,
+            global_region=merged_global_region,
             typevars=merged_typevars,
             type_constraints=merged_typeconstraints,
             delayed_type_constraints=delayed_typeconstraints,
@@ -356,6 +359,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         pass
 
     def _post_analysis(self):
+        self.variable_manager['global'].assign_variable_names(labels=self.kb.labels)
         self.variable_manager[self.function.addr].assign_variable_names()
 
         for addr, state in self._outstates.items():

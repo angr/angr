@@ -60,6 +60,7 @@ class VariableManagerInternal:
             'stack': count(),
             'argument': count(),
             'phi': count(),
+            'global': count(),
         }
 
         self._phi_variables = { }
@@ -362,7 +363,7 @@ class VariableManagerInternal:
 
         return input_variables
 
-    def assign_variable_names(self):
+    def assign_variable_names(self, labels=None):
         """
         Assign default names to all variables.
 
@@ -382,6 +383,13 @@ class VariableManagerInternal:
                 if var.name is not None:
                     continue
                 var.name = var.ident
+            elif isinstance(var, SimMemoryVariable):
+                if var.name is not None:
+                    continue
+                if labels is not None and var.addr in labels:
+                    var.name = labels[var.addr]
+                else:
+                    var.name = var.ident
 
     def get_variable_type(self, var):
         return self.types.get(var, None)

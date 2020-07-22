@@ -87,8 +87,8 @@ class VariableRecoveryStateBase:
     The base abstract state for variable recovery analysis.
     """
 
-    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, typevars=None,
-                 type_constraints=None, delayed_type_constraints=None):
+    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
+                 typevars=None, type_constraints=None, delayed_type_constraints=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
@@ -103,6 +103,10 @@ class VariableRecoveryStateBase:
             self.register_region = register_region
         else:
             self.register_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
+        if global_region is not None:
+            self.global_region = global_region
+        else:
+            self.global_region = KeyedRegion()
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = set() if type_constraints is None else type_constraints

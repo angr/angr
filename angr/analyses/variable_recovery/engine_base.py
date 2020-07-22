@@ -3,7 +3,7 @@ import logging
 
 from ...engines.light import SimEngineLight, SpOffset, ArithmeticExpression
 from ...errors import SimEngineError
-from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...code_location import CodeLocation
 from ..typehoon import typevars, typeconsts
 
@@ -203,7 +203,7 @@ class SimEngineVRBase(SimEngineLight):
             return
 
         if type(addr) is int:
-            # TODO: Handle storing to global
+            self._store_to_global(addr, data, size, stmt=stmt)
             return
 
         if addr is None:
@@ -260,6 +260,39 @@ class SimEngineVRBase(SimEngineLight):
                         typevars.Subtype(data.typevar, typevar)
                     )
         # TODO: Create a tv_sp.store.<bits>@N <: typevar type constraint for the stack pointer
+
+    def _store_to_global(self, addr: int, data, size, stmt=None):
+        variable_manager = self.variable_manager['global']
+        if stmt is None:
+            existing_vars = variable_manager.find_variables_by_stmt(self.block.addr, self.stmt_idx, 'memory')
+        else:
+            existing_vars = variable_manager.find_variables_by_atom(self.block.addr, self.stmt_idx, stmt)
+        if not existing_vars:
+            variable = SimMemoryVariable(addr, size,
+                                        ident=variable_manager.next_variable_ident('global'),
+                                        )
+            variable_manager.set_variable('global', addr, variable)
+            l.debug('Identified a new global variable %s at %#x.', variable, self.ins_addr)
+
+        else:
+            variable, _ = next(iter(existing_vars))
+
+        self.state.global_region.set_variable(addr, variable)
+        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
+        for var in self.state.global_region.get_variables_by_offset(addr):
+            variable_manager.write_to(var, 0, codeloc, atom=stmt)
+
+        # create type constraints
+        if data.typevar is not None:
+            if not self.state.typevars.has_type_variable_for(variable, codeloc):
+                typevar = typevars.TypeVariable()
+                self.state.typevars.add_type_variable(variable, codeloc, typevar)
+            else:
+                typevar = self.state.typevars.get_type_variable(variable, codeloc)
+            if typevar is not None:
+                self.state.add_type_constraint(
+                    typevars.Subtype(data.typevar, typevar)
+                )
 
     def _store_to_variable(self, richr_addr: RichR, size, stmt=None):  # pylint:disable=unused-argument
 

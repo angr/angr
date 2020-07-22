@@ -388,8 +388,9 @@ class Clinic(Analysis):
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=ail_graph, kb=tmp_kb, track_sp=False,
                                                         func_args=arg_list)
-        # clean up existing types
+        # clean up existing types for this function
         tmp_kb.variables[self.function.addr].remove_types()
+        # TODO: Type inference for global variables
         # run type inference
         try:
             tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar)
