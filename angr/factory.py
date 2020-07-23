@@ -281,7 +281,7 @@ class AngrObjectFactory():
     def block(self, addr: int, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False,
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
               ) -> 'Block': ...
 
     #pylint: disable=unused-argument, no-self-use, function-redefined
@@ -289,7 +289,7 @@ class AngrObjectFactory():
     def block(self, addr: SootAddressDescriptor, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False,
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
               ) -> 'SootBlock': ...
 
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
