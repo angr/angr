@@ -135,6 +135,8 @@ class SimLinux(SimUserland):
             syscall_abis = ['ppc']
         elif self.arch.name == 'PPC64':
             syscall_abis = ['ppc64']
+        elif self.arch.name == 'RISCV':
+            syscall_abis = ['riscv32']
         else:
             syscall_abis = [] # ?
 
