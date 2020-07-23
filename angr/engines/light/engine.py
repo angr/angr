@@ -225,6 +225,8 @@ class SimEngineLightVEXMixin:
         handler = None
         if expr.op.startswith('Iop_And'):
             handler = '_handle_And'
+        elif expr.op.startswith('Iop_Mod'):
+            handler = '_handle_Mod'
         elif expr.op.startswith('Iop_Or'):
             handler = '_handle_Or'
         elif expr.op.startswith('Iop_Add'):
@@ -254,11 +256,14 @@ class SimEngineLightVEXMixin:
             handler = '_handle_CmpLT'
         elif expr.op.startswith('Iop_CmpLE'):
             handler = '_handle_CmpLE'
+        elif expr.op.startswith('Iop_CmpGE'):
+            handler = '_handle_CmpGE'
+        elif expr.op.startswith('Iop_CmpGT'):
+            handler = '_handle_CmpGT'
         elif expr.op.startswith('Iop_CmpORD'):
             handler = '_handle_CmpORD'
         elif expr.op.startswith('Const'):
             handler = '_handle_Const'
-
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
         else:
@@ -427,6 +432,22 @@ class SimEngineLightVEXMixin:
             self.l.warning(e)
             return None
 
+    def _handle_Mod(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            # TODO: Probably should take care of the sign
+            return expr_0 - (expr_0 // expr_1)*expr_1
+        except TypeError as e:
+            self.l.warning(e)
+            return None
+
     def _handle_Xor(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -444,18 +465,24 @@ class SimEngineLightVEXMixin:
 
     def _handle_Shl(self, expr):
         arg0, arg1 = expr.args
+
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
         expr_1 = self._expr(arg1)
         if expr_1 is None:
             return None
-
+        #elif expr_1 < 0:
+        #    expr.args = [expr_0, -1*expr_1]
+         #   return self._handle_Shr(expr)
         try:
             if isinstance(expr_0, int) and isinstance(expr_1, int):
                 # self.tyenv is not used
                 mask = (1 << expr.result_size(self.tyenv)) - 1
-                return (expr_0 << expr_1) & mask
+                if expr_1 < 0:
+                    return (expr_0 >> -expr_1) & mask
+                else:
+                    return (expr_0 << expr_1) & mask
             else:
                 return expr_0 << expr_1
         except TypeError as e:
@@ -472,7 +499,10 @@ class SimEngineLightVEXMixin:
             return None
 
         try:
-            return expr_0 >> expr_1
+            if expr_1 < 0:
+                return expr_0 << -expr_1
+            else:
+                return expr_0 >> expr_1
         except TypeError as e:
             self.l.warning(e)
             return None
@@ -537,6 +567,21 @@ class SimEngineLightVEXMixin:
             self.l.warning(ex)
             return None
 
+    def _handle_CmpGE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 >= expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
+            return None
+
     def _handle_CmpLT(self, expr):
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
@@ -548,6 +593,21 @@ class SimEngineLightVEXMixin:
 
         try:
             return expr_0 < expr_1
+        except TypeError as ex:
+            self.l.warning(ex)
+            return None
+
+    def _handle_CmpGT(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        try:
+            return expr_0 > expr_1
         except TypeError as ex:
             self.l.warning(ex)
             return None
