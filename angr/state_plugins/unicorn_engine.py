@@ -898,8 +898,6 @@ class Unicorn(SimStatePlugin):
             return return_data
 
         block_details_list = (BlockDetails * block_count)()
-        # register_values_list = (ctypes.POINTER(RegisterValue) * block_count)()
-        # symbolic_instrs_list = (ctypes.POINTER(InstrDetails) * block_count)()
         _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
         for block_details in block_details_list:
             block_entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size, "registers": {}}
@@ -922,13 +920,14 @@ class Unicorn(SimStatePlugin):
                 instr_entry = {"instr_addr": symbolic_instr.instr_addr}
                 if symbolic_instr.has_memory_dep:
                     mem_address = symbolic_instr.memory_value.address
+                    mem_val_size = symbolic_instr.memory_value.size
                     # Convert the memory value in bytes to number of appropriate size and endianness
-                    mem_val = symbolic_instr.memory_value.value[:symbolic_instr.memory_value.size]
+                    mem_val = symbolic_instr.memory_value.value[:mem_val_size]
                     if self.state.arch.memory_endness == 'Iend_LE':
                         mem_val = int.from_bytes(mem_val, "little")
                     else:
                         mem_val = int.from_bytes(mem_val, "big")
-                    instr_entry["mem_dep"] = {"address": mem_address, "value": mem_val}
+                    instr_entry["mem_dep"] = {"address": mem_address, "value": mem_val, "size": mem_val_size}
 
                 block_entry["instrs"].append(instr_entry)
 
