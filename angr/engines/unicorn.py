@@ -54,7 +54,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("not enough blocks since symbolic stop (%d more)", unicorn.countdown_symbolic_stop)
             return False
         if unicorn.countdown_unsupported_stop > 0:
-            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)", unicorn.countdown_unsupported)
+            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)", unicorn.countdown_unsupported_stop)
             return False
         if unicorn.countdown_nonunicorn_blocks > 0:
             l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
