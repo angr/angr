@@ -553,7 +553,7 @@ class Unicorn(SimStatePlugin):
             sysno = uc.reg_read(self._uc_regs['v0'])
             pc = uc.reg_read(self._uc_regs['pc'])
             l.debug('hit sys_%d at %#x', sysno, pc)
-            self._syscall_pc = pc + 4
+            self._syscall_pc = pc
             self._handle_syscall(uc, user_data)
         else:
             l.warning('unhandled interrupt %d', intno)
@@ -585,14 +585,14 @@ class Unicorn(SimStatePlugin):
         sysno = uc.reg_read(self._uc_regs['rax'])
         pc = uc.reg_read(self._uc_regs['rip'])
         l.debug('hit sys_%d at %#x', sysno, pc)
-        self._syscall_pc = pc + 2 # skip syscall instruction
+        self._syscall_pc = pc
         self._handle_syscall(uc, user_data)
 
     def _hook_syscall_i386(self, uc, user_data):
         sysno = uc.reg_read(self._uc_regs['eax'])
         pc = uc.reg_read(self._uc_regs['eip'])
         l.debug('hit sys_%d at %#x', sysno, pc)
-        self._syscall_pc = pc + 2
+        self._syscall_pc = pc
         if not self._quick_syscall(sysno):
             self._handle_syscall(uc, user_data)
 
@@ -1282,9 +1282,6 @@ class Unicorn(SimStatePlugin):
 
         # some architecture-specific register fixups
         if self.state.arch.name in ('X86', 'AMD64'):
-            if self.jumpkind.startswith('Ijk_Sys'):
-                self.state.registers.store('ip_at_syscall', self.state.regs.ip - 2)
-
             # update the eflags
             self.state.regs.eflags = self.state.solver.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), self.state.arch.bits)
 
