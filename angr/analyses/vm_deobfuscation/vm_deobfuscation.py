@@ -11,7 +11,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..analysis import Analysis
-from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation
+from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation
 from ... import BP, BP_BEFORE, BP_AFTER
 
 logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
@@ -55,12 +55,11 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-        new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        self.draw_graph(new_cfg, os.path.join(folder_name, "first_dce_result.svg"))
 
         # DCE
-        for i in range(10):
+        for i in range(11):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
@@ -161,6 +160,7 @@ class VMDeobfuscation(Analysis):
                                                            mode='fastpath',
                                                            add_options=angr.sim_options.refs | {angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
 
+    ####### Adding breakpoints
         def annotate_stack_read_value(state):
             if len(state.inspect.mem_read_address.annotations) != 0 and isinstance(
                     (state.inspect.mem_read_address.annotations[0]), StackPointerAnnotation):
@@ -171,6 +171,24 @@ class VMDeobfuscation(Analysis):
                                          BP_AFTER,
                                          action=annotate_stack_read_value
                                      ))
+
+        ### annotating the data region in RCTF 2018
+        def annotate_data_region(state):
+            state.mem[state.mem[0x601098].uint64_t.resolved + 0x100].byte = state.mem[
+                state.mem[0x601098].uint64_t.resolved + 0x100].byte.resolved.annotate(DataRegionAnnotation(1))
+            state.mem[state.mem[0x601098].uint64_t.resolved + 0x110].byte = state.mem[
+                state.mem[0x601098].uint64_t.resolved + 0x110].byte.resolved.annotate(DataRegionAnnotation(1))
+            state.mem[state.mem[0x601098].uint64_t.resolved + 0x145].byte = state.mem[
+                state.mem[0x601098].uint64_t.resolved + 0x145].byte.resolved.annotate(DataRegionAnnotation(1))
+            state.mem[state.mem[0x601098].uint64_t.resolved + 0x146].byte = state.mem[
+                state.mem[0x601098].uint64_t.resolved + 0x146].byte.resolved.annotate(DataRegionAnnotation(1))
+            for i in range(32):
+                state.mem[state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte = state.mem[
+                    state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte.resolved.annotate(DataRegionAnnotation(1))
+                state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte = state.mem[
+                    state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte.resolved.annotate(DataRegionAnnotation(1))
+
+        initial_input_state.inspect.add_breakpoint('instruction', BP(BP_BEFORE, instruction=0x400896, action=annotate_data_region))
 
         ## annotating and preconstraining the stack pointer
         self.annotate_and_preconstrain_sp(initial_input_state)
