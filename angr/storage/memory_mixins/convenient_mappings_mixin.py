@@ -53,6 +53,7 @@ class ConvenientMappingsMixin(MemoryMixin):
                     self._name_mapping[v].difference_update(range(addr, addr+size))
                     if len(self._name_mapping[v]) == 0:
                         self._name_mapping.pop(v, None)
+                        self._updated_mappings.remove((v, id(self._name_mapping)))
 
                 if options.REVERSE_MEMORY_HASH_MAP in self.state.options:
                     h = old_obj.cache_key
@@ -60,6 +61,7 @@ class ConvenientMappingsMixin(MemoryMixin):
                     self._hash_mapping[h].difference_update(range(addr, addr+size))
                     if len(self._hash_mapping[h]) == 0:
                         self._hash_mapping.pop(h, None)
+                        self._updated_mappings.remove((h, id(self._hash_mapping)))
         except MemoryMissingException:
             pass
 
@@ -88,8 +90,7 @@ class ConvenientMappingsMixin(MemoryMixin):
         return d
 
     def _mark_updated_mapping(self, d, m):
-        # TODO: wtf is this logic, this can't be right
-        if m in self._updated_mappings:
+        if (m, id(d)) in self._updated_mappings:
             return
 
         if options.REVERSE_MEMORY_HASH_MAP not in self.state.options and d is self._hash_mapping:
@@ -101,7 +102,7 @@ class ConvenientMappingsMixin(MemoryMixin):
             d[m] = set(d[m])
         except KeyError:
             d[m] = set()
-        self._updated_mappings.add(m)
+        self._updated_mappings.add((m, id(d)))
 
     def _update_mappings(self, actual_addr: int, old_obj: Optional[claripy.ast.BV], new_obj: claripy.ast.BV):
         if options.MEMORY_SYMBOLIC_BYTES_MAP in self.state.options:
