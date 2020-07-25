@@ -14,7 +14,7 @@ from ...engines.soot import SootMixin
 from ..cfg.cfg_utils import CFGUtils
 from .. import register_analysis
 from ..analysis import Analysis
-from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation
+from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
@@ -143,7 +143,7 @@ class PropagatorVEXState(PropagatorState):
         for s in self.concrete_states:
             other_state = other.get_concrete_state(s.ip._model_concrete.value)
             if other_state is not None:
-                s = s.merge(other_state)
+                s = s.merge(other_state, plugin_whitelist=['inspect', 'preconstrainer', 'globals', 'mem', 'heap', 'regs', 'solver', 'callstack', 'history', 'fs', 'scratch', 'memory', 'registers', 'libc'])
             merged.append(s[0])
         return merged
 
@@ -319,15 +319,19 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       # successor.history.jumpkind, True,
                                                       # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
                                                       # successor.scratch.source)
-            if successor.history.jumpkind == 'Ijk_FakeRet':
-                symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
-                                                      successor.history.jumpkind, True,
-                                                      successor.scratch.exit_stmt_idx,
-                                                      successor.scratch.exit_ins_addr,
-                                                      successor.scratch.source)
             is_stack_tainted = False
+            is_data_region_tainted = False
             for annotation in successor.scratch.guard.annotations:
-                if isinstance(annotation, StackTouchedAnnotation):
+                if isinstance(annotation, DataRegionAnnotation):
+                    is_data_region_tainted = True
+                    symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                          successor.scratch.guard,
+                                                          successor.history.jumpkind, True,
+                                                          successor.scratch.exit_stmt_idx,
+                                                          successor.scratch.exit_ins_addr,
+                                                          successor.scratch.source)
+                    break
+                elif isinstance(annotation, StackTouchedAnnotation):
                     is_stack_tainted = True
                     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
                                                           successor.history.jumpkind, True,
@@ -335,8 +339,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                           successor.scratch.exit_ins_addr,
                                                           successor.scratch.source)
                     break
-            if is_stack_tainted is False and (
-                    successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(
+            if is_stack_tainted is False and is_data_region_tainted is False and (successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(
                     successor.scratch.guard)):
                 symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
                                                       successor.history.jumpkind, True,
@@ -344,14 +347,14 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       successor.scratch.exit_ins_addr,
                                                       successor.scratch.source)
         print(symbolic_sim_successors.all_successors)
-        print(symbolic_sim_successors)
+        print("Replacements: "+str(node.input_state.solver._solver._replacements))
         node.final_states = symbolic_sim_successors
         abstract_state.concrete_states = symbolic_sim_successors
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements
 
-        if self._node_iterations[block_key] < self._max_iterations:
+        if self._node_iterations[block_key] <= self._max_iterations:
             return True, abstract_state
         else:
             return False, abstract_state
