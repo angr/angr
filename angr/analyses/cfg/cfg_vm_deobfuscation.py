@@ -1527,7 +1527,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                                   successor.scratch.source)
                             break
                         elif successor.solver.eval(successor.scratch.guard) is False:
-                            successor.history.jumpkind = "Ijk_FakeRet"
                             symbolic_sim_successors.add_successor(successor, successor.scratch.target,
                                                                   successor.scratch.guard,
                                                                   successor.history.jumpkind, True,
@@ -1642,19 +1641,19 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     self._deregister_analysis_job(the_job.caller_func_addr, the_job)
             else:
                 the_jobs = [job]
-
-            for the_job in the_jobs:
-                self._graph_add_edge(the_job.src_block_id, block_id,
-                                     jumpkind='Ijk_FakeRet',
-                                     stmt_idx=the_job.src_exit_stmt_idx,
-                                     ins_addr=src_ins_addr
-                                     )
-                self._update_function_transition_graph(the_job.src_block_id, block_id,
-                                                       jumpkind='Ijk_FakeRet',
-                                                       ins_addr=src_ins_addr,
-                                                       stmt_idx=the_job.src_exit_stmt_idx,
-                                                       confirmed=True
-                                                       )
+            ### Temporarily removed to prevent FakeRet edges from showing up in the CFG
+            # for the_job in the_jobs:
+            #     self._graph_add_edge(the_job.src_block_id, block_id,
+            #                          jumpkind='Ijk_FakeRet',
+            #                          stmt_idx=the_job.src_exit_stmt_idx,
+            #                          ins_addr=src_ins_addr
+            #                          )
+            #     self._update_function_transition_graph(the_job.src_block_id, block_id,
+            #                                            jumpkind='Ijk_FakeRet',
+            #                                            ins_addr=src_ins_addr,
+            #                                            stmt_idx=the_job.src_exit_stmt_idx,
+            #                                            confirmed=True
+            #                                            )
 
         if sim_successors is None or should_skip:
             # We cannot retrieve the block, or we should skip the analysis of this node
