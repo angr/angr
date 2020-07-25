@@ -5,7 +5,7 @@ from ... import sim_options as options
 from ... import concretization_strategies
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
-from ...storage.memory import DUMMY_SYMBOLIC_READ_VALUE
+from ...storage import DUMMY_SYMBOLIC_READ_VALUE
 
 class MultiwriteAnnotation(claripy.Annotation):
     @property

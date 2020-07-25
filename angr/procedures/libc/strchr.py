@@ -1,5 +1,5 @@
 import angr
-from angr.state_plugins.symbolic_memory import MultiwriteAnnotation
+from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging

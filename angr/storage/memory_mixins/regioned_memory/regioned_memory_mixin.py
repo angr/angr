@@ -10,8 +10,8 @@ from ....sim_options import (HYBRID_SOLVER, APPROXIMATE_FIRST, AVOID_MULTIVALUED
     KEEP_MEMORY_READS_DISCRETE, CONSERVATIVE_WRITE_STRATEGY)
 from ....state_plugins.sim_action_object import _raw_ast
 from ....errors import SimMemoryError, SimAbstractMemoryError
-from ...memory import AddressWrapper, RegionMap
 from .. import MemoryMixin
+from .region_data import AddressWrapper, RegionMap
 from .abstract_address_descriptor import AbstractAddressDescriptor
 
 if TYPE_CHECKING:
