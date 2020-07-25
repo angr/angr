@@ -295,12 +295,13 @@ class VEXLifter(SimEngineBase):
                             buff = pyvex.ffi.from_buffer(backer) + offset
                             size = len(backer) - offset
                         elif isinstance(backer, list):
-                            buff_lst = backer[offset:offset+max_size]
-                            if self.project is None:
-                                raise ValueError("You must set self.project if a list of integers are used as backers.")
-                            byte_width = self.project.arch.byte_width
-                            buff = claripy.Concat(*map(lambda v: claripy.BVV(v, byte_width), buff_lst))
-                            size = len(buff_lst)
+                            raise SimTranslationError("Cannot lift block for arch with strange byte width. If you think you ought to be able to, open an issue.")
+                            #buff_lst = backer[offset:offset+max_size]
+                            #if self.project is None:
+                            #    raise ValueError("You must set self.project if a list of integers are used as backers.")
+                            #byte_width = self.project.arch.byte_width
+                            #buff = claripy.Concat(*map(lambda v: claripy.BVV(v, byte_width), buff_lst))
+                            #size = len(buff_lst)
                         else:
                             raise TypeError("Unsupported backer type %s." % type(backer))
             elif state:
