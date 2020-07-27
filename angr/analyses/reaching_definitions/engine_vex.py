@@ -167,10 +167,24 @@ class SimEngineRDVEX(
                     l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
                 if isinstance(a, int) or (isinstance(a, SpOffset) and isinstance(a.offset, int)):
+                    tags: Optional[Set[Tag]]
+                    if isinstance(a, SpOffset):
+                        function_address = hex(
+                            self.project.kb
+                                .cfgs['CFGFast']
+                                .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
+                                .function_address
+                        )
+                        tags = {LocalVariableTag(metadata={
+                            'function': function_address
+                        })}
+                    else:
+                        tags = None
+
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
-                    self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data, tags=tags)
 
     def _handle_LoadG(self, stmt):
         guard: DataSet = self._expr(stmt.guard)

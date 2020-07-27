@@ -8,10 +8,14 @@ class Tag:
     def __repr__(self):
         return "<%s {Metadata: %s}>" % (self.__class__.__name__, self.metadata)
 
-
 class ParameterTag(Tag):
     """
     A tag for a definition of a parameter.
+    """
+
+class LocalVariableTag(Tag):
+    """
+    A tag for a definiton of a local variable of a function.
     """
 
 class ReturnValueTag(Tag):
