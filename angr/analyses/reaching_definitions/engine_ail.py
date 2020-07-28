@@ -6,7 +6,6 @@ import ailment
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
-from ...sim_variable import SimRegisterVariable, SimStackVariable
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet

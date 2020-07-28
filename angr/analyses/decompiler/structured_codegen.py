@@ -538,6 +538,14 @@ class CFunctionCall(CStatement, CExpression):
         self.tags = tags
         self.is_expr = is_expr
 
+    @property
+    def type(self):
+        if self.is_expr:
+            # TODO: Return the proper type of the ret_expr's
+            return SimTypeInt(signed=False)
+        else:
+            raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+
     def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)

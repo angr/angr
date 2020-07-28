@@ -170,7 +170,7 @@ class AILSimplifier(Analysis):
 
                     if isinstance(eq.atom0, Register):
                         src = eq.atom0
-                        dst = eq.atom1
+                        dst = call
                     else:
                         continue
 
@@ -256,7 +256,7 @@ class AILSimplifier(Analysis):
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
 
-        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-args
+        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
             raise HasCallNotification()
 
         walker = AILBlockWalker()

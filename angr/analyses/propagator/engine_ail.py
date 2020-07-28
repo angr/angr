@@ -1,11 +1,11 @@
-
+# pylint:disable=arguments-differ
 import logging
 
 from ailment import Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
-from ...sim_variable import SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimStackVariable
 from .engine_base import SimEnginePropagatorBase
 from .values import Top
 
@@ -179,7 +179,7 @@ class SimEnginePropagatorAIL(
 
         return expr
 
-    def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call):
+    def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call):  # pylint:disable=useless-return
         _ = self._expr(expr_stmt.target)
 
         if expr_stmt.args:

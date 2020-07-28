@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ
 from typing import Optional, TYPE_CHECKING
 import logging
 
