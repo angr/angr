@@ -846,6 +846,16 @@ def test_indirect_jump_to_outside():
     nose.tools.assert_equal(len(list(cfg.functions[0x404ee4].blocks)), 3)
     nose.tools.assert_equal(set(ep.addr for ep in cfg.functions[0x404ee4].endpoints), { 0x404f00, 0x404f08 })
 
+def test_generate_special_info():
+
+    path = os.path.join(test_location, "mipsel", "fauxware")
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast()
+
+    nose.tools.assert_true(any(func.info for func in cfg.functions.values()))
+    nose.tools.assert_equal(cfg.functions['main'].info['gp'], 0x418ca0)
+
 
 def run_all():
 
@@ -887,6 +897,7 @@ def run_all():
     test_function_leading_blocks_merging()
     test_cfg_with_patches()
     test_indirect_jump_to_outside()
+    test_generate_special_info()
 
 
 def main():

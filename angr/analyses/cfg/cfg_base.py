@@ -1407,6 +1407,11 @@ class CFGBase(Analysis):
             if node.addr in blockaddr_to_function:
                 node.function_address = blockaddr_to_function[node.addr].addr
 
+        # Update function.info
+        for func in self.kb.functions.values():
+            if func.addr in tmp_functions:
+                func.info = tmp_functions[func.addr].info
+
     def _remove_dummy_plt_stubs(self, functions):
 
         def _is_function_a_plt_stub(arch_, func):
