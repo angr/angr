@@ -1,6 +1,6 @@
 # pylint: disable=wildcard-import
 
-__version__ = (8, 20, 7, 6)
+__version__ = (8, 20, 7, 27)
 
 if bytes is str:
     raise Exception("""
