@@ -179,7 +179,7 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt, arg_loc):
+    def _resolve_stack_argument(self, call_stmt, arg_loc):  # pylint:disable=unused-argument
 
         size = arg_loc.size
         offset = arg_loc.stack_offset
@@ -194,7 +194,8 @@ class CallSiteMaker(Analysis):
                          self.project.arch.memory_endness,
                          )
 
-    def _get_call_target(self, stmt):
+    @staticmethod
+    def _get_call_target(stmt):
         """
 
         :param Stmt.Call stmt:

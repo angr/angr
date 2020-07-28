@@ -1,4 +1,4 @@
-# pylint:disable=unused-import
+# pylint:disable=too-many-boolean-expressions
 import logging
 
 from ailment.statement import Assignment, ConditionalJump
@@ -182,7 +182,7 @@ class BlockSimplifier(Analysis):
 
         statements = [ ]
         any_update = False
-        for idx, stmt in enumerate(block.statements):
+        for stmt in block.statements:
             if isinstance(stmt, ConditionalJump):
                 new_stmt = self._peephole_optimize_ConditionalJump(stmt)
                 if new_stmt is not stmt:

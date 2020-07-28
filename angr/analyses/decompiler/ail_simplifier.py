@@ -1,4 +1,4 @@
-from typing import Set, Dict, Any
+from typing import Set, Dict
 from collections import defaultdict
 
 from ailment.block import Block
@@ -143,7 +143,7 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         continue
-                    elif isinstance(stmt, Call):
+                    if isinstance(stmt, Call):
                         # the return expr is not used. it should not have return expr
                         stmt = stmt.copy()
                         stmt.ret_expr = None
