@@ -22,9 +22,9 @@ class InsnAndNodeObserveTestingUtils():
     @staticmethod
     def assert_for_live_definitions(assertion, live_definition_1, live_definition_2):
         list(map(
-            lambda attr: {\
-                assertion(getattr(live_definition_1, attr),\
-                          getattr(live_definition_2, attr))\
+            lambda attr: {
+                assertion(getattr(live_definition_1, attr),
+                          getattr(live_definition_2, attr))
             },
             ["register_definitions", "stack_definitions", "memory_definitions", "tmp_definitions"]
         ))
@@ -53,7 +53,7 @@ class InsnAndNodeObserveTestingUtils():
         )
 
         state = ReachingDefinitionsState(
-           project.arch, reaching_definitions.subject, project.loader
+           project.arch, reaching_definitions.subject
         )
 
         return (project, main_function, reaching_definitions, state)
@@ -79,7 +79,7 @@ class TestReachingDefinitions(TestCase):
     def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
         reaching_definition = project.analyses.ReachingDefinitions(
-            subject=function, kb=tmp_kb, observe_all=True
+            subject=function, kb=tmp_kb, observe_all=True, call_stack=[],
         )
 
         result = _extract_result(reaching_definition)
@@ -95,9 +95,9 @@ class TestReachingDefinitions(TestCase):
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
             unsorted_result = map(
-                lambda x: {'key': x[0],\
-                           'register_definitions': x[1].register_definitions._storage,\
-                           'stack_definitions': x[1].stack_definitions._storage,\
+                lambda x: {'key': x[0],
+                           'register_definitions': x[1].register_definitions._storage,
+                           'stack_definitions': x[1].stack_definitions._storage,
                            'memory_definitions': x[1].memory_definitions._storage},
                 rda.observed_results.items()
             )
@@ -421,7 +421,7 @@ class TestReachingDefinitions(TestCase):
         main = cfg.functions['main']
 
         project.analyses.CompleteCallingConventions(recover_variables=True)
-        rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False)
+        rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, call_stack=[])
 
         # 4007ae
         # rsi and rdi are all used by authenticate()
