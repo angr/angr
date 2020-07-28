@@ -36,7 +36,7 @@ class PositionMappingElement:
         return self.start <= offset < self.start + self.length
 
     def __repr__(self):
-        return "<%d-%d: %s>" % (self.start, self.start + self.length, self.obj.c_repr())
+        return "<%d-%d: %s>" % (self.start, self.start + self.length, self.obj)
 
 
 class PositionMapping:
@@ -500,9 +500,9 @@ class CFunctionCall(CStatement):
     :ivar Function callee_func:  The function getting called.
     """
 
-    __slots__ = ('callee_target', 'callee_func', 'args', 'returning', 'ret_expr', )
+    __slots__ = ('callee_target', 'callee_func', 'args', 'returning', 'ret_expr', 'tags', )
 
-    def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None):
+    def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None, tags=None):
         super().__init__()
 
         self.callee_target = callee_target
@@ -510,6 +510,7 @@ class CFunctionCall(CStatement):
         self.args = args if args is not None else [ ]
         self.returning = returning
         self.ret_expr = ret_expr
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -833,9 +834,9 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ('op', 'lhs', 'rhs', 'variable', )
+    __slots__ = ('op', 'lhs', 'rhs', 'variable', 'tags', )
 
-    def __init__(self, op, lhs, rhs, variable):
+    def __init__(self, op, lhs, rhs, variable, tags: Optional[dict]=None):
 
         super().__init__()
 
@@ -843,6 +844,7 @@ class CBinaryOp(CExpression):
         self.lhs = lhs
         self.rhs = rhs
         self.variable = variable
+        self.tags = tags
 
     @property
     def type(self):
@@ -952,32 +954,32 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks_cmple(self):
         yield from self._try_c_repr_chunks(self.lhs)
-        yield " <= ", None
+        yield " <= ", self
         yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_cmplt(self):
         yield from self._try_c_repr_chunks(self.lhs)
-        yield " < ", None
+        yield " < ", self
         yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_cmpgt(self):
         yield from self._try_c_repr_chunks(self.lhs)
-        yield " > ", None
+        yield " > ", self
         yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_cmpge(self):
         yield from self._try_c_repr_chunks(self.lhs)
-        yield " >= ", None
+        yield " >= ", self
         yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_cmpeq(self):
         yield from self._try_c_repr_chunks(self.lhs)
-        yield " == ", None
+        yield " == ", self
         yield from self._try_c_repr_chunks(self.rhs)
 
     def _c_repr_chunks_cmpne(self):
         yield from self._try_c_repr_chunks(self.lhs)
-        yield " != ", None
+        yield " != ", self
         yield from self._try_c_repr_chunks(self.rhs)
 
 
@@ -1462,6 +1464,7 @@ class StructuredCodeGenerator(Analysis):
         return CFunctionCall(target, target_func, args,
                              returning=target_func.returning if target_func is not None else True,
                              ret_expr=ret_expr,
+                             tags=stmt.tags,
                              )
 
     def _handle_Stmt_Jump(self, stmt):
@@ -1523,6 +1526,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CBinaryOp(expr.op, lhs, rhs,
                          variable=self._handle(expr.variable) if expr.variable is not None else None,
+                         tags=expr.tags,
                          )
 
     def _handle_Expr_Convert(self, expr):
