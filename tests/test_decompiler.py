@@ -265,7 +265,8 @@ def test_decompiling_1after999():
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(s_78, &s_58, 0x40);" in code
+        assert "strncmp(s_78, &s_58, 0x40)" in code
+        assert "strncmp(s_78, &s_58, 0x40);" not in code, "Call expressions folding failed for strncmp()"
         print(code)
     else:
         print("Failed to decompile function %r." % f)

@@ -12,29 +12,39 @@ from ...analyses.propagator.propagator import Equivalence
 from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import Analysis, AnalysesHub
+from .ailblock_walker import AILBlockWalker
+
+
+class HasCallNotification(Exception):
+    pass
 
 
 class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
     """
-    def __init__(self, func, func_graph=None, remove_dead_memdefs=False, reaching_definitions=None):
+    def __init__(self, func, func_graph=None, remove_dead_memdefs=False, unify_variables=False,
+                 reaching_definitions=None):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = reaching_definitions
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._unify_vars = unify_variables
 
+        self._calls_to_remove: Set[CodeLocation] = set()
         self.blocks = {}  # Mapping nodes to simplified blocks
 
         self._simplify()
 
     def _simplify(self):
 
-        self._unify_variables()
+        if self._unify_vars:
+            self._unify_register_and_stack_variables()
+            self._fold_call_exprs()
         self._remove_dead_assignments()
 
-    def _unify_variables(self):
+    def _unify_register_and_stack_variables(self):
 
         # find variables that are definitely equivalent and then eliminate the unnecessary copies
         prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
@@ -43,11 +53,20 @@ class AILSimplifier(Analysis):
 
         addr2block: Dict[int, Block] = { }
         for block in self.func_graph.nodes():
-            addr2block[block.addr] = block
+            if block in self.blocks:
+                addr2block[block.addr] = self.blocks[block]
+            else:
+                addr2block[block.addr] = block
 
-        # for now, we focus on unifying registers and stack variables
         for eq in prop.equivalence:
             eq: Equivalence
+
+            # Acceptable equivalence classes:
+            #
+            # stack variable == register
+            # stack variable == Conv(register, M->N)
+            #
+            the_def = None
             if isinstance(eq.atom0, SimStackVariable):
                 if isinstance(eq.atom1, Register):
                     # stack_var == register
@@ -59,7 +78,6 @@ class AILSimplifier(Analysis):
                     continue
 
                 # find the definition of this register
-                the_def = None
                 defs = self._reaching_definitions.all_uses.get_uses_by_location(eq.codeloc)
                 for def_ in defs:
                     def_: Definition
@@ -90,19 +108,91 @@ class AILSimplifier(Analysis):
 
                     # if there is an update block, use that
                     the_block = self.blocks.get(old_block, old_block)
-
                     stmt: Statement = the_block.statements[u.stmt_idx]
 
                     # create the memory loading expression
                     stackvar = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
                                     endness=self.project.arch.memory_endness)
+                    self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, eq.atom1, stackvar)
 
-                    replaced, new_stmt = stmt.replace(eq.atom1, stackvar)
+    def _fold_call_exprs(self):
+
+        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        if not prop.equivalence:
+            return
+
+        addr2block: Dict[int, Block] = { }
+        for block in self.func_graph.nodes():
+            if block in self.blocks:
+                addr2block[block.addr] = self.blocks[block]
+            else:
+                addr2block[block.addr] = block
+
+        for eq in prop.equivalence:
+            eq: Equivalence
+
+            # register variable == Call
+            if isinstance(eq.atom0, Register):
+                if isinstance(eq.atom1, Call):
+                    # register variable = Call
+                    call = eq.atom1
+                else:
+                    continue
+
+                # find the definition of this register
+                defs = [ d for d in self._reaching_definitions.all_definitions
+                         if d.codeloc == eq.codeloc
+                         and isinstance(d.atom, atoms.Register)
+                         and d.atom.reg_offset == eq.atom0.reg_offset
+                         ]
+                if not defs or len(defs) > 1:
+                    continue
+                the_def = defs[0]
+
+                # find all uses of this definition
+                all_uses: Set[CodeLocation] = self._reaching_definitions.all_uses.get_uses(the_def)
+
+                if len(all_uses) > 1:
+                    continue
+
+                # replace all uses
+                for u in all_uses:
+                    if u == eq.codeloc:
+                        # skip the very initial assignment location
+                        continue
+                    old_block = addr2block.get(u.block_addr, None)
+                    if old_block is None:
+                        continue
+
+                    # if there is an update block, use that
+                    the_block = self.blocks.get(old_block, old_block)
+                    stmt: Statement = the_block.statements[u.stmt_idx]
+
+                    if isinstance(eq.atom0, Register):
+                        src = eq.atom0
+                        dst = eq.atom1
+                    else:
+                        continue
+
+                    replaced = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, src, dst)
+
                     if replaced:
-                        new_block = the_block.copy()
-                        new_block.statements = the_block.statements[::]
-                        new_block.statements[u.stmt_idx] = new_stmt
-                        self.blocks[old_block] = new_block
+                        # this call has been folded to the use site. we can remove this call.
+                        self._calls_to_remove.add(eq.codeloc)
+
+    def _replace_expr_and_update_block(self, block, stmt_idx, stmt, the_def, src_expr, dst_expr) -> bool:
+        replaced, new_stmt = stmt.replace(src_expr, dst_expr)
+        if replaced:
+            new_block = block.copy()
+            new_block.statements = block.statements[::]
+            new_block.statements[stmt_idx] = new_stmt
+            self.blocks[block] = new_block
+
+            # update the uses
+            self._reaching_definitions.all_uses.remove_uses(the_def)
+            return True
+
+        return False
 
     def _remove_dead_assignments(self):
 
@@ -142,8 +232,14 @@ class AILSimplifier(Analysis):
                 if idx in stmts_to_remove:
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
-                        continue
-                    if isinstance(stmt, Call):
+                        # if this statement triggers a call, it should not be removed
+                        if not self._statement_has_call_exprs(stmt):
+                            continue
+                    elif isinstance(stmt, Call):
+                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                        if codeloc in self._calls_to_remove:
+                            # this call can be removed
+                            continue
                         # the return expr is not used. it should not have return expr
                         stmt = stmt.copy()
                         stmt.ret_expr = None
@@ -156,6 +252,21 @@ class AILSimplifier(Analysis):
             new_block = block.copy()
             new_block.statements = new_statements
             self.blocks[old_block] = new_block
+
+    @staticmethod
+    def _statement_has_call_exprs(stmt: Statement) -> bool:
+
+        def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-args
+            raise HasCallNotification()
+
+        walker = AILBlockWalker()
+        walker.expr_handlers[Call] = _handle_callexpr
+        try:
+            walker.walk_statement(stmt)
+        except HasCallNotification:
+            return True
+
+        return False
 
 
 AnalysesHub.register_default("AILSimplifier", AILSimplifier)

@@ -517,7 +517,7 @@ class ConditionProcessor:
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
-                                  ailment.Expr.ITE)):
+                                  ailment.Expr.ITE, ailment.Stmt.Call)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
             self._condition_mapping[var] = condition
             return var
