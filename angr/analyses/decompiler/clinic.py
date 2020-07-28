@@ -31,10 +31,6 @@ class Clinic(Analysis):
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
                  ):
-
-        # Delayed import
-        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import,import-outside-toplevel
-
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
 

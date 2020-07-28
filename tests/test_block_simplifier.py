@@ -103,7 +103,7 @@ def test_simplify_dead_assign_1():
 
 
 if __name__ == '__main__':
-    logging.getLogger('ailment.analyses.block_simplifier').setLevel(logging.DEBUG)
+    logging.getLogger('angr.analyses.decompiler.block_simplifier').setLevel(logging.DEBUG)
     test_simplify_pointless_assign()
     test_simplify_dead_assign_0()
     test_simplify_dead_assign_1()
