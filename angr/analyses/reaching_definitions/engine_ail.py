@@ -149,7 +149,10 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
             self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
-    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False):
+    def _ail_handle_Call(self, stmt: ailment.Stmt.Call):
+        self._handle_Call_base(stmt, is_expr=False)
+
+    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool=False):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
@@ -271,7 +274,7 @@ class SimEngineRDAIL(
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
-        self._ail_handle_Call(expr, is_expr=True)
+        self._handle_Call_base(expr, is_expr=True)
         return DataSet(undefined, expr.bits)
 
     def _ail_handle_Register(self, expr):
