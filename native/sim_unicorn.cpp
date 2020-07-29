@@ -1699,8 +1699,13 @@ public:
 		}
 		else {
 			// Mark register as symbolic in the state
-			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
-				symbolic_registers.emplace(reg_offset + i);
+			if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
+				symbolic_registers.emplace(reg_offset);
+			}
+			else {
+				for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+					symbolic_registers.emplace(reg_offset + i);
+				}
 			}
 		}
 		return;
@@ -1722,8 +1727,13 @@ public:
 			block_symbolic_registers.erase(reg_offset);
 		}
 		else {
-			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
-				symbolic_registers.erase(reg_offset + i);
+			if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
+				symbolic_registers.erase(reg_offset);
+			}
+			else {
+				for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+					symbolic_registers.erase(reg_offset + i);
+				}
 			}
 		}
 		return;
