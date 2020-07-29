@@ -58,8 +58,17 @@ class Assignment(Statement):
 
     def replace(self, old_expr, new_expr):
 
-        r_dst, replaced_dst = self.dst.replace(old_expr, new_expr)
-        r_src, replaced_src = self.src.replace(old_expr, new_expr)
+        if self.dst.likes(old_expr):
+            r_dst = True
+            replaced_dst = new_expr
+        else:
+            r_dst, replaced_dst = self.dst.replace(old_expr, new_expr)
+
+        if self.src.likes(old_expr):
+            r_src = True
+            replaced_src = new_expr
+        else:
+            r_src, replaced_src = self.src.replace(old_expr, new_expr)
 
         if r_dst or r_src:
             return True, Assignment(self.idx, replaced_dst, replaced_src, **self.tags)
