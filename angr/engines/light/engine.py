@@ -653,12 +653,12 @@ class SimEngineLightAILMixin:
             expr_type_name += "Expr"
 
         h = None
-        handler = "_handle_%s" % type(expr).__name__
+        handler = "_handle_%s" % expr_type_name
         if hasattr(self, handler):
             h = getattr(self, handler)
 
         if h is None:
-            handler = "_ail_handle_%s" % type(expr).__name__
+            handler = "_ail_handle_%s" % expr_type_name
             if hasattr(self, handler):
                 h = getattr(self, handler)
 

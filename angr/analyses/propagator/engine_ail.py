@@ -43,6 +43,9 @@ class SimEnginePropagatorAIL(
 
         elif type(dst) is Expr.Register:
             self.state.store_variable(dst, src)
+            if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
+                # set equivalence
+                self.state.add_equivalence(self._codeloc(), dst, stmt.src)
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -187,7 +190,7 @@ class SimEnginePropagatorAIL(
                 _ = self._expr(arg)
 
         # ignore ret_expr
-        return None
+        return expr_stmt
 
     def _ail_handle_CmpLE(self, expr):
         operand_0 = self._expr(expr.operands[0])

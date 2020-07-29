@@ -1,4 +1,4 @@
-from typing import Set, Dict
+from typing import Set, Dict, List
 from collections import defaultdict
 
 from ailment.block import Block
@@ -40,23 +40,21 @@ class AILSimplifier(Analysis):
     def _simplify(self):
 
         if self._unify_vars:
-            self._unify_register_and_stack_variables()
+            self._unify_local_variables()
             self._fold_call_exprs()
         self._remove_dead_assignments()
 
-    def _unify_register_and_stack_variables(self):
-
-        # find variables that are definitely equivalent and then eliminate the unnecessary copies
+    def _unify_local_variables(self):
+        """
+        Find variables that are definitely equivalent and then eliminate the unnecessary copies.
+        """
         prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
         if not prop.equivalence:
             return
 
         addr2block: Dict[int, Block] = { }
         for block in self.func_graph.nodes():
-            if block in self.blocks:
-                addr2block[block.addr] = self.blocks[block]
-            else:
-                addr2block[block.addr] = block
+            addr2block[block.addr] = block
 
         for eq in prop.equivalence:
             eq: Equivalence
@@ -64,6 +62,7 @@ class AILSimplifier(Analysis):
             # Acceptable equivalence classes:
             #
             # stack variable == register
+            # register variable == register
             # stack variable == Conv(register, M->N)
             #
             the_def = None
@@ -77,45 +76,74 @@ class AILSimplifier(Analysis):
                 else:
                     continue
 
-                # find the definition of this register
-                defs = self._reaching_definitions.all_uses.get_uses_by_location(eq.codeloc)
-                for def_ in defs:
-                    def_: Definition
-                    if isinstance(def_.atom, atoms.Register) and def_.atom.reg_offset == reg.reg_offset:
-                        # found it!
-                        the_def = def_
-                        break
-
-                if the_def is None:
-                    continue
-                if isinstance(the_def.codeloc, ExternalCodeLocation):
+            elif isinstance(eq.atom0, Register):
+                if isinstance(eq.atom1, Register):
+                    # register == register
+                    reg = eq.atom1
+                else:
                     continue
 
-                # find all uses of this definition
-                all_uses: Set[CodeLocation] = self._reaching_definitions.all_uses.get_uses(the_def)
+            else:
+                continue
 
-                # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
-                # TODO: re-assigned of a new value. Perform this check.
+            # find the definition of this register
+            defs = self._reaching_definitions.all_uses.get_uses_by_location(eq.codeloc)
+            for def_ in defs:
+                def_: Definition
+                if isinstance(def_.atom, atoms.Register) and def_.atom.reg_offset == reg.reg_offset:
+                    # found it!
+                    the_def = def_
+                    break
 
-                # replace all uses
-                for u in all_uses:
-                    if u == eq.codeloc:
-                        # skip the very initial assignment location
-                        continue
-                    old_block = addr2block.get(u.block_addr, None)
-                    if old_block is None:
-                        continue
+            if the_def is None:
+                continue
+            if isinstance(the_def.codeloc, ExternalCodeLocation):
+                continue
 
-                    # if there is an update block, use that
-                    the_block = self.blocks.get(old_block, old_block)
-                    stmt: Statement = the_block.statements[u.stmt_idx]
+            # find all uses of this definition
+            all_uses: Set[CodeLocation] = self._reaching_definitions.all_uses.get_uses(the_def)
 
+            # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
+            # TODO: re-assigned of a new value. Perform this check.
+
+            # replace all uses
+            for u in all_uses:
+                if u == eq.codeloc:
+                    # skip the very initial assignment location
+                    continue
+                old_block = addr2block.get(u.block_addr, None)
+                if old_block is None:
+                    continue
+
+                # if there is an updated block, use it
+                the_block = self.blocks.get(old_block, old_block)
+                stmt: Statement = the_block.statements[u.stmt_idx]
+
+                if isinstance(eq.atom0, SimStackVariable):
                     # create the memory loading expression
-                    stackvar = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
-                                    endness=self.project.arch.memory_endness)
-                    self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, eq.atom1, stackvar)
+                    dst = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
+                               endness=self.project.arch.memory_endness)
+                elif isinstance(eq.atom0, Register):
+                    dst = eq.atom0
+                else:
+                    raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
+
+                self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, eq.atom1, dst)
 
     def _fold_call_exprs(self):
+        """
+        Fold a call expression (statement) into other statements if the return value of the call expression (statement)
+        is only used once, and the use site and the call site belongs to the same supernode.
+
+        Example::
+
+            s0 = func();
+            if (s0) ...
+
+        after folding, it will be transformed to::
+
+            if (func()) ...
+        """
 
         prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
         if not prop.equivalence:
@@ -123,10 +151,7 @@ class AILSimplifier(Analysis):
 
         addr2block: Dict[int, Block] = { }
         for block in self.func_graph.nodes():
-            if block in self.blocks:
-                addr2block[block.addr] = self.blocks[block]
-            else:
-                addr2block[block.addr] = block
+            addr2block[block.addr] = block
 
         for eq in prop.equivalence:
             eq: Equivalence
@@ -147,38 +172,61 @@ class AILSimplifier(Analysis):
                          ]
                 if not defs or len(defs) > 1:
                     continue
-                the_def = defs[0]
+                the_def: Definition = defs[0]
 
                 # find all uses of this definition
                 all_uses: Set[CodeLocation] = self._reaching_definitions.all_uses.get_uses(the_def)
 
-                if len(all_uses) > 1:
+                if len(all_uses) != 1:
+                    continue
+                u = next(iter(all_uses))
+
+                # check if the use and the definition is within the same supernode
+                super_node_blocks = self._get_super_node_blocks(addr2block[the_def.codeloc.block_addr])
+                if u.block_addr not in set(b.addr for b in super_node_blocks):
                     continue
 
                 # replace all uses
-                for u in all_uses:
-                    if u == eq.codeloc:
-                        # skip the very initial assignment location
-                        continue
-                    old_block = addr2block.get(u.block_addr, None)
-                    if old_block is None:
-                        continue
+                old_block = addr2block.get(u.block_addr, None)
+                if old_block is None:
+                    continue
 
-                    # if there is an update block, use that
-                    the_block = self.blocks.get(old_block, old_block)
-                    stmt: Statement = the_block.statements[u.stmt_idx]
+                # if there is an updated block, use that
+                the_block = self.blocks.get(old_block, old_block)
+                stmt: Statement = the_block.statements[u.stmt_idx]
 
-                    if isinstance(eq.atom0, Register):
-                        src = eq.atom0
-                        dst = call
-                    else:
-                        continue
+                if isinstance(eq.atom0, Register):
+                    src = eq.atom0
+                    dst = call
+                else:
+                    continue
 
-                    replaced = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, src, dst)
+                replaced = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, src, dst)
 
-                    if replaced:
-                        # this call has been folded to the use site. we can remove this call.
-                        self._calls_to_remove.add(eq.codeloc)
+                if replaced:
+                    # this call has been folded to the use site. we can remove this call.
+                    self._calls_to_remove.add(eq.codeloc)
+
+    def _get_super_node_blocks(self, start_node: Block) -> List[Block]:
+
+        lst: List[Block] = [ start_node ]
+        while True:
+            b = lst[-1]
+            successors = list(self.func_graph.successors(b))
+            if len(successors) == 0:
+                break
+            if len(successors) == 1:
+                succ = successors[0]
+                # check its predecessors
+                succ_predecessors = list(self.func_graph.predecessors(succ))
+                if len(succ_predecessors) == 1:
+                    lst.append(succ)
+                else:
+                    break
+            else:
+                # too many successors
+                break
+        return lst
 
     def _replace_expr_and_update_block(self, block, stmt_idx, stmt, the_def, src_expr, dst_expr) -> bool:
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
