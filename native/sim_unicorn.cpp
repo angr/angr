@@ -444,6 +444,7 @@ public:
 		}
 		arch = *((uc_arch*)uc); // unicorn hides all its internals...
 		mode = *((uc_mode*)((uc_arch*)uc + 1));
+		block_details.reset();
 	}
 
 	/*
