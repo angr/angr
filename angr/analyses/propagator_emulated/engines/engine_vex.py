@@ -16,9 +16,15 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
         result = super()._handle_vex_expr(expr)
         ### Only save the constant if it is not touched by the stack
         code_loc = CodeLocation(self.irsb.addr, self.stmt_idx, block_id=self.state.globals['block_id'])
-        if not(issubclass(type(result[0]), claripy.ast.base.Base) and len(result[0].annotations) != 0 and isinstance(result[0].annotations[0], StackTouchedAnnotation)):
+        stack_touched = False
+        for annotation in result[0].annotations:
+            if isinstance(annotation, StackTouchedAnnotation):
+                stack_touched = True
+                break
+
+        if not(isinstance(result[0], claripy.ast.base.Base) and stack_touched):
             ### Check if the result is not symbolic and not already a constant(in which case there is no need to replace)
-            if not self.state.solver.symbolic(result[0]) and not(type(expr) == pyvex.expr.Const):
+            if not self.state.solver.symbolic(result[0]) and not(isinstance(expr, pyvex.expr.Const)):
                 const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))
                 self.state.globals['abstract_state'].add_replacement(code_loc, expr, pyvex.expr.Const(const_class(self.state.solver.eval(result[0]))))
             ### Check if the result is symbolic now, but was constant in some previous iteration and put in the replacements. If so then remove the replacement
