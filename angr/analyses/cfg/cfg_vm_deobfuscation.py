@@ -1063,6 +1063,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         return self._node_addr_visiting_order.index(job.addr)
 
+    def is_annotation_touched(self, expr, annotation_type):
+        for annotation in expr.annotations:
+            if isinstance(annotation, annotation_type):
+                return True
+        return False
+
     def save_vm_vpc(self, state):
         # Save the vm program counter to state and use it in _pre_job_handling
         l.debug("Modifying vm_vpc...... ")
@@ -1081,12 +1087,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(VMProgramCounterAnnotation(1))
 
     def annotate_vm_instruction(self, state):
-        if len(state.inspect.mem_read_address.annotations) != 0 and isinstance((state.inspect.mem_read_address.annotations[0]), VMProgramCounterAnnotation):
+        if len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, VMProgramCounterAnnotation):
             self.vm_instruction_addresses.append(state.inspect.mem_read_address)
             state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(VMInstructionAnnotation(1))
 
     def annotate_stack_read_value(self, state):
-        if len(state.inspect.mem_read_address.annotations) != 0 and isinstance((state.inspect.mem_read_address.annotations[0]), StackPointerAnnotation):
+        if len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, StackPointerAnnotation):
             state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(StackTouchedAnnotation(1))
 
     def unroll_loops_by_renaming(self, state):
