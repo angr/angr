@@ -162,8 +162,12 @@ class VMDeobfuscation(Analysis):
 
     ####### Adding breakpoints
         def annotate_stack_read_value(state):
-            if len(state.inspect.mem_read_address.annotations) != 0 and isinstance(
-                    (state.inspect.mem_read_address.annotations[0]), StackPointerAnnotation):
+            is_stack_touched = False
+            for annotation in state.inspect.mem_read_address.annotations:
+                if isinstance(annotation, StackTouchedAnnotation):
+                    is_stack_touched = True
+                    break
+            if is_stack_touched:
                 state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(StackTouchedAnnotation(1))
 
         initial_input_state.inspect.add_breakpoint('mem_read',
@@ -367,7 +371,13 @@ class VMDeobfuscation(Analysis):
                         ### Reassigning the next expression of the previous
                         if not pred.is_simprocedure:
                             cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
-                            pred.irsb.next = node.irsb.next
+                            if isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
+                                if pred.irsb.statements[-1].dst.value == node.irsb.addr:
+                                    pred.irsb.statements[-1].dst = node.irsb.next.con
+                                else:
+                                    pred.irsb.next = node.irsb.next
+                            else:
+                                pred.irsb.next = node.irsb.next
                             to_remove = True
                         else:
                             print("Not removing this block, since there the previous block is a Sim Procedure")
