@@ -211,6 +211,31 @@ class CStatement(CConstruct):  # pylint:disable=abstract-method
     __slots__ = ()
 
 
+class CExpression:
+    """
+    Base class for C expressions.
+    """
+
+    __slots__ = ('_type', )
+
+    def __init__(self):
+        self._type = None
+
+    @property
+    def type(self):
+        raise NotImplementedError("Class %s does not implement type()." % type(self))
+
+    def set_type(self, v):
+        self._type = v
+
+    @staticmethod
+    def _try_c_repr_chunks(expr):
+        if hasattr(expr, 'c_repr_chunks'):
+            yield from expr.c_repr_chunks()
+        else:
+            yield str(expr), None
+
+
 class CStatements(CStatement):
     """
     Represents a sequence of statements in C.
@@ -493,16 +518,16 @@ class CAssignment(CStatement):
         yield ";\n", None
 
 
-class CFunctionCall(CStatement):
+class CFunctionCall(CStatement, CExpression):
     """
     func(arg0, arg1)
 
     :ivar Function callee_func:  The function getting called.
     """
 
-    __slots__ = ('callee_target', 'callee_func', 'args', 'returning', 'ret_expr', 'tags', )
+    __slots__ = ('callee_target', 'callee_func', 'args', 'returning', 'ret_expr', 'tags', 'is_expr', )
 
-    def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None, tags=None):
+    def __init__(self, callee_target, callee_func, args, returning=True, ret_expr=None, tags=None, is_expr: bool=False):
         super().__init__()
 
         self.callee_target = callee_target
@@ -511,6 +536,15 @@ class CFunctionCall(CStatement):
         self.returning = returning
         self.ret_expr = ret_expr
         self.tags = tags
+        self.is_expr = is_expr
+
+    @property
+    def type(self):
+        if self.is_expr:
+            # TODO: Return the proper type of the ret_expr's
+            return SimTypeInt(signed=False)
+        else:
+            raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def c_repr_chunks(self, indent=0):
 
@@ -518,7 +552,7 @@ class CFunctionCall(CStatement):
 
         yield indent_str, None
 
-        if self.ret_expr is not None:
+        if not self.is_expr and self.ret_expr is not None:
             yield from CExpression._try_c_repr_chunks(self.ret_expr)
             yield " = ", None
 
@@ -538,12 +572,13 @@ class CFunctionCall(CStatement):
                 yield ", ", None
             yield from CExpression._try_c_repr_chunks(arg)
 
-        yield ");", None
+        yield ")", None
 
-        if not self.returning:
-            yield " /* do not return */", None
-
-        yield "\n",  None
+        if not self.is_expr:
+            yield ";", None
+            if not self.returning:
+                yield " /* do not return */", None
+            yield "\n",  None
 
 
 class CReturn(CStatement):
@@ -607,31 +642,6 @@ class CUnsupportedStatement(CStatement):
         yield indent_str, None
         yield str(self.stmt), None
         yield "\n", None
-
-
-class CExpression:
-    """
-    Base class for C expressions.
-    """
-
-    __slots__ = ('_type', )
-
-    def __init__(self):
-        self._type = None
-
-    @property
-    def type(self):
-        raise NotImplementedError("Class %s does not implement type()." % type(self))
-
-    def set_type(self, v):
-        self._type = v
-
-    @staticmethod
-    def _try_c_repr_chunks(expr):
-        if hasattr(expr, 'c_repr_chunks'):
-            yield from expr.c_repr_chunks()
-        else:
-            yield str(expr), None
 
 
 class CStructField(CExpression):
@@ -1255,22 +1265,25 @@ class StructuredCodeGenerator(Analysis):
     # Handlers
     #
 
-    def _handle(self, node):
+    def _handle(self, node, is_expr: bool=True):
         handler = self._handlers.get(node.__class__, None)
         if handler is not None:
+            # special case for Call
+            if isinstance(node, Stmt.Call):
+                return handler(node, is_expr=is_expr)
             return handler(node)
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
     def _handle_Code(self, node):
 
-        return self._handle(node.node)
+        return self._handle(node.node, is_expr=False)
 
     def _handle_Sequence(self, seq):
 
         lines = [ ]
 
         for node in seq.nodes:
-            lines.append(self._handle(node))
+            lines.append(self._handle(node, is_expr=False))
 
         if not lines:
             return CStatements([])
@@ -1281,11 +1294,11 @@ class StructuredCodeGenerator(Analysis):
 
         if loop_node.sort == 'while':
             return CWhileLoop(None if loop_node.condition is None else self._handle(loop_node.condition),
-                              self._handle(loop_node.sequence_node)
+                              self._handle(loop_node.sequence_node, is_expr=False)
                               )
         elif loop_node.sort == 'do-while':
             return CDoWhileLoop(self._handle(loop_node.condition),
-                                self._handle(loop_node.sequence_node)
+                                self._handle(loop_node.sequence_node, is_expr=False)
                                 )
 
         else:
@@ -1294,8 +1307,10 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Condition(self, condition_node):
 
         code = CIfElse(self._handle(condition_node.condition),
-                       true_node=self._handle(condition_node.true_node) if condition_node.true_node else None,
-                       false_node=self._handle(condition_node.false_node) if condition_node.false_node else None,
+                       true_node=self._handle(condition_node.true_node, is_expr=False)
+                                 if condition_node.true_node else None,
+                       false_node=self._handle(condition_node.false_node, is_expr=False)
+                                  if condition_node.false_node else None,
                        )
         return code
 
@@ -1312,7 +1327,7 @@ class StructuredCodeGenerator(Analysis):
         lines = [ ]
 
         for n in node.nodes:
-            r = self._handle(n)
+            r = self._handle(n, is_expr=False)
             lines.append(r)
 
         return CStatements(lines) if len(lines) > 1 else lines[0]
@@ -1325,8 +1340,8 @@ class StructuredCodeGenerator(Analysis):
         """
 
         switch_expr = self._handle(node.switch_expr)
-        cases = [ (idx, self._handle(case)) for idx, case in node.cases.items() ]
-        default = self._handle(node.default_node) if node.default_node is not None else None
+        cases = [ (idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items() ]
+        default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         switch_case = CSwitchCase(switch_expr, cases, default=default)
         return switch_case
 
@@ -1345,7 +1360,7 @@ class StructuredCodeGenerator(Analysis):
         cstmts = [ ]
         for stmt in node.statements:
             try:
-                cstmt = self._handle(stmt)
+                cstmt = self._handle(stmt, is_expr=False)
             except UnsupportedNodeTypeError:
                 l.warning("Unsupported AIL statement or expression %s.", type(stmt), exc_info=True)
                 cstmt = CUnsupportedStatement(stmt)
@@ -1409,7 +1424,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CAssignment(cdst, csrc)
 
-    def _handle_Stmt_Call(self, stmt):
+    def _handle_Stmt_Call(self, stmt, is_expr: bool=False):
 
         try:
             # Try to handle it as a normal function call
@@ -1465,6 +1480,7 @@ class StructuredCodeGenerator(Analysis):
                              returning=target_func.returning if target_func is not None else True,
                              ret_expr=ret_expr,
                              tags=stmt.tags,
+                             is_expr=is_expr,
                              )
 
     def _handle_Stmt_Jump(self, stmt):

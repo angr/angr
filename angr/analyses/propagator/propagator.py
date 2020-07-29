@@ -160,7 +160,7 @@ class Equivalence:
         self.atom1 = atom1
 
     def __repr__(self):
-        return "<EqRelation: %r==%r@%r>" % (self.atom0, self.atom1, self.codeloc)
+        return "<Eq@%r: %r==%r>" % (self.codeloc, self.atom0, self.atom1)
 
     def __eq__(self, other):
         return type(other) is Equivalence \

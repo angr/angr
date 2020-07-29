@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ
 from typing import Optional, TYPE_CHECKING
 import logging
 
@@ -62,7 +63,7 @@ class SimEngineVRAIL(
     def _ail_handle_ConditionalJump(self, stmt):
         self._expr(stmt.condition)
 
-    def _ail_handle_Call(self, stmt):
+    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False):
         target = stmt.target
         args = [ ]
         if stmt.args:
@@ -72,17 +73,20 @@ class SimEngineVRAIL(
                 self._reference_spoffset = False
                 args.append(richr)
 
-        ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
-        if ret_expr is not None:
-            ret_reg_offset = ret_expr.reg_offset
-        else:
-            if stmt.calling_convention is not None:
-                # return value
-                ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
+        ret_expr = None
+        ret_reg_offset = None
+        if not is_expr:
+            ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
+            if ret_expr is not None:
+                ret_reg_offset = ret_expr.reg_offset
             else:
-                l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
-                ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
-            ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
+                if stmt.calling_convention is not None:
+                    # return value
+                    ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
+                else:
+                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
+                    ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
+                ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
@@ -118,6 +122,9 @@ class SimEngineVRAIL(
                     arg_ty, arg.typevar
                 )
                 self.state.add_type_constraint(type_constraint)
+
+    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
+        return self._ail_handle_Call(expr, is_expr=True)
 
     # Expression handlers
 

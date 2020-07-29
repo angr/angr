@@ -250,7 +250,7 @@ def test_decompiling_switch2_x86_64():
         assert False
 
 
-def test_decompiling_1after999():
+def test_decompiling_1after909():
 
     # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
 
@@ -265,7 +265,8 @@ def test_decompiling_1after999():
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(s_78, &s_58, 0x40);" in code
+        assert "strncmp(s_78, &s_58, 0x40)" in code
+        assert "strncmp(s_78, &s_58, 0x40);" not in code, "Call expressions folding failed for strncmp()"
         print(code)
     else:
         print("Failed to decompile function %r." % f)
@@ -376,6 +377,32 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     lines = code.split("\n")
     assert "local_strcat(char* a0, char* a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
+
+
+def test_decompilation_call_expr_folding():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func_0 = cfg.functions['strlen_should_fold']
+    dec = p.analyses.Decompiler(func_0, cfg=cfg)
+    code = dec.codegen.text
+    print(code)
+    assert "s_428 = (int)strlen(&s_418);" in code, "The result of strlen() should be directly assigned to a stack " \
+                                                   "variable because of call-expression folding."
+
+    func_1 = cfg.functions['strlen_should_not_fold']
+    dec = p.analyses.Decompiler(func_1, cfg=cfg)
+    code = dec.codegen.text
+    print(code)
+    assert code.count("strlen(") == 1
+
+    func_2 = cfg.functions['strlen_should_not_fold_into_loop']
+    dec = p.analyses.Decompiler(func_2, cfg=cfg)
+    code = dec.codegen.text
+    print(code)
+    assert code.count("strlen(") == 1
 
 
 if __name__ == "__main__":

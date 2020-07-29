@@ -149,7 +149,10 @@ class SimEngineRDAIL(
             self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
             self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
 
-    def _ail_handle_Call(self, stmt):
+    def _ail_handle_Call(self, stmt: ailment.Stmt.Call):
+        self._handle_Call_base(stmt, is_expr=False)
+
+    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool=False):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
@@ -183,7 +186,6 @@ class SimEngineRDAIL(
             cc = self.project.factory.cc()
 
         killed_vars = [ Register(*self.arch.registers[reg_name]) for reg_name in cc.CALLER_SAVED_REGS ]
-        return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
 
         # Add uses
         if used_exprs is None:
@@ -191,8 +193,23 @@ class SimEngineRDAIL(
         for expr in used_exprs:
             self._expr(expr)
 
-        # Return value is redefined here, so it is not a dummy value
-        self.state.kill_definitions(Register(return_reg_offset, return_reg_size), self._codeloc(), dummy=False)
+        # Add definition
+        return_reg_offset = None
+        if not is_expr:
+            if stmt.ret_expr is not None:
+                if isinstance(stmt.ret_expr, ailment.Expr.Register):
+                    return_reg_offset = stmt.ret_expr.reg_offset
+                    return_reg_size = stmt.ret_expr.size
+                    self.state.kill_and_add_definition(Register(return_reg_offset, return_reg_size), self._codeloc(),
+                                                       None)
+                else:
+                    l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
+
+            else:
+                # Return value is redefined here, so it is not a dummy value
+                return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+                self.state.kill_definitions(Register(return_reg_offset, return_reg_size), self._codeloc(), dummy=False)
+
         # Kill those ones that should be killed
         for var in killed_vars:
             if var.reg_offset == return_reg_offset:
@@ -255,6 +272,10 @@ class SimEngineRDAIL(
         self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
 
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
+
+    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
+        self._handle_Call_base(expr, is_expr=True)
+        return DataSet(undefined, expr.bits)
 
     def _ail_handle_Register(self, expr):
 

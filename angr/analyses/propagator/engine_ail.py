@@ -1,4 +1,4 @@
-
+# pylint:disable=arguments-differ
 import logging
 
 from ailment import Stmt, Expr
@@ -43,6 +43,9 @@ class SimEnginePropagatorAIL(
 
         elif type(dst) is Expr.Register:
             self.state.store_variable(dst, src)
+            if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
+                # set equivalence
+                self.state.add_equivalence(self._codeloc(), dst, stmt.src)
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -51,12 +54,12 @@ class SimEnginePropagatorAIL(
         data = self._expr(stmt.data)
 
         if isinstance(addr, Expr.StackBaseOffset):
-            # Storing data to a stack variable
-            self.state.store_stack_variable(addr, data.bits // 8, data, endness=stmt.endness)
-
-            # set equivalence
-            var = SimStackVariable(addr.offset, data.bits // 8)
-            self.state.add_equivalence(self._codeloc(), var, stmt.data)
+            if data is not None:
+                # Storing data to a stack variable
+                self.state.store_stack_variable(addr, data.bits // 8, data, endness=stmt.endness)
+                # set equivalence
+                var = SimStackVariable(addr.offset, data.bits // 8)
+                self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -69,12 +72,17 @@ class SimEnginePropagatorAIL(
                                    new_jump_stmt,
                                    )
 
-    def _ail_handle_Call(self, stmt):
-        _ = self._expr(stmt.target)
+    def _ail_handle_Call(self, expr_stmt: Stmt.Call):
+        _ = self._expr(expr_stmt.target)
 
-        if stmt.args:
-            for arg in stmt.args:
+        if expr_stmt.args:
+            for arg in expr_stmt.args:
                 _ = self._expr(arg)
+
+        if expr_stmt.ret_expr:
+            # it has a return expression. awesome - treat it as an assignment
+            # set equivalence
+            self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
 
     def _ail_handle_ConditionalJump(self, stmt):
         _ = self._expr(stmt.condition)
@@ -173,6 +181,16 @@ class SimEnginePropagatorAIL(
         iffalse = self._expr(expr.iffalse)  # pylint:disable=unused-variable
 
         return expr
+
+    def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call):  # pylint:disable=useless-return
+        _ = self._expr(expr_stmt.target)
+
+        if expr_stmt.args:
+            for arg in expr_stmt.args:
+                _ = self._expr(arg)
+
+        # ignore ret_expr
+        return expr_stmt
 
     def _ail_handle_CmpLE(self, expr):
         operand_0 = self._expr(expr.operands[0])

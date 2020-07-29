@@ -43,8 +43,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
     def __init__(self, subject: [Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=3,
                  track_tmps=False, observation_points=None, init_state: ReachingDefinitionsState=None, cc=None,
-                 function_handler=None, call_stack=None, maximum_local_call_depth=5, observe_all=False,
-                 visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None):
+                 function_handler=None, call_stack: Optional[List[int]]=None, maximum_local_call_depth=5,
+                 observe_all=False, visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
@@ -62,8 +62,11 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param FunctionHandler function_handler:
                                                 The function handler to update the analysis state and results on
                                                 function calls.
-        :param call_stack:                      An ordered list of Functions representing the call stack leading to the
-                                                analysed subject, from older to newer calls.
+        :param call_stack:                      An ordered list of Function addresses representing the call stack
+                                                leading to the analysed subject, from older to newer calls. Setting it
+                                                to None to limit the analysis to a single function and disable call
+                                                stack tracking; In that case, all contexts in CodeLocation will be
+                                                empty.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
         :param Boolean observe_all:             Observe every statement, both before and after.
         :param visited_blocks:                  A set of previously visited blocks.
@@ -93,7 +96,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         else:
             self._function_handler = function_handler.hook(self)
 
-        self._call_stack: List[int] = self._init_call_stack(call_stack or [], subject)
+        self._call_stack: List[int] = [ ]
+        if call_stack is not None:
+            self._call_stack = self._init_call_stack(call_stack, subject)
 
         if self._init_state is not None:
             self._init_state = self._init_state.copy()

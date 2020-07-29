@@ -646,9 +646,24 @@ class SimEngineLightAILMixin:
 
     def _expr(self, expr):
 
-        handler = "_ail_handle_%s" % type(expr).__name__
+        expr_type_name = type(expr).__name__
+        if isinstance(expr, ailment.Stmt.Call):
+            # Call can be both an expression and a statement. Add a suffix to make sure we are working on the expression
+            # variant.
+            expr_type_name += "Expr"
+
+        h = None
+        handler = "_handle_%s" % expr_type_name
         if hasattr(self, handler):
-            return getattr(self, handler)(expr)
+            h = getattr(self, handler)
+
+        if h is None:
+            handler = "_ail_handle_%s" % expr_type_name
+            if hasattr(self, handler):
+                h = getattr(self, handler)
+
+        if h is not None:
+            return h(expr)
         self.l.warning('Unsupported expression type %s.', type(expr).__name__)
         return None
 
@@ -700,6 +715,9 @@ class SimEngineLightAILMixin:
 
     def _ail_handle_Load(self, expr):
         raise NotImplementedError('Please implement the Load handler with your own logic.')
+
+    def _ail_handle_CallExpr(self, expr):
+        raise NotImplementedError('Please implement the CallExpr handler with your own logic.')
 
     def _ail_handle_UnaryOp(self, expr):
         handler_name = '_ail_handle_%s' % expr.op

@@ -1,8 +1,10 @@
-
-from typing import Dict, Set
+from typing import Dict, Set, TYPE_CHECKING
 from collections import defaultdict
 
 from ...code_location import CodeLocation
+
+if TYPE_CHECKING:
+    from .definition import Definition
 
 
 class Uses:
@@ -10,8 +12,8 @@ class Uses:
     __slots__ = ('_uses_by_definition', '_uses_by_location' )
 
     def __init__(self):
-        self._uses_by_definition: Dict = defaultdict(set)
-        self._uses_by_location: Dict[CodeLocation, Set] = defaultdict(set)
+        self._uses_by_definition: Dict['Definition',Set[CodeLocation]] = defaultdict(set)
+        self._uses_by_location: Dict[CodeLocation, Set['Definition']] = defaultdict(set)
 
     def add_use(self, definition, codeloc: CodeLocation):
         """
@@ -23,14 +25,27 @@ class Uses:
         self._uses_by_definition[definition].add(codeloc)
         self._uses_by_location[codeloc].add(definition)
 
-    def get_uses(self, definition):
+    def get_uses(self, definition: 'Definition'):
         """
         Retrieve the uses of a given definition.
 
-        :param angr.analyses.reaching_definitions.definition.Definition definition: The definition for which we get the
-                                                                                    uses.
+        :param definition: The definition for which we get the uses.
         """
         return self._uses_by_definition.get(definition, set())
+
+    def remove_uses(self, definition: 'Definition'):
+        """
+        Remove all uses of a given definition.
+
+        :param definition:  The definition of which to remove the uses.
+        :return:            None
+        """
+        if definition in self._uses_by_definition:
+            codelocs = self._uses_by_definition[definition]
+            del self._uses_by_definition[definition]
+
+            for codeloc in codelocs:
+                self._uses_by_location[codeloc].remove(definition)
 
     def get_uses_by_location(self, codeloc: CodeLocation) -> Set:
         """

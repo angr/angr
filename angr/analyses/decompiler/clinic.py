@@ -115,7 +115,7 @@ class Clinic(Analysis):
         ail_graph = self._simplify_blocks(stack_pointer_tracker=spt)
 
         # Simplify the entire function for the first time
-        self._simplify_function(ail_graph)
+        self._simplify_function(ail_graph, unify_variables=False)
 
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
@@ -125,7 +125,9 @@ class Clinic(Analysis):
         self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the second time
-        self._simplify_function(ail_graph)
+        # TODO: Simplify until reaching a fixed point instead of calling _simplify_function() twice.
+        self._simplify_function(ail_graph, unify_variables=True)
+        self._simplify_function(ail_graph, unify_variables=True)
 
         # Make function arguments
         arg_list = self._make_argument_list()
@@ -235,7 +237,7 @@ class Clinic(Analysis):
         return simp.result_block
 
     @timethis
-    def _simplify_function(self, ail_graph):
+    def _simplify_function(self, ail_graph, unify_variables=False):
         """
         Simplify the entire function.
 
@@ -250,7 +252,8 @@ class Clinic(Analysis):
             self.function,
             func_graph=ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
-            reaching_definitions=rd
+            reaching_definitions=rd,
+            unify_variables=unify_variables,
         )
 
         def _handler(node):
@@ -444,13 +447,16 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.condition)
 
             elif stmt_type is ailment.Stmt.Call:
-                if stmt.args:
-                    for arg in stmt.args:
-                        self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
-                                                     arg)
-                if stmt.ret_expr:
-                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
-                                                 stmt.ret_expr)
+                self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False)
+
+    def _link_variables_on_call(self, variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False):
+        if stmt.args:
+            for arg in stmt.args:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             arg)
+        if not is_expr and stmt.ret_expr:
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                         stmt.ret_expr)
 
     def _link_variables_on_expr(self, variable_manager, global_variables, block, stmt_idx, stmt, expr):
         """
@@ -523,6 +529,9 @@ class Clinic(Analysis):
                 var = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = 0
+
+        elif isinstance(expr, ailment.Stmt.Call):
+            self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
 
     def _function_graph_to_ail_graph(self, func_graph):
 

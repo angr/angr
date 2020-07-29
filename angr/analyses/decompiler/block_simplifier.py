@@ -1,7 +1,7 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
 
-from ailment.statement import Assignment, ConditionalJump
+from ailment.statement import Assignment, ConditionalJump, Call
 from ailment.expression import Expression, Convert, Tmp, Register, Load, BinaryOp, UnaryOp, Const, ITE
 
 from ...engines.light.data import SpOffset
@@ -88,7 +88,12 @@ class BlockSimplifier(Analysis):
                     new_stmt = new
                 else:
                     # replace the expressions involved in this statement
-                    r, new_stmt = stmt.replace(old, new)
+                    if isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
+                        # special case: do not replace the ret_expr of a call statement to another call statement
+                        r = False
+                        new_stmt = None
+                    else:
+                        r, new_stmt = stmt.replace(old, new)
 
                 if r:
                     new_statements[codeloc.stmt_idx] = new_stmt

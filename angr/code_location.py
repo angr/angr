@@ -1,3 +1,5 @@
+from typing import Optional, Dict
+
 
 class CodeLocation:
     """
@@ -23,7 +25,7 @@ class CodeLocation:
         self.sim_procedure = sim_procedure
         self.ins_addr = ins_addr
 
-        self.info = { }
+        self.info: Optional[Dict] = None
 
         self._store_kwargs(**kwargs)
 
@@ -66,17 +68,27 @@ class CodeLocation:
         """
         Check if self is the same as other.
         """
-        return type(self) is type(other) and self.block_addr == other.block_addr and \
-               self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure and \
-               self.info.get('context', None) == other.info.get('context', None)
+        if type(self) is type(other) and self.block_addr == other.block_addr and \
+               self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure:
+            # compare context
+            ctx0 = self.info.get('context', None)
+            ctx1 = other.info.get('context', None)
+            if not ctx0 and not ctx1:
+                return True
+            return ctx0 == ctx1
+        return False
 
     def __hash__(self):
         """
         returns the hash value of self.
         """
         context = self.info.get('context', None)
+        if not context:
+            context = None
         return hash((self.block_addr, self.stmt_idx, self.sim_procedure, context))
 
     def _store_kwargs(self, **kwargs):
+        if self.info is None:
+            self.info = { }
         for k, v in kwargs.items():
             self.info[k] = v
