@@ -735,6 +735,8 @@ public:
 		block_details.reset();
 		block_concrete_dependencies.clear();
 		instr_slice_details_map.clear();
+		mem_reads_map.clear();
+		mem_writes_taint_map.clear();
 		return;
 	}
 
@@ -1104,11 +1106,9 @@ public:
 		}
 		else {
 			address_t instr_addr = get_instruction_pointer();
-			auto instr_taint_entry = block_taint_cache.at(block_details.block_addr).block_instrs_taint_data_map.at(instr_addr);
 			auto mem_writes_taint_map_entry = mem_writes_taint_map.find(instr_addr);
 			if (mem_writes_taint_map_entry != mem_writes_taint_map.end()) {
 				is_dst_symbolic = mem_writes_taint_map_entry->second;
-				mem_writes_taint_map.erase(instr_addr);
 			}
 			// We did not find a memory write at this instruction when processing the VEX statements.
 			// This likely means unicorn reported the current PC register value wrong.
@@ -1893,18 +1893,23 @@ public:
 					stop(STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
-				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
-					if (mem_writes_taint_map.find(taint_sink.instr_addr) != mem_writes_taint_map.end()) {
-						// Multiple memory writes in same instruction, one of which is symbolic. Stop execution.
+				auto mem_writes_taint_entry = mem_writes_taint_map.find(taint_sink.instr_addr);
+				if (mem_writes_taint_entry != mem_writes_taint_map.end()) {
+					bool is_curr_write_symbolic = (sink_taint_status == TAINT_STATUS_SYMBOLIC) ? true: false;
+					if (is_curr_write_symbolic != mem_writes_taint_entry->second) {
+						// Current write value and previous write value have different taint status.
+						// Since we cannot compute exact addresses modified, stop concrete execution.
 						stop(STOP_MULTIPLE_MEMORY_WRITES);
 						return;
 					}
+				}
+				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 					// Save the memory location written to be marked as symbolic in write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
 					// Mark instruction as needing symbolic execution
 					is_instr_symbolic = true;
 				}
-				else if (mem_writes_taint_map.find(taint_sink.instr_addr) == mem_writes_taint_map.end()) {
+				else {
 					// Save the memory location(s) written to be marked as concrete in the write hook
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
 				}
@@ -2176,10 +2181,23 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		mem_read_result.is_value_symbolic = false;
 		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
 	}
-	state->mem_reads_map[curr_instr_addr] = mem_read_result;
-	state->propagate_taint_of_mem_read_instr(curr_instr_addr);
-	if (!state->stopped) {
-		state->continue_propagating_taint();
+	auto mem_reads_map_entry = state->mem_reads_map.find(curr_instr_addr);
+	if (mem_reads_map_entry == state->mem_reads_map.end()) {
+		// Propagate taint if this is a memory read not encountered before.
+		// Reads from XMM registers trigger multiple memory read hooks so
+		// we should propagate taint only in first hook
+		state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
+		state->propagate_taint_of_mem_read_instr(curr_instr_addr);
+		if (!state->stopped) {
+			state->continue_propagating_taint();
+		}
+	}
+	else if (mem_reads_map_entry->second.is_value_symbolic != mem_read_result.is_value_symbolic) {
+		// The taint of previous memory read is different from taint of current memory read.
+		// We stop concrete execution since we already propagated taint based on previous read.
+		// Additionally, currently cannot determine exact memory address of taint source when
+		// propagating taint and so we cannot fix any incorrect propagation.
+		stop(STOP_MULTIPLE_MEMORY_READS);
 	}
 	return;
 }
