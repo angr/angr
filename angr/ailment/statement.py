@@ -1,5 +1,10 @@
+from typing import Optional, TYPE_CHECKING
 
 from .tagged_object import TaggedObject
+from .expression import Expression
+
+if TYPE_CHECKING:
+    from angr.calling_conventions import SimCC
 
 
 class Statement(TaggedObject):
@@ -7,12 +12,8 @@ class Statement(TaggedObject):
     The base class of all AIL statements.
     """
 
-    __slots__ = ('idx', )
-
     def __init__(self, idx, **kwargs):
-        super(Statement, self).__init__(**kwargs)
-
-        self.idx = idx
+        super(Statement, self).__init__(idx, **kwargs)
 
     def __repr__(self):
         raise NotImplementedError()
@@ -106,8 +107,18 @@ class Store(Statement):
                                         "" if self.guard is None else "[%s]" % self.guard)
 
     def replace(self, old_expr, new_expr):
-        r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
-        r_data, replaced_data = self.data.replace(old_expr, new_expr)
+        if self.addr.likes(old_expr):
+            r_addr = True
+            replaced_addr = new_expr
+        else:
+            r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
+
+        if self.data.likes(old_expr):
+            r_data = True
+            replaced_data = new_expr
+        else:
+            r_data, replaced_data = self.data.replace(old_expr, new_expr)
+
         if self.guard is not None:
             r_guard, replaced_guard = self.guard.replace(old_expr, new_expr)
         else:
@@ -203,12 +214,17 @@ class ConditionalJump(Statement):
             return False, self
 
 
-class Call(Statement):
+class Call(Expression, Statement):
+    """
+    Call is both an expression and a statement. The return expression of a call is defined as the ret_expr if and only
+    if the callee function has one return expression.
+    """
 
     __slots__ = ('target', 'calling_convention', 'prototype', 'args', 'ret_expr', )
 
-    def __init__(self, idx, target, calling_convention=None, prototype=None, args=None, ret_expr=None, **kwargs):
-        super(Call, self).__init__(idx, **kwargs)
+    def __init__(self, idx, target, calling_convention: Optional['SimCC']=None, prototype=None, args=None, ret_expr=None,
+                 **kwargs):
+        super().__init__(idx, **kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
@@ -235,7 +251,11 @@ class Call(Statement):
 
         cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
         if self.args is None:
-            s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention, self.calling_convention.arg_locs())
+            if self.calling_convention is not None:
+                s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention,
+                                                                           self.calling_convention.arg_locs())
+            else:
+                s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
             s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention, self.args)
 
@@ -243,6 +263,18 @@ class Call(Statement):
             self.target,
             s
         )
+
+    @property
+    def bits(self):
+        return self.ret_expr.bits
+
+    @property
+    def verbose_op(self):
+        return "call"
+
+    @property
+    def op(self):
+        return "call"
 
     def replace(self, old_expr, new_expr):
         r0, replaced_target = self.target.replace(old_expr, new_expr)

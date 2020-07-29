@@ -5,7 +5,7 @@ from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.vex.claripy.irop import vexop_to_simop
 
 from .block import Block
-from .statement import Assignment, Store, Jump, ConditionalJump, Call, DirtyStatement, Return
+from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
 from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
 
 l = logging.getLogger(name=__name__)

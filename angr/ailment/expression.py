@@ -7,11 +7,10 @@ class Expression(TaggedObject):
     The base class of all AIL expressions.
     """
 
-    __slots__ = ('idx', )
+    __slots__ = ()
 
     def __init__(self, idx, **kwargs):
-        super(Expression, self).__init__(**kwargs)
-        self.idx = idx
+        super(Expression, self).__init__(idx, **kwargs)
 
     def __repr__(self):
         raise NotImplementedError()
@@ -243,7 +242,11 @@ class Convert(UnaryOp):
         return hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
 
     def replace(self, old_expr, new_expr):
-        r, replaced_operand = self.operand.replace(old_expr, new_expr)
+        if self.operand.likes(old_expr):
+            r = True
+            replaced_operand = new_expr
+        else:
+            r, replaced_operand = self.operand.replace(old_expr, new_expr)
 
         if r:
             return True, Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, replaced_operand, **self.tags)
