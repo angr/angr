@@ -1796,13 +1796,6 @@ public:
 				taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 				break;
 			}
-			if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
-				// There are no symbolic registers so no taint to propagate. Mark any memory writes as concrete.
-				if (curr_instr_taint_entry.has_memory_write) {
-					mem_writes_taint_map.emplace(curr_instr_addr, false);
-				}
-				continue;
-			}
 			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
 			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 				if (block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
