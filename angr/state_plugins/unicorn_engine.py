@@ -1060,7 +1060,7 @@ class Unicorn(SimStatePlugin):
         _UC_NATIVE.set_vex_offset_to_register_size_mapping(self._uc_state, vex_reg_offsets_array, vex_reg_sizes_array, len(vex_reg_offsets_array))
 
         # Initial VEX to unicorn mappings for flag register
-        if self.state.arch.name in ('x86', 'AMD64'):
+        if self.state.arch.name in ('X86', 'AMD64'):
             cpu_flags_vex_names = [('d', 10), ('ac', 18), ('id', 21)]
             unicorn_flag_register = unicorn.x86_const.UC_X86_REG_EFLAGS
         else:
