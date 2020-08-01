@@ -109,7 +109,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                 # Execute handler from HeavyVEXMixin for the statement
                 vex_stmt = vex_block.statements[vex_stmt_idx]
                 if vex_stmt.tag not in ignored_statement_tags:
-                    self.stmt_idx = vex_stmt_idx
+                    self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
                     super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
 
         del self.stmt_idx
@@ -238,6 +238,6 @@ class SimEngineUnicorn(SuccessorsMixin):
         successors.description = description
         successors.processed = True
 
-from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, TaintEntityEnum, unicorn as uc_module
+from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 from .. import sim_options as o
 from ..misc.ux import once
