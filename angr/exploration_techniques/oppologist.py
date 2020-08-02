@@ -35,8 +35,8 @@ class Oppologist(ExplorationTechnique):
         pn.options.add(sim_options.UNICORN)
         pn.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
         pn.unicorn.max_steps = 1
-        pn.unicorn.countdown_symbolic_stop = 2
-        pn.unicorn.countdown_unsupported_stop = 2
+        pn.unicorn.countdown_symbolic_stop = 0
+        pn.unicorn.countdown_unsupported_stop = 0
         pn.unicorn.countdown_nonunicorn_blocks = 0
         pn.unicorn.countdown_stop_point = 0
         ss = simgr.successors(pn, throw=True, **kwargs)
