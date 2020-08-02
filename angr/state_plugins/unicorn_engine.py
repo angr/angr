@@ -1176,6 +1176,10 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason in STOP.unsupported_reasons:
             self.countdown_nonunicorn_blocks = 0
             self.countdown_unsupported_stop = self.cooldown_unsupported_stop
+        elif self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_READ, STOP.STOP_UNKNOWN_MEMORY_WRITE):
+            # Skip one block in case of unknown memory read/write
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_unsupported_stop = 2
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
