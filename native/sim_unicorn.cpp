@@ -2179,7 +2179,7 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	mem_read_result.address = address;
 	mem_read_result.size = size;
 	address_t curr_instr_addr = state->get_instruction_pointer();
-	if (curr_instr_addr != state->get_taint_engine_mem_read_stop_instruction()) {
+	if ((!state->is_symbolic_tracking_disabled()) && (curr_instr_addr != state->get_taint_engine_mem_read_stop_instruction())) {
 		// The instruction address unicorn reported is different from the expected value for memory read instruction.
 		// Also see https://github.com/unicorn-engine/unicorn/issues/1312.
 		state->stop(STOP_UNKNOWN_MEMORY_READ);
