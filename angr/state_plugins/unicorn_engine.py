@@ -112,6 +112,7 @@ class STOP:  # stop_t
     STOP_UNSUPPORTED_STMT_UNKNOWN = 26
     STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
     STOP_UNKNOWN_MEMORY_WRITE     = 28
+    STOP_UNKNOWN_MEMORY_READ      = 29
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
@@ -1117,7 +1118,7 @@ class Unicorn(SimStatePlugin):
         self.stopping_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
         self.stop_message = str(_UC_NATIVE.stop_message(self._uc_state), 'utf-8')
         if self.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
-          self.stop_reason == STOP.STOP_UNKNOWN_MEMORY_WRITE:
+          self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_READ, STOP.STOP_UNKNOWN_MEMORY_WRITE):
             self.stop_message += f". Block 0x{self.stopping_instr_block_details.block_addr:02x}(size: {self.stopping_instr_block_details.block_size})."
 
         # figure out why we stopped
