@@ -188,7 +188,7 @@ def test_unicorn_pickle():
         # try pickling out paths that went through unicorn
         s_unicorn = p.factory.entry_state(add_options=so.unicorn)
         s_unicorn.unicorn.countdown_nonunicorn_blocks = 0
-        s_unicorn.unicorn.countdown_symbolic_stop = 2
+        s_unicorn.unicorn.countdown_symbolic_stop = 0
         s_unicorn.unicorn.cooldown_nonunicorn_blocks = 0
         s_unicorn.unicorn.cooldown_symbolic_stop = 2
         return s_unicorn
