@@ -37,7 +37,7 @@ def test_stops():
     s_normal.unicorn.max_steps = 100
     pg_normal = p.factory.simulation_manager(s_normal).run()
     p_normal = pg_normal.one_deadended
-    _compare_trace(p_normal.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80484b6: 1 sat>', '<Unicorn (STOP_STOPPOINT after 8 steps) from 0x804844a: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
+    _compare_trace(p_normal.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_NORMAL after 100 steps) from 0x80485b5: 1 sat>', '<Unicorn (STOP_STOPPOINT after 12 steps) from 0x804846f: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
 
     s_normal_angr = p.factory.entry_state(args=['a'])
     pg_normal_angr = p.factory.simulation_manager(s_normal_angr).run()
@@ -49,22 +49,22 @@ def test_stops():
 
     # this address is right before/after the bb for the stop_normal() function ends
     # we should not stop there, since that code is never hit
-    stop_fake = [0x08048436, 0x08048457]
+    stop_fake = [0x0804847c, 0x08048454]
 
     # this is an address inside main that is not the beginning of a basic block. we should stop here
-    stop_in_bb = 0x08048511
-    stop_bb = 0x0804850c # basic block of the above address
+    stop_in_bb = 0x08048638
+    stop_bb = 0x08048633 # basic block of the above address
     pg_stoppoints = p.factory.simulation_manager(s_stoppoints).run(n=1, extra_stop_points=stop_fake + [stop_in_bb])
     nose.tools.assert_equal(len(pg_stoppoints.active), 1) # path should not branch
     p_stoppoints = pg_stoppoints.one_active
     nose.tools.assert_equal(p_stoppoints.addr, stop_bb) # should stop at bb before stop_in_bb
-    _compare_trace(p_stoppoints.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 107 steps) from 0x80484b6: 1 sat>'])
+    _compare_trace(p_stoppoints.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 111 steps) from 0x80485b5: 1 sat>'])
 
     # test STOP_SYMBOLIC
     s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
     pg_symbolic = p.factory.simulation_manager(s_symbolic).run()
     p_symbolic = pg_symbolic.one_deadended
-    _compare_trace(p_symbolic.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x8048457: 1 sat 3 unsat>', '<IRSB from 0x804848c: 1 sat>', '<IRSB from 0x80484e8: 1 sat>', '<IRSB from 0x804850c: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>'])
+    _compare_trace(p_symbolic.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x804848a: 1 sat 3 unsat>', '<IRSB from 0x80484bb: 1 sat>', '<IRSB from 0x80485f3: 1 sat>', '<IRSB from 0x8048633: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
 
     s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
     pg_symbolic_angr = p.factory.simulation_manager(s_symbolic_angr).run()
@@ -77,7 +77,7 @@ def test_stops():
     p_segfault = pg_segfault.errored[0].state
     # TODO: fix the permissions segfault to commit if it's a MEM_FETCH
     # this will extend the last simunicorn one more block
-    _compare_trace(p_segfault.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 2 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0xc000010: 1 sat>', '<Unicorn (STOP_STOPPOINT after 15 steps) from 0x8048520: 1 sat>', '<SimProcedure __libc_start_main from 0xc000020: 1 sat>', '<Unicorn (STOP_SEGFAULT after 3 steps) from 0x80484b6: 1 sat>', '<IRSB from 0x80484a6: 1 sat>'])
+    _compare_trace(p_segfault.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SEGFAULT after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x8048508: 1 sat>'])
 
     s_segfault_angr = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options={so.STRICT_PAGE_ACCESS, so.ENABLE_NX})
     pg_segfault_angr = p.factory.simulation_manager(s_segfault_angr).run()
@@ -234,11 +234,11 @@ def test_inspect():
 
     # test breaking on specific addresses
     s_break_addr = main_state(1)
-    addr0 = 0x08048454 # at the beginning of a basic block, at end of stop_normal function
-    addr1 = 0x080484c7 # this is at the beginning of main, in the middle of a basic block
-    addr2 = 0x0804843e # another non-bb address, at the start of stop_normal
-    addr3 = 0x08048457 # address of a block that should not get hit (stop_symbolc function)
-    addr4 = 0x0804850b # another address that shouldn't get hit, near end of main
+    addr0 = 0x08048479 # at the beginning of a basic block, at end of stop_normal function
+    addr1 = 0x080485d0 # this is at the beginning of main, in the middle of a basic block
+    addr2 = 0x08048461 # another non-bb address, at the start of stop_normal
+    addr3 = 0x0804847c # address of a block that should not get hit (stop_symbolc function)
+    addr4 = 0x08048632 # another address that shouldn't get hit, near end of main
     hits = { addr0 : 0, addr1: 0, addr2: 0, addr3: 0, addr4: 0 }
 
     def create_addr_action(addr):
@@ -276,7 +276,7 @@ def test_explore():
         main_addr = p.loader.find_symbol("main").rebased_addr
         return p.factory.call_state(main_addr, argc, [], add_options=add_options)
 
-    addr = 0x08048454
+    addr = 0x08048479
     s_explore = main_state(1)
     pg_explore_find = p.factory.simulation_manager(s_explore)
     pg_explore_find.explore(find=addr)
