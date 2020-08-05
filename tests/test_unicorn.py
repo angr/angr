@@ -61,16 +61,16 @@ def test_stops():
     nose.tools.assert_equal(p_stoppoints.addr, stop_bb) # should stop at bb before stop_in_bb
     _compare_trace(p_stoppoints.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 111 steps) from 0x80485b5: 1 sat>'])
 
-    # test STOP_SYMBOLIC
-    s_symbolic = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn)
-    pg_symbolic = p.factory.simulation_manager(s_symbolic).run()
-    p_symbolic = pg_symbolic.one_deadended
-    _compare_trace(p_symbolic.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SYMBOLIC_MEM after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x804848a: 1 sat 3 unsat>', '<IRSB from 0x80484bb: 1 sat>', '<IRSB from 0x80485f3: 1 sat>', '<IRSB from 0x8048633: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
+    # test STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED
+    s_symbolic_read_tracking_disabled = p.factory.entry_state(args=['a', 'a'], add_options=so.unicorn, remove_options={so.UNICORN_SYM_REGS_SUPPORT})
+    pg_symbolic_read_tracking_disabled = p.factory.simulation_manager(s_symbolic_read_tracking_disabled).run()
+    p_symbolic_read_tracking_disabled = pg_symbolic_read_tracking_disabled.one_deadended
+    _compare_trace(p_symbolic_read_tracking_disabled.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x804848a: 1 sat 3 unsat>', '<Unicorn (STOP_STOPPOINT after 3 steps) from 0x80484bb: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
 
-    s_symbolic_angr = p.factory.entry_state(args=['a', 'a'])
-    pg_symbolic_angr = p.factory.simulation_manager(s_symbolic_angr).run()
-    p_symbolic_angr = pg_symbolic_angr.one_deadended
-    nose.tools.assert_equal(p_symbolic_angr.history.bbl_addrs.hardcopy, p_symbolic.history.bbl_addrs.hardcopy)
+    s_symbolic_read_tracking_disabled_angr = p.factory.entry_state(args=['a', 'a'])
+    pg_symbolic_read_tracking_disabled_angr = p.factory.simulation_manager(s_symbolic_read_tracking_disabled_angr).run()
+    p_symbolic_read_tracking_disabled_angr = pg_symbolic_read_tracking_disabled_angr.one_deadended
+    nose.tools.assert_equal(p_symbolic_read_tracking_disabled_angr.history.bbl_addrs.hardcopy, p_symbolic_read_tracking_disabled.history.bbl_addrs.hardcopy)
 
     # test STOP_SEGFAULT
     s_segfault = p.factory.entry_state(args=['a', 'a', 'a', 'a', 'a', 'a', 'a'], add_options=so.unicorn | {so.STRICT_PAGE_ACCESS, so.ENABLE_NX})
@@ -85,6 +85,39 @@ def test_stops():
     p_segfault_angr = pg_segfault_angr.errored[0].state
     nose.tools.assert_equal(p_segfault_angr.history.bbl_addrs.hardcopy, p_segfault.history.bbl_addrs.hardcopy)
     nose.tools.assert_equal(pg_segfault_angr.errored[0].error.addr, pg_segfault.errored[0].error.addr)
+
+    # test STOP_SYMBOLIC_READ_ADDR
+    s_symbolic_read_addr = p.factory.entry_state(args=['a'] * 8, add_options=so.unicorn)
+    pg_symbolic_read_addr = p.factory.simulation_manager(s_symbolic_read_addr).run()
+    p_symbolic_read_addr = pg_symbolic_read_addr.one_deadended
+    _compare_trace(p_symbolic_read_addr.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_STOPPOINT after 10 steps) from 0x80485b5: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
+
+    s_symbolic_read_addr_angr = p.factory.entry_state(args=['a'] * 8)
+    pg_symbolic_read_addr_angr = p.factory.simulation_manager(s_symbolic_read_addr_angr).run()
+    p_symbolic_read_addr_angr = pg_symbolic_read_addr_angr.one_deadended
+    nose.tools.assert_equal(p_symbolic_read_addr_angr.history.bbl_addrs.hardcopy, p_symbolic_read_addr.history.bbl_addrs.hardcopy)
+
+    # test STOP_SYMBOLIC_WRITE_ADDR
+    s_symbolic_write_addr = p.factory.entry_state(args=['a'] * 9, add_options=so.unicorn)
+    pg_symbolic_write_addr = p.factory.simulation_manager(s_symbolic_write_addr).run()
+    p_symbolic_write_addr = pg_symbolic_write_addr.one_deadended
+    _compare_trace(p_symbolic_write_addr.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_STOPPOINT after 10 steps) from 0x80485b5: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
+
+    s_symbolic_write_addr_angr = p.factory.entry_state(args=['a'] * 9)
+    pg_symbolic_write_addr_angr = p.factory.simulation_manager(s_symbolic_write_addr_angr).run()
+    p_symbolic_write_addr_angr = pg_symbolic_write_addr_angr.one_deadended
+    nose.tools.assert_equal(p_symbolic_write_addr_angr.history.bbl_addrs.hardcopy, p_symbolic_write_addr.history.bbl_addrs.hardcopy)
+
+    # test STOP_SYMBOLIC_BLOCK_EXIT
+    s_symbolic_exit = p.factory.entry_state(args=['a'] * 10, add_options=so.unicorn)
+    pg_symbolic_exit = p.factory.simulation_manager(s_symbolic_exit).run()
+    p_symbolic_exit = pg_symbolic_exit.one_deadended
+    _compare_trace(p_symbolic_exit.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SYMBOLIC_BLOCK_EXIT_STMT after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x804855d: 2 sat 1 unsat>', '<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048587: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
+
+    s_symbolic_exit_angr = p.factory.entry_state(args=['a'] * 10)
+    pg_symbolic_exit_angr = p.factory.simulation_manager(s_symbolic_exit_angr).run()
+    p_symbolic_exit_angr = pg_symbolic_exit_angr.one_deadended
+    nose.tools.assert_equal(p_symbolic_exit_angr.history.bbl_addrs.hardcopy, p_symbolic_exit.history.bbl_addrs.hardcopy)
 
 def run_longinit(arch):
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', arch, 'longinit'))
