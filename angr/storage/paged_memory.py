@@ -724,7 +724,7 @@ class SimPagedMemory:
                     # Try to see if the bytes are equal
                     self_byte = self[c].bytes_at(c, 1)
                     other_byte = other[c].bytes_at(c, 1)
-                    if self_byte is not other_byte:
+                    if (self_byte == other_byte).is_false():
                         #l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
                         #        self_byte, other_byte,
                         #        self[c].object.model, other[c].object.model)

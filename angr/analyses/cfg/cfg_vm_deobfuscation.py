@@ -1078,7 +1078,11 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     def save_vm_vpc_from_reg(self, state):
         # Save the vm program counter to state and use it in _pre_job_handling
         l.debug("Modifying vm_vpc...... ")
-        state.globals['cur_vm_vpc'] = state.solver.eval_one(state.regs.ebx)
+        try:
+            state.globals['cur_vm_vpc'] = state.solver.eval_one(state.regs.ebx)
+        except:
+            ### Looks like the vm execution has finished and now it back to executing the regular program
+            print("Looks like the program counter has more than one value possible?!")
         l.debug("The value of PROGRAM COUNTER is: " + str(hex(state.globals.get('cur_vm_vpc'))))
 
     def annotate_vm_vpc(self, state):
@@ -1213,6 +1217,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     state.mem[state.mem[0x601098].uint64_t.resolved+0x110].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x110].byte.resolved.annotate(DataRegionAnnotation(1))
                     state.mem[state.mem[0x601098].uint64_t.resolved+0x145].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x145].byte.resolved.annotate(DataRegionAnnotation(1))
                     state.mem[state.mem[0x601098].uint64_t.resolved+0x146].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x146].byte.resolved.annotate(DataRegionAnnotation(1))
+                    state.mem[state.mem[0x601098].uint64_t.resolved+0x150].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x150].byte.resolved.annotate(DataRegionAnnotation(1))
                     for i in range(32):
                         state.mem[state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x111+ i].byte.resolved.annotate(DataRegionAnnotation(1))
                         state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte.resolved.annotate(DataRegionAnnotation(1))
