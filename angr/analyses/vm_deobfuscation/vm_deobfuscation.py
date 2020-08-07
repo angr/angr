@@ -128,7 +128,7 @@ class VMDeobfuscation(Analysis):
             start_state = proj.factory.blank_state(addr=start_addr,
                                                    add_options={angr.sim_options.REPLACEMENT_SOLVER,
                                                                   angr.sim_options.DO_CCALLS})
-        self.annotate_and_preconstrain_sp(start_state)
+        #self.annotate_and_preconstrain_sp(start_state)
 
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                         data_sensitive=True ,
@@ -191,8 +191,20 @@ class VMDeobfuscation(Analysis):
                     state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte.resolved.annotate(DataRegionAnnotation(1))
                 state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte = state.mem[
                     state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte.resolved.annotate(DataRegionAnnotation(1))
+            return
 
         initial_input_state.inspect.add_breakpoint('instruction', BP(BP_BEFORE, instruction=0x400896, action=annotate_data_region))
+
+        def preconstrain_return_value(state):
+            if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(state.inspect.simprocedure_result):
+                import ipdb;ipdb.set_trace()
+                value = state.solver.eval(state.inspect.simprocedure_result)
+                state.inspect.simprocedure_result = state.solver.BVS("return_val", 64)
+                state.preconstrainer.preconstrain(value, state.inspect.simprocedure_result)
+            return
+
+        ### preconstraining return values of library calls like malloc
+        initial_input_state.inspect.add_breakpoint('simprocedure', BP(BP_AFTER, action=preconstrain_return_value))
 
         ## annotating and preconstraining the stack pointer
         self.annotate_and_preconstrain_sp(initial_input_state)
