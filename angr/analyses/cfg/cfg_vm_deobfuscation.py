@@ -1224,7 +1224,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                 state.inspect.add_breakpoint('instruction',BP(BP_BEFORE, instruction=0x400896, action=annotate_data_region))
 
-
                 # Adding breakpoint to set the data offset: TEMPORARILY REMOVED THIS TO TEST A CTF CHALLENGE
                 # state.inspect.add_breakpoint('mem_write',
                 #                                  BP(
