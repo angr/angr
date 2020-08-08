@@ -1005,8 +1005,11 @@ class Unicorn(SimStatePlugin):
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = []
+        vex_reg_to_size_map = {}
         for reg_name in self.state.arch.artificial_registers:
-            artificial_regs_list.append(self.state.arch.get_register_offset(reg_name))
+            reg = self.state.arch.get_register_by_name(reg_name)
+            vex_reg_to_size_map[reg.vex_offset] = reg.size
+            artificial_regs_list.extend(range(reg.vex_offset, reg.vex_offset + reg.size))
 
         artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
         _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
@@ -1014,7 +1017,6 @@ class Unicorn(SimStatePlugin):
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
         vex_to_unicorn_map = {}
         vex_sub_reg_to_reg_map = {}
-        vex_reg_to_size_map = {}
         pc_reg_name = self.state.arch.get_register_by_name("pc")
         for reg_name, unicorn_reg_id in self.state.arch.uc_regs.items():
             if reg_name == pc_reg_name:

@@ -1698,7 +1698,7 @@ public:
 	}
 
 	inline void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level) {
-		if (!is_valid_dependency_register(reg_offset)) {
+		if (is_blacklisted_register(reg_offset)) {
 			return;
 		}
 		if (do_block_level) {
@@ -1727,7 +1727,7 @@ public:
 	}
 
 	inline void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level) {
-		if (!is_valid_dependency_register(reg_offset)) {
+		if (is_blacklisted_register(reg_offset)) {
 			return;
 		}
 		if (do_block_level) {
@@ -1750,6 +1750,10 @@ public:
 
 	inline bool is_valid_dependency_register(vex_reg_offset_t reg_offset) const {
 		return ((artificial_vex_registers.count(reg_offset) == 0) && (blacklisted_registers.count(reg_offset) == 0));
+	}
+
+	inline bool is_blacklisted_register(vex_reg_offset_t reg_offset) const {
+		return (blacklisted_registers.count(reg_offset) > 0);
 	}
 
 	inline bool is_symbolic_register(vex_reg_offset_t reg_offset) const {
