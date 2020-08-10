@@ -230,6 +230,10 @@ typedef struct instruction_taint_entry_t {
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
 
+	// List of registers modified by instruction and whether register's final value depends on
+	// it's previous value
+	std::vector<std::pair<vex_reg_offset_t, bool>> modified_regs;
+
 	bool has_memory_read;
 	bool has_memory_write;
 
@@ -244,6 +248,7 @@ typedef struct instruction_taint_entry_t {
 		dependencies_to_save.clear();
 		ite_cond_entity_list.clear();
 		taint_sink_src_map.clear();
+		modified_regs.clear();
 		has_memory_read = false;
 		has_memory_write = false;
 		return;
@@ -1226,10 +1231,13 @@ public:
 				{
 					taint_entity_t sink;
 					std::unordered_set<taint_entity_t> srcs, ite_cond_entity_list;
+					std::pair<vex_reg_offset_t, bool> modified_reg_data;
 
 					sink.entity_type = TAINT_ENTITY_REG;
 					sink.instr_addr = curr_instr_addr;
 					sink.reg_offset = stmt->Ist.Put.offset;
+					modified_reg_data.first = stmt->Ist.Put.offset;
+					modified_reg_data.second = false;
 					auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, curr_instr_addr, false);
 					if (result.has_unsupported_expr) {
 						block_taint_entry.has_unsupported_stmt_or_expr_type = true;
@@ -1245,12 +1253,22 @@ public:
 					auto dependencies_to_save = compute_dependencies_to_save(srcs);
 					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
 					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+					// Check if sink is also source of taint
+					if (dependencies_to_save.first.count(sink)) {
+						modified_reg_data.second = true;
+					}
 
 					// Store ITE condition entities and compute dependencies to save
 					instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 					dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
 					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
 					instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+					if (dependencies_to_save.first.count(sink)) {
+						modified_reg_data.second = true;
+					}
+					if ((modified_reg_data.first != arch_pc_reg_vex_offset()) && reg_instr_slice.count(modified_reg_data.first) != 0) {
+						instruction_taint_entry.modified_regs.emplace_back(modified_reg_data);
+					}
 					break;
 				}
 				case Ist_WrTmp:
@@ -1810,7 +1828,19 @@ public:
 				taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 				break;
 			}
+			if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
+				// There are no symbolic registers so no taint to propagate. Mark any memory writes
+				// as concrete and update slice of registers.
+				if (curr_instr_taint_entry.has_memory_write) {
+					mem_writes_taint_map.emplace(curr_instr_addr, false);
+				}
+				compute_slice_of_instrs(curr_instr_addr, curr_instr_taint_entry);
+				update_register_slice(curr_instr_addr, curr_instr_taint_entry);
+				continue;
+			}
+			compute_slice_of_instrs(curr_instr_addr, curr_instr_taint_entry);
 			propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
+			update_register_slice(curr_instr_addr, curr_instr_taint_entry);
 			if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
 				if (block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
 					// There are symbolic registers but VEX lift failed so we can't determine
@@ -1850,18 +1880,21 @@ public:
 		}
 
 		auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
-		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
-			if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+		auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
+		if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+			if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
 				// There are symbolic registers and/or memory read was symbolic and there are VEX
 				// statements in block for which taint propagation is not supported.
 				stop(block_taint_entry.unsupported_stmt_stop_reason);
 				return;
 			}
-		}
-		else {
-			auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
+			compute_slice_of_instrs(instr_addr, instr_taint_data_entry);
 			propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
 		}
+		if (instr_slice_details_map.count(instr_addr) == 0) {
+			compute_slice_of_instrs(instr_addr, instr_taint_data_entry);
+		}
+		update_register_slice(instr_addr, instr_taint_data_entry);
 		return;
 	}
 
@@ -1870,31 +1903,12 @@ public:
 		bool is_instr_symbolic;
 
 		is_instr_symbolic = false;
-		instr_details.instr_addr = instr_addr;
-		compute_slice_of_instrs(instr_addr, instr_taint_entry);
+		instr_details = compute_instr_details(instr_addr, instr_taint_entry);
 		if (instr_taint_entry.has_memory_read) {
 			auto mem_read_result = mem_reads_map.at(instr_addr);
-			if (!mem_read_result.is_value_symbolic) {
-				instr_details.memory_value.address = mem_read_result.address;
-				instr_details.memory_value.size = mem_read_result.size;
-				for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
-					instr_details.memory_value.value[i] = mem_read_result.value[i];
-				}
-				instr_details.has_memory_dep = true;
-			}
-			else {
+			if (mem_read_result.is_value_symbolic) {
 				is_instr_symbolic = true;
-				instr_details.has_memory_dep = false;
-				instr_details.memory_value.address = 0;
-				instr_details.memory_value.size = 0;
-				memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
-			};
-		}
-		else {
-			instr_details.has_memory_dep = false;
-			instr_details.memory_value.address = 0;
-			instr_details.memory_value.size = 0;
-			memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
+			}
 		}
 		for (auto &taint_data_entry: instr_taint_entry.taint_sink_src_map) {
 			taint_entity_t taint_sink = taint_data_entry.first;
@@ -1959,24 +1973,6 @@ public:
 					// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
 					vex_reg_offset_t taint_sink_full_register_offset = get_full_register_offset(taint_sink.reg_offset);
 					mark_register_concrete(taint_sink_full_register_offset, true);
-
-					if (is_valid_dependency_register(taint_sink_full_register_offset)) {
-						bool is_sink_source = false;
-						for (auto &dependency: instr_taint_entry.dependencies_to_save) {
-							if (dependency.entity_type != TAINT_ENTITY_REG) {
-								continue;
-							}
-							vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
-							if (taint_sink_full_register_offset == dependency_full_register_offset) {
-								is_sink_source = true;
-								break;
-							}
-						}
-						if (!is_sink_source) {
-							reg_instr_slice.at(taint_sink_full_register_offset).clear();
-						}
-						reg_instr_slice.at(taint_sink_full_register_offset).emplace_back(instr_details);
-					}
 				}
 			}
 			auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
@@ -1996,6 +1992,35 @@ public:
 			block_details.symbolic_instrs.emplace_back(instr_details);
 		}
 		return;
+	}
+
+	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
+		instr_details_t instr_details;
+		instr_details.instr_addr = instr_addr;
+		if (instr_taint_entry.has_memory_read) {
+			auto mem_read_result = mem_reads_map.at(instr_addr);
+			if (!mem_read_result.is_value_symbolic) {
+				instr_details.has_memory_dep = true;
+				instr_details.memory_value.address = mem_read_result.address;
+				instr_details.memory_value.size = mem_read_result.size;
+				for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
+					instr_details.memory_value.value[i] = mem_read_result.value[i];
+				}
+			}
+			else {
+				instr_details.has_memory_dep = false;
+				instr_details.memory_value.address = 0;
+				instr_details.memory_value.size = 0;
+				memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
+			}
+		}
+		else {
+			instr_details.has_memory_dep = false;
+			instr_details.memory_value.address = 0;
+			instr_details.memory_value.size = 0;
+			memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
+		}
+		return instr_details;
 	}
 
 	inline void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const {
@@ -2079,6 +2104,21 @@ public:
 		}
 		else {
 			propagate_taints();
+		}
+		return;
+	}
+
+	void update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry) {
+		instr_details_t instr_details = compute_instr_details(instr_addr, curr_instr_taint_entry);
+		for (auto &reg_entry: curr_instr_taint_entry.modified_regs) {
+			vex_reg_offset_t full_register_offset = get_full_register_offset(reg_entry.first);
+			if ((full_register_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(full_register_offset)) {
+				continue;
+			}
+			if (!reg_entry.second) {
+				reg_instr_slice.at(full_register_offset).clear();
+			}
+			reg_instr_slice.at(full_register_offset).emplace_back(instr_details);
 		}
 		return;
 	}
