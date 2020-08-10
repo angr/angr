@@ -1211,7 +1211,7 @@ public:
 		return;
 	}
 
-	block_taint_entry_t compute_taint_sink_source_relation_of_block(IRSB *vex_block, address_t address) {
+	block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address) {
 		block_taint_entry_t block_taint_entry;
 		instruction_taint_entry_t instruction_taint_entry;
 		bool started_processing_instructions;
@@ -2035,7 +2035,7 @@ public:
 				}
 				return;
 			}
-			auto block_taint_entry = compute_taint_sink_source_relation_of_block(lift_ret->irsb, block_address);
+			auto block_taint_entry = process_vex_block(lift_ret->irsb, block_address);
 			// Add entry to taint relations cache
 			block_taint_cache.emplace(block_address, block_taint_entry);
 		}
