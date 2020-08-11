@@ -159,7 +159,7 @@ setup(
         'pycparser>=2.18',
         'itanium_demangler',
         'CppHeaderParser',
-        'protobuf',
+        'protobuf>=3.12.0',
     ],
     setup_requires=[_UNICORN, 'pyvex'],
     extras_require={
