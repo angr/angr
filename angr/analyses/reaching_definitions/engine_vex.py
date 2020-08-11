@@ -8,7 +8,8 @@ from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...utils.constants import DEFAULT_STATEMENT
-from ...knowledge_plugins.key_definitions.definition import Definition, RetValueTag
+from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.tag import ReturnValueTag
 from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
@@ -627,9 +628,9 @@ class SimEngineRDVEX(
                     reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                     atom = Register(reg_offset, reg_size)
                     if func_addr is not None and len(func_addr) == 1 and self.functions is not None and type(func_addr_int) != Undefined:
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=RetValueTag(metadata=hex(func_addr_int)))
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=ReturnValueTag(metadata=hex(func_addr_int)))
                     else:
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=RetValueTag())
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=ReturnValueTag())
 
             if cc.CALLER_SAVED_REGS is not None:
                 for reg in cc.CALLER_SAVED_REGS:
