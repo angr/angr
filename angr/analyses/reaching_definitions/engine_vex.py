@@ -628,9 +628,9 @@ class SimEngineRDVEX(
                     reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                     atom = Register(reg_offset, reg_size)
                     if func_addr is not None and len(func_addr) == 1 and self.functions is not None and type(func_addr_int) != Undefined:
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=ReturnValueTag(metadata=hex(func_addr_int)))
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={ReturnValueTag(metadata=hex(func_addr_int))})
                     else:
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=ReturnValueTag())
+                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={ReturnValueTag()})
 
             if cc.CALLER_SAVED_REGS is not None:
                 for reg in cc.CALLER_SAVED_REGS:
