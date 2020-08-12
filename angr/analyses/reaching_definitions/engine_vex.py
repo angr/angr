@@ -169,15 +169,16 @@ class SimEngineRDVEX(
                 if isinstance(a, int) or (isinstance(a, SpOffset) and isinstance(a.offset, int)):
                     tags: Optional[Set[Tag]]
                     if isinstance(a, SpOffset):
-                        function_address = hex(
+                        function_address = (
                             self.project.kb
                                 .cfgs['CFGFast']
                                 .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
                                 .function_address
                         )
-                        tags = {LocalVariableTag(metadata={
-                            'function': function_address
-                        })}
+                        tags = {LocalVariableTag(
+                            function = function_address,
+                            metadata = {'tagged_by': 'SimEngineRDVEX._store_core'}
+                        )}
                     else:
                         tags = None
 
@@ -611,8 +612,9 @@ class SimEngineRDVEX(
 
     def _handle_function_cc(self, func_addr: Optional[DataSet]):
         _cc = None
+        func_addr_int: Optional[Union[int,Undefined]] = None
         if func_addr is not None and len(func_addr) == 1 and self.functions is not None:
-            func_addr_int: Union[int,Undefined] = next(iter(func_addr))
+            func_addr_int = next(iter(func_addr))
             if self.functions.contains_addr(func_addr_int):
                 _cc = self.functions[func_addr_int].calling_convention
         cc: SimCC = _cc or DEFAULT_CC.get(self.arch.name, None)(self.arch)
@@ -638,10 +640,11 @@ class SimEngineRDVEX(
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                 atom = Register(reg_offset, reg_size)
-                if type(func_addr_int) != Undefined:
-                    self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={ReturnValueTag(metadata=hex(func_addr_int))})
-                else:
-                    self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={ReturnValueTag()})
+                tag = ReturnValueTag(
+                    function = func_addr_int if isinstance(func_addr_int, int) else None,
+                    metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+                )
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={tag})
 
         if cc.CALLER_SAVED_REGS is not None:
             for reg in cc.CALLER_SAVED_REGS:
@@ -674,10 +677,10 @@ class SimEngineRDVEX(
                 raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)
-            tag = ReturnValueTag(metadata = {
-                'tagged_by': 'SimEngineRDVEX._handle_function_cc',
-                'function': hex(func_addr_int)
-            })
+            tag = ReturnValueTag(
+                function = func_addr_int,
+                metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+            )
             self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits), tags={tag})
 
     def _tag_definitions_of_atom(self, atom: Atom, func_addr: int):
