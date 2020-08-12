@@ -1081,7 +1081,23 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # sanity check and necessary pre-processing
         if stmts_adding_base_addr:
-            assert len(stmts_adding_base_addr) == 1  # Making sure we are only dealing with one operation here
+            if len(stmts_adding_base_addr) != 1:
+                # We do not support the cases where the base address involves more than one addition.
+                # One such case exists in libc-2.27.so shipped with Ubuntu x86 where esi is used as the address of the
+                # data region.
+                #
+                # .text:00047316 mov     eax, esi
+                # .text:00047318 mov     esi, [ebp+data_region_ptr]
+                # .text:0004731E movsx   eax, al
+                # .text:00047321 movzx   eax, byte ptr [esi+eax-603A0h]
+                # .text:00047329 mov     eax, ds:(jpt_47337 - 1D8000h)[esi+eax*4] ; switch 32 cases
+                # .text:00047330 lea     eax, (loc_47033 - 1D8000h)[esi+eax] ; jumptable 00047337 cases 0-13,27-31
+                # .text:00047337 jmp     eax             ; switch
+                #
+                # the proper solution requires angr to correctly determine that esi is the beginning address of the data
+                # region (in this case, 0x1d8000). we give up in such cases until we can reasonably perform a
+                # full-function data propagation before performing jump table recovery.
+                return None
             jump_base_addr = stmts_adding_base_addr[0]
             if jump_base_addr.base_addr_available:
                 addr_holders = {(jump_base_addr.stmt_loc[0], jump_base_addr.tmp)}
