@@ -278,6 +278,10 @@ class Call(Expression, Statement):
         return self.ret_expr.bits
 
     @property
+    def size(self):
+        return self.bits // 8
+
+    @property
     def verbose_op(self):
         return "call"
 
