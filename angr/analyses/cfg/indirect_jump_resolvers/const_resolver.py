@@ -71,7 +71,7 @@ class ConstantResolver(IndirectJumpResolver):
                 if exists_in_replacements(replacements, block_loc, tmp_var):
                     resolved_tmp = replacements[block_loc][tmp_var]
 
-                    if isinstance(resolved_tmp, int):
+                    if isinstance(resolved_tmp, int) and self._is_target_valid(cfg, resolved_tmp):
                         return True, [resolved_tmp]
 
         return False, [ ]

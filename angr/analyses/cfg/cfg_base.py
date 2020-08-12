@@ -1188,7 +1188,7 @@ class CFGBase(Analysis):
         :return:              None
         """
 
-        self._jobs_to_analyze_per_function[func_addr].remove(job)
+        self._jobs_to_analyze_per_function[func_addr].discard(job)
 
     def _get_finished_functions(self):
         """
