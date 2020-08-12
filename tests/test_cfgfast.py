@@ -846,6 +846,19 @@ def test_indirect_jump_to_outside():
     nose.tools.assert_equal(len(list(cfg.functions[0x404ee4].blocks)), 3)
     nose.tools.assert_equal(set(ep.addr for ep in cfg.functions[0x404ee4].endpoints), { 0x404f00, 0x404f08 })
 
+
+def test_plt_stub_has_one_jumpout_site():
+
+    # each PLT stub must have exactly one jumpout site
+    path = os.path.join(test_location, "x86_64", "1after909")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast()
+
+    for func in cfg.kb.functions.values():
+        if func.is_plt:
+            assert len(func.jumpout_sites) == 1
+
+
 def test_generate_special_info():
 
     path = os.path.join(test_location, "mipsel", "fauxware")
@@ -898,6 +911,7 @@ def run_all():
     test_cfg_with_patches()
     test_indirect_jump_to_outside()
     test_generate_special_info()
+    test_plt_stub_has_one_jumpout_site()
 
 
 def main():
