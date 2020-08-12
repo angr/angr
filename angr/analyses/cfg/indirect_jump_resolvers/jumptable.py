@@ -532,10 +532,13 @@ class JumpTableResolver(IndirectJumpResolver):
         except NotAJumpTableNotification:
             return False, None
         if jump_target is not None:
-            ij = cfg.indirect_jumps[addr]
-            ij.jumptable = False
-            ij.resolved_targets = { jump_target }
-            return True, [ jump_target ]
+            if self._is_target_valid(cfg, jump_target):
+                ij = cfg.indirect_jumps[addr]
+                ij.jumptable = False
+                ij.resolved_targets = { jump_target }
+                return True, [ jump_target ]
+            else:
+                return False, None
 
         # Well, we have a real jump table to resolve!
 
@@ -1216,7 +1219,7 @@ class JumpTableResolver(IndirectJumpResolver):
         for target in all_targets:
             # if the total number of targets is suspicious (it usually implies a failure in applying the
             # constraints), check if all jump targets are legal
-            if len(all_targets) in {0x100, 0x10000} and not self._is_jumptarget_legal(target):
+            if len(all_targets) in {1, 0x100, 0x10000} and not self._is_jumptarget_legal(target):
                 l.info("Jump target %#x is probably illegal. Try to resolve indirect jump at %#x from the next source.",
                        target, addr)
                 illegal_target_found = True

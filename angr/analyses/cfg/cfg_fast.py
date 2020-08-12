@@ -1738,6 +1738,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         resolved_as_plt = self._resolve_plt(addr, irsb, ij)
 
                         if resolved_as_plt:
+                            # this is definitely a PLT stub
                             jump_target = next(iter(ij.resolved_targets))
                             target_func_addr = jump_target  # TODO: FIX THIS
 
@@ -1757,11 +1758,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             self._indirect_jumps_to_resolve.remove(ij.addr)
                             self._deregister_analysis_job(current_function_addr, ij)
                     else:
-                        # add it to indirect_jumps_to_resolve
-                        self._indirect_jumps_to_resolve.add(ij)
+                        is_plt = addr in self.functions and self.functions.get_by_addr(addr).is_plt
+                        if is_plt:
+                            # this is definitely a PLT entry, but we could not resolve it. this is probably due to
+                            # missing SimProcedures. we do not want to resolve this indirect jump again in the future.
+                            self._indirect_jump_unresolved(ij)
+                        else:
+                            # add it to indirect_jumps_to_resolve
+                            self._indirect_jumps_to_resolve.add(ij)
 
-                        # register it as a job for the current function
-                        self._register_analysis_job(current_function_addr, ij)
+                            # register it as a job for the current function
+                            self._register_analysis_job(current_function_addr, ij)
 
                 else:  # jumpkind == "Ijk_Call" or jumpkind.startswith('Ijk_Sys')
                     self._indirect_jumps_to_resolve.add(ij)
@@ -2498,8 +2505,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             ip = simsucc.successors[0].ip
             if ip._model_concrete is not ip:
                 target_addr = ip._model_concrete.value
-                if (self.project.loader.find_object_containing(target_addr, membership_check=False) is not
-                        self.project.loader.main_object) \
+                obj = self.project.loader.find_object_containing(target_addr, membership_check=False)
+                if (obj is not None and obj is not self.project.loader.main_object) \
                         or self.project.is_hooked(target_addr):
                     # resolved!
                     # Fill the IndirectJump object
