@@ -35,6 +35,14 @@ class FunctionTag(Tag):
             return super(FunctionTag, self).__repr__()
 
 
+class SideEffectTag(FunctionTag):
+    """
+    A tag for a definition created or used as a side-effect of a function.
+
+    Example: The <MemoryLocation> pointed by `rdi` during a `sprintf`.
+    """
+
+
 class ParameterTag(FunctionTag):
     """
     A tag for a definition of a parameter.
