@@ -5,7 +5,7 @@ from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from .domain import (ValuedVariable, LocalVariable, Constant, Add, AddN, Assignment, Load, Store, CmpLtExpr, CmpLeExpr,
-                     CmpLtN)
+                     CmpLtN, Shl, ShlN)
 
 if TYPE_CHECKING:
     from pyvex import IRExpr, IRStmt
@@ -126,6 +126,38 @@ class SimEngineFunctionPrototypeVEX(
         objs = self.state.registers.get_objects_by_offset(expr.offset)
         if objs:
             return objs
+        return None
+
+    def _handle_Shl(self, expr: 'IRExpr.Binop') -> Optional[ValuedVariable]:
+        arg0s = self._expr(expr.args[0])
+        arg1s = self._expr(expr.args[1])
+        results = set()
+
+        if arg0s and arg1s:
+            for arg0 in arg0s:
+                for arg1 in arg1s:
+                    r = self._Shl(arg0, arg1)
+                    if r is not None:
+                        results.add(r)
+
+        return None if not results else results
+
+    def _Shl(self, arg0, arg1) -> Optional[ValuedVariable]:
+        if isinstance(arg0, ValuedVariable):
+            if isinstance(arg1, int):
+                # ShlN
+                shl_expr = ShlN(arg0.variable, self._to_signed(arg1))
+                if isinstance(arg0.value, int):
+                    mask = (1 << self.arch.bits) - 1
+                    return ValuedVariable(shl_expr,
+                                          (arg0.value << arg1) & mask)
+                else:
+                    return ValuedVariable(shl_expr, None)
+            else:
+                if isinstance(arg1, ValuedVariable):
+                    # Shl
+                    shl_expr = Shl(arg0.variable, arg1.variable)
+                    return ValuedVariable(shl_expr, None)
         return None
 
     def _handle_Load(self, expr: 'IRExpr.Load'):

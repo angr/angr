@@ -59,6 +59,62 @@ class Constant(BaseExpression):
     def __repr__(self):
         return str(self.con)
 
+class Shl(BaseExpression):
+    def __init__(self, variable: BaseExpression, expression: BaseExpression):
+        self.variable = variable
+        self.expression = expression
+
+    def replace(self, rep_dict: Dict[BaseExpression,Set[BaseExpression]]) -> Set['Shl']:
+        if self.variable in rep_dict:
+            variables = rep_dict[self.variable]
+        else:
+            variables = { self.variable }
+        if self.expression in rep_dict:
+            expressions = rep_dict[self.expression]
+        else:
+            expressions = self.expression.replace(rep_dict)
+        if len(variables) == 1 and next(iter(variables)) is self.variable \
+                and len(expressions) == 1 and next(iter(expressions)) is self.expression:
+            return { self }
+
+        return set(Shl(v, ex) for v, ex in itertools.product(variables, expressions))
+
+    def __eq__(self, other):
+        return isinstance(other, Shl) \
+                and self.variable == other.variable \
+                and self.expression == other.expression
+
+    def __hash__(self):
+        return hash((Shl, self.variable, self.expression))
+
+    def __repr__(self):
+        return "%r<<%r" % (self.variable, self.expression)
+
+class ShlN(BaseExpression):
+    def __init__(self, variable: BaseExpression, n: int):
+        self.variable = variable
+        self.n = n
+
+    def replace(self, rep_dict: Dict[BaseExpression,BaseExpression]) -> Set['ShlN']:
+        if self.variable in rep_dict:
+            variables = rep_dict[self.variable]
+        else:
+            variables = { self.variable }
+        if len(variables) == 1 and next(iter(variables)) is self.variable:
+            return { self }
+        return set(ShlN(v, self.n) for v in variables)
+
+    def __eq__(self, other):
+        return isinstance(other, AddN) \
+                and self.variable == other.variable \
+                and self.n == other.n
+
+    def __hash__(self):
+        return hash((ShlN, self.variable, self.n))
+
+    def __repr__(self):
+        return "%r<<%d" % (self.variable, self.n)
+
 
 class Add(BaseExpression):
     def __init__(self, variable: BaseExpression, expression: BaseExpression):
