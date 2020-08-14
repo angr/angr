@@ -6,10 +6,11 @@ import pyvex
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
-from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
+from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC
 from ...utils.constants import DEFAULT_STATEMENT
-from ...knowledge_plugins.key_definitions.definition import Definition, RetValueTag
-from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, Parameter, Tmp
+from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
+from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
@@ -18,7 +19,6 @@ from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
-    from ...calling_conventions import SimCC
     from ...knowledge_plugins import FunctionManager
 
 
@@ -167,10 +167,25 @@ class SimEngineRDVEX(
                     l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
                 if isinstance(a, int) or (isinstance(a, SpOffset) and isinstance(a.offset, int)):
+                    tags: Optional[Set[Tag]]
+                    if isinstance(a, SpOffset):
+                        function_address = (
+                            self.project.kb
+                                .cfgs['CFGFast']
+                                .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
+                                .function_address
+                        )
+                        tags = {LocalVariableTag(
+                            function = function_address,
+                            metadata = {'tagged_by': 'SimEngineRDVEX._store_core'}
+                        )}
+                    else:
+                        tags = None
+
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
-                    self.state.kill_and_add_definition(memloc, self._codeloc(), data)
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data, tags=tags)
 
     def _handle_LoadG(self, stmt):
         guard: DataSet = self._expr(stmt.guard)
@@ -595,47 +610,47 @@ class SimEngineRDVEX(
 
         return skip_cc
 
-    def _handle_function_cc(self, func_addr: Optional[DataSet]):  # pylint:disable=unused-argument
-
-        cc: Optional['SimCC'] = None
+    def _handle_function_cc(self, func_addr: Optional[DataSet]):
+        _cc = None
+        func_addr_int: Optional[Union[int,Undefined]] = None
         if func_addr is not None and len(func_addr) == 1 and self.functions is not None:
             func_addr_int = next(iter(func_addr))
             if self.functions.contains_addr(func_addr_int):
-                cc = self.functions[func_addr_int].calling_convention
+                _cc = self.functions[func_addr_int].calling_convention
+        cc: SimCC = _cc or DEFAULT_CC.get(self.arch.name, None)(self.arch)
 
-        if cc is None:
-            cc = DEFAULT_CC.get(self.arch.name, None)(self.arch)
-
-        if cc is not None:
-            # follow the calling convention and:
-            # - add uses for arguments
-            # - kill return value registers
-            # - caller-saving registers
-            if cc.args:
-                code_loc = self._codeloc()
-                for arg in cc.args:
-                    if isinstance(arg, SimRegArg):
-                        reg_offset, reg_size = self.arch.registers[arg.reg_name]
-                        self.state.add_use(Register(reg_offset, reg_size), code_loc)
-                    elif isinstance(arg, SimStackArg):
-                        self.state.add_use(MemoryLocation(SpOffset(self.arch.bits,
-                                                                   arg.stack_offset),
-                                                          arg.size * self.arch.byte_width),
-                                           code_loc)
-            if cc.RETURN_VAL is not None:
-                if isinstance(cc.RETURN_VAL, SimRegArg):
-                    reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+        # follow the calling convention and:
+        # - add uses for arguments
+        # - kill return value registers
+        # - caller-saving registers
+        if cc.args:
+            code_loc = self._codeloc()
+            for arg in cc.args:
+                if isinstance(arg, SimRegArg):
+                    reg_offset, reg_size = self.arch.registers[arg.reg_name]
                     atom = Register(reg_offset, reg_size)
-                    if func_addr is not None and len(func_addr) == 1 and self.functions is not None and type(func_addr_int) != Undefined:
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=RetValueTag(metadata=hex(func_addr_int)))
-                    else:
-                        self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tag=RetValueTag())
+                elif isinstance(arg, SimStackArg):
+                    atom = MemoryLocation(SpOffset(self.arch.bits,
+                                          arg.stack_offset),
+                                          arg.size * self.arch.byte_width)
+                self.state.add_use(atom, code_loc)
+                self._tag_definitions_of_atom(atom, func_addr_int)
 
-            if cc.CALLER_SAVED_REGS is not None:
-                for reg in cc.CALLER_SAVED_REGS:
-                    reg_offset, reg_size = self.arch.registers[reg]
-                    atom = Register(reg_offset, reg_size)
-                    self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
+        if cc.RETURN_VAL is not None:
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+                atom = Register(reg_offset, reg_size)
+                tag = ReturnValueTag(
+                    function = func_addr_int if isinstance(func_addr_int, int) else None,
+                    metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+                )
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={tag})
+
+        if cc.CALLER_SAVED_REGS is not None:
+            for reg in cc.CALLER_SAVED_REGS:
+                reg_offset, reg_size = self.arch.registers[reg]
+                atom = Register(reg_offset, reg_size)
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
 
         if self.arch.call_pushes_ret is True:
             # pop return address if necessary
@@ -662,4 +677,17 @@ class SimEngineRDVEX(
                 raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)
-            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
+            tag = ReturnValueTag(
+                function = func_addr_int,
+                metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+            )
+            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits), tags={tag})
+
+    def _tag_definitions_of_atom(self, atom: Atom, func_addr: int):
+        definitions = self.state.get_definitions(atom)
+        tag = ParameterTag(
+            function = func_addr,
+            metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+        )
+        for definition in definitions:
+            definition.tags |= {tag}
