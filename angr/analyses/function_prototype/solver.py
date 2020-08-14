@@ -3,7 +3,7 @@ from typing import List, Set, Dict, Tuple, Optional
 import logging
 
 from .domain import (BaseExpression, BaseConstraint, LocalVariable, Constant, Parameter, Assignment, Store, Load,
-                     CmpBase, CmpLtExpr, CmpLeExpr, CmpLtN, Add, AddN)
+                     CmpBase, CmpLtExpr, CmpLeExpr, CmpLtN, Add, AddN, Shl, ShlN)
 from .descriptors import BaseDescriptor, SimpleLoopVariable
 from .types import Buffer, Pointer
 
@@ -72,7 +72,8 @@ class FuncProtoSolver:
                         equivalence[variable].remove(equal_to)
                         changed = True
                     if equal_to in equivalence:
-                        equivalence[variable].remove(equal_to)
+                        if equal_to in equivalence[variable]:
+                            equivalence[variable].remove(equal_to)
                         equivalence[variable] |= equivalence[equal_to]
                         changed = True
 
@@ -166,10 +167,13 @@ class FuncProtoSolver:
                                             )
                 # find initializer
                 initializers = set()
+                loop_variable_equivalences: Dict[BaseExpression, Set[BaseExpression]] = defaultdict(set)
                 for inc_rhs_var in incrementers_rhs_vars:
                     if inc_rhs_var in self._constraints_by_expr:
                         initializers |= self._loop_a_initializers(self._constraints_by_expr[inc_rhs_var],
-                                                                  incrementers_rhs_vars)
+                                                                  incrementers_rhs_vars, set(i.variable for i in incrementers))
+                        loop_variable_equivalences[var] |= self._find_loop_equivalence(self._constraints_by_expr[inc_rhs_var],
+                                                                  incrementers_rhs_vars, set(i.variable for i in incrementers))
 
                 if initializers:
                     # found all three
@@ -191,12 +195,28 @@ class FuncProtoSolver:
                             ubound = tuple(self._get_root_definitions(ltcheck.expression))
                         if isinstance(init, Assignment) and isinstance(init.expression, Constant):
                             lbound = init.expression.con
-                        self._var_descriptors[var].add(SimpleLoopVariable(64,  # TODO: Use the correct bits
-                                                                          lbound,
-                                                                          ubound,
-                                                                          interval
-                                                                          )
-                                                       )
+                        result = SimpleLoopVariable(64,  # TODO: Use the correct bits
+                                                  lbound,
+                                                  ubound,
+                                                  interval
+                                                  )
+                        self._var_descriptors[var].add(result)
+                        for eq in loop_variable_equivalences[var]:
+                            self._var_descriptors[eq].add(result)
+
+    @staticmethod
+    def _find_loop_equivalence(constraints: Set[BaseConstraint], exclude: Set[LocalVariable], incrementers: Set[BaseExpression]):
+        equivalence_set: Set[BaseExpression] = set()
+        for con in constraints:
+            # i1 = i0
+            is_initializer = lambda x: isinstance(x, Assignment) and (
+                (isinstance(x.expression, LocalVariable) and x.expression not in exclude)
+                or isinstance(x.expression, Constant)
+            )
+            if is_initializer(con):
+                if con.expression in incrementers:
+                    equivalence_set.add(con.variable)
+        return equivalence_set
 
     @staticmethod
     def _loop_a_incrementers_and_ltchecks(constraints: Set[BaseConstraint]) -> Tuple[Set[BaseConstraint],Set[BaseConstraint]]:
@@ -216,16 +236,17 @@ class FuncProtoSolver:
         return incrementers, lt_checks
 
     @staticmethod
-    def _loop_a_initializers(constraints: Set[BaseConstraint], exclude: Set[LocalVariable]) -> Set[BaseConstraint]:
+    def _loop_a_initializers(constraints: Set[BaseConstraint], exclude: Set[LocalVariable], incrementers: Set[BaseExpression]) -> Set[BaseConstraint]:
         initializers = set()
         for con in constraints:
             # i1 = i0
             is_initializer = lambda x: isinstance(x, Assignment) and (
-                (isinstance(x.expression, LocalVariable) and x.expression not in exclude)
+                (isinstance(x.expression, LocalVariable) and x.expression not in exclude and x.expression not in incrementers)
                 or isinstance(x.expression, Constant)
             )
             if is_initializer(con):
                 initializers.add(con)
+
         return initializers
 
     #
@@ -355,6 +376,28 @@ class FuncProtoSolver:
                                 element_count = desc.ubound - desc.lbound
                             buf_desc = Buffer(lbound=desc.lbound, ubound=desc.ubound,
                                               element_size=1,  # TODO: FIXME
+                                              element_count=element_count,
+                                              in_=False,
+                                              out_=True,
+                                              )
+                            base_desc = Pointer(buf_desc, in_=True, out_=False)
+                            for base in bases:
+                                self.param_descriptors[base].add(base_desc)
+                        return True
+
+            # handle the case where loop increment is left shifted
+            if isinstance(inc, ShlN) and isinstance(inc.variable, LocalVariable):
+                if inc.variable in self._var_descriptors:
+                    descs = self._var_descriptors[inc]
+                    if len(descs) == 1:
+                        desc = next(iter(descs))
+                        if isinstance(desc, SimpleLoopVariable):
+                            # it's a buffer!
+                            element_count = None
+                            if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                                element_count = desc.ubound - desc.lbound
+                            buf_desc = Buffer(lbound=desc.lbound * inc.n, ubound=desc.ubound * inc.n,
+                                              element_size=inc.n,  # TODO: FIXME
                                               element_count=element_count,
                                               in_=False,
                                               out_=True,
