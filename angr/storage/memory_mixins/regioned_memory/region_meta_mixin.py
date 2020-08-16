@@ -96,12 +96,14 @@ class MemoryRegionMetaMixin(MemoryMixin):
                 merging_occurred |= self.alocs[aloc_id].merge(aloc)
         return merging_occurred
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
+        r = False
         for other_region in others:
             self._merge_alocs(other_region)
-            super().merge(
+            r |= super().merge(
                 [other_region], merge_conditions, common_ancestor=common_ancestor
             )
+        return r
 
     def widen(self, others):
         for other_region in others:

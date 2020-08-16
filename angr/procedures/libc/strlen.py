@@ -1,6 +1,7 @@
 import claripy
 import angr
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
+from angr.storage.memory_mixins.regioned_memory.abstract_address_descriptor import AbstractAddressDescriptor
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -29,10 +30,10 @@ class strlen(angr.SimProcedure):
             self.max_null_index = 0
 
             # Make sure to convert s to ValueSet
-            s_aw_iter = self.state.memory._concrete_address(s)
+            addr_desc: AbstractAddressDescriptor = self.state.memory._normalize_address(s)
 
             length = self.state.solver.ESI(self.state.arch.bits)
-            for s_aw in s_aw_iter:
+            for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
 
                 s_ptr = s_aw.to_valueset(self.state)
                 r, c, i = self.state.memory.find(s, null_seq, max_str_len, max_symbolic_bytes=max_symbolic_bytes, step=step, chunk_size=chunk_size)
@@ -40,7 +41,8 @@ class strlen(angr.SimProcedure):
                 self.max_null_index = max([self.max_null_index] + i)
 
                 # Convert r to the same region as s
-                r_aw_iter = self.state.memory._concretize_address_descriptor(r, target_region=next(iter(s_ptr._model_vsa.regions.keys())))
+                r_desc = self.state.memory._normalize_address(r)
+                r_aw_iter = self.state.memory._concretize_address_descriptor(r_desc, None, target_region=next(iter(s_ptr._model_vsa.regions.keys())))
 
                 for r_aw in r_aw_iter:
                     r_ptr = r_aw.to_valueset(self.state)

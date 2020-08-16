@@ -64,7 +64,7 @@ class MemoryMixin(SimStatePlugin):
     def store(self, addr, data, **kwargs):
         pass
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
+    def merge(self, others, merge_conditions, common_ancestor=None) -> bool:
         pass
 
     def widen(self, others):

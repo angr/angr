@@ -122,13 +122,16 @@ class RegionedMemoryMixin(MemoryMixin):
         for aw in gen:
             self._region_store(aw.address, data, aw.region, endness, related_function_addr=aw.function_address)
 
-    def merge(self, others: Iterable['RegionedMemoryMixin'], merge_conditions, common_ancestor=None):
+    def merge(self, others: Iterable['RegionedMemoryMixin'], merge_conditions, common_ancestor=None) -> bool:
+        r = False
         for o in others:
             for region_id, region in o._regions.items():
                 if region_id in self._regions:
-                    self._regions[region_id].merge([region], merge_conditions, common_ancestor=common_ancestor)
+                    r |= self._regions[region_id].merge([region], merge_conditions, common_ancestor=common_ancestor)
                 else:
                     self._regions[region_id] = region
+                    r = True
+        return r
 
     @MemoryMixin.memo
     def copy(self, memo):

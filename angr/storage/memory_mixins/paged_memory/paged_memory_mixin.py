@@ -186,7 +186,7 @@ class PagedMemoryMixin(MemoryMixin):
 
         sub_gen.close()
 
-    def merge(self, others: Iterable['PagedMemoryMixin'], merge_conditions, common_ancestor=None):
+    def merge(self, others: Iterable['PagedMemoryMixin'], merge_conditions, common_ancestor=None) -> bool:
         changed_pages = set()
         for o in others:
             changed_pages |= self.changed_pages(o)
@@ -210,7 +210,7 @@ class PagedMemoryMixin(MemoryMixin):
             for off in merged_offsets:
                 merged_bytes.add(page_addr + off)
 
-        return merged_bytes
+        return True if merged_bytes else False
 
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is not int:
