@@ -36,7 +36,7 @@ class ListPageMemory(
     pass
 
 def test_copy():
-    s = SimState(arch="AMD64")
+    s = SimState(arch="AMD64", mode="symbolic")
     s.memory.store(0x100, b"ABCDEFGHIJKLMNOP")
     s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
     x = s.solver.BVS('size', s.arch.bits)
@@ -48,7 +48,7 @@ def test_copy():
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
 
-    s = SimState(arch="AMD64")
+    s = SimState(arch="AMD64", mode="symbolic")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content=b'ABCDEFGHIJKLMNOP', has_end=True)))
     s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
     x = s.solver.BVS('size', s.arch.bits)
@@ -60,7 +60,7 @@ def test_copy():
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
 
-    s = SimState(arch="AMD64")
+    s = SimState(arch="AMD64", mode="symbolic")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content=b'ABCDEFGHIJKLMNOP')))
     s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
     x = s.solver.BVS('size', s.arch.bits)

@@ -121,6 +121,19 @@ class MemoryMixin(SimStatePlugin):
     def _replace_all(self, addrs: Iterable[int], old: claripy.ast.BV, new: claripy.ast.BV):
         raise NotImplementedError()
 
+    def copy_contents(self, dst, src, size, condition=None, **kwargs):
+        """
+        Override this method to provide faster copying of large chunks of data.
+
+        :param dst:     The destination of copying.
+        :param src:     The source of copying.
+        :param size:    The size of copying.
+        :param condition:   The storing condition.
+        :param kwargs:      Other parameters.
+        :return:        None
+        """
+        raise NotImplementedError()
+
 
 from .actions_mixin import ActionsMixinHigh, ActionsMixinLow
 from .address_concretization_mixin import AddressConcretizationMixin

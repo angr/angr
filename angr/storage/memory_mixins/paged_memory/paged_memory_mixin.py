@@ -504,6 +504,10 @@ class PagedMemoryMixin(MemoryMixin):
             self._pages[page_no] = page
             page.replace_all_with_offsets(offsets, old, new, memory=self)
 
+    def copy_contents(self, dst, src, size, condition=None, **kwargs):
+        data = self.load(src, size, **kwargs)
+        self.store(dst, data, size, **kwargs)
+
 
 class ListPagesMixin(PagedMemoryMixin):
     PAGE_TYPE = ListPage
