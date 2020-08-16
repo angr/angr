@@ -26,8 +26,16 @@ invalid_read_ctr = count()
 
 class RegionedMemoryMixin(MemoryMixin):
     """
-    Regioned memory.
-    It maps memory addresses into different pages.
+    Regioned memory. This mixin manages multiple memory regions. Each address is represented as a tuple of (region ID,
+    offset into the region), which is called a regioned address.
+
+    Converting absolute addresses into regioned addresses: We map an absolute address to a region by looking up which
+    region this address belongs to in the region map. Currently this is only enabled for stack. Heap support has not
+    landed yet.
+
+    When start analyzing a function, the user should call set_stack_address_mapping() to create a new region mapping.
+    Likewise, when exiting from a function, the user should cancel the previous mapping by calling
+    unset_stack_address_mapping().
     """
 
     def __init__(self, write_targets_limit: int=2048, read_targets_limit: int=4096,
@@ -50,9 +58,11 @@ class RegionedMemoryMixin(MemoryMixin):
 
         self._cle_memory_backer = cle_memory_backer
         self._dict_memory_backer = dict_memory_backer
-        self._stack_size = stack_size
-        self._stack_region_map = stack_region_map if stack_region_map is not None else RegionMap(True)
-        self._generic_region_map = generic_region_map if generic_region_map is not None else RegionMap(False)
+        self._stack_size: int = stack_size
+        self._stack_region_map: Optional[RegionMap] = stack_region_map \
+            if stack_region_map is not None else RegionMap(True)
+        self._generic_region_map: Optional[RegionMap] = generic_region_map \
+            if generic_region_map is not None else RegionMap(False)
 
         self._write_targets_limit = write_targets_limit
         self._read_targets_limit = read_targets_limit
@@ -163,6 +173,58 @@ class RegionedMemoryMixin(MemoryMixin):
     #
     # Region management
     #
+
+    def set_stack_address_mapping(self, absolute_address: int, region_id: str,
+                                  related_function_address: Optional[int]=None):
+        """
+        Create a new mapping between an absolute address (which is the base address of a specific stack frame) and a
+        region ID.
+
+        :param absolute_address: The absolute memory address.
+        :param region_id: The region ID.
+        :param related_function_address: Related function address.
+        """
+        if self._stack_region_map is None:
+            raise SimMemoryError('Stack region map is not initialized.')
+        self._stack_region_map.map(absolute_address, region_id, related_function_address=related_function_address)
+
+    def unset_stack_address_mapping(self, absolute_address: int):
+        """
+        Remove a stack mapping.
+
+        :param absolute_address: An absolute memory address that is the base address of the stack frame to destroy.
+        """
+        if self._stack_region_map is None:
+            raise SimMemoryError('Stack region map is not initialized.')
+        self._stack_region_map.unmap_by_address(absolute_address)
+
+    def stack_id(self, function_address: int) -> str:
+        """
+        Return a memory region ID for a function. If the default region ID exists in the region mapping, an integer
+        will appended to the region name. In this way we can handle recursive function calls, or a function that
+        appears more than once in the call frame.
+
+        This also means that `stack_id()` should only be called when creating a new stack frame for a function. You are
+        not supposed to call this function every time you want to map a function address to a stack ID.
+
+        :param function_address: Address of the function.
+        :return:                ID of the new memory region.
+        """
+        region_id = 'stack_%#x' % function_address
+
+        # deduplication
+        region_ids = self._stack_region_map.region_ids
+        if region_id not in region_ids:
+            return region_id
+        else:
+            for i in range(0, 2000):
+                new_region_id = region_id + '_%d' % i
+                if new_region_id not in region_ids:
+                    return new_region_id
+            raise SimMemoryError('Cannot allocate region ID for function %#08x - recursion too deep' % function_address)
+
+    def set_stack_size(self, size: int):
+        self._stack_size = size
 
     def _create_region(self, key: str, state: 'SimState', related_function_addr: int, endness,
                        cle_memory_backer: Optional=None, dict_memory_backer: Optional[Dict]=None):
