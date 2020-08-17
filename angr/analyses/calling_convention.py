@@ -312,7 +312,7 @@ class CallingConventionAnalysis(Analysis):
             return 24 <= variable.reg < 40  # a0-a3
 
         elif arch.name == 'MIPS64':
-            return 48 <= variable.reg < 80 or 112 <= variable.reg < 208 # a0-a3 or t4-t7
+            return 48 <= variable.reg < 80 or 112 <= variable.reg < 144 # a0-a3 or t4-t7
 
         elif arch.name == 'PPC32':
             return 28 <= variable.reg < 60  # r3-r10
