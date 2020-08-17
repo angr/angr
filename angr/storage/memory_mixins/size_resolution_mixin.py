@@ -99,11 +99,15 @@ class SizeConcretizationMixin(MemoryMixin):
             # size has to be greater than max_size
             raise SimMemoryError("Not enough data for store")
 
+        # filter out all concrete sizes that are greater than max_size
+        # Note that the VSA solver (used in static mode) cannot precisely handle extra constraints. As a result, we may
+        # get conc_sizes with values that violate the extra constraint (size <= max_size).
+        conc_sizes = [ cs for cs in conc_sizes if cs <= max_size ]
         conc_sizes.sort()
+        if not conc_sizes:
+            raise SimMemoryError("Not enough data for store")
         if self._max_concretize_count is not None:
             conc_sizes = conc_sizes[:self._max_concretize_count]
-        if conc_sizes[-1] > max_size:
-            raise SimMemoryError("Not enough data for store")
 
         if size.symbolic:
             if any(cs > self._max_symbolic_size for cs in conc_sizes):
