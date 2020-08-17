@@ -1392,6 +1392,8 @@ CC = {
         SimCCO32,
     ],
     'MIPS64': [
+        SimCCN64,
+        SimCCN32,
         SimCCO64,
     ],
     'PPC32': [
