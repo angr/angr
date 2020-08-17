@@ -1219,8 +1219,7 @@ class SimCCAArch64LinuxSyscall(SimCC):
 
 class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
-    FP_ARG_REGS = []    # TODO: ???
-    STACKARG_SP_BUFF = 16
+    FP_ARG_REGS = [ 'f12', 'f13', 'f14', 'f15' ]
     CALLER_SAVED_REGS = []   # TODO: ???
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('v0', 4)
@@ -1243,13 +1242,28 @@ class SimCCO32LinuxSyscall(SimCC):
     def syscall_num(state):
         return state.regs.v0
 
-class SimCCO64(SimCC):      # TODO: add n32 and n64
+class SimCCO64(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
-    FP_ARG_REGS = []    # TODO: ???
-    STACKARG_SP_BUFF = 32
-    RETURN_ADDR = SimRegArg('lr', 8)
+    FP_ARG_REGS = [ 'f12', 'f13', 'f14' ]
+    RETURN_ADDR = SimRegArg('ra', 8)
     RETURN_VAL = SimRegArg('v0', 8)
     ARCH = archinfo.ArchMIPS64
+
+class SimCCN32(SimCC):
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3', 't4', 't5', 't6', 't7' ]
+    FP_ARG_REGS = [ 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19' ]
+    RETURN_ADDR = SimRegArg('ra', 8)
+    RETURN_VAL = SimRegArg('v0', 8)
+    ARCH = archinfo.ArchMIPS64
+    STACK_ALIGNMENT = 16
+
+class SimCCN64(SimCC):
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3', 't4', 't5', 't6', 't7' ]
+    FP_ARG_REGS = [ 'f12', 'f13', 'f14', 'f15', 'f16', 'f17', 'f18', 'f19' ]
+    RETURN_ADDR = SimRegArg('ra', 8)
+    RETURN_VAL = SimRegArg('v0', 8)
+    ARCH = archinfo.ArchMIPS64
+    STACK_ALIGNMENT = 16
 
 class SimCCO64LinuxSyscall(SimCC):
     # TODO: Make sure all the information is correct
