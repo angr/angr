@@ -432,6 +432,7 @@ class CmpEQN(CmpBase):
             variables = rep_dict[self.variable]
         else:
             variables = { self.variable }
+            variables |= self.variable.replace(rep_dict)
         if len(variables) == 1 and next(iter(variables)) is self.variable:
             return { self }
         return set(CmpEQN(v, self.n) for v in variables)
@@ -581,6 +582,7 @@ class Load(BaseConstraint):
     def __init__(self, addr: BaseExpression, size: int):
         self.addr = addr
         self.size = size
+        self.variable = addr
 
     def replace(self, rep_dict: Dict[BaseExpression,Set[BaseExpression]]) -> Set['Load']:
         if self.addr in rep_dict:
@@ -600,7 +602,7 @@ class Load(BaseConstraint):
         return hash((Load, self.addr, self.size))
 
     def __repr__(self):
-        return "X:= *(%r,%d)" % (self.addr, self.size)
+        return "*(%r,%d)" % (self.addr, self.size)
 
     def __contains__(self, other):
-        return other == self
+        return other in self.addr

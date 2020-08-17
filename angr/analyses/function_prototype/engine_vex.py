@@ -5,7 +5,7 @@ from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from .domain import (ValuedVariable, LocalVariable, Constant, Add, AddN, Assignment, Load, Store, CmpLtExpr, CmpLeExpr,
-                     CmpLtN, Shl, ShlN, CmpEQExpr, CmpEQN, CmpNEExpr, CmpNEN, And, AndN)
+                     CmpLtN, Shl, ShlN, CmpEQExpr, CmpEQN, CmpNEExpr, CmpNEN, And, AndN, BaseConstraint)
 
 if TYPE_CHECKING:
     from pyvex import IRExpr, IRStmt
@@ -125,6 +125,9 @@ class SimEngineFunctionPrototypeVEX(
     def _handle_Get(self, expr: 'IRExpr.Get'):
         objs = self.state.registers.get_objects_by_offset(expr.offset)
         if objs:
+            for i in objs:
+                if isinstance(i.variable, LocalVariable) and isinstance(i.value, BaseConstraint):
+                    self.state.constraints.add(Assignment(i.variable, i.value))
             return objs
         return None
 
@@ -186,6 +189,7 @@ class SimEngineFunctionPrototypeVEX(
         if addr is not None:
             con = Load(addr.variable, size)
             self.state.constraints.add(con)
+            return { con }
 
     def _handle_Conversion(self, expr: 'IRExpr.Binop'):
         simop = vex_operations[expr.op]
