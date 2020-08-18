@@ -227,7 +227,10 @@ class SimTypeReg(SimType):
 
     def store(self, state, addr, value):
         store_endness = state.arch.memory_endness
-
+        try:
+            value = value.ast
+        except AttributeError:
+            pass
         if isinstance(value, claripy.ast.Bits):  # pylint:disable=isinstance-second-argument-not-valid-type
             if value.size() != self.size:
                 raise ValueError("size of expression is wrong size for type")
@@ -599,7 +602,7 @@ class SimTypeFixedSizeArray(SimType):
 
     def store(self, state, addr, values):
         for i, val in enumerate(values):
-            self.elem_type.store(state, addr + i*(self.elem_type.size//8), val)
+            self.elem_type.store(state, addr + i * (self.elem_type.size // state.arch.byte_width), val)
 
     @property
     def size(self):
@@ -1067,7 +1070,11 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @property
     def size(self):
-        return sum(val.size for val in self.fields.values())
+        last_name, last_off = list(self.offsets.items())[-1]
+        last_type = self.fields[last_name]
+        return last_off * self._arch.byte_width + last_type.size
+
+        #return sum(val.size for val in self.fields.values())
 
     @property
     def alignment(self):
@@ -1127,24 +1134,46 @@ class SimStructValue:
         self._struct = struct
         self._values = defaultdict(lambda: None, values or ())
 
+    def __indented_repr__(self, indent=0):
+        fields = []
+        for name in self._struct.fields:
+            value = self._values[name]
+            try:
+                f = getattr(value, '__indented_repr__')
+                s = f(indent=indent+2)
+            except AttributeError:
+                s = repr(value)
+            fields.append(' ' * (indent + 2) + '.{} = {}'.format(name, s))
+
+        return '{{\n{}\n{}}}'.format(',\n'.join(fields), ' ' * indent)
+
     def __repr__(self):
-        fields = ('.{} = {}'.format(name, self._values[name]) for name in self._struct.fields)
-        return '{{\n  {}\n}}'.format(',\n  '.join(fields))
+        return self.__indented_repr__()
 
     def __getattr__(self, k):
         return self[k]
 
     def __getitem__(self, k):
         if type(k) is int:
-            return self._values[self._struct.fields[k]]
+            k = self._struct.fields[k]
+        if k not in self._values:
+            for f in self._struct.fields:
+                if isinstance(f, NamedTypeMixin) and f.name is None:
+                    try:
+                        return f[k]
+                    except:
+                        continue
+            else:
+                import ipdb; ipdb.set_trace()
+                return self._values[k]
+
         return self._values[k]
 
     def copy(self):
-        return SimStructValue(self._struct, values=defaultdict(self._values))
-
+        return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
 class SimUnion(NamedTypeMixin, SimType):
-    _fields = ('members', 'name')
+    fields = ('members', 'name')
 
     def __init__(self, members, name=None, label=None):
         """
@@ -1161,6 +1190,24 @@ class SimUnion(NamedTypeMixin, SimType):
     @property
     def alignment(self):
         return max(val.alignment for val in self.members.values())
+
+    def _refine_dir(self):
+        return list(self.members.keys())
+
+    def _refine(self, view, k):
+        ty = self.members[k]
+        return view._deeper(ty=ty, addr=view._addr)
+
+    def extract(self, state, addr, concrete=False):
+        values = {}
+        for name, ty in self.members.items():
+            v = SimMemView(ty=ty, addr=addr, state=state)
+            if concrete:
+                values[name] = v.concrete
+            else:
+                values[name] = v.resolved
+
+        return SimUnionValue(self, values=values)
 
     def __repr__(self):
         # use the str instead of repr of each member to avoid exceed recursion
@@ -1180,6 +1227,44 @@ class SimUnion(NamedTypeMixin, SimType):
 
     def copy(self):
         return SimUnion(dict(self.members), name=self.name, label=self.label)
+
+class SimUnionValue:
+    """
+    A SimStruct type paired with some real values
+    """
+    def __init__(self, union, values=None):
+        """
+        :param union:      A SimUnion instance describing the type of this union
+        :param values:      A mapping from union members to values
+        """
+        self._union = union
+        self._values = defaultdict(lambda: None, values or ())
+
+    def __indented_repr__(self, indent=0):
+        fields = []
+        for name, value in self._values.items():
+            try:
+                f = getattr(value, '__indented_repr__')
+                s = f(indent=indent+2)
+            except AttributeError:
+                s = repr(value)
+            fields.append(' ' * (indent + 2) + '.{} = {}'.format(name, s))
+
+        return '{{\n{}\n{}}}'.format(',\n'.join(fields), ' ' * indent)
+
+    def __repr__(self):
+        return self.__indented_repr__()
+
+    def __getattr__(self, k):
+        return self[k]
+
+    def __getitem__(self, k):
+        if k not in self._values:
+            return super().__getitem__(k)
+        return self._values[k]
+
+    def copy(self):
+        return SimUnionValue(self._union, values=self._values)
 
 
 class SimCppClass(SimStruct):
@@ -1579,7 +1664,7 @@ def _decl_to_type(decl, extra_types=None):
 
 def _parse_const(c):
     if type(c) is pycparser.c_ast.Constant:
-        return int(c.value)
+        return int(c.value, base=0)
     elif type(c) is pycparser.c_ast.BinaryOp:
         if c.op == '+':
             return _parse_const(c.children()[0][1]) + _parse_const(c.children()[1][1])
