@@ -1164,7 +1164,6 @@ class SimStructValue:
                     except:
                         continue
             else:
-                import ipdb; ipdb.set_trace()
                 return self._values[k]
 
         return self._values[k]
