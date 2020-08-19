@@ -5,7 +5,7 @@ from ...knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from .domain import (ValuedVariable, LocalVariable, Constant, Add, AddN, Assignment, Load, Store, CmpLtExpr, CmpLeExpr,
-                     CmpLtN, Shl, ShlN)
+                     CmpLtN, Shl, ShlN, CmpEQExpr, CmpEQN, CmpNEExpr, CmpNEN, And, AndN, BaseConstraint)
 
 if TYPE_CHECKING:
     from pyvex import IRExpr, IRStmt
@@ -125,6 +125,9 @@ class SimEngineFunctionPrototypeVEX(
     def _handle_Get(self, expr: 'IRExpr.Get'):
         objs = self.state.registers.get_objects_by_offset(expr.offset)
         if objs:
+            for i in objs:
+                if isinstance(i.variable, LocalVariable) and isinstance(i.value, BaseConstraint):
+                    self.state.constraints.add(Assignment(i.variable, i.value))
             return objs
         return None
 
@@ -186,6 +189,7 @@ class SimEngineFunctionPrototypeVEX(
         if addr is not None:
             con = Load(addr.variable, size)
             self.state.constraints.add(con)
+            return { con }
 
     def _handle_Conversion(self, expr: 'IRExpr.Binop'):
         simop = vex_operations[expr.op]
@@ -195,6 +199,46 @@ class SimEngineFunctionPrototypeVEX(
         if arg_0 is None:
             return None
         return {a for a in arg_0}
+
+    def _handle_CmpEQ(self, expr):
+        arg0s = self._expr(expr.args[0])
+        arg1s = self._expr(expr.args[1])
+
+        if arg0s and arg1s:
+            for arg0 in arg0s:
+                for arg1 in arg1s:
+                    self._CmpEQ(arg0, arg1)
+        return None
+
+    def _CmpEQ(self, arg0, arg1):
+        if isinstance(arg0, ValuedVariable):
+            arg0_var, arg0_value = arg0.variable, arg0.value
+            if isinstance(arg1, int):
+                con = CmpEQN(arg0_var, arg1)
+                self.state.constraints.add(con)
+            elif isinstance(arg1, ValuedVariable) and arg1.variable is not None:
+                con = CmpEQExpr(arg0_var, arg1.variable)
+                self.state.constraints.add(con)
+
+    def _handle_CmpNE(self, expr):
+        arg0s = self._expr(expr.args[0])
+        arg1s = self._expr(expr.args[1])
+
+        if arg0s and arg1s:
+            for arg0 in arg0s:
+                for arg1 in arg1s:
+                    self._CmpNE(arg0, arg1)
+        return None
+
+    def _CmpNE(self, arg0, arg1):
+        if isinstance(arg0, ValuedVariable):
+            arg0_var, arg0_value = arg0.variable, arg0.value
+            if isinstance(arg1, int):
+                con = CmpNEN(arg0_var, arg1)
+                self.state.constraints.add(con)
+            elif isinstance(arg1, ValuedVariable) and arg1.variable is not None:
+                con = CmpNEExpr(arg0_var, arg1.variable)
+                self.state.constraints.add(con)
 
     def _handle_CmpLT(self, expr):
         arg0s = self._expr(expr.args[0])
@@ -235,6 +279,41 @@ class SimEngineFunctionPrototypeVEX(
             elif isinstance(arg1, ValuedVariable) and arg1.variable is not None:
                 con = CmpLeExpr(arg0_var, arg1.variable)
                 self.state.constraints.add(con)
+
+    def _handle_And(self, expr):
+        arg0s = self._expr(expr.args[0])
+        arg1s = self._expr(expr.args[1])
+        results = set()
+
+        if arg0s and arg1s:
+            for arg0 in arg0s:
+                for arg1 in arg1s:
+                    r = self._And(arg0, arg1)
+                    if r is not None:
+                        results.add(r)
+
+        return None if not results else results
+
+    def _And(self, arg0, arg1):
+        if isinstance(arg0, ValuedVariable):
+            if isinstance(arg1, int):
+                # AddN
+                add_expr = AndN(arg0.variable, self._to_signed(arg1))
+                if isinstance(arg0.value, int):
+                    mask = (1 << self.arch.bits) - 1
+                    return ValuedVariable(add_expr,
+                                          (arg0.value + arg1) & mask)
+                elif isinstance(arg0.value, SpOffset):
+                    return ValuedVariable(add_expr,
+                                          SpOffset(arg0.value.bits, arg0.value.offset + self._to_signed(arg1)))
+                else:
+                    return ValuedVariable(add_expr, None)
+            else:
+                if isinstance(arg1, ValuedVariable):
+                    #And 
+                    add_expr = And(arg0.variable, arg1.variable)
+                    return ValuedVariable(add_expr, None)
+        return None
 
     def _handle_Add(self, expr: 'IRExpr.Binop') -> Optional[ValuedVariable]:
         arg0s = self._expr(expr.args[0])

@@ -3,8 +3,8 @@ from typing import List, Set, Dict, Tuple, Optional
 import logging
 
 from .domain import (BaseExpression, BaseConstraint, LocalVariable, Constant, Parameter, Assignment, Store, Load,
-                     CmpBase, CmpLtExpr, CmpLeExpr, CmpLtN, Add, AddN, Shl, ShlN)
-from .descriptors import BaseDescriptor, SimpleLoopVariable
+                     CmpBase, CmpLtExpr, CmpLeExpr, CmpLtN, Add, AddN, Shl, ShlN, CmpEQN, CmpNEN)
+from .descriptors import BaseDescriptor, SimpleLoopVariable, CounterLoopVariable
 from .types import Buffer, Pointer
 
 
@@ -29,6 +29,7 @@ class FuncProtoSolver:
 
     def _solve(self):
         self._find_loops_a()
+        self._find_loops_b()
         self._find_buffer_loads()
         self._find_buffer_stores()
 
@@ -250,6 +251,93 @@ class FuncProtoSolver:
         return initializers
 
     #
+    # Loop B
+    #
+
+    def _find_loops_b(self) -> None:
+        """
+        Find loops that satisfy the following models:
+
+        Model B::
+            i0 = A
+            for (i1 = i0; anything; i1 += C) {
+                // do something
+            }
+        """
+        # find i1
+        for var, constraints in self._constraints_by_expr.items():
+            if var in self._var_descriptors:
+                continue
+            incrementers, _ = self._loop_a_incrementers_and_ltchecks(constraints)
+            if incrementers:
+                # source variables of rhs of incrementers
+                incrementers_rhs_vars = set(inc.expression.variable for inc in incrementers
+                                            if isinstance(inc, Assignment) and isinstance(inc.expression, AddN)
+                                            )
+                # find initializer
+                initializers = set()
+                loop_variable_equivalences: Dict[BaseExpression, Set[BaseExpression]] = defaultdict(set)
+                for inc_rhs_var in incrementers_rhs_vars:
+                    if inc_rhs_var in self._constraints_by_expr:
+                        initializers |= self._loop_a_initializers(self._constraints_by_expr[inc_rhs_var],
+                                                                  incrementers_rhs_vars, set(i.variable for i in incrementers))
+                        loop_variable_equivalences[var] |= self._find_loop_equivalence(self._constraints_by_expr[inc_rhs_var],
+                                                                  incrementers_rhs_vars, set(i.variable for i in incrementers))
+
+                if initializers:
+                    # found all three
+                    _l.debug("Found a loop-b variable with the following constraints. incrementers: %r,"
+                             "intializers: %r", incrementers, initializers)
+                    if len(incrementers) >= 1 and len(initializers) == 1:
+                        inc = next(iter(incrementers))
+                        init = next(iter(initializers))
+
+                        interval = None
+                        lbound = None
+                        if isinstance(inc, Assignment) and isinstance(inc.expression, AddN):
+                            interval = inc.expression.n
+                        if isinstance(init, Assignment) and isinstance(init.expression, Constant):
+                            lbound = init.expression.con
+                        result = CounterLoopVariable(64,  # TODO: Use the correct bits
+                                                  lbound,
+                                                  interval
+                                                  )
+                        self._var_descriptors[var].add(result)
+                        for eq in loop_variable_equivalences[var]:
+                            self._var_descriptors[eq].add(result)
+
+    # recursively finds all constraints that contain expression, and returns a dependency dict
+    def _find_subexpressions(self, expression: LocalVariable, visited, parent=None):
+        if expression in visited:
+            return set()
+        visited.add(expression)
+        result = {}
+        for i in self._constraints:
+            if expression in i:
+                result[i] = parent
+                sub_res = self._find_subexpressions(i.variable, visited, i)
+                for j in sub_res:
+                    if j not in result:
+                        result[j] = sub_res[j]
+        return result
+
+    def _find_null_comparison(self, expression):
+        relevant_constraints = self._find_subexpressions(expression, set())
+        for i in relevant_constraints:
+            if (isinstance(i, CmpEQN) and i.n == 0) or (isinstance(i, CmpNEN) and i.n == 0):
+                print("Found null comparison. The load address is:", expression)
+                print("Likely string loop check?", i)
+                print("Printing definition expressions:")
+                cur = i
+                c = 0
+                while cur != None:
+                    print(cur)
+                    cur = relevant_constraints[cur]
+                    c += 1
+                return True
+        return False
+
+    #
     # Common methods for both buffer loads and stores
     #
 
@@ -334,6 +422,45 @@ class FuncProtoSolver:
                             base_desc = Pointer(buf_desc, in_=True, out_=False)
                             for base in bases:
                                 self.param_descriptors[base].add(base_desc)
+                        elif isinstance(desc, CounterLoopVariable) and not desc.is_string and self._find_null_comparison(constraint.addr):
+                            # it's a string!
+                            desc.is_string = True
+                            element_count = None
+                            if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                                element_count = desc.ubound - desc.lbound
+                            buf_desc = Buffer(lbound=desc.lbound, ubound=desc.ubound,
+                                              element_size=1,
+                                              element_count=element_count,
+                                              in_=True,
+                                              out_=False,
+                                              is_string=True
+                                              )
+                            base_desc = Pointer(buf_desc, in_=True, out_=False)
+                            for base in bases:
+                                self.param_descriptors[base].add(base_desc)
+                        return True
+
+            # handle the case where loop increment is left shifted
+            if isinstance(inc, ShlN) and isinstance(inc.variable, LocalVariable):
+                if inc.variable in self._var_descriptors:
+                    descs = self._var_descriptors[inc]
+                    if len(descs) == 1:
+                        desc = next(iter(descs))
+                        if isinstance(desc, SimpleLoopVariable):
+                            # it's a buffer!
+                            element_count = None
+                            if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                                element_count = desc.ubound - desc.lbound
+                            buf_desc = Buffer(lbound=desc.lbound * 2**inc.n, ubound=desc.ubound * 2**inc.n,
+                                              element_size=2**inc.n,
+                                              element_count=element_count,
+                                              in_=True,
+                                              out_=False,
+                                              )
+                            base_desc = Pointer(buf_desc, in_=True, out_=False)
+                            for base in bases:
+                                self.param_descriptors[base].add(base_desc)
+                        # TODO: maybe handle string cases here?
                         return True
 
     #
@@ -383,6 +510,21 @@ class FuncProtoSolver:
                             base_desc = Pointer(buf_desc, in_=True, out_=False)
                             for base in bases:
                                 self.param_descriptors[base].add(base_desc)
+                        elif isinstance(desc, CounterLoopVariable) and desc.is_string:
+                            # it's a string!
+                            element_count = None
+                            if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                                element_count = desc.ubound - desc.lbound
+                            buf_desc = Buffer(lbound=desc.lbound, ubound=desc.ubound,
+                                              element_size=1,
+                                              element_count=element_count,
+                                              in_=False,
+                                              out_=True,
+                                              is_string=True
+                                              )
+                            base_desc = Pointer(buf_desc, in_=True, out_=False)
+                            for base in bases:
+                                self.param_descriptors[base].add(base_desc)
                         return True
 
             # handle the case where loop increment is left shifted
@@ -397,7 +539,7 @@ class FuncProtoSolver:
                             if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
                                 element_count = desc.ubound - desc.lbound
                             buf_desc = Buffer(lbound=desc.lbound * inc.n, ubound=desc.ubound * inc.n,
-                                              element_size=inc.n,  # TODO: FIXME
+                                              element_size=inc.n,
                                               element_count=element_count,
                                               in_=False,
                                               out_=True,
@@ -405,4 +547,20 @@ class FuncProtoSolver:
                             base_desc = Pointer(buf_desc, in_=True, out_=False)
                             for base in bases:
                                 self.param_descriptors[base].add(base_desc)
+                        elif isinstance(desc, CounterLoopVariable) and desc.is_string:
+                            # it's a string!
+                            element_count = None
+                            if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                                element_count = desc.ubound - desc.lbound
+                            buf_desc = Buffer(lbound=desc.lbound, ubound=desc.ubound,
+                                              element_size=1,
+                                              element_count=element_count,
+                                              in_=False,
+                                              out_=True,
+                                              is_string=True
+                                              )
+                            base_desc = Pointer(buf_desc, in_=True, out_=False)
+                            for base in bases:
+                                self.param_descriptors[base].add(base_desc)
                         return True
+
