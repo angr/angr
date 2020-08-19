@@ -1070,11 +1070,12 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @property
     def size(self):
+        if not self.offsets:
+            return 0
+
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
         return last_off * self._arch.byte_width + last_type.size
-
-        #return sum(val.size for val in self.fields.values())
 
     @property
     def alignment(self):
