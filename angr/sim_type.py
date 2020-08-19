@@ -1592,6 +1592,9 @@ def _decl_to_type(decl, extra_types=None):
 
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types)
+
+        if decl.dim is None:
+            return SimTypeArray(elem_type)
         try:
             size = _parse_const(decl.dim)
         except ValueError as e:
@@ -1604,6 +1607,10 @@ def _decl_to_type(decl, extra_types=None):
             fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
         else:
             fields = OrderedDict()
+
+        # Don't forget that "type[]" has a different meaning in structures than in functions
+        if len(fields) > 0 and isinstance(fields[next(reversed(fields))], SimTypeArray):
+            raise NotImplementedError("Sorry, we have no support of flexible array members")
 
         if decl.name is not None:
             key = 'struct ' + decl.name
@@ -1659,6 +1666,10 @@ def _decl_to_type(decl, extra_types=None):
         else:
             raise TypeError("Unknown type '%s'" % ' '.join(key))
 
+    elif isinstance(decl, pycparser.c_ast.Enum):
+        # See C99 at 6.7.2.2
+        return ALL_TYPES['int']
+
     raise ValueError("Unknown type!")
 
 
@@ -1674,6 +1685,10 @@ def _parse_const(c):
             return _parse_const(c.children()[0][1]) * _parse_const(c.children()[1][1])
         if c.op == '/':
             return _parse_const(c.children()[0][1]) // _parse_const(c.children()[1][1])
+        if c.op == '<<':
+            return _parse_const(c.children()[0][1]) << _parse_const(c.children()[1][1])
+        if c.op == '>>':
+            return _parse_const(c.children()[0][1]) >> _parse_const(c.children()[1][1])
         raise ValueError('Binary op %s' % c.op)
     else:
         raise ValueError(c)
