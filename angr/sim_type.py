@@ -1665,6 +1665,10 @@ def _decl_to_type(decl, extra_types=None):
         else:
             raise TypeError("Unknown type '%s'" % ' '.join(key))
 
+    elif isinstance(decl, pycparser.c_ast.Enum):
+        # See C99 at 6.7.2.2
+        return ALL_TYPES['int']
+
     raise ValueError("Unknown type!")
 
 
