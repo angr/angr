@@ -1673,6 +1673,10 @@ def _parse_const(c):
             return _parse_const(c.children()[0][1]) * _parse_const(c.children()[1][1])
         if c.op == '/':
             return _parse_const(c.children()[0][1]) // _parse_const(c.children()[1][1])
+        if c.op == '<<':
+            return _parse_const(c.children()[0][1]) << _parse_const(c.children()[1][1])
+        if c.op == '>>':
+            return _parse_const(c.children()[0][1]) >> _parse_const(c.children()[1][1])
         raise ValueError('Binary op %s' % c.op)
     else:
         raise ValueError(c)
