@@ -1511,6 +1511,16 @@ def parse_file(defn, preprocess=True):
             ty = _decl_to_type(piece.type, extra_types)
             if piece.name is not None:
                 out[piece.name] = ty
+
+            # Don't forget to update typedef types
+            if isinstance(ty, SimStruct) and isinstance(ty, SimUnion) and ty.name != '<anon>':
+                for _, i in extra_types.items():
+                    if i.name == ty.name:
+                        if isinstance(ty, SimStruct):
+                            i.fields = ty.fields
+                        else:
+                            i.members = ty.members
+
         elif isinstance(piece, pycparser.c_ast.Typedef):
             extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types))
             extra_types[piece.name].label = piece.name
