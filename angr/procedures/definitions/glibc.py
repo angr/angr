@@ -2751,6 +2751,8 @@ _libc_decls = \
         "execle": None,
         # int execvp (const char *FILENAME, char *const ARGV[]);
         "execvp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv"]),
+        # int execvpe (const char *FILENAME, char *const ARGV[], char *const ENV[]);,
+        "execvpe": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv", "env"]),
         # int execlp (const char *FILENAME, const char *ARG0, ...);
         "execlp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "arg0"], variadic=True),
         # pid_t waitpid (pid_t PID, int *STATUS_PTR, int OPTIONS);
@@ -4451,6 +4453,7 @@ _libc_c_decls = \
         "int execve (const char *FILENAME, char *const ARGV[], char *const ENV[]);",
         "int execle (const char *FILENAME, const char *ARG0, ..., char *const ENV[]);",
         "int execvp (const char *FILENAME, char *const ARGV[]);",
+        "int execvpe (const char *FILENAME, char *const ARGV[], char *const ENV[]);",
         "int execlp (const char *FILENAME, const char *ARG0, ...);",
         "pid_t waitpid (pid_t PID, int *STATUS_PTR, int OPTIONS);",
         "pid_t wait (int *STATUS_PTR);",
