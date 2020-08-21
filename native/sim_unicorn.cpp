@@ -204,7 +204,7 @@ typedef enum stop {
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
 	STOP_SYMBOLIC_WRITE_ADDR,
 	STOP_SYMBOLIC_BLOCK_EXIT_STMT,
-	STOP_MULTIPLE_MEMORY_WRITES,
+	STOP_MULTIPLE_MEMORY_READS,
 	STOP_UNSUPPORTED_STMT_PUTI,
 	STOP_UNSUPPORTED_STMT_STOREG,
 	STOP_UNSUPPORTED_STMT_LOADG,
@@ -605,8 +605,8 @@ public:
 			case STOP_SYMBOLIC_BLOCK_EXIT_STMT:
 				stop_reason_msg = "Guard condition of block's exit statement is symbolic";
 				break;
-			case STOP_MULTIPLE_MEMORY_WRITES:
-				stop_reason_msg = "Symbolic taint propagation when multiple memory writes occur in single instruction not yet supported";
+			case STOP_MULTIPLE_MEMORY_READS:
+				stop_reason_msg = "Symbolic taint propagation when multiple memory reads occur in single instruction not yet supported";
 				break;
 			case STOP_UNSUPPORTED_STMT_PUTI:
 				stop_reason_msg = "Symbolic taint propagation for PutI statement not yet supported";
@@ -1925,24 +1925,16 @@ public:
 					stop(STOP_SYMBOLIC_READ_ADDR);
 					return;
 				}
-				auto mem_writes_taint_entry = mem_writes_taint_map.find(taint_sink.instr_addr);
-				if (mem_writes_taint_entry != mem_writes_taint_map.end()) {
-					bool is_curr_write_symbolic = (sink_taint_status == TAINT_STATUS_SYMBOLIC) ? true: false;
-					if (is_curr_write_symbolic != mem_writes_taint_entry->second) {
-						// Current write value and previous write value have different taint status.
-						// Since we cannot compute exact addresses modified, stop concrete execution.
-						stop(STOP_MULTIPLE_MEMORY_WRITES);
-						return;
-					}
-				}
-				else if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
+				if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 					// Save the memory location written to be marked as symbolic in write hook
-					mem_writes_taint_map.emplace(taint_sink.instr_addr, true);
+					// If memory write already exists, we overtaint and mark all writes as symbolic
+					mem_writes_taint_map[taint_sink.instr_addr] = true;
 					// Mark instruction as needing symbolic execution
 					is_instr_symbolic = true;
 				}
 				else {
-					// Save the memory location(s) written to be marked as concrete in the write hook
+					// Save the memory location(s) written to be marked as concrete in the write
+					// hook only if it is not a previously seen write
 					mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
 				}
 			}
