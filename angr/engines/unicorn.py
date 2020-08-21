@@ -90,7 +90,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         vex_block = vex_block_details["block"]
         for reg_name, reg_value in block_details["registers"].items():
-            setattr(self.state.regs, reg_name, reg_value)
+            self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
 
         # VEX statements to ignore when re-executing instructions that touched symbolic data
         ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
