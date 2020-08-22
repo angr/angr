@@ -269,9 +269,10 @@ typedef struct block_taint_entry_t {
 } block_taint_entry_t;
 
 typedef struct {
+	stop_t stop_reason;
 	address_t block_addr;
 	uint64_t block_size;
-} stopped_instr_details_t;
+} stop_details_t;
 
 typedef struct {
 	std::unordered_set<taint_entity_t> sources;
@@ -387,7 +388,6 @@ public:
 	uint64_t cur_steps, max_steps;
 	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
 	bool stopped;
-	stop_t stop_reason;
 
 	bool ignore_next_block;
 	bool ignore_next_selfmod;
@@ -410,8 +410,7 @@ public:
 	RegisterSet artificial_vex_registers; // Artificial VEX registers
 	std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
 	int64_t cpu_flags_register;
-	stopped_instr_details_t stopped_at_instr;
-	const char *stop_reason_msg;
+	stop_details_t stop_details;
 
 	// Result of all memory reads executed. Instruction address -> memory read result
 	std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
@@ -430,7 +429,7 @@ public:
 		h_read = h_write = h_block = h_prot = 0;
 		max_steps = cur_steps = 0;
 		stopped = true;
-		stop_reason = STOP_NOSTART;
+		stop_details.stop_reason = STOP_NOSTART;
 		ignore_next_block = false;
 		ignore_next_selfmod = false;
 		interrupt_handled = false;
@@ -509,7 +508,7 @@ public:
 
 	uc_err start(address_t pc, uint64_t step = 1) {
 		stopped = false;
-		stop_reason = STOP_NOSTART;
+		stop_details.stop_reason = STOP_NOSTART;
 		max_steps = step;
 		cur_steps = -1;
 		unicorn_next_instr_addr = pc;
@@ -518,7 +517,7 @@ public:
 		// error if pc is 0
 		// TODO: why is this check here and not elsewhere
 		if (pc == 0) {
-			stop_reason = STOP_ZEROPAGE;
+			stop_details.stop_reason = STOP_ZEROPAGE;
 			cur_steps = 0;
 			return UC_ERR_MAP;
 		}
@@ -533,15 +532,15 @@ public:
 		}
 
 		uc_err out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
-		if (out == UC_ERR_OK && stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
+		if (out == UC_ERR_OK && stop_details.stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		    // handle edge case where we stop because we reached our bogus stop address (0)
 		    commit();
-		    stop_reason = STOP_ZEROPAGE;
+		    stop_details.stop_reason = STOP_ZEROPAGE;
 		}
 		rollback();
 
 		if (out == UC_ERR_INSN_INVALID) {
-			stop_reason = STOP_NODECODE;
+			stop_details.stop_reason = STOP_NODECODE;
 		}
 
 		// if we errored out right away, fix the step count to 0
@@ -552,111 +551,15 @@ public:
 
 	void stop(stop_t reason) {
 		stopped = true;
+		stop_details.stop_reason = reason;
+		stop_details.block_addr = block_details.block_addr;
+		stop_details.block_size = block_details.block_size;
 		switch (reason) {
-			case STOP_NORMAL:
-				stop_reason_msg = "reached maximum steps";
-				break;
-			case STOP_STOPPOINT:
-				stop_reason_msg = "hit a stop point";
-				break;
-			case STOP_ERROR:
-				stop_reason_msg = "something wrong";
-				break;
 			case STOP_SYSCALL:
-				stop_reason_msg = "unable to handle syscall";
 				commit();
 				break;
-			case STOP_ZEROPAGE:
-				stop_reason_msg = "accessing zero page";
-				break;
-			case STOP_EXECNONE:
-				stop_reason_msg = "fetching empty page";
-				break;
-			case STOP_NOSTART:
-				stop_reason_msg = "failed to start";
-				break;
-			case STOP_SEGFAULT:
-				stop_reason_msg = "permissions or mapping error";
-				break;
-			case STOP_ZERO_DIV:
-				stop_reason_msg = "divide by zero";
-				break;
-			case STOP_NODECODE:
-				stop_reason_msg = "instruction decoding error";
-				break;
-			case STOP_VEX_LIFT_FAILED:
-				stop_reason_msg = "failed to lift block to VEX";
-				break;
-			case STOP_SYMBOLIC_CONDITION:
-				stop_reason_msg = "symbolic condition for ITE";
-				break;
-			case STOP_SYMBOLIC_READ_ADDR:
-				stop_reason_msg = "attempted to read from symbolic address";
-				break;
-			case STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED:
-				stop_reason_msg = "attempted to read symbolic data from memory but symbolic tracking is disabled";
-				break;
-			case STOP_SYMBOLIC_WRITE_ADDR:
-				stop_reason_msg = "attempted to write to symbolic address";
-				break;
-			case STOP_SYMBOLIC_PC:
-				stop_reason_msg = "Instruction pointer became symbolic";
-				break;
-			case STOP_SYMBOLIC_BLOCK_EXIT_STMT:
-				stop_reason_msg = "Guard condition of block's exit statement is symbolic";
-				break;
-			case STOP_MULTIPLE_MEMORY_READS:
-				stop_reason_msg = "Symbolic taint propagation when multiple memory reads occur in single instruction not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_PUTI:
-				stop_reason_msg = "Symbolic taint propagation for PutI statement not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_STOREG:
-				stop_reason_msg = "Symbolic taint propagation for StoreG statement not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_LOADG:
-				stop_reason_msg = "Symbolic taint propagation for LoadG statement not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_CAS:
-				stop_reason_msg = "Symbolic taint propagation for CAS statement not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_LLSC:
-				stop_reason_msg = "Symbolic taint propagation for LLSC statement not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_DIRTY:
-				stop_reason_msg = "Symbolic taint propagation for Dirty statement not yet supported";
-				break;
-			case STOP_UNSUPPORTED_EXPR_GETI:
-				stop_reason_msg = "Symbolic taint propagation for GetI expression not yet supported";
-				break;
-			case STOP_UNSUPPORTED_STMT_UNKNOWN:
-				stop_reason_msg = "Cannot propagate symbolic taint for VEX statement of unknown type";
-				break;
-			case STOP_UNSUPPORTED_EXPR_UNKNOWN:
-				stop_reason_msg = "Cannot propagate symbolic taint for VEX expression of unknown type";
-				break;
-			case STOP_UNKNOWN_MEMORY_WRITE:
-				// This likely happened because unicorn misreported PC value in memory write hook. See handle_write.
-				stop_reason_msg = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly";
-				break;
-			case STOP_UNKNOWN_MEMORY_READ:
-				// This likely happened because unicorn misreported PC value in memory read hook.
-				stop_reason_msg = "Unexpected PC value for memory read; likely because unicorn reported PC value incorrectly";
-				break;
-			default:
-				stop_reason_msg = "unknown error";
 		}
-		stop_reason = reason;
-		save_stopped_at_instruction_details();
-		//LOG_D("stop: %s", stop_reason_msg);
 		uc_emu_stop(uc);
-	}
-
-	inline void save_stopped_at_instruction_details() {
-		// Save details of block of instruction where we stopped
-		stopped_at_instr.block_addr = block_details.block_addr;
-		stopped_at_instr.block_size = block_details.block_size;
-		return;
 	}
 
 	void step(address_t current_address, int32_t size, bool check_stop_points=true) {
@@ -2517,13 +2420,8 @@ uint64_t simunicorn_executed_pages(State *state) { // this is HORRIBLE
 //
 
 extern "C"
-stop_t simunicorn_stop_reason(State *state) {
-	return state->stop_reason;
-}
-
-extern "C"
-const char * simunicorn_stop_message(State *state) {
-	return state->stop_reason_msg;
+stop_details_t simunicorn_get_stop_details(State *state) {
+	return state->stop_details;
 }
 
 //
@@ -2721,9 +2619,4 @@ void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, block_d
 		ret_block_details[i].register_values_count = state->blocks_with_symbolic_instrs[i].register_values.size();
 	}
 	return;
-}
-
-extern "C"
-stopped_instr_details_t simunicorn_get_stopping_instruction_details(State *state) {
-	return state->stopped_at_instr;
 }

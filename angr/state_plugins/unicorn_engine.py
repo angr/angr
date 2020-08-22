@@ -114,6 +114,38 @@ class STOP:  # stop_t
     STOP_UNKNOWN_MEMORY_WRITE     = 28
     STOP_UNKNOWN_MEMORY_READ      = 29
 
+    stop_message = {}
+    stop_message[STOP_NORMAL]        = "Reached maximum steps"
+    stop_message[STOP_STOPPOINT]     = "Hit a stop point"
+    stop_message[STOP_ERROR]         = "Something wrong"
+    stop_message[STOP_SYSCALL]       = "Unable to handle syscall"
+    stop_message[STOP_EXECNONE]      = "Fetching empty page"
+    stop_message[STOP_ZEROPAGE]      = "Accessing zero page"
+    stop_message[STOP_NOSTART]       = "Failed to start"
+    stop_message[STOP_SEGFAULT]      = "Permissions or mapping error"
+    stop_message[STOP_ZERO_DIV]      = "Divide by zero"
+    stop_message[STOP_NODECODE]      = "Instruction decoding error"
+    stop_message[STOP_HLT]           = "hlt instruction encountered"
+    stop_message[STOP_VEX_LIFT_FAILED]       = "Failed to lift block to VEX"
+    stop_message[STOP_SYMBOLIC_CONDITION]    = "Symbolic condition for ITE"
+    stop_message[STOP_SYMBOLIC_PC]           = "Instruction pointer became symbolic"
+    stop_message[STOP_SYMBOLIC_READ_ADDR]    = "Attempted to read from symbolic address"
+    stop_message[STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED]= "Attempted to read symbolic data from memory but symbolic tracking is disabled"
+    stop_message[STOP_SYMBOLIC_WRITE_ADDR]   = "Attempted to write to symbolic address"
+    stop_message[STOP_SYMBOLIC_BLOCK_EXIT_STMT]= "Guard condition of block's exit statement is symbolic"
+    stop_message[STOP_MULTIPLE_MEMORY_READS]   = "Symbolic taint propagation when multiple memory reads occur in single instruction not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_PUTI]   = "Symbolic taint propagation for PutI statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_STOREG] = "Symbolic taint propagation for StoreG statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_LOADG]  = "Symbolic taint propagation for LoadG statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_CAS]    = "Symbolic taint propagation for CAS statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_LLSC]   = "Symbolic taint propagation for LLSC statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_DIRTY]  = "Symbolic taint propagation for Dirty statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_EXPR_GETI]   = "Symbolic taint propagation for GetI expression not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
+    stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
+    stop_message[STOP_UNKNOWN_MEMORY_WRITE]    = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly"
+    stop_message[STOP_UNKNOWN_MEMORY_READ]     = "Cannot find a memory read at instruction; likely because unicorn reported PC value incorrectly"
+
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
         STOP_SYMBOLIC_BLOCK_EXIT_STMT]
@@ -130,8 +162,16 @@ class STOP:  # stop_t
                 return item
         raise ValueError(num)
 
-class StoppedInstructionDetails(ctypes.Structure):
+    @staticmethod
+    def get_stop_msg(stop_reason):
+        if stop_reason in STOP.stop_message:
+            return STOP.stop_message[stop_reason]
+
+        return "Unknown stop reason"
+
+class StopDetails(ctypes.Structure):
     _fields_ = [
+        ('stop_reason', ctypes.c_int),
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64),
     ]
@@ -298,7 +338,6 @@ def _load_native():
         _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'stop_reason', stop_t, state_t)
         _setup_prototype(h, 'activate_page', None, state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
@@ -321,8 +360,7 @@ def _load_native():
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_details_of_blocks_with_symbolic_instrs', None, state_t, ctypes.POINTER(BlockDetails))
-        _setup_prototype(h, 'get_stopping_instruction_details', StoppedInstructionDetails, state_t)
-        _setup_prototype(h, 'stop_message', ctypes.c_char_p, state_t)
+        _setup_prototype(h, 'get_stop_details', StopDetails, state_t)
         _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_unicorn_flags_register_id', None, state_t, ctypes.c_int64)
@@ -413,7 +451,7 @@ class Unicorn(SimStatePlugin):
         # native state in libsimunicorn
         self._uc_state = None
         self.stop_reason = None
-        self.stopping_instr_block_details = None
+        self.stop_details = None
         self.stop_message = None
 
         # this is the counter for the unicorn count
@@ -1116,12 +1154,12 @@ class Unicorn(SimStatePlugin):
         # do the superficial synchronization
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
-        self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
-        self.stopping_instr_block_details = _UC_NATIVE.get_stopping_instruction_details(self._uc_state)
-        self.stop_message = str(_UC_NATIVE.stop_message(self._uc_state), 'utf-8')
+        self.stop_details = _UC_NATIVE.get_stop_details(self._uc_state)
+        self.stop_reason = self.stop_details.stop_reason
+        self.stop_message = STOP.get_stop_msg(self.stop_reason)
         if self.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
           self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_READ, STOP.STOP_UNKNOWN_MEMORY_WRITE):
-            self.stop_message += f". Block 0x{self.stopping_instr_block_details.block_addr:02x}(size: {self.stopping_instr_block_details.block_size})."
+            self.stop_message += f". Block 0x{self.stop_details.block_addr:02x}(size: {self.stop_details.block_size})."
 
         # figure out why we stopped
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
