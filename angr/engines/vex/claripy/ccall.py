@@ -28,8 +28,11 @@ def calc_paritybit(p, msb=7, lsb=0):
         b = b ^ p_part[i]
     return b
 
+def _cond_flag(condition):
+    return claripy.If(condition, claripy.BVV(1, 1), claripy.BVV(0, 1))
+
 def calc_zerobit(p):
-    return claripy.If(p == 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
+    return _cond_flag(p == 0)
 
 def boolean_extend(O, a, b, size):
     return claripy.If(O(a, b), claripy.BVV(1, size), claripy.BVV(0, size))
@@ -155,11 +158,19 @@ data['AMD64']['OpTypes']['G_CC_OP_SMULB'] = 49
 data['AMD64']['OpTypes']['G_CC_OP_SMULW'] = 50
 data['AMD64']['OpTypes']['G_CC_OP_SMULL'] = 51
 data['AMD64']['OpTypes']['G_CC_OP_SMULQ'] = 52
-data['AMD64']['OpTypes']['G_CC_OP_NUMBER'] = 53
+data['AMD64']['OpTypes']['G_CC_OP_ANDN32'] = 53
+data['AMD64']['OpTypes']['G_CC_OP_ANDN64'] = 54
+data['AMD64']['OpTypes']['G_CC_OP_BLSI32'] = 55
+data['AMD64']['OpTypes']['G_CC_OP_BLSI64'] = 56
+data['AMD64']['OpTypes']['G_CC_OP_BLSMSK32'] = 57
+data['AMD64']['OpTypes']['G_CC_OP_BLSMSK64'] = 58
+data['AMD64']['OpTypes']['G_CC_OP_BLSR32'] = 59
+data['AMD64']['OpTypes']['G_CC_OP_BLSR64'] = 60
 data['AMD64']['OpTypes']['G_CC_OP_ADCXL'] = 61
 data['AMD64']['OpTypes']['G_CC_OP_ADCXQ'] = 62
 data['AMD64']['OpTypes']['G_CC_OP_ADOXL'] = 63
 data['AMD64']['OpTypes']['G_CC_OP_ADOXQ'] = 64
+data['AMD64']['OpTypes']['G_CC_OP_NUMBER'] = 65
 
 data['X86']['CondTypes']['CondO']      = 0
 data['X86']['CondTypes']['CondNO']     = 1
@@ -369,6 +380,42 @@ def pc_actions_ADCX(state, nbits, cc_dep1, cc_dep2, cc_ndep, is_adc, platform=No
 
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
+def pc_actions_ANDN(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    cf = claripy.BVV(0, 1)
+    pf = claripy.BVV(0, 1)
+    af = claripy.BVV(0, 1)
+    of = claripy.BVV(0, 1)
+    zf = _cond_flag(cc_dep1 == 0)
+    sf = cc_dep1[nbits - 1]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
+def pc_actions_BLSI(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    pf = claripy.BVV(0, 1)
+    af = claripy.BVV(0, 1)
+    of = claripy.BVV(0, 1)
+    cf = _cond_flag(cc_dep2 != 0)
+    zf = _cond_flag(cc_dep1 == 0)
+    sf = cc_dep1[nbits - 1]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
+def pc_actions_BLSMSK(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    pf = claripy.BVV(0, 1)
+    af = claripy.BVV(0, 1)
+    of = claripy.BVV(0, 1)
+    zf = claripy.BVV(0, 1)
+    cf = _cond_flag(cc_dep2 == 0)
+    sf = cc_dep1[nbits - 1]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
+def pc_actions_BLSR(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
+    pf = claripy.BVV(0, 1)
+    af = claripy.BVV(0, 1)
+    of = claripy.BVV(0, 1)
+    cf = _cond_flag(cc_dep2 == 0)
+    zf = _cond_flag(cc_dep1 == 0)
+    sf = cc_dep1[nbits - 1]
+    return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
+
 def pc_actions_SBB(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
     old_c = cc_ndep[data[platform]['CondBitOffsets']['G_CC_SHIFT_C']].zero_extend(nbits-1)
     arg_l = cc_dep1
@@ -541,7 +588,18 @@ def pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1_formal, cc_dep2_formal, cc_
     if cc_str == 'G_CC_OP_SMULQ':
         l.debug("cc_str: SMULQ")
         return pc_actions_SMULQ(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
-
+    if cc_str in [ 'G_CC_OP_ANDN32', 'G_CC_OP_ANDN64']:
+        l.debug('cc_str: ANDN')
+        return pc_actions_ANDN(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+    if cc_str in [ 'G_CC_OP_BLSI32', 'G_CC_OP_BLSI64']:
+        l.debug('cc_str: BLSI')
+        return pc_actions_BLSI(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+    if cc_str in [ 'G_CC_OP_BLSMSK32', 'G_CC_OP_BLSMSK64']:
+        l.debug('cc_str: BLSMSK')
+        return pc_actions_BLSMSK(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
+    if cc_str in [ 'G_CC_OP_BLSR32', 'G_CC_OP_BLSR64']:
+        l.debug('cc_str: BLSR')
+        return pc_actions_BLSR(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, platform=platform)
     if cc_str in [ 'G_CC_OP_ADOXL', 'G_CC_OP_ADOXQ' ]:
         l.debug("cc_str: ADOX")
         return pc_actions_ADCX(state, nbits, cc_dep1_formal, cc_dep2_formal, cc_ndep_formal, False, platform=platform)
@@ -685,9 +743,6 @@ def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platfo
 # the conditional flags calculation and generating messy and meaningless ASTs. It allows us to have a meaningful AST
 # for each conditional flag, which greatly helps static analysis (like VSA).
 
-def _cond_flag(state, condition):
-    return claripy.If(condition, claripy.BVV(1, 1), claripy.BVV(0, 1))
-
 # TODO: Implement the missing ones
 
 # General ops
@@ -714,57 +769,57 @@ def pc_actions_op_LOGIC(arg_l, arg_r, cc_ndep):
 
 # General conditions
 def pc_actions_cond_CondZ(state, cc_expr):
-    return _cond_flag(state, cc_expr == 0)
+    return _cond_flag(cc_expr == 0)
 
 def pc_actions_cond_CondNZ(state, cc_expr):
-    return _cond_flag(state, cc_expr != 0)
+    return _cond_flag(cc_expr != 0)
 
 def pc_actions_cond_CondS(state, cc_expr):
-    return _cond_flag(state, claripy.SLT(cc_expr, 0))
+    return _cond_flag(claripy.SLT(cc_expr, 0))
 
 def pc_actions_cond_CondB(state, cc_expr):
-    return _cond_flag(state, claripy.ULT(cc_expr, 0))
+    return _cond_flag(claripy.ULT(cc_expr, 0))
 
 def pc_actions_cond_CondBE(state, cc_expr):
-    return _cond_flag(state, claripy.ULE(cc_expr, 0))
+    return _cond_flag(claripy.ULE(cc_expr, 0))
 
 def pc_actions_cond_CondNBE(state, cc_expr):
-    return _cond_flag(state, claripy.UGT(cc_expr, 0))
+    return _cond_flag(claripy.UGT(cc_expr, 0))
 
 def pc_actions_cond_CondL(state, cc_expr):
-    return _cond_flag(state, claripy.SLT(cc_expr, 0))
+    return _cond_flag(claripy.SLT(cc_expr, 0))
 
 def pc_actions_cond_CondLE(state, cc_expr):
-    return _cond_flag(state, claripy.SLE(cc_expr, 0))
+    return _cond_flag(claripy.SLE(cc_expr, 0))
 
 def pc_actions_cond_CondNLE(state, cc_expr):
-    return _cond_flag(state, claripy.SGT(cc_expr, 0))
+    return _cond_flag(claripy.SGT(cc_expr, 0))
 
 
 # Specialized versions of (op,cond) to make claripy happy
 def pc_actions_SUB_CondZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l == arg_r)
+    return _cond_flag(arg_l == arg_r)
 
 def pc_actions_SUB_CondNZ(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, arg_l != arg_r)
+    return _cond_flag(arg_l != arg_r)
 
 def pc_actions_SUB_CondB(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, claripy.ULT(arg_l, arg_r))
+    return _cond_flag(claripy.ULT(arg_l, arg_r))
 
 def pc_actions_SUB_CondBE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, claripy.ULE(arg_l, arg_r))
+    return _cond_flag(claripy.ULE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNBE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, claripy.UGT(arg_l, arg_r))
+    return _cond_flag(claripy.UGT(arg_l, arg_r))
 
 def pc_actions_SUB_CondL(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, claripy.SLT(arg_l, arg_r))
+    return _cond_flag(claripy.SLT(arg_l, arg_r))
 
 def pc_actions_SUB_CondLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, claripy.SLE(arg_l, arg_r))
+    return _cond_flag(claripy.SLE(arg_l, arg_r))
 
 def pc_actions_SUB_CondNLE(state, arg_l, arg_r, cc_ndep):
-    return _cond_flag(state, claripy.SGT(arg_l, arg_r))
+    return _cond_flag(claripy.SGT(arg_l, arg_r))
 
 
 def pc_calculate_condition_simple(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -1867,6 +1922,10 @@ def _get_nbits(cc_str):
     elif cc_str.endswith('L'):
         nbits = 32
     elif cc_str.endswith('Q'):
+        nbits = 64
+    elif cc_str.endswith('32'):
+        nbits = 32
+    elif cc_str.endswith('64'):
         nbits = 64
     return nbits
 
