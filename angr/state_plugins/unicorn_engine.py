@@ -422,18 +422,14 @@ class Unicorn(SimStatePlugin):
 
         # these are threshold for the number of times that we tolerate being kept out of unicorn
         # before we start concretizing
-        self.concretization_threshold_memory = min(
-            self.concretization_threshold_memory,
-            min(o.concretization_threshold_memory for o in others)
-        )
-        self.concretization_threshold_registers = min(
-            self.concretization_threshold_registers,
-            min(o.concretization_threshold_registers for o in others)
-        )
-        self.concretization_threshold_instruction = min(
-            self.concretization_threshold_instruction,
-            min(o.concretization_threshold_instruction for o in others)
-        )
+        def merge_nullable_min(*args):
+            nonnull = [a for a in args if a is not None]
+            if not nonnull:
+                return None
+            return min(nonnull)
+        self.concretization_threshold_memory = merge_nullable_min(self.concretization_threshold_memory, *(o.concretization_threshold_memory for o in others))
+        self.concretization_threshold_registers = merge_nullable_min(self.concretization_threshold_registers, *(o.concretization_threshold_registers for o in others))
+        self.concretization_threshold_instruction = merge_nullable_min(self.concretization_threshold_instruction, *(o.concretization_threshold_instruction for o in others))
 
         # these are sets of names of variables that should either always or never
         # be concretized
