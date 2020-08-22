@@ -241,6 +241,30 @@ def test_varargs():
     nose.tools.assert_not_in('...', sig._init_str())
 
 
+def test_forward_declaration_typedef_struct():
+    types, extra_types = angr.types.parse_file("typedef struct _A A; struct _A {int a;int b;};")
+
+    nose.tools.assert_is_not_none(extra_types['A'].fields)
+    nose.tools.assert_is_instance(extra_types['A'].fields['a'], SimTypeInt)
+    nose.tools.assert_is_instance(extra_types['A'].fields['b'], SimTypeInt)
+
+    nose.tools.assert_is_not_none(extra_types['struct _A'].fields)
+    nose.tools.assert_is_instance(extra_types['struct _A'].fields['a'], SimTypeInt)
+    nose.tools.assert_is_instance(extra_types['struct _A'].fields['b'], SimTypeInt)
+
+
+def test_forward_declaration_typedef_union():
+    types, extra_types = angr.types.parse_file("typedef union _A A; union _A {int a;int b;};")
+
+    nose.tools.assert_is_not_none(extra_types['A'].members)
+    nose.tools.assert_is_instance(extra_types['A'].members['a'], SimTypeInt)
+    nose.tools.assert_is_instance(extra_types['A'].members['b'], SimTypeInt)
+
+    nose.tools.assert_is_not_none(extra_types['union _A'].members)
+    nose.tools.assert_is_instance(extra_types['union _A'].members['a'], SimTypeInt)
+    nose.tools.assert_is_instance(extra_types['union _A'].members['b'], SimTypeInt)
+
+
 if __name__ == '__main__':
     test_type_annotation()
     test_cproto_conversion()
@@ -252,3 +276,5 @@ if __name__ == '__main__':
     test_union_struct_referencing_each_other()
     test_top_type()
     test_arg_names()
+    test_forward_declaration_typedef_struct()
+    test_forward_declaration_typedef_union()
