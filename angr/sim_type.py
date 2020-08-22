@@ -1513,7 +1513,7 @@ def parse_file(defn, preprocess=True):
                 out[piece.name] = ty
 
             # Don't forget to update typedef types
-            if isinstance(ty, SimStruct) and isinstance(ty, SimUnion) and ty.name != '<anon>':
+            if (isinstance(ty, SimStruct) or isinstance(ty, SimUnion)) and ty.name != '<anon>':
                 for _, i in extra_types.items():
                     if i.name == ty.name:
                         if isinstance(ty, SimStruct):
