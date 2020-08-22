@@ -507,6 +507,24 @@ def test_x86_ud2_behaviors():
     block_0 = a.factory.block(0)
     assert block_0.size == 2
 
+def test_blsr():
+    p = load_shellcode(bytes.fromhex('c4e2f8f3cf0f95c00fb6c0c3'), arch='amd64')
+    # compiled form of !!(x & (x - 1))
+    # 2c0:   c4 e2 f8 f3 cf          blsr   %rdi,%rax
+
+    # 2c5:   0f 95 c0                setne  %al
+    # 2c8:   0f b6 c0                movzbl %al,%eax
+    # 2cb:   c3                      retq
+    x = claripy.BVS('x', 64)
+    s = p.factory.call_state(0, x)
+    sm = p.factory.simulation_manager(s)
+    sm.run()
+
+    target_func = claripy.If((x & (x - 1)) == 0, claripy.BVV(0, 64), 1)
+    solver = claripy.Solver()
+    solver.add(sm.one_deadended.regs.rax != target_func)
+    assert not solver.satisfiable()
+
 
 if __name__ == '__main__':
     g = globals().copy()
