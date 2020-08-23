@@ -489,7 +489,6 @@ class Unicorn(SimStatePlugin):
 
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
-        self.vex_reg_offset_to_name = {}
 
     @SimStatePlugin.memo
     def copy(self, _memo):
@@ -945,7 +944,7 @@ class Unicorn(SimStatePlugin):
 
             for register_value in block_register_values:
                 # Convert the register value in bytes to number of appropriate size and endianness
-                reg_name, reg_size = self.vex_reg_offset_to_name[register_value.offset]
+                reg_name, reg_size = self.state.arch.vex_reg_offset_to_name[register_value.offset]
                 if self.state.arch.register_endness == 'Iend_LE':
                     reg_value = int.from_bytes(register_value.value, "little")
                 else:
@@ -1042,37 +1041,14 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
 
         # Initialize list of artificial VEX registers
-        artificial_regs_list = []
-        vex_reg_to_size_map = {}
-        for reg_name in self.state.arch.artificial_registers:
-            reg = self.state.arch.get_register_by_name(reg_name)
-            vex_reg_to_size_map[reg.vex_offset] = reg.size
-            artificial_regs_list.extend(range(reg.vex_offset, reg.vex_offset + reg.size))
-
+        artificial_regs_list = self.state.arch.artificial_registers_offsets
         artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
         _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
 
         # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
-        vex_to_unicorn_map = {}
-        vex_sub_reg_to_reg_map = {}
-        pc_reg_name = self.state.arch.get_register_by_name("pc")
-        for reg_name, unicorn_reg_id in self.state.arch.uc_regs.items():
-            if reg_name == pc_reg_name:
-                continue
-
-            vex_reg = self.state.arch.get_register_by_name(reg_name)
-            self.vex_reg_offset_to_name[vex_reg.vex_offset] = (reg_name, vex_reg.size)
-            vex_to_unicorn_map[vex_reg.vex_offset] = unicorn_reg_id
-            vex_reg_to_size_map[vex_reg.vex_offset] = vex_reg.size
-            for vex_sub_reg in vex_reg.subregisters:
-                vex_sub_reg_offset = self.state.arch.get_register_offset(vex_sub_reg[0])
-                if vex_sub_reg_offset not in self.vex_reg_offset_to_name:
-                    self.vex_reg_offset_to_name[vex_sub_reg_offset] = (reg_name, vex_reg.size)
-                vex_sub_reg_to_reg_map[vex_sub_reg_offset] = vex_reg.vex_offset
-
         vex_reg_offsets = []
         unicorn_reg_ids = []
-        for vex_reg_offset, unicorn_reg_id in vex_to_unicorn_map.items():
+        for vex_reg_offset, unicorn_reg_id in self.state.arch.vex_to_unicorn_map.items():
             vex_reg_offsets.append(vex_reg_offset)
             unicorn_reg_ids.append(unicorn_reg_id)
 
@@ -1082,7 +1058,7 @@ class Unicorn(SimStatePlugin):
 
         vex_reg_offsets = []
         vex_sub_reg_offsets = []
-        for vex_sub_reg_offset, vex_reg_offset in vex_sub_reg_to_reg_map.items():
+        for vex_sub_reg_offset, vex_reg_offset in self.state.arch.vex_sub_reg_to_reg_map.items():
             vex_reg_offsets.append(vex_reg_offset)
             vex_sub_reg_offsets.append(vex_sub_reg_offset)
 
@@ -1092,7 +1068,7 @@ class Unicorn(SimStatePlugin):
 
         vex_reg_offsets = []
         vex_reg_sizes = []
-        for vex_reg_offset, vex_reg_size in vex_reg_to_size_map.items():
+        for vex_reg_offset, vex_reg_size in self.state.arch.vex_reg_to_size_map.items():
             vex_reg_offsets.append(vex_reg_offset)
             vex_reg_sizes.append(vex_reg_size)
 
@@ -1101,36 +1077,23 @@ class Unicorn(SimStatePlugin):
         _UC_NATIVE.set_vex_offset_to_register_size_mapping(self._uc_state, vex_reg_offsets_array, vex_reg_sizes_array, len(vex_reg_offsets_array))
 
         # Initial VEX to unicorn mappings for flag register
-        if self.state.arch.name in ('X86', 'AMD64'):
-            cpu_flags_vex_names = [('d', 10), ('ac', 18), ('id', 21)]
-            unicorn_flag_register = unicorn.x86_const.UC_X86_REG_EFLAGS
-        else:
-            if self.state.arch.name.startswith("ARM"):
-                l.warning(f"Flag registers for {self.state.arch.name} not known and not pushed to unicorn.")
-
-            cpu_flags_vex_names = []
-            unicorn_flag_register = None
-
-        if unicorn_flag_register:
+        if self.state.arch.unicorn_flag_register:
+            _UC_NATIVE.set_unicorn_flags_register_id(self._uc_state, self.state.arch.unicorn_flag_register)
             cpu_flag_vex_offsets = []
             cpu_flag_bitmasks = []
-            for cpu_flag in cpu_flags_vex_names:
-                cpu_flag_vex_offsets.append(self.state.arch.get_register_offset(cpu_flag[0]))
-                cpu_flag_bitmasks.append(1 << cpu_flag[1])
+            for cpu_flag_reg_offset, cpu_flag_reg_bitmask in self.state.arch.cpu_flag_register_offsets_and_bitmasks_map.items():
+                cpu_flag_vex_offsets.append(cpu_flag_reg_offset)
+                cpu_flag_bitmasks.append(cpu_flag_reg_bitmask)
 
-            cpu_flag_vex_offsets_array = (ctypes.c_uint64 * len(cpu_flag_vex_offsets))(*map(ctypes.c_uint64, cpu_flag_vex_offsets))
-            cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
-            _UC_NATIVE.set_cpu_flags_details(self._uc_state, cpu_flag_vex_offsets_array, cpu_flag_bitmasks_array,len(cpu_flag_vex_offsets))
-            _UC_NATIVE.set_unicorn_flags_register_id(self._uc_state, unicorn_flag_register)
+            if len(cpu_flag_vex_offsets) > 0:
+                cpu_flag_vex_offsets_array = (ctypes.c_uint64 * len(cpu_flag_vex_offsets))(*map(ctypes.c_uint64, cpu_flag_vex_offsets))
+                cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
+                _UC_NATIVE.set_cpu_flags_details(self._uc_state, cpu_flag_vex_offsets_array, cpu_flag_bitmasks_array,len(cpu_flag_vex_offsets))
+        elif self.state.arch.name.startswith("ARM"):
+            l.warning(f"Flag registers for {self.state.arch.name} not set in native unicorn interface.")
 
         # Initialize list of blacklisted registers
-        blacklist_regs_offsets = []
-        for reg_name in self.reg_blacklist + ('gdt', 'ldt'):
-            if reg_name not in self.state.arch.registers:
-                continue
-
-            blacklist_regs_offsets.append(self.state.arch.get_register_offset(reg_name))
-
+        blacklist_regs_offsets = self.state.arch.reg_blacklist_offsets
         if len(blacklist_regs_offsets) > 0:
             blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*map(ctypes.c_uint64, blacklist_regs_offsets))
             _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, len(blacklist_regs_offsets))
@@ -1328,7 +1291,7 @@ class Unicorn(SimStatePlugin):
             uc.reg_write(self._uc_const.UC_MIPS_REG_CP0_USERLOCAL, self.state.solver.eval(ulr))
 
         for r, c in self._uc_regs.items():
-            if r in self.reg_blacklist:
+            if r in self.state.arch.reg_blacklist:
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
@@ -1449,8 +1412,6 @@ class Unicorn(SimStatePlugin):
         uc.emu_start(BASE, BASE + len(setup_code))
         uc.mem_unmap(BASE, 0x1000)
 
-    reg_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
-
     def get_regs(self):
         ''' loading registers from unicorn '''
 
@@ -1483,7 +1444,7 @@ class Unicorn(SimStatePlugin):
 
         # now we sync registers out of unicorn
         for r, c in self._uc_regs.items():
-            if r in self.reg_blacklist:
+            if r in self.state.arch.reg_blacklist:
                 continue
             v = self.uc.reg_read(c)
             # l.debug('getting $%s = %#x', r, v)
