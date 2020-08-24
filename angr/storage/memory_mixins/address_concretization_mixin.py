@@ -3,6 +3,7 @@ import claripy
 from . import MemoryMixin
 from ... import sim_options as options
 from ... import concretization_strategies
+from ...sim_state_options import SimStateOptions
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ...errors import SimMergeError, SimUnsatError, SimMemoryAddressError, SimMemoryError
 from ...storage import DUMMY_SYMBOLIC_READ_VALUE
@@ -18,6 +19,18 @@ class MultiwriteAnnotation(claripy.Annotation):
 def _multiwrite_filter(mem, ast): #pylint:disable=unused-argument
     # this is a huge hack, but so is the whole multiwrite crap
     return any(isinstance(a, MultiwriteAnnotation) for a in ast._uneliminatable_annotations)
+
+SimStateOptions.register_option("symbolic_ip_max_targets", int,
+                                default=256,
+                                description="The maximum number of concrete addresses a symbolic instruction pointer "
+                                            "can be concretized to."
+                                )
+SimStateOptions.register_option("jumptable_symbolic_ip_max_targets", int,
+                                default=16384,
+                                description="The maximum number of concrete addresses a symbolic instruction pointer "
+                                            "can be concretized to if it is part of a jump table."
+                                )
+
 
 class AddressConcretizationMixin(MemoryMixin):
     """
