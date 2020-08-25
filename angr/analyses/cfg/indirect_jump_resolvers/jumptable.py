@@ -385,8 +385,12 @@ class JumpTableProcessor(
 class StoreHook:
     @staticmethod
     def hook(state):
-        state.inspect.mem_write_expr = state.solver.BVS('instrumented_store',
-                                                        state.solver.eval(state.inspect.mem_write_length) * 8)
+        write_length = state.inspect.mem_write_length
+        if write_length is None:
+            write_length = len(state.inspect.mem_write_expr)
+        else:
+            write_length = write_length * state.arch.byte_width
+        state.inspect.mem_write_expr = state.solver.BVS('instrumented_store', write_length)
 
 
 class LoadHook:
@@ -420,6 +424,72 @@ class RegisterInitializerHook:
 
     def hook(self, state):
         state.registers.store(self.reg_offset, state.solver.BVV(self.value, self.reg_bits))
+
+
+class BSSHook:
+    def __init__(self, project, bss_regions):
+        self.project = project
+        self._bss_regions = bss_regions
+        self._written_addrs = set()
+
+    def bss_memory_read_hook(self, state):
+
+        if not self._bss_regions:
+            return
+
+        read_addr = state.inspect.mem_read_address
+        read_length = state.inspect.mem_read_length
+
+        if not isinstance(read_addr, int) and read_addr.symbolic:
+            # don't touch it
+            return
+
+        concrete_read_addr = state.solver.eval(read_addr)
+        concrete_read_length = state.solver.eval(read_length)
+
+        for start, size in self._bss_regions:
+            if start <= concrete_read_addr < start + size:
+                # this is a read from the .bss section
+                break
+        else:
+            return
+
+        if concrete_read_addr not in self._written_addrs:
+            # it was never written to before. we overwrite it with unconstrained bytes
+            for i in range(0, concrete_read_length, self.project.arch.bytes):
+                state.memory.store(concrete_read_addr + i, state.solver.Unconstrained('unconstrained',
+                                                                                      self.project.arch.bits))
+
+                # job done :-)
+
+    def bss_memory_write_hook(self, state):
+
+        if not self._bss_regions:
+            return
+
+        write_addr = state.inspect.mem_write_address
+
+        if not isinstance(write_addr, int) and write_addr.symbolic:
+            return
+
+        concrete_write_addr = state.solver.eval(write_addr)
+        concrete_write_length = state.solver.eval(state.inspect.mem_write_length) \
+            if state.inspect.mem_write_length is not None \
+            else len(state.inspect.mem_write_expr) // state.arch.byte_width
+
+        for start, size in self._bss_regions:
+            if start <= concrete_write_addr < start + size:
+                # hit a BSS section
+                break
+        else:
+            return
+
+        if concrete_write_length > 1024:
+            l.warning("Writing more 1024 bytes to the BSS region, only considering the first 1024 bytes.")
+            concrete_write_length = 1024
+
+        for i in range(concrete_write_addr, concrete_write_length):
+            self._written_addrs.add(i)
 
 #
 # Main class
@@ -578,7 +648,10 @@ class JumpTableResolver(IndirectJumpResolver):
 
             # any read from an uninitialized segment should be unconstrained
             if self._bss_regions:
-                bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=self._bss_memory_read_hook)
+                bss_hook = BSSHook(self.project, self._bss_regions)
+                bss_memory_write_bp = BP(when=BP_AFTER, enabled=True, action=bss_hook.bss_memory_write_hook)
+                start_state.inspect.add_breakpoint('mem_write', bss_memory_write_bp)
+                bss_memory_read_bp = BP(when=BP_BEFORE, enabled=True, action=bss_hook.bss_memory_read_hook)
                 start_state.inspect.add_breakpoint('mem_read', bss_memory_read_bp)
 
             # instrument specified store/put/load statements
@@ -1337,36 +1410,6 @@ class JumpTableResolver(IndirectJumpResolver):
             if section.name == '.bss':
                 self._bss_regions.append((section.vaddr, section.memsize))
                 break
-
-    def _bss_memory_read_hook(self, state):
-
-        if not self._bss_regions:
-            return
-
-        read_addr = state.inspect.mem_read_address
-        read_length = state.inspect.mem_read_length
-
-        if not isinstance(read_addr, int) and read_addr.symbolic:
-            # don't touch it
-            return
-
-        concrete_read_addr = state.solver.eval(read_addr)
-        concrete_read_length = state.solver.eval(read_length)
-
-        for start, size in self._bss_regions:
-            if start <= concrete_read_addr < start + size:
-                # this is a read from the .bss section
-                break
-        else:
-            return
-
-        if not state.memory.was_written_to(concrete_read_addr):
-            # it was never written to before. we overwrite it with unconstrained bytes
-            for i in range(0, concrete_read_length, self.project.arch.bytes):
-                state.memory.store(concrete_read_addr + i, state.solver.Unconstrained('unconstrained',
-                                                                                      self.project.arch.bits))
-
-                # job done :-)
 
     def _init_registers_on_demand(self, state):
         # for uninitialized read using a register as the source address, we replace them in memory on demand

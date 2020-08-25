@@ -522,5 +522,5 @@ from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscal
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
-from ..storage.memory import DUMMY_SYMBOLIC_READ_VALUE
+from ..storage import DUMMY_SYMBOLIC_READ_VALUE
 from .. import sim_options as o

@@ -118,7 +118,7 @@ def test_state_merge_static():
     addr = a.solver.ValueSet(32, 'global', 0, 8)
     a.memory.store(addr, a.solver.BVV(42, 32))
     # Clear a_locs, so further writes will not try to merge with value 42
-    a.memory.regions['global']._alocs = { }
+    a.memory._regions['global']._alocs = { }
 
     b = a.copy()
     c = a.copy()
@@ -127,7 +127,7 @@ def test_state_merge_static():
     c.memory.store(addr, a.solver.BVV(70, 32), endness='Iend_LE')
 
     merged, _, _ = a.merge(b, c)
-    actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4))
+    actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4, endness='Iend_LE'))
     expected = claripy.backends.vsa.convert(a.solver.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
     nose.tools.assert_true(actual.identical(expected))
 
@@ -275,7 +275,7 @@ def test_bypass_errored_irstmt():
     block_bytes = b"\xdb\x44\x24\x04"
 
     proj = angr.load_shellcode(block_bytes, "x86")
-    state = proj.factory.blank_state(addr=0, mode="fastpath", memory_backer=proj.loader.memory,
+    state = proj.factory.blank_state(addr=0, mode="fastpath", cle_memory_backer=proj.loader.memory,
                                      add_options={angr.sim_options.FAST_REGISTERS},
                                      remove_options={angr.sim_options.BYPASS_ERRORED_IRSTMT})
 

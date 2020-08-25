@@ -377,4 +377,4 @@ class SimVariableSet(collections.abc.MutableSet):
             __import__('ipdb').set_trace()
             raise Exception("WTF is this variable?")
 
-from .storage.memory import AddressWrapper
+from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper

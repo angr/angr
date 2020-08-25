@@ -7,7 +7,7 @@ from ..misc.ux import once
 
 l = logging.getLogger(name=__name__)
 
-class SimStatePlugin(object):
+class SimStatePlugin:
     """
     This is a base class for SimState plugins. A SimState plugin will be copied along with the state when the state is
     branched. They are intended to be used for things such as tracking open files, tracking heap details, and providing
@@ -62,7 +62,7 @@ class SimStatePlugin(object):
                 return c
         return inner
 
-    def merge(self, _others, _merge_conditions, _common_ancestor=None): #pylint:disable=unused-argument
+    def merge(self, others, merge_conditions, common_ancestor=None): #pylint:disable=unused-argument
         """
         Should merge the state plugin with the provided others. This will be called by ``state.merge()`` after copying
         the target state, so this should mutate the current instance to merge with the others.
@@ -91,7 +91,7 @@ class SimStatePlugin(object):
         """
         raise NotImplementedError("merge() not implement for %s" % self.__class__.__name__)
 
-    def widen(self, _others): #pylint:disable=unused-argument
+    def widen(self, others): #pylint:disable=unused-argument
         """
         The widening operation for plugins. Widening is a special kind of merging that produces a more general state
         from several more specific states. It is used only during intensive static analysis. The same behavior

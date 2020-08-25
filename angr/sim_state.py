@@ -56,23 +56,41 @@ class SimState(PluginHub):
     :ivar libc:         Information about the standard library we are emulating
     :ivar cgc:          Information about the cgc environment
     :ivar uc_manager:   Control of under-constrained symbolic execution
-    :ivar str unicorn:      Control of the Unicorn Engine
+    :ivar unicorn:      Control of the Unicorn Engine
     """
     # Type Annotations for default plugins to allow type inference
     solver: 'SimSolver'
     posix: 'SimSystemPosix'
-    registers: 'SimSymbolicMemory'
+    registers: 'MemoryMixin'
     regs: 'SimRegNameView'
-    memory: 'SimMemory'
+    memory: 'MemoryMixin'
     callstack: 'CallStack'
     mem: "SimMemView"
     callstack: 'CallStack'
     mem: "SimMemView"
     history: 'SimStateHistory'
     inspect: 'SimInspector'
-    def __init__(self, project=None, arch=None, plugins=None, memory_backer=None, permissions_backer=None, mode=None,
-                 options=None, add_options=None, remove_options=None, special_memory_filler=None, os_name=None,
-                 plugin_preset='default', **kwargs):
+    def __init__(
+            self,
+            project=None,
+            arch=None,
+            plugins=None,
+            mode=None,
+            options=None,
+            add_options=None,
+            remove_options=None,
+            special_memory_filler=None,
+            os_name=None,
+            plugin_preset='default',
+            cle_memory_backer=None,
+            dict_memory_backer=None,
+            permissions_map=None,
+            default_permissions=3,
+            stack_perms=None,
+            stack_end=None,
+            stack_size=None,
+            regioned_memory_cls=None,
+            **kwargs):
         if kwargs:
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super(SimState, self).__init__()
@@ -152,21 +170,25 @@ class SimState(PluginHub):
             elif o.ABSTRACT_MEMORY in self.options:
                 # We use SimAbstractMemory in static mode.
                 # Convert memory_backer into 'global' region.
-                if memory_backer is not None:
-                    memory_backer = {'global': memory_backer}
+                if cle_memory_backer is not None:
+                    cle_memory_backer = {'global': cle_memory_backer}
+                if dict_memory_backer is not None:
+                    dict_memory_backer = {'global': dict_memory_backer}
 
                 # TODO: support permissions backer in SimAbstractMemory
                 sim_memory_cls = self.plugin_preset.request_plugin('abs_memory')
-                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+                sim_memory = sim_memory_cls(cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer,
+                                            memory_id='mem', regioned_memory_cls=regioned_memory_cls)
 
             elif o.FAST_MEMORY in self.options:
                 sim_memory_cls = self.plugin_preset.request_plugin('fast_memory')
-                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem')
+                sim_memory = sim_memory_cls(memory_id='mem')
 
             else:
                 sim_memory_cls = self.plugin_preset.request_plugin('sym_memory')
-                sim_memory = sim_memory_cls(memory_backer=memory_backer, memory_id='mem',
-                                            permissions_backer=permissions_backer)
+                sim_memory = sim_memory_cls(cle_memory_backer=cle_memory_backer, dict_memory_backer=dict_memory_backer, memory_id='mem',
+                                            permissions_map=permissions_map, default_permissions=default_permissions,
+                                            stack_perms=stack_perms, stack_end=stack_end, stack_size=stack_size)
 
             # Add memory plugin
             if not self._is_java_jni_project:
@@ -306,7 +328,10 @@ class SimState(PluginHub):
 
         :return: an expression
         """
-        return self.regs._ip
+        try:
+            return self.regs._ip
+        except AttributeError as e:
+            raise TypeError(str(e)) from e
 
     @_ip.setter
     def _ip(self, val):
@@ -316,8 +341,10 @@ class SimState(PluginHub):
         :param val: The new instruction pointer.
         :return:    None
         """
-
-        self.regs._ip = val
+        try:
+            self.regs._ip = val
+        except AttributeError as e:
+            raise TypeError(str(e)) from e
 
     @property
     def addr(self):
@@ -505,11 +532,8 @@ class SimState(PluginHub):
                         continue
 
                     new_expr = constrained_si
-                    # registers
                     self.registers.replace_all(original_expr, new_expr)
-                    # memory
-                    for _, region in self.memory.regions.items():
-                        region.memory.replace_all(original_expr, new_expr)
+                    self.memory.replace_all(original_expr, new_expr)
                     # tmps
                     temps = self.scratch.temps
                     for idx in range(len(temps)):  # pylint:disable=consider-using-enumerate
@@ -762,7 +786,7 @@ class SimState(PluginHub):
         # increment sp
         sp = self.regs.sp + self.arch.stack_change
         self.regs.sp = sp
-        return self.memory.store(sp, thing, endness=self.arch.memory_endness)
+        return self.memory.store(sp, thing, endness=self.arch.memory_endness, size=self.arch.bytes)
 
     @arch_overrideable
     def stack_pop(self):
@@ -951,10 +975,9 @@ from .errors import SimMergeError, SimValueError, SimStateError, SimSolverModeEr
 
 # Type imports for annotations
 if TYPE_CHECKING:
-    from .storage import SimMemory
+    from .storage import MemoryMixin
     from .state_plugins.solver import SimSolver
     from .state_plugins.posix import SimSystemPosix
-    from .state_plugins.symbolic_memory import SimSymbolicMemory
     from .state_plugins.view import SimRegNameView, SimMemView
     from .state_plugins.callstack import CallStack
     from .state_plugins.inspect import SimInspector

@@ -1,7 +1,6 @@
 import logging
 from collections import defaultdict
 
-import angr
 import archinfo
 from archinfo.arch_arm import is_arm_arch
 import claripy
@@ -12,7 +11,7 @@ from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
 from .forward_analysis import ForwardAnalysis
 from .. import sim_options
-from ..engines.procedure import ProcedureMixin
+from ..engines.procedure import ProcedureEngine
 from ..engines import SimSuccessors
 from ..errors import AngrDelayJobNotice, AngrSkipJobNotice, AngrVFGError, AngrError, AngrVFGRestartAnalysisNotice, \
     AngrJobMergingFailureNotice, SimValueError, SimIRSBError, SimError
@@ -1344,14 +1343,14 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             error_occured = True
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](
                 state, self.project.arch)
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
         except claripy.ClaripyError:
             l.error("ClaripyError: ", exc_info=True)
             error_occured = True
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](
                 state, self.project.arch)
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
         except SimError:
             l.error("SimError: ", exc_info=True)
 
@@ -1359,7 +1358,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](
                     state, self.project.arch)
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
         except AngrError as ex:
             #segment = self.project.loader.main_object.in_which_segment(addr)
             l.error("AngrError %s when generating SimSuccessors at %#x",
@@ -1412,13 +1411,15 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                     sp_difference = current_function.sp_delta
                 else:
                     sp_difference = 0
-                reg_sp_offset = successor_state.arch.sp_offset
-                reg_sp_expr = successor_state.registers.load(reg_sp_offset) + sp_difference
-                successor_state.registers.store(successor_state.arch.sp_offset, reg_sp_expr)
+                arch = successor_state.arch
+                reg_sp_offset = arch.sp_offset
+                reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes,
+                                                             endness=arch.register_endness) + sp_difference
+                successor_state.registers.store(arch.sp_offset, reg_sp_expr)
 
                 # Clear the return value with a TOP
-                top_si = successor_state.solver.TSI(successor_state.arch.bits)
-                successor_state.registers.store(successor_state.arch.ret_offset, top_si)
+                top_si = successor_state.solver.TSI(arch.bits)
+                successor_state.registers.store(arch.ret_offset, top_si)
 
             if job.call_skipped:
 
@@ -1601,8 +1602,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
     @staticmethod
     def _create_stack_region(successor_state, successor_ip):
-        reg_sp_offset = successor_state.arch.sp_offset
-        reg_sp_expr = successor_state.registers.load(reg_sp_offset)
+        arch = successor_state.arch
+        reg_sp_offset = arch.sp_offset
+        reg_sp_expr = successor_state.registers.load(reg_sp_offset, size=arch.bytes, endness=arch.register_endness)
 
         if type(reg_sp_expr._model_vsa) is claripy.BVV:  # pylint:disable=unidiomatic-typecheck
             reg_sp_val = successor_state.solver.eval(reg_sp_expr)
@@ -1619,7 +1621,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             reg_sp_si = next(iter(reg_sp_expr._model_vsa.items()))[1]
             reg_sp_val = reg_sp_si.min
 
-        reg_sp_val = reg_sp_val - successor_state.arch.bytes  # TODO: Is it OK?
+        reg_sp_val = reg_sp_val - arch.bytes  # TODO: Is it OK?
         new_stack_region_id = successor_state.memory.stack_id(successor_ip)
         successor_state.memory.set_stack_address_mapping(reg_sp_val,
                                                         new_stack_region_id,

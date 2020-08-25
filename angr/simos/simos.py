@@ -87,7 +87,8 @@ class SimOS:
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, thread_idx=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None,
+                    thread_idx=None, permissions_backer=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -105,7 +106,18 @@ class SimOS:
         # TODO: move ALL of this into the SimState constructor
         if kwargs.get('mode', None) is None:
             kwargs['mode'] = self.project._default_analysis_mode
-        if kwargs.get('permissions_backer', None) is None:
+        if permissions_backer is not None:
+            kwargs['permissions_map'] = permissions_backer[1]
+            kwargs['default_permissions'] = 7 if permissions_backer[0] else 3
+        if kwargs.get('cle_memory_backer', None) is None:
+            kwargs['cle_memory_backer'] = self.project.loader
+        if kwargs.get('os_name', None) is None:
+            kwargs['os_name'] = self.name
+        actual_stack_end = stack_end
+        if stack_end is None:
+            stack_end = self.arch.initial_sp
+
+        if kwargs.get('permissions_map', None) is None:
             # just a dict of address ranges to permission bits
             permission_map = { }
             for obj in self.project.loader.all_objects:
@@ -119,14 +131,13 @@ class SimOS:
                     if seg.is_executable:
                         perms |= 4  # PROT_EXEC
                     permission_map[(seg.min_addr, seg.max_addr)] = perms
-            permissions_backer = (self.project.loader.main_object.execstack, permission_map)
-            kwargs['permissions_backer'] = permissions_backer
-        if kwargs.get('memory_backer', None) is None:
-            kwargs['memory_backer'] = self.project.loader.memory
-        if kwargs.get('os_name', None) is None:
-            kwargs['os_name'] = self.name
+            kwargs['permissions_map'] = permission_map
+        if self.project.loader.main_object.execstack:
+            stack_perms = 1 | 2 | 4  # RWX
+        else:
+            stack_perms = 1 | 2  # RW
 
-        state = SimState(self.project, **kwargs)
+        state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, stack_perms=stack_perms, **kwargs)
 
         if stdin is not None and not isinstance(stdin, SimFileBase):
             if type(stdin) is type:
@@ -138,13 +149,8 @@ class SimOS:
         actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
         state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
-
-        actual_stack_end = state.arch.initial_sp if stack_end is None else stack_end
-        if o.ABSTRACT_MEMORY not in state.options:
-            state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
-
         if state.arch.sp_offset is not None:
-            state.regs.sp = actual_stack_end + (state.arch.stack_change if state.arch.stack_change is not None else 0)
+            state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -168,7 +174,7 @@ class SimOS:
                 else:
                     raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
 
-            # special case for stack pointer override
+            # special case for stack_end overriding sp default
             if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
                 continue
 

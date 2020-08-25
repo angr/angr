@@ -151,7 +151,8 @@ def test_similarity_fauxware():
     run_similarity(os.path.join("binaries", "tests", "i386", "fauxware"), 1000, prehook=cooldown)
 
 def test_fp():
-    type_cache = angr.sim_type.parse_defns(open(os.path.join(test_location, 'binaries', 'tests_src', 'manyfloatsum.c')).read())
+    with open(os.path.join(test_location, 'binaries', 'tests_src', 'manyfloatsum.c')) as fp:
+        type_cache = angr.sim_type.parse_defns(fp.read())
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'))
 
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
@@ -311,11 +312,11 @@ def test_single_step():
     nose.tools.assert_equal(successors2[0].addr, step5)
 
 if __name__ == '__main__':
-    #import logging
-    #logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
-    #logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
-    #logging.getLogger('angr.factory').setLevel('DEBUG')
-    #logging.getLogger('angr.project').setLevel('DEBUG')
+    import logging
+    logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
+    logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
+    logging.getLogger('angr.factory').setLevel('DEBUG')
+    logging.getLogger('angr.project').setLevel('DEBUG')
     #logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
 
     import sys

@@ -19,6 +19,17 @@ def test_stack_end():
             s = p.factory.full_init_state(stack_end=n)
             assert s.solver.eval_one(s.regs.sp + offset == n)
 
+
+def test_execstack():
+
+    bin_path = os.path.join(test_location, "x86_64", "fauxware")
+    proj = angr.Project(bin_path, auto_load_libs=False)
+    # manually mark the stack as executable
+    proj.loader.main_object.execstack = True
+    s = proj.factory.blank_state()
+    assert s.memory._stack_perms == 7
+
+
 def test_brk():
     for fn in glob.glob(os.path.join(test_location, "*", "fauxware")):
         p = angr.Project(fn, auto_load_libs=False)
@@ -32,4 +43,5 @@ def test_brk():
 
 if __name__ == '__main__':
     test_stack_end()
+    test_execstack()
     test_brk()

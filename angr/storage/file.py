@@ -2,10 +2,9 @@ import claripy
 import logging
 import itertools
 
-from .memory_object import SimMemoryObject
+from .memory_mixins import DefaultMemory
 from ..state_plugins.plugin import SimStatePlugin
 from ..state_plugins.sim_action_object import SimActionObject
-from ..state_plugins.symbolic_memory import SimSymbolicMemory
 from .. import sim_options
 
 l = logging.getLogger(name=__name__)
@@ -69,7 +68,7 @@ class SimFileBase(SimStatePlugin):
     seekable = False
     pos = None
 
-    def __init__(self, name, writable=True, ident=None, concrete=False, **kwargs):
+    def __init__(self, name=None, writable=True, ident=None, concrete=False, **kwargs):
         self.name = name
         self.ident = ident
         self.writable = writable
@@ -80,10 +79,13 @@ class SimFileBase(SimStatePlugin):
 
         if 'memory_id' in kwargs:
             kwargs['memory_id'] = self.ident
-        super(SimFileBase, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     @staticmethod
     def make_ident(name):
+        if name is None:
+            return 'file'
+
         if type(name) is str:
             name = name.encode()
 
@@ -136,8 +138,18 @@ class SimFileBase(SimStatePlugin):
         """
         raise NotImplementedError
 
+    @DefaultMemory.memo
+    def copy(self, memo):
+        o = super().copy()
+        o.ident = self.ident
+        o.name = self.name
+        o.ident = self.ident
+        o.writable = self.writable
+        o.concrete = self.concrete
+        return o
 
-class SimFile(SimFileBase, SimSymbolicMemory):
+
+class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
     """
     The normal SimFile is meant to model files on disk. It subclasses SimSymbolicMemory so loads and stores to/from
     it are very simple.
@@ -155,9 +167,9 @@ class SimFile(SimFileBase, SimSymbolicMemory):
 
     :ivar has_end:      Whether this file has an EOF
     """
-    def __init__(self, name, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, concrete=None, **kwargs):
+    def __init__(self, name=None, content=None, size=None, has_end=None, seekable=True, writable=True, ident=None, concrete=None, **kwargs):
         kwargs['memory_id'] = kwargs.get('memory_id', 'file')
-        super(SimFile, self).__init__(name, writable=writable, ident=ident, **kwargs)
+        super().__init__(name=name, writable=writable, ident=ident, **kwargs)
         self._size = size
         self.has_end = has_end
         self.seekable = seekable
@@ -183,8 +195,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         self.concrete = concrete
 
         if content is not None:
-            mo = SimMemoryObject(content, 0, length=len(content)//8)
-            self.mem.store_memory_object(mo)
+            self.__content = content
 
             if self._size is None:
                 self._size = len(content) // 8
@@ -199,7 +210,15 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         return 'file'
 
     def set_state(self, state):
-        super(SimFile, self).set_state(state)
+        super().set_state(state)
+        try:
+            content = self.__content
+        except AttributeError:
+            pass
+        else:
+            self.store(0, content)
+            del self.__content
+
         if self.has_end is None:
             self.has_end = sim_options.FILES_HAVE_EOF in state.options
 
@@ -282,18 +301,15 @@ class SimFile(SimFileBase, SimSymbolicMemory):
         return new_end
 
     @SimStatePlugin.memo
-    def copy(self, _):
-        #l.debug("Copying %d bytes of memory with id %s." % (len(self.mem), self.id))
-        return type(self)(name=self.name, size=self._size, has_end=self.has_end, seekable=self.seekable, writable=self.writable, ident=self.ident, concrete=self.concrete,
-            mem=self.mem.branch(),
-            memory_id=self.id,
-            endness=self.endness,
-            abstract_backer=self._abstract_backer,
-            read_strategies=[ s.copy() for s in self.read_strategies ],
-            write_strategies=[ s.copy() for s in self.write_strategies ],
-            stack_region_map=self._stack_region_map,
-            generic_region_map=self._generic_region_map
-        )
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.name = self.name
+        o._size = self._size
+        o.has_end = self.has_end
+        o.seekable = self.seekable
+        o.writable = self.writable
+        o.concrete = self.concrete
+        return o
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         if not all(type(o) is type(self) for o in others):
@@ -304,7 +320,7 @@ class SimFile(SimFileBase, SimSymbolicMemory):
 
         self._size = self.state.solver.ite_cases(zip(merge_conditions[1:], (o._size for o in others)), self._size)
 
-        return super(SimFile, self).merge(others, merge_conditions, common_ancestor=common_ancestor)
+        return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
     def widen(self, _):
         raise SimMergeError("Widening the filesystem is unsupported")
@@ -324,12 +340,12 @@ class SimFileStream(SimFile):
     :ivar pos:      The current position in the file.
     """
 
-    def __init__(self, name, content=None, pos=0, **kwargs):
-        super(SimFileStream, self).__init__(name, content=content, **kwargs)
+    def __init__(self, name=None, content=None, pos=0, **kwargs):
+        super().__init__(name=name, content=content, **kwargs)
         self.pos = pos
 
     def set_state(self, state):
-        super(SimFileStream, self).set_state(state)
+        super().set_state(state)
         if type(self.pos) is int:
             self.pos = state.solver.BVV(self.pos, state.arch.bits)
         elif len(self.pos) != state.arch.bits:
@@ -339,24 +355,24 @@ class SimFileStream(SimFile):
         no_stream = kwargs.pop('no_stream', False)
         if not no_stream:
             pos = self.pos
-        data, size, pos = super(SimFileStream, self).read(pos, size, **kwargs)
+        data, size, pos = super().read(pos, size, **kwargs)
         if not no_stream:
             self.pos = pos
         return data, size, pos
 
     def write(self, _, data, size=None, **kwargs):
-        self.pos = super(SimFileStream, self).write(self.pos, data, size, **kwargs)
+        self.pos = super().write(self.pos, data, size, **kwargs)
         return None
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        c = super(SimFileStream, self).copy(memo)
+        c = super().copy(memo)
         c.pos = self.pos
         return c
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         self.pos = self.state.solver.ite_cases(zip(merge_conditions[1:], [o.pos for o in others]), self.pos)
-        return super(SimFileStream, self).merge(others, merge_conditions, common_ancestor=common_ancestor)
+        return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
 
 class SimPackets(SimFileBase):
@@ -380,7 +396,7 @@ class SimPackets(SimFileBase):
     :ivar content:      A list of packets, as tuples of content ASTs and size ASTs.
     """
     def __init__(self, name, write_mode=None, content=None, writable=True, ident=None, **kwargs):
-        super(SimPackets, self).__init__(name, writable=writable, ident=ident, **kwargs)
+        super().__init__(name, writable=writable, ident=ident, **kwargs)
 
         self.write_mode = write_mode
         self.content = content
@@ -533,7 +549,7 @@ class SimPackets(SimFileBase):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return type(self)(self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
+        return type(self)(name=self.name, write_mode=self.write_mode, content=self.content, ident=self.ident, concrete=self.concrete)
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:
@@ -578,32 +594,32 @@ class SimPacketsStream(SimPackets):
     :ivar pos:      The current position in the file.
     """
     def __init__(self, name, pos=0, **kwargs):
-        super(SimPacketsStream, self).__init__(name, **kwargs)
+        super().__init__(name, **kwargs)
         self.pos = pos
 
     def read(self, pos, size, **kwargs):
         no_stream = kwargs.pop('no_stream', False)
         if not no_stream:
             pos = self.pos
-        data, size, pos = super(SimPacketsStream, self).read(pos, size, **kwargs)
+        data, size, pos = super().read(pos, size, **kwargs)
         if not no_stream:
             self.pos = pos
         return data, size, pos
 
     def write(self, _, data, size=None, **kwargs):
-        self.pos = super(SimPacketsStream, self).write(self.pos, data, size, **kwargs)
+        self.pos = super().write(self.pos, data, size, **kwargs)
         return None
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        c = super(SimPacketsStream, self).copy(memo)
+        c = super().copy(memo)
         c.pos = self.pos
         return c
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         if any(o.pos != self.pos for o in others):
             raise SimMergeError("Can't merge SimPacketsStreams with disparate positions")
-        return super(SimPacketsStream, self).merge(others, merge_conditions, common_ancestor=common_ancestor)
+        return super().merge(others, merge_conditions, common_ancestor=common_ancestor)
 
 
 class SimFileDescriptorBase(SimStatePlugin):
@@ -774,7 +790,7 @@ class SimFileDescriptor(SimFileDescriptorBase):
     :ivar flags:    The mode that the file descriptor was opened with, a bitfield of flags
     """
     def __init__(self, simfile, flags=0):
-        super(SimFileDescriptor, self).__init__()
+        super().__init__()
         self.file = simfile
         self._pos = 0
         self.flags = flags
@@ -854,11 +870,11 @@ class SimFileDescriptor(SimFileDescriptorBase):
 
     def set_state(self, state):
         self.file.set_state(state)
-        super(SimFileDescriptor, self).set_state(state)
+        super().set_state(state)
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        c = SimFileDescriptor(self.file.copy(memo), self.flags)
+        c = type(self)(self.file.copy(memo), self.flags)
         c._pos = self._pos
         return c
 
@@ -898,7 +914,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
     :param write_file:  The SimFile to write to
     """
     def __init__(self, read_file, write_file):
-        super(SimFileDescriptorDuplex, self).__init__()
+        super().__init__()
         self._read_file = read_file
         self._write_file = write_file
 
@@ -922,7 +938,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
     def set_state(self, state):
         self._read_file.set_state(state)
         self._write_file.set_state(state)
-        super(SimFileDescriptorDuplex, self).set_state(state)
+        super().set_state(state)
 
     def eof(self):
         # the thing that makes the most sense is for this to refer to the read eof status...
@@ -966,7 +982,7 @@ class SimFileDescriptorDuplex(SimFileDescriptorBase):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        c = SimFileDescriptorDuplex(self._read_file.copy(memo), self._write_file.copy(memo))
+        c = type(self)(self._read_file.copy(memo), self._write_file.copy(memo))
         c._read_pos = self._read_pos
         c._write_pos = self._write_pos
         return c
@@ -1016,7 +1032,7 @@ class SimPacketsSlots(SimFileBase):
     seekable = False
 
     def __init__(self, name, read_sizes, ident=None, **kwargs):
-        super(SimPacketsSlots, self).__init__(name, writable=False, ident=ident)
+        super().__init__(name, writable=False, ident=ident)
 
         self.read_sizes = read_sizes
         self.read_data = []
@@ -1057,7 +1073,7 @@ class SimPacketsSlots(SimFileBase):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        o = SimPacketsSlots(self.name, self.read_sizes, ident=self.ident)
+        o = type(self)(self.name, self.read_sizes, ident=self.ident)
         o.read_data = list(self.read_data)
         return o
 

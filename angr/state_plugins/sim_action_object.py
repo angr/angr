@@ -58,7 +58,7 @@ def ast_stripping_decorator(f):
     return ast_stripper
 
 
-class SimActionObject(object):
+class SimActionObject:
     """
     A SimActionObject tracks an AST and its dependencies.
     """

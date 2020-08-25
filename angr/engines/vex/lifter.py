@@ -1,9 +1,11 @@
+import logging
+
+from cachetools import LRUCache
+
 import pyvex
-import claripy
 import cle
 from archinfo import ArchARM
-from cachetools import LRUCache
-import logging
+import claripy
 
 from ..engine import SimEngineBase
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE, NO_OVERRIDE
@@ -178,6 +180,7 @@ class VEXLifter(SimEngineBase):
             cache_key = (addr, insn_bytes, size, num_inst, thumb, opt_level, strict_block_end, cross_insn_opt)
             if cache_key in self._block_cache:
                 self._block_cache_hits += 1
+                l.debug("Cache hit IRSB of %s at %#x", arch, addr)
                 irsb = self._block_cache[cache_key]
                 stop_point = self._first_stoppoint(irsb, extra_stop_points)
                 if stop_point is None:
@@ -218,11 +221,14 @@ class VEXLifter(SimEngineBase):
             else:
                 buff, size = self._load_bytes(addr, size, state, clemory)
 
-        if not buff or size == 0:
+        if isinstance(buff, claripy.ast.BV):
+            if len(buff) == 0:
+                raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
+        elif not buff:
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
 
         # phase 5: call into pyvex
-        # l.debug("Creating pyvex.IRSB of arch %s at %#x", arch.name, addr)
+        l.debug("Creating IRSB of %s at %#x", arch, addr)
         try:
             for subphase in range(2):
 
@@ -261,66 +267,69 @@ class VEXLifter(SimEngineBase):
             raise SimTranslationError("Unable to translate bytecode") from e
 
     def _load_bytes(self, addr, max_size, state=None, clemory=None):
-        if not clemory:
-            if state is None:
-                raise SimEngineError('state and clemory cannot both be None in _load_bytes().')
-            if o.ABSTRACT_MEMORY in state.options:
-                # abstract memory
-                clemory = state.memory.regions['global'].memory.mem._memory_backer
-            else:
-                # symbolic memory
-                clemory = state.memory.mem._memory_backer
+        if clemory is None and state is None:
+            raise SimEngineError('state and clemory cannot both be None in _load_bytes().')
 
         buff, size = b"", 0
 
         # Load from the clemory if we can
         smc = self._support_selfmodifying_code
-        if state and not smc:
-            try:
-                p = state.memory.permissions(addr)
-                if p.symbolic:
-                    smc = True
-                else:
-                    smc = claripy.is_true(p & 2 != 0)
-            except: # pylint: disable=bare-except
-                smc = True # I don't know why this would ever happen, we checked this right?
 
-        if (not smc or not state) and isinstance(clemory, cle.Clemory):
-            try:
-                start, backer = next(clemory.backers(addr))
-            except StopIteration:
-                pass
-            else:
-                if start <= addr:
-                    offset = addr - start
-                    buff = pyvex.ffi.from_buffer(backer) + offset
-                    size = len(backer) - offset
+        # skip loading from the clemory if we're using the ultra page
+        # TODO: is this a good change? it neuters lookback optimizations
+        # we can try concrete loading the full page but that has drawbacks too...
+        #if state is not None and issubclass(getattr(state.memory, 'PAGE_TYPE', object), UltraPage):
+        #    smc = True
 
-        # If that didn't work, try to load from the state
-        if size == 0 and state:
-            fallback = True
-            if addr in state.memory and addr + max_size - 1 in state.memory:
+        # when smc is not enabled or when state is not provided, we *always* attempt to load concrete data first
+        if not smc or not state:
+            if isinstance(clemory, cle.Clemory):
                 try:
+                    start, backer = next(clemory.backers(addr))
+                except StopIteration:
+                    pass
+                else:
+                    if start <= addr:
+                        offset = addr - start
+                        if isinstance(backer, (bytes, bytearray)):
+                            buff = pyvex.ffi.from_buffer(backer) + offset
+                            size = len(backer) - offset
+                        elif isinstance(backer, list):
+                            raise SimTranslationError("Cannot lift block for arch with strange byte width. If you think you ought to be able to, open an issue.")
+                            #buff_lst = backer[offset:offset+max_size]
+                            #if self.project is None:
+                            #    raise ValueError("You must set self.project if a list of integers are used as backers.")
+                            #byte_width = self.project.arch.byte_width
+                            #buff = claripy.Concat(*map(lambda v: claripy.BVV(v, byte_width), buff_lst))
+                            #size = len(buff_lst)
+                        else:
+                            raise TypeError("Unsupported backer type %s." % type(backer))
+            elif state:
+                if state.memory.SUPPORTS_CONCRETE_LOAD:
+                    buff = state.memory.concrete_load(addr, max_size)
+                else:
                     buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
-                    size = max_size
-                    fallback = False
-                except SimError:
-                    l.warning("Cannot load bytes at %#x. Fallback to the slow path.", addr)
+                size = len(buff)
 
-            if fallback:
-                buff_lst = [ ]
+        # If that didn't work and if smc is enabled, try to load from the state
+        if smc and state and size == 0:
+            if state.memory.SUPPORTS_CONCRETE_LOAD:
+                buff = state.memory.concrete_load(addr, max_size)
+            else:
+                buff = state.solver.eval(state.memory.load(addr, max_size, inspect=False), cast_to=bytes)
+            size = len(buff)
+            if size < min(max_size, 10):  # arbitrary metric for doing the slow path
+                l.debug("SMC slow path")
+                buff_lst = []
                 symbolic_warned = False
                 for i in range(max_size):
-                    if addr + i in state.memory:
-                        try:
-                            byte = state.memory.load(addr + i, 1, inspect=False)
-                            if byte.symbolic and not symbolic_warned:
-                                symbolic_warned = True
-                                l.warning("Executing symbolic code at %#x", addr + i)
-                            buff_lst.append(state.solver.eval(byte))
-                        except SimError:
-                            break
-                    else:
+                    try:
+                        byte = state.memory.load(addr + i, 1, inspect=False)
+                        if byte.symbolic and not symbolic_warned:
+                            symbolic_warned = True
+                            l.warning("Executing symbolic code at %#x", addr + i)
+                        buff_lst.append(state.solver.eval(byte))
+                    except SimError:
                         break
 
                 buff = bytes(buff_lst)

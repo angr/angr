@@ -4,15 +4,39 @@ import os
 import claripy
 import nose
 
-from angr.storage.paged_memory import SimPagedMemory
+from angr.storage.memory_mixins import (
+    DataNormalizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    UltraPagesMixin,
+    ListPagesMixin,
+    PagedMemoryMixin
+)
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
 from angr.state_plugins import SimSystemPosix, SimLightRegisters
 from angr.storage.file import SimFile
 
+class UltraPageMemory(
+    DataNormalizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    UltraPagesMixin,
+    PagedMemoryMixin,
+):
+    pass
+
+class ListPageMemory(
+    DataNormalizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    ListPagesMixin,
+    PagedMemoryMixin,
+):
+    pass
 
 def test_copy():
-    s = SimState(arch="AMD64")
+    s = SimState(arch="AMD64", mode="symbolic")
     s.memory.store(0x100, b"ABCDEFGHIJKLMNOP")
     s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
     x = s.solver.BVS('size', s.arch.bits)
@@ -24,7 +48,7 @@ def test_copy():
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
 
-    s = SimState(arch="AMD64")
+    s = SimState(arch="AMD64", mode="symbolic")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content=b'ABCDEFGHIJKLMNOP', has_end=True)))
     s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
     x = s.solver.BVS('size', s.arch.bits)
@@ -36,7 +60,7 @@ def test_copy():
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
     nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
 
-    s = SimState(arch="AMD64")
+    s = SimState(arch="AMD64", mode="symbolic")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content=b'ABCDEFGHIJKLMNOP')))
     s.memory.store(0x200, b"XXXXXXXXXXXXXXXX")
     x = s.solver.BVS('size', s.arch.bits)
@@ -100,7 +124,7 @@ def _concrete_memory_tests(s):
 #@nose.tools.timed(10)
 def test_memory():
     initial_memory = { 0: b'A', 1: b'A', 2: b'A', 3: b'A', 10: b'B' }
-    s = SimState(arch="AMD64", memory_backer=initial_memory, add_options={o.REVERSE_MEMORY_NAME_MAP, o.REVERSE_MEMORY_HASH_MAP})
+    s = SimState(arch="AMD64", dict_memory_backer=initial_memory, add_options={o.REVERSE_MEMORY_NAME_MAP, o.REVERSE_MEMORY_HASH_MAP})
 
     _concrete_memory_tests(s)
     # concrete address and partially symbolic result
@@ -120,17 +144,6 @@ def test_memory():
     nose.tools.assert_false(s.solver.symbolic(expr))
     nose.tools.assert_equal(s.solver.eval(expr), 0x41414141)
 
-    # symbolicize
-    v = s.memory.make_symbolic("asdf", 0, length=4)
-    nose.tools.assert_equal(v.size(), 32)
-    nose.tools.assert_true(s.solver.unique(v))
-    nose.tools.assert_equal(s.solver.eval(v), 0x41414141)
-
-    expr = s.memory.load(0, 4) # Returns: a z3 BVS representing 0x41414141
-    nose.tools.assert_true(s.solver.symbolic(expr))
-    nose.tools.assert_equal(s.solver.eval(expr), 0x41414141)
-    nose.tools.assert_true(s.solver.unique(expr))
-
     c = s.solver.BVS('condition', 8)
     expr = s.memory.load(10, 1, condition=c==1, fallback=s.solver.BVV(b'X'))
     nose.tools.assert_equal(s.solver.eval_upto(expr, 10, cast_to=bytes, extra_constraints=[c==1]), [ b'B' ])
@@ -140,7 +153,7 @@ def test_memory():
     s.memory.store(0x1000, x)
     s.memory.store(0x2000, x)
     nose.tools.assert_equal(set(s.memory.addrs_for_name('ref_test')), {0x1000,0x1001,0x2000,0x2001})
-    nose.tools.assert_equal(set(s.memory.addrs_for_hash(hash(x))), {0x1000, 0x1001, 0x2000, 0x2001})
+    nose.tools.assert_equal(set(s.memory.addrs_for_hash(x.cache_key)), {0x1000, 0x1001, 0x2000, 0x2001})
 
     s2 = s.copy()
     y = s2.solver.BVS('ref_test2', 16, explicit_name=True)
@@ -148,49 +161,50 @@ def test_memory():
     assert s2.memory.load(0x2000, 2) is y
     assert s.memory.load(0x2000, 2) is x
     nose.tools.assert_equal(set(s.memory.addrs_for_name('ref_test')), {0x1000,0x1001,0x2000,0x2001})
-    nose.tools.assert_equal(set(s.memory.addrs_for_hash(hash(x))), {0x1000,0x1001,0x2000,0x2001})
+    nose.tools.assert_equal(set(s.memory.addrs_for_hash(x.cache_key)), {0x1000,0x1001,0x2000,0x2001})
     nose.tools.assert_equal(set(s2.memory.addrs_for_name('ref_test')), {0x1000, 0x1001})
-    nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(x))), {0x1000, 0x1001})
+    nose.tools.assert_equal(set(s2.memory.addrs_for_hash(x.cache_key)), {0x1000, 0x1001})
     nose.tools.assert_equal(set(s2.memory.addrs_for_name('ref_test2')), {0x2000, 0x2001})
-    nose.tools.assert_equal(set(s2.memory.addrs_for_hash(hash(y))), {0x2000, 0x2001})
+    nose.tools.assert_equal(set(s2.memory.addrs_for_hash(y.cache_key)), {0x2000, 0x2001})
 
     s.memory.store(0x3000, s.solver.BVS('replace_old', 32, explicit_name=True))
     s.memory.store(0x3001, s.solver.BVV(b'AB'))
     nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), {0x3000, 0x3003})
     nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
 
-    n = s.solver.BVS('replace_new', 32, explicit_name=True)
-    c = s.solver.BVS('replace_cool', 32, explicit_name=True)
+    #n = s.solver.BVS('replace_new', 32, explicit_name=True)
+    #c = s.solver.BVS('replace_cool', 32, explicit_name=True)
 
-    mo = s.memory.memory_objects_for_name('replace_old')
-    nose.tools.assert_equal(len(mo), 1)
-    s.memory.replace_memory_object(next(iter(mo)), n)
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), {0x3000, 0x3003})
-    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
+    #mo = s.memory.memory_objects_for_name('replace_old')
+    #nose.tools.assert_equal(len(mo), 1)
+    #s.memory.replace_memory_object(next(iter(mo)), n)
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), {0x3000, 0x3003})
+    #nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
 
-    s.memory.store(0x4000, s.solver.If(n == 0, n+10, n+20))
+    #s.memory.store(0x4000, s.solver.If(n == 0, n+10, n+20))
 
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), {0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003})
-    s.memory.replace_all(n, c)
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), {0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003})
-    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), {0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003})
+    #s.memory.replace_all(n, c)
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), {0x3000, 0x3003, 0x4000, 0x4001, 0x4002, 0x4003})
+    #nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
 
-    z = s.solver.BVV(0, 32)
-    s.memory.replace_all(c, z)
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
-    nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set())
-    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
-    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3000, 4), 10), [0x00414200])
-    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x4000, 4), 10), [0x0000000a])
+    #z = s.solver.BVV(0, 32)
+    #s.memory.replace_all(c, z)
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_old')), set())
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_new')), set())
+    #nose.tools.assert_equal(set(s.memory.addrs_for_name('replace_cool')), set())
+    #nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3001, 2), 10, cast_to=bytes), [b"AB"])
+    #nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x3000, 4), 10), [0x00414200])
+    #nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(0x4000, 4), 10), [0x0000000a])
 
     # symbolic length
     x = s.solver.BVV(0x11223344, 32)
     y = s.solver.BVV(0xAABBCCDD, 32)
     n = s.solver.BVS('size', 32)
+    s.add_constraints(n <= 4)
     s.memory.store(0x5000, x)
     s.memory.store(0x5000, y, size=n)
     nose.tools.assert_equal(set(s.solver.eval_upto(s.memory.load(0x5000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
@@ -224,6 +238,7 @@ def test_memory():
     y = s.solver.BVV(0xAABBCCDD, 32)
     c = s.solver.BVS('condition', 32)
     n = s.solver.BVS('size', 32)
+    s.add_constraints(n <= 4)
     s.memory.store(0x8000, x)
     s.memory.store(0x8000, y, condition=c==1, size=n)
 
@@ -235,96 +250,14 @@ def test_memory():
     s1.add_constraints(c == 1)
     nose.tools.assert_equal(set(s1.solver.eval_upto(s1.memory.load(0x8000, 4), 10)), { 0x11223344, 0xAA223344, 0xAABB3344, 0xAABBCC44, 0xAABBCCDD })
 
-def test_cased_store():
-    initial_memory = { 0: b'A', 1: b'A', 2: b'A', 3: b'A' }
-    so = SimState(arch="AMD64", memory_backer=initial_memory)
-
-    # sanity check
-    nose.tools.assert_equal(so.solver.eval_upto(so.memory.load(0, 4), 2, cast_to=bytes), [b'AAAA'])
-
-    # the values
-    values = [
-        None,
-        so.solver.BVV(b'B'),
-        so.solver.BVV(b'CC'),
-        so.solver.BVV(b'DDD'),
-        so.solver.BVV(b'EEEE')
-    ]
-
-    # try the write
-    s = so.copy()
-    x = s.solver.BVS('x', 32)
-    s.memory.store_cases(0, values, [ x == i for i in range(len(values)) ])
-    for i,v in enumerate(values):
-        v = b'' if v is None else s.solver.eval(v, cast_to=bytes)
-        w = s.solver.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[x==i])
-        nose.tools.assert_equal(w, [v.ljust(4, b'A')])
-
-    # and now with a fallback
-    y = s.solver.BVS('y', 32)
-    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.solver.BVV(b'XXXX'))
-    for i,v in enumerate(values):
-        v = b'' if v is None else s.solver.eval(v, cast_to=bytes)
-        w = s.solver.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[y==i])
-        nose.tools.assert_equal(w, [v.ljust(4, b'X')])
-
-    # and now with endness
-    y = s.solver.BVS('y', 32)
-    s.memory.store_cases(0, values, [ y == i for i in range(len(values)) ], fallback=s.solver.BVV(b'XXXX'), endness="Iend_LE")
-    for i,v in enumerate(values):
-        v = b'' if v is None else s.solver.eval(v, cast_to=bytes)
-        w = s.solver.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[y==i])
-        print(w, v.rjust(4, b'X'))
-        nose.tools.assert_equal(w, [v.rjust(4, b'X')])
-
-    # and write all Nones
-    s = so.copy()
-    z = s.solver.BVS('z', 32)
-    s.memory.store_cases(0, [ None, None, None ], [ z == 0, z == 1, z == 2])
-    for i in range(len(values)):
-        w = s.solver.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[z==i])
-        nose.tools.assert_equal(w, [b'AAAA'])
-
-    # and all Nones with a fallback
-    u = s.solver.BVS('w', 32)
-    s.memory.store_cases(0, [ None, None, None ], [ u == 0, u == 1, u == 2], fallback=s.solver.BVV(b'WWWW'))
-    for i,v in enumerate(values):
-        w = s.solver.eval_upto(s.memory.load(0, 4), 2, cast_to=bytes, extra_constraints=[u==i])
-        nose.tools.assert_equal(w, [b'WWWW'])
-
-    # and all identical values
-    s = so.copy()
-    #t = s.solver.BVS('t', 32)
-    s.memory.store_cases(0, [ s.solver.BVV(b'AA'), s.solver.BVV(b'AA'), s.solver.BVV(b'AA') ], [ u == 0, u == 1, u == 2], fallback=s.solver.BVV(b'AA'))
-    r = s.memory.load(0, 2)
-    nose.tools.assert_equal(r.op, 'BVV')
-    nose.tools.assert_equal(s.solver.eval_upto(r, 2, cast_to=bytes), [b'AA'])
-
-    # and all identical values, with varying fallback
-    s = so.copy()
-    #t = s.solver.BVS('t', 32)
-    s.memory.store_cases(0, [ s.solver.BVV(b'AA'), s.solver.BVV(b'AA'), s.solver.BVV(b'AA') ], [ u == 0, u == 1, u == 2], fallback=s.solver.BVV(b'XX'))
-    r = s.memory.load(0, 2)
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(r, 3, cast_to=bytes)), [b'AA', b'XX'])
-
-    # and some identical values
-    s = so.copy()
-    #q = s.solver.BVS('q', 32)
-    values = [ b'AA', b'BB', b'AA' ]
-    s.memory.store_cases(0, [ s.solver.BVV(v) for v in values ], [ u == i for i in range(len(values))], fallback=s.solver.BVV(b'XX'))
-    r = s.memory.load(0, 2)
-    for i,v in enumerate(values + [b'XX']):
-        w = s.solver.eval_upto(s.memory.load(0, 2), 2, cast_to=bytes, extra_constraints=[u==i])
-        nose.tools.assert_equal(w, [(values+[b'XX'])[i]])
-
 def test_abstract_memory():
     initial_memory = {0: b'A', 1: b'B', 2: b'C', 3: b'D'}
 
     s = SimState(mode='static',
                  arch="AMD64",
-                 memory_backer=initial_memory,
+                 dict_memory_backer=initial_memory,
                  add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
-    se = s.se
+    se = s.solver
 
     def to_vs(region, offset):
         return s.solver.VS(s.arch.bits, region, 0, offset)
@@ -401,8 +334,12 @@ def test_abstract_memory():
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=1, lower_bound=0x100000, upper_bound=0x100001)))
-    c_mem = c.memory.regions['function_merge'].memory.mem
-    object_set = {c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]}
+    c_page = c.memory._regions['function_merge']._pages[0]
+    object_set = {c_page._get_object(0x20, 0),
+                  c_page._get_object(0x21, 0),
+                  c_page._get_object(0x22, 0),
+                  c_page._get_object(0x23, 0),
+                  }
     nose.tools.assert_equal(len(object_set), 1)
 
     a = s.copy()
@@ -412,7 +349,11 @@ def test_abstract_memory():
     c = a.merge(b)[0]
     expr = c.memory.load(to_vs('function_merge', 0x20), 4)
     nose.tools.assert_true(claripy.backends.vsa.identical(expr, se.SI(bits=32, stride=0x100000, lower_bound=0x100000, upper_bound=0x300000)))
-    object_set = {c_mem[0x20], c_mem[0x20], c_mem[0x22], c_mem[0x23]}
+    object_set = {c_page._get_object(0x20, 0),
+                  c_page._get_object(0x21, 0),
+                  c_page._get_object(0x22, 0),
+                  c_page._get_object(0x23, 0),
+                  }
     nose.tools.assert_equal(len(object_set), 1)
 
     #
@@ -436,10 +377,10 @@ def test_abstract_memory_find():
 
     s = SimState(mode='static',
                  arch="AMD64",
-                 memory_backer=initial_memory,
+                 dict_memory_backer=initial_memory,
                  add_options={o.ABSTRACT_SOLVER, o.ABSTRACT_MEMORY})
 
-    se = s.se
+    se = s.solver
     BVV = se.BVV
     VS = se.VS
     SI = se.SI
@@ -449,7 +390,7 @@ def test_abstract_memory_find():
     def to_vs(region, offset):
         return VS(s.arch.bits, region, 0, offset)
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'A'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'A'), 8)
 
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=1))
@@ -457,14 +398,14 @@ def test_abstract_memory_find():
     nose.tools.assert_equal(list(r_model.regions.keys()), [ 'global' ])
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'B'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'B'), 8)
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=2))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
     nose.tools.assert_equal(list(r_model.regions.keys()), ['global'])
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
-    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'\0'))
+    r, _, _ = s.memory.find(to_vs('global', 1), BVV(b'\0'), 8)
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, to_conv=3))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
@@ -472,7 +413,7 @@ def test_abstract_memory_find():
     nose.tools.assert_true(claripy.backends.vsa.identical(r_model.regions['global'], s_expected))
 
     # Find in StridedIntervals
-    r, _, _ = s.memory.find(to_vs('global', 4), BVV(b'\0'), max_search=8)
+    r, _, _ = s.memory.find(to_vs('global', 4), BVV(b'\0'), 8)
     r_model = claripy.backends.vsa.convert(r)
     s_expected = claripy.backends.vsa.convert(SI(bits=64, stride=1, lower_bound=4, upper_bound=11))
     nose.tools.assert_true(isinstance(r_model, claripy.vsa.ValueSet))
@@ -595,28 +536,7 @@ def test_false_condition():
     s.memory.store(0, fdsa, condition=s.solver.false)
 
     assert s.memory.load(0x1000, 4) is asdf
-    assert 0 not in s.memory.mem._pages
-
-def test_paged_memory_membacker_equal_size():
-    membacker = {0: claripy.BVV(0, 8), 1: claripy.BVV(1, 8), 2: claripy.BVV(2, 8)}
-
-    simmem = SimPagedMemory(memory_backer=membacker, page_size=len(membacker))
-    simmem[0] #pylint:disable=pointless-statement
-
-def test_load_bytes():
-    s = SimState(arch='AMD64')
-    asdf = s.solver.BVS('asdf', 0x1000*8)
-    s.memory.store(0x4000, asdf)
-    items = s.memory.mem.load_objects(0x4000, 0x1000)
-    assert len(items) == 1
-
-    fdsa = s.solver.BVV(b'fdsa')
-    s.memory.store(0x4004, fdsa)
-    items = s.memory.mem.load_objects(0x4000, 0x1000)
-    assert len(items) == 3
-
-    items = s.memory.mem.load_objects(0x8000, 0x2000)
-    assert len(items) == 0
+    assert 0 not in s.memory._pages
 
 def test_fast_memory():
     s = SimState(arch='AMD64', add_options={o.FAST_REGISTERS, o.FAST_MEMORY})
@@ -647,6 +567,14 @@ def test_light_memory():
 
     s.regs.cl = 0
     assert s.regs.rcx.symbolic
+
+
+def test_crosspage_store():
+    state = SimState(arch='x86')
+    state.regs.sp = 0xbaaafffc
+    state.memory.store(state.regs.sp, b"\x01\x02\x03\x04" + b"\x05\x06\x07\x08")
+    assert state.solver.eval(state.memory.load(state.regs.sp, 8)) == 0x102030405060708
+
 
 def test_crosspage_read():
     state = SimState(arch='ARM')
@@ -703,6 +631,17 @@ def test_underconstrained():
     state.memory.store(ptr3, b"\x41", size=1)
     state.memory.load(ptr3, size=1)
 
+
+def test_concrete_load_non_adjacent_pages():
+    s = SimState(arch='AMD64', mode='symbolic', plugins={'memory': UltraPageMemory()})
+
+    s.memory.store(0x100000, b'\x01' * 4096)
+    s.memory.store(0x100000 + 4096, b'\x02' * 4096)
+    mv = s.memory.concrete_load(0x100000 + 0xffa, 400)
+    assert len(mv) == 400, "Loading data across non-physically adjacent pages failed for ultra pages."
+    assert mv == (b'\x01' * 6) + (b'\x02' * 394)
+
+
 def test_hex_dump():
     s = SimState(arch='AMD64')
     addr = s.heap.allocate(0x20)
@@ -733,21 +672,92 @@ def test_hex_dump():
         'c0000010: efbeadde ???????? ???????? ???????? ....????????????\n'
     )
 
+def test_concrete_load():
+    for memcls in [UltraPageMemory, ListPageMemory]:
+        state = SimState(arch='AMD64', mode='symbolic', plugins={'memory': memcls()})
+        state.memory.store(0x20000, b"aaaabbbbccccdddd")
+
+        data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"aaaa"
+        assert bitmap.tobytes() == b"\x00\x00\x00\x00"
+
+
+        data, bitmap = state.memory.concrete_load(0x20004, 8, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"bbbbcccc"
+        assert bitmap.tobytes() == b"\x00\x00\x00\x00\x00\x00\x00\x00"
+
+        state.memory.store(0x20001, claripy.BVS("flag", 8))
+        data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"a\x00aa"
+        assert bitmap.tobytes() == b"\x00\x01\x00\x00"
+
+        expr = claripy.Concat(
+                claripy.BVS("flag_0", 1),
+                claripy.BVS("flag_1", 2),
+                claripy.BVS("flag_2", 3),
+                claripy.BVS("flag_3", 6),
+                claripy.BVS("flag_4", 4),
+                )
+        state.memory.store(0x20001, expr)
+        data, bitmap = state.memory.concrete_load(0x20000, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"a\x00\x00a"
+        assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+        expr = claripy.Concat(
+                claripy.BVS("flag_0", 1),
+                claripy.BVV(1, 2),
+                claripy.BVV(3, 3),
+                claripy.BVV(6, 6),
+                claripy.BVS("flag_4", 4),
+                )
+        state.memory.store(0x20005, expr)
+        data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"b\x00\x00b"
+        assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+        expr = claripy.Concat(
+            claripy.BVV(7, 7),
+            claripy.BVS('flag_0', 2),
+            claripy.BVV(7, 7),
+        )
+        state.memory.store(0x20005, expr)
+        data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"b\x00\x00b"
+        assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+        expr = claripy.Concat(
+            claripy.BVV(1, 1),
+            claripy.BVS('flag_0', 14),
+            claripy.BVV(1, 1),
+        )
+        state.memory.store(0x20005, expr)
+        data, bitmap = state.memory.concrete_load(0x20004, 4, with_bitmap=True)
+        data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
+        assert data_bytes == b"b\x00\x00b"
+        assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+
 if __name__ == '__main__':
+    test_concrete_load()
+    test_crosspage_store()
     test_crosspage_read()
     test_fast_memory()
     test_light_memory()
-    test_load_bytes()
     test_false_condition()
     test_symbolic_write()
     test_fullpage_write()
     test_memory()
     test_copy()
-    test_cased_store()
     test_abstract_memory()
     test_abstract_memory_find()
     test_registers()
     test_concrete_memset()
-    test_paged_memory_membacker_equal_size()
     test_underconstrained()
     test_hex_dump()
+    test_concrete_load_non_adjacent_pages()
