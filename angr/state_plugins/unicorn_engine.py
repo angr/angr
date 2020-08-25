@@ -108,7 +108,7 @@ class Uniwrapper(unicorn.Uc if unicorn is not None else object):
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        if is_thumb:
+        if thumb:
             uc_mode = arch.uc_mode_thumb
         else:
             uc_mode = arch.uc_mode
@@ -490,7 +490,7 @@ class Unicorn(SimStatePlugin):
     @property
     def uc(self):
         new_id = next(_unicounter)
-        is_thumb = self.state.arch.qemu_name == 'arm' and self.arch.is_thumb(self.state.addr)
+        is_thumb = self.state.arch.qemu_name == 'arm' and self.state.arch.is_thumb(self.state.addr)
         if (
             not hasattr(_unicorn_tls, "uc") or
             _unicorn_tls.uc is None or
@@ -1060,7 +1060,7 @@ class Unicorn(SimStatePlugin):
 
         # handle ARM's "cpsr" register, equivalent of x86's eflags
         elif self.state.arch.qemu_name == 'arm':
-            flags = self._process_value(self.state.regs.cpsr, 'reg')
+            flags = self._process_value(self.state.regs.flags, 'reg')
             if flags is None:
                 raise SimValueError('symbolic cpsr')
             elif flags.symbolic:
