@@ -101,6 +101,19 @@ def test_longinit_i386():
 def test_longinit_x86_64():
     run_longinit('x86_64')
 
+def test_fauxware_arm():
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'armel', 'fauxware'))
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+    pg = p.factory.simulation_manager(s_unicorn)
+    pg.explore()
+    assert all("Unicorn" in ''.join(p.history.descriptions.hardcopy) for p in pg.deadended)
+    nose.tools.assert_equal(sorted(pg.mp_deadended.posix.dumps(1).mp_items), sorted((
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n',
+        b'Username: \nPassword: \nGo away!',
+        b'Username: \nPassword: \nWelcome to the admin console, trusted user!\n'
+    )))
+
+
 def test_fauxware():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
@@ -341,3 +354,4 @@ if __name__ == '__main__':
                         fa = ft[1:]
                         print('...', fa)
                         fo(*fa)
+
