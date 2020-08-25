@@ -101,14 +101,18 @@ _unicounter = itertools.count()
 
 class Uniwrapper(unicorn.Uc if unicorn is not None else object):
     # pylint: disable=non-parent-init-called
-    def __init__(self, arch, cache_key):
+    def __init__(self, arch, cache_key, thumb=False):
         l.debug("Creating unicorn state!")
         self.arch = arch
         self.cache_key = cache_key
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        unicorn.Uc.__init__(self, arch.uc_arch, arch.uc_mode)
+        if is_thumb:
+            uc_mode = arch.uc_mode_thumb
+        else:
+            uc_mode = arch.uc_mode
+        unicorn.Uc.__init__(self, arch.uc_arch, uc_mode)
 
     def hook_add(self, htype, callback, user_data=None, begin=1, end=0, arg1=0):
         h = unicorn.Uc.hook_add(self, htype, callback, user_data=user_data, begin=begin, end=end, arg1=arg1)
@@ -486,17 +490,17 @@ class Unicorn(SimStatePlugin):
     @property
     def uc(self):
         new_id = next(_unicounter)
-
+        is_thumb = self.state.arch.qemu_name == 'arm' and self.arch.is_thumb(self.state.addr)
         if (
             not hasattr(_unicorn_tls, "uc") or
             _unicorn_tls.uc is None or
             _unicorn_tls.uc.arch != self.state.arch or
             _unicorn_tls.uc.cache_key != self.cache_key
         ):
-            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
+            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key, thumb=is_thumb)
         elif _unicorn_tls.uc.id != self._unicount:
             if not self._reuse_unicorn:
-                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
+                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key, thumb=is_thumb)
             else:
                 #l.debug("Reusing unicorn state!")
                 _unicorn_tls.uc.reset()
@@ -553,6 +557,12 @@ class Unicorn(SimStatePlugin):
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
         elif arch == 'mipsel':
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_mips, None, 1, 0)
+        elif arch == 'arm':
+            # EDG says: Unicorn's ARM support has no concept of interrupts.
+            # This is because interrupts are not a part of the ARM ISA per se, and interrupt controllers
+            # are left to the vendor to provide.
+            # TODO: This is not true for CortexM.  Revisit when Tobi's NVIC implementation gets upstreamed.
+            pass
         else:
             raise SimUnicornUnsupport
 
@@ -1048,6 +1058,15 @@ class Unicorn(SimStatePlugin):
             gs = self.state.solver.eval(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
 
+        # handle ARM's "cpsr" register, equivalent of x86's eflags
+        elif self.state.arch.qemu_name == 'arm':
+            flags = self._process_value(self.state.regs.cpsr, 'reg')
+            if flags is None:
+                raise SimValueError('symbolic cpsr')
+            elif flags.symbolic:
+                vex_offset = self.state.arch.registers['cc_op'][0]
+                self._symbolic_offsets.update(range(vex_offset, vex_offset + 4*4))
+            uc.reg_write(self._uc_const.UC_ARM_REG_CPSR, self.state.solver.eval(flags))
 
         for r, c in self._uc_regs.items():
             if r in self.reg_blacklist:
@@ -1061,6 +1080,8 @@ class Unicorn(SimStatePlugin):
             start, size = self.state.arch.registers[r]
             if v.symbolic:
                 self._symbolic_offsets.update(b for b,vb in enumerate(reversed(v.chop(8)), start) if vb.symbolic)
+
+        # TODO: Support ARM hardfloat synchronization
 
         if self.state.arch.name in ('X86', 'AMD64'):
             # sync the fp clerical data
@@ -1268,6 +1289,8 @@ class Unicorn(SimStatePlugin):
                 vex_offset += 8
                 tag_word >>= 2
                 vex_tag_offset -= 1
+
+        # TODO: ARM hardfloat
 
         # now, we restore the symbolic registers
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options:
