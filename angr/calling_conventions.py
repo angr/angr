@@ -1170,7 +1170,7 @@ class SimCCAMD64WindowsSyscall(SimCC):
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
     FP_ARG_REGS = []    # TODO: ???
-    CALLER_SAVED_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
+    CALLER_SAVED_REGS = []
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM
