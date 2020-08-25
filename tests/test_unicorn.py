@@ -4,8 +4,9 @@ import pickle
 import re
 from angr import options as so
 from nose.plugins.attrib import attr
-
+import gc
 import os
+
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 
@@ -199,7 +200,6 @@ def test_unicorn_pickle():
 
     pgp = pickle.dumps(pg, -1)
     del pg
-    import gc
     gc.collect()
     pg2 = pickle.loads(pgp)
     pg2.explore()
@@ -354,4 +354,3 @@ if __name__ == '__main__':
                         fa = ft[1:]
                         print('...', fa)
                         fo(*fa)
-
