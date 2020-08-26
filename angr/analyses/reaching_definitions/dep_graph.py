@@ -3,8 +3,10 @@ from functools import reduce
 
 import networkx
 
-from ...knowledge_plugins.key_definitions.atoms import Atom
+from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
+from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.definition import Definition
+from ..cfg.cfg_base import CFGBase
 
 
 def _is_definition(node):
@@ -113,3 +115,41 @@ class DepGraph:
             lambda definition: definition.atom == atom,
             self.nodes()
         ))
+
+    def add_dependencies_for_concrete_pointers_of(self, definition: Definition, cfg: CFGBase):
+        """
+        When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in the
+        dependency graph; Adds them if necessary.
+
+        :param definition: The definition which has data that can contain concrete pointers.
+        :param cfg: The CFG, containing informations about memory data.
+        """
+        assert definition in self.nodes(), 'The given Definition must be present in the given graph.'
+
+        known_predecessor_addresses = list(map(
+            lambda definition: definition.atom.addr,
+            filter(
+                lambda p: isinstance(p.atom, MemoryLocation),
+                self.predecessors(definition)
+            )
+        ))
+
+        unknown_concrete_addresses = list(filter(
+            lambda address: isinstance(address, int) and address not in known_predecessor_addresses,
+            definition.data
+        ))
+
+        for address in unknown_concrete_addresses:
+            data_at_address = cfg.memory_data.get(address, None)
+
+            if data_at_address is None or data_at_address.sort != 'string': continue
+
+            pointed_string = data_at_address.content.decode('utf-8')
+            data_length = data_at_address.size + 1
+            memory_location_definition = Definition(
+                MemoryLocation(address, data_length),
+                None,
+                DataSet(pointed_string, data_length * 8)
+            )
+
+            self.graph.add_edge(memory_location_definition, definition)

@@ -6,8 +6,9 @@ import networkx
 
 from angr.code_location import CodeLocation
 from angr.knowledge_plugins.key_definitions.dataset import DataSet
-from angr.knowledge_plugins.key_definitions.atoms import Atom, Register
+from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.definition import Definition
+from angr.knowledge_plugins.key_definitions.undefined import undefined
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 
 
@@ -30,6 +31,36 @@ def _a_mock_definition(atom: Atom=None):
 
 
 class TestDepGraph(TestCase):
+    class ArchMock:
+        def __init__(self): pass
+        @property
+        def bits(self): return 4
+    class CFGMock:
+        def __init__(self, memory_data): self._memory_data = memory_data
+        @property
+        def memory_data(self): return self._memory_data
+    class MemoryDataMock:
+        def __init__(self, address, content, size, sort):
+            self._address = address
+            self._content = content
+            self._size = size
+            self._sort = sort
+        @property
+        def address(self): return self._address
+        @property
+        def content(self): return self._content
+        @property
+        def size(self): return self._size
+        @property
+        def sort(self): return self._sort
+
+    def setUp(self):
+        self.memory_address = 0x42424242
+
+        self.string_in_memory = 'some string of data in memory'
+        self.string_in_memory_length = len(self.string_in_memory + '\x00')
+
+
     def test_dep_graph_has_a_default_graph(self):
         dep_graph = DepGraph()
         self.assertEqual(isinstance(dep_graph.graph, networkx.DiGraph), True)
@@ -192,3 +223,122 @@ class TestDepGraph(TestCase):
 
         result = dep_graph.contains_atom(Register(8, 4))
         self.assertFalse(result)
+
+    def test_add_dependencies_for_concrete_pointers_of_fails_if_the_given_definition_is_not_in_the_graph(self):
+        dependency_graph = DepGraph()
+
+        definition = Definition(
+            Register(0, 4),
+            CodeLocation(0x42, 0),
+            DataSet(undefined, 4)
+        )
+
+        with self.assertRaises(AssertionError) as cm:
+            dependency_graph.add_dependencies_for_concrete_pointers_of(definition, None)
+
+        ex = cm.exception
+        self.assertEqual(str(ex), 'The given Definition must be present in the given graph.')
+
+    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_for_data_pointed_to_by_given_definition(self):
+        arch = self.ArchMock()
+
+        memory_datum = self.MemoryDataMock(
+            self.memory_address,
+            str.encode(self.string_in_memory),
+            len(self.string_in_memory),
+            'string'
+        )
+        cfg = self.CFGMock({ self.memory_address: memory_datum })
+
+        register_definition = Definition(
+            Register(0, 4),
+            None,
+            DataSet(self.memory_address, arch.bits)
+        )
+
+        dependency_graph = DepGraph()
+        dependency_graph.add_node(register_definition)
+
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+
+        memory_definition = Definition(
+            MemoryLocation(self.memory_address, self.string_in_memory_length),
+            None,
+            DataSet(self.string_in_memory, self.string_in_memory_length * 8)
+        )
+
+        nodes = list(dependency_graph.nodes())
+        predecessors = list(dependency_graph.graph.predecessors(register_definition))
+        self.assertEqual(nodes, [register_definition, memory_definition])
+        self.assertListEqual(predecessors, [memory_definition])
+
+    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(self):
+        arch = self.ArchMock()
+
+        memory_datum = self.MemoryDataMock(
+            self.memory_address,
+            str.encode(self.string_in_memory),
+            len(self.string_in_memory),
+            'string'
+        )
+        cfg = self.CFGMock({ self.memory_address: memory_datum })
+
+        memory_location_definition = Definition(
+            MemoryLocation(self.memory_address, self.string_in_memory_length),
+            CodeLocation(0, 0),
+            DataSet(self.string_in_memory, self.string_in_memory_length * 8)
+        )
+
+        register_definition = Definition(
+            Register(0, 4),
+            CodeLocation(0x42, 0),
+            DataSet(self.memory_address, arch.bits)
+        )
+
+        dependency_graph = DepGraph(networkx.DiGraph([
+            (memory_location_definition, register_definition)
+        ]))
+
+        nodes_before_call = dependency_graph.nodes()
+
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+
+        self.assertEqual(nodes_before_call, dependency_graph.nodes())
+
+    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_pointer_is_not_concrete(self):
+        arch = self.ArchMock()
+        cfg = self.CFGMock({})
+
+        register_definition = Definition(
+            Register(0, 4),
+            CodeLocation(0x42, 0),
+            DataSet(undefined, arch.bits)
+        )
+
+        dependency_graph = DepGraph()
+        dependency_graph.add_node(register_definition)
+
+        nodes_before_call = dependency_graph.nodes()
+
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+
+        self.assertEqual(nodes_before_call, dependency_graph.nodes())
+
+    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_not_known(self):
+        arch = self.ArchMock()
+        cfg = self.CFGMock({})
+
+        register_definition = Definition(
+            Register(0, 4),
+            CodeLocation(0x42, 0),
+            DataSet(self.memory_address, arch.bits)
+        )
+
+        dependency_graph = DepGraph()
+        dependency_graph.add_node(register_definition)
+
+        nodes_before_call = dependency_graph.nodes()
+
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+
+        self.assertEqual(nodes_before_call, dependency_graph.nodes())
