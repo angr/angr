@@ -3,10 +3,14 @@ from functools import reduce
 
 import networkx
 
+from cle.loader import Loader
+
+from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ..cfg.cfg_base import CFGBase
+from .external_codeloc import ExternalCodeLocation
 
 
 def _is_definition(node):
@@ -116,7 +120,7 @@ class DepGraph:
             self.nodes()
         ))
 
-    def add_dependencies_for_concrete_pointers_of(self, definition: Definition, cfg: CFGBase):
+    def add_dependencies_for_concrete_pointers_of(self, definition: Definition, cfg: CFGBase, loader: Loader):
         """
         When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in the
         dependency graph; Adds them if necessary.
@@ -144,11 +148,17 @@ class DepGraph:
 
             if data_at_address is None or data_at_address.sort != 'string': continue
 
+            section = loader.main_object.find_section_containing(address)
+            read_only = False if section is None else not section.is_writable
+
+            code_location = \
+                CodeLocation(0, 0, info={'readonly': True}) if read_only else ExternalCodeLocation()
+
             pointed_string = data_at_address.content.decode('utf-8')
             data_length = data_at_address.size + 1
             memory_location_definition = Definition(
                 MemoryLocation(address, data_length),
-                None,
+                code_location,
                 DataSet(pointed_string, data_length * 8)
             )
 

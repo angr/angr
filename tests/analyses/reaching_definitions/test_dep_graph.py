@@ -10,6 +10,7 @@ from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, R
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.knowledge_plugins.key_definitions.undefined import undefined
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
+from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
 
 _PAST_N = set()
@@ -53,6 +54,17 @@ class TestDepGraph(TestCase):
         def size(self): return self._size
         @property
         def sort(self): return self._sort
+    class SectionMock:
+        def __init__(self, is_writable): self._is_writable = is_writable
+        @property
+        def is_writable(self): return self._is_writable
+    class MainObjectMock:
+        def __init__(self, section): self._section = section
+        def find_section_containing(self, _): return self._section
+    class LoaderMock:
+        def __init__(self, main_object): self._main_object = main_object
+        @property
+        def main_object(self): return self._main_object
 
     def setUp(self):
         self.memory_address = 0x42424242
@@ -234,13 +246,14 @@ class TestDepGraph(TestCase):
         )
 
         with self.assertRaises(AssertionError) as cm:
-            dependency_graph.add_dependencies_for_concrete_pointers_of(definition, None)
+            dependency_graph.add_dependencies_for_concrete_pointers_of(definition, None, None)
 
         ex = cm.exception
         self.assertEqual(str(ex), 'The given Definition must be present in the given graph.')
 
     def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_for_data_pointed_to_by_given_definition(self):
         arch = self.ArchMock()
+        loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         memory_datum = self.MemoryDataMock(
             self.memory_address,
@@ -259,11 +272,11 @@ class TestDepGraph(TestCase):
         dependency_graph = DepGraph()
         dependency_graph.add_node(register_definition)
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
 
         memory_definition = Definition(
             MemoryLocation(self.memory_address, self.string_in_memory_length),
-            None,
+            ExternalCodeLocation(),
             DataSet(self.string_in_memory, self.string_in_memory_length * 8)
         )
 
@@ -274,6 +287,7 @@ class TestDepGraph(TestCase):
 
     def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_already_in_dependency_graph(self):
         arch = self.ArchMock()
+        loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         memory_datum = self.MemoryDataMock(
             self.memory_address,
@@ -301,13 +315,14 @@ class TestDepGraph(TestCase):
 
         nodes_before_call = dependency_graph.nodes()
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
     def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_pointer_is_not_concrete(self):
         arch = self.ArchMock()
         cfg = self.CFGMock({})
+        loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         register_definition = Definition(
             Register(0, 4),
@@ -320,13 +335,14 @@ class TestDepGraph(TestCase):
 
         nodes_before_call = dependency_graph.nodes()
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
     def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_not_known(self):
         arch = self.ArchMock()
         cfg = self.CFGMock({})
+        loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         register_definition = Definition(
             Register(0, 4),
@@ -339,6 +355,36 @@ class TestDepGraph(TestCase):
 
         nodes_before_call = dependency_graph.nodes()
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
+
+    def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(self):
+        arch = self.ArchMock()
+
+        writable = False
+        loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(writable)))
+
+        memory_datum = self.MemoryDataMock(
+            self.memory_address,
+            str.encode(self.string_in_memory),
+            len(self.string_in_memory),
+            'string'
+        )
+        cfg = self.CFGMock({ self.memory_address: memory_datum })
+
+        register_definition = Definition(
+            Register(0, 4),
+            CodeLocation(0x42, 0),
+            DataSet(self.memory_address, arch.bits)
+        )
+
+        dependency_graph = DepGraph()
+        dependency_graph.add_node(register_definition)
+
+        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
+
+        origin_codelocation = CodeLocation(0, 0, info={'readonly': True})
+
+        predecessor = list(dependency_graph.graph.predecessors(register_definition))[0]
+        self.assertEqual(predecessor.codeloc, origin_codelocation)
