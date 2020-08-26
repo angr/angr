@@ -105,7 +105,7 @@ class LoopSeer(ExplorationTechnique):
         for succ_state in succs.successors:
             if succ_state.loop_data.current_loop:
                 if succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
-                    l.debug("One of the successors: {} is at the exit of the current loop {}".format(hex(succ_state.addr), 
+                    l.debug("One of the successors: {} is at the exit of the current loop {}".format(hex(succ_state.addr),
                                                                                               succ_state.loop_data.current_loop[-1][0]))
                     at_loop_exit = True
 
