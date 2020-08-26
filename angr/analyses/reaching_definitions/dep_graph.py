@@ -38,9 +38,6 @@ class DepGraph:
         """
         :param node: The definition to add to the definition-use graph.
         """
-        if not _is_definition(node):
-            raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
-
         self._graph.add_node(node)
 
     def add_edge(self, source: Definition, destination: Definition, **labels) -> None:
@@ -51,10 +48,16 @@ class DepGraph:
         :param destination: The "destination" definition, using the variable defined by "source".
         :param labels: Optional keyword arguments to represent edge labels.
         """
-        if not _is_definition(source) and not _is_definition(destination):
-            raise TypeError("In a DepGraph, edges need to be between <%s>s." % Definition.__name__)
-
         self._graph.add_edge(source, destination, **labels)
+
+    def nodes(self) -> networkx.classes.reportviews.NodeView: return self._graph.nodes()
+
+    def predecessors(self, node: Definition) -> networkx.classes.reportviews.NodeView:
+        """
+        :param node: The definition to get the predecessors of.
+        """
+        return self._graph.predecessors(node)
+
 
     def transitive_closure(self, definition: Definition) -> networkx.DiGraph:
         """
@@ -108,5 +111,5 @@ class DepGraph:
     def contains_atom(self, atom: Atom) -> bool:
         return any(map(
             lambda definition: definition.atom == atom,
-            self.graph.nodes()
+            self.nodes()
         ))

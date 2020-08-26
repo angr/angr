@@ -38,10 +38,6 @@ class TestDepGraph(TestCase):
         a_graph = networkx.DiGraph([(1, 2)])
         self.assertRaises(TypeError, DepGraph, a_graph)
 
-    def test_refuses_to_add_non_definition_nodes(self):
-        dep_graph = DepGraph()
-        self.assertRaises(TypeError, dep_graph.add_node, 1)
-
     def test_delegate_add_node_to_the_underlying_graph_object(self):
         with mock.patch.object(networkx.DiGraph, 'add_node') as digraph_add_node_mock:
             definition = _a_mock_definition()
@@ -50,9 +46,20 @@ class TestDepGraph(TestCase):
 
             digraph_add_node_mock.assert_called_once_with(definition)
 
-    def test_refuses_to_add_edge_between_non_definition_nodes(self):
-        dep_graph = DepGraph()
-        self.assertRaises(TypeError, dep_graph.add_edge, 1, 2)
+    def test_delegate_nodes_to_the_underlying_graph_object(self):
+        with mock.patch.object(networkx.DiGraph, 'nodes') as digraph_nodes_mock:
+            dep_graph = DepGraph()
+            dep_graph.nodes()
+
+            digraph_nodes_mock.assert_called_once()
+
+    def test_delegate_predecessors_to_the_underlying_graph_object(self):
+        with mock.patch.object(networkx.DiGraph, 'predecessors') as digraph_predecessors_mock:
+            definition = _a_mock_definition()
+            dep_graph = DepGraph()
+            dep_graph.predecessors(definition)
+
+            digraph_predecessors_mock.assert_called_once_with(definition)
 
     def test_delegate_add_edge_to_the_underlying_graph_object(self):
         with mock.patch.object(networkx.DiGraph, 'add_edge') as digraph_add_edge_mock:
