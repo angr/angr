@@ -23,6 +23,8 @@ def test_self_modifying_code():
     nose.tools.assert_true(claripy.is_true(retval == 65))
 
     pgu = p.factory.simulation_manager(p.factory.entry_state(add_options={o.STRICT_PAGE_ACCESS} | o.unicorn))
+    for offs in range(0, 0x6000, 0x1000):
+        pgu.one_active.memory.load(pgu.one_active.regs.sp - offs, size=1)
     pgu.run(until=lambda lpg: len(lpg.active) != 1)
     retval = pgu.one_deadended.regs.ebx
     nose.tools.assert_true(claripy.is_true(retval == 65))
