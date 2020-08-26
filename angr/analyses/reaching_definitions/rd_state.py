@@ -233,10 +233,6 @@ class ReachingDefinitionsState:
             self.all_definitions.add(definition)
 
             if self.dep_graph is not None:
-                # Add the definition to the graph. It *may* be a single node if this definition is never used by
-                # anything else afterwards.
-                # self.dep_graph.add_node(definition)
-
                 stack_use = set(filter(
                     lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack,
                     self.codeloc_uses
