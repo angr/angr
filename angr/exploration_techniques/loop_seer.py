@@ -19,17 +19,17 @@ class LoopSeer(ExplorationTechnique):
                  bound=None, bound_reached=None, discard_stash='spinning',
                  limit_concrete_loops=True):
         """
-        :param cfg:             Normalized CFG is required.
-        :param functions:       Function(s) containing the loop(s) to be analyzed.
-        :param loops:           Loop(s) to be analyzed.
-        :param use_header:      Whether to use header based trip counter to compare with the bound limit.
-        :param bound:           Limit the number of iteration a loop may be executed.
-        :param bound_reached:   If provided, should be a function that takes a SimulationManager and returns
-                                a SimulationManager. Will be called when loop execution reach the given bound.
-                                Default to moving states that exceed the loop limit to a discard stash.
-        :param discard_stash:   Name of the stash containing states exceeding the loop limit.
-        :param limit_concrete_loops: If False, do not limit a loop back-edge if it is the only successor
-                                (Defaults to True to maintain the original behavior)
+        :param cfg:                   Normalized CFG is required.
+        :param functions:             Function(s) containing the loop(s) to be analyzed.
+        :param loops:                 Specific group of Loop(s) to be analyzed, if this is None we run the LoopFinder analysis.
+        :param use_header:            Whether to use header based trip counter to compare with the bound limit.
+        :param bound:                 Limit the number of iterations a loop may be executed.
+        :param bound_reached:         If provided, should be a function that takes the LoopSeer and the succ_state.
+                                      Will be called when loop execution reach the given bound.
+                                      Default to moving states that exceed the loop limit to a discard stash.
+        :param discard_stash:         Name of the stash containing states exceeding the loop limit.
+        :param limit_concrete_loops:  If False, do not limit a loop back-edge if it is the only successor
+                                      (Defaults to True to maintain the original behavior)
         """
 
         super(LoopSeer, self).__init__()
@@ -48,7 +48,7 @@ class LoopSeer(ExplorationTechnique):
         if type(loops) in (list, tuple) and all(type(l) is Loop for l in loops):
             for loop in loops:
                 if loop.entry_edges:
-                    self.loops[loop.entry_edges[0][0].addr] = loop
+                    self.loops[loop.entry_edges[0][1].addr] = loop
 
         elif loops is not None:
             raise TypeError("Invalid type for 'loops' parameter!")
@@ -81,7 +81,7 @@ class LoopSeer(ExplorationTechnique):
 
             for loop in loop_finder.loops:
                 if loop.entry_edges:
-                    entry = loop.entry_edges[0][0]
+                    entry = loop.entry_edges[0][1]
                     self.loops[entry.addr] = loop
 
     def filter(self, simgr, state, **kwargs):
@@ -105,30 +105,53 @@ class LoopSeer(ExplorationTechnique):
         for succ_state in succs.successors:
             if succ_state.loop_data.current_loop:
                 if succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
+                    l.debug("One of the successors: %s is at the exit of the current loop %s", hex(succ_state.addr),
+                                                                                               succ_state.loop_data.current_loop[-1][0])
                     at_loop_exit = True
+
         for succ_state in succs.successors:
             # Processing a currently running loop
             if succ_state.loop_data.current_loop:
+                l.debug("Loops currently active are %s", succ_state.loop_data.current_loop)
+                # Extract info about the loop ([-1] takes the last active loop and [0] the loop object)
                 loop = succ_state.loop_data.current_loop[-1][0]
                 header = loop.entry.addr
+                l.debug("Loop currently active is %s with entry %s", loop, hex(header))
+
                 if succ_state.addr == header:
                     continue_addrs = [e[0].addr for e in loop.continue_edges]
                     # If there's only one successor, the loop is "concrete"
                     # We may wish not to cut loops that are concrete, as this can dead-end
                     # the path prematurely, even when there won't be state explosion.
                     if self.limit_concrete_loops or len(succs.successors) > 1:
+                        # If the previous state contains an address inside the continue_addrs, a.k.a "we have
+                        # traversed the continue edge" we did an iteration over the back edge.
                         if succ_state.history.addr in continue_addrs:
+                            l.debug("Continue edge traversed, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
+                            # This is an iteration on the back edge.
                             succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
+
+                        l.debug("Continue edge traversed, incrementing header_trip_counts for addr at %s", hex(succ_state.addr))
+                        # This is also an iteration over the loop's header
                         succ_state.loop_data.header_trip_counts[succ_state.addr][-1] += 1
+
+                # current_loop[-1][1] is the exit node of the current loop.
                 elif succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
+                    # We have terminated the loop, so let's pop it out from the current active.
+                    l.debug("Deactivating loop at %s because hits the exit node", hex(succ_state.addr))
                     succ_state.loop_data.current_loop.pop()
-                elif at_loop_exit and self.limit_concrete_loops:
+
+                elif at_loop_exit:
                     # We're not at the header, but we're where we exit the loop
                     # NOTE: this only matters if you want to not limit concrete loops
                     if not self.limit_concrete_loops and len(succs.successors) > 1:
+                        l.debug("At loop exit, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
                         succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
+
+                # If we have set a bound for symbolic/concrete loops we want to handle it here
                 if self.bound is not None and succ_state.loop_data.current_loop:
                     counts = 0
+                    # Decide how we should check the bounds
                     if self.use_header:
                         counts = succ_state.loop_data.header_trip_counts[header][-1]
                     else:
@@ -136,21 +159,27 @@ class LoopSeer(ExplorationTechnique):
                             counts = succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1]
                     if counts > self.bound:
                         if self.bound_reached is not None:
-                            simgr = self.bound_reached(simgr)
+                            # We want to pass self to modify the LoopSeer state if needed
+                            # Users can modify succ_state in the handler to implement their own logic
+                            # or edit the state of the LoopSeer.
+                            self.bound_reached(self, succ_state)
                         else:
                             # Remove the state from the successors object
+                            # This state is going to be filtered by the self.filter function
                             self.cut_succs.append(succ_state)
-
 
                 l.debug("%s back edge based trip counts %s", state, state.loop_data.back_edge_trip_counts)
                 l.debug("%s header based trip counts %s", state, state.loop_data.header_trip_counts)
+            else:
+                l.debug("No loop are currently active at %s", hex(succ_state.addr))
 
             # Loop entry detected. This test is put here because in case of
             # nested loops, we want to handle the outer loop before proceeding
             # the inner loop.
-            if succ_state.addr in self.loops:
+            if succ_state.addr in self.loops and not self._inside_current_loops(succ_state):
                 loop = self.loops[succ_state.addr]
                 header = loop.entry.addr
+                l.debug("Activating loop %s for state at %s", loop, hex(succ_state.addr))
                 exits = [e[1].addr for e in loop.break_edges]
 
                 succ_state.loop_data.back_edge_trip_counts[header].append(0)
@@ -159,9 +188,19 @@ class LoopSeer(ExplorationTechnique):
                 if not self.limit_concrete_loops:
                     for node in loop.body_nodes:
                         succ_state.loop_data.back_edge_trip_counts[node.addr].append(0)
-                succ_state.loop_data.header_trip_counts[header].append(0)
+
+                # save info about current active loop for the succ state
+                succ_state.loop_data.header_trip_counts[header].append(1)
                 succ_state.loop_data.current_loop.append((loop, exits))
         return succs
+
+    # pylint: disable=R0201
+    def _inside_current_loops(self, succ_state):
+        current_loops_addrs = [x[0].entry.addr for x in succ_state.loop_data.current_loop]
+        if succ_state.addr in current_loops_addrs:
+            return True
+        return False
+
     def _get_function(self, func):
         f = None
         if type(func) is str:
