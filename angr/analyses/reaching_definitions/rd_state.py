@@ -271,6 +271,7 @@ class ReachingDefinitionsState:
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
                         self.dep_graph.add_edge(used, definition)
+                        self.dep_graph.add_dependencies_for_concrete_pointers_of(used, self.analysis.project.kb.cfgs['CFGFast'])
 
         return definition
 
