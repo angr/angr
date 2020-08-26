@@ -233,6 +233,7 @@ class FastMemory(
     SimpleInterfaceMixin,
     SimplificationMixin,
     InspectMixinHigh,
+    ConditionalMixin,
     ExplicitFillerMixin,
     DefaultFillerMixin,
     SlottedMemoryMixin,
