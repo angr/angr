@@ -182,12 +182,12 @@ class LoopSeer(ExplorationTechnique):
                 l.debug("Activating loop %s for state at %s", loop, hex(succ_state.addr))
                 exits = [e[1].addr for e in loop.break_edges]
 
-                succ_state.loop_data.back_edge_trip_counts[header].append(1)
+                succ_state.loop_data.back_edge_trip_counts[header].append(0)
                 # If we are not limiting concrete loops, we also consider
                 # trip counts at the possible exits
                 if not self.limit_concrete_loops:
                     for node in loop.body_nodes:
-                        succ_state.loop_data.back_edge_trip_counts[node.addr].append(1)
+                        succ_state.loop_data.back_edge_trip_counts[node.addr].append(0)
 
                 # save info about current active loop for the succ state
                 succ_state.loop_data.header_trip_counts[header].append(1)
