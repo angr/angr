@@ -105,18 +105,18 @@ class LoopSeer(ExplorationTechnique):
         for succ_state in succs.successors:
             if succ_state.loop_data.current_loop:
                 if succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
-                    l.debug("One of the successors: {} is at the exit of the current loop {}".format(hex(succ_state.addr),
-                                                                                              succ_state.loop_data.current_loop[-1][0]))
+                    l.debug("One of the successors: %s is at the exit of the current loop %s", hex(succ_state.addr),
+                                                                                               succ_state.loop_data.current_loop[-1][0])
                     at_loop_exit = True
 
         for succ_state in succs.successors:
             # Processing a currently running loop
             if succ_state.loop_data.current_loop:
-                l.debug("Loops currently active are {}".format(succ_state.loop_data.current_loop))
+                l.debug("Loops currently active are %s", succ_state.loop_data.current_loop)
                 # Extract info about the loop ([-1] takes the last active loop and [0] the loop object)
                 loop = succ_state.loop_data.current_loop[-1][0]
                 header = loop.entry.addr
-                l.debug("Loop currently active is {} with entry {}".format(loop, hex(header)))
+                l.debug("Loop currently active is %s with entry %s", loop, hex(header))
 
                 if succ_state.addr == header:
                     continue_addrs = [e[0].addr for e in loop.continue_edges]
@@ -127,25 +127,25 @@ class LoopSeer(ExplorationTechnique):
                         # If the previous state contains an address inside the continue_addrs, a.k.a "we have
                         # traversed the continue edge" we did an iteration over the back edge.
                         if succ_state.history.addr in continue_addrs:
-                            l.debug("Continue edge traversed, incrementing back_edge_trip_counts for addr at {}".format(hex(succ_state.addr)))
+                            l.debug("Continue edge traversed, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
                             # This is an iteration on the back edge.
                             succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
 
-                        l.debug("Continue edge traversed, incrementing header_trip_counts for addr at {}".format(hex(succ_state.addr)))
+                        l.debug("Continue edge traversed, incrementing header_trip_counts for addr at %s", hex(succ_state.addr))
                         # This is also an iteration over the loop's header
                         succ_state.loop_data.header_trip_counts[succ_state.addr][-1] += 1
 
                 # current_loop[-1][1] is the exit node of the current loop.
                 elif succ_state.addr in succ_state.loop_data.current_loop[-1][1]:
                     # We have terminated the loop, so let's pop it out from the current active.
-                    l.debug("Deactivating loop at {} because hits the exit node".format(hex(succ_state.addr)))
+                    l.debug("Deactivating loop at %s because hits the exit node", hex(succ_state.addr))
                     succ_state.loop_data.current_loop.pop()
 
                 elif at_loop_exit:
                     # We're not at the header, but we're where we exit the loop
                     # NOTE: this only matters if you want to not limit concrete loops
                     if not self.limit_concrete_loops and len(succs.successors) > 1:
-                        l.debug("At loop exit, incrementing back_edge_trip_counts for addr at {}".format(hex(succ_state.addr)))
+                        l.debug("At loop exit, incrementing back_edge_trip_counts for addr at %s", hex(succ_state.addr))
                         succ_state.loop_data.back_edge_trip_counts[succ_state.addr][-1] += 1
 
                 # If we have set a bound for symbolic/concrete loops we want to handle it here
@@ -171,7 +171,7 @@ class LoopSeer(ExplorationTechnique):
                 l.debug("%s back edge based trip counts %s", state, state.loop_data.back_edge_trip_counts)
                 l.debug("%s header based trip counts %s", state, state.loop_data.header_trip_counts)
             else:
-                l.debug("No loop are currently active at {}".format(hex(succ_state.addr)))
+                l.debug("No loop are currently active at %s", hex(succ_state.addr))
 
             # Loop entry detected. This test is put here because in case of
             # nested loops, we want to handle the outer loop before proceeding
@@ -179,7 +179,7 @@ class LoopSeer(ExplorationTechnique):
             if succ_state.addr in self.loops and not self._inside_current_loops(succ_state):
                 loop = self.loops[succ_state.addr]
                 header = loop.entry.addr
-                l.debug("Activating loop {} for state at {}".format(loop, hex(succ_state.addr)))
+                l.debug("Activating loop %s for state at %s", loop, hex(succ_state.addr))
                 exits = [e[1].addr for e in loop.break_edges]
 
                 succ_state.loop_data.back_edge_trip_counts[header].append(1)
