@@ -112,7 +112,7 @@ class FuncProtoSolver:
                     assignments = [con for con in self._constraints_by_expr[var_] if isinstance(con, Assignment)]
                     for assign in assignments:
                         if assign.expression not in encountered: queue.append(assign.expression)
-                        else: result.add(assign.expression)
+                        elif assign.expression != var: result.add(assign.expression)
                     continue
 
             result.add(var_)
@@ -225,7 +225,7 @@ class FuncProtoSolver:
         lt_checks = set()
         for con in constraints:
             # i1 += C
-            is_incrementer = lambda x: isinstance(x, Assignment) and isinstance(x.expression, AddN)
+            is_incrementer = lambda x: isinstance(x, Assignment) and isinstance(x.expression, AddN) and x.variable == x.expression.variable
             # i1 < B
             is_lt_check = lambda x: isinstance(x, (CmpLtExpr, CmpLeExpr, CmpLtN))
 
@@ -298,6 +298,11 @@ class FuncProtoSolver:
                             interval = inc.expression.n
                         if isinstance(init, Assignment) and isinstance(init.expression, Constant):
                             lbound = init.expression.con
+                        if isinstance(init, Assignment) and isinstance(init.expression, LocalVariable):
+                            for i in self._get_root_definitions(init.expression):
+                                if isinstance(i, Parameter):
+                                    lbound = i
+                                # TODO: add more cases and/or generalize initializers more
                         result = CounterLoopVariable(64,  # TODO: Use the correct bits
                                                   lbound,
                                                   interval
@@ -392,6 +397,34 @@ class FuncProtoSolver:
         for con in self._constraints:
             if isinstance(con, Load):
                 fits = self._load_addr_fits_model_a(con)
+                fits |= self._load_addr_fits_model_c(con)
+
+    """
+    Model C: find loads of the form:
+    while (buffer_start_cursor < buffer_end_cursor) {
+        ? = *(buffer_start_cursor);
+        buffer_start_cursor++;
+    }
+    """
+    def _load_addr_fits_model_c(self, constraint: Load) -> bool:
+        if constraint.addr in self._var_descriptors:
+            for desc in self._var_descriptors[constraint.addr]:
+                if isinstance(desc, CounterLoopVariable):
+                    element_count = None
+                    if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                        element_count = desc.ubound - desc.lbound
+                    buf_desc = Buffer(lbound=desc.lbound,
+                        ubound = desc.ubound,
+                        element_size=desc.interval,
+                        element_count=element_count,
+                        in_=True,
+                        out_=False)
+                    base_desc = Pointer(buf_desc, in_=True, out_=False)
+                    for base in self._get_root_definitions(constraint.addr):
+                        if isinstance(base, Parameter):
+                            self.param_descriptors[base].add(base_desc)
+                    return True
+        return False
 
     def _load_addr_fits_model_a(self, constraint: Load) -> bool:
         addr_bases, addr_incs = self._model_a_find_addr_base_and_inc(constraint)
@@ -480,6 +513,27 @@ class FuncProtoSolver:
         for con in self._constraints:
             if isinstance(con, Store):
                 fits = self._store_addr_fits_model_a(con)
+                fits |= self._store_addr_fits_model_c(con)
+
+    def _store_addr_fits_model_c(self, constraint: Store) -> bool:
+        if constraint.addr in self._var_descriptors:
+            for desc in self._var_descriptors[constraint.addr]:
+                if isinstance(desc, CounterLoopVariable):
+                    element_count = None
+                    if isinstance(desc.lbound, int) and isinstance(desc.ubound, int):
+                        element_count = desc.ubound - desc.lbound
+                    buf_desc = Buffer(lbound=desc.lbound,
+                        ubound = desc.ubound,
+                        element_size=desc.interval,
+                        element_count=element_count,
+                        in_=False,
+                        out_=True)
+                    base_desc = Pointer(buf_desc, in_=False, out_=True)
+                    for base in self._get_root_definitions(constraint.addr):
+                        if isinstance(base, Parameter):
+                            self.param_descriptors[base].add(base_desc)
+                    return True
+        return False
 
     def _store_addr_fits_model_a(self, constraint: Store) -> bool:
         addr_bases, addr_incs = self._model_a_find_addr_base_and_inc(constraint)
