@@ -245,13 +245,17 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, _, _ = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, _, match_indices = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len,
+                                            max_symbolic_bytes=max_sym_bytes)
 
-                    # if no newline is found, mm is position + max_strlen
-                    # If-branch will really only happen for format specifiers with a length
-                    mm = self.parser.state.solver.If(ohr == 0, position + max_str_len, ohr)
-                    # we're just going to concretize the length, load will do this anyways
-                    length = self.parser.state.solver.max_int(mm - position)
+                    if not match_indices:
+                        # if no newline is found, mm is position + max_strlen
+                        mm = position + max_str_len
+                        # we're just going to concretize the length, load will do this anyways
+                        length = self.parser.state.solver.max_int(mm - position)
+                    else:
+                        # a newline is found, or a max length is specified with the specifier
+                        length = max(match_indices)
                     src_str = region.load(position, length)
 
                     # TODO all of these should be delimiters we search for above
