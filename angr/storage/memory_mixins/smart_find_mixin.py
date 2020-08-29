@@ -32,6 +32,8 @@ class SmartFindMixin(MemoryMixin):
                 continue
 
             match_indices.append(i)
+            if isinstance(subaddr, int):
+                subaddr = claripy.BVV(subaddr, size=self.state.arch.bits)
             cases.append((comparison, subaddr))
 
             if concrete_comparison is True:
@@ -41,6 +43,9 @@ class SmartFindMixin(MemoryMixin):
             # the loop terminated, meaning we exhausted some sort of limit instead of finding a concrete answer.
             if default is None:
                 constraints.append(claripy.Or(*(c for c, _ in cases)))
+
+        if len(cases) == 1:
+            return cases[0][1], constraints, match_indices
 
         return self._find_process_cases(cases, match_indices, constraints, default, **kwargs)
 
