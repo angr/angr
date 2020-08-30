@@ -143,6 +143,14 @@ class SimOS:
             if type(stdin) is type:
                 stdin = stdin(name='stdin', has_end=False)
             else:
+                if isinstance(stdin, claripy.Bits):
+                    num_bytes = len(stdin) // self.project.arch.byte_width
+                else:
+                    num_bytes = len(stdin)
+                _l.warning("stdin is constrained to %d bytes (has_end=True). If you are only providing the first "
+                           "%d bytes instead of the entire stdin, please use "
+                           "stdin=SimFileStream(name='stdin', content=your_first_n_bytes, has_end=False).",
+                           num_bytes, num_bytes)
                 stdin = SimFileStream(name='stdin', content=stdin, has_end=True)
 
         last_addr = self.project.loader.main_object.max_addr
