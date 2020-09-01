@@ -9,6 +9,7 @@ from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.undefined import undefined
 from ..cfg.cfg_base import CFGBase
 from .external_codeloc import ExternalCodeLocation
 
@@ -146,20 +147,24 @@ class DepGraph:
         for address in unknown_concrete_addresses:
             data_at_address = cfg.memory_data.get(address, None)
 
-            if data_at_address is None or data_at_address.sort != 'string': continue
+            if data_at_address is None or data_at_address.sort not in ['string', 'unknown']: continue
 
             section = loader.main_object.find_section_containing(address)
             read_only = False if section is None else not section.is_writable
-
             code_location = \
                 CodeLocation(0, 0, info={'readonly': True}) if read_only else ExternalCodeLocation()
 
-            pointed_string = data_at_address.content.decode('utf-8')
-            data_length = data_at_address.size + 1
+            def _string_and_length_from(data_at_address):
+                if data_at_address.content is None:
+                    return (undefined, data_at_address.size)
+                else:
+                    return (data_at_address.content.decode('utf-8'), data_at_address.size + 1)
+            pointed_string, string_length = _string_and_length_from(data_at_address)
+
             memory_location_definition = Definition(
-                MemoryLocation(address, data_length),
+                MemoryLocation(address, string_length),
                 code_location,
-                DataSet(pointed_string, data_length * 8)
+                DataSet(pointed_string, string_length * 8)
             )
 
             self.graph.add_edge(memory_location_definition, definition)

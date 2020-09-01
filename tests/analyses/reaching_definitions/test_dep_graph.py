@@ -339,10 +339,26 @@ class TestDepGraph(TestCase):
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
-    def test_add_dependencies_for_concrete_pointers_of_does_nothing_if_data_pointed_to_by_definition_is_not_known(self):
+    def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(self):
         arch = self.ArchMock()
         cfg = self.CFGMock({})
         loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
+
+        datum_content = None
+        datum_size = 0x4242
+        memory_datum = self.MemoryDataMock(
+            self.memory_address,
+            datum_content,
+            datum_size,
+            'unknown'
+        )
+        cfg = self.CFGMock({ self.memory_address: memory_datum })
+
+        memory_definition = Definition(
+            MemoryLocation(self.memory_address, datum_size),
+            ExternalCodeLocation(),
+            DataSet(undefined, datum_size * 8)
+        )
 
         register_definition = Definition(
             Register(0, 4),
@@ -353,11 +369,12 @@ class TestDepGraph(TestCase):
         dependency_graph = DepGraph()
         dependency_graph.add_node(register_definition)
 
-        nodes_before_call = dependency_graph.nodes()
-
         dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
 
-        self.assertEqual(nodes_before_call, dependency_graph.nodes())
+        nodes = list(dependency_graph.nodes())
+        predecessors = list(dependency_graph.graph.predecessors(register_definition))
+        self.assertEqual(nodes, [register_definition, memory_definition])
+        self.assertListEqual(predecessors, [memory_definition])
 
     def test_add_dependencies_for_concrete_pointers_of_adds_a_definition_with_codelocation_in_binary_if_data_in_readonly_memory(self):
         arch = self.ArchMock()
