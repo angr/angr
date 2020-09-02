@@ -582,20 +582,20 @@ class CFGBase(Analysis):
                     # Get all executable sections
                     for section in b.sections:
                         if section.is_executable:
-                            tpl = (section.min_addr, section.max_addr)
+                            tpl = (section.min_addr, section.max_addr+1)
                             memory_regions.append(tpl)
 
                 else:
                     # Get all executable segments
                     for segment in b.segments:
                         if segment.is_executable:
-                            tpl = (segment.min_addr, segment.max_addr)
+                            tpl = (segment.min_addr, segment.max_addr+1)
                             memory_regions.append(tpl)
 
             elif isinstance(b, PE):
                 for section in b.sections:
                     if section.is_executable:
-                        tpl = (section.min_addr, section.max_addr)
+                        tpl = (section.min_addr, section.max_addr+1)
                         memory_regions.append(tpl)
 
             elif isinstance(b, MachO):
@@ -605,12 +605,12 @@ class CFGBase(Analysis):
                         if seg.is_executable:
                             # Take all sections from this segment (MachO style)
                             for section in seg.sections:
-                                tpl = (section.min_addr, section.max_addr)
+                                tpl = (section.min_addr, section.max_addr+1)
                                 memory_regions.append(tpl)
 
             elif isinstance(b, Blob):
                 # a blob is entirely executable
-                tpl = (b.min_addr, b.max_addr)
+                tpl = (b.min_addr, b.max_addr+1)
                 memory_regions.append(tpl)
             elif isinstance(b, NamedRegion):
                 # NamedRegions have no content! Ignore
@@ -621,7 +621,7 @@ class CFGBase(Analysis):
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
 
-                tpl = (b.min_addr, b.max_addr)
+                tpl = (b.min_addr, b.max_addr+1)
                 memory_regions.append(tpl)
 
         if not memory_regions:
