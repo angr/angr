@@ -96,10 +96,14 @@ class SimEngineUnicorn(SuccessorsMixin):
         ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
         for instr_entry in block_details["instrs"]:
+            saved_memory_values = {}
             if "mem_dep" in instr_entry:
                 address = instr_entry["mem_dep"]["address"]
                 value = instr_entry["mem_dep"]["value"]
                 size = instr_entry["mem_dep"]["size"]
+                curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
+                # Save current memory value for restoring later
+                saved_memory_values[address] = (curr_value, size)
                 self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
 
             instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
@@ -111,6 +115,10 @@ class SimEngineUnicorn(SuccessorsMixin):
                 if vex_stmt.tag not in ignored_statement_tags:
                     self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
                     super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+
+            # Restore previously saved value
+            for address, (value, size) in saved_memory_values.items():
+                self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
 
         del self.stmt_idx
 
