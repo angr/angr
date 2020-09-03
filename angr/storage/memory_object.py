@@ -73,7 +73,20 @@ class SimMemoryObject:
 
         else:
             offset = addr - self.base
-            thing = bv_slice(self.object, offset, length, self.endness == 'Iend_LE', self._byte_width)
+            try:
+                thing = bv_slice(self.object, offset, length, self.endness == 'Iend_LE', self._byte_width)
+            except claripy.ClaripyOperationError:
+                # hacks to handle address space wrapping
+                if offset >= 0:
+                    raise
+                if offset + 2**32 >= 0:
+                    offset += 2**32
+                elif offset + 2**64 >= 0:
+                    offset += 2**64
+                else:
+                    raise
+                thing = bv_slice(self.object, offset, length, self.endness == 'Iend_LE', self._byte_width)
+
             if self.endness != endness:
                 thing = thing.reversed
             return thing

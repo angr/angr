@@ -81,10 +81,12 @@ class MemoryObjectMixin(CooperationBase):
     @classmethod
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
-        memory_object = SimMemoryObject(data, addr+page_addr, endness,
+        cur_addr = addr + page_addr
+        memory_object = SimMemoryObject(data, cur_addr, endness,
                                         byte_width=memory.state.arch.byte_width if memory is not None else 8)
         size = yield
         while True:
+            cur_addr += size
             size = yield memory_object
 
     @classmethod

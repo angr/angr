@@ -71,7 +71,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         for subaddr in range(addr, addr+size):
             realaddr = subaddr + page_addr
             if self.symbolic_bitmap[subaddr]:
-                cur_val = self._get_object(subaddr, page_addr)
+                cur_val = self._get_object(subaddr, page_addr, memory=memory)
                 if cur_val is last_run and last_run is symbolic_run:
                     pass
                 else:
@@ -116,6 +116,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 # trim the overflowing bytes if there are any
                 end_bits = start_bits + 1 - size * memory.state.arch.byte_width
                 if start_bits != full_bits or end_bits != 0:
+                    if endness == 'Iend_LE':
+                        start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
                     obj = data.object[start_bits: end_bits]
                     data = obj.args[0]
 
@@ -335,7 +337,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # symbolic data or does not exist
             return self._get_object(start, page_addr) is not None
 
-    def _get_object(self, start: int, page_addr: int) -> Optional[SimMemoryObject]:
+    def _get_object(self, start: int, page_addr: int, memory=None) -> Optional[SimMemoryObject]:
         try:
             place = next(self.symbolic_data.irange(maximum=start, reverse=True))
         except StopIteration:
@@ -343,6 +345,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
         else:
             obj = self.symbolic_data[place]
             if obj.includes(start + page_addr):
+                return obj
+            elif memory is not None and obj.includes(start + page_addr + (1<<memory.state.arch.bits)):
                 return obj
             else:
                 return None

@@ -570,10 +570,29 @@ def test_light_memory():
 
 
 def test_crosspage_store():
-    state = SimState(arch='x86')
-    state.regs.sp = 0xbaaafffc
-    state.memory.store(state.regs.sp, b"\x01\x02\x03\x04" + b"\x05\x06\x07\x08")
-    assert state.solver.eval(state.memory.load(state.regs.sp, 8)) == 0x102030405060708
+    for memcls in [ListPageMemory, UltraPageMemory, ListPageMemory]:
+        state = SimState(arch='x86', mode='symbolic', plugins={'memory': memcls()})
+
+        state.regs.sp = 0xbaaafffc
+        state.memory.store(state.regs.sp, b"\x01\x02\x03\x04" + b"\x05\x06\x07\x08")
+        assert state.solver.eval(state.memory.load(state.regs.sp, 8)) == 0x0102030405060708
+
+        state.memory.store(state.regs.sp, b"\x01\x02\x03\x04" + b"\x05\x06\x07\x08", endness='Iend_LE')
+        assert state.solver.eval(state.memory.load(state.regs.sp, 8)) == 0x0807060504030201
+
+        symbol = claripy.BVS('symbol', 64)
+        state.memory.store(state.regs.sp, symbol)
+        assert state.memory.load(state.regs.sp, 8) is symbol
+
+        state.memory.store(state.regs.sp, symbol, endness='Iend_LE')
+        assert state.memory.load(state.regs.sp, 8) is symbol.reversed
+
+        # test address space wrap
+        state.memory.store(0xffffffff, b'ABCD')
+        assert state.solver.eval(state.memory.load(0, 3)) == 0x424344
+
+        state.memory.store(0xffffffff, symbol)
+        assert state.memory.load(0, 1) is symbol[64-8-1:64-16]
 
 
 def test_crosspage_read():
@@ -741,7 +760,6 @@ def test_concrete_load():
         data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
         assert data_bytes == b"b\x00\x00b"
         assert bitmap.tobytes() == b"\x00\x01\x01\x00"
-
 
 if __name__ == '__main__':
     test_concrete_load()
