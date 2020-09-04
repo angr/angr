@@ -37,6 +37,7 @@ State::State(uc_engine *_uc, uint64_t cache_key):uc(_uc) {
 	uc_context_alloc(uc, &saved_regs);
 	executed_pages_iterator = NULL;
 	cpu_flags_register = -1;
+	mem_updates_head = NULL;
 
 	auto it = global_cache.find(cache_key);
 	if (it == global_cache.end()) {
@@ -356,8 +357,6 @@ void State::page_activate(address_t address, uint8_t *taint, uint8_t *data) {
 }
 
 mem_update_t *State::sync() {
-	mem_update_t *head = NULL;
-
 	for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
 		uint8_t *data = it->second.second;
 		if (data != NULL) {
@@ -379,14 +378,14 @@ mem_update_t *State::sync() {
 				mem_update_t *range = new mem_update_t;
 				range->address = it->first + (i - start);
 				range->length = j - i;
-				range->next = head;
-				head = range;
+				range->next = mem_updates_head;
+				mem_updates_head = range;
 
 				i = j;
 			}
 	}
 
-	return head;
+	return mem_updates_head;
 }
 
 void State::set_stops(uint64_t count, address_t *stops) {
@@ -1851,15 +1850,6 @@ void simunicorn_stop(State *state, stop_t reason) {
 extern "C"
 mem_update_t *simunicorn_sync(State *state) {
 	return state->sync();
-}
-
-extern "C"
-void simunicorn_destroy(mem_update_t * head) {
-	mem_update_t *next;
-	for (mem_update_t *cur = head; cur; cur = next) {
-		next = cur->next;
-		delete cur;
-	}
 }
 
 extern "C"

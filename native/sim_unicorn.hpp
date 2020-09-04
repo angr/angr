@@ -379,6 +379,9 @@ class State {
 	// of symbolic instructions returned via ctypes to Python land.
 	std::vector<std::vector<memory_value_t>> archived_memory_values;
 
+	// Pointer to memory writes' data passed to Python land
+	mem_update_t *mem_updates_head;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -533,7 +536,13 @@ class State {
 					delete[] it->second.first;
 				}
 			}
+			mem_update_t *next;
+			for (mem_update_t *cur = mem_updates_head; cur; cur = next) {
+				next = cur->next;
+				delete cur;
+			}
 			active_pages.clear();
+			mem_updates_head = NULL;
 			uc_free(saved_regs);
 		}
 

@@ -337,7 +337,6 @@ def _load_native():
         _setup_prototype(h, 'stack_pointers', ctypes.POINTER(ctypes.c_uint64), state_t)
         _setup_prototype(h, 'bbl_addr_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'activate_page', None, state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
@@ -1156,8 +1155,6 @@ class Unicorn(SimStatePlugin):
                 self.state.memory.store(address, s)
 
             p_update = update.next
-
-        _UC_NATIVE.destroy(head)    # free the linked list
 
         # process the concrete transmits
         i = 0
