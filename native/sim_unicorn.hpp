@@ -358,6 +358,109 @@ class State {
 
 	address_t unicorn_next_instr_addr;
 
+	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
+
+	std::pair<std::unordered_set<taint_entity_t>, bool> compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const;
+	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
+	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
+	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
+
+	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
+	taint_sources_and_and_ite_cond_t get_taint_sources_and_ite_cond(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
+
+	// Determine cumulative result of taint statuses of a set of taint entities
+	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
+	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources);
+
+	// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
+	// unordered_set
+	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources);
+
+	bool is_block_exit_guard_symbolic();
+	bool is_symbolic_register(vex_reg_offset_t reg_offset) const;
+	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
+	bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;
+
+	void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level);
+	void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level);
+	void mark_temp_symbolic(vex_tmp_id_t temp_id);
+
+	block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address);
+
+	void propagate_taints();
+	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
+
+	void update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry);
+
+	// Inline functions
+
+	inline bool is_valid_dependency_register(vex_reg_offset_t reg_offset) const {
+		return ((artificial_vex_registers.count(reg_offset) == 0) && (blacklisted_registers.count(reg_offset) == 0));
+	}
+
+	inline bool is_blacklisted_register(vex_reg_offset_t reg_offset) const {
+		return (blacklisted_registers.count(reg_offset) > 0);
+	}
+
+	inline vex_reg_offset_t get_full_register_offset(vex_reg_offset_t reg_offset) const {
+		auto vex_sub_reg_mapping_entry = vex_sub_reg_map.find(reg_offset);
+		if (vex_sub_reg_mapping_entry != vex_sub_reg_map.end()) {
+			return vex_sub_reg_mapping_entry->second;
+		}
+		return reg_offset;
+	}
+
+	inline unsigned int arch_pc_reg_vex_offset() const {
+		const unsigned int pc_reg_offset_x86 = 68;
+		const unsigned int pc_reg_offset_amd64 = 184;
+		const unsigned int pc_reg_offset_arm = 68;
+		const unsigned int pc_reg_offset_arm64 = 272;
+		const unsigned int pc_reg_offset_mips32 = 136;
+		const unsigned int pc_reg_offset_mips64 = 272;
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? pc_reg_offset_amd64 : pc_reg_offset_x86;
+			case UC_ARCH_ARM:
+				return pc_reg_offset_arm;
+			case UC_ARCH_ARM64:
+				return pc_reg_offset_arm64;
+			case UC_ARCH_MIPS:
+				return mode == UC_MODE_64 ? pc_reg_offset_mips64 : pc_reg_offset_mips32;
+			default:
+				return -1;
+		}
+	}
+
+	inline unsigned int arch_pc_reg() const {
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
+			case UC_ARCH_ARM:
+				return UC_ARM_REG_PC;
+			case UC_ARCH_ARM64:
+				return UC_ARM64_REG_PC;
+			case UC_ARCH_MIPS:
+				return UC_MIPS_REG_PC;
+			default:
+				return -1;
+		}
+	}
+
+	inline unsigned int arch_sp_reg() const {
+		switch (arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
+			case UC_ARCH_ARM:
+				return UC_ARM_REG_SP;
+			case UC_ARCH_ARM64:
+				return UC_ARM64_REG_SP;
+			case UC_ARCH_MIPS:
+				return UC_MIPS_REG_SP;
+			default:
+				return -1;
+		}
+	}
+
 	public:
 		std::vector<address_t> bbl_addrs;
 		std::vector<address_t> stack_pointers;
@@ -437,8 +540,6 @@ class State {
 		 */
 		void rollback();
 
-		std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
-
 		/*
 		 * allocate a new PageBitmap and put into active_pages.
 		 */
@@ -472,54 +573,13 @@ class State {
 
 		void handle_write(address_t address, int size, bool is_interrupt);
 
-		std::pair<std::unordered_set<taint_entity_t>, bool> compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const;
-
-		void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
-
-		block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address);
-
-		void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
-
-		// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-		taint_sources_and_and_ite_cond_t get_taint_sources_and_ite_cond(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
-
-		// Determine cumulative result of taint statuses of a set of taint entities
-		// EG: This is useful to determine the taint status of a taint sink given it's taint sources
-		taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources);
-
-		// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
-		// unordered_set
-		taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources);
-
-		void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level);
-
-		void mark_temp_symbolic(vex_tmp_id_t temp_id);
-
-		void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level);
-
-		bool is_symbolic_register(vex_reg_offset_t reg_offset) const;
-
-		bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
-
-		bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;
-
-		void propagate_taints();
-
 		void propagate_taint_of_mem_read_instr(const address_t instr_addr);
-
-		void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
-
-		instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
 		void start_propagating_taint(address_t block_address, int32_t block_size);
 
 		void continue_propagating_taint();
-
-		void update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry);
-
-		bool is_block_exit_guard_symbolic();
 
 		address_t get_instruction_pointer();
 
@@ -531,79 +591,12 @@ class State {
 		* Feasibility checks for unicorn
 		*/
 
-		inline unsigned int arch_pc_reg_vex_offset() {
-			const unsigned int pc_reg_offset_x86 = 68;
-			const unsigned int pc_reg_offset_amd64 = 184;
-			const unsigned int pc_reg_offset_arm = 68;
-			const unsigned int pc_reg_offset_arm64 = 272;
-			const unsigned int pc_reg_offset_mips32 = 136;
-			const unsigned int pc_reg_offset_mips64 = 272;
-			switch (arch) {
-				case UC_ARCH_X86:
-					return mode == UC_MODE_64 ? pc_reg_offset_amd64 : pc_reg_offset_x86;
-				case UC_ARCH_ARM:
-					return pc_reg_offset_arm;
-				case UC_ARCH_ARM64:
-					return pc_reg_offset_arm64;
-				case UC_ARCH_MIPS:
-					return mode == UC_MODE_64 ? pc_reg_offset_mips64 : pc_reg_offset_mips32;
-				default:
-					return -1;
-			}
-		}
-
-		inline unsigned int arch_pc_reg() {
-			switch (arch) {
-				case UC_ARCH_X86:
-					return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
-				case UC_ARCH_ARM:
-					return UC_ARM_REG_PC;
-				case UC_ARCH_ARM64:
-					return UC_ARM64_REG_PC;
-				case UC_ARCH_MIPS:
-					return UC_MIPS_REG_PC;
-				default:
-					return -1;
-			}
-		}
-
-		inline unsigned int arch_sp_reg() {
-			switch (arch) {
-				case UC_ARCH_X86:
-					return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
-				case UC_ARCH_ARM:
-					return UC_ARM_REG_SP;
-				case UC_ARCH_ARM64:
-					return UC_ARM64_REG_SP;
-				case UC_ARCH_MIPS:
-					return UC_MIPS_REG_SP;
-				default:
-					return -1;
-			}
-		}
-
-		inline bool is_symbolic_tracking_disabled() {
+		inline bool is_symbolic_tracking_disabled() const {
 			return (vex_guest == VexArch_INVALID);
 		}
 
-		inline bool is_symbolic_taint_propagation_disabled() {
+		inline bool is_symbolic_taint_propagation_disabled() const {
 			return (is_symbolic_tracking_disabled() || block_details.vex_lift_failed);
-		}
-
-		inline bool is_valid_dependency_register(vex_reg_offset_t reg_offset) const {
-			return ((artificial_vex_registers.count(reg_offset) == 0) && (blacklisted_registers.count(reg_offset) == 0));
-		}
-
-		inline bool is_blacklisted_register(vex_reg_offset_t reg_offset) const {
-			return (blacklisted_registers.count(reg_offset) > 0);
-		}
-
-		inline vex_reg_offset_t get_full_register_offset(vex_reg_offset_t reg_offset) {
-			auto vex_sub_reg_mapping_entry = vex_sub_reg_map.find(reg_offset);
-			if (vex_sub_reg_mapping_entry != vex_sub_reg_map.end()) {
-				return vex_sub_reg_mapping_entry->second;
-			}
-			return reg_offset;
 		}
 
 		inline address_t get_taint_engine_mem_read_stop_instruction() const {
