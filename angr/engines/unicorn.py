@@ -97,10 +97,10 @@ class SimEngineUnicorn(SuccessorsMixin):
         self.state.scratch.set_tyenv(vex_block.tyenv)
         for instr_entry in block_details["instrs"]:
             saved_memory_values = {}
-            if "mem_dep" in instr_entry:
-                address = instr_entry["mem_dep"]["address"]
-                value = instr_entry["mem_dep"]["value"]
-                size = instr_entry["mem_dep"]["size"]
+            for memory_val in instr_entry["mem_dep"]:
+                address = memory_val["address"]
+                value = memory_val["value"]
+                size = memory_val["size"]
                 curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
                 # Save current memory value for restoring later
                 saved_memory_values[address] = (curr_value, size)

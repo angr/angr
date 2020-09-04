@@ -69,7 +69,8 @@ class InstrDetails(ctypes.Structure): # instr_details_t
     _fields_ = [
         ('instr_addr', ctypes.c_uint64),
         ('has_memory_dep', ctypes.c_bool),
-        ('memory_value', MemoryValue)
+        ('memory_values', ctypes.POINTER(MemoryValue)),
+        ('memory_values_count', ctypes.c_uint64),
     ]
 
 class BlockDetails(ctypes.Structure): # block_details_ret_t
@@ -955,17 +956,20 @@ class Unicorn(SimStatePlugin):
 
             block_entry["instrs"] = []
             for symbolic_instr in block_symbolic_instrs:
-                instr_entry = {"instr_addr": symbolic_instr.instr_addr}
+                instr_entry = {"instr_addr": symbolic_instr.instr_addr, "mem_dep": []}
                 if symbolic_instr.has_memory_dep:
-                    mem_address = symbolic_instr.memory_value.address
-                    mem_val_size = symbolic_instr.memory_value.size
-                    # Convert the memory value in bytes to number of appropriate size and endianness
-                    mem_val = symbolic_instr.memory_value.value[:mem_val_size]
-                    if self.state.arch.memory_endness == 'Iend_LE':
-                        mem_val = int.from_bytes(mem_val, "little")
-                    else:
-                        mem_val = int.from_bytes(mem_val, "big")
-                    instr_entry["mem_dep"] = {"address": mem_address, "value": mem_val, "size": mem_val_size}
+                    memory_values = symbolic_instr.memory_values[:symbolic_instr.memory_values_count]
+                    for memory_value in memory_values:
+                        mem_address = memory_value.address
+                        mem_val_size = memory_value.size
+                        # Convert the memory value in bytes to number of appropriate size and endianness
+                        mem_val = memory_value.value[:mem_val_size]
+                        if self.state.arch.memory_endness == 'Iend_LE':
+                            mem_val = int.from_bytes(mem_val, "little")
+                        else:
+                            mem_val = int.from_bytes(mem_val, "big")
+
+                        instr_entry["mem_dep"].append({"address": mem_address, "value": mem_val, "size": mem_val_size})
 
                 block_entry["instrs"].append(instr_entry)
 

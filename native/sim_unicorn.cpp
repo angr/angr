@@ -223,6 +223,13 @@ void State::commit() {
 		for (auto &concrete_reg: block_concrete_dependencies) {
 			block_details.register_values.emplace_back(block_start_reg_values.at(concrete_reg));
 		}
+		for (auto &symbolic_instr: block_details.symbolic_instrs) {
+			if (symbolic_instr.has_memory_dep) {
+				archived_memory_values.emplace_back(mem_reads_map.at(symbolic_instr.instr_addr).memory_values);
+				symbolic_instr.memory_values = &(archived_memory_values.back()[0]);
+				symbolic_instr.memory_values_count = archived_memory_values.back().size();
+			}
+		}
 		blocks_with_symbolic_instrs.emplace_back(block_details);
 	}
 	// Clear all block level taint status trackers and symbolic instruction list
@@ -1437,24 +1444,13 @@ instr_details_t State::compute_instr_details(address_t instr_addr, const instruc
 		auto mem_read_result = mem_reads_map.at(instr_addr);
 		if (!mem_read_result.is_value_symbolic) {
 			instr_details.has_memory_dep = true;
-			instr_details.memory_value.address = mem_read_result.address;
-			instr_details.memory_value.size = mem_read_result.size;
-			for (int i = 0; i < MAX_MEM_ACCESS_SIZE; i++) {
-				instr_details.memory_value.value[i] = mem_read_result.value[i];
-			}
 		}
 		else {
 			instr_details.has_memory_dep = false;
-			instr_details.memory_value.address = 0;
-			instr_details.memory_value.size = 0;
-			memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
 		}
 	}
 	else {
 		instr_details.has_memory_dep = false;
-		instr_details.memory_value.address = 0;
-		instr_details.memory_value.size = 0;
-		memset(instr_details.memory_value.value, 0, MAX_MEM_ACCESS_SIZE);
 	}
 	return instr_details;
 }
@@ -1594,10 +1590,12 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	// //LOG_D("mem_read [%#lx, %#lx] = %#lx", address, address + size);
 	//LOG_D("mem_read [%#lx, %#lx]", address, address + size);
 	State *state = (State *)user_data;
-	mem_read_result_t mem_read_result;
+	memory_value_t memory_read_value;
+	bool is_memory_value_symbolic;
 
-	mem_read_result.address = address;
-	mem_read_result.size = size;
+	memory_read_value.reset();
+	memory_read_value.address = address;
+	memory_read_value.size = size;
 	address_t curr_instr_addr = state->get_instruction_pointer();
 	if ((!state->is_symbolic_taint_propagation_disabled()) && (curr_instr_addr != state->get_taint_engine_mem_read_stop_instruction())) {
 		// The instruction address unicorn reported is different from the expected value for memory read instruction.
@@ -1614,30 +1612,36 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 			state->stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
 			return;
 		}
-		mem_read_result.is_value_symbolic = true;
+		is_memory_value_symbolic = true;
 	}
 	else
 	{
-		mem_read_result.is_value_symbolic = false;
-		state->read_memory_value(address, size, mem_read_result.value, MAX_MEM_ACCESS_SIZE);
+		is_memory_value_symbolic = false;
+		state->read_memory_value(address, size, memory_read_value.value, MAX_MEM_ACCESS_SIZE);
 	}
 	auto mem_reads_map_entry = state->mem_reads_map.find(curr_instr_addr);
 	if (mem_reads_map_entry == state->mem_reads_map.end()) {
 		// Propagate taint if this is a memory read not encountered before.
 		// Reads from XMM registers trigger multiple memory read hooks so
 		// we should propagate taint only in first hook
+		mem_read_result_t mem_read_result;
+		mem_read_result.memory_values.emplace_back(memory_read_value);
+		mem_read_result.is_value_symbolic = is_memory_value_symbolic;
 		state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
 		state->propagate_taint_of_mem_read_instr(curr_instr_addr);
 		if (!state->stopped) {
 			state->continue_propagating_taint();
 		}
 	}
-	else if (mem_reads_map_entry->second.is_value_symbolic != mem_read_result.is_value_symbolic) {
-		// The taint of previous memory read is different from taint of current memory read.
-		// We stop concrete execution since we already propagated taint based on previous read.
-		// Additionally, currently cannot determine exact memory address of taint source when
-		// propagating taint and so we cannot fix any incorrect propagation.
-		state->stop(STOP_MULTIPLE_MEMORY_READS);
+	else if (!mem_reads_map_entry->second.is_value_symbolic) {
+		if (is_memory_value_symbolic) {
+			// The taint of previous memory read is concrete but of current memory read is symbolic.
+			// We stop concrete execution since we already propagated taint based on previous read.
+			state->stop(STOP_MULTIPLE_MEMORY_READS);
+		}
+		else {
+			state->mem_reads_map.at(curr_instr_addr).memory_values.emplace_back(memory_read_value);
+		}
 	}
 	return;
 }
