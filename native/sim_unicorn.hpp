@@ -1,6 +1,10 @@
 #ifndef SIM_UNICORN_HPP
 #define SIM_UNICORN_HPP
 
+extern "C" {
+	#include <libvex_guest_offsets.h>
+}
+
 // Maximum size of a qemu/unicorn basic block
 // See State::step for why this is necessary
 static const uint32_t MAX_BB_SIZE = 800;
@@ -411,21 +415,15 @@ class State {
 	}
 
 	inline unsigned int arch_pc_reg_vex_offset() const {
-		const unsigned int pc_reg_offset_x86 = 68;
-		const unsigned int pc_reg_offset_amd64 = 184;
-		const unsigned int pc_reg_offset_arm = 68;
-		const unsigned int pc_reg_offset_arm64 = 272;
-		const unsigned int pc_reg_offset_mips32 = 136;
-		const unsigned int pc_reg_offset_mips64 = 272;
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? pc_reg_offset_amd64 : pc_reg_offset_x86;
+				return mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
 			case UC_ARCH_ARM:
-				return pc_reg_offset_arm;
+				return OFFSET_arm_R15T;
 			case UC_ARCH_ARM64:
-				return pc_reg_offset_arm64;
+				return OFFSET_arm64_PC;
 			case UC_ARCH_MIPS:
-				return mode == UC_MODE_64 ? pc_reg_offset_mips64 : pc_reg_offset_mips32;
+				return mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
 			default:
 				return -1;
 		}
