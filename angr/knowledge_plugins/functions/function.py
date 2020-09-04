@@ -4,7 +4,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Iterable
+from typing import Union, Optional, Iterable, Set
 from typing import Type # For some reasons the linter doesn't recognize the use in apply_definition but PyCharm needs it imported to correctly recognize it # pylint: disable=unused-import
 
 from itanium_demangler import parse
@@ -1486,6 +1486,18 @@ class Function(Serializable):
 
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")
+
+    def functions_called(self) -> Set['Function']:
+        """
+        :return: The set of all functions that can be reached from the function represented by self.
+        """
+        def _called(function_address) -> Set[int]:
+            successors = set(self._function_manager.callgraph.successors(function_address))
+            called_functions = successors.copy()
+            for s in successors:
+                called_functions |= _called(s)
+            return called_functions
+        return { self._function_manager.function(a) for a in _called(self.addr) }
 
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
