@@ -396,13 +396,13 @@ class State {
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
-	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources);
+	taint_status_result_t get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources) const;
 
 	// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
 	// unordered_set
-	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources);
+	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) const;
 
-	bool is_block_exit_guard_symbolic();
+	bool is_block_exit_guard_symbolic() const;
 	bool is_symbolic_register(vex_reg_offset_t reg_offset) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 	bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;

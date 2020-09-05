@@ -1127,7 +1127,7 @@ taint_sources_and_and_ite_cond_t State::get_taint_sources_and_ite_cond(IRExpr *e
 
 // Determine cumulative result of taint statuses of a set of taint entities
 // EG: This is useful to determine the taint status of a taint sink given it's taint sources
-taint_status_result_t State::get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources) {
+taint_status_result_t State::get_final_taint_status(const std::unordered_set<taint_entity_t> &taint_sources) const {
 	bool is_symbolic = false;
 	for (auto &taint_source: taint_sources) {
 		if (taint_source.entity_type == TAINT_ENTITY_NONE) {
@@ -1168,7 +1168,7 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 
 // A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
 // unordered_set
-taint_status_result_t State::get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) {
+taint_status_result_t State::get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) const {
 	std::unordered_set<taint_entity_t> taint_sources_set(taint_sources.begin(), taint_sources.end());
 	return get_final_taint_status(taint_sources_set);
 }
@@ -1554,7 +1554,7 @@ void State::update_register_slice(address_t instr_addr, const instruction_taint_
 	return;
 }
 
-bool State::is_block_exit_guard_symbolic() {
+bool State::is_block_exit_guard_symbolic() const {
 	block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
 	auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
 	return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
