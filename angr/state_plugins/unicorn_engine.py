@@ -101,7 +101,7 @@ class STOP:  # stop_t
     STOP_SYMBOLIC_READ_ADDR     = 14
     STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED = 15
     STOP_SYMBOLIC_WRITE_ADDR    = 16
-    STOP_SYMBOLIC_BLOCK_EXIT_STMT = 17
+    STOP_SYMBOLIC_BLOCK_EXIT_CONDITION = 17
     STOP_MULTIPLE_MEMORY_READS    = 18
     STOP_UNSUPPORTED_STMT_PUTI    = 19
     STOP_UNSUPPORTED_STMT_STOREG  = 20
@@ -133,7 +133,7 @@ class STOP:  # stop_t
     stop_message[STOP_SYMBOLIC_READ_ADDR]    = "Attempted to read from symbolic address"
     stop_message[STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED]= "Attempted to read symbolic data from memory but symbolic tracking is disabled"
     stop_message[STOP_SYMBOLIC_WRITE_ADDR]   = "Attempted to write to symbolic address"
-    stop_message[STOP_SYMBOLIC_BLOCK_EXIT_STMT]= "Guard condition of block's exit statement is symbolic"
+    stop_message[STOP_SYMBOLIC_BLOCK_EXIT_CONDITION] = "Guard condition of block's exit statement is symbolic"
     stop_message[STOP_MULTIPLE_MEMORY_READS]   = "Symbolic taint propagation when multiple memory reads occur in single instruction not yet supported"
     stop_message[STOP_UNSUPPORTED_STMT_PUTI]   = "Symbolic taint propagation for PutI statement not yet supported"
     stop_message[STOP_UNSUPPORTED_STMT_STOREG] = "Symbolic taint propagation for StoreG statement not yet supported"
@@ -149,7 +149,7 @@ class STOP:  # stop_t
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
-        STOP_SYMBOLIC_BLOCK_EXIT_STMT]
+        STOP_SYMBOLIC_BLOCK_EXIT_CONDITION]
 
     unsupported_reasons = [STOP_MULTIPLE_MEMORY_READS, STOP_UNSUPPORTED_STMT_PUTI,
         STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG, STOP_UNSUPPORTED_STMT_CAS,

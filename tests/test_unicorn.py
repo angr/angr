@@ -112,7 +112,7 @@ def test_stops():
     s_symbolic_exit = p.factory.entry_state(args=['a'] * 10, add_options=so.unicorn)
     pg_symbolic_exit = p.factory.simulation_manager(s_symbolic_exit).run()
     p_symbolic_exit = pg_symbolic_exit.one_deadended
-    _compare_trace(p_symbolic_exit.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SYMBOLIC_BLOCK_EXIT_STMT after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x804855d: 2 sat 1 unsat>', '<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048587: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
+    _compare_trace(p_symbolic_exit.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_SYMBOLIC_BLOCK_EXIT_CONDITION after 7 steps) from 0x80485b5: 1 sat>', '<IRSB from 0x804855d: 2 sat 1 unsat>', '<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048587: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
 
     s_symbolic_exit_angr = p.factory.entry_state(args=['a'] * 10)
     pg_symbolic_exit_angr = p.factory.simulation_manager(s_symbolic_exit_angr).run()

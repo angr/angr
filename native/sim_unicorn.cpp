@@ -1299,7 +1299,7 @@ void State::propagate_taints() {
 				return;
 			}
 			else if (is_block_exit_guard_symbolic()) {
-				stop(STOP_SYMBOLIC_BLOCK_EXIT_STMT);
+				stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
 			}
 		}
 	}
