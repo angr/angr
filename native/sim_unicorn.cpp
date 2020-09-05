@@ -881,6 +881,18 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 			}
 		}
 	}
+	// Process block default exit target
+	auto block_next_taint_sources = get_taint_sources_and_ite_cond(vex_block->next, curr_instr_addr, false);
+	if (block_next_taint_sources.has_unsupported_expr) {
+		block_taint_entry.has_unsupported_stmt_or_expr_type = true;
+		block_taint_entry.unsupported_stmt_stop_reason = block_next_taint_sources.unsupported_expr_stop_reason;
+	}
+	else {
+		block_taint_entry.block_next_entities = block_next_taint_sources.sources;
+		auto dependencies_to_save = compute_dependencies_to_save(block_next_taint_sources.sources);
+		instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
+		instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+	}
 	// Save last instruction's entry
 	block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 	return block_taint_entry;
@@ -1276,7 +1288,7 @@ void State::propagate_taints() {
 			// after the memory read.
 			taint_engine_mem_read_stop_instruction = curr_instr_addr;
 			taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
-			break;
+			return;
 		}
 		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
 			// There are no symbolic registers so no taint to propagate. Mark any memory writes
@@ -1291,16 +1303,20 @@ void State::propagate_taints() {
 		compute_slice_of_instrs(curr_instr_addr, curr_instr_taint_entry);
 		propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
 		update_register_slice(curr_instr_addr, curr_instr_taint_entry);
-		if (!stopped && (curr_instr_addr == block_taint_entry.exit_stmt_instr_addr)) {
-			if (block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
-				// There are symbolic registers but VEX lift failed so we can't determine
-				// status of guard condition
-				stop(STOP_VEX_LIFT_FAILED);
-				return;
-			}
-			else if (is_block_exit_guard_symbolic()) {
-				stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
-			}
+	}
+	// If we reached here, execution has reached the end of the block
+	if (!stopped) {
+		if (block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
+			// There are symbolic registers but VEX lift failed so we can't determine
+			// status of guard condition
+			stop(STOP_VEX_LIFT_FAILED);
+			return;
+		}
+		else if (is_block_exit_guard_symbolic()) {
+			stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
+		}
+		else if (is_block_next_target_symbolic()) {
+			stop(STOP_SYMBOLIC_BLOCK_EXIT_TARGET);
 		}
 	}
 	return;
@@ -1558,6 +1574,12 @@ bool State::is_block_exit_guard_symbolic() const {
 	block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
 	auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
 	return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
+}
+
+bool State::is_block_next_target_symbolic() const {
+	block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto block_next_target_taint_status = get_final_taint_status(block_taint_entry.block_next_entities);
+	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
 }
 
 address_t State::get_instruction_pointer() {

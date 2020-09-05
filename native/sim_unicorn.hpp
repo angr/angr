@@ -200,6 +200,7 @@ enum stop_t {
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
 	STOP_SYMBOLIC_WRITE_ADDR,
 	STOP_SYMBOLIC_BLOCK_EXIT_CONDITION,
+	STOP_SYMBOLIC_BLOCK_EXIT_TARGET,
 	STOP_MULTIPLE_MEMORY_READS,
 	STOP_UNSUPPORTED_STMT_PUTI,
 	STOP_UNSUPPORTED_STMT_STOREG,
@@ -257,10 +258,12 @@ struct block_taint_entry_t {
 	address_t exit_stmt_instr_addr;
 	bool has_unsupported_stmt_or_expr_type;
 	stop_t unsupported_stmt_stop_reason;
+	std::unordered_set<taint_entity_t> block_next_entities;
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
-			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps);
+			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps) &&
+			   (block_next_entities == other_entry.block_next_entities);
 	}
 };
 
@@ -403,6 +406,7 @@ class State {
 	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) const;
 
 	bool is_block_exit_guard_symbolic() const;
+	bool is_block_next_target_symbolic() const;
 	bool is_symbolic_register(vex_reg_offset_t reg_offset) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 	bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;
