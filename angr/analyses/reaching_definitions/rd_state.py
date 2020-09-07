@@ -233,10 +233,6 @@ class ReachingDefinitionsState:
             self.all_definitions.add(definition)
 
             if self.dep_graph is not None:
-                # Add the definition to the graph. It *may* be a single node if this definition is never used by
-                # anything else afterwards.
-                # self.dep_graph.add_node(definition)
-
                 stack_use = set(filter(
                     lambda u: isinstance(u.atom, MemoryLocation) and u.atom.is_on_stack,
                     self.codeloc_uses
@@ -275,6 +271,11 @@ class ReachingDefinitionsState:
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
                         self.dep_graph.add_edge(used, definition)
+                        self.dep_graph.add_dependencies_for_concrete_pointers_of(
+                            used,
+                            self.analysis.project.kb.cfgs['CFGFast'],
+                            self.analysis.project.loader
+                        )
 
         return definition
 
