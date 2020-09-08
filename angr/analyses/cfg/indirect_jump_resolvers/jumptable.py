@@ -362,16 +362,17 @@ class JumpTableProcessor(
             # We will need to initialize this register during slice execution later
 
             # Try to get where this register is first accessed
-            try:
-                source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
-                assert isinstance(source, tuple)
-                self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
-            except StopIteration:
-                # we don't need to initialize this register
-                # it might be caused by an incorrect analysis result
-                # e.g.  PN-337140.bin 11e918  r0 comes from r4, r4 comes from r0@11e8c0, and r0@11e8c0 comes from
-                # function call sub_375c04. Since we do not analyze sub_375c04, we treat r0@11e918 as a constant 0.
-                pass
+            if addr.reg in self.state._registers:
+                try:
+                    source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
+                    assert isinstance(source, tuple)
+                    self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
+                except StopIteration:
+                    # we don't need to initialize this register
+                    # it might be caused by an incorrect analysis result
+                    # e.g.  PN-337140.bin 11e918  r0 comes from r4, r4 comes from r0@11e8c0, and r0@11e8c0 comes from
+                    # function call sub_375c04. Since we do not analyze sub_375c04, we treat r0@11e918 as a constant 0.
+                    pass
 
             return None
 
