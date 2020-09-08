@@ -3,7 +3,7 @@ import logging
 import claripy
 import archinfo
 from archinfo import RegisterName
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Type
 
 from .sim_type import SimType
 from .sim_type import SimTypeChar
@@ -1395,7 +1395,7 @@ CC = {
 }
 
 
-DEFAULT_CC: Dict[str,type] = {
+DEFAULT_CC: Dict[str,Type[SimCC]] = {
     'AMD64': SimCCSystemVAMD64,
     'X86': SimCCCdecl,
     'ARMEL': SimCCARM,
