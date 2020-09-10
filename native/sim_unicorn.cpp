@@ -1489,9 +1489,17 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 		// instructions can be computed correctly.
 		VexRegisterUpdates pxControl = VexRegUpdLdAllregsAtEachInsn;
 		std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
-		uc_mem_read(this->uc, block_address, instructions.get(), block_size);
+		address_t lift_address;
+
+		if ((arch == UC_ARCH_ARM) && (mode == UC_MODE_THUMB)) {
+			lift_address = block_address | 1;
+		}
+		else {
+			lift_address = block_address;
+		}
+		uc_mem_read(this->uc, lift_address, instructions.get(), block_size);
 		VEXLiftResult *lift_ret = vex_lift(
-			this->vex_guest, this->vex_archinfo, instructions.get(), block_address, 99, block_size, 1, 0, 1,
+			this->vex_guest, this->vex_archinfo, instructions.get(), lift_address, 99, block_size, 1, 0, 1,
 			1, 0, pxControl
 		);
 
