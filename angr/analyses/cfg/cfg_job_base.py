@@ -83,6 +83,7 @@ class CFGJobBase:
         self.src_ins_addr = src_ins_addr
         self.skip = skip
         self._block_id = block_id
+        self._block_id_without_vpc = None
 
         # Other parameters
         self._context_sensitivity_level = context_sensitivity_level

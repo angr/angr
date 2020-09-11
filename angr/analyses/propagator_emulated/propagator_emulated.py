@@ -98,10 +98,10 @@ class PropagatorState:
         :return:
         """
         ## This is for handling the initial concrete_states set with a list
-        if isinstance(self.concrete_states, list):
-            possible_successors =self.concrete_states
-        else:
-            possible_successors = self.concrete_states.all_successors
+        #if isinstance(self.concrete_states, list):
+        possible_successors =self.concrete_states
+        #else:
+        #    possible_successors = self.concrete_states.all_successors
         for s in possible_successors:
             if s.ip._model_concrete.value == addr:
                 return s
@@ -138,13 +138,13 @@ class PropagatorVEXState(PropagatorState):
         """
 
         merged = [ ]
-        if not isinstance(self.concrete_states, list):
-            self.concrete_states = self.concrete_states.all_successors
+        # if not isinstance(self.concrete_states, list):
+        #     self.concrete_states = self.concrete_states.all_successors
         for s in self.concrete_states:
             other_state = other.get_concrete_state(s.ip._model_concrete.value)
             if other_state is not None:
                 s = s.merge(other_state, plugin_whitelist=['inspect', 'preconstrainer', 'globals', 'mem', 'heap', 'regs', 'solver', 'callstack', 'history', 'fs', 'scratch', 'memory', 'registers', 'libc'])
-            merged.append(s[0])
+                merged.append(s[0])
         return merged
 
     def add_replacement(self, codeloc, old, new):
@@ -349,7 +349,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         print(symbolic_sim_successors.all_successors)
         print("Replacements: "+str(node.input_state.solver._solver._replacements))
         node.final_states = symbolic_sim_successors
-        abstract_state.concrete_states = symbolic_sim_successors
+        abstract_state.concrete_states = symbolic_sim_successors.all_successors
         self._node_iterations[block_key] += 1
         self._states[block_key] = abstract_state
         self.replacements[block_key] = abstract_state._replacements

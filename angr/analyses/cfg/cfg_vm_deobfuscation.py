@@ -1201,29 +1201,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
             if self.data_sensitive:
-                ### These are for RCTF2018
-                state.inspect.add_breakpoint('reg_write',
-                                                BP(
-                                                    BP_AFTER,
-                                                    reg_write_offset=40,
-                                                    action=self.save_vm_vpc_from_reg,
-                                                )
-                                                )
-                #state.inspect.add_breakpoint('instruction',BP(BP_BEFORE, instruction=0x400a53, action=self.save_vm_vpc_from_reg))
-
-                ### annotating the data region in RCTF 2018
-                def annotate_data_region(state):
-                    state.mem[state.mem[0x601098].uint64_t.resolved+0x100].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x100].byte.resolved.annotate(DataRegionAnnotation(1))
-                    state.mem[state.mem[0x601098].uint64_t.resolved+0x110].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x110].byte.resolved.annotate(DataRegionAnnotation(1))
-                    state.mem[state.mem[0x601098].uint64_t.resolved+0x145].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x145].byte.resolved.annotate(DataRegionAnnotation(1))
-                    state.mem[state.mem[0x601098].uint64_t.resolved+0x146].byte = state.mem[state.mem[0x601098].uint64_t.resolved+0x146].byte.resolved.annotate(DataRegionAnnotation(1))
-                    state.mem[state.mem[0x601098].uint64_t.resolved+0x150].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x150].byte.resolved.annotate(DataRegionAnnotation(1))
-                    for i in range(32):
-                        state.mem[state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x111+ i].byte.resolved.annotate(DataRegionAnnotation(1))
-                        state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte = state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte.resolved.annotate(DataRegionAnnotation(1))
-
-                state.inspect.add_breakpoint('instruction',BP(BP_BEFORE, instruction=0x400896, action=annotate_data_region))
-
                 # Adding breakpoint to set the data offset: TEMPORARILY REMOVED THIS TO TEST A CTF CHALLENGE
                 # state.inspect.add_breakpoint('mem_write',
                 #                                  BP(
@@ -1513,6 +1490,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             for successor in sim_successors.all_successors:
                 l.debug("Successor: " + str(successor))
                 l.debug("Guard: " + str(successor.scratch.guard))
+                l.debug("Guard annotations: " + str(successor.scratch.guard.annotations))
                 if successor.history.jumpkind == 'Ijk_FakeRet':
                     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
                                                           successor.history.jumpkind, True,
@@ -1852,8 +1830,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # Just create an edge in the graph.
                 return_target = job.call_stack.current_return_target
                 if return_target is not None:
-                    new_vm_vpc = job.vm_vpc.copy()
-                    new_branch_trace = job.branch_trace.copy()
+                    if job.vm_vpc is None:
+                        new_vm_vpc = None
+                    else:
+                        new_vm_vpc = job.vm_vpc.copy()
+                    if job.branch_trace is None:
+                        new_branch_trace = None
+                    else:
+                        new_branch_trace = job.branch_trace.copy()
                     new_call_stack = job.call_stack_copy()
                     return_target_key = self._generate_block_id(
                         new_call_stack.stack_suffix(self.context_sensitivity_level), new_vm_vpc, new_branch_trace,
