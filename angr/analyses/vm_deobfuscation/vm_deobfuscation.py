@@ -26,14 +26,14 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None):
+    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None):
 
         # Delayed import
         import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
 
         # start_addr = 0x4006d1
         start_addr = start_addr
-        cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph)
+        cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
 
         folder_name = os.path.dirname(self.project.filename)
@@ -110,13 +110,13 @@ class VMDeobfuscation(Analysis):
 
         return new_model
 
-    def annotate_and_preconstrain_sp(self, start_state):
-        actual_stack_end = start_state.solver.eval(start_state.regs.sp)
-        start_state.regs.sp = start_state.solver.BVS("precon_sp", 64)
-        start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
-        start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
+    # def annotate_and_preconstrain_sp(self, start_state):
+    #     actual_stack_end = start_state.solver.eval(start_state.regs.sp)
+    #     start_state.regs.sp = start_state.solver.BVS("precon_sp", 64)
+    #     start_state.regs.sp = start_state.regs.sp.annotate(StackPointerAnnotation(1))
+    #     start_state.preconstrainer.preconstrain(actual_stack_end, start_state.regs.sp)
     ####### Run the data sensisitve, loop unrolling, CFGEmulated analysis
-    def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr, start_state, cfg_fast_graph):
+    def data_sensitive_graph(self, filename, vm_vpc_addr, start_addr, start_state, cfg_fast_graph, avoid_runs):
         #proj = angr.Project(filename)
         proj = self.project
 
@@ -128,7 +128,7 @@ class VMDeobfuscation(Analysis):
             start_state = proj.factory.blank_state(addr=start_addr,
                                                    add_options={angr.sim_options.REPLACEMENT_SOLVER,
                                                                   angr.sim_options.DO_CCALLS})
-        #self.annotate_and_preconstrain_sp(start_state)
+        # self.annotate_and_preconstrain_sp(start_state)
 
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                         data_sensitive=True ,
@@ -140,7 +140,8 @@ class VMDeobfuscation(Analysis):
                                         keep_state=True,
                                         state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                         iropt_level=1,
-                                        cfg_fast_graph=cfg_fast_graph)
+                                        cfg_fast_graph=cfg_fast_graph,
+                                        avoid_runs=avoid_runs)
         return cfg, proj
 
     ####### Constant Propagation
@@ -176,28 +177,8 @@ class VMDeobfuscation(Analysis):
                                          action=annotate_stack_read_value
                                      ))
 
-        ### annotating the data region in RCTF 2018
-        def annotate_data_region(state):
-            state.mem[state.mem[0x601098].uint64_t.resolved + 0x100].byte = state.mem[
-                state.mem[0x601098].uint64_t.resolved + 0x100].byte.resolved.annotate(DataRegionAnnotation(1))
-            state.mem[state.mem[0x601098].uint64_t.resolved + 0x110].byte = state.mem[
-                state.mem[0x601098].uint64_t.resolved + 0x110].byte.resolved.annotate(DataRegionAnnotation(1))
-            state.mem[state.mem[0x601098].uint64_t.resolved + 0x145].byte = state.mem[
-                state.mem[0x601098].uint64_t.resolved + 0x145].byte.resolved.annotate(DataRegionAnnotation(1))
-            state.mem[state.mem[0x601098].uint64_t.resolved + 0x146].byte = state.mem[
-                state.mem[0x601098].uint64_t.resolved + 0x146].byte.resolved.annotate(DataRegionAnnotation(1))
-            for i in range(32):
-                state.mem[state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte = state.mem[
-                    state.mem[0x601098].uint64_t.resolved + 0x111 + i].byte.resolved.annotate(DataRegionAnnotation(1))
-                state.mem[state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte = state.mem[
-                    state.mem[0x601098].uint64_t.resolved + 0x5 + i].byte.resolved.annotate(DataRegionAnnotation(1))
-            return
-
-        initial_input_state.inspect.add_breakpoint('instruction', BP(BP_BEFORE, instruction=0x400896, action=annotate_data_region))
-
         def preconstrain_return_value(state):
             if state.inspect.simprocedure_name == "malloc" and state.inspect.simprocedure_result is not None and not state.solver.symbolic(state.inspect.simprocedure_result):
-                import ipdb;ipdb.set_trace()
                 value = state.solver.eval(state.inspect.simprocedure_result)
                 state.inspect.simprocedure_result = state.solver.BVS("return_val", 64)
                 state.preconstrainer.preconstrain(value, state.inspect.simprocedure_result)
@@ -207,7 +188,7 @@ class VMDeobfuscation(Analysis):
         initial_input_state.inspect.add_breakpoint('simprocedure', BP(BP_AFTER, action=preconstrain_return_value))
 
         ## annotating and preconstraining the stack pointer
-        self.annotate_and_preconstrain_sp(initial_input_state)
+        #self.annotate_and_preconstrain_sp(initial_input_state)
 
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         ## find the replacements
@@ -365,12 +346,13 @@ class VMDeobfuscation(Analysis):
                     location = CodeLocation(node.irsb.addr , ind, node.block_id)
                     #### Check for stmts with no outgoing edges for deadcode
                     if len(ddg._stmt_graph.out_edges([location])) != 0:
-                        print(stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
-                        print(ddg._stmt_graph.out_edges([location]))
+                        print("Dependencies of: "+stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
+                        for out_edges in ddg._stmt_graph.out_edges([location]):
+                            print(out_edges[1])
                         new_stmts.append(stmt)
                     ### check if there's a Store from a symbolic memory address
-                    elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
-                        new_stmts.append(stmt)
+                    # elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
+                    #     new_stmts.append(stmt)
 
                 ### Dealing with empty blocks i.e. removing them
                 if len(new_stmts) == 0:
