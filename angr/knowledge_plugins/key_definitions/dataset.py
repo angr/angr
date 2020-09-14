@@ -5,6 +5,7 @@ import operator
 from ...engines.light import RegisterOffset
 from .constants import DEBUG
 from .undefined import Undefined, UNDEFINED
+from .unknown_size import UnknownSize
 
 l = logging.getLogger(name=__name__)
 
@@ -20,18 +21,18 @@ class DataSet:
     Data must always include a set.
 
     :ivar set data:    The set of data to represent.
-    :ivar int bits:    The size of an element of the set, in number of bits its representation takes.
+    :ivar Union[int,UnknownSize] bits: The size of an element of the set, in number of bits its representation takes.
     """
     maximum_size = 5
 
-    def __init__(self, data: Union[Set[Union[Undefined,RegisterOffset,int]],Undefined,RegisterOffset,int], bits: int):
+    def __init__(self, data: Union[Set[Union[Undefined,RegisterOffset,int]],Undefined,RegisterOffset,int], bits: Union[int,UnknownSize]):
         self.data: Set[Union[Undefined,RegisterOffset,int]] = data if isinstance(data, set) else {data}
         self._bits = bits
         self._mask = (1 << bits) - 1
         self._limit()
 
     @property
-    def bits(self) -> int:
+    def bits(self) -> Union[int,UnknownSize]:
         return self._bits
 
     @property
@@ -168,5 +169,6 @@ class DataSet:
             data_string = str(self.data)
         else:
             data_string = str([ hex(i) if isinstance(i, int) else i for i in self.data ])
+        size = "%d" % self._bits if isinstance(self._bits, int) else self._bits
 
-        return 'DataSet<%d>: %s' % (self._bits, data_string)
+        return 'DataSet<%s>: %s' % (size, data_string)
