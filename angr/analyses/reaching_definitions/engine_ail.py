@@ -9,7 +9,7 @@ from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
-from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
+from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
 from ...knowledge_plugins.key_definitions.live_definitions import Definition
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
@@ -88,7 +88,7 @@ class SimEngineRDAIL(
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(undefined, dst.bits)
+            src = DataSet(UNDEFINED, dst.bits)
 
         if isinstance(dst, ailment.Tmp):
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), self._codeloc(), src)
@@ -275,7 +275,7 @@ class SimEngineRDAIL(
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
         self._handle_Call_base(expr, is_expr=True)
-        return DataSet(undefined, expr.bits)
+        return DataSet(UNDEFINED, expr.bits)
 
     def _ail_handle_Register(self, expr):
 
@@ -359,14 +359,14 @@ class SimEngineRDAIL(
                     if any(type(d) is Undefined for d in data):
                         l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
                 else:
-                    data.add(undefined)
+                    data.add(UNDEFINED)
 
                 self.state.add_use(MemoryLocation(addr, size), self._codeloc())
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
 
         if len(data) == 0:
-            data.add(undefined)
+            data.add(UNDEFINED)
 
         return DataSet(data, bits)
 
@@ -409,7 +409,7 @@ class SimEngineRDAIL(
                 r = DataSet(converted, expr.to_bits)
 
         if r is None:
-            r = DataSet(undefined, expr.to_bits)
+            r = DataSet(UNDEFINED, expr.to_bits)
 
         return r
 
@@ -422,7 +422,7 @@ class SimEngineRDAIL(
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)
         if isinstance(r, ailment.Expr.BinaryOp):
-            return DataSet(undefined, r.bits)
+            return DataSet(UNDEFINED, r.bits)
         return r
 
     def _ail_handle_Cmp(self, expr):
@@ -453,7 +453,7 @@ class SimEngineRDAIL(
                        )
 
     def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
-        return DataSet(undefined, expr.bits // 8)
+        return DataSet(UNDEFINED, expr.bits // 8)
 
     #
     # User defined high-level statement handlers

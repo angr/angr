@@ -62,4 +62,4 @@ class Undefined:
     def __repr__(self):
         return "<Undefined>"
 
-undefined = Undefined()
+UNDEFINED = Undefined()

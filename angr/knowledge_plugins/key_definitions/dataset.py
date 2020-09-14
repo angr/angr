@@ -4,7 +4,7 @@ import operator
 
 from ...engines.light import RegisterOffset
 from .constants import DEBUG
-from .undefined import Undefined, undefined
+from .undefined import Undefined, UNDEFINED
 
 l = logging.getLogger(name=__name__)
 
@@ -80,7 +80,7 @@ class DataSet:
 
         for s in self:
             if type(s) is Undefined:
-                res.add(undefined)
+                res.add(UNDEFINED)
             else:
                 try:
                     tmp = op(s)
@@ -105,7 +105,7 @@ class DataSet:
         for o in other:
             for s in self:
                 if type(o) is Undefined or type(s) is Undefined:
-                    res.add(undefined)
+                    res.add(UNDEFINED)
                 else:
                     try:
                         tmp = op(s, o)
@@ -164,7 +164,7 @@ class DataSet:
         return iter(self.data)
 
     def __str__(self):
-        if undefined in self.data:
+        if UNDEFINED in self.data:
             data_string = str(self.data)
         else:
             data_string = str([ hex(i) if isinstance(i, int) else i for i in self.data ])
