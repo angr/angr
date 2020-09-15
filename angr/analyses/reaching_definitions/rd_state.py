@@ -7,7 +7,7 @@ from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
-from ...knowledge_plugins.key_definitions.undefined import undefined
+from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
@@ -143,13 +143,13 @@ class ReachingDefinitionsState:
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
                     reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(undefined, self.arch.bits), tags={ParameterTag()})
+                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(UNDEFINED, self.arch.bits), tags={ParameterTag()})
                     self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
                     sp_offset = SpOffset(self.arch.bits, arg.stack_offset)
                     ml = MemoryLocation(sp_offset, arg.size)
-                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(undefined, arg.size * 8), tags={ParameterTag()})
+                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(UNDEFINED, arg.size * 8), tags={ParameterTag()})
                     self.stack_definitions.set_object(arg.stack_offset, ml_def, ml.size)
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
@@ -218,7 +218,7 @@ class ReachingDefinitionsState:
         """
 
         if data is None:
-            data = DataSet(undefined, atom.size)
+            data = DataSet(UNDEFINED, atom.size)
 
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 

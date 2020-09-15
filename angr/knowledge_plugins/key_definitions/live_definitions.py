@@ -10,7 +10,7 @@ from ...keyed_region import KeyedRegion
 from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition, Tag
-from .undefined import undefined
+from .undefined import UNDEFINED
 from .uses import Uses
 from .dataset import DataSet
 
@@ -105,12 +105,12 @@ class LiveDefinitions:
         :return: None
         """
 
-        data = DataSet(undefined, atom.size)
+        data = DataSet(UNDEFINED, atom.size)
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
                                 dummy=False, tags: Set[Tag]=None) -> Optional[Definition]:
-        data = data or DataSet(undefined, atom.size)
+        data = data or DataSet(UNDEFINED, atom.size)
         definition: Definition = Definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
         # set_object() replaces kill (not implemented) and add (add) in one step

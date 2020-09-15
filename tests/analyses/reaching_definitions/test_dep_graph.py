@@ -8,7 +8,7 @@ from angr.code_location import CodeLocation
 from angr.knowledge_plugins.key_definitions.dataset import DataSet
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.definition import Definition
-from angr.knowledge_plugins.key_definitions.undefined import undefined
+from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
@@ -242,7 +242,7 @@ class TestDepGraph(TestCase):
         definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(undefined, 4)
+            DataSet(UNDEFINED, 4)
         )
 
         with self.assertRaises(AssertionError) as cm:
@@ -327,7 +327,7 @@ class TestDepGraph(TestCase):
         register_definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(undefined, arch.bits)
+            DataSet(UNDEFINED, arch.bits)
         )
 
         dependency_graph = DepGraph()
@@ -357,7 +357,7 @@ class TestDepGraph(TestCase):
         memory_definition = Definition(
             MemoryLocation(self.memory_address, datum_size),
             ExternalCodeLocation(),
-            DataSet(undefined, datum_size * 8)
+            DataSet(UNDEFINED, datum_size * 8)
         )
 
         register_definition = Definition(

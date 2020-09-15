@@ -13,7 +13,7 @@ from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, Parameter
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
-from ...knowledge_plugins.key_definitions.undefined import Undefined, undefined
+from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
 from ...code_location import CodeLocation
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
@@ -249,7 +249,7 @@ class SimEngineRDVEX(
         data = super()._expr(expr)
         if data is None:
             bits = expr.result_size(self.tyenv)
-            data = DataSet(undefined, bits)
+            data = DataSet(UNDEFINED, bits)
         return data
 
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[DataSet]:
@@ -275,7 +275,7 @@ class SimEngineRDVEX(
             data.update(current_def.data)
         if len(data) == 0:
             # no defs can be found. add a fake definition
-            data.add(undefined)
+            data.add(UNDEFINED)
             self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
                                                DataSet(data, bits))
         if any(type(d) is Undefined for d in data):
@@ -325,14 +325,14 @@ class SimEngineRDVEX(
                     for def_ in current_defs:
                         data.update(def_.data)
                 else:
-                    data.add(undefined)
+                    data.add(UNDEFINED)
                 memory_location = MemoryLocation(a, size)
                 self.state.add_use(memory_location, self._codeloc())
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(undefined)
+            data.add(UNDEFINED)
 
         return DataSet(data, size * self.arch.byte_width)
 
@@ -429,7 +429,7 @@ class SimEngineRDVEX(
                         head = ((1 << e1) - 1) << (bits - e1)
                     data.add(head | (e0 >> e1))
                 except (ValueError, TypeError) as e:
-                    data.add(undefined)
+                    data.add(UNDEFINED)
                     l.warning(e)
 
         return DataSet(data, expr.result_size(self.tyenv))
@@ -500,7 +500,7 @@ class SimEngineRDVEX(
         bits = expr.result_size(self.tyenv)
         for arg_expr in expr.args:
             self._expr(arg_expr)
-        return DataSet(undefined, bits)
+        return DataSet(UNDEFINED, bits)
 
     #
     # User defined high level statement handlers
@@ -644,13 +644,13 @@ class SimEngineRDVEX(
                     function = func_addr_int if isinstance(func_addr_int, int) else None,
                     metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
                 )
-                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8), tags={tag})
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({UNDEFINED}, reg_size * 8), tags={tag})
 
         if cc.CALLER_SAVED_REGS is not None:
             for reg in cc.CALLER_SAVED_REGS:
                 reg_offset, reg_size = self.arch.registers[reg]
                 atom = Register(reg_offset, reg_size)
-                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({undefined}, reg_size * 8))
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({UNDEFINED}, reg_size * 8))
 
         if self.arch.call_pushes_ret is True:
             # pop return address if necessary

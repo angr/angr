@@ -9,7 +9,7 @@ from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.definition import Definition
-from ...knowledge_plugins.key_definitions.undefined import undefined
+from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ..cfg.cfg_base import CFGBase
 from .external_codeloc import ExternalCodeLocation
 
@@ -156,7 +156,7 @@ class DepGraph:
 
             def _string_and_length_from(data_at_address):
                 if data_at_address.content is None:
-                    return (undefined, data_at_address.size)
+                    return (UNDEFINED, data_at_address.size)
                 else:
                     return (data_at_address.content.decode('utf-8'), data_at_address.size + 1)
             pointed_string, string_length = _string_and_length_from(data_at_address)
