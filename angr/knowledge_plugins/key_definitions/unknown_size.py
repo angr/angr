@@ -3,10 +3,6 @@ class UnknownSize:
     A value indicating an unknown size for elements of DataSets.
     Should "behave" like an integer.
     """
-    def __init__(self):
-        self.__ge__ = self.__gt__
-        self.__le__ = self.__lt__
-
     def __add__(self, other):
         return self
 
@@ -58,8 +54,14 @@ class UnknownSize:
     def __ne__(self, other):
         return not (self == other)
 
+    def __le__(self, other):
+        return False
+
     def __lt__(self, other):
         return False
+
+    def __ge__(self, other):
+        return True
 
     def __gt__(self, other):
         return True
