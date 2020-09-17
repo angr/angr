@@ -129,7 +129,9 @@ class MemoryLocation(Atom):
     def __repr__(self):
         address_format = hex(self.addr) if type(self.addr) is int else self.addr
         stack_format = ' (stack)' if self.is_on_stack else ''
-        return "<Mem %s<%d>%s>" % (address_format, self.size, stack_format)
+        size = "%d" % self.size if isinstance(self.size, int) else self.size
+
+        return "<Mem %s<%s>%s>" % (address_format, size, stack_format)
 
     @property
     def is_on_stack(self) -> bool:
