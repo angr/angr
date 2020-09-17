@@ -1,11 +1,11 @@
-from typing import Union, Set
+from typing import Iterable, Union, Set
 import logging
 import operator
 
 from ...engines.light import RegisterOffset
 from .constants import DEBUG
 from .undefined import Undefined, UNDEFINED
-from .unknown_size import UnknownSize
+from .unknown_size import UnknownSize, UNKNOWN_SIZE
 
 l = logging.getLogger(name=__name__)
 
@@ -172,3 +172,21 @@ class DataSet:
         size = "%d" % self._bits if isinstance(self._bits, int) else self._bits
 
         return 'DataSet<%s>: %s' % (size, data_string)
+
+
+def dataset_from_datasets(datasets: Iterable[DataSet]) -> DataSet:
+    """
+    Instantiate a <DataSet> by "merging" several <DataSet>s.
+    If the size of all datasets are equal, then the result will be of that size; Otherwise, it will be of size UNKNOWN_SIZE.
+
+    :param datasets: The datasets to merge into one.
+    :return: A new <DataSet>, containing the data from all given datasets.
+    """
+    size = (datasets[0]._bits if all(map(lambda d: d._bits == datasets[0]._bits, datasets))
+            else UNKNOWN_SIZE)
+
+    result = DataSet(set(), size)
+    for ds in datasets:
+        result.update(ds)
+
+    return result
