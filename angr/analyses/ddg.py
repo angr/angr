@@ -1050,7 +1050,6 @@ class DDG(Analysis):
 
     def _handle_mem_read(self, action, code_location, state, statement):  # pylint:disable=unused-argument
         addrs = self._get_actual_addrs(action, state)
-
         for addr in addrs:
             variable = self._create_memory_variable(action, addr, addrs)
 
