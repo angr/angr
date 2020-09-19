@@ -58,7 +58,7 @@ class VMDeobfuscation(Analysis):
 
         # DCE
         for i in range(11):
-            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
 #        self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
@@ -212,10 +212,13 @@ class VMDeobfuscation(Analysis):
         new_model = self.new_model_graph(new_cfg_graph, proj, "temporary2")
 
         ## Setting the input state for the first node(need to automate this)
-        initial_input_state = proj.factory.blank_state(addr=start_addr,
-                                                       mode='fastpath',
-                                                       add_options=angr.sim_options.refs | {
-                                                       angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                           angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
 
         #Run the emulation on the new graph to update the state attributes
@@ -226,7 +229,7 @@ class VMDeobfuscation(Analysis):
         return new_cfg
 
     #### This method removes stuff like empty blocks, empty instructions(Imark, AbiHints etc)
-    def remove_junk(self, cfg, proj, start_addr):
+    def remove_junk(self, cfg, proj, start_addr, start_state=None):
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
@@ -268,15 +271,18 @@ class VMDeobfuscation(Analysis):
 
         ### Returning a new CFGVMDeobfuscation object with the updated graph
         dce_new_model = self.new_model_graph(cfg.graph, proj, 'dce')
-        initial_input_state = proj.factory.blank_state(addr=start_addr,
-                                                       mode='fastpath',
-                                                       add_options=angr.sim_options.refs | {
-                                                       angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                           angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1)
         return new_cfg
 
-    def simplifications(self, cfg, proj, start_addr, vm_vpc_addr):
+    def simplifications(self, cfg, proj, start_addr, vm_vpc_addr, start_state=None):
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
@@ -294,11 +300,14 @@ class VMDeobfuscation(Analysis):
 
         ### Returning a new CFGVMDeobfuscation object with the updated graph
         simplified_new_model = self.new_model_graph(cfg.graph, proj, 'simplify1')
-        initial_input_state = proj.factory.blank_state(addr=start_addr,
-                                                       mode='fastpath',
-                                                       add_options=angr.sim_options.refs | {
-                                                           angr.sim_options.REPLACEMENT_SOLVER,
-                                                       angr.sim_options.DO_CCALLS})
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                           angr.sim_options.DO_CCALLS})
 
         simplified_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=simplified_new_model, keep_state=True, iropt_level=1,
@@ -306,7 +315,7 @@ class VMDeobfuscation(Analysis):
         return new_cfg
 
     ####### Dead Cod Elimination
-    def dead_code_elimination(self, cfg, proj, start_addr, vm_vpc_addr):
+    def dead_code_elimination(self, cfg, proj, start_addr, vm_vpc_addr, start_state):
         print("Performing dead code elimination")
         if start_addr == None:
             main = proj.loader.main_object.get_symbol("main")
@@ -351,8 +360,8 @@ class VMDeobfuscation(Analysis):
                             print(out_edges[1])
                         new_stmts.append(stmt)
                     ### check if there's a Store from a symbolic memory address
-                    # elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
-                    #     new_stmts.append(stmt)
+                    elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
+                        new_stmts.append(stmt)
 
                 ### Dealing with empty blocks i.e. removing them
                 if len(new_stmts) == 0:
@@ -396,10 +405,13 @@ class VMDeobfuscation(Analysis):
 
         ### Returning a new CFGVMDeobfuscation object with the updated graph
         dce_new_model = self.new_model_graph(cfg.graph, proj, 'dce')
-        initial_input_state = proj.factory.blank_state(addr=start_addr,
-                                                       mode='fastpath',
-                                                       add_options=angr.sim_options.refs | {
-                                                       angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                           angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
         return new_cfg
