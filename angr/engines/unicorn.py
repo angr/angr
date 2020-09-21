@@ -236,8 +236,8 @@ class SimEngineUnicorn(SuccessorsMixin):
                     break
 
         if state.unicorn.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
-          state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_READ, STOP.STOP_UNKNOWN_MEMORY_WRITE):
-            l.info(state.unicorn.stop_message)
+          state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE, STOP.STOP_VEX_LIFT_FAILED):
+            l.warning(state.unicorn.stop_message)
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc

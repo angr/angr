@@ -629,19 +629,15 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	mem_writes.push_back(record);
 }
 
-std::pair<std::unordered_set<taint_entity_t>, bool> State::compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const {
+std::unordered_set<taint_entity_t> State::compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const {
 	std::unordered_set<taint_entity_t> reg_dependency_list;
-	bool has_memory_read = false;
 	for (auto &taint_source: taint_sources) {
 		// If register is an artificial VEX register, we can't save it from unicorn.
 		if ((taint_source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(taint_source.reg_offset)) {
 			reg_dependency_list.emplace(taint_source);
 		}
-		else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
-			has_memory_read = true;
-		}
 	}
-	return std::make_pair(reg_dependency_list, has_memory_read);
+	return reg_dependency_list;
 }
 
 void State::compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
@@ -696,32 +692,32 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				sink.reg_offset = stmt->Ist.Put.offset;
 				modified_reg_data.first = stmt->Ist.Put.offset;
 				modified_reg_data.second = false;
-				auto result = get_taint_sources_and_ite_cond(stmt->Ist.Put.data, curr_instr_addr, false);
+				auto result = process_vex_expr(stmt->Ist.Put.data, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				srcs = result.sources;
+				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
+				instruction_taint_entry.mem_read_count += result.mem_read_count;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
 
 				// Store taint sources and compute dependencies to save
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
 				// TODO: Should we not compute dependencies to save if sink is an artificial register?
 				auto dependencies_to_save = compute_dependencies_to_save(srcs);
-				instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				// Check if sink is also source of taint
-				if (dependencies_to_save.first.count(sink)) {
+				if (dependencies_to_save.count(sink)) {
 					modified_reg_data.second = true;
 				}
 
 				// Store ITE condition entities and compute dependencies to save
 				instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 				dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
-				instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
-				if (dependencies_to_save.first.count(sink)) {
+				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
+				if (dependencies_to_save.count(sink)) {
 					modified_reg_data.second = true;
 				}
 				if ((modified_reg_data.first != arch_pc_reg_vex_offset()) && reg_instr_slice.count(modified_reg_data.first) != 0) {
@@ -737,26 +733,26 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				sink.entity_type = TAINT_ENTITY_TMP;
 				sink.instr_addr = curr_instr_addr;
 				sink.tmp_id = stmt->Ist.WrTmp.tmp;
-				auto result = get_taint_sources_and_ite_cond(stmt->Ist.WrTmp.data, curr_instr_addr, false);
+				auto result = process_vex_expr(stmt->Ist.WrTmp.data, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				srcs = result.sources;
+				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
+				instruction_taint_entry.mem_read_count += result.mem_read_count;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
 
 				// Store taint sources and compute dependencies to save
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
 				auto dependencies_to_save = compute_dependencies_to_save(srcs);
-				instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 
 				// Store ITE condition entities and compute dependencies to save
 				instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 				dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
-				instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				break;
 			}
 			case Ist_Store:
@@ -767,49 +763,53 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				sink.entity_type = TAINT_ENTITY_MEM;
 				sink.instr_addr = curr_instr_addr;
 				instruction_taint_entry.has_memory_write = true;
-				auto result = get_taint_sources_and_ite_cond(stmt->Ist.Store.addr, curr_instr_addr, false);
+				auto result = process_vex_expr(stmt->Ist.Store.addr, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
 				// TODO: What if memory addresses have ITE expressions in them?
-				sink.mem_ref_entity_list.assign(result.sources.begin(), result.sources.end());
-				result = get_taint_sources_and_ite_cond(stmt->Ist.Store.data, curr_instr_addr, false);
+				sink.mem_ref_entity_list.assign(result.taint_sources.begin(), result.taint_sources.end());
+				instruction_taint_entry.mem_read_count += result.mem_read_count;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
+
+				result = process_vex_expr(stmt->Ist.Store.data, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				srcs = result.sources;
+				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
+				instruction_taint_entry.mem_read_count += result.mem_read_count;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
 
 				// Store taint sources and compute dependencies to save
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
 				auto dependencies_to_save = compute_dependencies_to_save(srcs);
-				instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 
 				// Store ITE condition entities and compute dependencies to save
 				instruction_taint_entry.ite_cond_entity_list.insert(ite_cond_entity_list.begin(), ite_cond_entity_list.end());
 				dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
-				instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				break;
 			}
 			case Ist_Exit:
 			{
-				auto result = get_taint_sources_and_ite_cond(stmt->Ist.Exit.guard, curr_instr_addr, true);
+				auto result = process_vex_expr(stmt->Ist.Exit.guard, curr_instr_addr, true);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
-				block_taint_entry.exit_stmt_guard_expr_deps = result.sources;
+				block_taint_entry.exit_stmt_guard_expr_deps = result.taint_sources;
 				block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
+				instruction_taint_entry.mem_read_count += result.mem_read_count;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
 				if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
 					auto dependencies_to_save = compute_dependencies_to_save(block_taint_entry.exit_stmt_guard_expr_deps);
-					instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
 				}
 				break;
 			}
@@ -882,16 +882,17 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 		}
 	}
 	// Process block default exit target
-	auto block_next_taint_sources = get_taint_sources_and_ite_cond(vex_block->next, curr_instr_addr, false);
+	auto block_next_taint_sources = process_vex_expr(vex_block->next, curr_instr_addr, false);
 	if (block_next_taint_sources.has_unsupported_expr) {
 		block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 		block_taint_entry.unsupported_stmt_stop_reason = block_next_taint_sources.unsupported_expr_stop_reason;
 	}
 	else {
-		block_taint_entry.block_next_entities = block_next_taint_sources.sources;
-		auto dependencies_to_save = compute_dependencies_to_save(block_next_taint_sources.sources);
-		instruction_taint_entry.has_memory_read |= dependencies_to_save.second;
-		instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.first.begin(), dependencies_to_save.first.end());
+		block_taint_entry.block_next_entities = block_next_taint_sources.taint_sources;
+		auto dependencies_to_save = compute_dependencies_to_save(block_next_taint_sources.taint_sources);
+		instruction_taint_entry.mem_read_count += block_next_taint_sources.mem_read_count;
+		instruction_taint_entry.has_memory_read |= (block_next_taint_sources.mem_read_count != 0);
+		instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 	}
 	// Save last instruction's entry
 	block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
@@ -919,9 +920,9 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 }
 
 // Returns a pair (taint sources, list of taint entities in ITE condition expression)
-taint_sources_and_and_ite_cond_t State::get_taint_sources_and_ite_cond(IRExpr *expr, address_t instr_addr, bool is_exit_stmt) {
-	taint_sources_and_and_ite_cond_t result;
-	result.has_unsupported_expr = false;
+processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr, bool is_exit_stmt) {
+	processed_vex_expr_t result;
+	result.reset();
 	switch (expr->tag) {
 		case Iex_RdTmp:
 		{
@@ -929,7 +930,7 @@ taint_sources_and_and_ite_cond_t State::get_taint_sources_and_ite_cond(IRExpr *e
 			taint_entity.entity_type = TAINT_ENTITY_TMP;
 			taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
 			taint_entity.instr_addr = instr_addr;
-			result.sources.emplace(taint_entity);
+			result.taint_sources.emplace(taint_entity);
 			break;
 		}
 		case Iex_Get:
@@ -938,109 +939,119 @@ taint_sources_and_and_ite_cond_t State::get_taint_sources_and_ite_cond(IRExpr *e
 			taint_entity.entity_type = TAINT_ENTITY_REG;
 			taint_entity.reg_offset = expr->Iex.Get.offset;
 			taint_entity.instr_addr = instr_addr;
-			result.sources.emplace(taint_entity);
+			result.taint_sources.emplace(taint_entity);
 			break;
 		}
 		case Iex_Unop:
 		{
-			auto temp = get_taint_sources_and_ite_cond(expr->Iex.Unop.arg, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Unop.arg, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 			break;
 		}
 		case Iex_Binop:
 		{
-			auto temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg1, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Binop.arg1, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.Binop.arg2, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Binop.arg2, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 			break;
 		}
 		case Iex_Triop:
 		{
-			auto temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg1, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Triop.details->arg1, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg2, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Triop.details->arg2, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.Triop.details->arg3, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Triop.details->arg3, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 			break;
 		}
 		case Iex_Qop:
 		{
-			auto temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg1, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Qop.details->arg1, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
-			result.ite_cond_entities.insert(temp.sources.begin(), temp.ite_cond_entities.end());
-
-			temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg2, instr_addr, false);
-			if (temp.has_unsupported_expr) {
-				result.has_unsupported_expr = true;
-				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
-				break;
-			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg3, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Qop.details->arg2, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.Qop.details->arg4, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Qop.details->arg3, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
+
+			temp = process_vex_expr(expr->Iex.Qop.details->arg4, instr_addr, false);
+			if (temp.has_unsupported_expr) {
+				result.has_unsupported_expr = true;
+				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
+				break;
+			}
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
+			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 			break;
 		}
 		case Iex_ITE:
@@ -1049,58 +1060,62 @@ taint_sources_and_and_ite_cond_t State::get_taint_sources_and_ite_cond(IRExpr *e
 			// if condition is symbolic and stop concrete execution if it is. However for VEX
 			// exit statement, we don't need to store it separately since we process only the
 			// guard condition for Exit statements
-			auto temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.cond, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.ITE.cond, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
 			if (is_exit_stmt) {
-				result.sources.insert(temp.sources.begin(), temp.sources.end());
-				result.sources.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+				result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
+				result.taint_sources.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			}
 			else {
-				result.ite_cond_entities.insert(temp.sources.begin(), temp.sources.end());
+				result.ite_cond_entities.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			}
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iffalse, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.ITE.iffalse, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 
-			temp = get_taint_sources_and_ite_cond(expr->Iex.ITE.iftrue, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.ITE.iftrue, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 				break;
 			}
-			result.sources.insert(temp.sources.begin(), temp.sources.end());
+			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+			result.mem_read_count += temp.mem_read_count;
 			break;
 		}
 		case Iex_CCall:
 		{
 			IRExpr **ccall_args = expr->Iex.CCall.args;
 			for (uint64_t i = 0; ccall_args[i]; i++) {
-				auto temp = get_taint_sources_and_ite_cond(ccall_args[i], instr_addr, false);
+				auto temp = process_vex_expr(ccall_args[i], instr_addr, false);
 				if (temp.has_unsupported_expr) {
 					result.has_unsupported_expr = true;
 					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
 					break;
 				}
-				result.sources.insert(temp.sources.begin(), temp.sources.end());
+				result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
+				result.mem_read_count += temp.mem_read_count;
 			}
 			break;
 		}
 		case Iex_Load:
 		{
-			auto temp = get_taint_sources_and_ite_cond(expr->Iex.Load.addr, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Load.addr, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1109,9 +1124,18 @@ taint_sources_and_and_ite_cond_t State::get_taint_sources_and_ite_cond(IRExpr *e
 			// TODO: What if memory addresses have ITE expressions in them?
 			taint_entity_t source;
 			source.entity_type = TAINT_ENTITY_MEM;
-			source.mem_ref_entity_list.assign(temp.sources.begin(), temp.sources.end());
+			source.mem_ref_entity_list.assign(temp.taint_sources.begin(), temp.taint_sources.end());
 			source.instr_addr = instr_addr;
-			result.sources.emplace(source);
+			result.taint_sources.emplace(source);
+			// Calculate number of times read hook would be triggered. unicorn triggers a memory read hook for each
+			// arch_width bytes
+			result.mem_read_count += temp.mem_read_count;
+			auto load_size = sizeofIRType(expr->Iex.Load.ty);
+			auto arch_width = arch_byte_width();
+			result.mem_read_count += load_size / arch_width;
+			if ((load_size % arch_width) != 0) {
+				result.mem_read_count += 1;
+			}
 			break;
 		}
 		case Iex_GetI:
@@ -1286,7 +1310,8 @@ void State::propagate_taints() {
 		if (curr_instr_taint_entry.has_memory_read) {
 			// Pause taint propagation to process the memory read and continue from instruction
 			// after the memory read.
-			taint_engine_mem_read_stop_instruction = curr_instr_addr;
+			taint_engine_stop_mem_read_instruction = curr_instr_addr;
+			taint_engine_stop_mem_read_count = instr_taint_data_entries_it->second.mem_read_count;
 			taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 			return;
 		}
@@ -1322,7 +1347,7 @@ void State::propagate_taints() {
 	return;
 }
 
-void State::propagate_taint_of_mem_read_instr(const address_t instr_addr) {
+void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr_addr) {
 	if (is_symbolic_tracking_disabled()) {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
@@ -1344,7 +1369,16 @@ void State::propagate_taint_of_mem_read_instr(const address_t instr_addr) {
 			return;
 		}
 	}
+	decrement_pending_mem_reads_count();
+	if (get_pending_mem_reads_count() != 0) {
+		// There are pending reads at this instruction yet to be executed. We do not propagate taint until all reads are
+		// done.
+		return;
+	}
 
+	// There are no more pending reads at this instruction. Now we can propagate taint.
+	// This allows us to also handle cases when only some of the memory reads are symbolic: we treat all as symbolic
+	// and overtaint.
 	auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
 	auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 	if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
@@ -1361,6 +1395,9 @@ void State::propagate_taint_of_mem_read_instr(const address_t instr_addr) {
 		compute_slice_of_instrs(instr_addr, instr_taint_data_entry);
 	}
 	update_register_slice(instr_addr, instr_taint_data_entry);
+	if (!stopped) {
+		continue_propagating_taint();
+	}
 	return;
 }
 
@@ -1621,16 +1658,21 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	State *state = (State *)user_data;
 	memory_value_t memory_read_value;
 	bool is_memory_value_symbolic;
+	address_t curr_instr_addr;
 
 	memory_read_value.reset();
 	memory_read_value.address = address;
 	memory_read_value.size = size;
-	address_t curr_instr_addr = state->get_instruction_pointer();
-	if ((!state->is_symbolic_taint_propagation_disabled()) && (curr_instr_addr != state->get_taint_engine_mem_read_stop_instruction())) {
-		// The instruction address unicorn reported is different from the expected value for memory read instruction.
-		// Also see https://github.com/unicorn-engine/unicorn/issues/1312.
-		state->stop(STOP_UNKNOWN_MEMORY_READ);
-		return;
+	if (!state->is_symbolic_taint_propagation_disabled()) {
+		// unicorn-engine doesn't update PC register in some cases and so it has incorrect value for current instruction
+		// address. XMM reads sometimes trigger the hook multiple times and there could be multiple reads in one instruction
+		// in some archs. So, we use the taint engine to determine instruction address correctly.
+		// See https://github.com/unicorn-engine/unicorn/issues/1312, https://github.com/unicorn-engine/unicorn/pull/1257
+		curr_instr_addr = state->get_taint_engine_stop_mem_read_instr_addr();
+	}
+	else {
+		// Symbolic taint propagation is disabled so we get current instruction address from unicorn
+		curr_instr_addr = state->get_instruction_pointer();
 	}
 	auto tainted = state->find_tainted(address, size);
 	if (tainted != -1)
@@ -1650,28 +1692,16 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 	}
 	auto mem_reads_map_entry = state->mem_reads_map.find(curr_instr_addr);
 	if (mem_reads_map_entry == state->mem_reads_map.end()) {
-		// Propagate taint if this is a memory read not encountered before.
-		// Reads from XMM registers trigger multiple memory read hooks so
-		// we should propagate taint only in first hook
 		mem_read_result_t mem_read_result;
 		mem_read_result.memory_values.emplace_back(memory_read_value);
 		mem_read_result.is_value_symbolic = is_memory_value_symbolic;
 		state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
-		state->propagate_taint_of_mem_read_instr(curr_instr_addr);
-		if (!state->stopped) {
-			state->continue_propagating_taint();
-		}
 	}
-	else if (!mem_reads_map_entry->second.is_value_symbolic) {
-		if (is_memory_value_symbolic) {
-			// The taint of previous memory read is concrete but of current memory read is symbolic.
-			// We stop concrete execution since we already propagated taint based on previous read.
-			state->stop(STOP_MULTIPLE_MEMORY_READS);
-		}
-		else {
-			state->mem_reads_map.at(curr_instr_addr).memory_values.emplace_back(memory_read_value);
-		}
+	else {
+		state->mem_reads_map.at(curr_instr_addr).memory_values.emplace_back(memory_read_value);
+		state->mem_reads_map.at(curr_instr_addr).is_value_symbolic |= is_memory_value_symbolic;
 	}
+	state->propagate_taint_of_mem_read_instr_and_continue(curr_instr_addr);
 	return;
 }
 

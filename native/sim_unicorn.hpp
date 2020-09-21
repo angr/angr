@@ -201,7 +201,6 @@ enum stop_t {
 	STOP_SYMBOLIC_WRITE_ADDR,
 	STOP_SYMBOLIC_BLOCK_EXIT_CONDITION,
 	STOP_SYMBOLIC_BLOCK_EXIT_TARGET,
-	STOP_MULTIPLE_MEMORY_READS,
 	STOP_UNSUPPORTED_STMT_PUTI,
 	STOP_UNSUPPORTED_STMT_STOREG,
 	STOP_UNSUPPORTED_STMT_LOADG,
@@ -212,7 +211,6 @@ enum stop_t {
 	STOP_UNSUPPORTED_EXPR_GETI,
 	STOP_UNSUPPORTED_EXPR_UNKNOWN,
 	STOP_UNKNOWN_MEMORY_WRITE,
-	STOP_UNKNOWN_MEMORY_READ,
 };
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -231,6 +229,9 @@ struct instruction_taint_entry_t {
 	// it's previous value
 	std::vector<std::pair<vex_reg_offset_t, bool>> modified_regs;
 
+	// Count of memory reads in the instruction
+	uint32_t mem_read_count;
+
 	bool has_memory_read;
 	bool has_memory_write;
 
@@ -248,6 +249,7 @@ struct instruction_taint_entry_t {
 		modified_regs.clear();
 		has_memory_read = false;
 		has_memory_write = false;
+		mem_read_count = 0;
 		return;
 	}
 };
@@ -273,11 +275,19 @@ struct stop_details_t {
 	uint64_t block_size;
 };
 
-struct taint_sources_and_and_ite_cond_t {
-	std::unordered_set<taint_entity_t> sources;
+struct processed_vex_expr_t {
+	std::unordered_set<taint_entity_t> taint_sources;
 	std::unordered_set<taint_entity_t> ite_cond_entities;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
+	uint32_t mem_read_count;
+
+	void reset() {
+		taint_sources.clear();
+		ite_cond_entities.clear();
+		has_unsupported_expr = false;
+		mem_read_count = 0;
+	}
 };
 
 struct instr_slice_details_t {
@@ -374,7 +384,8 @@ class State {
 	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
-	address_t taint_engine_next_instr_address, taint_engine_mem_read_stop_instruction;
+	address_t taint_engine_next_instr_address, taint_engine_stop_mem_read_instruction;
+	uint32_t taint_engine_stop_mem_read_count;
 
 	address_t unicorn_next_instr_addr;
 
@@ -389,13 +400,13 @@ class State {
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
 
-	std::pair<std::unordered_set<taint_entity_t>, bool> compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const;
+	std::unordered_set<taint_entity_t> compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const;
 	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	taint_sources_and_and_ite_cond_t get_taint_sources_and_ite_cond(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
+	processed_vex_expr_t process_vex_expr(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
@@ -480,6 +491,21 @@ class State {
 				return UC_ARM64_REG_SP;
 			case UC_ARCH_MIPS:
 				return UC_MIPS_REG_SP;
+			default:
+				return -1;
+		}
+	}
+
+	inline unsigned int arch_byte_width() const {
+		switch(arch) {
+			case UC_ARCH_X86:
+				return mode == UC_MODE_64 ? 8 : 4;
+			case UC_ARCH_ARM:
+				return 4;
+			case UC_ARCH_ARM64:
+				return 8;
+			case UC_ARCH_MIPS:
+				return mode == UC_MODE_MIPS64 ? 8 : 4;
 			default:
 				return -1;
 		}
@@ -603,7 +629,7 @@ class State {
 
 		void handle_write(address_t address, int size, bool is_interrupt);
 
-		void propagate_taint_of_mem_read_instr(const address_t instr_addr);
+		void propagate_taint_of_mem_read_instr_and_continue(const address_t instr_addr);
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
@@ -629,8 +655,17 @@ class State {
 			return (is_symbolic_tracking_disabled() || block_details.vex_lift_failed);
 		}
 
-		inline address_t get_taint_engine_mem_read_stop_instruction() const {
-			return taint_engine_mem_read_stop_instruction;
+		inline address_t get_taint_engine_stop_mem_read_instr_addr() const {
+			return taint_engine_stop_mem_read_instruction;
+		}
+
+		inline uint32_t get_pending_mem_reads_count() const {
+			return taint_engine_stop_mem_read_count;
+		}
+
+		inline void decrement_pending_mem_reads_count() {
+			taint_engine_stop_mem_read_count--;
+			return;
 		}
 };
 

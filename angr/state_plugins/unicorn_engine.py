@@ -103,18 +103,16 @@ class STOP:  # stop_t
     STOP_SYMBOLIC_WRITE_ADDR    = 16
     STOP_SYMBOLIC_BLOCK_EXIT_CONDITION = 17
     STOP_SYMBOLIC_BLOCK_EXIT_TARGET = 18
-    STOP_MULTIPLE_MEMORY_READS    = 19
-    STOP_UNSUPPORTED_STMT_PUTI    = 20
-    STOP_UNSUPPORTED_STMT_STOREG  = 21
-    STOP_UNSUPPORTED_STMT_LOADG   = 22
-    STOP_UNSUPPORTED_STMT_CAS     = 23
-    STOP_UNSUPPORTED_STMT_LLSC    = 24
-    STOP_UNSUPPORTED_STMT_DIRTY   = 25
-    STOP_UNSUPPORTED_EXPR_GETI    = 26
-    STOP_UNSUPPORTED_STMT_UNKNOWN = 27
-    STOP_UNSUPPORTED_EXPR_UNKNOWN = 28
-    STOP_UNKNOWN_MEMORY_WRITE     = 29
-    STOP_UNKNOWN_MEMORY_READ      = 30
+    STOP_UNSUPPORTED_STMT_PUTI    = 19
+    STOP_UNSUPPORTED_STMT_STOREG  = 20
+    STOP_UNSUPPORTED_STMT_LOADG   = 21
+    STOP_UNSUPPORTED_STMT_CAS     = 22
+    STOP_UNSUPPORTED_STMT_LLSC    = 23
+    STOP_UNSUPPORTED_STMT_DIRTY   = 24
+    STOP_UNSUPPORTED_EXPR_GETI    = 25
+    STOP_UNSUPPORTED_STMT_UNKNOWN = 26
+    STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
+    STOP_UNKNOWN_MEMORY_WRITE     = 28
 
     stop_message = {}
     stop_message[STOP_NORMAL]        = "Reached maximum steps"
@@ -136,7 +134,6 @@ class STOP:  # stop_t
     stop_message[STOP_SYMBOLIC_WRITE_ADDR]   = "Attempted to write to symbolic address"
     stop_message[STOP_SYMBOLIC_BLOCK_EXIT_CONDITION] = "Guard condition of block's exit statement is symbolic"
     stop_message[STOP_SYMBOLIC_BLOCK_EXIT_TARGET] = "Target of default exit of block is symbolic"
-    stop_message[STOP_MULTIPLE_MEMORY_READS]   = "Symbolic taint propagation when multiple memory reads occur in single instruction not yet supported"
     stop_message[STOP_UNSUPPORTED_STMT_PUTI]   = "Symbolic taint propagation for PutI statement not yet supported"
     stop_message[STOP_UNSUPPORTED_STMT_STOREG] = "Symbolic taint propagation for StoreG statement not yet supported"
     stop_message[STOP_UNSUPPORTED_STMT_LOADG]  = "Symbolic taint propagation for LoadG statement not yet supported"
@@ -147,16 +144,14 @@ class STOP:  # stop_t
     stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
     stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
     stop_message[STOP_UNKNOWN_MEMORY_WRITE]    = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly"
-    stop_message[STOP_UNKNOWN_MEMORY_READ]     = "Cannot find a memory read at instruction; likely because unicorn reported PC value incorrectly"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
         STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET]
 
-    unsupported_reasons = [STOP_MULTIPLE_MEMORY_READS, STOP_UNSUPPORTED_STMT_PUTI,
-        STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG, STOP_UNSUPPORTED_STMT_CAS,
-        STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY, STOP_UNSUPPORTED_STMT_UNKNOWN,
-        STOP_UNSUPPORTED_EXPR_UNKNOWN, STOP_VEX_LIFT_FAILED]
+    unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
+        STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
+        STOP_UNSUPPORTED_STMT_UNKNOWN, STOP_UNSUPPORTED_EXPR_UNKNOWN, STOP_VEX_LIFT_FAILED]
 
     @staticmethod
     def name_stop(num):
@@ -1126,7 +1121,7 @@ class Unicorn(SimStatePlugin):
         self.stop_reason = self.stop_details.stop_reason
         self.stop_message = STOP.get_stop_msg(self.stop_reason)
         if self.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
-          self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_READ, STOP.STOP_UNKNOWN_MEMORY_WRITE):
+          self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE, STOP.STOP_VEX_LIFT_FAILED):
             self.stop_message += f". Block 0x{self.stop_details.block_addr:02x}(size: {self.stop_details.block_size})."
 
         # figure out why we stopped
@@ -1182,8 +1177,8 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason in STOP.unsupported_reasons:
             self.countdown_nonunicorn_blocks = 0
             self.countdown_unsupported_stop = self.cooldown_unsupported_stop
-        elif self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_READ, STOP.STOP_UNKNOWN_MEMORY_WRITE):
-            # Skip one block in case of unknown memory read/write
+        elif self.stop_reason == STOP.STOP_UNKNOWN_MEMORY_WRITE:
+            # Skip one block in case of unknown memory write
             self.countdown_nonunicorn_blocks = 0
             self.countdown_unsupported_stop = 2
         else:
