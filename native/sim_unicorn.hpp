@@ -511,6 +511,14 @@ class State {
 		}
 	}
 
+	inline bool is_thumb_mode() const {
+		// unicorn engine mode doesn't reflect the current execution mode correctly and so we check T bit in the CPSR
+		// register to determine if we are executing in ARM or THUMB mode.
+		uint32_t cpsr_reg_val;
+		uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr_reg_val);
+		return (cpsr_reg_val & 32 == 0);
+	}
+
 	public:
 		std::vector<address_t> bbl_addrs;
 		std::vector<address_t> stack_pointers;

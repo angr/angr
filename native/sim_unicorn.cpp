@@ -1528,7 +1528,7 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 		std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
 		address_t lift_address;
 
-		if ((arch == UC_ARCH_ARM) && (mode == UC_MODE_THUMB)) {
+		if ((arch == UC_ARCH_ARM) && is_thumb_mode()) {
 			lift_address = block_address | 1;
 		}
 		else {
