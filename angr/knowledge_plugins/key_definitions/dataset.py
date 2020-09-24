@@ -193,16 +193,28 @@ def _stringify_datum(datum):
     return datum
 
 
+def size_of_datasets(datasets: List[DataSet]) -> DataSet:
+    """
+    If the size of all datasets are equal, then the result will be of that size; Otherwise, it will be of size UNKNOWN_SIZE.
+
+    :param datasets: The datasets to get the size from.
+    :return: The common size of the given datasets.
+    """
+    return (
+        datasets[0]._bits if all(map(lambda d: d._bits == datasets[0]._bits, datasets))
+        else UNKNOWN_SIZE
+    )
+
+
+
 def dataset_from_datasets(datasets: List[DataSet]) -> DataSet:
     """
     Instantiate a <DataSet> by "merging" several <DataSet>s.
-    If the size of all datasets are equal, then the result will be of that size; Otherwise, it will be of size UNKNOWN_SIZE.
 
     :param datasets: The datasets to merge into one.
     :return: A new <DataSet>, containing the data from all given datasets.
     """
-    size = (datasets[0]._bits if all(map(lambda d: d._bits == datasets[0]._bits, datasets))
-            else UNKNOWN_SIZE)
+    size = size_of_datasets(datasets)
 
     result = DataSet(set(), size)
     for ds in datasets:

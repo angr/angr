@@ -1,10 +1,26 @@
 from unittest import TestCase
 
-from angr.knowledge_plugins.key_definitions.dataset import DataSet, dataset_from_datasets
+from angr.knowledge_plugins.key_definitions.dataset import DataSet, dataset_from_datasets, size_of_datasets
 from angr.knowledge_plugins.key_definitions.unknown_size import UNKNOWN_SIZE
 
 
 class TestDataSet(TestCase):
+    def test_size_of_datasets_with_inputs_of_same_size(self):
+        datasets = [
+            DataSet(set(), 4),
+            DataSet(set(), 4),
+        ]
+
+        self.assertEqual(size_of_datasets(datasets), 4)
+
+    def test_size_of_datasets_with_inputs_of_different_size(self):
+        datasets = [
+            DataSet(set(), 2),
+            DataSet(set(), 4),
+        ]
+
+        self.assertEqual(size_of_datasets(datasets), UNKNOWN_SIZE)
+
     def test_dataset_from_datasets(self):
         datasets = [
             DataSet({1}   , 4),
