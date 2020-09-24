@@ -2,6 +2,9 @@ UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
 	LIB_ANGR_NATIVE=angr_native.dylib
 endif
+ifeq ($(UNAME), FreeBSD)
+	LIB_ANGR_NATIVE=angr_native.so
+endif
 ifeq ($(UNAME), Linux)
 	LIB_ANGR_NATIVE=angr_native.so
 endif
