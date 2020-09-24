@@ -68,8 +68,9 @@ def _build_native():
             pass
 
     cmd1 = ['nmake', '/f', 'Makefile-win']
-    cmd2 = ['make']
-    for cmd in (cmd1, cmd2):
+    cmd2 = ['gmake']
+    cmd3 = ['make']
+    for cmd in (cmd1, cmd2, cmd3):
         try:
             if subprocess.call(cmd, cwd='native', env=env) != 0:
                 raise LibError('Unable to build angr_native')
