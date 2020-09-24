@@ -6,8 +6,8 @@ ifeq ($(UNAME), Linux)
 	LIB_ANGR_NATIVE=angr_native.so
 endif
 
-CC := gcc
-CXX := g++
+CC ?= gcc
+CXX ?= g++
 CXXFLAGS := -I "${UNICORN_INCLUDE_PATH}" -I "${PYVEX_INCLUDE_PATH}" \
 	-L "${UNICORN_LIB_PATH}" -L "${PYVEX_LIB_PATH}" \
 	-O3 -fPIC -std=c++11
