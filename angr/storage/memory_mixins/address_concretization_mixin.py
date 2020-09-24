@@ -237,7 +237,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
 
         try:
-            concrete_addrs = self.concretize_read_addr(addr)
+            concrete_addrs = sorted(self.concretize_read_addr(addr))
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
