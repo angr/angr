@@ -139,7 +139,7 @@ class ListPage(MemoryObjectMixin, PageBase):
 
                 self.store(b,
                            SimMemoryObject(merged_val, mo_base, endness='Iend_BE'),
-                           size=mo_length,
+                           size=mo_length - (page_addr + b - mo_base),
                            cooperate=True
                            )
                 # merged_objects.add(new_object)
