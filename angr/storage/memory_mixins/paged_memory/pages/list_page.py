@@ -125,8 +125,9 @@ class ListPage(MemoryObjectMixin, PageBase):
 
                 # Update `merged_to`
                 mo_base = list(mo_bases)[0]
-                merged_to = mo_base + list(mo_lengths)[0]
                 mo_length = memory_objects[0][0].length
+                size = mo_length - (page_addr + b - mo_base)
+                merged_to = b + size                
 
                 merged_val = self._merge_values(to_merge, mo_length, memory=memory)
                 if merged_val is None:
@@ -139,7 +140,7 @@ class ListPage(MemoryObjectMixin, PageBase):
 
                 self.store(b,
                            SimMemoryObject(merged_val, mo_base, endness='Iend_BE'),
-                           size=mo_length - (page_addr + b - mo_base),
+                           size=size,
                            cooperate=True
                            )
                 # merged_objects.add(new_object)
