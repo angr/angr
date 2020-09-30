@@ -127,7 +127,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 mo_base = list(mo_bases)[0]
                 mo_length = memory_objects[0][0].length
                 size = mo_length - (page_addr + b - mo_base)
-                merged_to = b + size                
+                merged_to = b + size
 
                 merged_val = self._merge_values(to_merge, mo_length, memory=memory)
                 if merged_val is None:
