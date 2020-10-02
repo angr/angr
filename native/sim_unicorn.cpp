@@ -1263,7 +1263,10 @@ void State::mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_le
 bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	// We check if this register is symbolic or concrete in the block level taint statuses since
 	// those are more recent. If not found in either, check the state's symbolic register list.
-	if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
+	// TODO: Is checking only first byte of artificial and blacklisted registers to determine if they are symbolic fine
+	// or should all be checked?
+	if ((cpu_flags.find(reg_offset) != cpu_flags.end()) || (artificial_vex_registers.count(reg_offset) > 0)
+	    || (blacklisted_registers.count(reg_offset) > 0)) {
 		if (block_symbolic_registers.count(reg_offset) > 0) {
 			return true;
 		}
