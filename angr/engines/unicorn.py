@@ -118,7 +118,11 @@ class SimEngineUnicorn(SuccessorsMixin):
 
             # Restore previously saved value
             for address, (value, size) in saved_memory_values.items():
-                self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
+                curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
+                if not curr_value.symbolic:
+                    # Restore the saved value only if current value is not symbolic. If it is, that would mean the value
+                    # was changed by re-executing the block in VEX engine
+                    self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
 
         del self.stmt_idx
 
