@@ -16,7 +16,7 @@ from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
 
 l = logging.getLogger(name=__name__)
-SIM_LIBRARIES = {}
+SIM_LIBRARIES: Dict[str,'SimLibrary'] = {}
 
 
 class SimLibrary:

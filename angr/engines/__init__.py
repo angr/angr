@@ -6,11 +6,12 @@ from .procedure import ProcedureMixin, ProcedureEngine
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
+from .remote_syscall import SimEngineRemoteSyscall
 from .concrete import SimEngineConcrete
 from .hook import HooksMixin
 from .soot import SootMixin
 
-class UberEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+class UberEngine(SimEngineFailure, SimEngineRemoteSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
     pass
 
 try:

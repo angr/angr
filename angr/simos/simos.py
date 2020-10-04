@@ -1,5 +1,7 @@
 import logging
 import struct
+from typing import Optional
+
 import angr # for types
 
 import claripy
@@ -322,6 +324,9 @@ class SimOS:
 
     def syscall_abi(self, state):
         return None
+
+    def syscall_cc(self, state) -> Optional[angr.calling_conventions.SimCCSyscall]:
+        raise NotImplemented()
 
     def is_syscall_addr(self, addr):
         return False

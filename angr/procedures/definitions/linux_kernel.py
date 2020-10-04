@@ -1,5 +1,12 @@
-from . import SimSyscallLibrary
+import logging
+
+from ...sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, \
+    SimTypeBottom
 from .. import SIM_PROCEDURES as P
+from . import SimSyscallLibrary
+
+_l = logging.getLogger(__name__)
+
 
 lib = SimSyscallLibrary()
 lib.set_library_names('linux')
@@ -18,6 +25,742 @@ lib.add('pwrite64', P['posix']['pwrite64'])
 lib.add_alias('exit', 'exit_group')
 lib.add_alias('getuid', 'geteuid')
 lib.add_alias('getgid', 'getegid')
+
+
+# syscall prototypes
+
+# TODO: AMD64 only
+_syscall_decls = \
+    {
+        # long sys_time(time_t *tloc);
+        "time": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeLong(signed=True), arg_names=["tloc"]),
+        # long sys_stime(time_t *tptr);
+        "stime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeLong(signed=True), arg_names=["tptr"]),
+        # long sys_gettimeofday(struct timeval *tv, struct timezone *tz);
+        "gettimeofday": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="timezone", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["tv", "tz"]),
+        # long sys_settimeofday(struct timeval *tv, struct timezone *tz);
+        "settimeofday": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="timezone", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["tv", "tz"]),
+        # long sys_adjtimex(struct timex *txc_p);
+        "adjtimex": SimTypeFunction([SimTypePointer(SimStruct({}, name="timex", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["txc_p"]),
+        # long sys_times(struct tms *tbuf);
+        "times": SimTypeFunction([SimTypePointer(SimStruct({}, name="tms", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["tbuf"]),
+        # long sys_gettid(void);
+        "gettid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_nanosleep(struct timespec *rqtp, struct timespec *rmtp);
+        "nanosleep": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["rqtp", "rmtp"]),
+        # long sys_alarm(unsigned int seconds);
+        "alarm": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["seconds"]),
+        # long sys_getpid(void);
+        "getpid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_getppid(void);
+        "getppid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_getuid(void);
+        "getuid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_geteuid(void);
+        "geteuid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_getgid(void);
+        "getgid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_getegid(void);
+        "getegid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_getresuid(uid_t *ruid, uid_t *euid, uid_t *suid);
+        "getresuid": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="uid_t"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="uid_t"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="uid_t"), offset=0)], SimTypeLong(signed=True), arg_names=["ruid", "euid", "suid"]),
+        # long sys_getresgid(gid_t *rgid, gid_t *egid, gid_t *sgid);
+        "getresgid": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="gid_t"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="gid_t"), offset=0), SimTypePointer(SimTypeInt(signed=False, label="gid_t"), offset=0)], SimTypeLong(signed=True), arg_names=["rgid", "egid", "sgid"]),
+        # long sys_getpgid(pid_t pid);
+        "getpgid": SimTypeFunction([SimTypeInt(signed=True, label="pid_t")], SimTypeLong(signed=True), arg_names=["pid"]),
+        # long sys_getpgrp(void);
+        "getpgrp": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_getsid(pid_t pid);
+        "getsid": SimTypeFunction([SimTypeInt(signed=True, label="pid_t")], SimTypeLong(signed=True), arg_names=["pid"]),
+        # long sys_getgroups(int gidsetsize, gid_t *grouplist);
+        "getgroups": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=False, label="gid_t"), offset=0)], SimTypeLong(signed=True), arg_names=["gidsetsize", "grouplist"]),
+        # long sys_setregid(gid_t rgid, gid_t egid);
+        "setregid": SimTypeFunction([SimTypeInt(signed=False, label="gid_t"), SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["rgid", "egid"]),
+        # long sys_setgid(gid_t gid);
+        "setgid": SimTypeFunction([SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["gid"]),
+        # long sys_setreuid(uid_t ruid, uid_t euid);
+        "setreuid": SimTypeFunction([SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="uid_t")], SimTypeLong(signed=True), arg_names=["ruid", "euid"]),
+        # long sys_setuid(uid_t uid);
+        "setuid": SimTypeFunction([SimTypeInt(signed=False, label="uid_t")], SimTypeLong(signed=True), arg_names=["uid"]),
+        # long sys_setresuid(uid_t ruid, uid_t euid, uid_t suid);
+        "setresuid": SimTypeFunction([SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="uid_t")], SimTypeLong(signed=True), arg_names=["ruid", "euid", "suid"]),
+        # long sys_setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+        "setresgid": SimTypeFunction([SimTypeInt(signed=False, label="gid_t"), SimTypeInt(signed=False, label="gid_t"), SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["rgid", "egid", "sgid"]),
+        # long sys_setfsuid(uid_t uid);
+        "setfsuid": SimTypeFunction([SimTypeInt(signed=False, label="uid_t")], SimTypeLong(signed=True), arg_names=["uid"]),
+        # long sys_setfsgid(gid_t gid);
+        "setfsgid": SimTypeFunction([SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["gid"]),
+        # long sys_setpgid(pid_t pid, pid_t pgid);
+        "setpgid": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True, label="pid_t")], SimTypeLong(signed=True), arg_names=["pid", "pgid"]),
+        # long sys_setsid(void);
+        "setsid": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_setgroups(int gidsetsize, gid_t *grouplist);
+        "setgroups": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=False, label="gid_t"), offset=0)], SimTypeLong(signed=True), arg_names=["gidsetsize", "grouplist"]),
+        # long sys_acct(const char *name);
+        "acct": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["name"]),
+        # long sys_capget(cap_user_header_t header, cap_user_data_t dataptr);
+        "capget": None,
+        # long sys_capset(cap_user_header_t header, const cap_user_data_t data);
+        "capset": None,
+        # long sys_personality(unsigned int personality);
+        "personality": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["personality"]),
+        # long sys_sigpending(old_sigset_t *set);
+        "sigpending": None,
+        # long sys_sigprocmask(int how, old_sigset_t *set, old_sigset_t *oset);
+        "sigprocmask": None,
+        # long sys_sigaltstack(const struct sigaltstack *uss, struct sigaltstack *uoss);
+        "sigaltstack": SimTypeFunction([SimTypePointer(SimStruct({}, name="sigaltstack", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="sigaltstack", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["uss", "uoss"]),
+        # long sys_getitimer(int which, struct itimerval *value);
+        "getitimer": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="itimerval", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["which", "value"]),
+        # long sys_setitimer(int which, struct itimerval *value, struct itimerval *ovalue);
+        "setitimer": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="itimerval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="itimerval", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["which", "value", "ovalue"]),
+        # long sys_timer_create(clockid_t which_clock, struct sigevent *timer_event_spec, timer_t * created_timer_id);
+        "timer_create": None,
+        # long sys_timer_gettime(timer_t timer_id, struct itimerspec *setting);
+        "timer_gettime": None,
+        # long sys_timer_getoverrun(timer_t timer_id);
+        "timer_getoverrun": None,
+        # long sys_timer_settime(timer_t timer_id, int flags, const struct itimerspec *new_setting, struct itimerspec *old_setting);
+        "timer_settime": None,
+        # long sys_timer_delete(timer_t timer_id);
+        "timer_delete": None,
+        # long sys_clock_settime(clockid_t which_clock, const struct timespec *tp);
+        "clock_settime": None,
+        # long sys_clock_gettime(clockid_t which_clock, struct timespec *tp);
+        "clock_gettime": None,
+        # long sys_clock_adjtime(clockid_t which_clock, struct timex *tx);
+        "clock_adjtime": None,
+        # long sys_clock_getres(clockid_t which_clock, struct timespec *tp);
+        "clock_getres": None,
+        # long sys_clock_nanosleep(clockid_t which_clock, int flags, const struct timespec *rqtp, struct timespec *rmtp);
+        "clock_nanosleep": None,
+        # long sys_nice(int increment);
+        "nice": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["increment"]),
+        # long sys_sched_setscheduler(pid_t pid, int policy, struct sched_param *param);
+        "sched_setscheduler": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sched_param", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "policy", "param"]),
+        # long sys_sched_setparam(pid_t pid, struct sched_param *param);
+        "sched_setparam": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="sched_param", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "param"]),
+        # long sys_sched_setattr(pid_t pid, struct sched_attr *attr, unsigned int flags);
+        "sched_setattr": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="sched_attr", pack=False, align=None), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["pid", "attr", "flags"]),
+        # long sys_sched_getscheduler(pid_t pid);
+        "sched_getscheduler": SimTypeFunction([SimTypeInt(signed=True, label="pid_t")], SimTypeLong(signed=True), arg_names=["pid"]),
+        # long sys_sched_getparam(pid_t pid, struct sched_param *param);
+        "sched_getparam": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="sched_param", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "param"]),
+        # long sys_sched_getattr(pid_t pid, struct sched_attr *attr, unsigned int size, unsigned int flags);
+        "sched_getattr": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="sched_attr", pack=False, align=None), offset=0), SimTypeInt(signed=False), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["pid", "attr", "size", "flags"]),
+        # long sys_sched_setaffinity(pid_t pid, unsigned int len, unsigned long *user_mask_ptr);
+        "sched_setaffinity": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=False), SimTypePointer(SimTypeLong(signed=False), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "len", "user_mask_ptr"]),
+        # long sys_sched_getaffinity(pid_t pid, unsigned int len, unsigned long *user_mask_ptr);
+        "sched_getaffinity": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=False), SimTypePointer(SimTypeLong(signed=False), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "len", "user_mask_ptr"]),
+        # long sys_sched_yield(void);
+        "sched_yield": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_sched_get_priority_max(int policy);
+        "sched_get_priority_max": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["policy"]),
+        # long sys_sched_get_priority_min(int policy);
+        "sched_get_priority_min": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["policy"]),
+        # long sys_sched_rr_get_interval(pid_t pid, struct timespec *interval);
+        "sched_rr_get_interval": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "interval"]),
+        # long sys_setpriority(int which, int who, int niceval);
+        "setpriority": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["which", "who", "niceval"]),
+        # long sys_getpriority(int which, int who);
+        "getpriority": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["which", "who"]),
+        # long sys_shutdown(int, int);
+        "shutdown": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["None", "None"]),
+        # long sys_reboot(int magic1, int magic2, unsigned int cmd, void *arg);
+        "reboot": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=False), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeLong(signed=True), arg_names=["magic1", "magic2", "cmd", "arg"]),
+        # long sys_restart_syscall(void);
+        "restart_syscall": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_kexec_load(unsigned long entry, unsigned long nr_segments, struct kexec_segment *segments, unsigned long flags);
+        "kexec_load": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypePointer(SimStruct({}, name="kexec_segment", pack=False, align=None), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["entry", "nr_segments", "segments", "flags"]),
+        # long sys_kexec_file_load(int kernel_fd, int initrd_fd, unsigned long cmdline_len, const char *cmdline_ptr, unsigned long flags);
+        "kexec_file_load": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeLong(signed=False), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["kernel_fd", "initrd_fd", "cmdline_len", "cmdline_ptr", "flags"]),
+        # long sys_exit(int error_code);
+        "exit": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["error_code"]),
+        # long sys_exit_group(int error_code);
+        "exit_group": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["error_code"]),
+        # long sys_wait4(pid_t pid, int *stat_addr, int options, struct rusage *ru);
+        "wait4": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "stat_addr", "options", "ru"]),
+        # long sys_waitid(int which, pid_t pid, struct siginfo *infop, int options, struct rusage *ru);
+        "waitid": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="siginfo", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["which", "pid", "infop", "options", "ru"]),
+        # long sys_waitpid(pid_t pid, int *stat_addr, int options);
+        "waitpid": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["pid", "stat_addr", "options"]),
+        # long sys_set_tid_address(int *tidptr);
+        "set_tid_address": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["tidptr"]),
+        # long sys_futex(u32 *uaddr, int op, u32 val, struct timespec *utime, u32 *uaddr2, u32 val3);
+        "futex": None,
+        # long sys_init_module(void *umod, unsigned long len, const char *uargs);
+        "init_module": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["umod", "len", "uargs"]),
+        # long sys_delete_module(const char *name_user, unsigned int flags);
+        "delete_module": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["name_user", "flags"]),
+        # long sys_rt_sigsuspend(sigset_t *unewset, size_t sigsetsize);
+        "rt_sigsuspend": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["unewset", "sigsetsize"]),
+        # long sys_sigaction(int, const struct old_sigaction *, struct old_sigaction *);
+        "sigaction": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="old_sigaction", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="old_sigaction", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_rt_sigaction(int, const struct sigaction *, struct sigaction *, size_t);
+        "rt_sigaction": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sigaction", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="sigaction", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["None", "None", "None", "None"]),
+        # long sys_rt_sigprocmask(int how, sigset_t *set, sigset_t *oset, size_t sigsetsize);
+        "rt_sigprocmask": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["how", "set", "oset", "sigsetsize"]),
+        # long sys_rt_sigpending(sigset_t *set, size_t sigsetsize);
+        "rt_sigpending": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["set", "sigsetsize"]),
+        # long sys_rt_sigtimedwait(const sigset_t *uthese, siginfo_t *uinfo, const struct timespec *uts, size_t sigsetsize);
+        "rt_sigtimedwait": None,
+        # long sys_rt_tgsigqueueinfo(pid_t tgid, pid_t pid, int sig, siginfo_t *uinfo);
+        "rt_tgsigqueueinfo": None,
+        # long sys_kill(pid_t pid, int sig);
+        "kill": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["pid", "sig"]),
+        # long sys_tgkill(pid_t tgid, pid_t pid, int sig);
+        "tgkill": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["tgid", "pid", "sig"]),
+        # long sys_tkill(pid_t pid, int sig);
+        "tkill": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["pid", "sig"]),
+        # long sys_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo);
+        "rt_sigqueueinfo": None,
+        # long sys_sgetmask(void);
+        "sgetmask": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_ssetmask(int newmask);
+        "ssetmask": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["newmask"]),
+        # long sys_signal(int sig, __sighandler_t handler);
+        "signal": None,
+        # long sys_pause(void);
+        "pause": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_sync(void);
+        "sync": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_fsync(unsigned int fd);
+        "fsync": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd"]),
+        # long sys_fdatasync(unsigned int fd);
+        "fdatasync": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd"]),
+        # long sys_bdflush(int func, long data);
+        "bdflush": SimTypeFunction([SimTypeInt(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True), arg_names=["func", "data"]),
+        # long sys_mount(char *dev_name, char *dir_name, char *type, unsigned long flags, void *data);
+        "mount": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeLong(signed=True), arg_names=["dev_name", "dir_name", "type", "flags", "data"]),
+        # long sys_umount(char *name, int flags);
+        "umount": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["name", "flags"]),
+        # long sys_oldumount(char *name);
+        "oldumount": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["name"]),
+        # long sys_truncate(const char *path, long length);
+        "truncate": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=True)], SimTypeLong(signed=True), arg_names=["path", "length"]),
+        # long sys_ftruncate(unsigned int fd, unsigned long length);
+        "ftruncate": SimTypeFunction([SimTypeInt(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "length"]),
+        # long sys_stat(const char *filename, struct __old_kernel_stat *statbuf);
+        "stat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="__old_kernel_stat", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "statbuf"]),
+        # long sys_statfs(const char * path, struct statfs *buf);
+        "statfs": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="statfs", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["path", "buf"]),
+        # long sys_statfs64(const char *path, size_t sz, struct statfs64 *buf);
+        "statfs64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="statfs64", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["path", "sz", "buf"]),
+        # long sys_fstatfs(unsigned int fd, struct statfs *buf);
+        "fstatfs": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="statfs", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "buf"]),
+        # long sys_fstatfs64(unsigned int fd, size_t sz, struct statfs64 *buf);
+        "fstatfs64": SimTypeFunction([SimTypeInt(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="statfs64", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "sz", "buf"]),
+        # long sys_lstat(const char *filename, struct __old_kernel_stat *statbuf);
+        "lstat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="__old_kernel_stat", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "statbuf"]),
+        # long sys_fstat(unsigned int fd, struct __old_kernel_stat *statbuf);
+        "fstat": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="__old_kernel_stat", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "statbuf"]),
+        # long sys_newstat(const char *filename, struct stat *statbuf);
+        "newstat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "statbuf"]),
+        # long sys_newlstat(const char *filename, struct stat *statbuf);
+        "newlstat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "statbuf"]),
+        # long sys_newfstat(unsigned int fd, struct stat *statbuf);
+        "newfstat": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "statbuf"]),
+        # long sys_ustat(unsigned dev, struct ustat *ubuf);
+        "ustat": None,
+        # long sys_stat64(const char *filename, struct stat64 *statbuf);
+        "stat64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "statbuf"]),
+        # long sys_fstat64(unsigned long fd, struct stat64 *statbuf);
+        "fstat64": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "statbuf"]),
+        # long sys_lstat64(const char *filename, struct stat64 *statbuf);
+        "lstat64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "statbuf"]),
+        # long sys_fstatat64(int dfd, const char *filename, struct stat64 *statbuf, int flag);
+        "fstatat64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "statbuf", "flag"]),
+        # long sys_truncate64(const char *path, loff_t length);
+        "truncate64": None,
+        # long sys_ftruncate64(unsigned int fd, loff_t length);
+        "ftruncate64": None,
+        # long sys_setxattr(const char *path, const char *name, const void *value, size_t size, int flags);
+        "setxattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["path", "name", "value", "size", "flags"]),
+        # long sys_lsetxattr(const char *path, const char *name, const void *value, size_t size, int flags);
+        "lsetxattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["path", "name", "value", "size", "flags"]),
+        # long sys_fsetxattr(int fd, const char *name, const void *value, size_t size, int flags);
+        "fsetxattr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd", "name", "value", "size", "flags"]),
+        # long sys_getxattr(const char *path, const char *name, void *value, size_t size);
+        "getxattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["path", "name", "value", "size"]),
+        # long sys_lgetxattr(const char *path, const char *name, void *value, size_t size);
+        "lgetxattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["path", "name", "value", "size"]),
+        # long sys_fgetxattr(int fd, const char *name, void *value, size_t size);
+        "fgetxattr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["fd", "name", "value", "size"]),
+        # long sys_listxattr(const char *path, char *list, size_t size);
+        "listxattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["path", "list", "size"]),
+        # long sys_llistxattr(const char *path, char *list, size_t size);
+        "llistxattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["path", "list", "size"]),
+        # long sys_flistxattr(int fd, char *list, size_t size);
+        "flistxattr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["fd", "list", "size"]),
+        # long sys_removexattr(const char *path, const char *name);
+        "removexattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["path", "name"]),
+        # long sys_lremovexattr(const char *path, const char *name);
+        "lremovexattr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["path", "name"]),
+        # long sys_fremovexattr(int fd, const char *name);
+        "fremovexattr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "name"]),
+        # long sys_brk(unsigned long brk);
+        "brk": SimTypeFunction([SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["brk"]),
+        # long sys_mprotect(unsigned long start, size_t len, unsigned long prot);
+        "mprotect": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["start", "len", "prot"]),
+        # long sys_mremap(unsigned long addr, unsigned long old_len, unsigned long new_len, unsigned long flags, unsigned long new_addr);
+        "mremap": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["addr", "old_len", "new_len", "flags", "new_addr"]),
+        # long sys_remap_file_pages(unsigned long start, unsigned long size, unsigned long prot, unsigned long pgoff, unsigned long flags);
+        "remap_file_pages": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["start", "size", "prot", "pgoff", "flags"]),
+        # long sys_msync(unsigned long start, size_t len, int flags);
+        "msync": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["start", "len", "flags"]),
+        # long sys_fadvise64(int fd, loff_t offset, size_t len, int advice);
+        "fadvise64": None,
+        # long sys_fadvise64_64(int fd, loff_t offset, loff_t len, int advice);
+        "fadvise64_64": None,
+        # long sys_munmap(unsigned long addr, size_t len);
+        "munmap": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["addr", "len"]),
+        # long sys_mlock(unsigned long start, size_t len);
+        "mlock": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["start", "len"]),
+        # long sys_munlock(unsigned long start, size_t len);
+        "munlock": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["start", "len"]),
+        # long sys_mlockall(int flags);
+        "mlockall": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["flags"]),
+        # long sys_munlockall(void);
+        "munlockall": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_madvise(unsigned long start, size_t len, int behavior);
+        "madvise": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["start", "len", "behavior"]),
+        # long sys_mincore(unsigned long start, size_t len, unsigned char * vec);
+        "mincore": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["start", "len", "vec"]),
+        # long sys_pivot_root(const char *new_root, const char *put_old);
+        "pivot_root": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["new_root", "put_old"]),
+        # long sys_chroot(const char *filename);
+        "chroot": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["filename"]),
+        # long sys_mknod(const char *filename, umode_t mode, unsigned dev);
+        "mknod": None,
+        # long sys_link(const char *oldname, const char *newname);
+        "link": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["oldname", "newname"]),
+        # long sys_symlink(const char *old, const char *new);
+        "symlink": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["old", "new"]),
+        # long sys_unlink(const char *pathname);
+        "unlink": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["pathname"]),
+        # long sys_rename(const char *oldname, const char *newname);
+        "rename": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["oldname", "newname"]),
+        # long sys_chmod(const char *filename, umode_t mode);
+        "chmod": None,
+        # long sys_fchmod(unsigned int fd, umode_t mode);
+        "fchmod": None,
+        # long sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
+        "fcntl": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "cmd", "arg"]),
+        # long sys_fcntl64(unsigned int fd, unsigned int cmd, unsigned long arg);
+        "fcntl64": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "cmd", "arg"]),
+        # long sys_pipe(int *fildes);
+        "pipe": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["fildes"]),
+        # long sys_pipe2(int *fildes, int flags);
+        "pipe2": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fildes", "flags"]),
+        # long sys_dup(unsigned int fildes);
+        "dup": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fildes"]),
+        # long sys_dup2(unsigned int oldfd, unsigned int newfd);
+        "dup2": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["oldfd", "newfd"]),
+        # long sys_dup3(unsigned int oldfd, unsigned int newfd, int flags);
+        "dup3": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["oldfd", "newfd", "flags"]),
+        # long sys_ioperm(unsigned long from, unsigned long num, int on);
+        "ioperm": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["from", "num", "on"]),
+        # long sys_ioctl(unsigned int fd, unsigned int cmd, unsigned long arg);
+        "ioctl": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "cmd", "arg"]),
+        # long sys_flock(unsigned int fd, unsigned int cmd);
+        "flock": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "cmd"]),
+        # long sys_io_setup(unsigned nr_reqs, aio_context_t *ctx);
+        "io_setup": None,
+        # long sys_io_destroy(aio_context_t ctx);
+        "io_destroy": None,
+        # long sys_io_getevents(aio_context_t ctx_id, long min_nr, long nr, struct io_event *events, struct timespec *timeout);
+        "io_getevents": None,
+        # long sys_io_submit(aio_context_t, long, struct iocb * *);
+        "io_submit": None,
+        # long sys_io_cancel(aio_context_t ctx_id, struct iocb *iocb, struct io_event *result);
+        "io_cancel": None,
+        # long sys_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+        "sendfile": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeLong(signed=False, label="off_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["out_fd", "in_fd", "offset", "count"]),
+        # long sys_sendfile64(int out_fd, int in_fd, loff_t *offset, size_t count);
+        "sendfile64": None,
+        # long sys_readlink(const char *path, char *buf, int bufsiz);
+        "readlink": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["path", "buf", "bufsiz"]),
+        # long sys_creat(const char *pathname, umode_t mode);
+        "creat": None,
+        # long sys_open(const char *filename, int flags, umode_t mode);
+        "open": None,
+        # long sys_close(unsigned int fd);
+        "close": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd"]),
+        # long sys_access(const char *filename, int mode);
+        "access": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["filename", "mode"]),
+        # long sys_vhangup(void);
+        "vhangup": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_chown(const char *filename, uid_t user, gid_t group);
+        "chown": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["filename", "user", "group"]),
+        # long sys_lchown(const char *filename, uid_t user, gid_t group);
+        "lchown": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["filename", "user", "group"]),
+        # long sys_fchown(unsigned int fd, uid_t user, gid_t group);
+        "fchown": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="gid_t")], SimTypeLong(signed=True), arg_names=["fd", "user", "group"]),
+        # long sys_utime(char *filename, struct utimbuf *times);
+        "utime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="utimbuf", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "times"]),
+        # long sys_utimes(char *filename, struct timeval *utimes);
+        "utimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "utimes"]),
+        # long sys_lseek(unsigned int fd, off_t offset, unsigned int whence);
+        "lseek": SimTypeFunction([SimTypeInt(signed=False), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "offset", "whence"]),
+        # long sys_llseek(unsigned int fd, unsigned long offset_high, unsigned long offset_low, loff_t *result, unsigned int whence);
+        "llseek": None,
+        # long sys_read(unsigned int fd, char *buf, size_t count);
+        "read": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["fd", "buf", "count"]),
+        # long sys_readahead(int fd, loff_t offset, size_t count);
+        "readahead": None,
+        # long sys_readv(unsigned long fd, const struct iovec *vec, unsigned long vlen);
+        "readv": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "vec", "vlen"]),
+        # long sys_write(unsigned int fd, const char *buf, size_t count);
+        "write": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["fd", "buf", "count"]),
+        # long sys_writev(unsigned long fd, const struct iovec *vec, unsigned long vlen);
+        "writev": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "vec", "vlen"]),
+        # long sys_pread64(unsigned int fd, char *buf, size_t count, loff_t pos);
+        "pread64": None,
+        # long sys_pwrite64(unsigned int fd, const char *buf, size_t count, loff_t pos);
+        "pwrite64": None,
+        # long sys_preadv(unsigned long fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h);
+        "preadv": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "vec", "vlen", "pos_l", "pos_h"]),
+        # long sys_preadv2(unsigned long fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h, int flags);
+        "preadv2": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd", "vec", "vlen", "pos_l", "pos_h", "flags"]),
+        # long sys_pwritev(unsigned long fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h);
+        "pwritev": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "vec", "vlen", "pos_l", "pos_h"]),
+        # long sys_pwritev2(unsigned long fd, const struct iovec *vec, unsigned long vlen, unsigned long pos_l, unsigned long pos_h, int flags);
+        "pwritev2": SimTypeFunction([SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd", "vec", "vlen", "pos_l", "pos_h", "flags"]),
+        # long sys_getcwd(char *buf, unsigned long size);
+        "getcwd": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["buf", "size"]),
+        # long sys_mkdir(const char *pathname, umode_t mode);
+        "mkdir": None,
+        # long sys_chdir(const char *filename);
+        "chdir": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["filename"]),
+        # long sys_fchdir(unsigned int fd);
+        "fchdir": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd"]),
+        # long sys_rmdir(const char *pathname);
+        "rmdir": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["pathname"]),
+        # long sys_lookup_dcookie(u64 cookie64, char *buf, size_t len);
+        "lookup_dcookie": None,
+        # long sys_quotactl(unsigned int cmd, const char *special, qid_t id, void *addr);
+        "quotactl": None,
+        # long sys_getdents(unsigned int fd, struct linux_dirent *dirent, unsigned int count);
+        "getdents": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="linux_dirent", pack=False, align=None), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "dirent", "count"]),
+        # long sys_getdents64(unsigned int fd, struct linux_dirent64 *dirent, unsigned int count);
+        "getdents64": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="linux_dirent64", pack=False, align=None), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "dirent", "count"]),
+        # long sys_setsockopt(int fd, int level, int optname, char *optval, int optlen);
+        "setsockopt": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd", "level", "optname", "optval", "optlen"]),
+        # long sys_getsockopt(int fd, int level, int optname, char *optval, int *optlen);
+        "getsockopt": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["fd", "level", "optname", "optval", "optlen"]),
+        # long sys_bind(int, struct sockaddr *, int);
+        "bind": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_connect(int, struct sockaddr *, int);
+        "connect": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_accept(int, struct sockaddr *, int *);
+        "accept": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_accept4(int, struct sockaddr *, int *, int);
+        "accept4": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["None", "None", "None", "None"]),
+        # long sys_getsockname(int, struct sockaddr *, int *);
+        "getsockname": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_getpeername(int, struct sockaddr *, int *);
+        "getpeername": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_send(int, void *, size_t, unsigned);
+        "send": None,
+        # long sys_sendto(int, void *, size_t, unsigned, struct sockaddr *, int);
+        "sendto": None,
+        # long sys_sendmsg(int fd, struct user_msghdr *msg, unsigned flags);
+        "sendmsg": None,
+        # long sys_sendmmsg(int fd, struct mmsghdr *msg, unsigned int vlen, unsigned flags);
+        "sendmmsg": None,
+        # long sys_recv(int, void *, size_t, unsigned);
+        "recv": None,
+        # long sys_recvfrom(int, void *, size_t, unsigned, struct sockaddr *, int *);
+        "recvfrom": None,
+        # long sys_recvmsg(int fd, struct user_msghdr *msg, unsigned flags);
+        "recvmsg": None,
+        # long sys_recvmmsg(int fd, struct mmsghdr *msg, unsigned int vlen, unsigned flags, struct timespec *timeout);
+        "recvmmsg": None,
+        # long sys_socket(int, int, int);
+        "socket": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_socketpair(int, int, int, int *);
+        "socketpair": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=True), arg_names=["None", "None", "None", "None"]),
+        # long sys_socketcall(int call, unsigned long *args);
+        "socketcall": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeLong(signed=False), offset=0)], SimTypeLong(signed=True), arg_names=["call", "args"]),
+        # long sys_listen(int, int);
+        "listen": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["None", "None"]),
+        # long sys_poll(struct pollfd *ufds, unsigned int nfds, int timeout);
+        "poll": SimTypeFunction([SimTypePointer(SimStruct({}, name="pollfd", pack=False, align=None), offset=0), SimTypeInt(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["ufds", "nfds", "timeout"]),
+        # long sys_select(int n, fd_set *inp, fd_set *outp, fd_set *exp, struct timeval *tvp);
+        "select": None,
+        # long sys_old_select(struct sel_arg_struct *arg);
+        "old_select": SimTypeFunction([SimTypePointer(SimStruct({}, name="sel_arg_struct", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["arg"]),
+        # long sys_epoll_create(int size);
+        "epoll_create": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["size"]),
+        # long sys_epoll_create1(int flags);
+        "epoll_create1": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["flags"]),
+        # long sys_epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
+        "epoll_ctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="epoll_event", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["epfd", "op", "fd", "event"]),
+        # long sys_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
+        "epoll_wait": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="epoll_event", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["epfd", "events", "maxevents", "timeout"]),
+        # long sys_epoll_pwait(int epfd, struct epoll_event *events, int maxevents, int timeout, const sigset_t *sigmask, size_t sigsetsize);
+        "epoll_pwait": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="epoll_event", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["epfd", "events", "maxevents", "timeout", "sigmask", "sigsetsize"]),
+        # long sys_gethostname(char *name, int len);
+        "gethostname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["name", "len"]),
+        # long sys_sethostname(char *name, int len);
+        "sethostname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["name", "len"]),
+        # long sys_setdomainname(char *name, int len);
+        "setdomainname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["name", "len"]),
+        # long sys_newuname(struct new_utsname *name);
+        "newuname": SimTypeFunction([SimTypePointer(SimStruct({}, name="new_utsname", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["name"]),
+        # long sys_uname(struct old_utsname *);
+        "uname": SimTypeFunction([SimTypePointer(SimStruct({}, name="old_utsname", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["None"]),
+        # long sys_olduname(struct oldold_utsname *);
+        "olduname": SimTypeFunction([SimTypePointer(SimStruct({}, name="oldold_utsname", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["None"]),
+        # long sys_getrlimit(unsigned int resource, struct rlimit *rlim);
+        "getrlimit": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="rlimit", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["resource", "rlim"]),
+        # long sys_setrlimit(unsigned int resource, struct rlimit *rlim);
+        "setrlimit": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="rlimit", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["resource", "rlim"]),
+        # long sys_prlimit64(pid_t pid, unsigned int resource, const struct rlimit64 *new_rlim, struct rlimit64 *old_rlim);
+        "prlimit64": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="rlimit64", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="rlimit64", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "resource", "new_rlim", "old_rlim"]),
+        # long sys_getrusage(int who, struct rusage *ru);
+        "getrusage": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["who", "ru"]),
+        # long sys_umask(int mask);
+        "umask": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["mask"]),
+        # long sys_msgget(key_t key, int msgflg);
+        "msgget": None,
+        # long sys_msgsnd(int msqid, struct msgbuf *msgp, size_t msgsz, int msgflg);
+        "msgsnd": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="msgbuf", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["msqid", "msgp", "msgsz", "msgflg"]),
+        # long sys_msgrcv(int msqid, struct msgbuf *msgp, size_t msgsz, long msgtyp, int msgflg);
+        "msgrcv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="msgbuf", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["msqid", "msgp", "msgsz", "msgtyp", "msgflg"]),
+        # long sys_msgctl(int msqid, int cmd, struct msqid_ds *buf);
+        "msgctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="msqid_ds", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["msqid", "cmd", "buf"]),
+        # long sys_semget(key_t key, int nsems, int semflg);
+        "semget": None,
+        # long sys_semop(int semid, struct sembuf *sops, unsigned nsops);
+        "semop": None,
+        # long sys_semctl(int semid, int semnum, int cmd, unsigned long arg);
+        "semctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["semid", "semnum", "cmd", "arg"]),
+        # long sys_semtimedop(int semid, struct sembuf *sops, unsigned nsops, const struct timespec *timeout);
+        "semtimedop": None,
+        # long sys_shmat(int shmid, char *shmaddr, int shmflg);
+        "shmat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["shmid", "shmaddr", "shmflg"]),
+        # long sys_shmget(key_t key, size_t size, int flag);
+        "shmget": None,
+        # long sys_shmdt(char *shmaddr);
+        "shmdt": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["shmaddr"]),
+        # long sys_shmctl(int shmid, int cmd, struct shmid_ds *buf);
+        "shmctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="shmid_ds", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["shmid", "cmd", "buf"]),
+        # long sys_ipc(unsigned int call, int first, unsigned long second, unsigned long third, void *ptr, long fifth);
+        "ipc": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=True)], SimTypeLong(signed=True), arg_names=["call", "first", "second", "third", "ptr", "fifth"]),
+        # long sys_mq_open(const char *name, int oflag, umode_t mode, struct mq_attr *attr);
+        "mq_open": None,
+        # long sys_mq_unlink(const char *name);
+        "mq_unlink": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["name"]),
+        # long sys_mq_timedsend(mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int msg_prio, const struct timespec *abs_timeout);
+        "mq_timedsend": None,
+        # long sys_mq_timedreceive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg_prio, const struct timespec *abs_timeout);
+        "mq_timedreceive": None,
+        # long sys_mq_notify(mqd_t mqdes, const struct sigevent *notification);
+        "mq_notify": None,
+        # long sys_mq_getsetattr(mqd_t mqdes, const struct mq_attr *mqstat, struct mq_attr *omqstat);
+        "mq_getsetattr": None,
+        # long sys_pciconfig_iobase(long which, unsigned long bus, unsigned long devfn);
+        "pciconfig_iobase": SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["which", "bus", "devfn"]),
+        # long sys_pciconfig_read(unsigned long bus, unsigned long dfn, unsigned long off, unsigned long len, void *buf);
+        "pciconfig_read": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeLong(signed=True), arg_names=["bus", "dfn", "off", "len", "buf"]),
+        # long sys_pciconfig_write(unsigned long bus, unsigned long dfn, unsigned long off, unsigned long len, void *buf);
+        "pciconfig_write": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeLong(signed=True), arg_names=["bus", "dfn", "off", "len", "buf"]),
+        # long sys_prctl(int option, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);
+        "prctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["option", "arg2", "arg3", "arg4", "arg5"]),
+        # long sys_swapon(const char *specialfile, int swap_flags);
+        "swapon": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["specialfile", "swap_flags"]),
+        # long sys_swapoff(const char *specialfile);
+        "swapoff": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["specialfile"]),
+        # long sys_sysctl(struct __sysctl_args *args);
+        "sysctl": SimTypeFunction([SimTypePointer(SimStruct({}, name="__sysctl_args", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["args"]),
+        # long sys_sysinfo(struct sysinfo *info);
+        "sysinfo": SimTypeFunction([SimTypePointer(SimStruct({}, name="sysinfo", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["info"]),
+        # long sys_sysfs(int option, unsigned long arg1, unsigned long arg2);
+        "sysfs": SimTypeFunction([SimTypeInt(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["option", "arg1", "arg2"]),
+        # long sys_syslog(int type, char *buf, int len);
+        "syslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["type", "buf", "len"]),
+        # long sys_uselib(const char *library);
+        "uselib": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["library"]),
+        # long sys_ni_syscall(void);
+        "ni_syscall": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_ptrace(long request, long pid, unsigned long addr, unsigned long data);
+        "ptrace": SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["request", "pid", "addr", "data"]),
+        # long sys_add_key(const char *_type, const char *_description, const void *_payload, size_t plen, key_serial_t destringid);
+        "add_key": None,
+        # long sys_request_key(const char *_type, const char *_description, const char *_callout_info, key_serial_t destringid);
+        "request_key": None,
+        # long sys_keyctl(int cmd, unsigned long arg2, unsigned long arg3, unsigned long arg4, unsigned long arg5);
+        "keyctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["cmd", "arg2", "arg3", "arg4", "arg5"]),
+        # long sys_ioprio_set(int which, int who, int ioprio);
+        "ioprio_set": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["which", "who", "ioprio"]),
+        # long sys_ioprio_get(int which, int who);
+        "ioprio_get": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["which", "who"]),
+        # long sys_set_mempolicy(int mode, const unsigned long *nmask, unsigned long maxnode);
+        "set_mempolicy": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeLong(signed=False), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["mode", "nmask", "maxnode"]),
+        # long sys_migrate_pages(pid_t pid, unsigned long maxnode, const unsigned long *from, const unsigned long *to);
+        "migrate_pages": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeLong(signed=False), SimTypePointer(SimTypeLong(signed=False), offset=0), SimTypePointer(SimTypeLong(signed=False), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "maxnode", "from", "to"]),
+        # long sys_move_pages(pid_t pid, unsigned long nr_pages, const void * *pages, const int *nodes, int *status, int flags);
+        "move_pages": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeLong(signed=False), SimTypePointer(SimTypePointer(SimTypeBottom(label="void"), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["pid", "nr_pages", "pages", "nodes", "status", "flags"]),
+        # long sys_mbind(unsigned long start, unsigned long len, unsigned long mode, const unsigned long *nmask, unsigned long maxnode, unsigned flags);
+        "mbind": None,
+        # long sys_get_mempolicy(int *policy, unsigned long *nmask, unsigned long maxnode, unsigned long addr, unsigned long flags);
+        "get_mempolicy": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeLong(signed=False), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["policy", "nmask", "maxnode", "addr", "flags"]),
+        # long sys_inotify_init(void);
+        "inotify_init": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_inotify_init1(int flags);
+        "inotify_init1": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["flags"]),
+        # long sys_inotify_add_watch(int fd, const char *path, u32 mask);
+        "inotify_add_watch": None,
+        # long sys_inotify_rm_watch(int fd, __s32 wd);
+        "inotify_rm_watch": None,
+        # long sys_spu_run(int fd, __u32 *unpc, __u32 *ustatus);
+        "spu_run": None,
+        # long sys_spu_create(const char *name, unsigned int flags, umode_t mode, int fd);
+        "spu_create": None,
+        # long sys_mknodat(int dfd, const char * filename, umode_t mode, unsigned dev);
+        "mknodat": None,
+        # long sys_mkdirat(int dfd, const char * pathname, umode_t mode);
+        "mkdirat": None,
+        # long sys_unlinkat(int dfd, const char * pathname, int flag);
+        "unlinkat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "pathname", "flag"]),
+        # long sys_symlinkat(const char * oldname, int newdfd, const char * newname);
+        "symlinkat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["oldname", "newdfd", "newname"]),
+        # long sys_linkat(int olddfd, const char *oldname, int newdfd, const char *newname, int flags);
+        "linkat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["olddfd", "oldname", "newdfd", "newname", "flags"]),
+        # long sys_renameat(int olddfd, const char * oldname, int newdfd, const char * newname);
+        "renameat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["olddfd", "oldname", "newdfd", "newname"]),
+        # long sys_renameat2(int olddfd, const char *oldname, int newdfd, const char *newname, unsigned int flags);
+        "renameat2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["olddfd", "oldname", "newdfd", "newname", "flags"]),
+        # long sys_futimesat(int dfd, const char *filename, struct timeval *utimes);
+        "futimesat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "utimes"]),
+        # long sys_faccessat(int dfd, const char *filename, int mode);
+        "faccessat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "mode"]),
+        # long sys_fchmodat(int dfd, const char * filename, umode_t mode);
+        "fchmodat": None,
+        # long sys_fchownat(int dfd, const char *filename, uid_t user, gid_t group, int flag);
+        "fchownat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="gid_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "user", "group", "flag"]),
+        # long sys_openat(int dfd, const char *filename, int flags, umode_t mode);
+        "openat": None,
+        # long sys_newfstatat(int dfd, const char *filename, struct stat *statbuf, int flag);
+        "newfstatat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "statbuf", "flag"]),
+        # long sys_readlinkat(int dfd, const char *path, char *buf, int bufsiz);
+        "readlinkat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "path", "buf", "bufsiz"]),
+        # long sys_utimensat(int dfd, const char *filename, struct timespec *utimes, int flags);
+        "utimensat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "utimes", "flags"]),
+        # long sys_unshare(unsigned long unshare_flags);
+        "unshare": SimTypeFunction([SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["unshare_flags"]),
+        # long sys_splice(int fd_in, loff_t *off_in, int fd_out, loff_t *off_out, size_t len, unsigned int flags);
+        "splice": None,
+        # long sys_vmsplice(int fd, const struct iovec *iov, unsigned long nr_segs, unsigned int flags);
+        "vmsplice": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd", "iov", "nr_segs", "flags"]),
+        # long sys_tee(int fdin, int fdout, size_t len, unsigned int flags);
+        "tee": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fdin", "fdout", "len", "flags"]),
+        # long sys_sync_file_range(int fd, loff_t offset, loff_t nbytes, unsigned int flags);
+        "sync_file_range": None,
+        # long sys_sync_file_range2(int fd, unsigned int flags, loff_t offset, loff_t nbytes);
+        "sync_file_range2": None,
+        # long sys_get_robust_list(int pid, struct robust_list_head * *head_ptr, size_t *len_ptr);
+        "get_robust_list": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimStruct({}, name="robust_list_head", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0)], SimTypeLong(signed=True), arg_names=["pid", "head_ptr", "len_ptr"]),
+        # long sys_set_robust_list(struct robust_list_head *head, size_t len);
+        "set_robust_list": SimTypeFunction([SimTypePointer(SimStruct({}, name="robust_list_head", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["head", "len"]),
+        # long sys_getcpu(unsigned *cpu, unsigned *node, struct getcpu_cache *cache);
+        "getcpu": None,
+        # long sys_signalfd(int ufd, sigset_t *user_mask, size_t sizemask);
+        "signalfd": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["ufd", "user_mask", "sizemask"]),
+        # long sys_signalfd4(int ufd, sigset_t *user_mask, size_t sizemask, int flags);
+        "signalfd4": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["ufd", "user_mask", "sizemask", "flags"]),
+        # long sys_timerfd_create(int clockid, int flags);
+        "timerfd_create": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["clockid", "flags"]),
+        # long sys_timerfd_settime(int ufd, int flags, const struct itimerspec *utmr, struct itimerspec *otmr);
+        "timerfd_settime": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="itimerspec", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="itimerspec", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["ufd", "flags", "utmr", "otmr"]),
+        # long sys_timerfd_gettime(int ufd, struct itimerspec *otmr);
+        "timerfd_gettime": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="itimerspec", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["ufd", "otmr"]),
+        # long sys_eventfd(unsigned int count);
+        "eventfd": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["count"]),
+        # long sys_eventfd2(unsigned int count, int flags);
+        "eventfd2": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["count", "flags"]),
+        # long sys_memfd_create(const char *uname_ptr, unsigned int flags);
+        "memfd_create": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["uname_ptr", "flags"]),
+        # long sys_userfaultfd(int flags);
+        "userfaultfd": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["flags"]),
+        # long sys_fallocate(int fd, int mode, loff_t offset, loff_t len);
+        "fallocate": None,
+        # long sys_old_readdir(unsigned int, struct old_linux_dirent *, unsigned int);
+        "old_readdir": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="old_linux_dirent", pack=False, align=None), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["None", "None", "None"]),
+        # long sys_pselect6(int, fd_set *, fd_set *, fd_set *, struct timespec *, void *);
+        "pselect6": None,
+        # long sys_ppoll(struct pollfd *, unsigned int, struct timespec *, const sigset_t *, size_t);
+        "ppoll": SimTypeFunction([SimTypePointer(SimStruct({}, name="pollfd", pack=False, align=None), offset=0), SimTypeInt(signed=False), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True, label="sigset_t"), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeLong(signed=True), arg_names=["None", "None", "None", "None", "None"]),
+        # long sys_fanotify_init(unsigned int flags, unsigned int event_f_flags);
+        "fanotify_init": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["flags", "event_f_flags"]),
+        # long sys_fanotify_mark(int fanotify_fd, unsigned int flags, u64 mask, int fd, const char *pathname);
+        "fanotify_mark": None,
+        # long sys_syncfs(int fd);
+        "syncfs": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd"]),
+        # long sys_fork(void);
+        "fork": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_vfork(void);
+        "vfork": SimTypeFunction([], SimTypeLong(signed=True)),
+        # long sys_clone(unsigned long, unsigned long, int *, int *, unsigned long);
+        "clone": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["None", "None", "None", "None", "None"]),
+        # long sys_execve(const char *filename, const char *const *argv, const char *const *envp);
+        "execve": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeLong(signed=True), arg_names=["filename", "argv", "envp"]),
+        # long sys_perf_event_open( struct perf_event_attr *attr_uptr, pid_t pid, int cpu, int group_fd, unsigned long flags);
+        "perf_event_open": SimTypeFunction([SimTypePointer(SimStruct({}, name="perf_event_attr", pack=False, align=None), offset=0), SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["attr_uptr", "pid", "cpu", "group_fd", "flags"]),
+        # long sys_mmap_pgoff(unsigned long addr, unsigned long len, unsigned long prot, unsigned long flags, unsigned long fd, unsigned long pgoff);
+        "mmap_pgoff": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["addr", "len", "prot", "flags", "fd", "pgoff"]),
+        # long sys_old_mmap(struct mmap_arg_struct *arg);
+        "old_mmap": SimTypeFunction([SimTypePointer(SimStruct({}, name="mmap_arg_struct", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["arg"]),
+        # long sys_name_to_handle_at(int dfd, const char *name, struct file_handle *handle, int *mnt_id, int flag);
+        "name_to_handle_at": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="file_handle", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "name", "handle", "mnt_id", "flag"]),
+        # long sys_open_by_handle_at(int mountdirfd, struct file_handle *handle, int flags);
+        "open_by_handle_at": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="file_handle", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["mountdirfd", "handle", "flags"]),
+        # long sys_setns(int fd, int nstype);
+        "setns": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd", "nstype"]),
+        # long sys_process_vm_readv(pid_t pid, const struct iovec *lvec, unsigned long liovcnt, const struct iovec *rvec, unsigned long riovcnt, unsigned long flags);
+        "process_vm_readv": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["pid", "lvec", "liovcnt", "rvec", "riovcnt", "flags"]),
+        # long sys_process_vm_writev(pid_t pid, const struct iovec *lvec, unsigned long liovcnt, const struct iovec *rvec, unsigned long riovcnt, unsigned long flags);
+        "process_vm_writev": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["pid", "lvec", "liovcnt", "rvec", "riovcnt", "flags"]),
+        # long sys_kcmp(pid_t pid1, pid_t pid2, int type, unsigned long idx1, unsigned long idx2);
+        "kcmp": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["pid1", "pid2", "type", "idx1", "idx2"]),
+        # long sys_finit_module(int fd, const char *uargs, int flags);
+        "finit_module": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["fd", "uargs", "flags"]),
+        # long sys_seccomp(unsigned int op, unsigned int flags, const char *uargs);
+        "seccomp": SimTypeFunction([SimTypeInt(signed=False), SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0)], SimTypeLong(signed=True), arg_names=["op", "flags", "uargs"]),
+        # long sys_getrandom(char *buf, size_t count, unsigned int flags);
+        "getrandom": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["buf", "count", "flags"]),
+        # long sys_bpf(int cmd, struct bpf_attr *attr, unsigned int size);
+        "bpf": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="bpf_attr", pack=False, align=None), offset=0), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["cmd", "attr", "size"]),
+        # long sys_execveat(int dfd, const char *filename, const char *const *argv, const char *const *envp, int flags);
+        "execveat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "argv", "envp", "flags"]),
+        # long sys_membarrier(int cmd, int flags);
+        "membarrier": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["cmd", "flags"]),
+        # long sys_copy_file_range(int fd_in, loff_t *off_in, int fd_out, loff_t *off_out, size_t len, unsigned int flags);
+        "copy_file_range": None,
+        # long sys_mlock2(unsigned long start, size_t len, int flags);
+        "mlock2": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["start", "len", "flags"]),
+        # long sys_pkey_mprotect(unsigned long start, size_t len, unsigned long prot, int pkey);
+        "pkey_mprotect": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["start", "len", "prot", "pkey"]),
+        # long sys_pkey_alloc(unsigned long flags, unsigned long init_val);
+        "pkey_alloc": SimTypeFunction([SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["flags", "init_val"]),
+        # long sys_pkey_free(int pkey);
+        "pkey_free": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["pkey"]),
+        # long sys_statx(int dfd, const char *path, unsigned flags, unsigned mask, struct statx *buffer);
+        "statx": None,
+    }
+
+
+proto_count, unsupported_count = 0, 0
+for name, proto in _syscall_decls.items():
+    if proto is not None:
+        lib.set_prototype(name, proto)
+        proto_count += 1
+    else:
+        unsupported_count += 1
+
+_l.debug("Linux kernel has %d syscall prototypes, and has %d unsupported syscall prototypes.",
+         proto_count, unsupported_count)
 
 
 # python parse_syscalls_from_local_system.py >> linux_kernel.py

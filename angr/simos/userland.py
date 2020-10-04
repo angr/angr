@@ -1,6 +1,7 @@
 import logging
+from typing import Optional
 
-from ..calling_conventions import SYSCALL_CC
+from ..calling_conventions import SYSCALL_CC, SimCCSyscall
 from ..errors import AngrUnsupportedSyscallError, SimSolverError
 from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
@@ -44,6 +45,15 @@ class SimUserland(SimOS):
 
         self.unknown_syscall_number = base_no
 
+    def syscall_cc(self, state) -> SimCCSyscall:
+        if state.os_name in SYSCALL_CC[state.arch.name]:
+            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
+        else:
+            # Use the default syscall calling convention - it may bring problems
+            _l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
+            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+        return cc
+
     def syscall(self, state, allow_unsupported=True):
         """
         Given a state, return the procedure corresponding to the current syscall.
@@ -53,13 +63,7 @@ class SimUserland(SimOS):
         :param allow_unsupported:   Whether to return a "dummy" sycall instead of raising an unsupported exception
         """
         abi = self.syscall_abi(state)
-
-        if state.os_name in SYSCALL_CC[state.arch.name]:
-            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
-        else:
-            # Use the default syscall calling convention - it may bring problems
-            _l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
-            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+        cc = self.syscall_cc(state)
 
         sym_num = cc.syscall_num(state)
         try:
