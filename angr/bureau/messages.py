@@ -1,5 +1,5 @@
 import struct
-from typing import List
+from typing import List, Optional
 
 
 class MessageBase:
@@ -10,9 +10,11 @@ class MessageBase:
 
     @classmethod
     def unserialize(cls, stream: bytes) -> 'MessageBase':
-        msg_num = stream[0]
+        msg_num = struct.unpack("<H", stream[:2])[0]
         if msg_num == 2:
-            return SyscallReturn.unb(stream[1:])
+            return SyscallReturn.unserialize(stream[2:])
+        elif msg_num == 6:
+            return RetrieveMemory.unserialize(stream[2:])
         raise NotImplementedError()
 
     unb = unserialize
@@ -44,6 +46,7 @@ class SyscallReturn(MessageBase):
     def __init__(self, retval: int):
         self.retval = retval
 
+    @classmethod
     def unserialize(cls, stream) -> 'SyscallReturn':
         retval = struct.unpack("<Q", stream[0:8])[0]
         return SyscallReturn(retval)
@@ -51,16 +54,41 @@ class SyscallReturn(MessageBase):
 
 class RetrieveMemory(MessageBase):
 
-    MSG_NUM = 3
+    MSG_NUM = 6
 
     def __init__(self, addr: int, size: int, writing: bool):
         self.addr = addr
         self.size = size
         self.writing = writing
 
+    @classmethod
     def unserialize(cls, stream) -> 'RetrieveMemory':
         addr = struct.unpack("<Q", stream[0:8])[0]
         size = struct.unpack("<Q", stream[8:16])[0]
-        writing = struct.unpack("b", stream[16])[0] == 0
+        writing = stream[16] != 0
         o = RetrieveMemory(addr, size, writing)
         return o
+
+
+class RetrieveMemoryReturnResult:
+    OK = 0
+    ABORT = 1
+    FAULT = 2
+
+
+class RetrieveMemoryReturn(MessageBase):
+
+    MSG_NUM = 7
+
+    def __init__(self, result: int, data: Optional[bytes]):
+        self.ret = result
+        self.data = data
+
+    def serialize(self) -> bytes:
+        stream = struct.pack("<H", self.MSG_NUM) + \
+                 bytes([self.ret])
+
+        if self.data:
+            stream += self.data
+
+        return stream

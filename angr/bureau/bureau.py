@@ -3,7 +3,8 @@ from typing import List
 
 import zmq
 
-from .messages import MessageBase, InvokeSyscall, SyscallReturn
+from .messages import MessageBase, InvokeSyscall, SyscallReturn, RetrieveMemory, RetrieveMemoryReturn, \
+    RetrieveMemoryReturnResult
 
 
 class Session:
@@ -45,10 +46,29 @@ class Bureau:
         print("OHHHH")
         self.zmq_sessions[0].socket.send(msg.serialize())
 
-        # expect a SyscallReturn
-        msg = self.zmq_sessions[0].socket.recv()
-        ret = MessageBase.unserialize(msg)
+        # expect a SyscallReturn or a RetrieveMemory
+        print("Enter...")
+        while True:
+            msg = self.zmq_sessions[0].socket.recv()
+            ret = MessageBase.unserialize(msg)
+
+            print(ret)
+
+            if isinstance(ret, SyscallReturn):
+                # syscall execution completes
+                break
+            elif isinstance(ret, RetrieveMemory):
+                # the agent is asking for memory data
+                state = self.states[0]
+                data = state.memory.load(ret.addr, ret.size)
+                if state.solver.symbolic(data):
+                    r = RetrieveMemoryReturn(RetrieveMemoryReturnResult.ABORT, None)
+                else:
+                    r = RetrieveMemoryReturn(RetrieveMemoryReturnResult.OK, state.solver.eval(data, cast_to=bytes))
+                self.zmq_sessions[0].socket.send(r.serialize())
 
         assert isinstance(ret, SyscallReturn)
 
         self.states[0] = None
+
+        return state
