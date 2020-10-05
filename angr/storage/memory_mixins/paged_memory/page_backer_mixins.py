@@ -107,7 +107,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
 
     def _data_from_bytes_backer(self, addr: int, backer: Union[bytes,bytearray], backer_start: int,
                                 backer_iter: Generator[Tuple[int,Union[bytes,bytearray]],None,None]) -> claripy.ast.BV:
-        if backer_start <= addr and backer_start + len(backer) > addr + self.page_size:
+        if backer_start <= addr and backer_start + len(backer) >= addr + self.page_size:
             # fast case
             data = NotMemoryview(backer, addr-backer_start, self.page_size)
         else:
