@@ -11,7 +11,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..analysis import Analysis
-from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation
+from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements
 from ... import BP, BP_BEFORE, BP_AFTER
 
 logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
@@ -169,7 +169,7 @@ class VMDeobfuscation(Analysis):
                     is_stack_touched = True
                     break
             if is_stack_touched:
-                state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(StackTouchedAnnotation(1))
+                state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, StackTouchedAnnotation(1))
 
         initial_input_state.inspect.add_breakpoint('mem_read',
                                      BP(
