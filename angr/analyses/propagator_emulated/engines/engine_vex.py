@@ -2,7 +2,7 @@ import claripy
 import pyvex
 
 from ....code_location import CodeLocation
-from ...cfg.cfg_vm_deobfuscation import StackTouchedAnnotation
+from ...cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation
 from ....engines.vex.heavy.heavy import HeavyVEXMixin
 
 
@@ -22,7 +22,7 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
                 stack_touched = True
                 break
 
-        if not(isinstance(result[0], claripy.ast.base.Base) and stack_touched):
+        if not stack_touched:
             ### Check if the result is not symbolic and not already a constant(in which case there is no need to replace)
             if not self.state.solver.symbolic(result[0]) and not(isinstance(expr, pyvex.expr.Const)):
                 const_class = pyvex.const.ty_to_const_class(expr.result_type(self.state.scratch.tyenv))

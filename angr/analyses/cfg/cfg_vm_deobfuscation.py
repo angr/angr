@@ -34,6 +34,13 @@ from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name=__name__)
 
+def annotate_with_new_replacements(state, variable, annotation):
+    if o.REPLACEMENT_SOLVER in state.options and variable.cache_key in state.solver._solver._replacement_cache:
+        new_variable = variable.annotate(annotation)
+        state.preconstrainer.preconstrain(state.solver._solver._replacement_cache[variable.cache_key], new_variable)
+    else:
+        new_variable = variable.annotate(annotation)
+    return new_variable
 
 class VMProgramCounterAnnotation(claripy.Annotation):
     def __init__(self, taint):
@@ -1075,29 +1082,29 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         state.globals['cur_vm_vpc'] = state.solver.eval_one(state.inspect.mem_write_expr)
         l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')))
 
-    def save_vm_vpc_from_reg(self, state):
-        # Save the vm program counter to state and use it in _pre_job_handling
-        l.debug("Modifying vm_vpc...... ")
-        try:
-            state.globals['cur_vm_vpc'] = state.solver.eval_one(state.regs.ebx)
-        except:
-            ### Looks like the vm execution has finished and now it back to executing the regular program
-            print("Looks like the program counter has more than one value possible?!")
-        l.debug("The value of PROGRAM COUNTER is: " + str(hex(state.globals.get('cur_vm_vpc'))))
+    # def save_vm_vpc_from_reg(self, state):
+    #     # Save the vm program counter to state and use it in _pre_job_handling
+    #     l.debug("Modifying vm_vpc...... ")
+    #     try:
+    #         state.globals['cur_vm_vpc'] = state.solver.eval_one(state.regs.ebx)
+    #     except:
+    #         ### Looks like the vm execution has finished and now it back to executing the regular program
+    #         print("Looks like the program counter has more than one value possible?!")
+    #     l.debug("The value of PROGRAM COUNTER is: " + str(hex(state.globals.get('cur_vm_vpc'))))
 
     def annotate_vm_vpc(self, state):
         l.debug("Annotating vm_vpc...... ")
         print("Hello")
-        state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(VMProgramCounterAnnotation(1))
+        state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, VMProgramCounterAnnotation(1))
 
     def annotate_vm_instruction(self, state):
-        if len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, VMProgramCounterAnnotation):
+        if not isinstance(state.inspect.mem_read_address, int) and len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, VMProgramCounterAnnotation):
             self.vm_instruction_addresses.append(state.inspect.mem_read_address)
-            state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(VMInstructionAnnotation(1))
+            state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, VMInstructionAnnotation(1))
 
     def annotate_stack_read_value(self, state):
-        if len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, StackPointerAnnotation):
-            state.inspect.mem_read_expr = state.inspect.mem_read_expr.annotate(StackTouchedAnnotation(1))
+        if not isinstance(state.inspect.mem_read_address, int) and len(state.inspect.mem_read_address.annotations) != 0 and self.is_annotation_touched(state.inspect.mem_read_address, StackPointerAnnotation):
+            state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, StackTouchedAnnotation(1))
 
     def unroll_loops_by_renaming(self, state):
         if len(state.inspect.exit_guard.annotations) == 0:
