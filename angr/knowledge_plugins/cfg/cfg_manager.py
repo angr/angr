@@ -1,3 +1,4 @@
+from functools import reduce
 
 from ..plugin import KnowledgeBasePlugin
 from .cfg_model import CFGModel
@@ -47,6 +48,20 @@ class CFGManager(KnowledgeBasePlugin):
             self.cfgs.items()
         ))
         return cm
+
+    def get_most_accurate(self):
+        """
+        :return: The most accurate CFG present in the CFGManager, or None if it does not hold any.
+        """
+        less_accurate_to_most_accurate = ['CFGFast', 'CFGEmulated']
+
+        # Try to get the most accurate first, then default to the next, ... all the way down to `None`.
+        # Equivalent to `self.cfgs.get(<LAST>, self.cfgs.get(<SECOND LAST>, ... self.cfgs.get(<FIRST>, None)))`.
+        return reduce(
+            lambda acc, cfg: self.cfgs.get(cfg, acc),
+            less_accurate_to_most_accurate,
+            None
+        )
 
     #
     # Pickling
