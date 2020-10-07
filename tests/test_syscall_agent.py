@@ -12,7 +12,7 @@ def test_fauxware(arch="x86_64"):
                      auto_load_libs=True,
                      use_sim_procedures=False)
     state = p.factory.full_init_state(add_options={angr.sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY})
-    results = p.factory.simulation_manager(state).explore()
+    results = p.factory.simulation_manager(state).explore(find=(0x4006ed, ), avoid=(0x4006aa,0x4006fd, ))
     stdin = results.found[0].posix.dumps(0)
     assert b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00' == stdin
 

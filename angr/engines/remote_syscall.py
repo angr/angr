@@ -57,6 +57,12 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         # check against the blacklist. for certain syscalls, we always want to use angr's support
         syscall_blacklist = {
             'mmap',
+            'open',
+            'write',
+            'read',
+            'close',
+            'exit',
+            'exit_group',
         }
         if syscall_name in syscall_blacklist:
             # ask the next mixin in the hierarchy to process this syscall
