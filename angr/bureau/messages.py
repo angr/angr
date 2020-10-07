@@ -111,6 +111,7 @@ class SyncMemory(MessageBase):
         self.size = size
         self.data = data
 
+    @classmethod
     def unserialize(cls, stream: bytes) -> 'SyncMemory':
         addr = struct.unpack("<Q", stream[0:8])[0]
         size = struct.unpack("<Q", stream[8:16])[0]

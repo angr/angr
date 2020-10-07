@@ -383,7 +383,7 @@ _syscall_decls = \
         # long sys_creat(const char *pathname, umode_t mode);
         "creat": None,
         # long sys_open(const char *filename, int flags, umode_t mode);
-        "open": None,
+        "open": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["filename", "flags", "mode"]),
         # long sys_close(unsigned int fd);
         "close": SimTypeFunction([SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["fd"]),
         # long sys_access(const char *filename, int mode);

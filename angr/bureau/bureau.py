@@ -1,6 +1,6 @@
 import threading
 import logging
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 import zmq
 
@@ -24,7 +24,7 @@ class Session:
 class Bureau:
     def __init__(self, project):
         self.project = project
-        self.states: List = [None] * 10  # TODO: Implement sessions so we support multiple agents
+        self.states: List[Optional['SimState']] = [None] * 10  # TODO: Implement sessions so we support multiple agents
 
         # zeromq
         self.zmq_context = zmq.Context()
@@ -77,7 +77,10 @@ class Bureau:
                     r = RetrieveMemoryReturn(RetrieveMemoryReturnResult.OK, state.solver.eval(data, cast_to=bytes))
                 self.zmq_sessions[0].socket.send(r.serialize())
             elif isinstance(ret, SyncMemory):
-                raise NotImplementedError("SyncMemory is not implemented yet.")
+                # the agent is sending us back some memory data
+                state = self.states[0]
+                state.memory.store(ret.addr, ret.data, endness='Iend_BE')
+                self.zmq_sessions[0].socket.send(b"\x61")  # just send something back...
 
         assert isinstance(ret, SyscallReturn)
 
