@@ -641,7 +641,7 @@ _syscall_decls = \
         # long sys_fchownat(int dfd, const char *filename, uid_t user, gid_t group, int flag);
         "fchownat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="gid_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "user", "group", "flag"]),
         # long sys_openat(int dfd, const char *filename, int flags, umode_t mode);
-        "openat": None,
+        "openat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "flags", "mode"]),
         # long sys_newfstatat(int dfd, const char *filename, struct stat *statbuf, int flag);
         "newfstatat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["dfd", "filename", "statbuf", "flag"]),
         # long sys_readlinkat(int dfd, const char *path, char *buf, int bufsiz);
