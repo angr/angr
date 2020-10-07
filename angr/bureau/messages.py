@@ -57,6 +57,40 @@ class SyscallReturn(MessageBase):
         return "<SyscallReturn: retval=%d>" % self.retval
 
 
+class TargetStrlen(MessageBase):
+
+    MSG_NUM = 4
+
+    def __init__(self, addr: int):
+        self.addr = addr
+
+    @classmethod
+    def unserialize(cls, stream) -> 'TargetStrlen':
+        retval = struct.unpack("<Q", stream[0:8])[0]
+        return TargetStrlen(retval)
+
+    def __repr__(self):
+        return "<TargetStrlen: addr=%d>" % self.addr
+
+
+class TargetStrlenResponse(MessageBase):
+
+    MSG_NUM = 5
+
+    def __init__(self, size: int):
+        self.size = size
+
+    def serialize(self) -> bytes:
+        stream = struct.pack("<H", self.MSG_NUM) + \
+                 struct.pack("<Q", self.size)
+
+        return stream
+
+    def __repr__(self):
+        return "<TargetStrlenResponse: size=%d>" % self.size
+
+
+
 class RetrieveMemory(MessageBase):
 
     MSG_NUM = 6
@@ -126,4 +160,6 @@ MSGS = {
     RetrieveMemory.MSG_NUM: RetrieveMemory,
     RetrieveMemoryReturn.MSG_NUM: RetrieveMemoryReturn,
     SyncMemory.MSG_NUM: SyncMemory,
+    TargetStrlen.MSG_NUM: TargetStrlen,
+    TargetStrlenResponse.MSG_NUM: TargetStrlenResponse,
 }

@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 import zmq
 
 from .messages import MessageBase, InvokeSyscall, SyscallReturn, RetrieveMemory, RetrieveMemoryReturn, SyncMemory, \
-    RetrieveMemoryReturnResult
+    RetrieveMemoryReturnResult, TargetStrlen, TargetStrlenResponse
 
 if TYPE_CHECKING:
     from angr import SimState
@@ -81,6 +81,17 @@ class Bureau:
                 state = self.states[0]
                 state.memory.store(ret.addr, ret.data, endness='Iend_BE')
                 self.zmq_sessions[0].socket.send(b"\x61")  # just send something back...
+            elif isinstance(ret, TargetStrlen):
+                # the agent needs to know the length of a string in memory
+                state = self.states[0]
+                strlen, _, match_indices = state.memory.find(ret.addr, b'\0', 4096, max_symbolic_bytes=1)  # I think 0 will break things
+                if strlen.symbolic:
+                    maxidx = max(match_indices) + 1
+                else:
+                    maxidx = max(match_indices)
+                r = TargetStrlenResponse(maxidx)
+                self.zmq_sessions[0].socket.send(r.serialize())
+
 
         assert isinstance(ret, SyscallReturn)
 
