@@ -37,6 +37,9 @@ class InvokeSyscall(MessageBase):
 
         return stream
 
+    def __repr__(self):
+        return "<InvokeSyscall: num=%d, args=%s>" % (self.num, self.args)
+
 
 class SyscallReturn(MessageBase):
 
@@ -49,6 +52,9 @@ class SyscallReturn(MessageBase):
     def unserialize(cls, stream) -> 'SyscallReturn':
         retval = struct.unpack("<Q", stream[0:8])[0]
         return SyscallReturn(retval)
+
+    def __repr__(self):
+        return "<SyscallReturn: retval=%d>" % self.retval
 
 
 class RetrieveMemory(MessageBase):
@@ -67,6 +73,9 @@ class RetrieveMemory(MessageBase):
         writing = stream[16] != 0
         o = RetrieveMemory(addr, size, writing)
         return o
+
+    def __repr__(self):
+        return "<RetrieveMemory: addr=%#x, size=%d, writing=%s>" % (self.addr, self.size, self.writing)
 
 
 class RetrieveMemoryReturnResult:

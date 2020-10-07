@@ -96,7 +96,7 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         state._inspect('syscall', BP_BEFORE, syscall_name=syscall_name)
 
         # talk to Bureau
-        succ_state = self.project.bureau.invoke_syscall(state, num, args)
+        succ_state = self.project.bureau.invoke_syscall(state, num, args, syscall_cc)
 
         # add the successor
         successors.add_successor(succ_state, syscall_cc.return_addr.get_value(state), claripy.true,

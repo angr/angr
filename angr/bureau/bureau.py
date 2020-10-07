@@ -1,11 +1,16 @@
 import threading
 import logging
-from typing import List
+from typing import List, TYPE_CHECKING
 
 import zmq
 
 from .messages import MessageBase, InvokeSyscall, SyscallReturn, RetrieveMemory, RetrieveMemoryReturn, SyncMemory, \
     RetrieveMemoryReturnResult
+
+if TYPE_CHECKING:
+    from angr import SimState
+    from angr.calling_conventions import SimCCSyscall
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -38,10 +43,11 @@ class Bureau:
         assert tmp  # non-empty
         self.zmq_sessions[0].event.set()
 
-    def invoke_syscall(self, state, num: int, args: List):
+    def invoke_syscall(self, state: 'SimState', num: int, args: List, syscall_cc: 'SimCCSyscall'):
         self.states[0] = state
 
         msg = InvokeSyscall(num, args)
+        _l.debug("Sending %r.", msg)
 
         # wait until the socket is ready
         _l.debug("invoke_syscall(): Waiting for the socket to become ready.")
@@ -57,14 +63,17 @@ class Bureau:
 
             if isinstance(ret, SyscallReturn):
                 # syscall execution completes
+                syscall_cc.set_return_val(state, ret.retval)
                 break
             elif isinstance(ret, RetrieveMemory):
                 # the agent is asking for memory data
                 state = self.states[0]
                 data = state.memory.load(ret.addr, ret.size)
                 if state.solver.symbolic(data):
+                    _l.debug("Data is symbolic. Cannot retrieve memory. Abort.")
                     r = RetrieveMemoryReturn(RetrieveMemoryReturnResult.ABORT, None)
                 else:
+                    _l.debug("Send concrete data back to the syscall agent.")
                     r = RetrieveMemoryReturn(RetrieveMemoryReturnResult.OK, state.solver.eval(data, cast_to=bytes))
                 self.zmq_sessions[0].socket.send(r.serialize())
             elif isinstance(ret, SyncMemory):
