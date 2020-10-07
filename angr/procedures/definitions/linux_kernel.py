@@ -748,6 +748,11 @@ _syscall_decls = \
         "pkey_free": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["pkey"]),
         # long sys_statx(int dfd, const char *path, unsigned flags, unsigned mask, struct statx *buffer);
         "statx": None,
+
+        # The following syscalls are not in the syscalls.h
+        #
+        # void *mmap(void *addr, size_t len, int prot, int flags, int fildes, off_t off);
+        "mmap": SimTypeFunction([SimTypePointer(SimTypeBottom(), offset=0), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False), SimTypeLong(signed=False)], SimTypeLong(signed=True), arg_names=["addr", "len", "prot", "flags", "fildes", "off"]),
     }
 
 

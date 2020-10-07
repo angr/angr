@@ -48,7 +48,7 @@ divergences = {
 }
 
 def run_fauxware(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
     results = p.factory.simulation_manager().explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].posix.dumps(0)
     nose.tools.assert_equal(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)

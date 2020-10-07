@@ -1,10 +1,13 @@
 import threading
+import logging
 from typing import List
 
 import zmq
 
-from .messages import MessageBase, InvokeSyscall, SyscallReturn, RetrieveMemory, RetrieveMemoryReturn, \
+from .messages import MessageBase, InvokeSyscall, SyscallReturn, RetrieveMemory, RetrieveMemoryReturn, SyncMemory, \
     RetrieveMemoryReturnResult
+
+_l = logging.getLogger(name=__name__)
 
 
 class Session:
@@ -41,18 +44,16 @@ class Bureau:
         msg = InvokeSyscall(num, args)
 
         # wait until the socket is ready
-        print("waiting...")
+        _l.debug("invoke_syscall(): Waiting for the socket to become ready.")
         self.zmq_sessions[0].event.wait()
-        print("OHHHH")
+        _l.debug("invoke_syscall(): Socket is ready.")
         self.zmq_sessions[0].socket.send(msg.serialize())
 
         # expect a SyscallReturn or a RetrieveMemory
-        print("Enter...")
         while True:
             msg = self.zmq_sessions[0].socket.recv()
             ret = MessageBase.unserialize(msg)
-
-            print(ret)
+            _l.debug("Got a message: %r", ret)
 
             if isinstance(ret, SyscallReturn):
                 # syscall execution completes
@@ -66,6 +67,8 @@ class Bureau:
                 else:
                     r = RetrieveMemoryReturn(RetrieveMemoryReturnResult.OK, state.solver.eval(data, cast_to=bytes))
                 self.zmq_sessions[0].socket.send(r.serialize())
+            elif isinstance(ret, SyncMemory):
+                raise NotImplementedError("SyncMemory is not implemented yet.")
 
         assert isinstance(ret, SyscallReturn)
 

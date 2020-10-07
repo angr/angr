@@ -54,6 +54,14 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
                                                   "mapping" % (num, state.arch.name.lower()))
             raise NotImplementedError("what to do...")
 
+        # check against the blacklist. for certain syscalls, we always want to use angr's support
+        syscall_blacklist = {
+            'mmap',
+        }
+        if syscall_name in syscall_blacklist:
+            # ask the next mixin in the hierarchy to process this syscall
+            return super().process_successors(successors, **kwargs)
+
         syscall_proto = lib.get_prototype(syscall_name, state.arch)
         if syscall_proto is None:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:

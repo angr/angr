@@ -1,4 +1,6 @@
 import os
+import logging
+
 import angr
 
 
@@ -13,4 +15,5 @@ def test_fauxware(arch="x86_64"):
 
 
 if __name__ == "__main__":
+    logging.getLogger("angr.bureau.bureau").setLevel(logging.DEBUG)
     test_fauxware()

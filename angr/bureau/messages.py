@@ -11,11 +11,10 @@ class MessageBase:
     @classmethod
     def unserialize(cls, stream: bytes) -> 'MessageBase':
         msg_num = struct.unpack("<H", stream[:2])[0]
-        if msg_num == 2:
-            return SyscallReturn.unserialize(stream[2:])
-        elif msg_num == 6:
-            return RetrieveMemory.unserialize(stream[2:])
-        raise NotImplementedError()
+        msg_cls = MSGS.get(msg_num, None)
+        if msg_cls is None:
+            raise NotImplementedError("Unsupported message type number %d" % msg_num)
+        return msg_cls.unserialize(stream[2:])
 
     unb = unserialize
 
@@ -92,3 +91,29 @@ class RetrieveMemoryReturn(MessageBase):
             stream += self.data
 
         return stream
+
+
+class SyncMemory(MessageBase):
+
+    MSG_NUM = 8
+
+    def __init__(self, addr: int, size: int, data: bytes):
+        self.addr = addr
+        self.size = size
+        self.data = data
+
+    def unserialize(cls, stream: bytes) -> 'SyncMemory':
+        addr = struct.unpack("<Q", stream[0:8])[0]
+        size = struct.unpack("<Q", stream[8:16])[0]
+        data = stream[16:]
+        o = SyncMemory(addr, size, data)
+        return o
+
+
+MSGS = {
+    InvokeSyscall.MSG_NUM: InvokeSyscall,
+    SyscallReturn.MSG_NUM: SyscallReturn,
+    RetrieveMemory.MSG_NUM: RetrieveMemory,
+    RetrieveMemoryReturn.MSG_NUM: RetrieveMemoryReturn,
+    SyncMemory.MSG_NUM: SyncMemory,
+}
