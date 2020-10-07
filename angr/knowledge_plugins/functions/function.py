@@ -535,24 +535,6 @@ class Function(Serializable):
         return constants
 
     @property
-    def runtime_values(self):
-        """
-        All of the concrete values used by this function at runtime (i.e., including passed-in arguments and global
-        values).
-        """
-        constants = set()
-        for b in self.block_addrs:
-            for sirsb in self._function_manager._cfg.get_all_irsbs(b):
-                for s in sirsb.successors + sirsb.unsat_successors:
-                    for a in s.history.recent_actions:
-                        for ao in a.all_objects:
-                            if not isinstance(ao.ast, claripy.ast.Base):
-                                constants.add(ao.ast)
-                            elif not ao.ast.symbolic:
-                                constants.add(s.solver.eval(ao.ast))
-        return constants
-
-    @property
     def num_arguments(self):
         return len(self._argument_registers) + len(self._argument_stack_variables)
 
