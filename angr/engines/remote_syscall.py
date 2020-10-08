@@ -13,6 +13,25 @@ if TYPE_CHECKING:
     from angr.procedures.definitions import SimSyscallLibrary
 
 
+BASE_SYSCALL_BYPASS_LIST = {
+    'mmap',
+    'munmap',
+    'brk',
+    # 'open',
+    'write',
+    'read',
+    # 'close',
+    'exit',
+    'exit_group',
+}
+
+
+SYSCALL_BYPASS_LISTS = {
+    'amd64': BASE_SYSCALL_BYPASS_LIST,
+    'i386': BASE_SYSCALL_BYPASS_LIST,
+}
+
+
 #pylint:disable=abstract-method,arguments-differ
 class SimEngineRemoteSyscall(SuccessorsMixin):
     """
@@ -28,6 +47,7 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
             return super().process_successors(successors, **kwargs)
 
         l.debug("Invoking remote system call handler")
+        syscall_abi = self.project.simos.syscall_abi(state)
         syscall_cc = self.project.simos.syscall_cc(state)
         syscall_num = syscall_cc.syscall_num(state)
 
@@ -47,7 +67,7 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
 
         # extract the syscall prototype
         lib: SimSyscallLibrary = angr.SIM_LIBRARIES['linux']
-        syscall_name = lib.syscall_number_mapping[state.arch.name.lower()].get(num)
+        syscall_name = lib.syscall_number_mapping[syscall_abi].get(num)
         if not syscall_name:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
                 raise AngrUnsupportedSyscallError("Syscall %d for architecture %s is not found in the syscall "
@@ -55,21 +75,12 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
             raise NotImplementedError("what to do...")
 
         # check against the blacklist. for certain syscalls, we always want to use angr's support
-        syscall_blacklist = {
-            'mmap',
-            'brk',
-            'open',
-            'write',
-            'read',
-            'close',
-            'exit',
-            'exit_group',
-        }
+        syscall_blacklist = SYSCALL_BYPASS_LISTS.get(syscall_abi, BASE_SYSCALL_BYPASS_LIST)
         if syscall_name in syscall_blacklist:
             # ask the next mixin in the hierarchy to process this syscall
             return super().process_successors(successors, **kwargs)
 
-        syscall_proto = lib.get_prototype(syscall_name, state.arch)
+        syscall_proto = lib.get_prototype(syscall_abi, syscall_name, arch=state.arch)
         if syscall_proto is None:
             if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
                 raise AngrUnsupportedSyscallError("Syscall %d %s for architecture %s is not found in the syscall "

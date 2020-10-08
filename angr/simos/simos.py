@@ -322,7 +322,7 @@ class SimOS:
     def syscall(self, state, allow_unsupported=True):
         return None
 
-    def syscall_abi(self, state):
+    def syscall_abi(self, state) -> str:
         return None
 
     def syscall_cc(self, state) -> Optional[angr.calling_conventions.SimCCSyscall]:

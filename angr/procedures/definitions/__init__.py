@@ -4,7 +4,7 @@ import archinfo
 from collections import defaultdict
 import logging
 import inspect
-from typing import Optional, Dict
+from typing import Optional, Dict, Type, TYPE_CHECKING
 
 import itanium_demangler
 
@@ -14,6 +14,10 @@ from ...misc import autoimport
 from ...sim_type import parse_file
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
+
+if TYPE_CHECKING:
+    from angr.calling_conventions import SimCCSyscall
+
 
 l = logging.getLogger(name=__name__)
 SIM_LIBRARIES: Dict[str,'SimLibrary'] = {}
@@ -387,7 +391,7 @@ class SimCppLibrary(SimLibrary):
 class SimSyscallLibrary(SimLibrary):
     """
     SimSyscallLibrary is a specialized version of SimLibrary for dealing not with a dynamic library's API but rather
-    an operating system's syscall API. Because this interface is inherantly lower-level than a dynamic library, many
+    an operating system's syscall API. Because this interface is inherently lower-level than a dynamic library, many
     parts of this class has been changed to store data based on an "ABI name" (ABI = application binary interface,
     like an API but for when there's no programming language) instead of an architecture. An ABI name is just an
     arbitrary string with which a calling convention and a syscall numbering is associated.
@@ -397,9 +401,10 @@ class SimSyscallLibrary(SimLibrary):
     """
     def __init__(self):
         super(SimSyscallLibrary, self).__init__()
-        self.syscall_number_mapping = defaultdict(dict)
-        self.syscall_name_mapping = defaultdict(dict)
-        self.default_cc_mapping = {}
+        self.syscall_number_mapping: Dict[str,Dict[int,str]] = defaultdict(dict)  # keyed by abi
+        self.syscall_name_mapping: Dict[str,Dict[str,int]] = defaultdict(dict)  # keyed by abi
+        self.default_cc_mapping: Dict[str,Type['SimCCSyscall']] = {}  # keyed by abi
+        self.syscall_prototypes: Dict[str,Dict[str,SimTypeFunction]] = defaultdict(dict)  # keyed by abi
         self.fallback_proc = stub_syscall
 
     def copy(self):
@@ -470,6 +475,25 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.default_cc_mapping[abi] = cc_cls
 
+    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:
+        """
+        Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
+
+        :param abi:     ABI of the syscall.
+        :param name:    The name of the syscall as a string
+        :param proto:   The prototype of the syscall as a SimTypeFunction
+        """
+        self.syscall_prototypes[abi][name] = proto
+
+    def set_prototypes(self, abi: str, protos: Dict[str,SimTypeFunction]) -> None:
+        """
+        Set the prototypes of many syscalls.
+
+        :param abi:     ABI of the syscalls.
+        :param protos:  Dictionary mapping syscall names to SimTypeFunction objects
+        """
+        self.syscall_prototypes[abi].update(protos)
+
     def _canonicalize(self, number, arch, abi_list):
         if type(arch) is str:
             arch = archinfo.arch_from_id(arch)
@@ -528,6 +552,23 @@ class SimSyscallLibrary(SimLibrary):
         l.debug("unsupported syscall: %s", number)
         return proc
 
+    def get_prototype(self, abi: str, name: str, arch=None) -> Optional[SimTypeFunction]:
+        """
+        Get a prototype of the given syscall name and its ABI, optionally specialize the prototype to a given
+        architecture.
+
+        :param abi:     ABI of the prototype to get.
+        :param name:    Name of the syscall.
+        :param arch:    The architecture to specialize to.
+        :return:        Prototype of the syscall, or None if the prototype does not exist.
+        """
+        if abi not in self.syscall_prototypes:
+            return None
+        proto = self.syscall_prototypes[abi].get(name, None)
+        if proto is None:
+            return None
+        return proto.with_arch(arch=arch)
+
     def has_metadata(self, number, arch, abi_list=()):
         """
         Pretty much the intersection of SimLibrary.has_metadata() and SimSyscallLibrary.get().
@@ -551,6 +592,19 @@ class SimSyscallLibrary(SimLibrary):
         """
         name, _, _ = self._canonicalize(number, arch, abi_list)
         return super(SimSyscallLibrary, self).has_implementation(name)
+
+    def has_prototype(self, abi: str, name: str) -> bool:
+        """
+        Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
+
+        :param abi:         Name of the ABI.
+        :param name:        The syscall name.
+        :return:            bool
+        """
+        if abi not in self.syscall_prototypes:
+            return False
+        return name in self.syscall_prototypes[abi]
+
 
 for _ in autoimport.auto_import_modules('angr.procedures.definitions', os.path.dirname(os.path.realpath(__file__))):
     pass

@@ -1,4 +1,5 @@
 import logging
+from typing import Dict
 
 from ...sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, \
     SimTypeBottom
@@ -29,8 +30,7 @@ lib.add_alias('getgid', 'getegid')
 
 # syscall prototypes
 
-# TODO: AMD64 only
-_syscall_decls = \
+_base_syscall_decls = \
     {
         # long sys_time(time_t *tloc);
         "time": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeLong(signed=True), arg_names=["tloc"]),
@@ -756,16 +756,29 @@ _syscall_decls = \
     }
 
 
-proto_count, unsupported_count = 0, 0
-for name, proto in _syscall_decls.items():
-    if proto is not None:
-        lib.set_prototype(name, proto)
-        proto_count += 1
-    else:
-        unsupported_count += 1
+_syscall_abis: Dict[str,Dict[str,SimTypeFunction]] = {
+    "amd64": {},
+    "arm": {},
+    "armhf": {},
+    "i386": {},
+    "mips-n32": {},
+    "mips-n64": {},
+    "mips-o32": {},
+    "ppc": {},
+    "ppc64": {},
+    "s390": {},
+    "s390x": {},
+    "sparc": {},
+    "sparc64": {},
+    "riscv32": {},
+}
 
-_l.debug("Linux kernel has %d syscall prototypes, and has %d unsupported syscall prototypes.",
-         proto_count, unsupported_count)
+
+for _abi, _special_decls in _syscall_abis.items():
+    # first we initialize the syscall prototypes dict with the base syscalls
+    lib.set_prototypes(_abi, _base_syscall_decls)
+    # then we update the dict the abi-specific syscall prototypes
+    lib.set_prototypes(_abi, _special_decls)
 
 
 # python parse_syscalls_from_local_system.py >> linux_kernel.py

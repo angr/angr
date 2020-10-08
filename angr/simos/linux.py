@@ -111,7 +111,6 @@ class SimLinux(SimUserland):
                             self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                             self.project.loader.memory.pack_word(gotaddr, randaddr)
 
-
         if isinstance(self.project.arch, ArchARM):
             self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
