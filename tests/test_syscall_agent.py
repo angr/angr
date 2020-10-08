@@ -18,7 +18,7 @@ def test_fauxware(arch="x86_64"):
 
 
 def test_dir(arch="x86_64"):
-    p = angr.Project(os.path.join(test_location, arch, "dir_gcc_-O0"),
+    p = angr.Project(os.path.join(test_location, arch, "dir_gcc_-O0" if arch == "x86_64" else "dir"),
                      auto_load_libs=True,
                      use_sim_procedures=False)
     state = p.factory.full_init_state(add_options={angr.sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY} | angr.sim_options.unicorn)
@@ -26,6 +26,18 @@ def test_dir(arch="x86_64"):
     assert len(results.deadended) == 1
 
 
+def test_busybox(arch="mips"):
+    p = angr.Project(os.path.join(test_location, arch, "busybox"),
+                     auto_load_libs=True,
+                     use_sim_procedures=False)
+    state = p.factory.full_init_state(
+        add_options={angr.sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY}, # | angr.sim_options.unicorn,
+        # argv=["ls"],
+    )
+    results = p.factory.simulation_manager(state).explore()
+    assert len(results.deadended) == 1
+
 if __name__ == "__main__":
     logging.getLogger("angr.bureau.bureau").setLevel(logging.DEBUG)
-    test_dir()
+    test_busybox(arch="mips")
+    # test_fauxware("mips")

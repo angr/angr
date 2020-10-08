@@ -6,10 +6,12 @@ l = logging.getLogger(name=__name__)
 import angr
 import claripy
 
-from .engine import SuccessorsMixin
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
+from .engine import SuccessorsMixin
 
 if TYPE_CHECKING:
+    from angr import SimState
+    from angr.simos import SimUserland
     from angr.procedures.definitions import SimSyscallLibrary
 
 
@@ -29,6 +31,15 @@ BASE_SYSCALL_BYPASS_LIST = {
 SYSCALL_BYPASS_LISTS = {
     'amd64': BASE_SYSCALL_BYPASS_LIST,
     'i386': BASE_SYSCALL_BYPASS_LIST,
+    'mips-n32': BASE_SYSCALL_BYPASS_LIST | {
+        'set_thread_area',
+    },
+    'mips-o32': BASE_SYSCALL_BYPASS_LIST | {
+        'set_thread_area',
+    },
+    'mips-n64': BASE_SYSCALL_BYPASS_LIST | {
+        'set_thread_area',
+    }
 }
 
 
@@ -47,7 +58,6 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
             return super().process_successors(successors, **kwargs)
 
         l.debug("Invoking remote system call handler")
-        syscall_abi = self.project.simos.syscall_abi(state)
         syscall_cc = self.project.simos.syscall_cc(state)
         syscall_num = syscall_cc.syscall_num(state)
 
@@ -64,6 +74,9 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
                 raise AngrUnsupportedSyscallError("The program state is not satisfiable")
             else:
                 raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
+
+        # determine the abi
+        syscall_abi = self._syscall_abi(state, num)
 
         # extract the syscall prototype
         lib: SimSyscallLibrary = angr.SIM_LIBRARIES['linux']
@@ -95,7 +108,8 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
             if not state.solver.symbolic(arg):
                 args.append(state.solver.eval_one(arg))
             else:
-                raise NotImplementedError("Symbolic arguments support are not implemented yet")
+                # symbolic arguments...
+                return super().process_successors(successors, **kwargs)
 
         # create the successor
         successors.sort = 'SimProcedure'
@@ -127,5 +141,32 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         successors.description += ' (syscall)'
         successors.processed = True
 
+    def _syscall_abi(self, state: 'SimState', num: int) -> str:
+        """
+        Determine the ABI of the current syscall.
 
-from ..errors import AngrUnsupportedSyscallError
+        :param state:   The state right after the syscall jump.
+        :param num:     The syscall number.
+        :return:        A string for the ABI.
+        """
+
+        # attempt to get the ABI from syscall_abi, which apparently only works for AMD64
+        syscall_abi = self.project.simos.syscall_abi(state)
+        if syscall_abi is not None:
+            return syscall_abi
+
+        self.project.simos: SimUserland  # we really only support Linux userspace applications
+
+        if len(self.project.simos.syscall_abis) == 1:
+            # that has to be it
+            return next(iter(self.project.simos.syscall_abis))
+
+        # if there are more than one, pick the correct one
+        for abi, (_, min_syscall_num, max_syscall_num) in self.project.simos.syscall_abis.items():
+            if min_syscall_num <= num < max_syscall_num:
+                return abi
+
+        raise AngrSyscallError("Cannot determine the ABI for syscall %d on architecture %s." % (num, state.arch.name))
+
+
+from ..errors import AngrSyscallError, AngrUnsupportedSyscallError
