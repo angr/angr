@@ -573,7 +573,7 @@ class Unicorn(SimStatePlugin):
             sysno = uc.reg_read(self._uc_regs['v0'])
             pc = uc.reg_read(self._uc_regs['pc'])
             l.debug('hit sys_%d at %#x', sysno, pc)
-            self._syscall_pc = pc + 4  # skip syscall instruction
+            self._syscall_pc = pc
             self._handle_syscall(uc, user_data)
         else:
             l.warning('unhandled interrupt %d', intno)
