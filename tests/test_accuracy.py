@@ -11,7 +11,7 @@ arch_data = { # (steps, [hit addrs], finished)
     'ppc64':   (183, (0x11047490, 0x100003fc, 0x10000368), False),       # blocked on syscalls
     'mips':    (158, (0x1016f20, 0x400500, 0x400470), False),    # blocked on some very weird TLS initialization?
     'mips64':  (190, (0x12103b828, 0x120000870, 0x1200007e0), False),    # blocked on some io initialization
-    'armel':   (153, (0x10154b8, 0x1108244, 0x83a8, 0x8348, 0x84b0), False),     # blocked on __kuser_cmpxchg
+    'armel':   (370, (0x10154b8, 0x1108244, 0x83a8, 0x8348, 0x84b0, 0x84E4, 0x85E8), True),
     'aarch64': (197, (0x1020b04, 0x400430, 0x4003b8, 0x400538), False),        # blocked on syscalls
 }
 
