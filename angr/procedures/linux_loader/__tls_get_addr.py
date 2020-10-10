@@ -24,3 +24,10 @@ class ___tls_get_addr(angr.SimProcedure):
             return self.inline_call(angr.SIM_PROCEDURES['linux_loader']['__tls_get_addr'], ptr).ret_expr
         else:
             raise angr.errors.SimUnsupportedError("___tls_get_addr only implemented for x86. Talk to @rhelmot.")
+
+
+class tlsdesc_resolver(angr.SimProcedure):
+    # pylint: disable=arguments-differ
+    def run(self, descriptor):
+        _, offset = self.state.mem[descriptor].uintptr_t.array(2).resolved
+        return offset  # ???

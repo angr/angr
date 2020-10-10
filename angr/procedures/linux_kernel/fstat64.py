@@ -1,6 +1,8 @@
 import angr
 
 # these structs can be easily-ish pulled out of qemu/linux-user/syscall_defs.h
+# TODO FIXME XXX THESE ARE NOT CORRECT
+# we need to actually properly define the data sizes returned from posix.fstat, since they may change from arch to arch
 
 class fstat64(angr.SimProcedure):
 
@@ -13,6 +15,12 @@ class fstat64(angr.SimProcedure):
             self._store_amd64(stat_buf, stat)
         elif self.arch.name == 'PPC32':
             self._store_ppc32(stat_buf, stat)
+        elif self.arch.name == 'MIPS32':
+            self._store_mips32(stat_buf, stat)
+        elif self.arch.name == 'ARMEL':
+            self._store_armel(stat_buf, stat)
+        else:
+            raise angr.errors.SimProcedureError("Unsupported fstat64 arch: %s" % self.arch.name)
         return 0
 
     def _store_i386(self, stat_buf, stat):
@@ -83,3 +91,48 @@ class fstat64(angr.SimProcedure):
         store(0x5c, stat.st_ctimensec)
         store(0x60, self.state.solver.BVV(0, 32))
         store(0x64, self.state.solver.BVV(0, 32))
+
+    def _store_mips32(self, stat_buf, stat):
+        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val, endness=self.state.arch.memory_endness)
+
+        store(0x00, stat.st_dev)
+        store(0x04, self.state.solver.BVV(0, 32 * 3))
+        store(0x10, stat.st_ino)
+        store(0x18, stat.st_uid)
+        store(0x1c, stat.st_gid)
+        store(0x20, stat.st_rdev)
+        store(0x24, self.state.solver.BVV(0, 32 * 3))
+        store(0x30, stat.st_size)
+        store(0x38, stat.st_atime)
+        store(0x3c, stat.st_atimensec)
+        store(0x40, stat.st_mtime)
+        store(0x44, stat.st_mtimensec)
+        store(0x48, stat.st_ctime)
+        store(0x4c, stat.st_ctimensec)
+        store(0x50, stat.st_blksize)
+        store(0x54, self.state.solver.BVV(0, 32))
+        store(0x58, stat.st_blocks)
+
+    def _store_armel(self, stat_buf, stat):
+        store = lambda offset, val: self.state.memory.store(stat_buf + offset, val, endness=self.state.arch.memory_endness)
+
+        store(0x00, stat.st_dev)
+        store(0x02, self.state.solver.BVV(0, 8*10))
+        store(0x0c, stat.st_ino)
+        store(0x10, stat.st_mode)
+        store(0x14, stat.st_nlink)
+        store(0x18, stat.st_uid)
+        store(0x1c, stat.st_gid)
+        store(0x20, stat.st_rdev)
+        store(0x22, self.state.solver.BVV(0, 8*10))
+        store(0x2c, stat.st_size)
+        store(0x34, stat.st_blksize)
+        store(0x38, stat.st_blocks)
+        store(0x3c, self.state.solver.BVV(0, 32))
+        store(0x40, stat.st_atime)
+        store(0x44, stat.st_atimensec)
+        store(0x48, stat.st_mtime)
+        store(0x4c, stat.st_mtimensec)
+        store(0x50, stat.st_ctime)
+        store(0x54, stat.st_ctimensec)
+        store(0x58, stat.st_ino)

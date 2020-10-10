@@ -225,7 +225,7 @@ class Project:
         self.simos.configure_project()
 
         # Step 8: Initialize Bureau
-        self.bureau = Bureau(self)
+        #self.bureau = Bureau(self)
 
     def _initialize_analyses_hub(self):
         """

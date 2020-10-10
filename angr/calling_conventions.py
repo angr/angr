@@ -1309,8 +1309,7 @@ class SimCCO64(SimCC):      # TODO: add n32 and n64
 
 
 class SimCCO64LinuxSyscall(SimCCSyscall):
-    # TODO: Make sure all the information is correct
-    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    ARG_REGS = [ 'a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7' ]
     FP_ARG_REGS = []    # TODO: ???
     RETURN_VAL = SimRegArg('v0', 8)
     RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
@@ -1356,6 +1355,29 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
     def syscall_num(state):
         return state.regs.r0
 
+    @staticmethod
+    def linux_syscall_update_cr0(state, expr):
+        # special handling for Linux MIPS syscalls: $cr0_0 is used as an error flag (0 for success, 1 for error)
+        if state.project is not None and state.project.simos is not None and state.project.simos.name == 'Linux':
+            if state.solver.symbolic(expr):
+                state.regs.cr0_0 = 0
+            else:
+                expr_val = state.solver.eval(expr)
+                if state.arch.bits == 32 and expr_val > -515 & 0xffff_ffff:
+                    expr_val = -(-0x1_0000_0000 + expr_val)
+                    state.regs.cr0_0 = 1
+                elif state.arch.bits == 64 and expr_val > -515 & 0xffff_ffff_ffff_ffff:
+                    expr_val = -(-0x1_0000_0000_0000_0000 + expr_val)
+                    state.regs.cr0_0 = 1
+                else:
+                    state.regs.cr0_0 = 0
+                expr = state.solver.BVV(expr_val, state.arch.bits)
+        return expr
+
+    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
+        new_val = SimCCPowerPCLinuxSyscall.linux_syscall_update_cr0(state, val)
+        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
+
 
 class SimCCPowerPC64(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
@@ -1368,7 +1390,7 @@ class SimCCPowerPC64(SimCC):
 
 class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
     # TODO: Make sure all the information is correct
-    ARG_REGS = [ ]
+    ARG_REGS = ['r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10']
     FP_ARG_REGS = [ ]
     RETURN_VAL = SimRegArg('r3', 8)
     RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
@@ -1382,6 +1404,10 @@ class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.r0
+
+    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
+        new_val = SimCCPowerPCLinuxSyscall.linux_syscall_update_cr0(state, val)
+        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
 
 
 class SimCCSoot(SimCC):

@@ -5,14 +5,14 @@ import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests')
 
 arch_data = { # (steps, [hit addrs], finished)
-    'x86_64':  (330, (0x1021c20, 0x1021980, 0x1021be0, 0x4004b0, 0x400440, 0x400570), True),  # Finishes
-    'i386':    (213, (0x90198e0, 0x90195c0, 0x9019630, 0x90198a0, 0x8048370, 0x80482f8, 0x8048440), False),  # blocked on syscalls
-    'ppc':     (62,  (0x11022f50, 0x11022eb0, 0x10000340, 0x100002e8), False),    # blocked on syscalls
-    'ppc64':   (183, (0x11047490, 0x100003fc, 0x10000368), False),       # blocked on syscalls
-    'mips':    (158, (0x1016f20, 0x400500, 0x400470), False),    # blocked on some very weird TLS initialization?
-    'mips64':  (190, (0x12103b828, 0x120000870, 0x1200007e0), False),    # blocked on some io initialization
+    'x86_64':  (330, (0x1021c20, 0x1021980, 0x1021be0, 0x4004b0, 0x400440, 0x400570), True),
+    'i386':    (425, (0x90198e0, 0x90195c0, 0x9019630, 0x90198a0, 0x8048370, 0x80482f8, 0x8048440, 0x804846D, 0x8048518), True),
+    'ppc':     (381,  (0x11022f50, 0x11022eb0, 0x10000340, 0x100002e8, 0x1000053C, 0x1000063C), True),
+    'ppc64':   (372, (0x11047490, 0x100003fc, 0x10000368, 0x10000654, 0x10000770), True),
+    'mips':    (363, (0x1016f20, 0x400500, 0x400470, 0x400640, 0x400750), True),
+    'mips64':  (390, (0x12103b828, 0x120000870, 0x1200007e0, 0x120000A80, 0x120000B68), True),
     'armel':   (370, (0x10154b8, 0x1108244, 0x83a8, 0x8348, 0x84b0, 0x84E4, 0x85E8), True),
-    'aarch64': (197, (0x1020b04, 0x400430, 0x4003b8, 0x400538), False),        # blocked on syscalls
+    'aarch64': (370, (0x1020b04, 0x400430, 0x4003b8, 0x400538, 0x400570, 0x40062C), True),
 }
 
 def emulate(arch, binary, use_sim_procs, steps, hit_addrs, finished):
@@ -72,6 +72,8 @@ def test_locale():
 
 
 if __name__ == '__main__':
+    #emulate('armel', 'test_arrays', False, *arch_data['armel'])
+    #import sys; sys.exit()
     for func, a, b, c, d, e, f in test_windows():
         print(a, b)
         func(a, b, c, d, e, f)

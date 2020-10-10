@@ -7,6 +7,7 @@ from cle import MetaELF
 from cle.backends.elf.symbol import ELFSymbol, ELFSymbolType
 from cle.backends.elf.elfcore import ELFCore
 from cle.address_translator import AT
+from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
 from ..tablespecs import StringTableSpec
@@ -117,6 +118,8 @@ class SimLinux(SimUserland):
         if isinstance(self.project.arch, ArchARM):
             self.project.hook(0xffff0fc0, P['linux_kernel']['_kernel_cmpxchg']())
             self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
+        elif isinstance(self.project.arch, ArchAArch64):
+            self.project.hook(R_AARCH64_TLSDESC.RESOLVER_ADDR, P['linux_loader']['tlsdesc_resolver']())
 
         # maybe move this into archinfo?
         if self.arch.name == 'X86':

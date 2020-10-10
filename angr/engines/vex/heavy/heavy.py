@@ -210,6 +210,12 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             if subaddr + stmt.addr in self.state.scratch.dirty_addrs:
                 raise errors.SimReliftException(self.state)
 
+        # HACK: mips64 may put an instruction which may fault in the delay slot of a branch likely instruction
+        # if the branch is not taken, we must not execute that instruction if the condition fails (i.e. the current guard is False)
+        if self.state.scratch.guard.is_false():
+            self.successors.add_successor(self.state, ins_addr, self.state.scratch.guard, 'Ijk_Boring')
+            raise VEXEarlyExit
+
         self.state.scratch.num_insns += 1
         self.successors.artifacts['insn_addrs'].append(ins_addr)
 
