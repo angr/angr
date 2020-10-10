@@ -23,6 +23,7 @@ class dup(angr.SimProcedure):  #pylint:disable=W0622
         self.state.posix.fd[newfd] = self.state.posix.fd[oldfd]
         return newfd
 
+
 class dup2(angr.SimProcedure):
     def run(self, oldfd, newfd):# pylint:disable=arguments-differ
         oldfd = self.state.solver.eval(oldfd)
@@ -40,6 +41,7 @@ class dup2(angr.SimProcedure):
         # copy old_fd to new_fd so they point to the same FD
         self.state.posix.fd[newfd] = self.state.posix.fd[oldfd]
         return newfd
+
 
 class dup3(angr.SimProcedure):
     def run(self, oldfd, newfd, flags):# pylint:disable=arguments-differ

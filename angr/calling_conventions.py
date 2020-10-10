@@ -1243,6 +1243,30 @@ class SimCCO32LinuxSyscall(SimCC):
     def syscall_num(state):
         return state.regs.v0
 
+    @staticmethod
+    def linux_syscall_update_a3(state, expr):
+        # special handling for Linux MIPS syscalls: $a3 is used as an error flag (0 for success, 1 for error)
+        if state.project is not None and state.project.simos is not None and state.project.simos.name == 'Linux':
+            if state.solver.symbolic(expr):
+                state.regs.a3 = 0
+            else:
+                expr_val = state.solver.eval(expr)
+                if state.arch.bits == 32 and expr_val >= -1133 & 0xffff_ffff:
+                    expr_val = -(-0x1_0000_0000 + expr_val)
+                    state.regs.a3 = 1
+                elif state.arch.bits == 64 and expr_val >= -1133 & 0xffff_ffff_ffff_ffff:
+                    expr_val = -(-0x1_0000_0000_0000_0000 + expr_val)
+                    state.regs.a3 = 1
+                else:
+                    state.regs.a3 = 0
+                expr = state.solver.BVV(expr_val, state.arch.bits)
+        return expr
+
+    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
+        new_val = SimCCO32LinuxSyscall.linux_syscall_update_a3(state, val)
+        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
+
+
 class SimCCO64(SimCC):      # TODO: add n32 and n64
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
@@ -1267,6 +1291,11 @@ class SimCCO64LinuxSyscall(SimCC):
     @staticmethod
     def syscall_num(state):
         return state.regs.v0
+
+    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
+        new_val = SimCCO32LinuxSyscall.linux_syscall_update_a3(state, val)
+        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
+
 
 class SimCCPowerPC(SimCC):
     ARG_REGS = [ 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10' ]
