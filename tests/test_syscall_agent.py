@@ -31,11 +31,13 @@ def test_busybox(arch="mips"):
                      auto_load_libs=True,
                      use_sim_procedures=False)
     state = p.factory.full_init_state(
-        add_options={angr.sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY}, # | angr.sim_options.unicorn,
-        # argv=["ls"],
+        add_options={angr.sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY} | angr.sim_options.unicorn,
+        args=["ls", "."],
     )
     results = p.factory.simulation_manager(state).explore()
     assert len(results.deadended) == 1
+    print(results.deadended[0].posix.dumps(1))
+    print(results.deadended[0].posix.dumps(2))
 
 if __name__ == "__main__":
     logging.getLogger("angr.bureau.bureau").setLevel(logging.DEBUG)

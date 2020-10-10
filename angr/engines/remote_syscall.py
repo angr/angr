@@ -23,6 +23,9 @@ BASE_SYSCALL_BYPASS_LIST = {
     'write',
     'read',
     # 'close',
+    'dup',
+    'dup2',
+    'dup3',
     'exit',
     'exit_group',
 }
