@@ -13,7 +13,7 @@ from .soot import SootMixin
 
 class UberEngine(
     SimEngineFailure,
-    #SimEngineRemoteSyscall,
+    SimEngineRemoteSyscall,
     SimEngineSyscall,
     HooksMixin,
     SimEngineUnicorn,
