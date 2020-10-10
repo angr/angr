@@ -69,6 +69,9 @@ class SimLinux(SimUserland):
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+                elif isinstance(self.project.arch, ArchARM):
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7E8, self._loader_lock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7EC, self._loader_unlock_addr)
 
             # TODO: what the hell is this
             _rtld_global_ro = self.project.loader.find_symbol('_rtld_global_ro')
@@ -112,6 +115,7 @@ class SimLinux(SimUserland):
                             self.project.loader.memory.pack_word(gotaddr, randaddr)
 
         if isinstance(self.project.arch, ArchARM):
+            self.project.hook(0xffff0fc0, P['linux_kernel']['_kernel_cmpxchg']())
             self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
         # maybe move this into archinfo?
