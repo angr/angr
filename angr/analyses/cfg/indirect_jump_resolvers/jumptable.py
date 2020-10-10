@@ -492,6 +492,7 @@ class BSSHook:
         for i in range(concrete_write_addr, concrete_write_length):
             self._written_addrs.add(i)
 
+
 #
 # Main class
 #
