@@ -508,6 +508,43 @@ class PagedMemoryMixin(MemoryMixin):
         data = self.load(src, size, **kwargs)
         self.store(dst, data, size, **kwargs)
 
+    def flush_pages(self, white_list):
+        """
+        Flush all pages not included in the `white_list` by removing their pages. Note, this will not wipe them
+        from memory if they were backed by a memory_backer, it will simply reset them to their initial state.
+        Returns the list of pages that were cleared consisting of `(addr, length)` tuples.
+        :param white_list: white list of regions in the form of (start, end) to exclude from the flush
+        :return: a list of memory page ranges that were flushed
+        :rtype: list
+        """
+        white_list_page_number = []
+
+        for addr in white_list:
+            for page_addr in range(addr[0], addr[1], self.page_size):
+                pageno, pageoff = self.state.memory._divide_addr(page_addr)
+                white_list_page_number.append(pageno)
+
+        new_page_dict = {}
+        flushed = []
+
+        # cycle over all the keys ( the page number )
+        for pageno, page in self._pages.items():
+            if pageno in white_list_page_number:
+                #l.warning("Page " + str(pageno) + " not flushed!")
+                new_page_dict[pageno] = self._pages[pageno]
+            else:
+                #l.warning("Page " + str(pageno) + " flushed!")
+                p = self._pages[pageno]
+                flushed.append((pageno,self.page_size))
+
+        #if self.state.has_plugin('unicorn'):
+        #    for addr, length in flushed_regions:
+        #        self.state.unicorn.uncache_region(addr, length)
+
+        self._pages = new_page_dict
+        self._initialized = set()
+
+        return flushed
 
 class ListPagesMixin(PagedMemoryMixin):
     PAGE_TYPE = ListPage
