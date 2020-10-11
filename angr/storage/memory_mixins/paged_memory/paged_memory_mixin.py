@@ -521,21 +521,20 @@ class PagedMemoryMixin(MemoryMixin):
 
         for addr in white_list:
             for page_addr in range(addr[0], addr[1], self.page_size):
-                pageno, pageoff = self.state.memory._divide_addr(page_addr)
+                pageno, _ = self.state.memory._divide_addr(page_addr)
                 white_list_page_number.append(pageno)
 
         new_page_dict = {}
         flushed = []
 
         # cycle over all the keys ( the page number )
-        for pageno, page in self._pages.items():
+        for pageno, _ in self._pages.items():
             if pageno in white_list_page_number:
                 #l.warning("Page " + str(pageno) + " not flushed!")
                 new_page_dict[pageno] = self._pages[pageno]
             else:
                 #l.warning("Page " + str(pageno) + " flushed!")
-                p = self._pages[pageno]
-                flushed.append((pageno,self.page_size))
+                flushed.append((pageno, self.page_size))
 
         #if self.state.has_plugin('unicorn'):
         #    for addr, length in flushed_regions:
