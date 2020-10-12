@@ -528,10 +528,10 @@ class PagedMemoryMixin(MemoryMixin):
         flushed = []
 
         # cycle over all the keys ( the page number )
-        for pageno, _ in self._pages.items():
+        for pageno, page in self._pages.items():
             if pageno in white_list_page_number:
                 #l.warning("Page " + str(pageno) + " not flushed!")
-                new_page_dict[pageno] = self._pages[pageno]
+                new_page_dict[pageno] = page
             else:
                 #l.warning("Page " + str(pageno) + " flushed!")
                 flushed.append((pageno, self.page_size))
@@ -541,8 +541,6 @@ class PagedMemoryMixin(MemoryMixin):
         #        self.state.unicorn.uncache_region(addr, length)
 
         self._pages = new_page_dict
-        self._initialized = set()
-
         return flushed
 
 class ListPagesMixin(PagedMemoryMixin):
