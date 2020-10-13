@@ -535,11 +535,6 @@ class PagedMemoryMixin(MemoryMixin):
             else:
                 #l.warning("Page " + str(pageno) + " flushed!")
                 flushed.append((pageno, self.page_size))
-
-        #if self.state.has_plugin('unicorn'):
-        #    for addr, length in flushed_regions:
-        #        self.state.unicorn.uncache_region(addr, length)
-
         self._pages = new_page_dict
         return flushed
 
