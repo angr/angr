@@ -1,6 +1,7 @@
 from typing import Iterable
 import operator
 import logging
+from typing import Dict, Any
 
 import networkx
 
@@ -39,7 +40,7 @@ class ConditionProcessor:
     Convert between claripy AST and AIL expressions. Also calculates reaching conditions of all nodes on a graph.
     """
     def __init__(self, condition_mapping=None):
-        self._condition_mapping = {} if condition_mapping is None else condition_mapping
+        self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
         self.reaching_conditions = {}
 
     def clear(self):
@@ -417,8 +418,8 @@ class ConditionProcessor:
 
         if cond.op == "BoolS" and claripy.is_true(cond):
             return cond
-        if cond in self._condition_mapping:
-            return self._condition_mapping[cond]
+        if cond.args[0] in self._condition_mapping:
+            return self._condition_mapping[cond.args[0]]
 
         def _binary_op_reduce(op, args, annotations: Iterable[claripy.Annotation], signed=False):
             r = None
@@ -473,7 +474,7 @@ class ConditionProcessor:
         raise NotImplementedError(("Condition variable %s has an unsupported operator %s. "
                                    "Consider implementing.") % (cond, cond.op))
 
-    def claripy_ast_from_ail_condition(self, condition):
+    def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Base:
 
         # Unpack a condition all the way to the leaves
         if isinstance(condition, claripy.ast.Base):
@@ -519,11 +520,11 @@ class ConditionProcessor:
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
                                   ailment.Expr.ITE, ailment.Stmt.Call)):
             var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
-            self._condition_mapping[var] = condition
+            self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Register):
             var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits, explicit_name=True)
-            self._condition_mapping[var] = condition
+            self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Convert):
             # convert is special. if it generates a 1-bit variable, it should be treated as a BVS
@@ -535,7 +536,7 @@ class ConditionProcessor:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0])
                 name = 'ailexpr_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
-            self._condition_mapping[var] = condition
+            self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Const):
             var = claripy.BVV(condition.value, condition.bits)
@@ -546,7 +547,7 @@ class ConditionProcessor:
                 var = claripy.BoolV('ailtmp_%d' % condition.tmp_idx)
             else:
                 var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
-            self._condition_mapping[var] = condition
+            self._condition_mapping[var.args[0]] = condition
             return var
 
         lambda_expr = _mapping.get(condition.verbose_op, None)
@@ -555,7 +556,7 @@ class ConditionProcessor:
         r = lambda_expr(condition, self.claripy_ast_from_ail_condition)
         if r is NotImplemented:
             r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
-            self._condition_mapping[r] = condition
+            self._condition_mapping[r.args[0]] = condition
         else:
             # don't lose tags
             r = r.annotate(TagsAnnotation(**condition.tags))
