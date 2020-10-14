@@ -1018,9 +1018,9 @@ class CTypeCast(CExpression):
 
 class CConstant(CExpression):
 
-    __slots__ = ('value', 'reference_values', 'variable', )
+    __slots__ = ('value', 'reference_values', 'variable', 'tags', )
 
-    def __init__(self, value, type_, reference_values=None, variable=None):
+    def __init__(self, value, type_, reference_values=None, variable=None, tags: Optional[Dict]=None):
 
         super().__init__()
 
@@ -1028,6 +1028,7 @@ class CConstant(CExpression):
         self._type = type_
         self.reference_values = reference_values
         self.variable = variable
+        self.tags = tags
 
     @property
     def type(self):
@@ -1467,7 +1468,8 @@ class StructuredCodeGenerator(Analysis):
                             type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                             reference_values[type_] = self._cfg.memory_data[arg.value]
                     new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
-                                        variable=self._handle(arg.variable) if arg.variable is not None else None)
+                                        variable=self._handle(arg.variable) if arg.variable is not None else None,
+                                        tags=arg.tags)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1517,7 +1519,7 @@ class StructuredCodeGenerator(Analysis):
             return self._cvariable(variable, offset=offset,
                                    variable_type=self._get_variable_type(variable))
         else:
-            return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt)))
+            return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt)))  # TODO: Correctly setup tags for the Constant
 
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
@@ -1526,7 +1528,9 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
-        return CConstant(expr.value, int, variable=self._handle(expr.variable) if expr.variable is not None else None)
+        return CConstant(expr.value, int,
+                         variable=self._handle(expr.variable) if expr.variable is not None else None,
+                         tags=expr.tags)
 
     def _handle_Expr_UnaryOp(self, expr):
 
