@@ -9,6 +9,7 @@ from ..analysis import Analysis, AnalysesHub
 from .edits import BaseEdit, BytesEdit, MaskedBytesEdit
 from .differ import VEXBlockDiffer
 from .encoding.amd64 import encodings as AMD64_ENCODINGS
+from .encoding.armhf import encodings as ARMHF_ENCODINGS
 from .encoding.base import VEXStatementsSkeleton, InstructionEncoding
 
 _l = logging.getLogger(name=__name__)
@@ -23,9 +24,17 @@ class Diff:
         self.diff_stmts = diff_stmts
 
 
+_all_encodings = {
+    'AMD64': AMD64_ENCODINGS,
+    'ARMHF': ARMHF_ENCODINGS,
+}
+
+
 class Viscosity(Analysis):
     """
     Viscosity is an analysis that performs experimental point-to-point instruction patching.
+
+    Both original_block and new_vex_block must be lifted with cross_insn_opt=False.
     """
     def __init__(self, original_block, new_vex_block):
 
@@ -44,6 +53,11 @@ class Viscosity(Analysis):
         self._analyze()
 
     def _analyze(self):
+
+        if self.project.arch.name not in _all_encodings:
+            raise KeyError("No instruction encoding information is available for architecture %s."
+                           % self.project.arch.name)
+
         # find differences in terms of IRs between two blocks
         g_original = self._group_vex_statements(self._original_block.vex.statements)
         g_new = self._group_vex_statements(self._new_vex_block.statements)
@@ -165,7 +179,12 @@ class Viscosity(Analysis):
     def _attempt_skeleton_matching(self, diff: Diff, skeleton: VEXStatementsSkeleton) -> List[BaseEdit]:
 
         edits: List[BaseEdit] = [ ]
-        for enc in AMD64_ENCODINGS:
+        try:
+            encodings = _all_encodings[self.project.arch.name]
+        except KeyError:
+            raise KeyError("No instruction encoding information is available for architecture %s."
+                           % self.project.arch.name)
+        for enc in encodings:
             if enc.vex_skeleton == skeleton:
                 # we replace the bytes in the old block with the bytes in this matched encoding item, and then re-lift
                 # to see if we achieve structural equivalence

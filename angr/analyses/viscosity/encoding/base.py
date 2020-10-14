@@ -1,5 +1,6 @@
 from typing import List
 
+from archinfo import Endness
 from pyvex.stmt import IRStmt, IMark, WrTmp, Exit, Store, Put
 from pyvex.expr import IRExpr, Binop, Unop, Triop, Load, RdTmp, Const, Get
 
@@ -8,6 +9,9 @@ class VEXStatementsSkeleton:
     """
     Describes a "skeleton" of a list of VEX statements.
     """
+
+    __slots__ = ('skeleton', )
+
     def __init__(self, skeleton):
         self.skeleton: List[str] = skeleton
 
@@ -112,8 +116,14 @@ class InstructionEncoding:
     """
     Describes how an instruction is translated to its VEX IR equivalence.
     """
-    def __init__(self, instr: bytes, instr_mask: bytes, instr_text: str, vex_skeleton: VEXStatementsSkeleton):
-        self.instr = instr
-        self.instr_mask = instr_mask
-        self.instr_text = instr_text
-        self.vex_skeleton = vex_skeleton
+
+    __slots__ = ('instr', 'instr_mask', 'instr_text', 'vex_skeleton', 'endness', )
+
+    def __init__(self, instr: bytes, instr_mask: bytes, instr_text: str, vex_skeleton: VEXStatementsSkeleton,
+                 endness=Endness.LE
+                 ):
+        self.instr: bytes = instr
+        self.instr_mask: bytes = instr_mask
+        self.instr_text: str = instr_text
+        self.vex_skeleton: VEXStatementsSkeleton = vex_skeleton
+        self.endness = endness

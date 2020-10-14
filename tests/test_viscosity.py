@@ -64,7 +64,35 @@ def test_patch_amd64_instruction_by_ail_changes():
 
     v = proj.analyses.Viscosity(block, vex_block_copy)
 
-    import ipdb; ipdb.set_trace()
+
+def test_patch_arm_instruction_constant_by_heuristics():
+    # mov r2, #7
+    # bl func_0
+    proj = angr.load_shellcode(b"\x07\x20\xa0\xe3\xe0\xde\xff\xeb", arch="ARMHF", load_address=0x400000)
+
+    block0 = proj.factory.block(0x400000, cross_insn_opt=False)
+    block1 = block0.vex.copy()
+
+    block1.statements[1].data = pyvex.expr.Const(pyvex.const.U32(0x20))
+    v = proj.analyses.Viscosity(block0, block1)
+    assert len(v.result) == 1
+    assert v.result[0] == BytesEdit(0x400000, b'\x20', orig=b'\x07')
+
+
+def test_patch_arm_instruction_constant_offset_by_heuristics():
+    # add r3, r3, #0xea
+    # bl func_0
+    proj = angr.load_shellcode(b"\xea\x30\x83\xe2\xe0\xde\xff\xeb", arch="ARMHF", load_address=0x400000)
+
+    block0 = proj.factory.block(0x400000, cross_insn_opt=False)
+    block1 = block0.vex.copy()
+
+    assert isinstance(block1.statements[2].data, pyvex.expr.Binop)
+    args = block1.statements[2].data.args
+    block1.statements[2].data.args = (args[0], pyvex.expr.Const(args[1].con.__class__(0x1d)))
+    v = proj.analyses.Viscosity(block0, block1)
+    assert len(v.result) == 1
+    assert v.result[0] == BytesEdit(0x400000, b'\x1d', orig=b'\xea')
 
 
 def test_patch_amd64_remove_calls():
@@ -101,4 +129,5 @@ def test_patch_amd64_remove_calls():
 
 
 if __name__ == "__main__":
-    test_patch_amd64_remove_calls()
+    # test_patch_amd64_remove_calls()
+    test_patch_arm_instruction_constant_offset_by_heuristics()
