@@ -394,7 +394,7 @@ class Tracer(ExplorationTechnique):
                     continue
 
 
-                if self._compare_addr(self._trace[idx], addr):
+                if self._compare_addr(self._trace[idx], addr) or self._check_qemu_unicorn_desync(state, idx, addr):
                     idx += 1
                 else:
                     raise TracerDesyncError('BUG! Please investigate the claim in the comment above me',
@@ -494,6 +494,94 @@ class Tracer(ExplorationTechnique):
             raise AngrTracerError("Trace desynced on jumping into %s. Did you load the right version of this library?" % current_bin.provides)
         else:
             raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
+
+    def _check_qemu_unicorn_desync(self, state: 'angr.SimState', trace_curr_idx, state_desync_block_addr):
+        """
+        Check if desync occurred because large blocks are split up at different instructions by qemu and unicorn. This
+        is done by reconstructing part of block executed so far from the trace and state history and checking if they
+        the same
+        """
+
+        from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET # pylint:disable=import-outside-toplevel
+        control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
+
+        prev_trace_block = state.project.factory.block(self._trace[trace_curr_idx - 1])
+        for insn_type in control_flow_insn_types:
+            if prev_trace_block.capstone.insns[-1].group(insn_type):
+                # Previous block ends in a control flow instruction. It is a trace desync.
+                return False
+
+        # The previous block did not end in a control flow instruction. Let's find the start of this big block from
+        # trace: it'll be the first block executed after a control flow instruction.
+        big_block_start_addr = None
+        for trace_block_idx in range(trace_curr_idx - 2, -1, -1):
+            trace_block = state.project.factory.block(self._trace[trace_block_idx])
+            trace_block_last_insn = trace_block.capstone.insns[-1]
+            for insn_type in control_flow_insn_types:
+                if trace_block_last_insn.group(insn_type):
+                    big_block_start_addr = self._trace[trace_block_idx + 1]
+                    break
+
+            if big_block_start_addr is not None:
+                break
+
+        if big_block_start_addr is None:
+            # Failed to find end of the big basic block in trace. Treat as trace desync.
+            return False
+
+        # Now we check the part of the state history corresponding to this big basic block to ensure there are no
+        # control flow instructions at end of any blocks in the part. This check moves backwards starting from the
+        # desyncing block to the start of the big block we found earlier
+        state_history_desync_block_found = False
+        for state_history_block_addr in reversed(state.history.bbl_addrs):
+            if not state_history_desync_block_found:
+                if state_history_block_addr == state_desync_block_addr:
+                    # Found the desync block in state history
+                    state_history_desync_block_found = True
+
+                # Either we haven't found the desync block in state history or we just found it. Since we want to check
+                # for control flow instructions from only from block before the desync block, we can continue here
+                continue
+
+            state_history_block = state.project.factory.block(state_history_block_addr)
+            state_history_block_last_insn = state_history_block.capstone.insns[-1]
+            for insn_type in control_flow_insn_types:
+                if state_history_block_last_insn.group(insn_type):
+                    # We haven't found the start of big block according to the trace but found a block ending with a
+                    # control flow instruction. It is a trace desync then.
+                    return False
+
+            if state_history_block_addr == big_block_start_addr:
+                if not state_history_desync_block_found:
+                    # We somehow found the start of the big block in the state history but not the block where the
+                    # desync error happened. Something is seriously wrong!
+                    return False
+                else:
+                    # We found start of the big block and no control flow statements in between that and the block where
+                    # desync happend. All good.
+                    break
+
+        # Let's find the address of the last bytes of the big basic block from the trace
+        big_block_end_addr = None
+        for trace_block_idx in range(trace_curr_idx + 1, len(self._trace)):
+            trace_block = state.project.factory.block(self._trace[trace_block_idx])
+            trace_block_last_insn = trace_block.capstone.insns[-1]
+            for insn_type in control_flow_insn_types:
+                if trace_block_last_insn.group(insn_type):
+                    big_block_end_addr = trace_block.addr + trace_block.size
+                    break
+
+        if big_block_end_addr is None:
+            # Failed to find end of the big basic block in trace. Treat as trace desync.
+            return False
+
+        # At this point, we know the following:
+        # - There is no control flow instruction between big_block_start_addr and big_block_end_addr
+        # - There is no control flow instruction between big_block_start_addr and state_desync_block_addr
+        # - state_desync_block_addr is definitely executed after big_block_start_addr
+        # So it's enough to check if state_desync_block_addr is less than big_block_end_addr to ensure that it
+        # is part of the big block
+        return state_desync_block_addr < big_block_end_addr
 
     def _analyze_misfollow(self, state, idx):
         angr_addr = state.addr
