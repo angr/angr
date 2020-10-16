@@ -927,19 +927,8 @@ class Unicorn(SimStatePlugin):
             return True
 
     def _get_details_of_blocks_with_symbolic_instrs(self):
-        return_data = []
-        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
-        if block_count == 0:
-            return return_data
-
-        block_details_list = (BlockDetails * block_count)()
-        _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
-        for block_details in block_details_list:
-            block_entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size, "registers": {}}
-            block_register_values = block_details.register_values[:block_details.register_values_count]
-            block_symbolic_instrs = block_details.symbolic_instrs[:block_details.symbolic_instrs_count]
-
-            for register_value in block_register_values:
+        def _get_register_values(register_values):
+            for register_value in register_values:
                 # Convert the register value in bytes to number of appropriate size and endianness
                 reg_name, reg_size = self.state.arch.vex_reg_offset_to_name[register_value.offset]
                 if self.state.arch.register_endness == 'Iend_LE':
@@ -948,30 +937,40 @@ class Unicorn(SimStatePlugin):
                     reg_value = int.from_bytes(register_value.value, "big")
 
                 reg_value = reg_value & (pow(2, reg_size * 8) - 1)
-                block_entry["registers"][reg_name] = reg_value
+                yield (reg_name, reg_value)
 
-            block_entry["instrs"] = []
-            for symbolic_instr in block_symbolic_instrs:
-                instr_entry = {"instr_addr": symbolic_instr.instr_addr, "mem_dep": []}
-                if symbolic_instr.has_memory_dep:
-                    memory_values = symbolic_instr.memory_values[:symbolic_instr.memory_values_count]
-                    for memory_value in memory_values:
-                        mem_address = memory_value.address
-                        mem_val_size = memory_value.size
-                        # Convert the memory value in bytes to number of appropriate size and endianness
-                        mem_val = memory_value.value[:mem_val_size]
-                        if self.state.arch.memory_endness == 'Iend_LE':
-                            mem_val = int.from_bytes(mem_val, "little")
-                        else:
-                            mem_val = int.from_bytes(mem_val, "big")
+        def _get_memory_values(memory_values):
+            for memory_value in memory_values:
+                mem_address = memory_value.address
+                mem_val_size = memory_value.size
+                # Convert the memory value in bytes to number of appropriate size and endianness
+                mem_val = memory_value.value[:mem_val_size]
+                if self.state.arch.memory_endness == 'Iend_LE':
+                    mem_val = int.from_bytes(mem_val, "little")
+                else:
+                    mem_val = int.from_bytes(mem_val, "big")
 
-                        instr_entry["mem_dep"].append({"address": mem_address, "value": mem_val, "size": mem_val_size})
+                yield {"address": mem_address, "value": mem_val, "size": mem_val_size}
 
-                block_entry["instrs"].append(instr_entry)
+        def _get_instr_details(symbolic_instrs):
+            for instr in symbolic_instrs:
+                instr_entry = {"instr_addr": instr.instr_addr, "mem_dep": []}
+                if instr.has_memory_dep:
+                    instr_entry["mem_dep"] = _get_memory_values(instr.memory_values[:instr.memory_values_count])
 
-            return_data.append(block_entry)
+                yield instr_entry
 
-        return return_data
+        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
+        if block_count == 0:
+            return
+
+        block_details_list = (BlockDetails * block_count)()
+        _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
+        for block_details in block_details_list:
+            entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size, "registers": {}}
+            entry["registers"] = _get_register_values(block_details.register_values[:block_details.register_values_count])
+            entry["instrs"] = _get_instr_details(block_details.symbolic_instrs[:block_details.symbolic_instrs_count])
+            yield entry
 
     def uncache_region(self, addr, length):
         self._uncache_regions.append((addr, length))

@@ -89,7 +89,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             vex_block_details = self.block_details_cache[block_details["block_addr"]]
 
         vex_block = vex_block_details["block"]
-        for reg_name, reg_value in block_details["registers"].items():
+        for reg_name, reg_value in block_details["registers"]:
             self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
 
         # VEX statements to ignore when re-executing instructions that touched symbolic data
@@ -127,8 +127,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
-        block_details_list = self.state.unicorn._get_details_of_blocks_with_symbolic_instrs()
-        for block_details in block_details_list:
+        for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
                 self._execute_block_instrs_in_vex(block_details)
             except SimValueError as e:
