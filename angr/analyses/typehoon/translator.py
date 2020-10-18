@@ -68,6 +68,15 @@ class TypeTranslator:
             internal = self._translate(tc.basetype)
         return sim_type.SimTypePointer(internal).with_arch(self.arch)
 
+    def _translate_Pointer32(self, tc):
+
+        if isinstance(tc.basetype, typeconsts.BottomType):
+            # void *
+            internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
+        else:
+            internal = self._translate(tc.basetype)
+        return sim_type.SimTypePointer(internal).with_arch(self.arch)
+
     def _translate_Array(self, tc: typeconsts.Array):
         elem_type = self._translate(tc.element)
         return sim_type.SimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
@@ -130,6 +139,7 @@ class TypeTranslator:
 
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
+    typeconsts.Pointer32: TypeTranslator._translate_Pointer32,
     typeconsts.Array: TypeTranslator._translate_Array,
     typeconsts.Struct: TypeTranslator._translate_Struct,
     typeconsts.Int8: TypeTranslator._translate_Int8,
