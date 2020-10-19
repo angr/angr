@@ -22,10 +22,18 @@ class ListInit(JavaSimProcedure):
         ('java.util.ArrayList', '<init>(int)')
     )
 
-    def run(self, this_ref):
+    def run(self, this_ref, *args):
         log.debug('Called SimProcedure java.util.List.<init> with args: {}'.format(this_ref))
 
-        array_ref = SimSootExpr_NewArray.new_array(self.state, 'java.lang.Object', claripy.BVV(1000, 32))
+        list_max_size = claripy.BVV(1000, 32)
+        if args:
+            list_max_size_params = args[0]
+            if list_max_size_params.concrete:
+                list_max_size = list_max_size_params
+            else:
+                log.warning("List with symbolic size are not supported yet... constraining the size to 1000")
+
+        array_ref = SimSootExpr_NewArray.new_array(self.state, 'java.lang.Object', list_max_size)
         this_ref.store_field(self.state, ELEMS, 'java.lang.Object[]', array_ref)
         this_ref.store_field(self.state, SIZE, 'int', claripy.BVV(0, 32))
 
