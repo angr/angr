@@ -62,10 +62,13 @@ class SimActionObject:
     """
     A SimActionObject tracks an AST and its dependencies.
     """
-    def __init__(self, ast, reg_deps=None, tmp_deps=None, deps=None, state=None):
+    def __init__(self, ast, reg_deps=None, tmp_deps=None, deps=None, state=None, endness=None):
         if type(ast) is SimActionObject:
             raise SimActionError("SimActionObject inception!!!")
+
+        self.endness = endness
         self.ast = ast
+
         if deps is not None:
             if len(deps) == 0 or (state is not None and o.ACTION_DEPS not in state.options):
                 self.reg_deps = _noneset

@@ -50,13 +50,13 @@ class SimAction(SimEvent):
     #       setattr(self, k, v)
 
     @staticmethod
-    def _make_object(v):
+    def _make_object(v, endness=None):
         if v is None:
             return None
         elif isinstance(v, SimActionObject):
             return v
         else:
-            return SimActionObject(v, reg_deps=None, tmp_deps=None)
+            return SimActionObject(v, reg_deps=None, tmp_deps=None, endness=endness)
 
     @staticmethod
     def _copy_object(v):
@@ -205,7 +205,7 @@ class SimActionData(SimAction):
     OPERATE = 'operate'
 
     def __init__(self, state, region_type, action, tmp=None, addr=None, size=None, data=None, condition=None,
-                 fallback=None, fd=None):
+                 fallback=None, fd=None, endness=None):
         super(SimActionData, self).__init__(state, region_type)
         self.action = action
 
@@ -227,7 +227,7 @@ class SimActionData(SimAction):
                     self.offset = state.solver.eval_one(addr)
         self.addr = self._make_object(addr)
         self.size = self._make_object(size)
-        self.data = self._make_object(data)
+        self.data = self._make_object(data, endness=endness)
         self.condition = self._make_object(condition)
         self.fallback = self._make_object(fallback)
         self.fd = self._make_object(fd)

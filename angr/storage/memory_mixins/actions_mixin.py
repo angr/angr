@@ -29,7 +29,7 @@ class ActionsMixinHigh(MemoryMixin):
 
     def store(self, addr, data, size=None, disable_actions=False, action=None, condition=None, **kwargs):
         if not disable_actions and o.AUTO_REFS in self.state.options and action is None:
-            action = self.__make_action('write', addr, size, data, condition, None)
+            action = self.__make_action('write', addr, size, data, condition, None, kwargs['endness'])
 
         super().store(addr, data, size=size, action=action, condition=condition, **kwargs)
 
@@ -38,7 +38,7 @@ class ActionsMixinHigh(MemoryMixin):
             # In that case, we do not add the action.
             self.state.history.add_action(action)
 
-    def __make_action(self, kind, addr, size, data, condition, fallback):
+    def __make_action(self, kind, addr, size, data, condition, fallback, endness=None):
         ref_size = size * self.state.arch.byte_width if size is not None else len(data) if data is not None else None
         region_type = self.category if self.category != "file" else self.id
         action = SimActionData(self.state, region_type, kind,
@@ -46,7 +46,8 @@ class ActionsMixinHigh(MemoryMixin):
                                data=data,
                                size=ref_size,
                                condition=condition,
-                               fallback=fallback)
+                               fallback=fallback,
+                               endness=endness)
 
         action.added_constraints = self.state.solver.true
         return action
