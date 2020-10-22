@@ -4,8 +4,8 @@ class UserHook(angr.SimProcedure):
     NO_RET = True
 
     # pylint: disable=arguments-differ
-    def run(self, user_func=None, length=None):
-        result = user_func(self.state)
+    def run(self, user_func=None, length=None, **kwargs):
+        result = user_func(self.state, **kwargs)
         if result is None:
             jumpkind = 'Ijk_NoHook' if length == 0 else 'Ijk_Boring'
             self.successors.add_successor(self.state, self.state.addr+length, self.state.solver.true, jumpkind)
