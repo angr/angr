@@ -50,6 +50,8 @@ class SmartFindMixin(MemoryMixin):
         return self._find_process_cases(cases, match_indices, constraints, default, **kwargs)
 
     def _find_stride(self, target):
+        if type(target) is bytes:
+            return len(target)
         return len(target) // self.state.arch.byte_width
 
     def _find_iter_items(self, addr, stride, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs):
