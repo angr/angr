@@ -133,7 +133,7 @@ class SimEngineConcrete(SuccessorsMixin):
         # handling the case in which the program stops at a point different than the breakpoints set
         # by the user.
         current_pc = self.target.read_register("pc")
-        if current_pc not in extra_stop_points and not self.target.timeout:
+        if current_pc not in extra_stop_points and not state.timeout:
             l.critical("Stopped at unexpected location inside the concrete process: %#x", current_pc)
             raise AngrError
 
