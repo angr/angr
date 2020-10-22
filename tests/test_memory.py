@@ -10,7 +10,7 @@ from angr.storage.memory_mixins import (
     AddressConcretizationMixin,
     UltraPagesMixin,
     ListPagesMixin,
-    PagedMemoryMixin
+    PagedMemoryMixin,
 )
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
@@ -570,7 +570,7 @@ def test_light_memory():
 
 
 def test_crosspage_store():
-    for memcls in [ListPageMemory, UltraPageMemory, ListPageMemory]:
+    for memcls in [UltraPageMemory, ListPageMemory]:
         state = SimState(arch='x86', mode='symbolic', plugins={'memory': memcls()})
 
         state.regs.sp = 0xbaaafffc
@@ -586,13 +586,6 @@ def test_crosspage_store():
 
         state.memory.store(state.regs.sp, symbol, endness='Iend_LE')
         assert state.memory.load(state.regs.sp, 8) is symbol.reversed
-
-        # test address space wrap
-        state.memory.store(0xffffffff, b'ABCD')
-        assert state.solver.eval(state.memory.load(0, 3)) == 0x424344
-
-        state.memory.store(0xffffffff, symbol)
-        assert state.memory.load(0, 1) is symbol[64-8-1:64-16]
 
 
 def test_crosspage_read():
@@ -617,6 +610,21 @@ def test_crosspage_read():
     r2 = state.memory.load(state.regs.sp, 40)
     assert bytes.fromhex("77665544") in state.solver.eval(r2, cast_to=bytes)
     #assert s.solver.eval(r, 2) == ( 0xffeeddccbbaa998877665544, )
+
+def test_address_wrap():
+    for memcls in [UltraPageMemory, ListPageMemory]:
+        state = SimState(arch='x86', mode='symbolic', plugins={'memory': memcls()})
+        symbol = claripy.BVS('symbol', 64)
+
+        state.memory.store(0xffffffff, symbol.get_byte(0))
+        state.memory.store(0, b'\0'*8)
+        assert len(state.memory.load(0xffffffff, 8)) == 64
+
+        state.memory.store(0xffffffff, b'ABCD')
+        assert state.solver.eval(state.memory.load(0, 3)) == 0x424344
+
+        state.memory.store(0xffffffff, symbol)
+        assert state.memory.load(0, 1) is symbol[64-8-1:64-16]
 
 def test_underconstrained():
     state = SimState(arch='AMD64', add_options={o.UNDER_CONSTRAINED_SYMEXEC})
@@ -762,6 +770,7 @@ def test_concrete_load():
         assert bitmap.tobytes() == b"\x00\x01\x01\x00"
 
 if __name__ == '__main__':
+    test_address_wrap()
     test_concrete_load()
     test_crosspage_store()
     test_crosspage_read()

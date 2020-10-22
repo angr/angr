@@ -64,7 +64,7 @@ class MemoryObjectMixin(CooperationBase):
         mask = (1 << memory.state.arch.bits) - 1
         elements = [o.bytes_at(
                 a,
-                ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else c_objects[0][0] + size - a,
+                ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
                 endness=endness)
             for i, (a, o) in enumerate(c_objects)]
         if len(elements) == 0:
