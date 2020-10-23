@@ -335,7 +335,7 @@ class SimCppLibrary(SimLibrary):
         # try to determine a prototype from the function name if possible
         if demangled_name != name:
             # itanium-mangled function name
-            stub.cc.func_ty = self._proto_from_demangled_name(demangled_name)
+            stub.cc.set_func_type_with_arch(self._proto_from_demangled_name(demangled_name))
             if stub.cc.func_ty is not None and not stub.ARGS_MISMATCH:
                 stub.cc.num_args = len(stub.cc.func_ty.args)
                 stub.num_args = len(stub.cc.func_ty.args)
@@ -487,7 +487,7 @@ class SimSyscallLibrary(SimLibrary):
         if abi in self.default_cc_mapping:
             cc = self.default_cc_mapping[abi](arch)
             if proc.cc is not None:
-                cc.func_ty = proc.cc.func_ty
+                cc.set_func_type_with_arch(proc.cc.func_ty)
             proc.cc = cc
 
     # pylint: disable=arguments-differ
