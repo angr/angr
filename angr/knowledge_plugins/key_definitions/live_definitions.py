@@ -166,7 +166,7 @@ class LiveDefinitions:
         else:
             raise TypeError()
 
-    def get_definitions(self, atom) -> Iterable[Definition]:
+    def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         if isinstance(atom, Register):
             return self.register_definitions.get_objects_by_offset(atom.reg_offset)
         elif isinstance(atom, MemoryLocation):
@@ -180,6 +180,12 @@ class LiveDefinitions:
             return self.tmp_definitions[atom.tmp_idx]
         else:
             raise TypeError()
+
+    def get_definitions_from_atoms(self, atoms: Iterable[Atom]) -> Iterable[Definition]:
+        result = set()
+        for atom in atoms:
+            result |= self.get_definitions(atom)
+        return result
 
     #
     # Private methods
