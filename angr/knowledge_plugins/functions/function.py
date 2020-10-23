@@ -346,7 +346,7 @@ class Function(Serializable):
                 l.warning("The new calling convention for %r does not have a prototype associated. Using the existing "
                           "function prototype to update the new calling convention. The existing function prototype "
                           "will be removed.", self)
-                self._cc.func_ty = self._prototype
+                self._cc.set_func_type_with_arch(self._prototype)
                 self._prototype = None
             elif self._cc.func_ty is not None and self._prototype is not None:
                 l.warning("The new calling convention for %r already has a prototype associated. The existing function "
@@ -376,7 +376,7 @@ class Function(Serializable):
         :return:    None
         """
         if self._cc:
-            self._cc.func_ty = proto.with_arch(self.project.arch) if proto else None
+            self._cc.set_func_type_with_arch(proto)
         else:
             self._prototype = proto
 
@@ -1416,7 +1416,7 @@ class Function(Serializable):
         self.prototype = proto
         if self.calling_convention is not None:
             self.calling_convention.args = None
-            self.calling_convention.func_ty = proto
+            self.calling_convention.set_func_type_with_arch(proto)
 
     @staticmethod
     def _addr_to_funcloc(addr):

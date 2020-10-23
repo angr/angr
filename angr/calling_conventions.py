@@ -725,6 +725,17 @@ class SimCC:
 
         return ret_addr
 
+    def set_func_type_with_arch(self, func_ty: Optional[SimTypeFunction]) -> None:
+        """
+        Set self.func_ty to another function type and set its arch to self.arch.
+
+        :param func_ty: The SimTypeFunction type to set.
+        :return:        None
+        """
+        if func_ty is None or self.arch is None:
+            self.func_ty = func_ty
+        else:
+            self.func_ty = func_ty.with_arch(self.arch)
 
     # pylint: disable=unused-argument
     def get_return_val(self, state, is_fp=None, size=None, stack_base=None):
