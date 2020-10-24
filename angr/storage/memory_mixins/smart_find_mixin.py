@@ -31,7 +31,7 @@ class SmartFindMixin(MemoryMixin):
             if concrete_comparison is False:
                 continue
 
-            match_indices.append(i)
+            match_indices.append(i*stride)
             if isinstance(subaddr, int):
                 subaddr = claripy.BVV(subaddr, size=self.state.arch.bits)
             cases.append((comparison, subaddr))
