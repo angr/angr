@@ -25,6 +25,7 @@ getc = make_func('_IO_getc')
 fgetc = make_func('fgetc')
 getchar = make_func('getchar')
 scanf = make_func('scanf')
+wcscmp = make_func('wcscmp')
 
 import logging
 l = logging.getLogger('angr.tests.string')
@@ -931,6 +932,23 @@ def test_strcmp():
     r = strcmp(s, arguments=[a_addr, b_addr])
     nose.tools.assert_equal(s.solver.eval_upto(r, 2), [0])
 
+def test_wcscmp():
+    # concrete cases for the wide char version sufficiently overlap with strcmp and friends
+    l.info("concrete a, symbolic b")
+    s = SimState(arch="AMD64", mode="symbolic")
+    heck = 'heck\x00'.encode('utf-16')[2:]  # remove encoding prefix
+    a_addr = s.solver.BVV(0x10, 64)
+    b_addr = s.solver.BVV(0xb0, 64)
+    b_bvs = s.solver.BVS('b', len(heck)*8)
+
+    s.memory.store(a_addr, heck)
+    s.memory.store(b_addr, b_bvs)
+
+    r = wcscmp(s, arguments=[a_addr, b_addr])
+
+    solutions = s.solver.eval_upto(b_bvs, 2, cast_to=bytes, extra_constraints=(r==0,))
+    nose.tools.assert_equal(solutions, [heck])
+
 def test_string_without_null():
     s = SimState(arch="AMD64", mode="symbolic")
     str_ = b"abcd"
@@ -955,3 +973,4 @@ if __name__ == '__main__':
     test_strncpy()
     test_strstr_inconsistency()
     test_string_without_null()
+    test_wcscmp()
