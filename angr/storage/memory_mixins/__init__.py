@@ -161,7 +161,7 @@ from .paged_memory.pages import *
 
 from .slotted_memory import SlottedMemoryMixin
 from .regioned_memory import RegionedMemoryMixin, RegionCategoryMixin, StaticFindMixin, AbstractMergerMixin, \
-    MemoryRegionMetaMixin
+    MemoryRegionMetaMixin, RegionedAddressConcretizationMixin
 from .keyvalue_memory import KeyValueMemoryMixin
 from .javavm_memory import JavaVmMemoryMixin
 
@@ -254,6 +254,7 @@ class AbstractMemory(
     #InspectMixinLow,
     ActionsMixinLow,
     ConditionalMixin,
+    RegionedAddressConcretizationMixin,
     # -----
     RegionedMemoryMixin,
 ):
