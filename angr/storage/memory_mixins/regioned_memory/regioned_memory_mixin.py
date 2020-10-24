@@ -295,26 +295,13 @@ class RegionedMemoryMixin(MemoryMixin):
                                  )
 
     #
-    # Address conversion
+    # Address concretization and conversion
     #
 
     def _concretize_address_descriptor(self, desc: AbstractAddressDescriptor, original_addr: claripy.ast.Bits,
                                        is_write: bool=False,
                                        target_region: Optional[str]=None) -> Generator[AddressWrapper,None,None]:
-
-        targets_limit = self._write_targets_limit if is_write else self._read_targets_limit
-
-        for region, addr_si in desc:
-            concrete_addrs = addr_si.eval(targets_limit)
-            if len(concrete_addrs) == targets_limit and HYBRID_SOLVER in self.state.options:
-                exact = True if APPROXIMATE_FIRST not in self.state.options else None
-                solutions = self.state.solver.eval_upto(original_addr, targets_limit, exact=exact)
-
-                if len(solutions) < len(concrete_addrs):
-                    concrete_addrs = [addr_si.intersection(s).eval(1)[0] for s in solutions]
-
-            for c in concrete_addrs:
-                yield self._normalize_address_core(region, c, target_region=target_region)
+        raise NotImplementedError()
 
     def _normalize_address(self, addr: claripy.ast.Bits, condition=None) -> AbstractAddressDescriptor:
         """

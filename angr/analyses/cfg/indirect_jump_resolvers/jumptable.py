@@ -5,6 +5,7 @@ from collections import defaultdict, OrderedDict
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from ....concretization_strategies import SimConcretizationStrategyAny
 from ....knowledge_plugins.cfg import IndirectJump, IndirectJumpType
 from ....engines.vex.claripy import ccall
 from ....engines.light import SimEngineLightVEXMixin, SimEngineLight, SpOffset, RegisterOffset
@@ -668,6 +669,10 @@ class JumpTableResolver(IndirectJumpResolver):
             self._cached_memread_addrs.clear()
             init_registers_on_demand_bp = BP(when=BP_BEFORE, enabled=True, action=self._init_registers_on_demand)
             start_state.inspect.add_breakpoint('mem_read', init_registers_on_demand_bp)
+
+            # use Any as the concretization strategy
+            start_state.memory.read_strategies = [SimConcretizationStrategyAny()]
+            start_state.memory.write_strategies = [SimConcretizationStrategyAny()]
 
             # Create the slicecutor
             simgr = self.project.factory.simulation_manager(start_state, resilience=True)

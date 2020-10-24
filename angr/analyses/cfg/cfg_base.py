@@ -12,6 +12,7 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
+from ...sim_options import SYMBOL_FILL_UNCONSTRAINED_REGISTERS, SYMBOL_FILL_UNCONSTRAINED_MEMORY
 from ...knowledge_plugins.functions import FunctionManager, Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
@@ -1543,7 +1544,10 @@ class CFGBase(Analysis):
             #       jmp loc_8049562
             #
             last_addr = endpoint_addr
-            tmp_state = self.project.factory.blank_state(mode='fastpath')
+            tmp_state = self.project.factory.blank_state(mode='fastpath', add_options={
+                SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+                SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+            })
             while True:
                 try:
                     # do not follow hooked addresses (such as SimProcedures)

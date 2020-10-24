@@ -1,4 +1,7 @@
-class SimConcretizationStrategy(object):
+import claripy
+
+
+class SimConcretizationStrategy:
     """
     Concretization strategies control the resolution of symbolic memory indices
     in SimuVEX. By subclassing this class and setting it as a concretization strategy
@@ -40,6 +43,8 @@ class SimConcretizationStrategy(object):
         """
         Gets n solutions for an address.
         """
+        if isinstance(addr, claripy.vsa.StridedInterval):
+            return addr.eval(n)
         return memory.state.solver.eval_upto(addr, n, exact=kwargs.pop('exact', self._exact), **kwargs)
 
     def _range(self, memory, addr, **kwargs):
@@ -87,3 +92,4 @@ from .norepeats_range import SimConcretizationStrategyNorepeatsRange
 from .range import SimConcretizationStrategyRange
 from .single import SimConcretizationStrategySingle
 from .solutions import SimConcretizationStrategySolutions
+from .unlimited_range import SimConcretizationStrategyUnlimitedRange

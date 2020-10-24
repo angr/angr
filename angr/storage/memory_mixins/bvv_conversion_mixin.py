@@ -5,6 +5,7 @@ from angr.storage.memory_mixins import MemoryMixin
 
 l = logging.getLogger(__name__)
 
+
 class DataNormalizationMixin(MemoryMixin):
     """
     Normalizes the data field for a store and the fallback field for a load to be BVs.
