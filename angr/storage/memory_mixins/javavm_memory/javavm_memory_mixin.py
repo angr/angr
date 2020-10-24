@@ -372,6 +372,6 @@ class JavaVmMemoryMixin(MemoryMixin):
     def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening is not implemented for JavaVM memory!")
 
-    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None, step=1): # pylint: disable=unused-argument
+    def _find(self, addr, what, max_search=None, max_symbolic_bytes=None, default=None): # pylint: disable=unused-argument
         l.warning("Find is not implemented for JavaVM memory!")
         return None
