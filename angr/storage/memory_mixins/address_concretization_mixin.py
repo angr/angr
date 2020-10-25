@@ -1,3 +1,5 @@
+from typing import List
+
 import claripy
 
 from . import MemoryMixin
@@ -229,6 +231,24 @@ class AddressConcretizationMixin(MemoryMixin):
     # Real shit
     #
 
+    @staticmethod
+    def _interleave_ints(addrs: List[int]) -> List[int]:
+        """
+        Take a list of integers and return a new list of integers where front and back integers interleave.
+        """
+        lst = [None] * len(addrs)
+        front, back = 0, len(addrs) - 1
+        i = 0
+        while front <= back:
+            lst[i] = addrs[front]
+            i += 1
+            front += 1
+            if front < back:
+                lst[i] = addrs[back]
+                i += 1
+                back -= 1
+        return lst
+
     def load(self, addr, size=None, condition=None, **kwargs):
         if type(size) is not int:
             raise TypeError("Size must have been specified as an int before reaching address concretization")
@@ -237,7 +257,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
 
         try:
-            concrete_addrs = sorted(self.concretize_read_addr(addr))
+            concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr)))
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
@@ -281,7 +301,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return
 
         try:
-            concrete_addrs = sorted(self.concretize_write_addr(addr))
+            concrete_addrs = self._interleave_ints(sorted(self.concretize_write_addr(addr)))
         except SimMemoryError:
             if options.CONSERVATIVE_WRITE_STRATEGY in self.state.options:
                 return  # not completed
