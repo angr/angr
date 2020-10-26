@@ -18,7 +18,12 @@ from ....exploration_techniques.slicecutor import Slicecutor
 from ....exploration_techniques.explorer import Explorer
 from ....utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
+from ....misc.ux import once
 
+try:
+    from ....engines import pcode
+except ImportError:
+    pcode = None
 
 l = logging.getLogger(name=__name__)
 
@@ -521,6 +526,10 @@ class JumpTableResolver(IndirectJumpResolver):
         self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
+        if pcode is not None and isinstance(block.vex, pcode.lifter.IRSB):
+            if once('pcode__indirect_jump_resolver'):
+                l.warning('JumpTableResolver does not support P-Code IR yet; CFG may be incomplete.')
+            return False
 
         if is_arm_arch(self.project.arch):
             # For ARM, we support both jump tables and "call tables" (because of how crazy ARM compilers are...)
