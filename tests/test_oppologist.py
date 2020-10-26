@@ -27,7 +27,11 @@ def test_fauxware_oppologist():
     pg = _ultra_oppologist(p, s)
     assert len(pg.deadended) == 1
     assert len(pg.deadended[0].posix.dumps(0)) == 18
-    assert pg.deadended[0].posix.dumps(1).count(b"\n") == 3
+    stdout = pg.deadended[0].posix.dumps(1)
+    if b"trusted user" in stdout:
+        assert stdout.count(b"\n") == 3
+    else:
+        assert stdout.count(b"\n") == 2
 
 def test_cromu_70():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'cgc', 'CROMU_00070'))
