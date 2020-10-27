@@ -10,6 +10,7 @@ from angr.code_location import CodeLocation
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
+from ..reaching_definitions.dep_graph import DepGraph
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements
 from ... import BP, BP_BEFORE, BP_AFTER
@@ -62,10 +63,29 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
 #        self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr,
+                                                        start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, proj, folder_name)
+
+    def block_arithmetic_simplifications(self, cfg, proj, start_addr=None, vm_vpc_addr=None, start_state=None):
+        for node in list(cfg.graph.nodes()):
+            if not node.is_simprocedure:
+                cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph())
+
+                ## create stmt dependency graph
+                for
+
+                ## perform arithmetic simplifications on the graph
+
+                ## reconstrcut the statements from the simplififed graph
+
+                import ipdb;
+                ipdb.set_trace()
+        return new_cfg
 
     ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
     ## and keeps certain attributes
@@ -244,13 +264,13 @@ class VMDeobfuscation(Analysis):
                         new_stmts.append(stmt)
                         continue
 
-                    location = CodeLocation(node.irsb.addr , ind, node.block_id)
+                    location = CodeLocation(node.irsb.addr, ind, node.block_id)
                     if len(ddg._stmt_graph.out_edges([location])) != 0:
                         print(stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
                         print(ddg._stmt_graph.out_edges([location]))
                         new_stmts.append(stmt)
                     ## check if there's a Store from a symbolic memory address
-                    elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
+                    elif isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const:
                         new_stmts.append(stmt)
 
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
