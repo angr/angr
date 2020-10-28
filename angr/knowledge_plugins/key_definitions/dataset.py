@@ -1,6 +1,7 @@
 from typing import List, Union, Set
 import logging
 import operator
+import re
 
 from ...engines.light import RegisterOffset
 from .constants import DEBUG
@@ -168,10 +169,28 @@ class DataSet:
         if UNDEFINED in self.data:
             data_string = str(self.data)
         else:
-            data_string = str([ hex(i) if isinstance(i, int) else i for i in self.data ])
+            data_string = str([ _stringify_datum(i) for i in self.data ])
         size = "%d" % self._bits if isinstance(self._bits, int) else self._bits
 
         return 'DataSet<%s>: %s' % (size, data_string)
+
+def _stringify_datum(datum):
+    if isinstance(datum, int): return hex(datum)
+
+    # Shorten long strings if possible
+    if isinstance(datum, str) and len(datum) > 50:
+        regex = r'(.)\1{10,}'
+        matches = list(re.finditer(regex, datum))
+
+        if len(matches) == 0: return datum
+
+        _new_datum = datum[:matches[0].span()[0]]
+        for m in matches:
+            number_of_occurences = m.span()[1] - m.span()[0]
+            _new_datum += "%s...(repeats %d times)" % (m.groups()[0], number_of_occurences)
+        return _new_datum
+
+    return datum
 
 
 def dataset_from_datasets(datasets: List[DataSet]) -> DataSet:
