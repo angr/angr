@@ -86,28 +86,6 @@ def test_stops():
     nose.tools.assert_equal(p_segfault_angr.history.bbl_addrs.hardcopy, p_segfault.history.bbl_addrs.hardcopy)
     nose.tools.assert_equal(pg_segfault_angr.errored[0].error.addr, pg_segfault.errored[0].error.addr)
 
-    # test STOP_SYMBOLIC_READ_ADDR
-    s_symbolic_read_addr = p.factory.entry_state(args=['a'] * 8, add_options=so.unicorn)
-    pg_symbolic_read_addr = p.factory.simulation_manager(s_symbolic_read_addr).run()
-    p_symbolic_read_addr = pg_symbolic_read_addr.one_deadended
-    _compare_trace(p_symbolic_read_addr.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_STOPPOINT after 10 steps) from 0x80485b5: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
-
-    s_symbolic_read_addr_angr = p.factory.entry_state(args=['a'] * 8)
-    pg_symbolic_read_addr_angr = p.factory.simulation_manager(s_symbolic_read_addr_angr).run()
-    p_symbolic_read_addr_angr = pg_symbolic_read_addr_angr.one_deadended
-    nose.tools.assert_equal(p_symbolic_read_addr_angr.history.bbl_addrs.hardcopy, p_symbolic_read_addr.history.bbl_addrs.hardcopy)
-
-    # test STOP_SYMBOLIC_WRITE_ADDR
-    s_symbolic_write_addr = p.factory.entry_state(args=['a'] * 9, add_options=so.unicorn)
-    pg_symbolic_write_addr = p.factory.simulation_manager(s_symbolic_write_addr).run()
-    p_symbolic_write_addr = pg_symbolic_write_addr.one_deadended
-    _compare_trace(p_symbolic_write_addr.history.descriptions, ['<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>', '<SimProcedure __libc_start_main from 0x8119990: 1 sat>', '<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>', '<SimProcedure __libc_start_main from 0x8400044: 1 sat>', '<Unicorn (STOP_STOPPOINT after 10 steps) from 0x80485b5: 1 sat>', '<SimProcedure __libc_start_main from 0x8400048: 1 sat>'])
-
-    s_symbolic_write_addr_angr = p.factory.entry_state(args=['a'] * 9)
-    pg_symbolic_write_addr_angr = p.factory.simulation_manager(s_symbolic_write_addr_angr).run()
-    p_symbolic_write_addr_angr = pg_symbolic_write_addr_angr.one_deadended
-    nose.tools.assert_equal(p_symbolic_write_addr_angr.history.bbl_addrs.hardcopy, p_symbolic_write_addr.history.bbl_addrs.hardcopy)
-
     # test STOP_SYMBOLIC_BLOCK_EXIT
     s_symbolic_exit = p.factory.entry_state(args=['a'] * 10, add_options=so.unicorn)
     pg_symbolic_exit = p.factory.simulation_manager(s_symbolic_exit).run()
