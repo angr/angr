@@ -98,9 +98,6 @@ class Concrete(SimStatePlugin):
 
         target = self.state.project.concrete_target
 
-        # Setting a concrete memory backend
-        self.state.memory._clemory_backer.set_concrete_target(target)
-
         # Sync angr registers with the one getting from the concrete target
         # registers that we don't want to concretize.
         l.debug("Synchronizing general purpose registers")
