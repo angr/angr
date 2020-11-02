@@ -10,6 +10,7 @@ from ...keyed_region import KeyedRegion
 from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition, Tag
+from .heap_address import HeapAddress
 from .undefined import UNDEFINED
 from .uses import Uses
 from .dataset import DataSet
@@ -24,9 +25,9 @@ class LiveDefinitions:
     uncovered during the analysis.
     """
 
-    __slots__ = ('arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'memory_definitions',
-                 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses', 'uses_by_codeloc', 'tmp_uses',
-                 '_canonical_size')
+    __slots__ = ('arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'heap_definitions',
+                 'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'heap_uses',
+                 'memory_uses', 'uses_by_codeloc', 'tmp_uses', '_canonical_size', )
 
     def __init__(self, arch: archinfo.Arch, track_tmps: bool=False, canonical_size=8):
 
@@ -37,18 +38,21 @@ class LiveDefinitions:
         self.register_definitions = KeyedRegion(canonical_size=self._canonical_size)
         self.stack_definitions = KeyedRegion(canonical_size=self._canonical_size)
         self.memory_definitions = KeyedRegion(canonical_size=self._canonical_size)
+        self.heap_definitions = KeyedRegion(canonical_size=self._canonical_size)
         self.tmp_definitions: Dict[int,Set[Definition]] = {}
 
         self.register_uses = Uses()
         self.stack_uses = Uses()
+        self.heap_uses = Uses()
         self.memory_uses = Uses()
         self.uses_by_codeloc: Dict[CodeLocation,Set[Definition]] = defaultdict(set)
         self.tmp_uses: Dict[int,Set[CodeLocation]] = defaultdict(set)
 
     def __repr__(self):
-        ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d memdefs" % (
+        ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d heapdefs, %d memdefs" % (
                 len(self.register_definitions),
                 len(self.stack_definitions),
+                len(self.heap_definitions),
                 len(self.memory_definitions),
                 )
         if self.tmp_definitions:
@@ -60,10 +64,12 @@ class LiveDefinitions:
 
         rd.register_definitions = self.register_definitions.copy()
         rd.stack_definitions = self.stack_definitions.copy()
+        rd.heap_definitions = self.heap_definitions.copy()
         rd.memory_definitions = self.memory_definitions.copy()
         rd.tmp_definitions = self.tmp_definitions.copy()
         rd.register_uses = self.register_uses.copy()
         rd.stack_uses = self.stack_uses.copy()
+        rd.heap_uses = self.heap_uses.copy()
         rd.memory_uses = self.memory_uses.copy()
         rd.tmp_uses = self.tmp_uses.copy()
 
@@ -89,10 +95,12 @@ class LiveDefinitions:
             other: LiveDefinitions
             state.register_definitions.merge(other.register_definitions)
             state.stack_definitions.merge(other.stack_definitions)
+            state.heap_definitions.merge(other.heap_definitions)
             state.memory_definitions.merge(other.memory_definitions)
 
             state.register_uses.merge(other.register_uses)
             state.stack_uses.merge(other.stack_uses)
+            state.heap_uses.merge(other.heap_uses)
             state.memory_uses.merge(other.memory_uses)
 
         return state
@@ -121,6 +129,8 @@ class LiveDefinitions:
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 self.stack_definitions.set_object(atom.addr.offset, definition, atom.size)
+            elif isinstance(atom.addr, HeapAddress):
+                self.heap_definitions.set_object(atom.addr.value, definition, atom.size)
             elif isinstance(atom.addr, int):
                 self.memory_definitions.set_object(atom.addr, definition, atom.size)
             else:
@@ -136,12 +146,14 @@ class LiveDefinitions:
 
         return definition
 
-    def add_use(self, atom: Atom, code_loc) -> None:
+    def add_use(self, atom: Atom, code_loc: CodeLocation) -> None:
         if isinstance(atom, Register):
             self._add_register_use(atom, code_loc)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 self._add_stack_use(atom, code_loc)
+            elif isinstance(atom.addr, HeapAddress):
+                self._add_heap_use(atom, code_loc)
             elif isinstance(atom.addr, int):
                 self._add_memory_use(atom, code_loc)
             else:
@@ -158,6 +170,8 @@ class LiveDefinitions:
         elif isinstance(definition.atom, MemoryLocation):
             if isinstance(definition.atom.addr, SpOffset):
                 self._add_stack_use_by_def(definition, code_loc)
+            elif isinstance(definition.atom.addr, HeapAddress):
+                self._add_heap_use_by_def(definition, code_loc)
             elif isinstance(definition.atom.addr, MemoryLocation):
                 self._add_memory_use_by_def(definition, code_loc)
             else:
@@ -174,6 +188,8 @@ class LiveDefinitions:
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 return self.stack_definitions.get_objects_by_offset(atom.addr.offset)
+            elif isinstance(atom.addr, HeapAddress):
+                return self.heap_definitions.get_objects_by_offset(atom.addr.value)
             elif isinstance(atom.addr, int):
                 return self.memory_definitions.get_objects_by_offset(atom.addr)
             else:
@@ -216,6 +232,20 @@ class LiveDefinitions:
 
     def _add_stack_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
         self.stack_uses.add_use(def_, code_loc)
+        self.uses_by_codeloc[code_loc].add(def_)
+
+    def _add_heap_use(self, atom: MemoryLocation, code_loc: CodeLocation) -> None:
+
+        if not isinstance(atom.addr, HeapAddress):
+            raise TypeError("Atom %r is not a heap location atom." % atom)
+
+        current_defs = self.heap_definitions.get_objects_by_offset(atom.addr.value)
+
+        for current_def in current_defs:
+            self._add_heap_use_by_def(current_def, code_loc)
+
+    def _add_heap_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
+        self.heap_uses.add_use(def_, code_loc)
         self.uses_by_codeloc[code_loc].add(def_)
 
     def _add_memory_use(self, atom: MemoryLocation, code_loc: CodeLocation) -> None:

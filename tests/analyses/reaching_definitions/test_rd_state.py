@@ -5,6 +5,7 @@ from unittest import TestCase
 
 import archinfo
 
+from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import SubjectType
 
@@ -47,4 +48,10 @@ class TestReachingDefinitionsState(TestCase):
         ))
         rtoc_definition_value = rtoc_definition.data.get_first_element()
 
-        self.assertEquals(rtoc_definition_value, rtoc_value)
+        self.assertEqual(rtoc_definition_value, rtoc_value)
+
+    def test_rd_state_gets_a_default_heap_allocator(self):
+        arch = archinfo.arch_arm.ArchARM()
+        state = ReachingDefinitionsState(arch, _MockFunctionSubject())
+
+        self.assertTrue(isinstance(state.heap_allocator, HeapAllocator))
