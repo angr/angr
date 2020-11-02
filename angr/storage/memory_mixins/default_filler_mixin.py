@@ -15,7 +15,6 @@ class DefaultFillerMixin(MemoryMixin):
                        **kwargs):
         if self.state.project.concrete_target:
             return self.state.project.concrete_target.read_memory(addr, size)
-        
         if fill_missing is False:
             raise MemoryMissingException(addr, size)
 
