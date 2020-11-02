@@ -40,21 +40,23 @@ class ReachingDefinitionsState:
     """
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
-                 'all_definitions', )
+                 'all_definitions', '_canonical_size')
 
     def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False,
                  analysis: Optional['ReachingDefinitionsAnalysis']=None, rtoc_value=None,
-                 live_definitions=None):
+                 live_definitions=None, canonical_size=8):
 
         # handy short-hands
         self.arch = arch
         self._subject = subject
         self._track_tmps = track_tmps
         self.analysis = analysis
+        self._canonical_size: int = canonical_size
 
         if live_definitions is None:
             # the first time this state is created. initialize it
-            self.live_definitions = LiveDefinitions(self.arch, track_tmps=self._track_tmps)
+            self.live_definitions = LiveDefinitions(self.arch, track_tmps=self._track_tmps,
+                                                    canonical_size=canonical_size)
             self._set_initialization_values(subject, rtoc_value)
         else:
             # this state is a copy from a previous state. skip the initialization
@@ -175,6 +177,7 @@ class ReachingDefinitionsState:
             track_tmps=self._track_tmps,
             analysis=self.analysis,
             live_definitions=self.live_definitions.copy(),
+            canonical_size=self._canonical_size,
         )
 
         return rd

@@ -1,6 +1,11 @@
 import logging
 import weakref
+from typing import Union, TYPE_CHECKING
+
 from sortedcontainers import SortedDict
+
+if TYPE_CHECKING:
+    from .knowledge_plugins.key_definitions.unknown_size import UnknownSize
 
 
 l = logging.getLogger(name=__name__)
@@ -13,7 +18,7 @@ class StoredObject:
     def __init__(self, start, obj, size):
         self.start = start
         self.obj = obj
-        self.size = size
+        self.size: Union['UnknownSize',int] = size
 
     def __eq__(self, other):
         assert type(other) is StoredObject
@@ -24,7 +29,7 @@ class StoredObject:
         return hash((self.start, self.size, self.obj))
 
     def __repr__(self):
-        return "<SO %s@%#x, %d bytes>" % (repr(self.obj), self.start, self.size)
+        return "<SO %s@%#x, %s bytes>" % (repr(self.obj), self.start, self.size)
 
     @property
     def obj_id(self):
@@ -105,12 +110,13 @@ class KeyedRegion:
     Registers and function frames can all be viewed as a keyed region.
     """
 
-    __slots__ = ('_storage', '_object_mapping', '_phi_node_contains' )
+    __slots__ = ('_storage', '_object_mapping', '_phi_node_contains', '_canonical_size', )
 
-    def __init__(self, tree=None, phi_node_contains=None):
+    def __init__(self, tree=None, phi_node_contains=None, canonical_size=8):
         self._storage = SortedDict() if tree is None else tree
         self._object_mapping = weakref.WeakValueDictionary()
         self._phi_node_contains = phi_node_contains
+        self._canonical_size: int = canonical_size
 
     def __getstate__(self):
         return self._storage, dict(self._object_mapping), self._phi_node_contains
@@ -161,9 +167,9 @@ class KeyedRegion:
 
     def copy(self):
         if not self._storage:
-            return KeyedRegion(phi_node_contains=self._phi_node_contains)
+            return KeyedRegion(phi_node_contains=self._phi_node_contains, canonical_size=self._canonical_size)
 
-        kr = KeyedRegion(phi_node_contains=self._phi_node_contains)
+        kr = KeyedRegion(phi_node_contains=self._phi_node_contains, canonical_size=self._canonical_size)
         for key, ro in self._storage.items():
             kr._storage[key] = ro.copy()
         kr._object_mapping = self._object_mapping.copy()
@@ -176,6 +182,9 @@ class KeyedRegion:
         :param KeyedRegion other: The other instance to merge with.
         :return: None
         """
+
+        if self._canonical_size != other._canonical_size:
+            raise ValueError("The canonical sizes of two KeyedRegion objects must equal.")
 
         # TODO: is the current solution not optimal enough?
         for _, item in other._storage.items():  # type: RegionObject
@@ -352,6 +361,15 @@ class KeyedRegion:
     # Private methods
     #
 
+    def _canonicalize_size(self, size: Union[int,'UnknownSize']) -> int:
+
+        # delayed import
+        from .knowledge_plugins.key_definitions.unknown_size import UnknownSize  # pylint:disable=import-outside-toplevel
+
+        if isinstance(size, UnknownSize):
+            return self._canonical_size
+        return size
+
     def _store(self, start, obj, size, overwrite=False):
         """
         Store a variable into the storage.
@@ -378,8 +396,8 @@ class KeyedRegion:
         """
 
         start = stored_object.start
-        object_size = stored_object.size
-        end = start + object_size
+        object_size = self._canonicalize_size(stored_object.size)
+        end: int = start + object_size
 
         # region items in the middle
         overlapping_items = list(self._storage.irange(start, end-1))
@@ -392,10 +410,11 @@ class KeyedRegion:
 
         # scan through the entire list of region items, split existing regions and insert new regions as needed
         to_update = {start: RegionObject(start, object_size, {stored_object})}
-        last_end = start
+        last_end: int = start
 
         for floor_key in overlapping_items:
-            item = self._storage[floor_key]
+            item: RegionObject = self._storage[floor_key]
+            item_end: int = item.start + self._canonicalize_size(item.size)
             if item.start < start:
                 # we need to break this item into two
                 a, b = item.split(start)
@@ -405,7 +424,7 @@ class KeyedRegion:
                     self._add_object_with_check(b, stored_object, merge_to_top=merge_to_top, top=top)
                 to_update[a.start] = a
                 to_update[b.start] = b
-                last_end = b.end
+                last_end = b.start + self._canonicalize_size(b.size)
             elif item.start > last_end:
                 # there is a gap between the last item and the current item
                 # fill in the gap
@@ -421,7 +440,7 @@ class KeyedRegion:
                     self._add_object_with_check(a, stored_object, merge_to_top=merge_to_top, top=top)
                 to_update[a.start] = a
                 to_update[b.start] = b
-                last_end = b.end
+                last_end = b.start + self._canonicalize_size(b.size)
             else:
                 if overwrite:
                     item.set_object(stored_object)

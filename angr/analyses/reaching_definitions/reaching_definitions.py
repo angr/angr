@@ -44,7 +44,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     def __init__(self, subject: [Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=3,
                  track_tmps=False, observation_points=None, init_state: ReachingDefinitionsState=None, cc=None,
                  function_handler=None, call_stack: Optional[List[int]]=None, maximum_local_call_depth=5,
-                 observe_all=False, visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None):
+                 observe_all=False, visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None,
+                 canonical_size=8):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
@@ -72,6 +73,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         :param visited_blocks:                  A set of previously visited blocks.
         :param dep_graph:                       An initial dependency graph to add the result of the analysis to. Set it
                                                 to None to skip dependency graph generation.
+        :param canonical_size:                  The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as
+                                                for operations where sizes are necessary.
         """
 
         if not isinstance(subject, Subject):
@@ -88,6 +91,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         self._observation_points = observation_points
         self._init_state = init_state
         self._maximum_local_call_depth = maximum_local_call_depth
+        self._canonical_size = canonical_size
 
         self._dep_graph = dep_graph
 
@@ -290,7 +294,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             return self._init_state
         else:
             return ReachingDefinitionsState(
-                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self
+                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self,
+                canonical_size=self._canonical_size,
             )
 
     def _merge_states(self, node, *states):

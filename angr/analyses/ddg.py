@@ -92,7 +92,7 @@ class DDGJob(object):
         return "<DDGJob %s, call_depth %d>" % (self.cfg_node, self.call_depth)
 
 
-class LiveDefinitions(object):
+class LiveDefinitions:
     """
     A collection of live definitions with some handy interfaces for definition killing and lookups.
     """

@@ -25,16 +25,18 @@ class LiveDefinitions:
     """
 
     __slots__ = ('arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'memory_definitions',
-                 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses', 'uses_by_codeloc', 'tmp_uses', )
+                 'tmp_definitions', 'register_uses', 'stack_uses', 'memory_uses', 'uses_by_codeloc', 'tmp_uses',
+                 '_canonical_size')
 
-    def __init__(self, arch: archinfo.Arch, track_tmps: bool=False):
+    def __init__(self, arch: archinfo.Arch, track_tmps: bool=False, canonical_size=8):
 
         self.arch = arch
         self.track_tmps = track_tmps
+        self._canonical_size: int = canonical_size
 
-        self.register_definitions = KeyedRegion()
-        self.stack_definitions = KeyedRegion()
-        self.memory_definitions = KeyedRegion()
+        self.register_definitions = KeyedRegion(canonical_size=self._canonical_size)
+        self.stack_definitions = KeyedRegion(canonical_size=self._canonical_size)
+        self.memory_definitions = KeyedRegion(canonical_size=self._canonical_size)
         self.tmp_definitions: Dict[int,Set[Definition]] = {}
 
         self.register_uses = Uses()
@@ -54,7 +56,7 @@ class LiveDefinitions:
         return "<%s>" % ctnt
 
     def copy(self) -> 'LiveDefinitions':
-        rd = LiveDefinitions(self.arch, track_tmps=self.track_tmps)
+        rd = LiveDefinitions(self.arch, track_tmps=self.track_tmps, canonical_size=self._canonical_size)
 
         rd.register_definitions = self.register_definitions.copy()
         rd.stack_definitions = self.stack_definitions.copy()
