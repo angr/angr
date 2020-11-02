@@ -7,7 +7,7 @@ import ailment
 import pyvex
 import archinfo
 
-from ...engines.vex.claripy.irop import operations as vex_operations
+from ...engines.vex.claripy.irop import UnsupportedIROpError, vexop_to_simop
 from ...code_location import CodeLocation
 from ...utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
@@ -206,7 +206,12 @@ class SimEngineLightVEXMixin:
         handler = None
 
         # All conversions are handled by the Conversion handler
-        simop = vex_operations.get(expr.op)
+        simop = None
+        try:
+            simop = vexop_to_simop(expr.op)
+        except UnsupportedIROpError:
+            pass
+
         if simop is not None and simop.op_attrs.get('conversion', None):
             handler = '_handle_Conversion'
         # Notice order of "Not" comparisons
