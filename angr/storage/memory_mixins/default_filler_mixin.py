@@ -13,7 +13,8 @@ class MemoryMissingException(Exception):
 class DefaultFillerMixin(MemoryMixin):
     def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, fill_missing: bool=True,
                        **kwargs):
-
+        if self.state.project and self.state.project.concrete_target:
+            return self.state.project.concrete_target.read_memory(addr, size)
         if fill_missing is False:
             raise MemoryMissingException(addr, size)
 
