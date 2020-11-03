@@ -431,7 +431,7 @@ class KeyedRegion:
                 new_item = RegionObject(last_end, item.start - last_end, {stored_object})
                 to_update[new_item.start] = new_item
                 last_end = new_item.end
-            elif item.end > end:
+            elif item_end > end:
                 # we need to split this item into two
                 a, b = item.split(end)
                 if overwrite:
