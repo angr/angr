@@ -23,16 +23,25 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+class StatementNode:
+    def __init__(self, stmt, type=None):
+        self.stmt = stmt
+        self.simplified_expr = None
+        self.type = type
+    def __repr__(self):
+        return f"Statement:{self.stmt} Expr:{self.simplified_expr}"
+
+    def __eq__(self, other):
+        return self.stmt == other.stmt and self.type == other.type
+
+    def __hash__(self):
+        return hash((self.stmt, self.type))
 
 
 class VMDeobfuscation(Analysis):
 
     def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None):
 
-        # Delayed import
-        import ailment.analyses  # pylint:disable=redefined-outer-name,unused-import
-
-        # start_addr = 0x4006d1
         start_addr = start_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
@@ -62,7 +71,7 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
-#        self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr,
                                                         start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
@@ -74,12 +83,36 @@ class VMDeobfuscation(Analysis):
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
-                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph())
+                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph(), stmt_graph=StmtGraph())
 
+                import ipdb;ipdb.set_trace()
                 ## create stmt dependency graph
-                for
+                for ind, stmt in enumerate(node.irsb.statements):
+                    print(stmt)
+                    print(result.all_uses.get_uses_by_location(CodeLocation(node.addr, ind)))
+                    print("\n")
+
+                stmt_graph = nx.DiGraph()
+                for edge in list(result.dep_graph.graph.edges()):
+                    node_0 = None
+                    node_1 = None
+                    if isinstance(edge[0].codeloc, CodeLocation):
+                        cur_stmt = cur_block.vex.statements[edge[0].codeloc.stmt_idx]
+                        node_0 = StatementNode(stmt=cur_stmt, type="cur_block")
+                    else:
+                        node_0 = StatementNode(stmt=None, type="external")
+
+                    if isinstance(edge[1].codeloc, CodeLocation):
+                        cur_stmt = cur_block.vex.statements[edge[1].codeloc.stmt_idx]
+                        node_1 = StatementNode(stmt=cur_stmt, type="cur_block")
+                    else:
+                        node_1 = StatementNode(stmt=None, type="external")
+                    stmt_graph.add_edge(node_0, node_1)
+
 
                 ## perform arithmetic simplifications on the graph
+                conn_comps = nx.weakly_connected_components(stmt_graph)
+
 
                 ## reconstrcut the statements from the simplififed graph
 
