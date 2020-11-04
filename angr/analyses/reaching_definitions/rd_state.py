@@ -6,6 +6,7 @@ import archinfo
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.key_definitions.dataset import DataSet
@@ -42,14 +43,16 @@ class ReachingDefinitionsState:
     :param canonical_size:
         The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as for operations where sizes are necessary.
     :param heap_allocator: Mechanism to model the management of heap memory.
+    :param environment: Representation of the environment of the analysed program.
     """
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
-                 'all_definitions', '_canonical_size', 'heap_allocator' )
+                 'all_definitions', '_canonical_size', 'heap_allocator', '_environment', )
 
     def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False,
                  analysis: Optional['ReachingDefinitionsAnalysis']=None, rtoc_value=None,
-                 live_definitions=None, canonical_size: int=8, heap_allocator: HeapAllocator=None):
+                 live_definitions=None, canonical_size: int=8, heap_allocator: HeapAllocator=None,
+                 environment: Environment=None):
 
         # handy short-hands
         self.arch = arch
@@ -70,6 +73,7 @@ class ReachingDefinitionsState:
         self.all_definitions: Set[Definition] = set()
 
         self.heap_allocator = heap_allocator or HeapAllocator(canonical_size)
+        self._environment: Environment = environment or Environment()
 
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
@@ -108,6 +112,9 @@ class ReachingDefinitionsState:
     def uses_by_codeloc(self): return self.live_definitions.uses_by_codeloc
 
     def get_sp(self) -> int: return self.live_definitions.get_sp()
+
+    @property
+    def environment(self): return self._environment
 
     @property
     def dep_graph(self):
@@ -194,6 +201,7 @@ class ReachingDefinitionsState:
             live_definitions=self.live_definitions.copy(),
             canonical_size=self._canonical_size,
             heap_allocator=self.heap_allocator,
+            environment=self._environment,
         )
 
         return rd
