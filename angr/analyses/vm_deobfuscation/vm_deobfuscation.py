@@ -11,6 +11,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..reaching_definitions.dep_graph import DepGraph
+from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements
 from ... import BP, BP_BEFORE, BP_AFTER
@@ -24,18 +25,18 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 class StatementNode:
-    def __init__(self, stmt, type=None):
+    def __init__(self, stmt, codeloc):
         self.stmt = stmt
+        self.codeloc = codeloc
         self.simplified_expr = None
-        self.type = type
     def __repr__(self):
-        return f"Statement:{self.stmt} Expr:{self.simplified_expr}"
+        return f"<Statement:{self.stmt} Expr:{self.simplified_expr}, Codeloc:{self.codeloc}>"
 
     def __eq__(self, other):
-        return self.stmt == other.stmt and self.type == other.type
+        return self.stmt == other.stmt and self.codeloc == other.codeloc
 
     def __hash__(self):
-        return hash((self.stmt, self.type))
+        return hash((self.stmt, self.codeloc))
 
 
 class VMDeobfuscation(Analysis):
@@ -83,36 +84,46 @@ class VMDeobfuscation(Analysis):
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
-                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph(), stmt_graph=StmtGraph())
+                result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph())
 
                 import ipdb;ipdb.set_trace()
                 ## create stmt dependency graph
-                for ind, stmt in enumerate(node.irsb.statements):
-                    print(stmt)
-                    print(result.all_uses.get_uses_by_location(CodeLocation(node.addr, ind)))
-                    print("\n")
-
                 stmt_graph = nx.DiGraph()
-                for edge in list(result.dep_graph.graph.edges()):
-                    node_0 = None
-                    node_1 = None
-                    if isinstance(edge[0].codeloc, CodeLocation):
-                        cur_stmt = cur_block.vex.statements[edge[0].codeloc.stmt_idx]
-                        node_0 = StatementNode(stmt=cur_stmt, type="cur_block")
+                for ind, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        cur_ins_addr = stmt.addr
+                        continue
+                    code_loc = CodeLocation(node.addr, ind, ins_addr=cur_ins_addr)
+                    if code_loc in result.all_uses_by_code_loc:
+                        for use in result.all_uses_by_code_loc[code_loc]:
+                            if isinstance(use.codeloc, ExternalCodeLocation):
+                                use_node = StatementNode(None, use.codeloc)
+                            else:
+                                use_node = StatementNode(node.irsb.statements[use.codeloc.stmt_idx], use.codeloc)
+                            stmt_node = StatementNode(stmt, code_loc)
+                            stmt_graph.add_edge(stmt_node, use_node)
                     else:
-                        node_0 = StatementNode(stmt=None, type="external")
+                        ## This statement has no dependency on other statements
+                        stmt_node = StatementNode(stmt, code_loc)
+                        stmt_graph.add_node(stmt_node)
 
-                    if isinstance(edge[1].codeloc, CodeLocation):
-                        cur_stmt = cur_block.vex.statements[edge[1].codeloc.stmt_idx]
-                        node_1 = StatementNode(stmt=cur_stmt, type="cur_block")
-                    else:
-                        node_1 = StatementNode(stmt=None, type="external")
-                    stmt_graph.add_edge(node_0, node_1)
+                import ipdb;ipdb.set_trace()
 
-
-                ## perform arithmetic simplifications on the graph
+                ## split the graph onto connected components
                 conn_comps = nx.weakly_connected_components(stmt_graph)
+                conn_comps = list(conn_comps)
 
+                sub_graphs = []
+                for comp in conn_comps:
+                    comp_graph = nx.DiGraph()
+                    for temp_node in stmt_graph.subgraph(comp).nodes():
+                        comp_graph.add_node(copy.deepcopy(temp_node))
+                    for edge in stmt_graph.subgraph(comp).edges():
+                        comp_graph.add_edge(copy.deepcopy(edge[0]), copy.deepcopy(edge[1]))
+                    sub_graphs.append(comp_graph)
+
+                ## perform arithmetic simplifications on each component individually
+                import ipdb;ipdb.set_trace()
 
                 ## reconstrcut the statements from the simplififed graph
 
