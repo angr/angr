@@ -37,6 +37,9 @@ class ReachingDefinitionsState:
                               variables, false otherwise.
     :param analysis: The analysis that generated the state represented by this object.
     :param rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
+    :param live_definitions:
+    :param canonical_size:
+        The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as for operations where sizes are necessary.
     """
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
