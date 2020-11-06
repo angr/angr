@@ -213,6 +213,7 @@ class ReachingDefinitionsState:
         for other in others:
             other: 'ReachingDefinitionsState'
             state.live_definitions = state.live_definitions.merge(other.live_definitions)
+            state._environment = state.environment.merge(other.environment)
 
         return state
 

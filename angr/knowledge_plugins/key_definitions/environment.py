@@ -49,3 +49,26 @@ class Environment:
 
     def __repr__(self):
         return "Environment: %s" % self._environment
+
+    def __eq__(self, other: 'Environment') -> bool:
+        assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
+        return self._environment == other._environment
+
+    def merge(self, other: 'Environment'):
+        if not isinstance(other, Environment):
+            raise TypeError("Cannot merge Environment with %s" % type(other).__name__)
+
+        keys = self._environment.keys() | other._environment.keys()
+
+        def _dataset_from_key(key, environment1, environment2):
+            v = environment1.get(key, None)
+            w = environment2.get(key, None)
+            # Because the key is coming from one of them, they cannot be both `None`.
+            if v is None: return w
+            if w is None: return v
+            return dataset_from_datasets([v, w])
+
+        return Environment(environment=dict(map(
+            lambda k: (k, _dataset_from_key(k, self._environment, other._environment)),
+            keys
+        )))

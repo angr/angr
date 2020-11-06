@@ -98,3 +98,26 @@ class TestEnvironment(TestCase):
         data = DataSet({'value'}, 6)
 
         self.assertRaises(TypeError, environment.set, 0x42, data)
+
+    def test_merge_fails_when_merging_with_a_non_Environment_instance(self):
+        environment = Environment(environment={ 'variable_name': DataSet({'value1'}, 7) })
+        other_environment = 0x42
+
+        self.assertRaises(TypeError, environment.merge, other_environment)
+
+
+    def test_merge_two_environments_merge_data_associated_with_each_variable(self):
+        first = 'variable_name'
+        second = 'other_variable_name'
+        environment = Environment(environment={ first: DataSet({'value1'}, 7) })
+        other_environment = Environment(environment={
+            first: DataSet({'value2'}, 7),
+            second: DataSet({UNDEFINED}, UNKNOWN_SIZE)
+        })
+
+        expected_environment = Environment(environment={
+            first: DataSet({'value1', 'value2'}, 7),
+            second: DataSet({UNDEFINED}, UNKNOWN_SIZE)
+        })
+
+        self.assertEqual(environment.merge(other_environment), expected_environment)
