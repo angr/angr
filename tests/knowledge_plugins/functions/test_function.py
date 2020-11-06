@@ -50,3 +50,22 @@ class TestFunction(TestCase):
         ])
 
         self.assertEqual(function.functions_called(), {C, D, E})
+
+    def test_functions_called_with_cyclic_dependencies(self):
+        recursive_function = makeFunction(self.function_manager, 0x40, 'recursive_function')
+        B = makeFunction(self.function_manager, 0x41, 'B')
+        function = makeFunction(self.function_manager, 0x42, 'function')
+        C = makeFunction(self.function_manager, 0x43, 'C')
+
+        # recursive_function -> B
+        # recursive_function -> recursive_function
+        # function -> C -> function (cyclic dependency)
+        self.function_manager.callgraph.add_edges_from([
+            (recursive_function.addr, B.addr),
+            (recursive_function.addr, recursive_function.addr),
+            (function.addr, C.addr),
+            (C.addr, function.addr),
+        ])
+
+        self.assertEqual(function.functions_called(), {function, C})
+        self.assertEqual(recursive_function.functions_called(), {recursive_function, B})
