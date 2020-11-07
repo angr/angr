@@ -1,6 +1,6 @@
 import logging
 
-from ..errors import SimValueError
+from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
 from ..state_plugins.inspect import BP_AFTER
 
@@ -50,11 +50,11 @@ class SimEngineUnicorn(SuccessorsMixin):
         if state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False
-        if unicorn.countdown_symbolic_registers > 0:
-            l.debug("not enough blocks since symbolic registers (%d more)", unicorn.countdown_symbolic_registers)
+        if unicorn.countdown_symbolic_stop > 0:
+            l.info("not enough blocks since symbolic stop (%d more)", unicorn.countdown_symbolic_stop)
             return False
-        if unicorn.countdown_symbolic_memory > 0:
-            l.info("not enough blocks since symbolic memory (%d more)", unicorn.countdown_symbolic_memory)
+        if unicorn.countdown_unsupported_stop > 0:
+            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)", unicorn.countdown_unsupported_stop)
             return False
         if unicorn.countdown_nonunicorn_blocks > 0:
             l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
@@ -63,7 +63,6 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("not enough blocks since stop point (%d more)", unicorn.countdown_stop_point)
         elif o.UNICORN_SYM_REGS_SUPPORT not in state.options and not unicorn._check_registers():
             l.info("failed register check")
-            unicorn.countdown_symbolic_registers = unicorn.cooldown_symbolic_registers
             return False
 
         return True
@@ -71,18 +70,98 @@ class SimEngineUnicorn(SuccessorsMixin):
     @staticmethod
     def __countdown(state):
         state.unicorn.countdown_nonunicorn_blocks -= 1
-        state.unicorn.countdown_symbolic_registers -= 1
-        state.unicorn.countdown_symbolic_memory -= 1
-        state.unicorn.countdown_symbolic_memory -= 1
+        state.unicorn.countdown_symbolic_stop -= 1
+        state.unicorn.countdown_unsupported_stop -= 1
         state.unicorn.countdown_stop_point -= 1
 
     @staticmethod
     def __reset_countdowns(state, next_state):
-        next_state.unicorn.countdown_symbolic_memory = state.unicorn.countdown_symbolic_memory
-        next_state.unicorn.countdown_symbolic_registers = state.unicorn.countdown_symbolic_registers
+        next_state.unicorn.countdown_symbolic_stop = state.unicorn.countdown_symbolic_stop
+        next_state.unicorn.countdown_unsupported_stop = state.unicorn.countdown_unsupported_stop
         next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
         next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 
+    def _execute_block_instrs_in_vex(self, block_details):
+        if block_details["block_addr"] not in self.block_details_cache:
+            vex_block_details = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
+            self.block_details_cache[block_details["block_addr"]] = vex_block_details
+        else:
+            vex_block_details = self.block_details_cache[block_details["block_addr"]]
+
+        vex_block = vex_block_details["block"]
+        for reg_name, reg_value in block_details["registers"]:
+            self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
+
+        # VEX statements to ignore when re-executing instructions that touched symbolic data
+        ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
+        self.state.scratch.set_tyenv(vex_block.tyenv)
+        for instr_entry in block_details["instrs"]:
+            saved_memory_values = {}
+            for memory_val in instr_entry["mem_dep"]:
+                address = memory_val["address"]
+                value = memory_val["value"]
+                size = memory_val["size"]
+                curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
+                # Save current memory value for restoring later
+                saved_memory_values[address] = (curr_value, size)
+                self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
+
+            instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
+            start_index = instr_vex_stmt_indices["start"]
+            end_index = instr_vex_stmt_indices["end"]
+            for vex_stmt_idx in range(start_index, end_index + 1):
+                # Execute handler from HeavyVEXMixin for the statement
+                vex_stmt = vex_block.statements[vex_stmt_idx]
+                if vex_stmt.tag not in ignored_statement_tags:
+                    self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
+                    super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+
+            # Restore previously saved value
+            for address, (value, size) in saved_memory_values.items():
+                curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
+                if not curr_value.symbolic:
+                    # Restore the saved value only if current value is not symbolic. If it is, that would mean the value
+                    # was changed by re-executing the block in VEX engine
+                    self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
+
+        del self.stmt_idx
+
+    def _execute_symbolic_instrs(self):
+        for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
+            try:
+                self._execute_block_instrs_in_vex(block_details)
+            except SimValueError as e:
+                l.error(e)
+
+    def _get_vex_block_details(self, block_addr, block_size):
+        # Mostly based on the lifting code in HeavyVEXMixin
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size, cross_insn_opt=False)    # pylint:disable=no-member
+        if irsb.size == 0:
+            if irsb.jumpkind == 'Ijk_NoDecode':
+                if not self.state.project.is_hooked(irsb.addr):
+                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
+                                            "a python replacement using project.hook"
+                                            "(%#x, your_function, length=length_of_instruction)." % (irsb.addr, irsb.addr))
+
+                raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
+
+            raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
+
+        instrs_stmt_indices = {}
+        curr_instr_addr = None
+        curr_instr_stmts_start_idx = 0
+        for idx, statement in enumerate(irsb.statements):
+            if statement.tag == "Ist_IMark":
+                if curr_instr_addr is not None:
+                    instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": idx - 1}
+
+                curr_instr_addr = statement.addr
+                curr_instr_stmts_start_idx = idx
+
+        # Adding details of the last instruction
+        instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": len(irsb.statements) - 1}
+        block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
+        return block_details
 
     def process_successors(self, successors, **kwargs):
         state = self.state
@@ -117,6 +196,9 @@ class SimEngineUnicorn(SuccessorsMixin):
                 # will then be handled by another engine that can more accurately step instruction-by-instruction.
                 extra_stop_points.add(bp.kwargs["instruction"])
 
+        # VEX block cache for executing instructions skipped by native interface
+        self.block_details_cache = {}  # pylint:disable=attribute-defined-outside-init
+
         # initialize unicorn plugin
         try:
             state.unicorn.setup()
@@ -132,6 +214,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()
             state.unicorn.start(step=step)
+            self._execute_symbolic_instrs()
             state.unicorn.finish()
         finally:
             state.unicorn.destroy()
@@ -154,6 +237,10 @@ class SimEngineUnicorn(SuccessorsMixin):
                     for bbl_addr in state.history.recent_bbl_addrs:
                         state._inspect('irsb', BP_AFTER, address=bbl_addr)
                     break
+
+        if (state.unicorn.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or
+            state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE, STOP.STOP_VEX_LIFT_FAILED)):
+            l.info(state.unicorn.stop_message)
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):
             state.ip = state.unicorn._syscall_pc

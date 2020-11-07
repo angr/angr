@@ -11,6 +11,7 @@ import pyvex
 import claripy
 import time
 import binascii
+import archinfo
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
@@ -43,20 +44,115 @@ TRANSMIT_RECORD._fields_ = [
         ('count', ctypes.c_uint32)
     ]
 
+class TaintEntityEnum: # taint_entity_enum_t
+    TAINT_ENTITY_REG = 0
+    TAINT_ENTITY_TMP = 1
+    TAINT_ENTITY_MEM = 2
+    TAINT_ENTITY_NONE = 3
+
+class MemoryValue(ctypes.Structure): # memory_value_t
+    _MAX_MEM_ACCESS_SIZE = 8
+
+    _fields_ = [
+        ('address', ctypes.c_uint64),
+        ('value', ctypes.c_uint8 * _MAX_MEM_ACCESS_SIZE),
+        ('size', ctypes.c_uint64)
+    ]
+
+class RegisterValue(ctypes.Structure): # register_value_t
+    _MAX_REGISTER_BYTE_SIZE = 32
+
+    _fields_ = [
+        ('offset', ctypes.c_uint64),
+        ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE)
+    ]
+class InstrDetails(ctypes.Structure): # instr_details_t
+    _fields_ = [
+        ('instr_addr', ctypes.c_uint64),
+        ('has_memory_dep', ctypes.c_bool),
+        ('memory_values', ctypes.POINTER(MemoryValue)),
+        ('memory_values_count', ctypes.c_uint64),
+    ]
+
+class BlockDetails(ctypes.Structure): # block_details_ret_t
+    _fields_ = [
+        ('block_addr', ctypes.c_uint64),
+        ('block_size', ctypes.c_uint64),
+        ('symbolic_instrs', ctypes.POINTER(InstrDetails)),
+        ('symbolic_instrs_count', ctypes.c_uint64),
+        ('register_values', ctypes.POINTER(RegisterValue)),
+        ('register_values_count', ctypes.c_uint64),
+    ]
+
 class STOP:  # stop_t
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
-    STOP_SYMBOLIC_MEM   = 2
-    STOP_SYMBOLIC_REG   = 3
-    STOP_ERROR          = 4
-    STOP_SYSCALL        = 5
-    STOP_EXECNONE       = 6
-    STOP_ZEROPAGE       = 7
-    STOP_NOSTART        = 8
-    STOP_SEGFAULT       = 9
-    STOP_ZERO_DIV       = 10
-    STOP_NODECODE       = 11
-    STOP_HLT            = 12
+    STOP_ERROR          = 2
+    STOP_SYSCALL        = 3
+    STOP_EXECNONE       = 4
+    STOP_ZEROPAGE       = 5
+    STOP_NOSTART        = 6
+    STOP_SEGFAULT       = 7
+    STOP_ZERO_DIV       = 8
+    STOP_NODECODE       = 9
+    STOP_HLT            = 10
+    STOP_VEX_LIFT_FAILED        = 11
+    STOP_SYMBOLIC_CONDITION     = 12
+    STOP_SYMBOLIC_PC            = 13
+    STOP_SYMBOLIC_READ_ADDR     = 14
+    STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED = 15
+    STOP_SYMBOLIC_WRITE_ADDR    = 16
+    STOP_SYMBOLIC_BLOCK_EXIT_CONDITION = 17
+    STOP_SYMBOLIC_BLOCK_EXIT_TARGET = 18
+    STOP_UNSUPPORTED_STMT_PUTI    = 19
+    STOP_UNSUPPORTED_STMT_STOREG  = 20
+    STOP_UNSUPPORTED_STMT_LOADG   = 21
+    STOP_UNSUPPORTED_STMT_CAS     = 22
+    STOP_UNSUPPORTED_STMT_LLSC    = 23
+    STOP_UNSUPPORTED_STMT_DIRTY   = 24
+    STOP_UNSUPPORTED_EXPR_GETI    = 25
+    STOP_UNSUPPORTED_STMT_UNKNOWN = 26
+    STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
+    STOP_UNKNOWN_MEMORY_WRITE     = 28
+
+    stop_message = {}
+    stop_message[STOP_NORMAL]        = "Reached maximum steps"
+    stop_message[STOP_STOPPOINT]     = "Hit a stop point"
+    stop_message[STOP_ERROR]         = "Something wrong"
+    stop_message[STOP_SYSCALL]       = "Unable to handle syscall"
+    stop_message[STOP_EXECNONE]      = "Fetching empty page"
+    stop_message[STOP_ZEROPAGE]      = "Accessing zero page"
+    stop_message[STOP_NOSTART]       = "Failed to start"
+    stop_message[STOP_SEGFAULT]      = "Permissions or mapping error"
+    stop_message[STOP_ZERO_DIV]      = "Divide by zero"
+    stop_message[STOP_NODECODE]      = "Instruction decoding error"
+    stop_message[STOP_HLT]           = "hlt instruction encountered"
+    stop_message[STOP_VEX_LIFT_FAILED]       = "Failed to lift block to VEX"
+    stop_message[STOP_SYMBOLIC_CONDITION]    = "Symbolic condition for ITE"
+    stop_message[STOP_SYMBOLIC_PC]           = "Instruction pointer became symbolic"
+    stop_message[STOP_SYMBOLIC_READ_ADDR]    = "Attempted to read from symbolic address"
+    stop_message[STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED]= "Attempted to read symbolic data from memory but symbolic tracking is disabled"
+    stop_message[STOP_SYMBOLIC_WRITE_ADDR]   = "Attempted to write to symbolic address"
+    stop_message[STOP_SYMBOLIC_BLOCK_EXIT_CONDITION] = "Guard condition of block's exit statement is symbolic"
+    stop_message[STOP_SYMBOLIC_BLOCK_EXIT_TARGET] = "Target of default exit of block is symbolic"
+    stop_message[STOP_UNSUPPORTED_STMT_PUTI]   = "Symbolic taint propagation for PutI statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_STOREG] = "Symbolic taint propagation for StoreG statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_LOADG]  = "Symbolic taint propagation for LoadG statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_CAS]    = "Symbolic taint propagation for CAS statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_LLSC]   = "Symbolic taint propagation for LLSC statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_DIRTY]  = "Symbolic taint propagation for Dirty statement not yet supported"
+    stop_message[STOP_UNSUPPORTED_EXPR_GETI]   = "Symbolic taint propagation for GetI expression not yet supported"
+    stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
+    stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
+    stop_message[STOP_UNKNOWN_MEMORY_WRITE]    = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly"
+
+    symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
+        STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
+        STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET]
+
+    unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
+        STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
+        STOP_UNSUPPORTED_STMT_UNKNOWN, STOP_UNSUPPORTED_EXPR_UNKNOWN, STOP_VEX_LIFT_FAILED]
 
     @staticmethod
     def name_stop(num):
@@ -64,6 +160,20 @@ class STOP:  # stop_t
             if item.startswith('STOP_') and getattr(STOP, item) == num:
                 return item
         raise ValueError(num)
+
+    @staticmethod
+    def get_stop_msg(stop_reason):
+        if stop_reason in STOP.stop_message:
+            return STOP.stop_message[stop_reason]
+
+        return "Unknown stop reason"
+
+class StopDetails(ctypes.Structure):
+    _fields_ = [
+        ('stop_reason', ctypes.c_int),
+        ('block_addr', ctypes.c_uint64),
+        ('block_size', ctypes.c_uint64),
+    ]
 
 #
 # Memory mapping errors - only used internally
@@ -225,9 +335,7 @@ def _load_native():
         _setup_prototype(h, 'stack_pointers', ctypes.POINTER(ctypes.c_uint64), state_t)
         _setup_prototype(h, 'bbl_addr_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'destroy', None, ctypes.POINTER(MEM_PATCH))
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'stop_reason', stop_t, state_t)
         _setup_prototype(h, 'activate_page', None, state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
@@ -237,8 +345,6 @@ def _load_native():
         _setup_prototype(h, 'disable_symbolic_reg_tracking', None, state_t)
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, 'stopping_register', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'stopping_memory', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
         _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
@@ -246,6 +352,16 @@ def _load_native():
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
+        _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_vex_sub_reg_to_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_vex_offset_to_register_size_mapping', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'get_details_of_blocks_with_symbolic_instrs', None, state_t, ctypes.POINTER(BlockDetails))
+        _setup_prototype(h, 'get_stop_details', StopDetails, state_t)
+        _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_unicorn_flags_register_id', None, state_t, ctypes.c_int64)
 
         l.info('native plugin is enabled')
 
@@ -282,8 +398,8 @@ class Unicorn(SimStatePlugin):
         concretization_threshold_memory=None,
         concretization_threshold_registers=None,
         concretization_threshold_instruction=None,
-        cooldown_symbolic_registers=100,
-        cooldown_symbolic_memory=100,
+        cooldown_symbolic_stop=2,
+        cooldown_unsupported_stop=2,
         cooldown_nonunicorn_blocks=100,
         cooldown_stop_point=1,
         max_steps=1000000,
@@ -309,12 +425,12 @@ class Unicorn(SimStatePlugin):
         # the cooldown vars are the settings for what the countdown should start at
         # the val is copied from cooldown to countdown on check fail
         self.cooldown_nonunicorn_blocks = cooldown_nonunicorn_blocks
-        self.cooldown_symbolic_registers = cooldown_symbolic_registers
-        self.cooldown_symbolic_memory = cooldown_symbolic_memory
+        self.cooldown_symbolic_stop = cooldown_symbolic_stop
+        self.cooldown_unsupported_stop = cooldown_unsupported_stop
         self.cooldown_stop_point = cooldown_stop_point
         self.countdown_nonunicorn_blocks = 0
-        self.countdown_symbolic_registers = 0
-        self.countdown_symbolic_memory = 0
+        self.countdown_symbolic_stop = 0
+        self.countdown_unsupported_stop = 0
         self.countdown_stop_point = 0
 
         # the default step limit
@@ -333,6 +449,8 @@ class Unicorn(SimStatePlugin):
         # native state in libsimunicorn
         self._uc_state = None
         self.stop_reason = None
+        self.stop_details = None
+        self.stop_message = None
 
         # this is the counter for the unicorn count
         self._unicount = next(_unicounter) if unicount is None else unicount
@@ -386,13 +504,13 @@ class Unicorn(SimStatePlugin):
             concretization_threshold_registers = self.concretization_threshold_registers,
             concretization_threshold_instruction = self.concretization_threshold_instruction,
             cooldown_nonunicorn_blocks=self.cooldown_nonunicorn_blocks,
-            cooldown_symbolic_registers=self.cooldown_symbolic_registers,
-            cooldown_symbolic_memory=self.cooldown_symbolic_memory,
+            cooldown_symbolic_stop=self.cooldown_symbolic_stop,
+            cooldown_unsupported_stop=self.cooldown_unsupported_stop,
             max_steps=self.max_steps,
         )
         u.countdown_nonunicorn_blocks = self.countdown_nonunicorn_blocks
-        u.countdown_symbolic_registers = self.countdown_symbolic_registers
-        u.countdown_symbolic_memory = self.countdown_symbolic_memory
+        u.countdown_symbolic_stop = self.countdown_symbolic_stop
+        u.countdown_unsupported_stop = self.countdown_unsupported_stop
         u.countdown_stop_point = self.countdown_stop_point
         u.transmit_addr = self.transmit_addr
         u._uncache_regions = list(self._uncache_regions)
@@ -404,25 +522,25 @@ class Unicorn(SimStatePlugin):
             self.cooldown_nonunicorn_blocks,
             max(o.cooldown_nonunicorn_blocks for o in others)
         )
-        self.cooldown_symbolic_registers = max(
-            self.cooldown_symbolic_registers,
-            max(o.cooldown_symbolic_registers for o in others)
+        self.cooldown_symbolic_stop = max(
+            self.cooldown_symbolic_stop,
+            max(o.cooldown_symbolic_stop for o in others)
         )
-        self.cooldown_symbolic_memory = max(
-            self.cooldown_symbolic_memory,
-            max(o.cooldown_symbolic_memory for o in others)
+        self.cooldown_unsupported_stop = max(
+            self.cooldown_unsupported_stop,
+            max(o.cooldown_unsupported_stop for o in others)
         )
         self.countdown_nonunicorn_blocks = max(
             self.countdown_nonunicorn_blocks,
             max(o.countdown_nonunicorn_blocks for o in others)
         )
-        self.countdown_symbolic_registers = max(
-            self.countdown_symbolic_registers,
-            max(o.countdown_symbolic_registers for o in others)
+        self.countdown_symbolic_stop = max(
+            self.countdown_symbolic_stop,
+            max(o.countdown_symbolic_stop for o in others)
         )
-        self.countdown_symbolic_memory = max(
-            self.countdown_symbolic_memory,
-            max(o.countdown_symbolic_memory for o in others)
+        self.countdown_unsupported_stop = max(
+            self.countdown_unsupported_stop,
+            max(o.countdown_unsupported_stop for o in others)
         )
         self.countdown_stop_point = max(
             self.countdown_stop_point,
@@ -809,6 +927,52 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
             return True
 
+    def _get_details_of_blocks_with_symbolic_instrs(self):
+        def _get_register_values(register_values):
+            for register_value in register_values:
+                # Convert the register value in bytes to number of appropriate size and endianness
+                reg_name, reg_size = self.state.arch.vex_reg_offset_to_name[register_value.offset]
+                if self.state.arch.register_endness == archinfo.Endness.LE:
+                    reg_value = int.from_bytes(register_value.value, "little")
+                else:
+                    reg_value = int.from_bytes(register_value.value, "big")
+
+                reg_value = reg_value & (pow(2, reg_size * 8) - 1)
+                yield (reg_name, reg_value)
+
+        def _get_memory_values(memory_values):
+            for memory_value in memory_values:
+                mem_address = memory_value.address
+                mem_val_size = memory_value.size
+                # Convert the memory value in bytes to number of appropriate size and endianness
+                mem_val = memory_value.value[:mem_val_size]
+                if self.state.arch.memory_endness == archinfo.Endness.LE:
+                    mem_val = int.from_bytes(mem_val, "little")
+                else:
+                    mem_val = int.from_bytes(mem_val, "big")
+
+                yield {"address": mem_address, "value": mem_val, "size": mem_val_size}
+
+        def _get_instr_details(symbolic_instrs):
+            for instr in symbolic_instrs:
+                instr_entry = {"instr_addr": instr.instr_addr, "mem_dep": []}
+                if instr.has_memory_dep:
+                    instr_entry["mem_dep"] = _get_memory_values(instr.memory_values[:instr.memory_values_count])
+
+                yield instr_entry
+
+        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
+        if block_count == 0:
+            return
+
+        block_details_list = (BlockDetails * block_count)()
+        _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
+        for block_details in block_details_list:
+            entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size, "registers": {}}
+            entry["registers"] = _get_register_values(block_details.register_values[:block_details.register_values_count])
+            entry["instrs"] = _get_instr_details(block_details.symbolic_instrs[:block_details.symbolic_instrs_count])
+            yield entry
+
     def uncache_region(self, addr, length):
         self._uncache_regions.append((addr, length))
 
@@ -876,6 +1040,64 @@ class Unicorn(SimStatePlugin):
         if self.gdt is not None:
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
 
+        # Initialize list of artificial VEX registers
+        artificial_regs_list = self.state.arch.artificial_registers_offsets
+        artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
+        _UC_NATIVE.set_artificial_registers(self._uc_state, artificial_regs_array, len(artificial_regs_list))
+
+        # Initialize VEX register offset to unicorn register ID mappings and VEX register offset to name map
+        vex_reg_offsets = []
+        unicorn_reg_ids = []
+        for vex_reg_offset, unicorn_reg_id in self.state.arch.vex_to_unicorn_map.items():
+            vex_reg_offsets.append(vex_reg_offset)
+            unicorn_reg_ids.append(unicorn_reg_id)
+
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
+        unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
+        _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
+
+        vex_reg_offsets = []
+        vex_sub_reg_offsets = []
+        for vex_sub_reg_offset, vex_reg_offset in self.state.arch.vex_sub_reg_to_reg_map.items():
+            vex_reg_offsets.append(vex_reg_offset)
+            vex_sub_reg_offsets.append(vex_sub_reg_offset)
+
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
+        vex_sub_reg_offsets_array = (ctypes.c_uint64 * len(vex_sub_reg_offsets))(*map(ctypes.c_uint64, vex_sub_reg_offsets))
+        _UC_NATIVE.set_vex_sub_reg_to_reg_mappings(self._uc_state, vex_sub_reg_offsets_array, vex_reg_offsets_array, len(vex_sub_reg_offsets_array))
+
+        vex_reg_offsets = []
+        vex_reg_sizes = []
+        for vex_reg_offset, vex_reg_size in self.state.arch.vex_reg_to_size_map.items():
+            vex_reg_offsets.append(vex_reg_offset)
+            vex_reg_sizes.append(vex_reg_size)
+
+        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
+        vex_reg_sizes_array = (ctypes.c_uint64 * len(vex_reg_sizes))(*map(ctypes.c_uint64, vex_reg_sizes))
+        _UC_NATIVE.set_vex_offset_to_register_size_mapping(self._uc_state, vex_reg_offsets_array, vex_reg_sizes_array, len(vex_reg_offsets_array))
+
+        # Initial VEX to unicorn mappings for flag register
+        if self.state.arch.unicorn_flag_register:
+            _UC_NATIVE.set_unicorn_flags_register_id(self._uc_state, self.state.arch.unicorn_flag_register)
+            cpu_flag_vex_offsets = []
+            cpu_flag_bitmasks = []
+            for cpu_flag_reg_offset, cpu_flag_reg_bitmask in self.state.arch.cpu_flag_register_offsets_and_bitmasks_map.items():
+                cpu_flag_vex_offsets.append(cpu_flag_reg_offset)
+                cpu_flag_bitmasks.append(cpu_flag_reg_bitmask)
+
+            if len(cpu_flag_vex_offsets) > 0:
+                cpu_flag_vex_offsets_array = (ctypes.c_uint64 * len(cpu_flag_vex_offsets))(*map(ctypes.c_uint64, cpu_flag_vex_offsets))
+                cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
+                _UC_NATIVE.set_cpu_flags_details(self._uc_state, cpu_flag_vex_offsets_array, cpu_flag_bitmasks_array,len(cpu_flag_vex_offsets))
+        elif self.state.arch.name.startswith("ARM"):
+            l.warning(f"Flag registers for {self.state.arch.name} not set in native unicorn interface.")
+
+        # Initialize list of blacklisted registers
+        blacklist_regs_offsets = self.state.arch.reg_blacklist_offsets
+        if len(blacklist_regs_offsets) > 0:
+            blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*map(ctypes.c_uint64, blacklist_regs_offsets))
+            _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, len(blacklist_regs_offsets))
+
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'
         self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
@@ -895,16 +1117,14 @@ class Unicorn(SimStatePlugin):
         # do the superficial synchronization
         self.get_regs()
         self.steps = _UC_NATIVE.step(self._uc_state)
-        self.stop_reason = _UC_NATIVE.stop_reason(self._uc_state)
+        self.stop_details = _UC_NATIVE.get_stop_details(self._uc_state)
+        self.stop_reason = self.stop_details.stop_reason
+        self.stop_message = STOP.get_stop_msg(self.stop_reason)
+        if self.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
+          self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE, STOP.STOP_VEX_LIFT_FAILED):
+            self.stop_message += f". Block 0x{self.stop_details.block_addr:02x}(size: {self.stop_details.block_size})."
 
         # figure out why we stopped
-        if self.stop_reason == STOP.STOP_SYMBOLIC_REG:
-            stopping_register = _UC_NATIVE.stopping_register(self._uc_state)
-            self._report_symbolic_blocker(self.state.registers.load(stopping_register, 1), 'reg')
-        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
-            stopping_memory = _UC_NATIVE.stopping_memory(self._uc_state)
-            self._report_symbolic_blocker(self.state.memory.load(stopping_memory, 1), 'mem')
-
         if self.stop_reason == STOP.STOP_NOSTART and self.steps > 0:
             # unicorn just does quits without warning if it sees hlt. detect that.
             if (self.state.memory.load(self.state.ip, 1) == 0xf4).is_true():
@@ -933,13 +1153,6 @@ class Unicorn(SimStatePlugin):
 
             p_update = update.next
 
-        _UC_NATIVE.destroy(head)    # free the linked list
-
-        # adjust the countdowns
-        #if self.steps >= 128:
-        #   self.cooldown_symbolic_registers = 16
-        #   self.cooldown_symbolic_memory = 16
-
         # process the concrete transmits
         i = 0
         stdout = self.state.posix.get_fd(1)
@@ -958,14 +1171,16 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason == STOP.STOP_STOPPOINT:
             self.countdown_nonunicorn_blocks = 0
             self.countdown_stop_point = self.cooldown_stop_point
-        elif self.stop_reason == STOP.STOP_SYMBOLIC_REG:
-            #if self.steps < 128:
-            #   self.cooldown_symbolic_registers = min(self.cooldown_symbolic_registers * 2, 256)
-            self.countdown_symbolic_registers = self.cooldown_symbolic_registers
-        elif self.stop_reason == STOP.STOP_SYMBOLIC_MEM:
-            #if self.steps < 128:
-            #   self.cooldown_symbolic_memory = min(self.cooldown_symbolic_memory * 2, 256)
-            self.countdown_symbolic_memory = self.cooldown_symbolic_memory
+        elif self.stop_reason in STOP.symbolic_stop_reasons:
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_symbolic_stop = self.cooldown_symbolic_stop
+        elif self.stop_reason in STOP.unsupported_reasons:
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_unsupported_stop = self.cooldown_unsupported_stop
+        elif self.stop_reason == STOP.STOP_UNKNOWN_MEMORY_WRITE:
+            # Skip one block in case of unknown memory write
+            self.countdown_nonunicorn_blocks = 0
+            self.countdown_unsupported_stop = 2
         else:
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
 
@@ -1019,7 +1234,7 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT, STOP.STOP_SYMBOLIC_MEM, STOP.STOP_SYMBOLIC_REG):
+        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT):
             self.delete_uc()
 
         #l.debug("Resetting the unicorn state.")
@@ -1074,7 +1289,7 @@ class Unicorn(SimStatePlugin):
             uc.reg_write(self._uc_const.UC_MIPS_REG_CP0_USERLOCAL, self.state.solver.eval(ulr))
 
         for r, c in self._uc_regs.items():
-            if r in self.reg_blacklist:
+            if r in self.state.arch.reg_blacklist:
                 continue
             v = self._process_value(getattr(self.state.regs, r), 'reg')
             if v is None:
@@ -1195,8 +1410,6 @@ class Unicorn(SimStatePlugin):
         uc.emu_start(BASE, BASE + len(setup_code))
         uc.mem_unmap(BASE, 0x1000)
 
-    reg_blacklist = ('cs', 'ds', 'es', 'fs', 'gs', 'ss', 'mm0', 'mm1', 'mm2', 'mm3', 'mm4', 'mm5', 'mm6', 'mm7')
-
     def get_regs(self):
         ''' loading registers from unicorn '''
 
@@ -1229,7 +1442,7 @@ class Unicorn(SimStatePlugin):
 
         # now we sync registers out of unicorn
         for r, c in self._uc_regs.items():
-            if r in self.reg_blacklist:
+            if r in self.state.arch.reg_blacklist:
                 continue
             v = self.uc.reg_read(c)
             # l.debug('getting $%s = %#x', r, v)
