@@ -1473,13 +1473,14 @@ class Function(Serializable):
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """
-        def _called(function_address) -> Set[int]:
-            successors = set(self._function_manager.callgraph.successors(function_address))
-            called_functions = successors.copy()
+        called = set()
+        def _find_called(function_address):
+            successors = set(self._function_manager.callgraph.successors(function_address)) - called
             for s in successors:
-                called_functions |= _called(s)
-            return called_functions
-        return { self._function_manager.function(a) for a in _called(self.addr) }
+                called.add(s)
+                _find_called(s)
+        _find_called(self.addr)
+        return { self._function_manager.function(a) for a in called }
 
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
