@@ -1,6 +1,8 @@
 from typing import List
 import logging
 
+from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
+
 from . import ExplorationTechnique
 from .. import BP_BEFORE, BP_AFTER, sim_options
 from ..errors import AngrTracerError
@@ -502,7 +504,6 @@ class Tracer(ExplorationTechnique):
         the same
         """
 
-        from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET # pylint:disable=import-outside-toplevel
         control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
 
         prev_trace_block = state.project.factory.block(self._trace[trace_curr_idx - 1])
