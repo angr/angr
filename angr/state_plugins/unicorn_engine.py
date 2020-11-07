@@ -11,6 +11,7 @@ import pyvex
 import claripy
 import time
 import binascii
+import archinfo
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
@@ -931,7 +932,7 @@ class Unicorn(SimStatePlugin):
             for register_value in register_values:
                 # Convert the register value in bytes to number of appropriate size and endianness
                 reg_name, reg_size = self.state.arch.vex_reg_offset_to_name[register_value.offset]
-                if self.state.arch.register_endness == 'Iend_LE':
+                if self.state.arch.register_endness == archinfo.Endness.LE:
                     reg_value = int.from_bytes(register_value.value, "little")
                 else:
                     reg_value = int.from_bytes(register_value.value, "big")
@@ -945,7 +946,7 @@ class Unicorn(SimStatePlugin):
                 mem_val_size = memory_value.size
                 # Convert the memory value in bytes to number of appropriate size and endianness
                 mem_val = memory_value.value[:mem_val_size]
-                if self.state.arch.memory_endness == 'Iend_LE':
+                if self.state.arch.memory_endness == archinfo.Endness.LE:
                     mem_val = int.from_bytes(mem_val, "little")
                 else:
                     mem_val = int.from_bytes(mem_val, "big")
