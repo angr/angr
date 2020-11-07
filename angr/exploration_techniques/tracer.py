@@ -525,8 +525,7 @@ class Tracer(ExplorationTechnique):
 
             if big_block_start_addr is not None:
                 break
-
-        if big_block_start_addr is None:
+        else:
             # Failed to find end of the big basic block in trace. Treat as trace desync.
             return False
 
