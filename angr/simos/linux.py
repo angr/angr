@@ -7,6 +7,7 @@ from cle import MetaELF
 from cle.backends.elf.symbol import ELFSymbol, ELFSymbolType
 from cle.backends.elf.elfcore import ELFCore
 from cle.address_translator import AT
+from cle.backends.elf.relocation.arm64 import R_AARCH64_TLSDESC
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
 from ..tablespecs import StringTableSpec
@@ -69,6 +70,9 @@ class SimLinux(SimUserland):
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+                elif isinstance(self.project.arch, ArchARM):
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7E8, self._loader_lock_addr)
+                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7EC, self._loader_unlock_addr)
 
             # TODO: what the hell is this
             _rtld_global_ro = self.project.loader.find_symbol('_rtld_global_ro')
@@ -111,7 +115,6 @@ class SimLinux(SimUserland):
                             self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
                             self.project.loader.memory.pack_word(gotaddr, randaddr)
 
-
         if isinstance(self.project.arch, ArchARM):
             # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
             for func_name in P['linux_kernel']:
@@ -119,6 +122,8 @@ class SimLinux(SimUserland):
                     continue
                 func = P['linux_kernel'][func_name]
                 self.project.hook(func.kuser_addr, func())
+        elif isinstance(self.project.arch, ArchAArch64):
+            self.project.hook(R_AARCH64_TLSDESC.RESOLVER_ADDR, P['linux_loader']['tlsdesc_resolver']())
 
         # maybe move this into archinfo?
         if self.arch.name == 'X86':

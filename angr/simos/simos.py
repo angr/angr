@@ -1,5 +1,7 @@
 import logging
 import struct
+from typing import Optional
+
 import angr # for types
 
 import claripy
@@ -82,10 +84,11 @@ class SimOS:
             sym = scope.get_symbol(name)
 
         if sym is not None:
-            if self.project.is_hooked(sym.rebased_addr):
-                if not self.project.hooked_by(sym.rebased_addr).is_stub:
+            addr, _ = self.prepare_function_symbol(name, basic_addr=sym.rebased_addr)
+            if self.project.is_hooked(addr):
+                if not self.project.hooked_by(addr).is_stub:
                     return
-            self.project.hook(sym.rebased_addr, hook)
+            self.project.hook(addr, hook)
 
     def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None,
                     thread_idx=None, permissions_backer=None, **kwargs):
@@ -320,8 +323,11 @@ class SimOS:
     def syscall(self, state, allow_unsupported=True):
         return None
 
-    def syscall_abi(self, state):
+    def syscall_abi(self, state) -> str:
         return None
+
+    def syscall_cc(self, state) -> Optional[angr.calling_conventions.SimCCSyscall]:
+        raise NotImplemented()
 
     def is_syscall_addr(self, addr):
         return False

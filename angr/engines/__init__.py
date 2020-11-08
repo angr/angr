@@ -10,12 +10,28 @@ from .concrete import SimEngineConcrete
 from .hook import HooksMixin
 from .soot import SootMixin
 
-class UberEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, HeavyVEXMixin):
+
+# The default execution engine
+# You may remove unused mixins from this default engine to speed up execution
+class UberEngine(
+        SimEngineFailure,
+        SimEngineSyscall,
+        HooksMixin,
+        SimEngineUnicorn,
+        SuperFastpathMixin,
+        TrackActionsMixin,
+        SimInspectMixin,
+        HeavyResilienceMixin,
+        SootMixin,
+        HeavyVEXMixin
+):
     pass
+
 
 try:
     from .pcode import HeavyPcodeMixin
-    class UberEnginePcode(SimEngineFailure, SimEngineSyscall, HooksMixin, HeavyPcodeMixin): # pylint:disable=abstract-method
+
+    class UberEnginePcode(SimEngineFailure, SimEngineSyscall, HooksMixin, HeavyPcodeMixin):  # pylint:disable=abstract-method
         pass
 except ImportError:
     pass

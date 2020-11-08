@@ -98,7 +98,7 @@ class SuccessorsMixin(SimEngine):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.successors = None
+        self.successors: Optional[SimSuccessors] = None
 
     __tls = ('successors',)
 

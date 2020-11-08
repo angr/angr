@@ -11,7 +11,7 @@ class ProcedureMixin:
     to a SimSuccessors.
     """
 
-    def process_procedure(self, state, successors, procedure, ret_to=None, **kwargs):
+    def process_procedure(self, state, successors, procedure, ret_to=None, arguments=None, **kwargs):
         successors.sort = 'SimProcedure'
 
         # fill in artifacts
@@ -34,7 +34,7 @@ class ProcedureMixin:
             state.options.add(o.AUTO_REFS)
 
         # do it
-        inst = procedure.execute(state, successors, ret_to=ret_to)
+        inst = procedure.execute(state, successors, ret_to=ret_to, arguments=arguments)
         successors.artifacts['procedure'] = inst
 
         if cleanup_options:

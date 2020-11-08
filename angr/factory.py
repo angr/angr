@@ -13,7 +13,7 @@ from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 l = logging.getLogger(name=__name__)
 
 
-class AngrObjectFactory():
+class AngrObjectFactory:
     """
     This factory provides access to important analysis elements.
     """

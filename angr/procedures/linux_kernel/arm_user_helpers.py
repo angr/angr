@@ -25,21 +25,16 @@ class _kuser_cmpxchg(angr.SimProcedure):
     # pylint: disable=arguments-differ
     kuser_addr = 0xffff0fc0
     def run(self, oldval, newval, ptr):
-        ptrval = self.state.memory.load(ptr, self.project.arch.bytes)
-        retval = ptrval - oldval
+        currentval = self.state.mem[ptr].dword.resolved
+        success = currentval == oldval
+        self.state.memory.store(ptr, newval, condition=success)
 
-        # the return value can't be symbolic
-        if self.state.solver.symbolic(retval):
-            raise angr.errors.AngrValueError("_kuser_cmpxchg returns symbolic value")
-
-        # handle cmpxchg
-        if self.state.solver.is_true(retval == 0):
-            self.state.memory.store(ptr, newval)
-            # set CARRY flag
-            self.state.regs.flags |= 0x20000000
-        else:
-            # zero CARRY flag
-            self.state.regs.flags &= 0xdfffffff
+        # set flags
+        retval = currentval - oldval
+        self.state.regs.cc_op = 2
+        self.state.regs.cc_dep1 = 0
+        self.state.regs.cc_dep2 = retval
+        self.state.regs.cc_ndep = 0
         return retval
 
 class _kuser_memory_barrier(angr.SimProcedure):

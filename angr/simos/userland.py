@@ -1,6 +1,7 @@
 import logging
+from typing import Dict, Tuple
 
-from ..calling_conventions import SYSCALL_CC
+from ..calling_conventions import SYSCALL_CC, SimCCSyscall
 from ..errors import AngrUnsupportedSyscallError, SimSolverError
 from ..procedures import SIM_PROCEDURES as P
 from .simos import SimOS
@@ -21,7 +22,7 @@ class SimUserland(SimOS):
         self.syscall_addr_alignment = syscall_addr_alignment
         self.kernel_base = None
         self.unknown_syscall_number = None
-        self.syscall_abis = {}
+        self.syscall_abis: Dict[str,Tuple[int,int,int]] = {}
         # syscall_abis is a dict of tuples {name: (base_number, min_number, max_number)}
         # min_number and max_number are just cached from SimSyscallLibrary.{min,max}imum_sysall_number
         # base_number is used to map the syscalls into the syscall address space - it's a "base address"
@@ -44,6 +45,15 @@ class SimUserland(SimOS):
 
         self.unknown_syscall_number = base_no
 
+    def syscall_cc(self, state) -> SimCCSyscall:
+        if state.os_name in SYSCALL_CC[state.arch.name]:
+            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
+        else:
+            # Use the default syscall calling convention - it may bring problems
+            _l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
+            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+        return cc
+
     def syscall(self, state, allow_unsupported=True):
         """
         Given a state, return the procedure corresponding to the current syscall.
@@ -53,13 +63,7 @@ class SimUserland(SimOS):
         :param allow_unsupported:   Whether to return a "dummy" sycall instead of raising an unsupported exception
         """
         abi = self.syscall_abi(state)
-
-        if state.os_name in SYSCALL_CC[state.arch.name]:
-            cc = SYSCALL_CC[state.arch.name][state.os_name](state.arch)
-        else:
-            # Use the default syscall calling convention - it may bring problems
-            _l.warning("No syscall calling convention available for %s/%s", state.arch.name, state.os_name)
-            cc = SYSCALL_CC[state.arch.name]['default'](state.arch)
+        cc = self.syscall_cc(state)
 
         sym_num = cc.syscall_num(state)
         try:
@@ -74,6 +78,8 @@ class SimUserland(SimOS):
                     raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
 
         proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported, abi=abi)
+        if proc.cc is not None:
+            cc.func_ty = proc.cc.func_ty
         proc.cc = cc
         return proc
 
