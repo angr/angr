@@ -28,7 +28,11 @@ class Bureau:
 
         # zeromq
         self.zmq_context = zmq.Context()
-        self.zmq_sessions = [ ]
+        self.zmq_sessions: List[Session] = [ ]
+
+        self.serve_thread: Optional[threading.Thread] = None
+
+    def start(self):
         for i in range(10):
             socket = self.zmq_context.socket(zmq.REP)
             socket.bind("tcp://*:%d" % (5555 + i))
