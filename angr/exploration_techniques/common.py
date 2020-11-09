@@ -28,7 +28,7 @@ def condition_to_lambda(condition, default=False):
                 # returning {state.addr} instead of True to properly handle find/avoid conflicts
                 return {state.addr}
 
-            if not isinstance(state.project.engines.default_engine, engines.SimEngineVEX):
+            if not isinstance(state.project.factory.default_engine, engines.vex.VEXLifter):
                 return False
 
             try:

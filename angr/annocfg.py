@@ -3,12 +3,13 @@ import logging
 
 import networkx
 
+from .utils.constants import DEFAULT_STATEMENT
 from .errors import AngrAnnotatedCFGError, AngrExitError
-from .analyses.cfg.cfg_node import CFGNode
+from .knowledge_plugins.cfg import CFGNode
 
 l = logging.getLogger(name=__name__)
 
-class AnnotatedCFG(object):
+class AnnotatedCFG:
     """
     AnnotatedCFG is a control flow graph with statement whitelists and exit whitelists to describe a slice of the
     program.
@@ -18,8 +19,8 @@ class AnnotatedCFG(object):
         Constructor.
 
         :param project: The angr Project instance
-        :param cfg: Control flow graph. Only used when path prioritizer is used.
-        :param detect_loops: Only used when path prioritizer is used.
+        :param cfg: Control flow graph.
+        :param detect_loops:
         """
         self._project = project
 
@@ -32,14 +33,12 @@ class AnnotatedCFG(object):
         self._addr_to_last_stmt_id = {}
         self._loops = []
         self._path_merge_points = [ ]
-        self._path_prioritizer = None
-
 
         if cfg is not None:
             self._cfg = cfg
 
         if self._cfg is not None:
-            for run in self._cfg.nodes():
+            for run in self._cfg.model.nodes():
                 self._addr_to_run[self.get_addr(run)] = run
 
     #
@@ -112,9 +111,6 @@ class AnnotatedCFG(object):
         """
         self._loops.append(loop_tuple)
 
-    def set_path_merge_points(self, points):
-        self._path_merge_points = points.copy()
-
     def should_take_exit(self, addr_from, addr_to):
         if addr_from in self._exit_taken:
             return addr_to in self._exit_taken[addr_from]
@@ -154,11 +150,24 @@ class AnnotatedCFG(object):
             return []
 
     def get_last_statement_index(self, addr):
+        """
+        Get the statement index of the last statement to execute in the basic block specified by `addr`.
+
+        :param int addr:    Address of the basic block.
+        :return:            The statement index of the last statement to be executed in the block. Usually if the
+                            default exit is taken, it will be the last statement to execute. If the block is not in the
+                            slice or we should never take any exit going to this block, None is returned.
+        :rtype:             int or None
+        """
+
         if addr in self._exit_taken:
             return None
         if addr in self._addr_to_last_stmt_id:
             return self._addr_to_last_stmt_id[addr]
         elif addr in self._run_statement_whitelist:
+            # is the default exit there? it equals to a negative number (-2 by default) so `max()` won't work.
+            if DEFAULT_STATEMENT in self._run_statement_whitelist[addr]:
+                return DEFAULT_STATEMENT
             return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float('inf'))
         return None
 
@@ -208,9 +217,8 @@ class AnnotatedCFG(object):
         if project is None:
             raise Exception("Dict addr_to_run is empty. " + \
                             "Give me a project, and I'll recreate the IRSBs for you.")
-        else:
-            vex_block = project.factory.block(irsb_addr).vex
 
+        vex_block = project.factory.block(irsb_addr).vex
         statements = vex_block.statements
         whitelist = self.get_whitelisted_statements(irsb_addr)
         for i in range(0, len(statements)):
@@ -236,28 +244,12 @@ class AnnotatedCFG(object):
 
         return self.should_take_exit(path.addr_trace[-2], path.addr_trace[-1])
 
-    def filter_path(self, path):
-        """
-        Used for debugging.
-
-        :param path: A Path instance
-        :return: True/False
-        """
-
-        return True
-
     def merge_points(self, path):
         addr = path.addr
         if addr in self._path_merge_points:
             return {self._path_merge_points[addr]}
         else:
             return set()
-
-    def path_priority(self, path):
-        """
-        Given a path, returns the path priority. A lower number means a higher priority.
-        """
-        return self._path_prioritizer.get_priority(path)
 
     def successor_func(self, path):
         """
@@ -303,7 +295,6 @@ class AnnotatedCFG(object):
         state['_addr_to_last_stmt_id'] = self._addr_to_last_stmt_id
         state['_loops'] = self._loops
         state['_path_merge_points'] = self._path_merge_points
-        state['_path_prioritizer'] = self._path_prioritizer
         state['_cfg'] = None
         state['_project'] = None
         state['_addr_to_run'] = None

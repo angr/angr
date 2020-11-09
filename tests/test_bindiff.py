@@ -5,12 +5,12 @@ import logging
 l = logging.getLogger("angr.tests.test_bindiff")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 # todo make a better test
 def test_bindiff_x86_64():
-    binary_path_1 = test_location + "/x86_64/bindiff_a"
-    binary_path_2 = test_location + "/x86_64/bindiff_b"
+    binary_path_1 = os.path.join(test_location, 'x86_64', 'bindiff_a')
+    binary_path_2 = os.path.join(test_location, 'x86_64', 'bindiff_b')
     b = angr.Project(binary_path_1, load_options={"auto_load_libs": False})
     b2 = angr.Project(binary_path_2, load_options={"auto_load_libs": False})
     bindiff = b.analyses.BinDiff(b2)

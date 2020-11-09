@@ -15,7 +15,7 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
 
     def _concretize(self, memory, addr):
         # Get all symbolic variables in memory
-        symbolic_vars = filter(lambda key: not key.startswith("reg_") and not key.startswith("mem_"), memory.mem._name_mapping.keys())
+        symbolic_vars = filter(lambda key: not key.startswith("reg_") and not key.startswith("mem_"), memory._name_mapping.keys())
         controlled_addrs = sorted([_addr for s_var in symbolic_vars for _addr in memory.addrs_for_name(s_var)])
         controlled_addrs.extend(self._fixed_addrs)
 

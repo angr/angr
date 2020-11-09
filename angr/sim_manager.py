@@ -2,8 +2,8 @@ import sys
 import itertools
 import types
 from collections import defaultdict
+from typing import List, Tuple, DefaultDict
 
-import ana
 import claripy
 import mulpyplexer
 
@@ -14,7 +14,7 @@ import logging
 l = logging.getLogger(name=__name__)
 
 
-class SimulationManager(ana.Storable):
+class SimulationManager:
     """
     The Simulation Manager is the future future.
 
@@ -56,7 +56,7 @@ class SimulationManager(ana.Storable):
     ALL = '_ALL'
     DROP = '_DROP'
 
-    _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained'
+    _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained' # type: Tuple[str]
 
     def __init__(self,
             project,
@@ -76,7 +76,7 @@ class SimulationManager(ana.Storable):
         self.completion_mode = completion_mode
         self._errored = []
 
-        self._stashes = self._create_integral_stashes() if stashes is None else stashes
+        self._stashes = self._create_integral_stashes() if stashes is None else stashes # type: defaultdict[str, List['SimState']]
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {SimulationManager.DROP, }
@@ -99,6 +99,7 @@ class SimulationManager(ana.Storable):
 
         if kwargs.pop('veritesting', False):
             self.use_technique(Veritesting(**kwargs.get('veritesting_options', {})))
+        kwargs.pop('veritesting_options', {})
 
         threads = kwargs.pop('threads', None)
         if threads is not None:
@@ -132,14 +133,14 @@ class SimulationManager(ana.Storable):
             return SimulationManager._fetch_states(self, stash=item)
 
     def __dir__(self):
-        return list(self.__dict__) + dir(type(self)) + list(self._stashes)
+        return list(self.__dict__) + dir(type(self)) + list(self._stashes) + ['one_' + stash for stash in self._stashes] + ['mp_' + stash for stash in self._stashes]
 
     @property
     def errored(self):
         return self._errored
 
     @property
-    def stashes(self):
+    def stashes(self) -> DefaultDict[str, List['SimState']]:
         return self._stashes
 
     def mulpyplex(self, *stashes):
@@ -341,8 +342,8 @@ class SimulationManager(ana.Storable):
                 continue
 
             pre_errored = len(self._errored)
-            successors = self.step_state(state, successor_func=successor_func, **run_args)
 
+            successors = self.step_state(state, successor_func=successor_func, **run_args)
             # handle degenerate stepping cases here. desired behavior:
             # if a step produced only unsat states, always add them to the unsat stash since this usually indicates a bug
             # if a step produced sat states and save_unsat is False, drop the unsats
@@ -730,7 +731,7 @@ class SimulationManager(ana.Storable):
     #   ...
     #
 
-    def _create_integral_stashes(self):
+    def _create_integral_stashes(self) -> DefaultDict[str, List['SimState']]:
         stashes = defaultdict(list)
         stashes.update({name: list() for name in self._integral_stashes})
         return stashes
@@ -750,7 +751,7 @@ class SimulationManager(ana.Storable):
     # Pickling
     #
 
-    def _ana_getstate(self):
+    def __getstate__(self):
         self.prune()
         s = {k: v for k, v in self.__dict__.items()
              if not isinstance(v, types.MethodType)}
@@ -758,7 +759,7 @@ class SimulationManager(ana.Storable):
             s['_hierarchy'] = None
         return s
 
-    def _ana_setstate(self, s):
+    def __setstate__(self, s):
         self.__dict__.update(s)
         if self._hierarchy is None:
             self._hierarchy = StateHierarchy()

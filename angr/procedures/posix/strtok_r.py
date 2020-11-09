@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -8,11 +7,6 @@ class strtok_r(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, str_ptr, delim_ptr, save_ptr, str_strlen=None, delim_strlen=None):
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                               1: self.ty_ptr(SimTypeString()),
-                               2: self.ty_ptr(self.ty_ptr(SimTypeString()))}
-        self.return_type = self.ty_ptr(SimTypeString())
-
         if self.state.libc.simple_strtok:
             malloc = angr.SIM_PROCEDURES['libc']['malloc']
             token_ptr = self.inline_call(malloc, self.state.libc.strtok_token_size).ret_expr

@@ -1,5 +1,6 @@
+from typing import Tuple, Optional
 
-from ..sim_type import parse_file
+from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction
 
 
 def get_function_name(s):
@@ -71,3 +72,77 @@ def convert_cproto_to_py(c_decl):
             func_name, func_proto = None, None
 
     return func_name, func_proto, "\n".join(s)
+
+
+def convert_cppproto_to_py(cpp_decl: str,
+                           with_param_names: bool=False) -> Tuple[Optional[str],Optional[SimTypeCppFunction],Optional[str]]:
+    """
+    Pre-process a C++-style function declaration string to its corresponding SimTypes-based Python representation.
+
+    :param cpp_decl:    The C++-style function declaration string.
+    :return:            A tuple of the function name, the prototype, and a string representing the SimType-based Python
+                        representation.
+    """
+
+    s = [ ]
+    try:
+        s.append("# %s" % cpp_decl)
+
+        parsed = parse_cpp_file(cpp_decl, with_param_names=with_param_names)
+        parsed_decl = parsed[0]
+        if not parsed_decl:
+            raise ValueError("Cannot parse the function prototype.")
+
+        func_name, func_proto = next(iter(parsed_decl.items()))
+
+        s.append('"%s": %s,' % (func_name, func_proto._init_str()))  # The real Python string
+
+    except Exception:  # pylint:disable=broad-except
+        try:
+            func_name = get_function_name(cpp_decl)
+            func_proto = None
+            s.append('"%s": None,' % func_name)
+        except ValueError:
+            # Failed to extract the function name. Is it a function declaration?
+            func_name, func_proto = None, None
+
+    return func_name, func_proto, "\n".join(s)
+
+
+def cprotos2py(cprotos):
+    """
+    Parse a list of C function declarations and output to Python code that can be embedded into
+    angr.procedures.definitions.
+
+    >>> # parse the list of glibc C prototypes and output to a file
+    >>> from angr.procedures.definitions import glibc
+    >>> with open("glibc_protos", "w") as f: f.write(cprotos2py(glibc._libc_c_decls))
+
+    :param list cprotos:    A list of C prototype strings.
+    :return:                A Python string.
+    :rtype:                 str
+    """
+    s = ""
+    for decl in cprotos:
+        func_name, proto_, str_ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
+        s += " " * 8 + str_.replace("\n", "\n" + " " * 8) + "\n"
+    return s
+
+
+def get_cpp_function_name(demangled_name, specialized=True, qualified=True):
+    if not specialized:
+        # remove "<???>"s
+        name = normalize_cpp_function_name(demangled_name)
+    else:
+        name = demangled_name
+
+    if not qualified:
+        # remove leading namespaces
+        chunks = name.split("::")
+        name = "::".join(chunks[-2:])
+
+    # remove arguments
+    if "(" in name:
+        name = name[: name.find("(")]
+
+    return name

@@ -2,6 +2,7 @@
 import collections
 from itertools import dropwhile
 import logging
+from typing import Iterator, Optional
 
 from .plugin import SimStatePlugin
 from ..errors import AngrError, SimEmptyCallStackError
@@ -13,7 +14,8 @@ class CallStack(SimStatePlugin):
     Stores the address of the function you're in and the value of SP
     at the VERY BOTTOM of the stack, i.e. points to the return address.
     """
-    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame=None):
+    def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame: Optional['CallStack'] = None,
+                 invoke_return_variable=None):
         super(CallStack, self).__init__()
         self.state = None
         self.call_site_addr = call_site_addr
@@ -22,6 +24,7 @@ class CallStack(SimStatePlugin):
         self.ret_addr = ret_addr
         self.jumpkind = jumpkind
         self.next = next_frame
+        self.invoke_return_variable = invoke_return_variable
 
         self.block_counter = collections.Counter()
         self.procedure_data = None
@@ -52,7 +55,8 @@ class CallStack(SimStatePlugin):
                 stack_ptr=self.stack_ptr,
                 ret_addr=self.ret_addr,
                 jumpkind=self.jumpkind,
-                next_frame=self.next if with_tail else None)
+                next_frame=self.next if with_tail else None,
+                invoke_return_variable=self.invoke_return_variable)
         n.block_counter = collections.Counter(self.block_counter)
         n.procedure_data = self.procedure_data
         n.locals = dict(self.locals)
@@ -62,7 +66,11 @@ class CallStack(SimStatePlugin):
         super(CallStack, self).set_state(state)
         # make the stack pointer as large as possible as soon as we know how large that actually is
         if self.stack_ptr == 0:
-            self.stack_ptr = 2**(state.arch.bits) - 1
+            try:
+                bits = state.arch.registers['sp'][1] * state.arch.byte_width
+            except KeyError:
+                bits = state.arch.bits
+            self.stack_ptr = 2**bits - 1
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         for o in others:
@@ -72,7 +80,7 @@ class CallStack(SimStatePlugin):
     def widen(self, others): # pylint: disable=unused-argument
         l.warning("Widening not implemented for callstacks")
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator['CallStack']:
         """
         Iterate through the callstack, from top to bottom
         (most recent first).

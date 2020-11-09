@@ -5,17 +5,34 @@ from . import MipsElfFastResolver
 from . import X86ElfPicPltResolver
 from . import JumpTableResolver
 from . import X86PeIatResolver
-
+from . import AMD64ElfGotResolver
+from . import ConstantResolver
+from . import ArmElfFastResolver
 
 DEFAULT_RESOLVERS = {
     'X86': {
         cle.MetaELF: [ X86ElfPicPltResolver, ],
         cle.PE: [ X86PeIatResolver, ],
     },
+    'AMD64': {
+        cle.MetaELF: [ AMD64ElfGotResolver, ],
+    },
     'MIPS32': {
         cle.MetaELF: [ MipsElfFastResolver, ],
     },
-    'ALL': [ JumpTableResolver ],
+    'MIPS64': {
+        cle.MetaELF: [ MipsElfFastResolver, ],
+    },
+    'ARMEL': {
+        cle.MetaELF: [ ArmElfFastResolver, ]
+    },
+    'ARMHF': {
+        cle.MetaELF: [ ArmElfFastResolver, ]
+    },
+    'ARMCortexM': {
+        cle.MetaELF: [ ArmElfFastResolver, ]
+    },
+    'ALL': [ ConstantResolver, JumpTableResolver ],
 }
 
 

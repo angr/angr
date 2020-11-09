@@ -5,12 +5,14 @@ import networkx
 import pyvex
 from . import Analysis
 
-from .code_location import CodeLocation
+from ..code_location import CodeLocation
 from ..annocfg import AnnotatedCFG
 from ..errors import AngrBackwardSlicingError
-from ..state_plugins.sim_action import SimActionExit
+from ..utils.constants import DEFAULT_STATEMENT
+
 
 l = logging.getLogger(name=__name__)
+
 
 class BackwardSlice(Analysis):
     """
@@ -65,7 +67,7 @@ class BackwardSlice(Analysis):
         if targets is not None:
             for t in targets:
                 if isinstance(t, CodeLocation):
-                    node = self._cfg.get_any_node(t.block_addr)
+                    node = self._cfg.model.get_any_node(t.block_addr)
                     self._targets.append((node, t.stmt_idx))
                 elif type(t) is tuple:
                     self._targets.append(t)
@@ -179,7 +181,7 @@ class BackwardSlice(Analysis):
         anno_cfg = AnnotatedCFG(self.project, self._cfg)
 
         for simrun, stmt_idx in self._targets:
-            if stmt_idx is not -1:
+            if stmt_idx != -1:
                 anno_cfg.set_last_statement(simrun.addr, stmt_idx)
 
         for n in self._cfg.graph.nodes():
@@ -381,7 +383,9 @@ class BackwardSlice(Analysis):
             l.debug("Checking taint %s...", tainted_cl)
 
             # Mark it as picked
-            self._pick_statement(tainted_cl.block_addr, tainted_cl.stmt_idx)
+            if tainted_cl.block_addr is not None and tainted_cl.stmt_idx is not None:
+                # Skip SimProcedures
+                self._pick_statement(tainted_cl.block_addr, tainted_cl.stmt_idx)
 
             # Mark it as accessed
             accessed_taints.add(tainted_cl)
@@ -402,7 +406,7 @@ class BackwardSlice(Analysis):
                     self.taint_graph.add_edge(p, tainted_cl)
 
             # Handle the control dependence
-            for n in self._cfg.get_all_nodes(tainted_cl.block_addr):
+            for n in self._cfg.model.get_all_nodes(tainted_cl.block_addr):
                 new_taints = self._handle_control_dependence(n)
 
                 l.debug("Returned %d taints for %s from control dependence graph", len(new_taints), n)
@@ -453,7 +457,7 @@ class BackwardSlice(Analysis):
 
         # And of course, it has a default exit
         # Don't forget about it.
-        exit_stmt_ids['default'] = None
+        exit_stmt_ids[DEFAULT_STATEMENT] = None
 
         # Find all paths from src_block to target_block
         # FIXME: This is some crappy code written in a hurry. Replace the all_simple_paths() later.
@@ -474,7 +478,7 @@ class BackwardSlice(Analysis):
             # Get the first two nodes
             a, b = simple_path[0], simple_path[1]
             # Get the exit statement ID from CFG
-            exit_stmt_id = self._cfg.get_exit_stmt_idx(a, b)
+            exit_stmt_id = self._cfg.model.get_exit_stmt_idx(a, b)
             if exit_stmt_id is None:
                 continue
 
@@ -514,7 +518,7 @@ class BackwardSlice(Analysis):
                                              self._normalize_stmt_idx(predecessor.addr, stmt_idx)
                                              )
                         # If it's the default statement, we should also pick other conditional exit statements
-                        if stmt_idx == 'default':
+                        if stmt_idx == DEFAULT_STATEMENT:
                             conditional_exits = self._conditional_exits(predecessor.addr)
                             for conditional_exit_stmt_id in conditional_exits:
                                 cl = CodeLocation(predecessor.addr,
@@ -547,9 +551,10 @@ class BackwardSlice(Analysis):
                     previous_node = None
                     for path in all_simple_paths:
                         for node in path:
-                            self._pick_statement(node.addr, self._normalize_stmt_idx(node.addr, 'default'))
+                            self._pick_statement(node.addr,
+                                                 self._normalize_stmt_idx(node.addr, DEFAULT_STATEMENT))
                             if previous_node is not None:
-                                self._pick_exit(previous_node.addr, 'default', node.addr)
+                                self._pick_exit(previous_node.addr, DEFAULT_STATEMENT, node.addr)
 
         return new_taints
 
@@ -572,7 +577,7 @@ class BackwardSlice(Analysis):
                         # Oh we found one!
                         # The default exit should be taken no matter where it leads to
                         # Add it to the new set
-                        tpl = ('default', None)
+                        tpl = (DEFAULT_STATEMENT, None)
                         if tpl not in new_exit_statements_per_run[exit_target]:
                             new_exit_statements_per_run[exit_target].append(tpl)
 
@@ -590,11 +595,17 @@ class BackwardSlice(Analysis):
         """
         Include a statement in the final slice.
 
-        :param block_address:   Address of the basic block.
-        :param stmt_idx:        Statement ID.
+        :param int block_address:   Address of the basic block.
+        :param int stmt_idx:        Statement ID.
         """
 
         # TODO: Support context-sensitivity
+
+        # Sanity check
+        if not isinstance(block_address, int):
+            raise AngrBackwardSlicingError("Invalid block address %s." % block_address)
+        if not isinstance(stmt_idx, int):
+            raise AngrBackwardSlicingError("Invalid statement ID %s." % stmt_idx)
 
         self.chosen_statements[block_address].add(stmt_idx)
 
@@ -646,7 +657,7 @@ class BackwardSlice(Analysis):
         if type(stmt_idx) is int:
             return stmt_idx
 
-        if stmt_idx == 'default':
+        if stmt_idx == DEFAULT_STATEMENT:
             vex_block = self.project.factory.block(block_addr).vex
             return len(vex_block.statements)
 
@@ -661,27 +672,16 @@ class BackwardSlice(Analysis):
         """
         cmp_stmt_id = None
         cmp_tmp_id = None
-        all_statements = len(statements)
+        total_stmts = len(statements)
         statements = reversed(statements)
         for stmt_rev_idx, stmt in enumerate(statements):
-            stmt_idx = all_statements - stmt_rev_idx - 1
-            actions = stmt.actions
-            # Ugly implementation here
-            has_code_action = False
-            for a in actions:
-                if isinstance(a, SimActionExit):
-                    has_code_action = True
-                    break
-            if has_code_action:
-                readtmp_action = next(filter(lambda r: r.type == 'tmp' and r.action == 'read', actions), None)
-                if readtmp_action is not None:
-                    cmp_tmp_id = readtmp_action.tmp
-                    cmp_stmt_id = stmt_idx
-                    break
-                else:
-                    raise AngrBackwardSlicingError("ReadTempAction is not found. Please report to Fish.")
+            if isinstance(stmt, pyvex.IRStmt.Exit):
+                stmt_idx = total_stmts - stmt_rev_idx - 1
+                cmp_stmt_id = stmt_idx
+                cmp_tmp_id = stmt.guard.tmp
 
         return cmp_stmt_id, cmp_tmp_id
+
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('BackwardSlice', BackwardSlice)

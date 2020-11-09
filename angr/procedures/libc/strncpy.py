@@ -1,18 +1,12 @@
 import angr
-from angr.sim_type import SimTypeString, SimTypeLength
-
 import logging
+
 l = logging.getLogger(name=__name__)
 
 class strncpy(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst_addr, src_addr, limit, src_len=None):
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                               1: self.ty_ptr(SimTypeString()),
-                               2: SimTypeLength(self.state.arch)}
-        self.return_type = self.ty_ptr(SimTypeString())
-
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
         memcpy = angr.SIM_PROCEDURES['libc']['memcpy']
 

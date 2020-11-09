@@ -7,7 +7,7 @@ import logging
 l = logging.getLogger('angr_tests.veritesting')
 
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 addresses_veritesting_a = {
     'x86_64': 0x400674
@@ -22,7 +22,7 @@ def run_veritesting_a(arch):
 
     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
 
-    proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_a"),
+    proj = angr.Project(os.path.join(location, arch, "veritesting_a"),
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )
@@ -37,7 +37,7 @@ def run_veritesting_a(arch):
 def run_veritesting_b(arch):
     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
 
-    proj = angr.Project(os.path.join(os.path.join(location, arch), "veritesting_b"),
+    proj = angr.Project(os.path.join(location, arch, "veritesting_b"),
                         load_options={'auto_load_libs': False},
                         use_sim_procedures=True
                         )

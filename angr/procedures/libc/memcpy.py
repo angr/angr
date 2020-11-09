@@ -1,19 +1,12 @@
 import angr
-from angr.sim_type import SimTypeTop, SimTypeLength
-
 import logging
+
 l = logging.getLogger(name=__name__)
 
 class memcpy(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst_addr, src_addr, limit):
-        # TODO: look into smarter types here
-        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-                               1: self.ty_ptr(SimTypeTop()),
-                               2: SimTypeLength(self.state.arch)}
-        self.return_type = self.ty_ptr(SimTypeTop())
-
         if not self.state.solver.symbolic(limit):
             # not symbolic so we just take the value
             conditional_size = self.state.solver.eval(limit)

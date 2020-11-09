@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeTop, SimTypeInt, SimTypeLength
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -39,13 +38,6 @@ class memset(angr.SimProcedure):
         return r
 
     def run(self, dst_addr, char, num):
-        char = char[7:0]
-
-        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-                       1: SimTypeInt(32, True), # ?
-                       2: SimTypeLength(self.state.arch)}
-        self.return_type = self.ty_ptr(SimTypeTop())
-
         if self.state.solver.symbolic(num):
             l.debug("symbolic length")
             max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size

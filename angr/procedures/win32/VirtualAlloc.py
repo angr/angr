@@ -96,12 +96,12 @@ class VirtualAlloc(angr.SimProcedure):
         return addr
 
     def allocate_memory(self,size):
-        addr = self.state.libc.mmap_base
+        addr = self.state.heap.mmap_base
         new_base = addr + size
 
         if new_base & 0xfff:
             new_base = (new_base & ~0xfff) + 0x1000
 
-        self.state.libc.mmap_base = new_base
+        self.state.heap.mmap_base = new_base
         return addr
 

@@ -5,7 +5,7 @@ import networkx
 import pyvex
 from . import Analysis
 
-from .code_location import CodeLocation
+from ..code_location import CodeLocation
 from ..errors import SimSolverModeError, SimUnsatError, AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable, SimTemporaryVariable, SimConstantVariable, \
     SimStackVariable
@@ -92,7 +92,7 @@ class DDGJob(object):
         return "<DDGJob %s, call_depth %d>" % (self.cfg_node, self.call_depth)
 
 
-class LiveDefinitions(object):
+class LiveDefinitions:
     """
     A collection of live definitions with some handy interfaces for definition killing and lookups.
     """
@@ -103,7 +103,7 @@ class LiveDefinitions(object):
 
         # byte-to-byte mappings
         # TODO: make it copy-on-write in order to save memory.
-        # TODO: options are either cooldict.COWDict or a modified version of simuvex.SimPagedMemory
+        # TODO: options are either collections.ChainMap or a modified version of simuvex.SimPagedMemory
         self._memory_map = defaultdict(set)
         self._register_map = defaultdict(set)
         self._defs = defaultdict(set)
@@ -248,7 +248,7 @@ class LiveDefinitions(object):
 
     def lookup_defs(self, variable, size_threshold=32):
         """
-        Find all definitions of the varaible
+        Find all definitions of the variable.
 
         :param SimVariable variable: The variable to lookup for.
         :param int size_threshold: The maximum bytes to consider for the variable. For example, if the variable is 100
@@ -368,7 +368,7 @@ class DDGViewInstruction(object):
             reg_offset, size = arch.registers[key]
 
             # obtain the CFGNode
-            cfg_node = self._cfg.get_any_node(self._insn_addr, anyaddr=True)
+            cfg_node = self._cfg.model.get_any_node(self._insn_addr, anyaddr=True)
             if cfg_node is None:
                 # not found
                 raise KeyError('CFGNode for instruction %#x is not found.' % self._insn_addr)
@@ -450,13 +450,20 @@ class DDG(Analysis):
     For a better data dependence graph, please consider performing a better static analysis first (like Value-set
     Analysis), and then construct a dependence graph on top of the analysis result (for example, the VFG in angr).
 
+    The DDG is based on a CFG, which should ideally be a CFGEmulated generated with the following options:
+
+      - keep_state=True to keep all input states
+      - state_add_options=angr.options.refs to store memory, register, and temporary value accesses
+
+    You may want to consider a high value for context_sensitivity_level as well when generating the CFG.
+
     Also note that since we are using states from CFG, any improvement in analysis performed on CFG (like a points-to
     analysis) will directly benefit the DDG.
     """
     def __init__(self, cfg, start=None, call_depth=None, block_addrs=None):
         """
-        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it. You may
-                            want to generate your CFG with `keep_state=True`.
+        :param cfg:         Control flow graph. Please make sure each node has an associated `state` with it, e.g. by
+                            passing the keep_state=True and state_add_options=angr.options.refs arguments to CFGEmulated.
         :param start:       An address, Specifies where we start the generation of this data dependence graph.
         :param call_depth:  None or integers. A non-negative integer specifies how deep we would like to track in the
                             call tree. None disables call_depth limit.
@@ -684,7 +691,7 @@ class DDG(Analysis):
                     job = DDGJob(n, 0)
                     self._worklist_append(job, worklist, worklist_set)
         else:
-            for n in self._cfg.get_all_nodes(self._start):
+            for n in self._cfg.model.get_all_nodes(self._start):
                 job = DDGJob(n, 0)
                 self._worklist_append(job, worklist, worklist_set)
 
@@ -734,7 +741,7 @@ class DDG(Analysis):
             matches = len(match_suc) == len(successing_nodes) and len(match_state) == len(final_states)
 
             for state in final_states:
-                if not matches and state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
+                if state.history.jumpkind == 'Ijk_FakeRet' and len(final_states) > 1:
                     # Skip fakerets if there are other control flow transitions available
                     continue
 
@@ -786,7 +793,7 @@ class DDG(Analysis):
                     if (self._call_depth is None) or \
                             (self._call_depth is not None and 0 <= new_call_depth <= self._call_depth):
                         # Put all reachable successors back to our work-list again
-                        for successor in self._cfg.get_all_successors(node):
+                        for successor in self._cfg.model.get_all_successors(node):
                             nw = DDGJob(successor, new_call_depth)
                             self._worklist_append(nw, worklist, worklist_set)
 
@@ -963,7 +970,10 @@ class DDG(Analysis):
             if addr_tmp in self._temp_register_symbols:
                 # it must be a stack variable
                 sort, offset = self._temp_register_symbols[addr_tmp]
-                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=addr - offset)
+                base_addr = addr - offset
+                if base_addr < 0:
+                    base_addr += (1 << self.project.arch.bits)
+                variable = SimStackVariable(offset, action.size.ast // 8, base=sort, base_addr=base_addr)
 
         if variable is None:
             variable = SimMemoryVariable(addr, action.size.ast // 8)
@@ -1230,6 +1240,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset -= const_value
+                    if offset < 0:
+                        offset += (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
         elif action.op.endswith('Add32') or action.op.endswith('Add64'):
@@ -1245,6 +1257,8 @@ class DDG(Analysis):
                 if tmp in self._temp_register_symbols:
                     sort, offset = self._temp_register_symbols[tmp]
                     offset += const_value
+                    if offset >= (1 << self.project.arch.bits):
+                        offset -= (1 << self.project.arch.bits)
                     self._custom_data_per_statement = (sort, offset)
 
     def _process_operation(self, action, location, state, statement):  # pylint:disable=unused-argument

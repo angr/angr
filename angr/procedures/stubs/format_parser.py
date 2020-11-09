@@ -10,7 +10,7 @@ from ...storage.file import SimPackets
 l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
 
-class FormatString(object):
+class FormatString:
     """
     Describes a format string.
     """
@@ -37,16 +37,19 @@ class FormatString(object):
             return c
         return string.concat(c)
 
-    def _get_str_at(self, str_addr):
+    def _get_str_at(self, str_addr, max_length=None):
 
-        strlen = self.parser._sim_strlen(str_addr)
+        if max_length is None:
+            strlen = self.parser._sim_strlen(str_addr)
 
-        #TODO: we probably could do something more fine-grained here.
+            #TODO: we probably could do something more fine-grained here.
 
-        # throw away strings which are just the NULL terminator
-        if self.parser.state.solver.max_int(strlen) == 0:
-            return None
-        return self.parser.state.memory.load(str_addr, strlen)
+            # throw away strings which are just the NULL terminator
+            max_length = self.parser.state.solver.max_int(strlen)
+            if max_length == 0:
+                return claripy.BVV(b'')
+
+        return self.parser.state.memory.load(str_addr, max_length)
 
     def replace(self, startpos, args):
         """
@@ -66,15 +69,20 @@ class FormatString(object):
                 string = self._add_to_string(string, self.parser.state.solver.BVV(component))
             elif isinstance(component, str):
                 raise Exception("this branch should be impossible?")
-            elif isinstance(component, claripy.ast.BV):
+            elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
                 string = self._add_to_string(string, component)
             else:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
                 fmt_spec = component
                 if fmt_spec.spec_type == b's':
+                    if fmt_spec.length_spec == b".*":
+                        str_length = args(argpos)
+                        argpos += 1
+                    else:
+                        str_length = None
                     str_ptr = args(argpos)
-                    string = self._add_to_string(string, self._get_str_at(str_ptr))
+                    string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     i_val = args(argpos)
@@ -97,6 +105,9 @@ class FormatString(object):
                         s_val = hex(c_val)
                     else:
                         raise SimProcedureError("Unimplemented format specifier '%s'" % fmt_spec.spec_type)
+
+                    if isinstance(fmt_spec.length_spec, int):
+                        s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
                     string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
 
@@ -202,12 +213,6 @@ class FormatString(object):
 
             return argnum - startpos
 
-        # TODO: we only support one format specifier in interpretation for now
-
-        format_specifier_count = sum(1 for x in self.components if isinstance(x, FormatSpecifier))
-        if format_specifier_count > 1:
-            l.warning("We don't support more than one format specifiers in format strings.")
-
         if simfd is not None:
             region = simfd.read_storage
             addr = simfd._pos if hasattr(simfd, '_pos') else simfd._read_pos # XXX THIS IS BAD
@@ -240,13 +245,17 @@ class FormatString(object):
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, ohc, ohi = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len, max_symbolic_bytes=max_sym_bytes)
+                    ohr, _, match_indices = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len,
+                                            max_symbolic_bytes=max_sym_bytes)
 
-                    # if no newline is found, mm is position + max_strlen
-                    # If-branch will really only happen for format specifiers with a length
-                    mm = self.parser.state.solver.If(ohr == 0, position + max_str_len, ohr)
-                    # we're just going to concretize the length, load will do this anyways
-                    length = self.parser.state.solver.max_int(mm - position)
+                    if not match_indices:
+                        # if no newline is found, mm is position + max_strlen
+                        mm = position + max_str_len
+                        # we're just going to concretize the length, load will do this anyways
+                        length = self.parser.state.solver.max_int(mm - position)
+                    else:
+                        # a newline is found, or a max length is specified with the specifier
+                        length = max(match_indices)
                     src_str = region.load(position, length)
 
                     # TODO all of these should be delimiters we search for above
@@ -285,27 +294,33 @@ class FormatString(object):
                 argpos += 1
 
         if simfd is not None:
-            simfd.read_data(position - addr)
+            _, realsize = simfd.read_data(position - addr)
+            self.state.solver.add(realsize == position - addr)
 
         return (argpos - startpos) - failed
 
     def __repr__(self):
         outstr = ""
         for comp in self.components:
-            outstr += (str(comp))
+            if isinstance(comp, bytes):
+                outstr += comp.decode("ascii")
+            else:
+                outstr += (str(comp))
 
         return outstr
 
-class FormatSpecifier(object):
+
+class FormatSpecifier:
     """
     Describes a format specifier within a format string.
     """
 
-    def __init__(self, string, length_spec, size, signed):
+    def __init__(self, string, length_spec, pad_chr, size, signed):
         self.string = string
         self.size = size
         self.signed = signed
         self.length_spec = length_spec
+        self.pad_chr = pad_chr
 
     @property
     def spec_type(self):
@@ -316,6 +331,7 @@ class FormatSpecifier(object):
 
     def __len__(self):
         return len(self.string)
+
 
 class FormatParser(SimProcedure):
     """
@@ -420,24 +436,35 @@ class FormatParser(SimProcedure):
         # TODO: handle positional modifiers and other similar format string tricks.
         all_spec = self._all_spec
 
-
         # iterate through nugget throwing away anything which is an int
         # TODO store this in a size variable
 
         original_nugget = nugget
         length_str = [ ]
         length_spec = None
+        length_spec_str_len = 0
+        pad_chr = " "
+
+        if nugget.startswith(b".*"):
+            # ".*": precision is specified as an argument
+            nugget = nugget[2:]
+            length_spec = b".*"
+            length_spec_str_len = 2
+        elif nugget.startswith(b"0"):
+            pad_chr = "0"
 
         for j, c in enumerate(nugget):
             if c in ascii_digits:
                 length_str.append(c)
             else:
                 nugget = nugget[j:]
-                length_spec = None if len(length_str) == 0 else int(bytes(length_str))
+                if length_spec is None:
+                    length_spec = None if len(length_str) == 0 else int(bytes(length_str))
                 break
 
         # we need the length of the format's length specifier to extract the format and nothing else
-        length_spec_str_len = 0 if length_spec is None else len(length_str)
+        if length_spec_str_len == 0 and length_str:
+            length_spec_str_len = len(length_str)
         # is it an actual format?
         for spec in all_spec:
             if nugget.startswith(spec):
@@ -449,7 +476,7 @@ class FormatParser(SimProcedure):
                     typeobj = sim_type.parse_type(nugtype).with_arch(self.state.arch)
                 except:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
-                return FormatSpecifier(original_nugget, length_spec, typeobj.size // 8, typeobj.signed)
+                return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None
 
@@ -498,7 +525,7 @@ class FormatParser(SimProcedure):
         Return the result of invoking the atoi simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
         strtol = SIM_PROCEDURES['libc']['strtol']
 
         return strtol.strtol_inner(str_addr, self.state, region, base, True, read_length=read_length)
@@ -509,11 +536,10 @@ class FormatParser(SimProcedure):
         Return the result of invoking the strlen simprocedure on `str_addr`.
         """
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES  # pylint:disable=import-outside-toplevel
         strlen = SIM_PROCEDURES['libc']['strlen']
 
         return self.inline_call(strlen, str_addr).ret_expr
-
 
     def _parse(self, fmt_idx):
         """

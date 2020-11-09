@@ -2,16 +2,18 @@ import networkx
 
 import pyvex
 
+from .utils.constants import DEFAULT_STATEMENT
 from .slicer import SimSlicer
 
 
-class Blade(object):
+class Blade:
     """
     Blade is a light-weight program slicer that works with networkx DiGraph containing CFGNodes.
     It is meant to be used in angr for small or on-the-fly analyses.
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
-                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None):
+                 ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False,
+                 cross_insn_opt=False):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
@@ -24,6 +26,8 @@ class Blade(object):
                                         dependency from/to stack pointers will be ignored if this options is True.
         :param bool ignore_bp:          Whether the base pointer should be ignored or not.
         :param int  max_level:          The maximum number of blocks that we trace back for.
+        :param int stop_at_calls:       Limit slicing within a single function. Do not proceed when encounters a call
+                                        edge.
         :return: None
         """
 
@@ -34,11 +38,13 @@ class Blade(object):
         self._ignore_bp = ignore_bp
         self._max_level = max_level
         self._base_state = base_state
+        self._stop_at_calls = stop_at_calls
+        self._cross_insn_opt = cross_insn_opt
 
         self._slice = networkx.DiGraph()
 
         self.project = project
-        self._cfg = cfg
+        self._cfg = cfg.model
         if self._cfg is None:
             # `cfg` is made optional only for compatibility concern. It will be made a positional parameter later.
             raise AngrBladeError('"cfg" must be specified.')
@@ -84,15 +90,16 @@ class Blade(object):
 
         s = ""
 
-        block_addrs = list(set([ a for a, _ in self.slice.nodes() ]))
+        block_addrs = { a for a, _ in self.slice.nodes() }
 
         for block_addr in block_addrs:
             block_str = "       IRSB %#x\n" % block_addr
 
-            block = self.project.factory.block(block_addr, backup_state=self._base_state).vex
+            block = self.project.factory.block(block_addr, cross_insn_opt=self._cross_insn_opt,
+                                               backup_state=self._base_state).vex
 
-            included_stmts = set([ stmt for _, stmt in self.slice.nodes() if _ == block_addr ])
-            default_exit_included = any(stmt == 'default' for _, stmt in self.slice.nodes() if _ == block_addr)
+            included_stmts = { stmt for _, stmt in self.slice.nodes() if _ == block_addr }
+            default_exit_included = any(stmt == DEFAULT_STATEMENT for _, stmt in self.slice.nodes() if _ == block_addr)
 
             for i, stmt in enumerate(block.statements):
                 if arch is not None:
@@ -147,14 +154,15 @@ class Blade(object):
                 return self._run_cache[v]
 
             if self.project:
-                irsb = self.project.factory.block(v, backup_state=self._base_state).vex
+                irsb = self.project.factory.block(v, cross_insn_opt=self._cross_insn_opt,
+                                                  backup_state=self._base_state).vex
                 self._run_cache[v] = irsb
                 return irsb
             else:
                 raise AngrBladeError("Project must be specified if you give me all addresses for SimRuns")
 
         else:
-            raise AngrBladeError('Unsupported SimRun argument type %s', type(v))
+            raise AngrBladeError('Unsupported SimRun argument type %s' % type(v))
 
     def _get_cfgnode(self, thing):
         """
@@ -167,7 +175,8 @@ class Blade(object):
 
         return self._cfg.get_any_node(self._get_addr(thing))
 
-    def _get_addr(self, v):
+    @staticmethod
+    def _get_addr(v):
         """
         Get address of the basic block or CFG node specified by v.
         :param v: Can be one of the following: a CFGNode, or an address.
@@ -247,7 +256,11 @@ class Blade(object):
             # Then we gotta start from the very last statement!
             self._dst_stmt_idx = len(stmts) - 1
 
-            prev = (self._get_addr(self._dst_run), 'default')
+            prev = (self._get_addr(self._dst_run), DEFAULT_STATEMENT)
+
+        if not temps and not regs:
+            # no dependency
+            return
 
         slicer = SimSlicer(self.project.arch, stmts,
                            target_tmps=temps,
@@ -276,8 +289,13 @@ class Blade(object):
             in_edges = self._graph.in_edges(cfgnode, data=True)
 
             for pred, _, data in in_edges:
-                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                    continue
+                if 'jumpkind' in data:
+                    if data['jumpkind'] == 'Ijk_FakeRet':
+                        # Skip fake rets
+                        continue
+                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
+                        # Skip calls
+                        continue
                 if self.project.is_hooked(pred.addr):
                     # Skip SimProcedures
                     continue
@@ -293,26 +311,35 @@ class Blade(object):
         temps = set()
         regs = regs.copy()
 
+        irsb_addr = self._get_addr(run)
         stmts = self._get_irsb(run).statements
 
-        if exit_stmt_idx is None or exit_stmt_idx == 'default':
+        if exit_stmt_idx is None or exit_stmt_idx == DEFAULT_STATEMENT:
             # Initialize the temps set with whatever in the `next` attribute of this irsb
             next_expr = self._get_irsb(run).next
             if type(next_expr) is pyvex.IRExpr.RdTmp:
                 temps.add(next_expr.tmp)
 
-        else:
-            exit_stmt = self._get_irsb(run).statements[exit_stmt_idx]
+        # add the default exit into our slice
+        self._inslice_callback(DEFAULT_STATEMENT, None, {'irsb_addr': irsb_addr, 'prev': prev})
+        prev = irsb_addr, DEFAULT_STATEMENT
 
-            if type(exit_stmt.guard) is pyvex.IRExpr.RdTmp:
-                temps.add(exit_stmt.guard.tmp)
+        # if there are conditional exits, we *always* add them into the slice (so if they should not be taken, we do not
+        # lose the condition)
+        for stmt_idx_, s_ in enumerate(self._get_irsb(run).statements):
+            if not type(s_) is pyvex.IRStmt.Exit:
+                continue
+            if s_.jumpkind != 'Ijk_Boring':
+                continue
+
+            if type(s_.guard) is pyvex.IRExpr.RdTmp:
+                temps.add(s_.guard.tmp)
 
             # Put it in our slice
-            irsb_addr = self._get_addr(run)
-            self._inslice_callback(exit_stmt_idx, exit_stmt, {'irsb_addr': irsb_addr, 'prev': prev})
-            prev = (irsb_addr, exit_stmt_idx)
+            self._inslice_callback(stmt_idx_, s_, {'irsb_addr': irsb_addr, 'prev': prev})
+            prev = (irsb_addr, stmt_idx_)
 
-        infodict = {'irsb_addr' : self._get_addr(run),
+        infodict = {'irsb_addr' : irsb_addr,
                     'prev' : prev,
                     'has_statement': False
                     }
@@ -348,13 +375,19 @@ class Blade(object):
             in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
 
             for pred, _, data in in_edges:
-                if 'jumpkind' in data and data['jumpkind'] == 'Ijk_FakeRet':
-                    continue
+                if 'jumpkind' in data:
+                    if data['jumpkind'] == 'Ijk_FakeRet':
+                        # skip fake rets
+                        continue
+                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
+                        # skip calls as instructed
+                        continue
                 if self.project.is_hooked(pred.addr):
                     # Stop at SimProcedures
                     continue
 
                 self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
 
-from .errors import AngrBladeError, AngrBladeSimProcError, SimTranslationError
-from .analyses.cfg.cfg_node import CFGNode
+
+from .errors import AngrBladeError, SimTranslationError
+from .knowledge_plugins.cfg import CFGNode

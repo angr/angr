@@ -1,22 +1,19 @@
 import itertools
 import logging
 import sys
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 from functools import reduce
+from typing import Dict
 
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
-from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
-from .cfg_node import CFGENode
-from .cfg_utils import CFGUtils
-from ..forward_analysis import ForwardAnalysis
+
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
-from ...engines import SimEngineProcedure
+from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
 from ...exploration_techniques.explorer import Explorer
@@ -26,6 +23,12 @@ from ...errors import AngrCFGError, AngrError, AngrSkipJobNotice, SimError, SimV
 from ...sim_state import SimState
 from ...state_plugins.callstack import CallStack
 from ...state_plugins.sim_action import SimActionData
+from ...knowledge_plugins.cfg import CFGENode, IndirectJump
+from ...utils.constants import DEFAULT_STATEMENT
+from ..forward_analysis import ForwardAnalysis
+from .cfg_base import CFGBase
+from .cfg_job_base import BlockID, CFGJobBase
+from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name=__name__)
 
@@ -149,6 +152,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                  max_steps=None,
                  state_add_options=None,
                  state_remove_options=None,
+                 model=None,
                  ):
         """
         All parameters are optional.
@@ -199,10 +203,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param state_remove_options:                State options that will be removed from the initial state.
         """
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False)
-        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize, iropt_level=iropt_level,
+        CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize,
                          resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
                          indirect_jump_target_limit=indirect_jump_target_limit,
+                         model=model,
         )
 
         if start is not None:
@@ -220,6 +225,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
             l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
 
+        self._iropt_level = iropt_level
         self._avoid_runs = avoid_runs
         self._enable_function_hints = enable_function_hints
         self._call_depth = call_depth
@@ -232,6 +238,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._max_steps = max_steps
         self._state_add_options = state_add_options if state_add_options is not None else set()
         self._state_remove_options = state_remove_options if state_remove_options is not None else set()
+        self._state_add_options.update([o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS])
 
         # add the track_memory_option if the enable function hint flag is set
         if self._enable_function_hints and o.TRACK_MEMORY_ACTIONS not in self._state_add_options:
@@ -271,8 +278,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # A dict to log edges and the jumpkind between each basic block
         self._edge_map = defaultdict(list)
 
-        self._nodes = {}
-        self._nodes_by_addr = defaultdict(list)
+        self._model._iropt_level = self._iropt_level
+
         self._start_keys = [ ]  # a list of block IDs of all starts
 
         # For each call, we are always getting two exits: an Ijk_Call that
@@ -282,8 +289,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # imprecision of the concrete execution. So we save those simulated
         # exits here to increase our code coverage. Of course the real retn from
         # that call always precedes those "fake" retns.
-        # Tuple --> (Initial state, call_stack)
-        self._pending_jobs = OrderedDict()
+        self._pending_jobs = defaultdict(list) # Dict[BlockID, List[PendingJob]]
 
         # Counting how many times a basic block is traced into
         self._traced_addrs = defaultdict(lambda: defaultdict(int))
@@ -321,9 +327,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         new_cfg.project = self.project
 
         # Intelligently (or stupidly... you tell me) fill it up
-        new_cfg._graph = networkx.DiGraph(self._graph)
-        new_cfg._nodes = self._nodes.copy()
-        new_cfg._nodes_by_addr = self._nodes_by_addr.copy() if self._nodes_by_addr is not None else None
         new_cfg._edge_map = self._edge_map.copy()
         new_cfg._loop_back_edges = self._loop_back_edges[::]
         new_cfg._executable_address_ranges = self._executable_address_ranges[::]
@@ -345,10 +348,16 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
+        self._should_abort = False
+
         self._starts = starts
         self._max_steps = max_steps
 
-        self._sanitize_starts()
+        if self._starts is None:
+            self._starts = [ ]
+
+        if self._starts:
+            self._sanitize_starts()
 
         self._analyze()
 
@@ -559,7 +568,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         # Update loop backedges
         self._loop_back_edges = loop_backedges
 
-        self._graph = graph_copy
+        self.model.graph = graph_copy
 
     def immediate_dominators(self, start, target_graph=None):
         """
@@ -711,28 +720,25 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
     def __setstate__(self, s):
         self.project = s['project']
-        self.indirect_jumps = s['indirect_jumps']
-        self._graph = s['graph']
+        self.indirect_jumps: Dict[int,IndirectJump] = s['indirect_jumps']
         self._loop_back_edges = s['_loop_back_edges']
-        self._nodes = s['_nodes']
-        self._nodes_by_addr = s['_nodes_by_addr']
         self._thumb_addrs = s['_thumb_addrs']
         self._unresolvable_runs = s['_unresolvable_runs']
         self._executable_address_ranges = s['_executable_address_ranges']
         self._iropt_level = s['_iropt_level']
+        self._model = s['_model']
 
     def __getstate__(self):
         s = {
             'project': self.project,
             "indirect_jumps": self.indirect_jumps,
-            'graph': self._graph,
             '_loop_back_edges': self._loop_back_edges,
-            '_nodes': self._nodes,
             '_nodes_by_addr': self._nodes_by_addr,
             '_thumb_addrs': self._thumb_addrs,
             '_unresolvable_runs': self._unresolvable_runs,
             '_executable_address_ranges': self._executable_address_ranges,
             '_iropt_level': self._iropt_level,
+            '_model': self._model
         }
 
         return s
@@ -740,6 +746,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     #
     # Properties
     #
+
+    @property
+    def graph(self):
+        return self._model.graph
 
     @property
     def unresolvables(self):
@@ -978,7 +988,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: A CFGJob instance or None
         """
 
-        pending_job_key, pending_job = self._pending_jobs.popitem()
+        pending_job_key = next(iter(self._pending_jobs.keys()))
+        pending_job = self._pending_jobs[pending_job_key].pop()
+        if len(self._pending_jobs[pending_job_key]) == 0:
+            del self._pending_jobs[pending_job_key]
+
         pending_job_state = pending_job.state
         pending_job_call_stack = pending_job.call_stack
         pending_job_src_block_id = pending_job.src_block_id
@@ -1174,29 +1188,32 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         # See if this job cancels another FakeRet
         # This should be done regardless of whether this job should be skipped or not, otherwise edges will go missing
-        # in the CFG or function transiton graphs.
+        # in the CFG or function transition graphs.
         if job.jumpkind == 'Ijk_FakeRet' or \
                 (job.jumpkind == 'Ijk_Ret' and block_id in self._pending_jobs):
             # The fake ret is confirmed (since we are returning from the function it calls). Create an edge for it
             # in the graph.
 
+            the_jobs = [ ]
             if block_id in self._pending_jobs:
-                the_job = self._pending_jobs.pop(block_id)  # type: PendingJob
-                self._deregister_analysis_job(the_job.caller_func_addr, the_job)
+                the_jobs = self._pending_jobs.pop(block_id)
+                for the_job in the_jobs:  # type: Pendingjob
+                    self._deregister_analysis_job(the_job.caller_func_addr, the_job)
             else:
-                the_job = job
+                the_jobs = [job]
 
-            self._graph_add_edge(the_job.src_block_id, block_id,
-                                 jumpkind='Ijk_FakeRet',
-                                 stmt_idx=the_job.src_exit_stmt_idx,
-                                 ins_addr=src_ins_addr
-                                 )
-            self._update_function_transition_graph(the_job.src_block_id, block_id,
-                                                   jumpkind='Ijk_FakeRet',
-                                                   ins_addr=src_ins_addr,
-                                                   stmt_idx=the_job.src_exit_stmt_idx,
-                                                   confirmed=True
-                                                   )
+            for the_job in the_jobs:
+                self._graph_add_edge(the_job.src_block_id, block_id,
+                                     jumpkind='Ijk_FakeRet',
+                                     stmt_idx=the_job.src_exit_stmt_idx,
+                                     ins_addr=src_ins_addr
+                                     )
+                self._update_function_transition_graph(the_job.src_block_id, block_id,
+                                                       jumpkind='Ijk_FakeRet',
+                                                       ins_addr=src_ins_addr,
+                                                       stmt_idx=the_job.src_exit_stmt_idx,
+                                                       confirmed=True
+                                                       )
 
         if sim_successors is None or should_skip:
             # We cannot retrieve the block, or we should skip the analysis of this node
@@ -1275,7 +1292,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Try to resolve indirect jumps
             irsb = input_state.block().vex
 
-            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr, stmt_idx='default')
+            resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr,
+                                                                             stmt_idx=DEFAULT_STATEMENT)
             if resolved:
                 successors = self._convert_indirect_jump_targets_to_states(job, resolved_targets)
                 if ij:
@@ -1383,13 +1401,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
                     if return_target_key in self._nodes:
-                        self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret', stmt_id='default',
-                                             ins_addr=ret_ins_addr)
+                        self._graph_add_edge(job.block_id, return_target_key, jumpkind='Ijk_Ret',
+                                             stmt_id=DEFAULT_STATEMENT, ins_addr=ret_ins_addr)
                     else:
                         self._pending_edges[return_target_key].append((job.block_id, return_target_key,
                                                                        {
                                                                            'jumpkind': 'Ijk_Ret',
-                                                                           'stmt_id': 'default',
+                                                                           'stmt_id': DEFAULT_STATEMENT,
                                                                            'ins_addr': ret_ins_addr,
                                                                         }
                                                                        )
@@ -1448,10 +1466,11 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
 
         if sim_successors.sort == 'IRSB' and input_state.thumb:
-            successors = self._arm_thumb_filter_jump_successors(sim_successors.addr,
+            successors = self._arm_thumb_filter_jump_successors(sim_successors.artifacts['irsb'],
                                                                 successors,
                                                                 lambda state: state.scratch.ins_addr,
-                                                                lambda state: state.scratch.exit_stmt_idx
+                                                                lambda state: state.scratch.exit_stmt_idx,
+                                                                lambda state: state.history.jumpkind,
                                                                 )
 
         # If there is a call exit, we shouldn't put the default exit (which
@@ -1492,8 +1511,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         function_name = func.name if func is not None else None
         module_name = obj.provides if obj is not None else None
 
-        depth_str = "(D:%s)" % self.get_node(job.block_id).depth if self.get_node(job.block_id).depth is not None \
-            else ""
+        node = self.model.get_node(job.block_id)
+        depth_str = "(D:%s)" % node.depth if node.depth is not None else ""
 
         l.debug("%s [%#x%s | %s]", sim_successors.description, sim_successors.addr, depth_str,
                 "->".join([hex(i) for i in call_stack_suffix if i is not None])
@@ -1566,43 +1585,44 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         pending_exits_to_remove = [ ]
 
-        for block_id, pe in self._pending_jobs.items():
-            if pe.returning_source is None:
-                # The original call failed. This pending exit must be followed.
-                continue
+        for block_id, jobs in self._pending_jobs.items():
+            for pe in jobs:
+                if pe.returning_source is None:
+                    # The original call failed. This pending exit must be followed.
+                    continue
 
-            func = self.kb.functions.function(pe.returning_source)
-            if func is None:
-                # Why does it happen?
-                l.warning("An expected function at %s is not found. Please report it to Fish.",
-                          hex(pe.returning_source) if pe.returning_source is not None else 'None')
-                continue
+                func = self.kb.functions.function(pe.returning_source)
+                if func is None:
+                    # Why does it happen?
+                    l.warning("An expected function at %s is not found. Please report it to Fish.",
+                              hex(pe.returning_source) if pe.returning_source is not None else 'None')
+                    continue
 
-            if func.returning is False:
-                # Oops, it's not returning
-                # Remove this pending exit
-                pending_exits_to_remove.append(block_id)
+                if func.returning is False:
+                    # Oops, it's not returning
+                    # Remove this pending exit
+                    pending_exits_to_remove.append(block_id)
 
-                # We want to mark that call as not returning in the current function
-                current_function_addr = self._block_id_current_func_addr(block_id)
-                if current_function_addr is not None:
-                    current_function = self.kb.functions.function(current_function_addr)
-                    if current_function is not None:
-                        call_site_addr = self._block_id_addr(pe.src_block_id)
-                        current_function._call_sites[call_site_addr] = (func.addr, None)
-                    else:
-                        l.warning('An expected function at %#x is not found. Please report it to Fish.',
-                                  current_function_addr
-                                  )
+                    # We want to mark that call as not returning in the current function
+                    current_function_addr = self._block_id_current_func_addr(block_id)
+                    if current_function_addr is not None:
+                        current_function = self.kb.functions.function(current_function_addr)
+                        if current_function is not None:
+                            call_site_addr = self._block_id_addr(pe.src_block_id)
+                            current_function._call_sites[call_site_addr] = (func.addr, None)
+                        else:
+                            l.warning('An expected function at %#x is not found. Please report it to Fish.',
+                                      current_function_addr
+                                      )
 
         for block_id in pending_exits_to_remove:
-            l.debug('Removing a pending exit to %#x since the target function %#x does not return',
+            l.debug('Removing all pending exits to %#x since the target function %#x does not return',
                     self._block_id_addr(block_id),
-                    self._pending_jobs[block_id].returning_source,
+                    next(iter(self._pending_jobs[block_id])).returning_source,
                     )
 
-            to_remove = self._pending_jobs[block_id]
-            self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
+            for to_remove in self._pending_jobs[block_id]:
+                self._deregister_analysis_job(to_remove.caller_func_addr, to_remove)
 
             del self._pending_jobs[block_id]
 
@@ -1783,7 +1803,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             suc_exit_ins_addr,
                             new_call_stack
                             )
-            self._pending_jobs[new_tpl] = pe
+            self._pending_jobs[new_tpl].append(pe)
             self._register_analysis_job(pe.caller_func_addr, pe)
             job.successor_status[state] = "Pended"
 
@@ -1849,7 +1869,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         self._update_function_transition_graph(job.block_id, None,
                                                jumpkind=successor_jumpkind,
                                                ins_addr=successor_last_ins_addr,
-                                               stmt_idx='default',
+                                               stmt_idx=DEFAULT_STATEMENT,
                                                )
 
     # SimAction handling
@@ -1916,18 +1936,15 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # TODO: Is it really OK?
                 func_addr = self._block_id_addr(node_key)
 
-            is_syscall = node_key.jump_type == 'syscall'
             is_thumb = isinstance(self.project.arch, ArchARM) and addr % 2 == 1
 
             pt = CFGENode(self._block_id_addr(node_key),
                           None,
-                          self,
-                          callstack=None,  # getting a callstack here is difficult, so we pass in a callstack key instead
+                          self.model,
                           input_state=None,
                           simprocedure_name="PathTerminator",
                           function_address=func_addr,
                           callstack_key=self._block_id_callstack_key(node_key),
-                          is_syscall=is_syscall,
                           thumb=is_thumb
                           )
             if self._keep_state:
@@ -1971,10 +1988,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         Update transition graphs of functions in function manager based on information passed in.
 
-        :param str jumpkind: Jumpkind.
-        :param CFGNode src_node: Source CFGNode
-        :param CFGNode dst_node: Destionation CFGNode
-        :param int ret_addr: The theoretical return address for calls
+        :param src_node_key:    Node key of the source CFGNode. Might be None.
+        :param dst_node:        Node key of the destination CFGNode. Might be None.
+        :param str jumpkind:    Jump kind of this transition.
+        :param int ret_addr:    The theoretical return address for calls.
+        :param int or None ins_addr:    Address of the instruction where this transition is made.
+        :param int or None stmt_idx:    ID of the statement where this transition is made.
+        :param bool or None confirmed:  Whether this call transition has been confirmed or not.
         :return: None
         """
 
@@ -2213,7 +2233,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     @staticmethod
     def _convert_indirect_jump_targets_to_states(job, indirect_jump_targets):
         """
-        Convert each concrete indirect jump target into a SimState.
+        Convert each concrete indirect jump target into a SimState. If there are non-zero successors and the original
+        jumpkind is a call, we also generate a fake-ret successor.
 
         :param job:                     The CFGJob instance.
         :param indirect_jump_targets:   A collection of concrete jump targets resolved from a indirect jump.
@@ -2221,11 +2242,18 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :rtype:                         list
         """
 
+        first_successor = job.sim_successors.all_successors[0]
         successors = [ ]
         for t in indirect_jump_targets:
             # Insert new successors
-            a = job.sim_successors.all_successors[0].copy()
+            a = first_successor.copy()
             a.ip = t
+            successors.append(a)
+        # special case: if the indirect jump is in fact an indirect call, we should create a FakeRet successor
+        if successors and first_successor.history.jumpkind == 'Ijk_Call':
+            a = first_successor.copy()
+            a.ip = job.cfg_node.addr + job.cfg_node.size
+            a.history.jumpkind = 'Ijk_FakeRet'
             successors.append(a)
         return successors
 
@@ -2237,7 +2265,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param CFGNode cfg_node:                     The CFGNode instance.
         :param int func_addr:                        Current function address.
         :param list successors:                      A list of successors.
-        :param tuple exception_info:                 The sys.exc_info() of the exception or None if none occured.
+        :param tuple exception_info:                 The sys.exc_info() of the exception or None if none occurred.
         :param artifacts:                            A container of collected information.
         :return:                                     Resolved successors
         :rtype:                                      list
@@ -2298,8 +2326,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                             all_successors.insert(0, a)
 
                         l.debug('The indirect jump is successfully resolved.')
-
-                        self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                        self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, more_successors)
 
                     else:
                         l.debug('Failed to resolve the indirect jump.')
@@ -2351,7 +2378,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                         successors = self._symbolically_back_traverse(sim_successors, artifacts, cfg_node)
                         # mark jump as resolved if we got successors
                         if successors:
-                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                            succ_addrs = [s.addr for s in successors]
+                            self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, succ_addrs)
                         else:
                             self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug("Got %d concrete exits in symbolic mode.", len(successors))
@@ -2373,7 +2401,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
                         # mark jump as resolved if we got successors
                         if successors:
-                            self.kb.resolved_indirect_jumps.add(cfg_node.addr)
+                            succ_addrs = [s.addr for s in successors]
+                            self.kb.indirect_jumps.update_resolved_addrs(cfg_node.addr, succ_addrs)
                         else:
                             self.kb.unresolved_indirect_jumps.add(cfg_node.addr)
                         l.debug('Got %d concrete exits in symbolic mode', len(successors))
@@ -2425,7 +2454,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = networkx.weakly_connected_component_subgraphs(taint_graph)
+        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes) for nodes in networkx.weakly_connected_components(taint_graph))
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
@@ -2817,9 +2846,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     # instantiate the stub
                     new_stub_inst = new_stub(display_name=old_name)
 
-                    sim_successors = self.project.engines.procedure_engine.process(
+                    sim_successors = self.project.factory.procedure_engine.process(
                         state,
-                        new_stub_inst,
+                        procedure=new_stub_inst,
                         force_addr=addr,
                         ret_to=ret_to,
                     )
@@ -2866,7 +2895,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # Skip this IRSB
                 l.debug("Caught a SimIRSBError %s. Don't panic, this is usually expected.", ex)
                 inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-                sim_successors = SimEngineProcedure().process(state, inst)
+                sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimIRSBError:
             exception_info = sys.exc_info()
@@ -2874,28 +2903,28 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # does not support. I'll create a terminating stub there
             l.debug("Caught a SimIRSBError during CFG recovery. Creating a PathTerminator.", exc_info=True)
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except claripy.ClaripyError:
             exception_info = sys.exc_info()
             l.debug("Caught a ClaripyError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except SimError:
             exception_info = sys.exc_info()
             l.debug("Caught a SimError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrExitError as ex:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
-            sim_successors = SimEngineProcedure().process(state, inst)
+            sim_successors = ProcedureEngine().process(state, procedure=inst)
 
         except AngrError:
             exception_info = sys.exc_info()
@@ -2936,7 +2965,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             # Ijk_Ret. The last exit is simulated.
             # Notice: We assume the last exit is the simulated one
             if len(all_jobs) > 1 and all_jobs[-1].history.jumpkind == "Ijk_FakeRet":
-                se = all_jobs[-1].se
+                se = all_jobs[-1].solver
                 retn_target_addr = se.eval_one(all_jobs[-1].ip, default=0)
                 sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
@@ -2947,7 +2976,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             elif jumpkind.startswith('Ijk_Sys') and len(all_jobs) == 1:
                 # This is a syscall. It returns to the same address as itself (with a different jumpkind)
                 retn_target_addr = exit_target
-                se = all_jobs[0].se
+                se = all_jobs[0].solver
                 sp = se.eval_one(all_jobs[0].regs.sp, default=0)
                 new_call_stack = new_call_stack.call(addr, exit_target,
                                     retn_target=retn_target_addr,
@@ -2957,7 +2986,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # We don't have a fake return exit available, which means
                 # this call doesn't return.
                 new_call_stack = CallStack()
-                se = all_jobs[-1].se
+                se = all_jobs[-1].solver
                 sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
 
                 new_call_stack = new_call_stack.call(addr, exit_target, retn_target=None, stack_pointer=sp)
@@ -2970,7 +2999,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             except SimEmptyCallStackError:
                 pass
 
-            se = all_jobs[-1].se
+            se = all_jobs[-1].solver
             sp = se.eval_one(all_jobs[-1].regs.sp, default=0)
             old_sp = job.current_stack_pointer
 
@@ -3044,7 +3073,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_simprocedure:
             simproc_name = sa['name'].split('.')[-1]
-            if simproc_name == "ReturnUnconstrained" and sa['resolves'] is not None:
+            if simproc_name == "ReturnUnconstrained" and 'resolves' in sa and sa['resolves'] is not None:
                 simproc_name = sa['resolves']
 
             no_ret = False
@@ -3053,14 +3082,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
             cfg_node = CFGENode(sim_successors.addr,
                                 None,
-                                self,
-                                callstack=call_stack,
+                                self.model,
+                                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 input_state=None,
                                 simprocedure_name=simproc_name,
                                 syscall_name=syscall,
                                 no_ret=no_ret,
                                 is_syscall=is_syscall,
-                                syscall=syscall,
                                 function_address=sim_successors.addr,
                                 block_id=block_id,
                                 depth=depth,
@@ -3071,11 +3099,10 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         else:
             cfg_node = CFGENode(sim_successors.addr,
                                 sa['irsb_size'],
-                                self,
-                                callstack=call_stack,
+                                self.model,
+                                callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 input_state=None,
                                 is_syscall=is_syscall,
-                                syscall=syscall,
                                 function_address=func_addr,
                                 block_id=block_id,
                                 depth=depth,
@@ -3104,7 +3131,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             for loop in loop_finder.loops:  # type: angr.analyses.loopfinder.Loop
                 loop_callback(graph_copy, loop)
 
-            self._graph = graph_copy
+            self.model.graph = graph_copy
 
         # Update loop backedges and graph
         self._loop_back_edges = list(itertools.chain.from_iterable(loop.continue_edges for loop in loop_finder.loops))
@@ -3163,7 +3190,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                     continue
 
                 suc = all_successors[0]
-                se = suc.se
+                se = suc.solver
                 # Examine the path log
                 actions = suc.history.recent_actions
                 sp = se.eval_one(suc.regs.sp, default=0) + self.project.arch.call_sp_fix

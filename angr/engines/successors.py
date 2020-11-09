@@ -1,9 +1,11 @@
 import claripy
 
+from archinfo.arch_soot import ArchSoot
+
 import logging
 l = logging.getLogger(name=__name__)
 
-class SimSuccessors(object):
+class SimSuccessors:
     """
     This class serves as a categorization of all the kinds of result states that can come from a
     SimEngine run.
@@ -26,7 +28,8 @@ class SimSuccessors(object):
     :ivar unconstrained_successors:
                             Any state for which during the flattening process we find too many solutions.
 
-    A more detailed description of the successor lists may be found here: https://docs.angr.io/docs/simuvex.html
+    A more detailed description of the successor lists may be found here:
+    https://docs.angr.io/core-concepts/simulation#simsuccessors
     """
 
     def __init__(self, addr, initial_state):
@@ -66,7 +69,8 @@ class SimSuccessors(object):
                 result = ' '.join(successor_strings)
         else:
             result = 'failure'
-
+        if isinstance(self.initial_state.arch, ArchSoot):
+            return '<%s from %s: %s>' % (self.description, self.addr, result)
         return '<%s from %#x: %s>' % (self.description, self.addr, result)
 
     @property
@@ -112,6 +116,7 @@ class SimSuccessors(object):
         state.scratch.source = source if source is not None else self.addr
         state.scratch.exit_stmt_idx = exit_stmt_idx
         state.scratch.exit_ins_addr = exit_ins_addr
+        state.history.jump_source = state.scratch.exit_ins_addr
 
         self._preprocess_successor(state, add_guard=add_guard)
 
@@ -120,7 +125,8 @@ class SimSuccessors(object):
 
         self._categorize_successor(state)
         state._inspect('exit', BP_AFTER, exit_target=target, exit_guard=guard, exit_jumpkind=jumpkind)
-        state.inspect.downsize()
+        if state.supports_inspect:
+            state.inspect.downsize()
 
     #
     # Successor management
@@ -153,7 +159,7 @@ class SimSuccessors(object):
 
         # For architectures with no stack pointer, we can't manage a callstack. This has the side effect of breaking
         # SimProcedures that call out to binary code self.call.
-        if self.initial_state.arch.sp_offset is not None:
+        if self.initial_state.arch.sp_offset is not None and not isinstance(state.arch, ArchSoot):
             self._manage_callstack(state)
 
         if len(self.successors) != 0:
@@ -179,9 +185,9 @@ class SimSuccessors(object):
                     ret_addr = state.mem[state.regs._sp].long.concrete
                 else:
                     ret_addr = state.solver.eval(state.regs._lr)
-            except SimSolverModeError:
-                # Use the address for UnresolvableTarget instead.
-                ret_addr = state.project.simos.unresolvable_target
+            except (SimSolverModeError, SimUnsatError):
+                # Use the address for UnresolvableCallTarget instead.
+                ret_addr = state.project.simos.unresolvable_call_target
 
             try:
                 state_addr = state.addr
@@ -190,7 +196,7 @@ class SimSuccessors(object):
 
             try:
                 stack_ptr = state.solver.eval(state.regs._sp)
-            except SimSolverModeError:
+            except (SimSolverModeError, SimUnsatError):
                 stack_ptr = 0
 
             new_frame = CallStack(
@@ -203,7 +209,10 @@ class SimSuccessors(object):
 
             state._inspect('call', BP_AFTER)
         else:
-            while state.solver.is_true(state.regs._sp > state.callstack.top.stack_ptr):
+            while True:
+                cur_sp = state.solver.max(state.regs._sp) if state.has_plugin('symbolizer') else state.regs._sp
+                if not state.solver.is_true(cur_sp > state.callstack.top.stack_ptr):
+                    break
                 state._inspect('return', BP_BEFORE, function_address=state.callstack.top.func_addr)
                 state.callstack.pop()
                 state._inspect('return', BP_AFTER)
@@ -269,7 +278,8 @@ class SimSuccessors(object):
                     for i, n in enumerate(concrete_syscall_nums):
                         split_state = state if i == len(concrete_syscall_nums) - 1 else state.copy()
                         split_state.add_constraints(symbolic_syscall_num == n)
-                        split_state.inspect.downsize()
+                        if split_state.supports_inspect:
+                            split_state.inspect.downsize()
                         self._fix_syscall_ip(split_state)
 
                         self.flat_successors.append(split_state)
@@ -279,7 +289,7 @@ class SimSuccessors(object):
                     # up, and create a "unknown syscall" stub for it.
                     self._fix_syscall_ip(state)
                     self.flat_successors.append(state)
-            except AngrUnsupportedSyscallError:
+            except (AngrUnsupportedSyscallError, AngrSyscallError):
                 self.unsat_successors.append(state)
 
         else:
@@ -287,7 +297,13 @@ class SimSuccessors(object):
             _max_targets = state.options.symbolic_ip_max_targets
             _max_jumptable_targets = state.options.jumptable_symbolic_ip_max_targets
             try:
-                if o.KEEP_IP_SYMBOLIC in state.options:
+                skip_max_targets_warning = False
+                if o.NO_IP_CONCRETIZATION in state.options:
+                    # Don't try to concretize the IP
+                    cond_and_targets = [ (claripy.true, target) ]
+                    max_targets = 0
+                    skip_max_targets_warning = True  # don't warn
+                elif o.KEEP_IP_SYMBOLIC in state.options:
                     s = claripy.Solver()
                     addrs = s.eval(target, _max_targets + 1, extra_constraints=tuple(state.ip_constraints))
                     if len(addrs) > _max_targets:
@@ -307,11 +323,12 @@ class SimSuccessors(object):
                         max_targets = _max_jumptable_targets
 
                 if len(cond_and_targets) > max_targets:
-                    l.warning(
-                        "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
-                        max_targets,
-                        target.shallow_repr()
-                    )
+                    if not skip_max_targets_warning:
+                        l.warning(
+                            "Exit state has over %d possible solutions. Likely unconstrained; skipping. %s",
+                            max_targets,
+                            target.shallow_repr()
+                        )
                     self.unconstrained_successors.append(state)
                 else:
                     for cond, a in cond_and_targets:
@@ -321,7 +338,8 @@ class SimSuccessors(object):
                         else:
                             split_state.add_constraints(cond, action=True)
                             split_state.regs.ip = a
-                        split_state.inspect.downsize()
+                        if split_state.supports_inspect:
+                            split_state.inspect.downsize()
                         self.flat_successors.append(split_state)
                     self.successors.append(state)
             except SimSolverModeError:
@@ -500,9 +518,9 @@ class SimSuccessors(object):
 
 
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, SimValueError
+from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
 from ..calling_conventions import SYSCALL_CC
 from ..state_plugins.sim_action_object import _raw_ast
 from ..state_plugins.callstack import CallStack
-from ..storage.memory import DUMMY_SYMBOLIC_READ_VALUE
+from ..storage import DUMMY_SYMBOLIC_READ_VALUE
 from .. import sim_options as o

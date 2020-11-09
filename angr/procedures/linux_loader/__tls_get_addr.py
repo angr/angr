@@ -10,7 +10,8 @@ class __tls_get_addr(angr.SimProcedure):
             raise SimValueError("__tls_get_addr called with symbolic module ID")
         module_id = self.state.solver.eval(module_id)
 
-        return self.project.loader.tls_object.get_addr(module_id, offset)
+        # TODO: this should manually load values from the dtv
+        return self.project.loader.tls.threads[0].get_addr(module_id, offset)
 
 
 # this is a rare and highly valuable TRIPLE-UNDERSCORE tls_get_addr. weird calling convention.

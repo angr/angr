@@ -35,8 +35,8 @@ class Oppologist(ExplorationTechnique):
         pn.options.add(sim_options.UNICORN)
         pn.options.add(sim_options.UNICORN_AGGRESSIVE_CONCRETIZATION)
         pn.unicorn.max_steps = 1
-        pn.unicorn.countdown_symbolic_registers = 0
-        pn.unicorn.countdown_symbolic_memory = 0
+        pn.unicorn.countdown_symbolic_stop = 0
+        pn.unicorn.countdown_unsupported_stop = 0
         pn.unicorn.countdown_nonunicorn_blocks = 0
         pn.unicorn.countdown_stop_point = 0
         ss = simgr.successors(pn, throw=True, **kwargs)
@@ -92,5 +92,5 @@ class Oppologist(ExplorationTechnique):
                 l.error("Oppologizer hit an error while trying to perform repairs", exc_info=True)
                 raise e
         except Exception: #pylint:disable=broad-except
-            l.error("Original block hit an unsupported error")
+            l.error("Original block hit an unsupported error", exc_info=True)
             raise

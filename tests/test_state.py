@@ -1,11 +1,9 @@
-import logging
+import cle
 import pickle
 import nose
 import gc
-import tempfile
 import os
 
-import ana
 import claripy
 import angr
 from angr import SimState
@@ -120,7 +118,7 @@ def test_state_merge_static():
     addr = a.solver.ValueSet(32, 'global', 0, 8)
     a.memory.store(addr, a.solver.BVV(42, 32))
     # Clear a_locs, so further writes will not try to merge with value 42
-    a.memory.regions['global']._alocs = { }
+    a.memory._regions['global']._alocs = { }
 
     b = a.copy()
     c = a.copy()
@@ -129,7 +127,7 @@ def test_state_merge_static():
     c.memory.store(addr, a.solver.BVV(70, 32), endness='Iend_LE')
 
     merged, _, _ = a.merge(b, c)
-    actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4))
+    actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4, endness='Iend_LE'))
     expected = claripy.backends.vsa.convert(a.solver.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
     nose.tools.assert_true(actual.identical(expected))
 
@@ -204,13 +202,6 @@ def test_state_merge_optimal():
 
 
 
-def setup():
-    tmp_dir = tempfile.mkdtemp(prefix='test_state_picklez')
-    ana.set_dl(ana.DirDataLayer(tmp_dir))
-def teardown():
-    ana.set_dl(ana.SimpleDataLayer())
-
-@nose.with_setup(setup, teardown)
 def test_state_pickle():
     s = SimState(arch="AMD64")
     s.memory.store(100, s.solver.BVV(0x4141414241414241424300, 88), endness='Iend_BE')
@@ -257,6 +248,57 @@ def test_global_condition():
         nose.tools.assert_sequence_equal(s.solver.eval_upto(s.regs.rax, 10), [ 25 ])
 
 
+def test_successors_catch_arbitrary_interrupts():
+
+    # int 0xd2 should fail on x86/amd64 since it's an unsupported interrupt
+    block_bytes = b"\xcd\xd2"
+
+    proj = angr.load_shellcode(block_bytes, "amd64")
+    proj.loader.tls = cle.backends.tls.ELFThreadManager(proj.loader, proj.arch)
+    proj.simos = angr.simos.SimLinux(proj)
+    proj.simos.configure_project()
+    state = proj.factory.blank_state(addr=0)
+    simgr = proj.factory.simgr(state)
+
+    simgr.step()
+
+    nose.tools.assert_equal(len(simgr.errored), 0, msg="The state should not go to the errored stash. Is "
+                                                       "AngrSyscallError handled in SimSuccessors?")
+    nose.tools.assert_equal(len(simgr.unsat), 1)
+
+
+def test_bypass_errored_irstmt():
+
+    # fild [esp+4]  will fail when ftop is unspecified
+    # BYPASS_ERRORED_IRSTMT will suppress it
+
+    block_bytes = b"\xdb\x44\x24\x04"
+
+    proj = angr.load_shellcode(block_bytes, "x86")
+    state = proj.factory.blank_state(addr=0, mode="fastpath", cle_memory_backer=proj.loader.memory,
+                                     add_options={angr.sim_options.FAST_REGISTERS},
+                                     remove_options={angr.sim_options.BYPASS_ERRORED_IRSTMT})
+
+    # destroy esp
+    state.regs._esp = state.solver.BVS("unknown_rsp", 32)
+    state.regs._ftop = state.solver.BVS("unknown_ftop", 32)
+
+    # there should be one errored state if we step the state further without BYPASS_ERRORED_IRSTMT
+    simgr = proj.factory.simgr(state)
+    simgr.step()
+    nose.tools.assert_equal(len(simgr.errored), 1)
+    nose.tools.assert_equal(str(simgr.errored[0].error), "address not supported", msg="Does SimFastMemory support "
+                                                                                      "reading from a symbolic address?")
+
+    # try it with BYPASS_ERRORED_IRSTMT
+    state.options.add(angr.sim_options.BYPASS_ERRORED_IRSTMT)
+    simgr = proj.factory.simgr(state)
+    simgr.step()
+
+    nose.tools.assert_equal(len(simgr.errored), 0)
+    nose.tools.assert_equal(len(simgr.active), 1)
+
+
 if __name__ == '__main__':
     test_state()
     test_state_merge()
@@ -266,3 +308,5 @@ if __name__ == '__main__':
     test_state_merge_static()
     test_state_pickle()
     test_global_condition()
+    test_successors_catch_arbitrary_interrupts()
+    test_bypass_errored_irstmt()

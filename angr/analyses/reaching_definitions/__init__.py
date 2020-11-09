@@ -1,3 +1,5 @@
+from .reaching_definitions import ReachingDefinitionsAnalysis
+from .. import register_analysis
 
-from .reaching_definitions import ReachingDefinitionAnalysis, LiveDefinitions
-from .constants import OP_AFTER, OP_BEFORE
+
+register_analysis(ReachingDefinitionsAnalysis, 'ReachingDefinitions')

@@ -2,7 +2,7 @@
 from ....errors import SimMemoryError
 
 
-class IndirectJumpResolver(object):
+class IndirectJumpResolver:
     def __init__(self, project, timeless=False, base_state=None):
         self.project = project
         self.timeless = timeless

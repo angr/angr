@@ -12,7 +12,7 @@ class Labels(KnowledgeBasePlugin):
         self._reverse_labels = {}
         for obj in kb._project.loader.all_objects:
             for v in obj.symbols:
-                if v.name and not v.is_import and v.type not in {cle.Symbol.TYPE_OTHER, }:
+                if v.name and not v.is_import and v.type not in {cle.SymbolType.TYPE_OTHER, }:
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr
             try:
@@ -20,6 +20,12 @@ class Labels(KnowledgeBasePlugin):
                     self._labels[k] = v
             except AttributeError:
                 pass
+
+        # Artificial labels for the entry point
+        entry = kb._project.loader.main_object.entry
+        if entry not in self._labels:
+            lbl = "_start"
+            self._labels[entry] = self.get_unique_label(lbl)
 
     def __iter__(self):
         """
@@ -40,11 +46,16 @@ class Labels(KnowledgeBasePlugin):
 
     def __delitem__(self, k):
         if k in self._labels:
-            del self._reverse_labels[self._labels[k]]
+            l = self._labels[k]
+            if l in self._reverse_labels:
+                del self._reverse_labels[l]
             del self._labels[k]
 
     def __contains__(self, k):
         return k in self._labels
+
+    def items(self):
+        return self._labels.items()
 
     def get(self, addr):
         """
@@ -64,6 +75,25 @@ class Labels(KnowledgeBasePlugin):
         o = Labels(self._kb)
         o._labels = {k: v for k, v in self._labels.items()}
         o._reverse_labels = {k: v for k, v in self._reverse_labels.items()}
+
+    def get_unique_label(self, label):
+        """
+        Get a unique label name from the given label name.
+
+        :param str label:   The desired label name.
+        :return:            A unique label name.
+        """
+
+        if label not in self._labels:
+            return label
+
+        # use it as the prefix
+        i = 1
+        while True:
+            new_label = "%s_%d" % (label, i)
+            if new_label not in self._labels:
+                return new_label
+            i += 1
 
 
 KnowledgeBasePlugin.register_default('labels', Labels)

@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
 import logging
@@ -9,10 +8,6 @@ class strstr(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, haystack_addr, needle_addr, haystack_strlen=None, needle_strlen=None):
-        self.argument_types = { 0: self.ty_ptr(SimTypeString()),
-                                1: self.ty_ptr(SimTypeString())}
-        self.return_type = self.ty_ptr(SimTypeString())
-
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
         strncmp = angr.SIM_PROCEDURES['libc']['strncmp']
 

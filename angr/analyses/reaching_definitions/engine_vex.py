@@ -1,38 +1,79 @@
+from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
 import logging
-import struct
 
 import pyvex
 
-from .atoms import Register, MemoryLocation, Parameter
-from .constants import OP_BEFORE, OP_AFTER
-from .dataset import DataSet
-from .external_codeloc import ExternalCodeLocation
-from .undefined import Undefined
-from ...engines.light import SimEngineLightVEX, SpOffset
-from ...engines.vex.irop import operations as vex_operations
+from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
+from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError
+from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC
+from ...utils.constants import DEFAULT_STATEMENT
+from ...knowledge_plugins.key_definitions.definition import Definition
+from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
+from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Parameter, Tmp
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions.dataset import DataSet
+from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
+from ...code_location import CodeLocation
+from .rd_state import ReachingDefinitionsState
+from .external_codeloc import ExternalCodeLocation
+
+if TYPE_CHECKING:
+    from ...knowledge_plugins import FunctionManager
+
 
 l = logging.getLogger(name=__name__)
 
 
-class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
-    def __init__(self, current_local_call_depth, maximum_local_call_depth, function_handler=None):
+class SimEngineRDVEX(
+    SimEngineLightVEXMixin,
+    SimEngineLight,
+):  # pylint:disable=abstract-method
+    def __init__(self, project, call_stack, maximum_local_call_depth, functions=None,
+                 function_handler=None):
         super(SimEngineRDVEX, self).__init__()
-        self._current_local_call_depth = current_local_call_depth
+        self.project = project
+        self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
+        self.functions: Optional['FunctionManager'] = functions
         self._function_handler = function_handler
+        self._visited_blocks = None
+        self._dep_graph = None
+
+        self.state: ReachingDefinitionsState
 
     def process(self, state, *args, **kwargs):
+        self._dep_graph = kwargs.pop('dep_graph', None)
+        self._visited_blocks = kwargs.pop('visited_blocks', None)
+
         # we are using a completely different state. Therefore, we directly call our _process() method before
         # SimEngine becomes flexible enough.
         try:
-            self._process(state, None, block=kwargs.pop('block', None))
+            self._process(
+                state,
+                None,
+                block=kwargs.pop('block', None),
+            )
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
-            else:
-                l.error(e)
-        return self.state
+            l.error(e)
+        return self.state, self._visited_blocks, self._dep_graph
+
+    def _process_block_end(self):
+        self.stmt_idx = DEFAULT_STATEMENT
+        if self.block.vex.jumpkind == "Ijk_Call":
+            # it has to be a function
+            addr = self._expr(self.block.vex.next)
+            self._handle_function(addr)
+        elif self.block.vex.jumpkind == "Ijk_Boring":
+            # test if the target addr is a function or not
+            addr = self._expr(self.block.vex.next)
+            if len(addr) == 1:
+                addr_int = next(iter(addr.data))
+                if isinstance(addr_int, int) and addr_int in self.functions:
+                    # yes it's a jump to a function
+                    self._handle_function(addr)
 
     #
     # Private methods
@@ -49,17 +90,29 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def _handle_Stmt(self, stmt):
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
         super(SimEngineRDVEX, self)._handle_Stmt(stmt)
 
         if self.state.analysis:
-            self.state.analysis.observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+            self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
+
+    def _handle_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
+        super()._handle_WrTmp(stmt)
+        self.state.kill_and_add_definition(Tmp(stmt.tmp, self.tyenv.sizeof(stmt.tmp) // 8),
+                                           self._codeloc(),
+                                           self.tmps[stmt.tmp])
+
+    def _handle_WrTmpData(self, tmp: int, data):
+        super()._handle_WrTmpData(tmp, data)
+        self.state.kill_and_add_definition(Tmp(tmp, self.tyenv.sizeof(tmp)),
+                                           self._codeloc(),
+                                           self.tmps[tmp])
 
     # e.g. PUT(rsp) = t2, t2 might include multiple values
     def _handle_Put(self, stmt):
-        reg_offset = stmt.offset
-        size = stmt.data.result_size(self.tyenv) // 8
+        reg_offset: int = stmt.offset
+        size: int = stmt.data.result_size(self.tyenv) // 8
         reg = Register(reg_offset, size)
         data = self._expr(stmt.data)
 
@@ -67,15 +120,44 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
+        # special handling for references to stack variables
+        for d in data:
+            if isinstance(d, SpOffset) and isinstance(d.offset, int):
+                self.state.add_use(MemoryLocation(d, 1), self._codeloc())
+
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
     # e.g. STle(t6) = t21, t6 and/or t21 might include multiple values
-    # sync with _handle_StoreG()
     def _handle_Store(self, stmt):
-
         addr = self._expr(stmt.addr)
         size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
+
+        self._store_core(addr, size, data)
+
+    def _handle_StoreG(self, stmt: pyvex.IRStmt.StoreG):
+        guard = self._expr(stmt.guard)
+        if guard.data == {True}:
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) // 8
+            data = self._expr(stmt.data)
+
+            self._store_core(addr, size, data)
+        elif guard.data == {False}:
+            pass
+        else:
+            # guard.data == {True, False}
+            # get current data
+            addr = self._expr(stmt.addr)
+            size = stmt.data.result_size(self.tyenv) // 8
+            data_old = self._load_core(addr, size, stmt.endness)
+            data = self._expr(stmt.data)
+
+            self._store_core(addr, size, data, data_old=data_old)
+
+    def _store_core(self, addr: Iterable[Union[int,SpOffset,Undefined]], size: int, data, data_old=None):
+        if data_old:
+            data.update(data_old)
 
         for a in addr:
             if type(a) is Undefined:
@@ -84,50 +166,29 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 if any(type(d) is Undefined for d in data):
                     l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
-                memloc = MemoryLocation(a, size)
-                # different addresses are not killed by a subsequent iteration, because kill only removes entries
-                # with same index and same size
-                self.state.kill_and_add_definition(memloc, self._codeloc(), data)
-
-    # sync with _handle_Store()
-    def _handle_StoreG(self, stmt):
-        guard = self._expr(stmt.guard)
-        if guard.data == {True}:
-            self._handle_Store(stmt)
-        elif guard.data == {False}:
-            pass
-        else:
-            # guard.data == {True, False}
-            addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) // 8
-
-            # get current data
-            load_end = stmt.end
-            load_ty = self.tyenv.lookup(stmt.data.tmp)
-            load_addr = stmt.addr
-            load_expr = pyvex.IRExpr.Load(load_end, load_ty, load_addr)
-            data_old = self._handle_Load(load_expr)
-
-            # get new data
-            data_new = self._expr(stmt.data)
-
-            # merge old and new data
-            data_new.update(data_old)
-
-            for a in addr:
-                if type(a) is Undefined:
-                    l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
-                else:
-                    if any(type(d) is Undefined for d in data_new):
-                        l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+                if isinstance(a, int) or (isinstance(a, SpOffset) and isinstance(a.offset, int)):
+                    tags: Optional[Set[Tag]]
+                    if isinstance(a, SpOffset):
+                        function_address = (
+                            self.project.kb
+                                .cfgs['CFGFast']
+                                .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
+                                .function_address
+                        )
+                        tags = {LocalVariableTag(
+                            function = function_address,
+                            metadata = {'tagged_by': 'SimEngineRDVEX._store_core'}
+                        )}
+                    else:
+                        tags = None
 
                     memloc = MemoryLocation(a, size)
                     # different addresses are not killed by a subsequent iteration, because kill only removes entries
                     # with same index and same size
-                    self.state.kill_and_add_definition(memloc, self._codeloc(), data_new)
+                    self.state.kill_and_add_definition(memloc, self._codeloc(), data, tags=tags)
 
     def _handle_LoadG(self, stmt):
-        guard = self._expr(stmt.guard)
+        guard: DataSet = self._expr(stmt.guard)
         if guard.data == {True}:
             # FIXME: full conversion support
             if stmt.cvt.find('Ident') < 0:
@@ -148,7 +209,9 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             self._handle_WrTmpData(stmt.dst, DataSet(data, load_expr.result_size(self.tyenv)))
 
     def _handle_Exit(self, stmt):
-        pass
+        guard = self._expr(stmt.guard)
+        target = stmt.dst.value
+        self.state.mark_guard(self._codeloc(), guard, target)
 
     def _handle_IMark(self, stmt):
         pass
@@ -156,30 +219,65 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     def _handle_AbiHint(self, stmt):
         pass
 
+    def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
+        if stmt.storedata is None:
+            # load-link
+            addr = self._expr(stmt.addr)
+            size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
+            load_result = self._load_core(addr, size, stmt.endness)
+            self.tmps[stmt.result] = load_result
+            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                                               self._codeloc(),
+                                               load_result)
+        else:
+            # store-conditional
+            storedata = self._expr(stmt.storedata)
+            addr = self._expr(stmt.addr)
+            size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
+
+            self._store_core(addr, size, storedata)
+            self.tmps[stmt.result] = DataSet({1}, 1)
+            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                                               self._codeloc(),
+                                               self.tmps[stmt.result])
+
     #
     # VEX expression handlers
     #
 
-    def _handle_RdTmp(self, expr):
-        tmp = expr.tmp
+    def _expr(self, expr) -> DataSet:
+        data = super()._expr(expr)
+        if data is None:
+            bits = expr.result_size(self.tyenv)
+            data = DataSet(UNDEFINED, bits)
+        return data
+
+    def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[DataSet]:
+        tmp: int = expr.tmp
+
+        self.state.add_use(Tmp(tmp, expr.result_size(self.tyenv) // self.arch.byte_width), self._codeloc())
 
         if tmp in self.tmps:
             return self.tmps[tmp]
-        return DataSet(Undefined(), expr.result_size(self.tyenv))
+        return None
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
-    def _handle_Get(self, expr):
+    def _handle_Get(self, expr: pyvex.IRExpr.Get) -> Optional[DataSet]:
 
-        reg_offset = expr.offset
-        size = expr.result_size(self.tyenv)
+        reg_offset: int = expr.offset
+        bits: int = expr.result_size(self.tyenv)
+        size: int = bits // self.arch.byte_width
 
         # FIXME: size, overlapping
-        data = set()
-        current_defs = self.state.register_definitions.get_objects_by_offset(reg_offset)
+        data: Set[Union[Undefined,RegisterOffset,int]] = set()
+        current_defs: Iterable[Definition] = self.state.register_definitions.get_objects_by_offset(reg_offset)
         for current_def in current_defs:
             data.update(current_def.data)
         if len(data) == 0:
-            data.add(Undefined())
+            # no defs can be found. add a fake definition
+            data.add(UNDEFINED)
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
+                                               DataSet(data, bits))
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
@@ -192,11 +290,19 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
     # caution: Is also called from StoreG
     def _handle_Load(self, expr):
         addr = self._expr(expr.addr)
-        size = expr.result_size(self.tyenv) // 8
+        bits = expr.result_size(self.tyenv)
+        size = bits // self.arch.byte_width
+
+        return self._load_core(addr, size, expr.endness)
+
+    def _load_core(self, addr: Iterable[Union[int,SpOffset]], size: int, endness: str):  # pylint:disable=unused-argument
+
+        current_defs: Iterable[Definition]
 
         data = set()
         for a in addr:
             if isinstance(a, int):
+                # Load data from a global region
                 current_defs = self.state.memory_definitions.get_objects_by_offset(a)
                 if current_defs:
                     for current_def in current_defs:
@@ -205,19 +311,30 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                         l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
                 else:
                     try:
-                        data.add(self.state.loader.memory.unpack_word(a, size=size))
+                        data.add(self.project.loader.memory.unpack_word(a, size=size))
                     except KeyError:
                         pass
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                self.state.add_use(MemoryLocation(a, size), self._codeloc())
+                memory_location = MemoryLocation(a, size)
+                self.state.add_use(memory_location, self._codeloc())
+            elif isinstance(a, SpOffset) and isinstance(a.offset, int):
+                # Load data from a local variable
+                current_defs = self.state.stack_definitions.get_objects_by_offset(a.offset)
+                if current_defs:
+                    for def_ in current_defs:
+                        data.update(def_.data)
+                else:
+                    data.add(UNDEFINED)
+                memory_location = MemoryLocation(a, size)
+                self.state.add_use(memory_location, self._codeloc())
             else:
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
         if len(data) == 0:
-            data.add(Undefined())
+            data.add(UNDEFINED)
 
-        return DataSet(data, expr.result_size(self.tyenv))
+        return DataSet(data, size * self.arch.byte_width)
 
     # CAUTION: experimental
     def _handle_ITE(self, expr):
@@ -277,7 +394,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             if isinstance(e0, int):
                 return DataSet(e0 != 1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_Not(self, expr):
@@ -289,7 +406,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             if isinstance(e0, int):
                 return DataSet(e0 == 0, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     #
@@ -301,18 +418,18 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
 
-        size = expr.result_size(self.tyenv)
+        bits = expr.result_size(self.tyenv)
         data = set()
         for e0 in expr_0:
             for e1 in expr_1:
                 try:
-                    if e0 >> (size - 1) == 0:
+                    if e0 >> (bits - 1) == 0:
                         head = 0
                     else:
-                        head = ((1 << e1) - 1) << (size - e1)
+                        head = ((1 << e1) - 1) << (bits - e1)
                     data.add(head | (e0 >> e1))
                 except (ValueError, TypeError) as e:
-                    data.add(Undefined())
+                    data.add(UNDEFINED)
                     l.warning(e)
 
         return DataSet(data, expr.result_size(self.tyenv))
@@ -328,7 +445,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 == e1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CmpNE(self, expr):
@@ -342,7 +459,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 != e1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CmpLT(self, expr):
@@ -356,7 +473,7 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 < e1, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     # ppc only
@@ -376,60 +493,84 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                 else:
                     return DataSet(0x02, expr.result_size(self.tyenv))
 
-        l.warning('Comparison of multiple values / different types.')
+        # l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CCall(self, expr):
-        return DataSet(Undefined(), expr.result_size(self.tyenv))
+        bits = expr.result_size(self.tyenv)
+        for arg_expr in expr.args:
+            self._expr(arg_expr)
+        return DataSet(UNDEFINED, bits)
 
     #
     # User defined high level statement handlers
     #
 
-    def _handle_function(self):
-        if self._current_local_call_depth > self._maximum_local_call_depth:
+    def _handle_function(self, func_addr: Optional[DataSet], **kwargs):
+        skip_cc = self._handle_function_core(func_addr, **kwargs)
+        if not skip_cc:
+            self._handle_function_cc(func_addr)
+
+    def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
+
+        if len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
-            return None
+            return False
 
-        defs_ip = self.state.register_definitions.get_objects_by_offset(self.arch.ip_offset)
-        if len(defs_ip) != 1:
-            l.error('Invalid definition(s) for IP.')
-            return None
-
-        ip_data = next(iter(defs_ip)).data
-        if len(ip_data) != 1:
-            handler_name = 'handle_indirect_call'
+        if func_addr is None:
+            l.warning('Invalid type %s for IP.', type(func_addr).__name__)
+            handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                _, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
+                state: ReachingDefinitionsState
                 self.state = state
             else:
-                l.warning('Please implement the inderect function handler with your own logic.')
-            return None
+                l.warning('Please implement the unknown function handler with your own logic.')
+            return False
 
-        ip_addr = ip_data.get_first_element()
-        if not isinstance(ip_addr, int):
-            l.error('Invalid type %s for IP.', type(ip_addr).__name__)
-            return None
+        if len(func_addr) != 1:
+            # indirect call
+            handler_name = 'handle_indirect_call'
+            if hasattr(self._function_handler, handler_name):
+                _, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
+                self.state = state
+            else:
+                l.warning('Please implement the indirect function handler with your own logic.')
+            return False
 
-        is_internal = False
+        func_addr_int = func_addr.get_first_element()
+        if not isinstance(func_addr_int, int):
+            l.warning('Invalid type %s for IP.', type(func_addr_int).__name__)
+            handler_name = 'handle_unknown_call'
+            if hasattr(self._function_handler, handler_name):
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
+                                                                                    src_codeloc=self._codeloc())
+                state: ReachingDefinitionsState
+                self.state = state
+            else:
+                l.warning('Please implement the unknown function handler with your own logic.')
+            return False
+
+        # direct calls
         ext_func_name = None
-        if self.state.loader.main_object.contains_addr(ip_addr) is True:
-            ext_func_name = self.state.loader.find_plt_stub_name(ip_addr)
-            if ext_func_name is None:
-                is_internal = True
-        else:
-            symbol = self.state.loader.find_symbol(ip_addr)
+        if not self.project.loader.main_object.contains_addr(func_addr_int):
+            is_internal = False
+            symbol = self.project.loader.find_symbol(func_addr_int)
             if symbol is not None:
                 ext_func_name = symbol.name
+        else:
+            is_internal = True
 
         executed_rda = False
         if ext_func_name is not None:
             handler_name = 'handle_%s' % ext_func_name
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, codeloc)
                 self.state = state
             else:
-                l.warning('Please implement the external function handler for %s() with your own logic.', ext_func_name)
+                l.warning('Please implement the external function handler for %s() with your own logic.',
+                          ext_func_name)
                 handler_name = 'handle_external_function_fallback'
                 if hasattr(self._function_handler, handler_name):
                     executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
@@ -437,30 +578,86 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
-                                                                                    ip_addr,
-                                                                                    self._current_local_call_depth + 1,
-                                                                                    self._maximum_local_call_depth,
-                                                                                    self._codeloc(),
-                                                                                    )
-                self.state = state
+                codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+                executed_rda, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
+                    self.state,
+                    func_addr_int,
+                    self._call_stack,
+                    self._maximum_local_call_depth,
+                    self._visited_blocks,
+                    self._dep_graph,
+                    src_ins_addr=self.ins_addr,
+                    codeloc=codeloc,
+                )
+                if executed_rda:
+                    # update everything
+                    self.state = state
+                    self._visited_blocks = visited_blocks
+                    self._dep_graph = dep_graph
             else:
-                l.warning('Please implement the local function handler with your own logic.')
+                # l.warning('Please implement the local function handler with your own logic.')
+                pass
         else:
-            l.warning('Could not find function name for external function at address %#x.', ip_addr)
+            l.warning('Could not find function name for external function at address %#x.', func_addr_int)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
+                                                                                    src_codeloc=self._codeloc())
                 self.state = state
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
+        skip_cc = executed_rda
 
-        # pop return address if necessary
-        if executed_rda is False and self.arch.call_pushes_ret is True:
+        return skip_cc
+
+    def _handle_function_cc(self, func_addr: Optional[DataSet]):
+        _cc = None
+        func_addr_int: Optional[Union[int,Undefined]] = None
+        if func_addr is not None and len(func_addr) == 1 and self.functions is not None:
+            func_addr_int = next(iter(func_addr))
+            if self.functions.contains_addr(func_addr_int):
+                _cc = self.functions[func_addr_int].calling_convention
+        cc: SimCC = _cc or DEFAULT_CC.get(self.arch.name, None)(self.arch)
+
+        # follow the calling convention and:
+        # - add uses for arguments
+        # - kill return value registers
+        # - caller-saving registers
+        if cc.args:
+            code_loc = self._codeloc()
+            for arg in cc.args:
+                if isinstance(arg, SimRegArg):
+                    reg_offset, reg_size = self.arch.registers[arg.reg_name]
+                    atom = Register(reg_offset, reg_size)
+                elif isinstance(arg, SimStackArg):
+                    atom = MemoryLocation(SpOffset(self.arch.bits,
+                                          arg.stack_offset),
+                                          arg.size * self.arch.byte_width)
+                self.state.add_use(atom, code_loc)
+                self._tag_definitions_of_atom(atom, func_addr_int)
+
+        if cc.RETURN_VAL is not None:
+            if isinstance(cc.RETURN_VAL, SimRegArg):
+                reg_offset, reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
+                atom = Register(reg_offset, reg_size)
+                tag = ReturnValueTag(
+                    function = func_addr_int if isinstance(func_addr_int, int) else None,
+                    metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+                )
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({UNDEFINED}, reg_size * 8), tags={tag})
+
+        if cc.CALLER_SAVED_REGS is not None:
+            for reg in cc.CALLER_SAVED_REGS:
+                reg_offset, reg_size = self.arch.registers[reg]
+                atom = Register(reg_offset, reg_size)
+                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({UNDEFINED}, reg_size * 8))
+
+        if self.arch.call_pushes_ret is True:
+            # pop return address if necessary
             defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
             if len(defs_sp) == 0:
                 raise ValueError('No definition for SP found')
-            elif len(defs_sp) == 1:
+            if len(defs_sp) == 1:
                 sp_data = next(iter(defs_sp)).data.data
             else:  # len(defs_sp) > 1
                 sp_data = set()
@@ -468,14 +665,29 @@ class SimEngineRDVEX(SimEngineLightVEX):  # pylint:disable=abstract-method
                     sp_data.update(d.data)
 
             if len(sp_data) != 1:
-                raise ValueError('Invalid number of values for SP')
+                l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                           'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
 
             sp_addr = next(iter(sp_data))
-            if not isinstance(sp_addr, int):
-                raise TypeError('Invalid type %s for SP' % type(sp_addr).__name__)
+            if isinstance(sp_addr, (int, SpOffset)):
+                sp_addr -= self.arch.stack_change
+            elif isinstance(sp_addr, Undefined):
+                pass
+            else:
+                raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
             atom = Register(self.arch.sp_offset, self.arch.bytes)
-            sp_addr -= self.arch.stack_change
-            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits))
+            tag = ReturnValueTag(
+                function = func_addr_int,
+                metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+            )
+            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits), tags={tag})
 
-        return None
+    def _tag_definitions_of_atom(self, atom: Atom, func_addr: int):
+        definitions = self.state.get_definitions(atom)
+        tag = ParameterTag(
+            function = func_addr,
+            metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+        )
+        for definition in definitions:
+            definition.tags |= {tag}

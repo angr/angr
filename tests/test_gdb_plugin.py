@@ -5,12 +5,12 @@ import angr
 
 l = logging.getLogger("angr_tests")
 
-this_file = str(os.path.dirname(os.path.realpath(__file__)))
-test_location = os.path.join(this_file, '../../binaries/tests')
-data_location = os.path.join(this_file, "../../binaries/tests_data/test_gdb_plugin")
+this_file = os.path.dirname(os.path.realpath(__file__))
+test_location = os.path.join(this_file, '..', '..', 'binaries', 'tests')
+data_location = os.path.join(this_file, '..', '..', 'binaries', 'tests_data', 'test_gdb_plugin')
 
 def test_gdb():
-    p = angr.Project(os.path.join(test_location, "x86_64/test_gdb_plugin"))
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_gdb_plugin'))
     st = p.factory.blank_state()
 
     st.gdb.set_stack(os.path.join(data_location, "stack"), stack_top=0x7ffffffff000)

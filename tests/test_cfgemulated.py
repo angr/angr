@@ -7,7 +7,7 @@ import logging
 l = logging.getLogger("angr.tests.test_cfgemulated")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 import angr
 from angr import options as o
@@ -106,34 +106,34 @@ def perform_single(binary_path, cfg_path=None):
         l.warning("No standard CFG specified.")
 
 def disabled_cfg_0():
-    binary_path = test_location + "/x86_64/cfg_0"
+    binary_path = os.path.join(test_location, 'x86_64', 'cfg_0')
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
 def disabled_cfg_1():
-    binary_path = test_location + "/x86_64/cfg_1"
+    binary_path = os.path.join(test_location, 'x86_64', 'cfg_1')
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
 def disabled_cfg_2():
-    binary_path = test_location + "/armel/test_division"
+    binary_path = os.path.join(test_location, 'armel', 'test_division')
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
 def disabled_cfg_3():
-    binary_path = test_location + "/mips/test_arrays"
+    binary_path = os.path.join(test_location, 'mips', 'test_arrays')
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
 def disabled_cfg_4():
-    binary_path = test_location + "/mipsel/darpa_ping"
+    binary_path = os.path.join(test_location, 'mipsel', 'darpa_ping')
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
 def test_additional_edges():
     # Test the `additional_edges` parameter for CFG generation
 
-    binary_path = test_location + "/x86_64/switch"
+    binary_path = os.path.join(test_location, 'x86_64', 'switch')
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic',
@@ -155,7 +155,7 @@ def test_additional_edges():
 def test_not_returning():
     # Make sure we are properly labeling functions that do not return in function manager
 
-    binary_path = test_location + "/x86_64/not_returning"
+    binary_path = os.path.join(test_location, 'x86_64', 'not_returning')
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         load_options={'auto_load_libs': False}
@@ -182,7 +182,7 @@ def test_not_returning():
     nose.tools.assert_equal(proj.kb.functions.function(name='function_d'), None)
 
 def disabled_cfg_5():
-    binary_path = test_location + "/mipsel/busybox"
+    binary_path = os.path.join(test_location, 'mipsel', 'busybox')
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
@@ -205,13 +205,13 @@ def test_cfg_6():
     o.modes['fastpath'] ^= {o.DO_CCALLS}
 
 def test_fauxware():
-    binary_path = test_location + "/x86_64/fauxware"
+    binary_path = os.path.join(test_location, 'x86_64', 'fauxware')
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
 
 def disabled_loop_unrolling():
-    binary_path = test_location + "/x86_64/cfg_loop_unrolling"
+    binary_path = os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling')
 
     p = angr.Project(binary_path)
     cfg = p.analyses.CFGEmulated(fail_fast=True)
@@ -225,7 +225,7 @@ def test_thumb_mode():
     # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
     # reflect VEX's trick to encode the THUMB state in the address.
 
-    binary_path = test_location + "/armhf/test_arrays"
+    binary_path = os.path.join(test_location, 'armhf', 'test_arrays')
     p = angr.Project(binary_path)
     cfg = p.analyses.CFGEmulated(fail_fast=True)
 
@@ -318,10 +318,10 @@ def test_arrays():
     b = angr.Project(binary_path, load_options={'auto_load_libs': False})
     cfg = b.analyses.CFGEmulated(fail_fast=True)
 
-    node = cfg.get_any_node(0x10415)
+    node = cfg.model.get_any_node(0x10415)
     nose.tools.assert_is_not_none(node)
 
-    successors = cfg.get_successors(node)
+    successors = cfg.model.get_successors(node)
     nose.tools.assert_equal(len(successors), 2)
 
 def test_max_steps():
@@ -374,9 +374,12 @@ def test_armel_final_missing_block_b():
     # Fixing either bug will resolve the issue that the final block does not show up in the function graph of main. To
     # stay on the safe side, both of them are fixed. Thanks @tyb0807 for reporting this issue and providing a test
     # binary.
-
+    # EDG says: This binary is compiled incorrectly.
+    # The binary's app code was compiled as CortexM, but linked against ARM libraries.
+    # This is illegal, and does not actually execute on a real CortexM.
+    # Somebody should recompile it....
     binary_path = os.path.join(test_location, 'armel', 'aes')
-    b = angr.Project(binary_path, auto_load_libs=False)
+    b = angr.Project(binary_path, arch="ARMEL", auto_load_libs=False)
 
     function = b.loader.main_object.get_symbol('main').rebased_addr
     cfg = b.analyses.CFGEmulated(starts=[function],
@@ -389,7 +392,6 @@ def test_armel_final_missing_block_b():
 
     nose.tools.assert_equal(len(blocks), 2)
     nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b79, 0x10bbf })
-
 
 def test_armel_incorrect_function_detection_caused_by_branch():
 
@@ -478,6 +480,36 @@ def test_cfg_switches():
             nose.tools.assert_in(dst_node, src_node.successors,
                                  msg="CFG edge %s-%s is not found." % (src_node, dst_node)
                                  )
+
+
+class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
+    """
+    Only used in the test_abort_and_resume test case.
+    """
+    should_abort = False
+
+    def _intra_analysis(self):
+        if CFGEmulatedAborted.should_abort:
+            self.abort()
+        else:
+            super()._intra_analysis()
+
+def test_abort_and_resume():
+
+    angr.analyses.AnalysesHub.register_default('CFGEmulatedAborted', CFGEmulatedAborted)
+
+    CFGEmulatedAborted.should_abort = False
+    binary_path = os.path.join(test_location, "x86_64", "fauxware")
+    b = angr.Project(binary_path, auto_load_libs=False)
+
+    CFGEmulatedAborted.should_abort = True
+    cfg = b.analyses.CFGEmulatedAborted()
+    nose.tools.assert_greater(len(list(cfg.jobs)), 0)  # there should be left-over jobs
+
+    CFGEmulatedAborted.should_abort = False
+    cfg.resume()
+
+    nose.tools.assert_equal(len(list(cfg.jobs)), 0)  # no left-over job
 
 
 def run_all():

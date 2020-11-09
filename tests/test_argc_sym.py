@@ -5,7 +5,7 @@ import logging
 l = logging.getLogger("angr_tests")
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def _verify_results(pg, sargc, length=400):
     argcs = pg.mp_found.solver.eval(sargc)
@@ -16,7 +16,7 @@ def _verify_results(pg, sargc, length=400):
         assert b"Good man" in s if a == 1 else b"Very Good man" if a == 2 else True
 
 def test_mips():
-    arger_mips = angr.Project(test_location + "/mips/argc_symbol")
+    arger_mips = angr.Project(os.path.join(test_location, 'mips', 'argc_symbol'))
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
     sargc = claripy.BVS('argc', 32)
@@ -25,7 +25,7 @@ def test_mips():
     _verify_results(pg, sargc)
 
 def test_mipsel():
-    arger_mipsel = angr.Project(test_location + "/mipsel/argc_symbol")
+    arger_mipsel = angr.Project(os.path.join(test_location, 'mipsel', 'argc_symbol'))
     r_addr = [0x400720, 0x40076c, 0x4007bc]
 
     sargc = claripy.BVS('argc', 32)
@@ -34,7 +34,7 @@ def test_mipsel():
     _verify_results(pg, sargc)
 
 def test_i386():
-    arger_i386 = angr.Project(test_location + "/i386/argc_symbol")
+    arger_i386 = angr.Project(os.path.join(test_location, 'i386', 'argc_symbol'))
     r_addr = [0x08048411, 0x08048437, 0x08048460]
 
     sargc = claripy.BVS('argc', 32)
@@ -43,7 +43,7 @@ def test_i386():
     _verify_results(pg, sargc)
 
 def test_amd64():
-    arger_amd64 = angr.Project(test_location + "/x86_64/argc_symbol", load_options={'auto_load_libs': False})
+    arger_amd64 = angr.Project(os.path.join(test_location, 'x86_64', 'argc_symbol'), load_options={'auto_load_libs': False})
     r_addr = [0x40051B, 0x400540, 0x400569]
 
     sargc = claripy.BVS('argc', 64)
@@ -52,7 +52,7 @@ def test_amd64():
     _verify_results(pg, sargc, length=800)
 
 def test_arm():
-    arger_arm = angr.Project(test_location + "/armel/argc_symbol")
+    arger_arm = angr.Project(os.path.join(test_location, 'armel', 'argc_symbol'))
     r_addr = [0x00010444, 0x00010478, 0x000104B0]
 
     sargc = claripy.BVS('argc', 32)
@@ -61,7 +61,7 @@ def test_arm():
     _verify_results(pg, sargc)
 
 def test_ppc32():
-    arger_ppc32 = angr.Project(test_location + "/ppc/argc_symbol")
+    arger_ppc32 = angr.Project(os.path.join(test_location, 'ppc', 'argc_symbol'))
     r_addr = [0x1000043C, 0x10000474, 0x100004B0]
 
     sargc = claripy.BVS('argc', 32)

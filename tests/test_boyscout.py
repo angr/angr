@@ -2,7 +2,7 @@ import nose
 import angr
 
 import os
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 import logging
 l = logging.getLogger('angr.test_boyscout')

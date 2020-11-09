@@ -1,6 +1,7 @@
 import nose
 import angr
 import claripy
+import archinfo
 from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeInt, parse_defns
 from angr.errors import AngrCallableMultistateError
 
@@ -8,7 +9,7 @@ import logging
 l = logging.getLogger("angr_tests")
 
 import os
-location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
+from common import slow_test, bin_location as location
 
 addresses_fauxware = {
     'armel': 0x8524,
@@ -34,7 +35,7 @@ addresses_manysum = {
 
 def run_fauxware(arch):
     addr = addresses_fauxware[arch]
-    p = angr.Project(location + '/' + arch + '/fauxware')
+    p = angr.Project(os.path.join(location, 'tests', arch, 'fauxware'))
     charstar = SimTypePointer(SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
     cc = p.factory.cc(func_ty=prototype)
@@ -45,7 +46,7 @@ def run_fauxware(arch):
 
 def run_callable_c_fauxware(arch):
     addr = addresses_fauxware[arch]
-    p = angr.Project(os.path.join(location, arch, 'fauxware'))
+    p = angr.Project(os.path.join(location, 'tests', arch, 'fauxware'))
     cc = p.factory.cc(func_ty="int f(char*, char*)")
     authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, cc=cc)
     retval = authenticate.call_c('("asdf", "SOSNEAKY")')
@@ -55,7 +56,7 @@ def run_callable_c_fauxware(arch):
 
 def run_manysum(arch):
     addr = addresses_manysum[arch]
-    p = angr.Project(os.path.join(location, arch, 'manysum'))
+    p = angr.Project(os.path.join(location, 'tests', arch, 'manysum'))
     inttype = SimTypeInt()
     prototype = SimTypeFunction([inttype]*11, inttype)
     cc = p.factory.cc(func_ty=prototype)
@@ -67,7 +68,7 @@ def run_manysum(arch):
 
 def run_callable_c_manysum(arch):
     addr = addresses_manysum[arch]
-    p = angr.Project(os.path.join(location, arch, 'manysum'))
+    p = angr.Project(os.path.join(location, 'tests', arch, 'manysum'))
     cc = p.factory.cc(func_ty="int f(int, int, int, int, int, int, int, int, int, int, int)")
     sumlots = p.factory.callable(addr, cc=cc)
     result = sumlots.call_c("(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)")
@@ -79,9 +80,10 @@ type_cache = None
 def run_manyfloatsum(arch):
     global type_cache
     if type_cache is None:
-        type_cache = parse_defns(open(os.path.join(location, '..', 'tests_src', 'manyfloatsum.c')).read())
+        with open(os.path.join(location, 'tests_src', 'manyfloatsum.c')) as fp:
+            type_cache = parse_defns(fp.read())
 
-    p = angr.Project(location + '/' + arch + '/manyfloatsum')
+    p = angr.Project(os.path.join(location, 'tests', arch, 'manyfloatsum'))
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
         cc = p.factory.cc(func_ty=type_cache[function])
         args = list(range(len(cc.func_ty.args)))
@@ -93,12 +95,14 @@ def run_manyfloatsum(arch):
         result_concrete = result.args[0]
         nose.tools.assert_equal(answer, result_concrete)
 
+@slow_test
 def run_manyfloatsum_symbolic(arch):
     global type_cache
     if type_cache is None:
-        type_cache = parse_defns(open(os.path.join(location, '..', 'tests_src', 'manyfloatsum.c')).read())
+        with open(os.path.join(location, 'tests_src', 'manyfloatsum.c')) as fp:
+            type_cache = parse_defns(fp.read())
 
-    p = angr.Project(location + '/' + arch + '/manyfloatsum')
+    p = angr.Project(os.path.join(location, 'tests', arch, 'manyfloatsum'))
     function = 'sum_doubles'
     cc = p.factory.cc(func_ty=type_cache[function])
     args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
@@ -107,7 +111,7 @@ def run_manyfloatsum_symbolic(arch):
     result = my_callable(*args)
     nose.tools.assert_true(result.symbolic)
 
-    s = claripy.Solver()
+    s = claripy.Solver(timeout=15*60*1000)
     for arg in args:
         s.add(arg > claripy.FPV(1.0, claripy.FSORT_DOUBLE))
     s.add(result == claripy.FPV(27.7, claripy.FSORT_DOUBLE))
@@ -132,7 +136,10 @@ def test_manyfloatsum():
     for arch in ('i386', 'x86_64'):
         yield run_manyfloatsum, arch
 
+@slow_test
 def test_manyfloatsum_symbolic():
+    # doesn't have to be slow but it might be
+    # https://github.com/Z3Prover/z3/issues/2584
     for arch in ('i386', 'x86_64'):
         yield run_manyfloatsum_symbolic, arch
 
@@ -145,6 +152,20 @@ def test_callable_c_fauxware():
 def test_callable_c_manyfloatsum():
     for arch in addresses_manysum:
         yield run_callable_c_manysum, arch
+
+def test_setup_callsite():
+    p = angr.load_shellcode(b'b', arch=archinfo.ArchX86())
+
+    s = p.factory.call_state(0, "hello", stack_base=0x1234, alloc_base=0x5678, grow_like_stack=False)
+    assert (s.regs.sp == 0x1234).is_true()
+    assert (s.mem[0x1234 + 4].long.resolved == 0x5678).is_true()
+    assert (s.memory.load(0x5678, 5) == b'hello').is_true()
+
+    s = p.factory.call_state(0, "hello", stack_base=0x1234)
+    assert (s.regs.sp == 0x1234).is_true()
+    assert (s.mem[0x1234 + 4].long.resolved == 0x1234 + 8).is_true()
+    assert (s.memory.load(0x1234 + 8, 5) == b'hello').is_true()
+
 
 
 if __name__ == "__main__":

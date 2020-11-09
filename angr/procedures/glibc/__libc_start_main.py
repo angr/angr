@@ -146,15 +146,17 @@ class __libc_start_main(angr.SimProcedure):
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
-        blank_state = angr.SimState(project=self.project, mode="fastpath", memory_backer=self.project.loader.memory)
+        blank_state = angr.SimState(project=self.project, mode="fastpath", cle_memory_backer=self.project.loader.memory,
+                                    add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                                                 angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
         # set up the stack pointer
-        blank_state.regs.sp = 0x7fffffff
+        blank_state.regs.sp = 0x7ffffff0
 
         # Execute each block
         state = blank_state
         for b in blocks:
             # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = self.project.engines.default_engine.process(state, b,
+            irsb = self.project.factory.default_engine.process(state, b,
                     force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
             if irsb.successors:
                 state = irsb.successors[0]
@@ -166,9 +168,9 @@ class __libc_start_main(angr.SimProcedure):
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [
-            (init, 'Ijk_Call'),
-            (main, 'Ijk_Call'),
-            (fini, 'Ijk_Call'),
+            {'address': init, 'jumpkind': 'Ijk_Call', 'namehint': 'init'},
+            {'address': main, 'jumpkind': 'Ijk_Call', 'namehint': 'main'},
+            {'address': fini, 'jumpkind': 'Ijk_Call', 'namehint': 'fini'},
         ]
 
         return all_exits

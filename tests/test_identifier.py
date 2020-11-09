@@ -2,7 +2,7 @@ import angr
 import nose
 
 import os
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries'))
+bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
 
 import logging
 

@@ -4,6 +4,8 @@ import struct
 
 import claripy
 from cle import MetaELF
+from cle.backends.elf.symbol import ELFSymbol, ELFSymbolType
+from cle.backends.elf.elfcore import ELFCore
 from cle.address_translator import AT
 from archinfo import ArchX86, ArchAMD64, ArchARM, ArchAArch64, ArchMIPS32, ArchMIPS64, ArchPPC32, ArchPPC64
 
@@ -33,33 +35,35 @@ class SimLinux(SimUserland):
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
         self._error_catch_tsd_addr = None
+        self._is_core = None
         self.vsyscall_addr = None
 
     def configure_project(self): # pylint: disable=arguments-differ
-        self._loader_addr = self.project.loader.extern_object.allocate()
-        self._loader_lock_addr = self.project.loader.extern_object.allocate()
-        self._loader_unlock_addr = self.project.loader.extern_object.allocate()
-        self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
-        self.vsyscall_addr = self.project.loader.extern_object.allocate()
-        self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
-        self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
-        self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
-        self.project.hook(self._error_catch_tsd_addr,
-                          P['linux_loader']['_dl_initial_error_catch_tsd'](
-                              static_addr=self.project.loader.extern_object.allocate()
-                          )
-                          )
-        self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
+        self._is_core = isinstance(self.project.loader.main_object, ELFCore)
 
-        ld_obj = self.project.loader.linux_loader_object
-        if ld_obj is not None:
+        if not self._is_core:
+            self._loader_addr = self.project.loader.extern_object.allocate()
+            self._loader_lock_addr = self.project.loader.extern_object.allocate()
+            self._loader_unlock_addr = self.project.loader.extern_object.allocate()
+            self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
+            self.vsyscall_addr = self.project.loader.extern_object.allocate()
+            self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
+            self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
+            self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
+            self.project.hook(self._error_catch_tsd_addr,
+                              P['linux_loader']['_dl_initial_error_catch_tsd'](
+                                  static_addr=self.project.loader.extern_object.allocate()
+                              )
+                              )
+            self.project.hook(self.vsyscall_addr, P['linux_kernel']['_vsyscall']())
+
             # there are some functions we MUST use the simprocedures for, regardless of what the user wants
-            self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch), ld_obj)
-            self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch), ld_obj)
+            self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch))    # ld
+            self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch))  # ld
+            self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch))  # libc
 
             # set up some static data in the loader object...
-            # TODO it should be legal to get these from the externs now
-            _rtld_global = ld_obj.get_symbol('_rtld_global')
+            _rtld_global = self.project.loader.find_symbol('_rtld_global')
             if _rtld_global is not None:
                 if isinstance(self.project.arch, ArchAMD64):
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
@@ -67,52 +71,49 @@ class SimLinux(SimUserland):
                     self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
 
             # TODO: what the hell is this
-            _rtld_global_ro = ld_obj.get_symbol('_rtld_global_ro')
+            _rtld_global_ro = self.project.loader.find_symbol('_rtld_global_ro')
             if _rtld_global_ro is not None:
                 pass
 
-        libc_obj = self.project.loader.find_object('libc.so.6')
-        if libc_obj:
-            self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch), libc_obj)
-
-        tls_obj = self.project.loader.tls_object
-        if tls_obj is not None:
+            tls_obj = self.project.loader.tls.new_thread()
             if isinstance(self.project.arch, ArchAMD64):
-                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e4152595f)
+                self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x28, 0x5f43414e41525900)  # _CANARY\x00
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
             elif isinstance(self.project.arch, ArchX86):
                 self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
-            elif isinstance(self.project.arch, ArchARM):
-                self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
-        # Only set up ifunc resolution if we are using the ELF backend on AMD64
-        if isinstance(self.project.loader.main_object, MetaELF):
-            if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
-                for binary in self.project.loader.all_objects:
-                    if not isinstance(binary, MetaELF):
-                        continue
-                    for reloc in binary.relocs:
-                        if reloc.symbol is None or reloc.resolvedby is None:
+            # Only set up ifunc resolution if we are using the ELF backend on AMD64
+            if isinstance(self.project.loader.main_object, MetaELF):
+                if isinstance(self.project.arch, (ArchAMD64, ArchX86)):
+                    for binary in self.project.loader.all_objects:
+                        if not isinstance(binary, MetaELF):
                             continue
-                        try:
-                            if reloc.resolvedby.elftype != 'STT_GNU_IFUNC':
+                        for reloc in binary.relocs:
+                            if reloc.symbol is None or reloc.resolvedby is None:
                                 continue
-                        except AttributeError:
-                            continue
-                        gotaddr = reloc.rebased_addr
-                        gotvalue = self.project.loader.memory.unpack_word(gotaddr)
-                        if self.project.is_hooked(gotvalue):
-                            continue
-                        # Replace it with a ifunc-resolve simprocedure!
-                        kwargs = {
-                            'funcaddr': gotvalue,
-                            'gotaddr': gotaddr,
-                            'funcname': reloc.symbol.name
-                        }
-                        # TODO: should this be replaced with hook_symbol?
-                        randaddr = self.project.loader.extern_object.allocate()
-                        self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
-                        self.project.loader.memory.pack_word(gotaddr, randaddr)
+                            try:
+                                if reloc.resolvedby.subtype != ELFSymbolType.STT_GNU_IFUNC:
+                                    continue
+                            except ValueError:  # base class Symbol throws this, meaning we don't have an ELFSymbol, etc
+                                continue
+                            gotaddr = reloc.rebased_addr
+                            gotvalue = self.project.loader.memory.unpack_word(gotaddr)
+                            if self.project.is_hooked(gotvalue):
+                                continue
+                            # Replace it with a ifunc-resolve simprocedure!
+                            kwargs = {
+                                'funcaddr': gotvalue,
+                                'gotaddr': gotaddr,
+                                'funcname': reloc.symbol.name
+                            }
+                            # TODO: should this be replaced with hook_symbol?
+                            randaddr = self.project.loader.extern_object.allocate()
+                            self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
+                            self.project.loader.memory.pack_word(gotaddr, randaddr)
+
+
+        if isinstance(self.project.arch, ArchARM):
+            self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
 
         # maybe move this into archinfo?
         if self.arch.name == 'X86':
@@ -134,6 +135,8 @@ class SimLinux(SimUserland):
             syscall_abis = ['ppc']
         elif self.arch.name == 'PPC64':
             syscall_abis = ['ppc64']
+        elif self.arch.name == 'RISCV':
+            syscall_abis = ['riscv32']
         else:
             syscall_abis = [] # ?
 
@@ -142,31 +145,35 @@ class SimLinux(SimUserland):
     def syscall_abi(self, state):
         if state.arch.name != 'AMD64':
             return None
-        if state.history.jumpkind == 'Ijk_Sys_int128':
+        jk = state.history.jumpkind
+        if jk is None:
+            # we are being invoked in the middle of a step
+            jk = state.history.parent.jumpkind
+        if jk == 'Ijk_Sys_int128':
             return 'i386'
-        elif state.history.jumpkind == 'Ijk_Sys_syscall':
+        elif jk == 'Ijk_Sys_syscall':
             return 'amd64'
         else:
-            raise AngrSyscallError("Unknown syscall jumpkind %s" % state.history.jumpkind)
+            raise AngrSyscallError("Unknown syscall jumpkind %s" % jk)
 
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
-            cwd=b'/home/user', pathsep=b'/', **kwargs):
-        state = super(SimLinux, self).state_blank(**kwargs)
+            cwd=None, pathsep=b'/', thread_idx=None, init_libc = False, **kwargs):
+        state = super(SimLinux, self).state_blank(thread_idx=thread_idx, **kwargs)
 
-        if self.project.loader.tls_object is not None:
-            if isinstance(state.arch, ArchAMD64):
-                state.regs.fs = self.project.loader.tls_object.user_thread_pointer
-            elif isinstance(state.arch, ArchX86):
-                state.regs.gs = self.project.loader.tls_object.user_thread_pointer >> 16
-            elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
-                state.regs.ulr = self.project.loader.tls_object.user_thread_pointer
-            elif isinstance(state.arch, ArchPPC32):
-                state.regs.r2 = self.project.loader.tls_object.user_thread_pointer
-            elif isinstance(state.arch, ArchPPC64):
-                state.regs.r13 = self.project.loader.tls_object.user_thread_pointer
-            elif isinstance(state.arch, ArchAArch64):
-                state.regs.tpidr_el0 = self.project.loader.tls_object.user_thread_pointer
+        tls_obj = self.project.loader.tls.threads[thread_idx if thread_idx is not None else 0]
+        if isinstance(state.arch, ArchAMD64):
+            state.regs.fs = tls_obj.user_thread_pointer
+        elif isinstance(state.arch, ArchX86):
+            state.regs.gs = tls_obj.user_thread_pointer >> 16
+        elif isinstance(state.arch, (ArchMIPS32, ArchMIPS64)):
+            state.regs.ulr = tls_obj.user_thread_pointer
+        elif isinstance(state.arch, ArchPPC32):
+            state.regs.r2 = tls_obj.user_thread_pointer
+        elif isinstance(state.arch, ArchPPC64):
+            state.regs.r13 = tls_obj.user_thread_pointer
+        elif isinstance(state.arch, ArchAArch64):
+            state.regs.tpidr_el0 = tls_obj.user_thread_pointer
 
         if fs is None:
             fs = {}
@@ -183,13 +190,36 @@ class SimLinux(SimUserland):
 
         mounts = {}
         if concrete_fs:
-            mounts[pathsep] = SimHostFilesystem(chroot if chroot is not None else os.path.sep)
+            if fs:
+                raise TypeError("Providing both fs and concrete_fs doesn't make sense")
+            if chroot is not None:
+                chroot = os.path.abspath(chroot)
+            else:
+                chroot = os.path.sep
+            mounts[pathsep] = SimHostFilesystem(chroot)
+            if cwd is None:
+                cwd = os.getcwd()
+
+                if chroot != os.path.sep:
+                    # try to translate the cwd into the chroot
+                    if cwd.startswith(chroot):
+                        cwd = cwd[len(chroot):]
+                    else:
+                        cwd = os.path.sep
+                cwd = cwd.encode()
+        else:
+            if cwd is None:
+                cwd = b'/home/user'
 
         state.register_plugin('fs', SimFilesystem(files=fs, pathsep=pathsep, cwd=cwd, mountpoints=mounts))
 
-        if self.project.loader.main_object.is_ppc64_abiv1:
+        if isinstance(self.project.loader.main_object, MetaELF) and self.project.loader.main_object.is_ppc64_abiv1:
             state.libc.ppc64_abiv = 'ppc64_1'
-
+        if init_libc:
+            libc_start_main = P['glibc']['__libc_start_main']()
+            libc_start_main.state = state
+            libc_start_main._initialize_ctype_table()
+            libc_start_main._initialize_errno()
         return state
 
     def state_entry(self, args=None, env=None, argc=None, **kwargs):
@@ -295,7 +325,7 @@ class SimLinux(SimUserland):
     def set_entry_register_values(self, state):
         for reg, val in state.arch.entry_register_values.items():
             if isinstance(val, int):
-                state.registers.store(reg, val, size=state.arch.bytes)
+                state.registers.store(reg, val)
             elif isinstance(val, (str,)):
                 if val == 'argc':
                     state.registers.store(reg, state.posix.argc, size=state.arch.bytes)
@@ -312,8 +342,10 @@ class SimLinux(SimUserland):
                 elif val == 'toc':
                     if self.project.loader.main_object.is_ppc64_abiv1:
                         state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
+                elif val == 'entry':
+                    state.registers.store(reg, state.registers.load('pc'))
                 elif val == 'thread_pointer':
-                    state.registers.store(reg, self.project.loader.tls_object.user_thread_pointer)
+                    state.registers.store(reg, self.project.loader.tls.threads[0].user_thread_pointer)
                 else:
                     _l.warning('Unknown entry point register value indicator "%s"', val)
             else:
@@ -373,7 +405,7 @@ class SimLinux(SimUserland):
         # Synchronize the address of vsyscall in simprocedures dictionary with the concrete value
         _vsyscall_address = concrete_target.read_memory(gs + 0x10, state.project.arch.bits / 8)
         _vsyscall_address = struct.unpack(state.project.arch.struct_fmt(), _vsyscall_address)[0]
-        state.project.rehook_symbol(_vsyscall_address, '_vsyscall')
+        state.project.rehook_symbol(_vsyscall_address, '_vsyscall', True)
 
         return gdt
 

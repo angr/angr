@@ -5,6 +5,7 @@ import subprocess
 import pkg_resources
 import shutil
 import platform
+import glob
 
 if bytes is str:
     raise Exception("""
@@ -21,7 +22,7 @@ If you are staying on python 2 and would like to make sure you don't get
 incompatible versions, make sure your pip is at least version 9.0, and it will
 use our metadata to implicitly avoid them.
 
-For more information, see here: https://docs.angr.io/MIGRATION.html
+For more information, see here: https://docs.angr.io/appendix/migration
 
 Good luck!
 """)
@@ -37,6 +38,7 @@ except ImportError:
 from distutils.util import get_platform
 from distutils.errors import LibError
 from distutils.command.build import build as _build
+from distutils.command.clean import clean as _clean
 
 if sys.platform == 'darwin':
     library_file = "angr_native.dylib"
@@ -49,8 +51,8 @@ def _build_native():
     try:
         import unicorn
         import pyvex
-    except ImportError:
-        raise LibError("You must install unicorn and pyvex before building angr")
+    except ImportError as e:
+        raise LibError("You must install unicorn and pyvex before building angr: %s" % e)
 
     env = os.environ.copy()
     env_data = (('UNICORN_INCLUDE_PATH', 'unicorn', 'include'),
@@ -66,8 +68,9 @@ def _build_native():
             pass
 
     cmd1 = ['nmake', '/f', 'Makefile-win']
-    cmd2 = ['make']
-    for cmd in (cmd1, cmd2):
+    cmd2 = ['gmake']
+    cmd3 = ['make']
+    for cmd in (cmd1, cmd2, cmd3):
         try:
             if subprocess.call(cmd, cwd='native', env=env) != 0:
                 raise LibError('Unable to build angr_native')
@@ -81,13 +84,28 @@ def _build_native():
     os.mkdir('angr/lib')
     shutil.copy(os.path.join('native', library_file), 'angr/lib')
 
+def _clean_native():
+    oglob  = glob.glob('native/*.o')
+    oglob += glob.glob('native/*.obj')
+    oglob += glob.glob('native/*.so')
+    oglob += glob.glob('native/*.dll')
+    oglob += glob.glob('native/*.dylib')
+    for fname in oglob:
+        os.unlink(fname)
+
 class build(_build):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
         _build.run(self, *args)
 
+class clean(_clean):
+    def run(self, *args):
+        self.execute(_clean_native, (), msg='Cleaning angr_native')
+        _clean.run(self, *args)
+
 cmdclass = {
     'build': build,
+    'clean': clean,
 }
 
 try:
@@ -112,40 +130,46 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
         # https://www.python.org/dev/peps/pep-0425/
         sys.argv.append(name.replace('.', '_').replace('-', '_'))
 
+_UNICORN = "unicorn==1.0.2rc4"
+
 setup(
     name='angr',
-    version='8.18.10.25',
-    python_requires='>=3.5',
+    version='9.0.gitrolling',
+    python_requires='>=3.6',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
     packages=packages,
     install_requires=[
-        'ana',
         'sortedcontainers',
         'cachetools',
         'capstone>=3.0.5rc2',
-        'cooldict',
         'dpkt',
-        'futures; python_version == "2.7"',
         'mulpyplexer',
         'networkx>=2.0',
-        'progressbar',
+        'progressbar2',
         'rpyc',
-        'cffi>=1.7.0',
-        'unicorn',
-        'archinfo==8.18.10.25',
-        'claripy==8.18.10.25',
-        'cle==8.18.10.25',
-        'pyvex==8.18.10.25',
-        'ailment==8.18.10.25',
+        'cffi>=1.14.0',
+        _UNICORN,
+        'archinfo==9.0.gitrolling',
+        'claripy==9.0.gitrolling',
+        'cle==9.0.gitrolling',
+        'pyvex==9.0.gitrolling',
+        'ailment==9.0.gitrolling',
         'GitPython',
+        'psutil',
         'pycparser>=2.18',
         'itanium_demangler',
+        'CppHeaderParser',
+        'protobuf>=3.12.0',
     ],
-    setup_requires=['unicorn', 'pyvex'],
+    setup_requires=[_UNICORN, 'pyvex'],
+    extras_require={
+        'AngrDB': ['sqlalchemy'],
+        'pcode': ['pypcode==0.0.2'],
+    },
     cmdclass=cmdclass,
     include_package_data=True,
     package_data={
-        'angr': ['lib/*']
+        'angr': ['lib/*', "py.typed"]
     }
 )

@@ -1,4 +1,10 @@
+# misc
+
+DUMMY_SYMBOLIC_READ_VALUE = 0xc0deb4be
+
+#imports
+
 from .file import SimFile
-from .memory import SimMemory
 from .memory_object import SimMemoryObject
-from .paged_memory import SimPagedMemory
+from .memory_mixins import MemoryMixin, DefaultMemory
+

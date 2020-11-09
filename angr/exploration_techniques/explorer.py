@@ -55,13 +55,13 @@ class Explorer(ExplorationTechnique):
                 return
 
             for a in avoid:
-                if cfg.get_any_node(a) is None:
+                if cfg.model.get_any_node(a) is None:
                     l.warning("'Avoid' address %#x not present in CFG...", a)
 
             # not a queue but a stack... it's just a worklist!
             queue = []
             for f in static_find:
-                nodes = cfg.get_all_nodes(f)
+                nodes = cfg.model.get_all_nodes(f)
                 if len(nodes) == 0:
                     l.warning("'Find' address %#x not present in CFG...", f)
                 else:
@@ -97,14 +97,14 @@ class Explorer(ExplorationTechnique):
 
     def _classify(self, addr, findable, avoidable):
         if self.avoid_priority:
-            if addr in avoidable:
+            if avoidable and (avoidable is True or addr in avoidable):
                 return self.avoid_stash
-            elif addr in findable:
+            elif findable and (findable is True or addr in findable):
                 return self.find_stash
         else:
-            if addr in findable:
+            if findable and (findable is True or addr in findable):
                 return self.find_stash
-            elif addr in avoidable:
+            elif avoidable and (avoidable is True or addr in avoidable):
                 return self.avoid_stash
         return None
 
@@ -124,21 +124,11 @@ class Explorer(ExplorationTechnique):
         findable = self.find(state)
         avoidable = self.avoid(state)
 
-        if findable is True:
-            return self.find_stash
-        if avoidable is True:
-            return self.avoid_stash
-
         if not findable and not avoidable:
-            if self.cfg is not None and self.cfg.get_any_node(state.addr) is not None:
+            if self.cfg is not None and self.cfg.model.get_any_node(state.addr) is not None:
                 if state.addr not in self.ok_blocks:
                     return self.avoid_stash
             return None
-
-        if type(findable) is not set:
-            findable = set()
-        if type(avoidable) is not set:
-            avoidable = set()
 
         stash = self._classify(state.addr, findable, avoidable)
         if stash is not None:

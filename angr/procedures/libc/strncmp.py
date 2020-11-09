@@ -1,5 +1,4 @@
 import angr
-from angr.sim_type import SimTypeString, SimTypeLength, SimTypeInt
 
 import logging
 l = logging.getLogger(name=__name__)
@@ -8,12 +7,6 @@ class strncmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
-        # TODO: smarter types here?
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                       1: self.ty_ptr(SimTypeString()),
-                       2: SimTypeLength(self.state.arch)}
-        self.return_type = SimTypeInt(32, True)
-
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr, wchar=wchar)

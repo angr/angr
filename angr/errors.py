@@ -13,6 +13,9 @@ class AngrExitError(AngrError):
 class AngrPathError(AngrError):
     pass
 
+class AngrVaultError(AngrError):
+    pass
+
 class PathUnreachableError(AngrPathError):
     pass
 
@@ -110,6 +113,13 @@ class AngrDDGError(AngrAnalysisError):
     pass
 
 #
+# Loop analysis
+#
+
+class AngrLoopAnalysisError(AngrAnalysisError):
+    pass
+
+#
 # Exploration techniques
 #
 
@@ -123,6 +133,30 @@ class AngrDirectorError(AngrExplorationTechniqueError):
     pass
 
 class AngrTracerError(AngrExplorationTechniqueError):
+    pass
+
+
+#
+# VariableRecovery errors
+#
+
+class AngrVariableRecoveryError(AngrAnalysisError):
+    pass
+
+
+#
+# AngrDB errors
+#
+
+
+class AngrDBError(AngrError):
+    pass
+
+
+class AngrCorruptDBError(AngrDBError):
+    pass
+
+class AngrIncompatibleDBError(AngrDBError):
     pass
 
 #
@@ -198,6 +232,9 @@ class SimSymbolicFilesystemError(SimFilesystemError):
 class SimFileError(SimMemoryError, SimFilesystemError):
     pass
 
+class SimHeapError(SimStateError):
+    pass
+
 #
 # Error class during VEX parsing
 #
@@ -259,6 +296,9 @@ class SimUninitializedAccessError(SimExpressionError):
     def __repr__(self):
         return "SimUninitializedAccessError (expr %s is used as %s)" % (self.expr, self.expr_type)
 
+    def __reduce__(self):
+        return (SimUninitializedAccessError, (self.expr_type, self.expr))
+
 #
 # SimIRStmt errors
 #
@@ -289,6 +329,9 @@ class SimProcedureError(SimEngineError):
     pass
 
 class SimProcedureArgumentError(SimProcedureError):
+    pass
+
+class SimShadowStackError(SimProcedureError):
     pass
 
 class SimFastPathError(SimEngineError):
@@ -387,6 +430,9 @@ class SimSegfaultException(SimException, SimMemoryError):
             (', original %s' % self.original_addr.__repr__(max_depth=3)) if self.original_addr is not None else ''
         )
 
+    def __reduce__(self):
+        return (SimSegfaultException, (self.addr, self.reason, self.original_addr))
+
 SimSegfaultError = SimSegfaultException
 
 class SimZeroDivisionException(SimException, SimOperationError):
@@ -410,4 +456,11 @@ class SimConcreteRegisterError(AngrError):
 
 
 class SimConcreteBreakpointError(AngrError):
+    pass
+
+#
+# Decompiler errors
+#
+
+class UnsupportedNodeTypeError(AngrError, NotImplementedError):
     pass

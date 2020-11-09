@@ -2,7 +2,7 @@
 import networkx
 
 
-class SCCPlaceholder(object):
+class SCCPlaceholder:
     __slots__ = ['scc_id']
 
     def __init__(self, scc_id):
@@ -15,7 +15,7 @@ class SCCPlaceholder(object):
         return hash('scc_placeholder_%d' % self.scc_id)
 
 
-class CFGUtils(object):
+class CFGUtils:
     """
     A helper class with some static methods and algorithms implemented, that in fact, might take more than just normal
     CFGs.
@@ -123,7 +123,7 @@ class CFGUtils(object):
 
         # fast path for single node graphs
         if graph.number_of_nodes() == 1:
-            return graph.nodes()
+            return list(graph.nodes())
 
         # make a copy to the graph since we are gonna modify it
         graph_copy = networkx.DiGraph()

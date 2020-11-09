@@ -1,5 +1,6 @@
 import logging
 import struct
+import angr # for types
 
 import claripy
 from archinfo import ArchMIPS32, ArchS390X
@@ -26,12 +27,13 @@ class SimOS:
     A class describing OS/arch-level configuration.
     """
 
-    def __init__(self, project, name=None):
+    def __init__(self, project: 'angr.Project', name=None):
         self.arch = project.arch
         self.project = project
         self.name = name
         self.return_deadend = None
-        self.unresolvable_target = None
+        self.unresolvable_jump_target = None
+        self.unresolvable_call_target = None
 
     def configure_project(self):
         """
@@ -40,8 +42,10 @@ class SimOS:
         self.return_deadend = self.project.loader.extern_object.allocate()
         self.project.hook(self.return_deadend, P['stubs']['CallReturn']())
 
-        self.unresolvable_target = self.project.loader.extern_object.allocate()
-        self.project.hook(self.unresolvable_target, P['stubs']['UnresolvableTarget']())
+        self.unresolvable_jump_target = self.project.loader.extern_object.allocate()
+        self.project.hook(self.unresolvable_jump_target, P['stubs']['UnresolvableJumpTarget']())
+        self.unresolvable_call_target = self.project.loader.extern_object.allocate()
+        self.project.hook(self.unresolvable_call_target, P['stubs']['UnresolvableCallTarget']())
 
         def irelative_resolver(resolver_addr):
             # autohooking runs before this does, might have provided this already
@@ -50,7 +54,10 @@ class SimOS:
             if self.project.is_hooked(resolver_addr):
                 return resolver_addr
 
-            resolver = self.project.factory.callable(resolver_addr, concrete_only=True)
+
+            base_state = self.state_blank(addr=0,
+                add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
+            resolver = self.project.factory.callable(resolver_addr, concrete_only=True, base_state=base_state)
             try:
                 if isinstance(self.arch, ArchS390X):
                     # On s390x ifunc resolvers expect hwcaps.
@@ -80,7 +87,8 @@ class SimOS:
                     return
             self.project.hook(sym.rebased_addr, hook)
 
-    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None, **kwargs):
+    def state_blank(self, addr=None, initial_prefix=None, brk=None, stack_end=None, stack_size=1024*1024*8, stdin=None,
+                    thread_idx=None, permissions_backer=None, **kwargs):
         """
         Initialize a blank state.
 
@@ -98,7 +106,18 @@ class SimOS:
         # TODO: move ALL of this into the SimState constructor
         if kwargs.get('mode', None) is None:
             kwargs['mode'] = self.project._default_analysis_mode
-        if kwargs.get('permissions_backer', None) is None:
+        if permissions_backer is not None:
+            kwargs['permissions_map'] = permissions_backer[1]
+            kwargs['default_permissions'] = 7 if permissions_backer[0] else 3
+        if kwargs.get('cle_memory_backer', None) is None:
+            kwargs['cle_memory_backer'] = self.project.loader
+        if kwargs.get('os_name', None) is None:
+            kwargs['os_name'] = self.name
+        actual_stack_end = stack_end
+        if stack_end is None:
+            stack_end = self.arch.initial_sp
+
+        if kwargs.get('permissions_map', None) is None:
             # just a dict of address ranges to permission bits
             permission_map = { }
             for obj in self.project.loader.all_objects:
@@ -112,36 +131,34 @@ class SimOS:
                     if seg.is_executable:
                         perms |= 4  # PROT_EXEC
                     permission_map[(seg.min_addr, seg.max_addr)] = perms
-            permissions_backer = (self.project.loader.main_object.execstack, permission_map)
-            kwargs['permissions_backer'] = permissions_backer
-        if kwargs.get('memory_backer', None) is None:
-            kwargs['memory_backer'] = self.project.loader.memory
-        if kwargs.get('os_name', None) is None:
-            kwargs['os_name'] = self.name
+            kwargs['permissions_map'] = permission_map
+        if self.project.loader.main_object.execstack:
+            stack_perms = 1 | 2 | 4  # RWX
+        else:
+            stack_perms = 1 | 2  # RW
 
-        state = SimState(self.project, **kwargs)
+        state = SimState(self.project, stack_end=stack_end, stack_size=stack_size, stack_perms=stack_perms, **kwargs)
 
         if stdin is not None and not isinstance(stdin, SimFileBase):
             if type(stdin) is type:
                 stdin = stdin(name='stdin', has_end=False)
             else:
+                if isinstance(stdin, claripy.Bits):
+                    num_bytes = len(stdin) // self.project.arch.byte_width
+                else:
+                    num_bytes = len(stdin)
+                _l.warning("stdin is constrained to %d bytes (has_end=True). If you are only providing the first "
+                           "%d bytes instead of the entire stdin, please use "
+                           "stdin=SimFileStream(name='stdin', content=your_first_n_bytes, has_end=False).",
+                           num_bytes, num_bytes)
                 stdin = SimFileStream(name='stdin', content=stdin, has_end=True)
 
         last_addr = self.project.loader.main_object.max_addr
         actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
         state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
-
-        actual_stack_end = state.arch.initial_sp if stack_end is None else stack_end
-        if o.ABSTRACT_MEMORY not in state.options:
-            state.memory.mem._preapproved_stack = IRange(actual_stack_end - stack_size, actual_stack_end)
-
-        if o.INITIALIZE_ZERO_REGISTERS in state.options:
-            highest_reg_offset, reg_size = max(state.arch.registers.values())
-            for i in range(0, highest_reg_offset + reg_size, state.arch.bytes):
-                state.registers.store(i, state.solver.BVV(0, state.arch.bits))
         if state.arch.sp_offset is not None:
-            state.regs.sp = actual_stack_end
+            state.regs.sp = stack_end
 
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
@@ -153,7 +170,6 @@ class SimOS:
                     eternal=True))
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
-
             region_base = None  # so pycharm does not complain
 
             if is_addr:
@@ -166,7 +182,7 @@ class SimOS:
                 else:
                     raise AngrSimOSError('You must specify the base address for memory region "%s". ' % mem_region)
 
-            # special case for stack pointer override
+            # special case for stack_end overriding sp default
             if actual_stack_end is not None and state.arch.registers[reg][0] == state.arch.sp_offset:
                 continue
 
@@ -176,8 +192,34 @@ class SimOS:
             else:
                 state.registers.store(reg, val)
 
-        if addr is None: addr = self.project.entry
-        state.regs.ip = addr
+        if addr is None:
+            state.regs.ip = self.project.entry
+
+        thread_name = self.project.loader.main_object.threads[thread_idx] if thread_idx is not None else None
+        for reg, val in self.project.loader.main_object.thread_registers(thread_name).items():
+            if reg in ('fs', 'gs', 'cs', 'ds', 'es', 'ss') and state.arch.name == 'X86':
+                state.registers.store(reg, val >> 16)  # oh boy big hack
+            elif reg in state.arch.registers or reg in ('flags', 'eflags', 'rflags'):
+                state.registers.store(reg, val)
+            elif reg == 'fctrl':
+                state.regs.fpround = (val & 0xC00) >> 10
+            elif reg == 'fstat':
+                state.regs.fc3210 = (val & 0x4700)
+            elif reg == 'ftag':
+                empty_bools = [((val >> (x * 2)) & 3) == 3 for x in range(8)]
+                tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
+                for i, tag in enumerate(tag_chars):
+                    setattr(state.regs, 'fpu_t%d' % i, tag)
+            elif reg in ('fiseg', 'fioff', 'foseg', 'fooff', 'fop'):
+                pass
+            elif reg == 'mxcsr':
+                state.regs.sseround = (val & 0x600) >> 9
+            else:
+                _l.error("What is this register %s I have to translate?", reg)
+
+
+        if addr is not None:
+            state.regs.ip = addr
 
         # set up the "root history" node
         state.scratch.ins_addr = addr
@@ -204,6 +246,8 @@ class SimOS:
         grow_like_stack = kwargs.pop('grow_like_stack', True)
 
         if state is None:
+            if stack_base is not None:
+                kwargs['stack_end'] = (stack_base + 0x1000) & ~0xfff
             state = self.state_blank(addr=addr, **kwargs)
         else:
             state = state.copy()

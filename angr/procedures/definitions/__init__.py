@@ -3,8 +3,13 @@ import os
 import archinfo
 from collections import defaultdict
 import logging
+import inspect
+from typing import Optional, Dict
 
-from ...calling_conventions import DEFAULT_CC
+import itanium_demangler
+
+from ...sim_type import parse_cpp_file, SimTypeFunction
+from ...calling_conventions import SimCC, DEFAULT_CC
 from ...misc import autoimport
 from ...sim_type import parse_file
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
@@ -13,7 +18,8 @@ from ..stubs.syscall_stub import syscall as stub_syscall
 l = logging.getLogger(name=__name__)
 SIM_LIBRARIES = {}
 
-class SimLibrary(object):
+
+class SimLibrary:
     """
     A SimLibrary is the mechanism for describing a dynamic library's API, its functions and metadata.
 
@@ -28,7 +34,7 @@ class SimLibrary(object):
     def __init__(self):
         self.procedures = {}
         self.non_returning = set()
-        self.prototypes = {}
+        self.prototypes: Dict[str,SimTypeFunction] = {}
         self.default_ccs = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
@@ -168,10 +174,15 @@ class SimLibrary(object):
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
+            if proc.cc.func_ty is not None:
+                # Use inspect to extract the parameters from the run python function
+                proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
+        if proc.cc is None and arch.name in self.fallback_cc:
+            proc.cc = self.fallback_cc[arch.name](arch)
         if proc.display_name in self.prototypes:
-            if proc.cc is None:
-                proc.cc = self.fallback_cc[arch.name](arch)
-            proc.cc.func_ty = self.prototypes[proc.display_name]
+            proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
+            # Use inspect to extract the parameters from the run python function
+            proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
             if not proc.ARGS_MISMATCH:
                 proc.cc.num_args = len(proc.cc.func_ty.args)
                 proc.num_args = len(proc.cc.func_ty.args)
@@ -212,6 +223,21 @@ class SimLibrary(object):
         self._apply_metadata(proc, arch)
         return proc
 
+    def get_prototype(self, name: str, arch=None) -> Optional[SimTypeFunction]:
+        """
+        Get a prototype of the given function name, optionally specialize the prototype to a given architecture.
+
+        :param name:    Name of the function.
+        :param arch:    The architecture to specialize to.
+        :return:        Prototype of the function, or None if the prototype does not exist.
+        """
+        proto = self.prototypes.get(name, None)
+        if proto is None:
+            return None
+        if arch is not None:
+            return proto.with_arch(arch)
+        return proto
+
     def has_metadata(self, name):
         """
         Check if a function has either an implementation or any metadata associated with it
@@ -242,6 +268,120 @@ class SimLibrary(object):
         """
 
         return func_name in self.prototypes
+
+
+class SimCppLibrary(SimLibrary):
+    """
+    SimCppLibrary is a specialized version of SimLibrary that will demangle C++ function names before looking for an
+    implementation or prototype for it.
+    """
+
+    @staticmethod
+    def _try_demangle(name):
+        if name[0:2] == "_Z":
+            try:
+                ast = itanium_demangler.parse(name)
+            except NotImplementedError:
+                return name
+            if ast:
+                return str(ast)
+        return name
+
+    @staticmethod
+    def _proto_from_demangled_name(name: str) -> Optional[SimCC]:
+        """
+        Attempt to extract arguments and calling convention information for a C++ function whose name was mangled
+        according to the Itanium C++ ABI symbol mangling language.
+
+        :param name:    The demangled function name.
+        :return:        A calling convention or None if a calling convention cannot be found.
+        """
+
+        try:
+            parsed, _ = parse_cpp_file(name, with_param_names=False)
+        except ValueError:
+            return None
+        if not parsed:
+            return None
+        _, func_proto = next(iter(parsed.items()))
+        return func_proto
+
+    def get(self, name, arch):
+        """
+        Get an implementation of the given function specialized for the given arch, or a stub procedure if none exists.
+        Demangle the function name if it is a mangled C++ name.
+
+        :param str name:    The name of the function as a string
+        :param arch:    The architecure to use, as either a string or an archinfo.Arch instance
+        :return:        A SimProcedure instance representing the function as found in the library
+        """
+        demangled_name = self._try_demangle(name)
+        if demangled_name not in self.procedures:
+            return self.get_stub(name, arch)  # get_stub() might use the mangled name to derive the function prototype
+        return super().get(demangled_name, arch)
+
+    def get_stub(self, name, arch):
+        """
+        Get a stub procedure for the given function, regardless of if a real implementation is available. This will
+        apply any metadata, such as a default calling convention or a function prototype. Demangle the function name
+        if it is a mangled C++ name.
+
+        :param str name:    The name of the function as a string
+        :param arch:        The architecture to use, as either a string or an archinfo.Arch instance
+        :return:            A SimProcedure instance representing a plausable stub as could be found in the library.
+        """
+        demangled_name = self._try_demangle(name)
+        stub = super().get_stub(demangled_name, arch)
+        # try to determine a prototype from the function name if possible
+        if demangled_name != name:
+            # itanium-mangled function name
+            stub.cc.set_func_type_with_arch(self._proto_from_demangled_name(demangled_name))
+            if stub.cc.func_ty is not None and not stub.ARGS_MISMATCH:
+                stub.cc.num_args = len(stub.cc.func_ty.args)
+                stub.num_args = len(stub.cc.func_ty.args)
+        return stub
+
+    def get_prototype(self, name: str, arch=None) -> Optional[SimTypeFunction]:
+        """
+        Get a prototype of the given function name, optionally specialize the prototype to a given architecture. The
+        function name will be demangled first.
+
+        :param name:    Name of the function.
+        :param arch:    The architecture to specialize to.
+        :return:        Prototype of the function, or None if the prototype does not exist.
+        """
+        demangled_name = self._try_demangle(name)
+        return super().get_prototype(demangled_name, arch=arch)
+
+    def has_metadata(self, name):
+        """
+        Check if a function has either an implementation or any metadata associated with it. Demangle the function name
+        if it is a mangled C++ name.
+
+        :param name:    The name of the function as a string
+        :return:        A bool indicating if anything is known about the function
+        """
+        name = self._try_demangle(name)
+        return super().has_metadata(name)
+
+    def has_implementation(self, name):
+        """
+        Check if a function has an implementation associated with it. Demangle the function name if it is a mangled C++
+        name.
+
+        :param str name:    A mangled function name.
+        :return:            bool
+        """
+        return super().has_implementation(self._try_demangle(name))
+
+    def has_prototype(self, func_name):
+        """
+        Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
+
+        :param str name:    A mangled function name.
+        :return:            bool
+        """
+        return super().has_prototype(self._try_demangle(func_name))
 
 
 class SimSyscallLibrary(SimLibrary):
@@ -347,7 +487,7 @@ class SimSyscallLibrary(SimLibrary):
         if abi in self.default_cc_mapping:
             cc = self.default_cc_mapping[abi](arch)
             if proc.cc is not None:
-                cc.func_ty = proc.cc.func_ty
+                cc.set_func_type_with_arch(proc.cc.func_ty)
             proc.cc = cc
 
     # pylint: disable=arguments-differ

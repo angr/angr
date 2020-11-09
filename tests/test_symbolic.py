@@ -20,10 +20,10 @@ import nose
 def test_concretization_strategies():
     initial_memory = {0: b'A', 1: b'B', 2: b'C', 3: b'D'}
 
-    s = angr.SimState(arch='AMD64', memory_backer=initial_memory)
+    s = angr.SimState(arch='AMD64', dict_memory_backer=initial_memory)
 
     # sanity check
-    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(3, 1), 2, cast_to=bytes), [b'D'])
+    nose.tools.assert_equal(s.solver.eval_upto(s.memory.load(3, size=1), 2, cast_to=bytes), [b'D'])
 
     x = s.solver.BVS('x', s.arch.bits)
     s.add_constraints(x >= 1)

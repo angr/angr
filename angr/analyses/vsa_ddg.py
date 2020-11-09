@@ -4,7 +4,7 @@ from collections import defaultdict
 import networkx
 from . import Analysis
 
-from .code_location import CodeLocation
+from ..code_location import CodeLocation
 from ..errors import AngrDDGError
 from ..sim_variable import SimRegisterVariable, SimMemoryVariable
 
@@ -253,7 +253,7 @@ class VSA_DDG(Analysis):
             if a.type == "mem":
                 if a.actual_addrs is None:
                     # For now, mem reads don't necessarily have actual_addrs set properly
-                    addr_list = set(state.memory.normalize_address(a.addr.ast, convert_to_valueset=True))
+                    addr_list = set(aw.to_valueset(state) for aw in state.memory._concretize_address_descriptor(a.addr.ast))
                 else:
                     addr_list = set(a.actual_addrs)
 

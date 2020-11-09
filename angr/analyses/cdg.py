@@ -37,7 +37,7 @@ class CDG(Analysis):
                 self._cfg = self.project.analyses.CFGEmulated()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
-            self._entry = self._cfg.get_any_node(self._start)
+            self._entry = self._cfg.model.get_any_node(self._start)
 
             self._construct()
 
@@ -164,7 +164,7 @@ class CDG(Analysis):
             successors = graph.graph.successors(node)
         else:
             # Real CFGNode!
-            successors = graph.get_successors(node)
+            successors = graph.model.get_successors(node)
 
         return successors
 

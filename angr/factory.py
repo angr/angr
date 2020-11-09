@@ -1,52 +1,63 @@
 import logging
+from typing import List, Optional, Union, overload
+from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
+
 
 from .sim_state import SimState
 from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
 from .callable import Callable
 from .errors import AngrAssemblyError
+from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
 
 
 l = logging.getLogger(name=__name__)
 
 
-class AngrObjectFactory(object):
+class AngrObjectFactory():
     """
     This factory provides access to important analysis elements.
     """
-    def __init__(self, project):
+    def __init__(self, project, default_engine=None):
+        if default_engine is None:
+            default_engine = UberEngine
+
         self.project = project
         self._default_cc = DEFAULT_CC[project.arch.name]
+        self.default_engine = default_engine(project)
+        self.procedure_engine = ProcedureEngine(project)
 
-    @property
-    def default_engine(self):
-        return self.project.engines.default_engine
-
-    @property
-    def procedure_engine(self):
-        return self.project.engines.procedure_engine
+        if project.concrete_target:
+            self.concrete_engine = SimEngineConcrete(project)
+        else:
+            self.concrete_engine = None
 
     def snippet(self, addr, jumpkind=None, **block_opts):
         if self.project.is_hooked(addr) and jumpkind != 'Ijk_NoHook':
             hook = self.project._sim_procedures[addr]
             size = hook.kwargs.get('length', 0)
             return HookNode(addr, size, self.project.hooked_by(addr))
+        elif self.project.simos.is_syscall_addr(addr):
+            syscall = self.project.simos.syscall_from_addr(addr)
+            size = syscall.kwargs.get('length', 0)
+            return SyscallNode(addr, size, syscall)
         else:
             return self.block(addr, **block_opts).codenode # pylint: disable=no-member
 
-    def successors(self, *args, **kwargs):
+    def successors(self, *args, engine=None, **kwargs):
         """
-        Perform execution using any applicable engine. Enumerate the current engines and use the
-        first one that works. Return a SimSuccessors object classifying the results of the run.
+        Perform execution using an engine. Generally, return a SimSuccessors object classifying the results of the run.
 
         :param state:           The state to analyze
+        :param engine:          The engine to use. If not provided, will use the project default.
         :param addr:            optional, an address to execute at instead of the state's ip
         :param jumpkind:        optional, the jumpkind of the previous exit
         :param inline:          This is an inline execution. Do not bother copying the state.
 
         Additional keyword arguments will be passed directly into each engine's process method.
         """
-
-        return self.project.engines.successors(*args, **kwargs)
+        if engine is not None:
+            return engine.process(*args, **kwargs)
+        return self.default_engine.process(*args, **kwargs)
 
     def blank_state(self, **kwargs):
         """
@@ -65,7 +76,7 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_blank(**kwargs)
 
-    def entry_state(self, **kwargs):
+    def entry_state(self, **kwargs) -> SimState:
         """
         Returns a state object representing the program at its entry point. All parameters are optional.
 
@@ -154,7 +165,7 @@ class AngrObjectFactory(object):
         """
         return self.project.simos.state_call(addr, *args, **kwargs)
 
-    def simulation_manager(self, thing=None, **kwargs):
+    def simulation_manager(self, thing: Optional[Union[List[SimState], SimState]]=None, **kwargs) -> 'SimulationManager':
         """
         Constructs a new simulation manager.
 
@@ -265,11 +276,30 @@ class AngrObjectFactory(object):
                 sp_delta=sp_delta,
                 func_ty=func_ty)
 
+    #pylint: disable=unused-argument, no-self-use, function-redefined
+    @overload
+    def block(self, addr: int, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
+              ) -> 'Block': ...
+
+    #pylint: disable=unused-argument, no-self-use, function-redefined
+    @overload
+    def block(self, addr: SootAddressDescriptor, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
+              extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+              insn_bytes=None, insn_text=None,  # backward compatibility
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
+              ) -> 'SootBlock': ...
+
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False,
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
               ):
+
+        if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
+            return SootBlock(addr, arch=self.project.arch, project=self.project)
 
         if insn_bytes is not None and insn_text is not None:
             raise AngrError("You cannot provide both 'insn_bytes' and 'insn_text'!")
@@ -291,6 +321,7 @@ class AngrObjectFactory(object):
                      extra_stop_points=extra_stop_points, thumb=thumb, backup_state=backup_state,
                      opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
                      strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
+                     cross_insn_opt=cross_insn_opt,
          )
 
     def fresh_block(self, addr, size, backup_state=None):
@@ -305,5 +336,5 @@ class AngrObjectFactory(object):
 
 from .errors import AngrError
 from .sim_manager import SimulationManager
-from .codenode import HookNode
-from .block import Block
+from .codenode import HookNode, SyscallNode
+from .block import Block, SootBlock

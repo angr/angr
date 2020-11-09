@@ -83,7 +83,7 @@ class CongruencyCheck(Analysis):
         elif simgr.left[0].history.block_count < simgr.right[0].history.block_count:
             l.debug("... right is ahead; stepping left %s times",
                     simgr.right[0].history.block_count - simgr.left[0].history.block_count)
-            npg = simgr.step(
+            npg = simgr.run(
                 stash='left',
                 until=lambda lpg: lpg.left[0].history.block_count >= simgr.right[0].history.block_count,
                 n=max_steps
@@ -91,7 +91,7 @@ class CongruencyCheck(Analysis):
         elif simgr.right[0].history.block_count < simgr.left[0].history.block_count:
             l.debug("... left is ahead; stepping right %s times",
                     simgr.left[0].history.block_count - simgr.right[0].history.block_count)
-            npg = simgr.step(
+            npg = simgr.run(
                 stash='right',
                 until=lambda lpg: lpg.right[0].history.block_count >= simgr.left[0].history.block_count,
                 n=max_steps
@@ -287,8 +287,13 @@ class CongruencyCheck(Analysis):
         # make sure the canonicalized constraints are the same
         n_map, n_counter, n_canon_constraint = claripy.And(*sr.solver.constraints).canonicalize() #pylint:disable=no-member
         u_map, u_counter, u_canon_constraint = claripy.And(*sl.solver.constraints).canonicalize() #pylint:disable=no-member
-        n_canoner_constraint = sr.solver.simplify(n_canon_constraint)
-        u_canoner_constraint = sl.solver.simplify(u_canon_constraint)
+        if n_canon_constraint is not u_canon_constraint:
+            # https://github.com/Z3Prover/z3/issues/2359
+            # don't try to simplify unless we really need to, as it can introduce serious nondeterminism
+            n_canoner_constraint = sr.solver.simplify(n_canon_constraint)
+            u_canoner_constraint = sl.solver.simplify(u_canon_constraint)
+        else:
+            n_canoner_constraint = u_canoner_constraint = n_canon_constraint
         joint_solver.add((n_canoner_constraint, u_canoner_constraint))
         if n_canoner_constraint is not u_canoner_constraint:
             self._report_incongruency("Different constraints!")

@@ -1,19 +1,12 @@
 import angr
-from angr.sim_type import SimTypeTop, SimTypeLength, SimTypeInt
-
 import logging
+
 l = logging.getLogger(name=__name__)
 
 class memcmp(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, s1_addr, s2_addr, n):
-        # TODO: look into smarter types here
-        self.argument_types = {0: self.ty_ptr(SimTypeTop()),
-                               1: self.ty_ptr(SimTypeTop()),
-                               2: SimTypeLength(self.state.arch)}
-        self.return_type = SimTypeInt(32, True)
-
         max_memcmp_size = self.state.libc.max_buffer_size
 
         definite_size = self.state.solver.min_int(n)
@@ -56,7 +49,7 @@ class memcmp(angr.SimProcedure):
                 self.state.add_constraints(self.state.solver.Or(*[c for c,_ in cases]))
 
             ret_expr = self.state.solver.If(definite_answer == 0, self.state.solver.ite_dict(n - definite_size, conditional_rets, 2), definite_answer)
-            self.state.add_constraints(self.state.solver.Or(*[n-definite_size == c for c in conditional_rets.keys()]))
+            self.state.add_constraints(self.state.solver.Or(*[n-definite_size == c for c in conditional_rets]))
             return ret_expr
         else:
             return definite_answer

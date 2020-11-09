@@ -4,8 +4,9 @@ import logging
 import pyvex
 import claripy
 
-from angr import SimState, SimEngineVEX
-import angr.engines.vex.ccall as s_ccall
+from angr import SimState, load_shellcode
+from angr.engines import HeavyVEXMixin
+import angr.engines.vex.claripy.ccall as s_ccall
 
 l = logging.getLogger('angr.tests.test_vex')
 
@@ -129,6 +130,36 @@ def test_ccall():
     nose.tools.assert_true(s.solver.is_true(sf == 0))
     nose.tools.assert_true(s.solver.is_true(of == 0))
 
+    l.debug("Testing amd64_actions_ADCX")
+
+    l.debug("(ADCX, 32-bit) 0xffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffff, 32)
+    arg_r = s.solver.BVV(1, 32)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 32, arg_l, arg_r, s.solver.BVV(0, 32), True, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 1))
+    nose.tools.assert_true(s.solver.is_true(of == 0))
+
+    l.debug("(ADOX, 32-bit) 0xffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffff, 32)
+    arg_r = s.solver.BVV(1, 32)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 32, arg_l, arg_r, s.solver.BVV(0, 32), False, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 0))
+    nose.tools.assert_true(s.solver.is_true(of == 1))
+
+    l.debug("(ADCX, 64-bit) 0xffffffffffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffffffffffff, 64)
+    arg_r = s.solver.BVV(1, 64)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 64, arg_l, arg_r, s.solver.BVV(0, 64), True, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 1))
+    nose.tools.assert_true(s.solver.is_true(of == 0))
+
+    l.debug("(ADOX, 64-bit) 0xffffffffffffffff + 1...")
+    arg_l = s.solver.BVV(0xffffffffffffffff, 64)
+    arg_r = s.solver.BVV(1, 64)
+    cf, pf, af, zf, sf, of = s_ccall.pc_actions_ADCX(s, 64, arg_l, arg_r, s.solver.BVV(0, 64), False, platform='AMD64')
+    nose.tools.assert_true(s.solver.is_true(cf == 0))
+    nose.tools.assert_true(s.solver.is_true(of == 1))
+
 def test_aarch64_32bit_ccalls():
 
     # GitHub issue #1238
@@ -136,19 +167,21 @@ def test_aarch64_32bit_ccalls():
 
     x = s.solver.BVS("x", 32)
     # A normal operation
-    flag_z, _ = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
+    flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x, s.solver.BVV(1, 32), 0)
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 0,)))
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 1,)))
     # What VEX does
-    flag_z, _ = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0)
+    flag_z = s_ccall.arm64g_calculate_flag_z(s, s_ccall.ARM64G_CC_OP_ADD32, x.zero_extend(32), s.solver.BVV(1, 64), 0)
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 0,)))
     nose.tools.assert_true(s.satisfiable(extra_constraints=(flag_z == 1,)))
 
 
 def test_some_vector_ops():
-    from angr.engines.vex.irop import translate
-
+    engine = HeavyVEXMixin(None)
     s = SimState(arch='AMD64')
+
+    def translate(state, op, args):
+        return engine._perform_vex_expr_Op(op, args)
 
     a =              s.solver.BVV(0xffff0000000100020003000400050006, 128)
     b =              s.solver.BVV(0x00020002000200020002000200020002, 128)
@@ -223,6 +256,183 @@ def test_some_vector_ops():
     correct_result = s.solver.BVV(0x0000ffffff020202, 64)
     nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
 
+    gg = claripy.BVV(0x111111112222222233333333ffffffff, 128)
+    h = claripy.BVV(0x1111111100000000ffffffffffffffff, 128)
+
+    calc_result = translate(s, 'Iop_CmpEQ32Fx4', (gg, h))
+    correct_result = claripy.BVV(0xffffffff000000000000000000000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Clz32x4', (gg,))
+    correct_result = claripy.BVV(0x00000003000000020000000200000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    i = claripy.BVV(0x1001000000001000, 64)
+    j = claripy.BVV(0x100000000000f000, 64)
+
+    calc_result = translate(s, 'Iop_Mull16Sx4', (i, j))
+    correct_result = claripy.BVV(0x10010000000000000000000ff000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Mull16Ux4', (i, j))
+    correct_result = claripy.BVV(0x100100000000000000000000f000000, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    k = claripy.BVV(0xe7, 8)
+    ll = claripy.BVV(0x1234, 16)
+    m = claripy.BVV(0x12345678, 32)
+
+    calc_result = translate(s, 'Iop_Dup8x8', (k,))
+    correct_result = claripy.BVV(0xe7e7e7e7e7e7e7e7, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup8x16', (k,))
+    correct_result = claripy.BVV(0xe7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup16x4', (ll,))
+    correct_result = claripy.BVV(0x1234123412341234, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup16x8', (ll,))
+    correct_result = claripy.BVV(0x12341234123412341234123412341234, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup32x2', (m,))
+    correct_result = claripy.BVV(0x1234567812345678, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_Dup32x4', (m,))
+    correct_result = claripy.BVV(0x12345678123456781234567812345678, 128)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    n = claripy.BVV(0x0123456789abcdef, 64)
+    o = claripy.BVV(0xaf, 8)
+    p = claripy.BVV(0xdfec, 16)
+    q = claripy.BVV(0xbfcfdfef, 32)
+    r = claripy.BVV(0x0102030405060708, 64)
+    ss = claripy.BVS('index', 8)
+
+    # According to the source code of LibVex, the index is a U8 constant
+    calc_result = translate(s, 'Iop_GetElem8x8', (n, claripy.BVV(0, 8)))
+    correct_result = claripy.BVV(0xef, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem8x8', (n, claripy.BVV(1, 8)))
+    correct_result = claripy.BVV(0xcd, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem8x8', (n, claripy.BVV(6, 8)))
+    correct_result = claripy.BVV(0x23, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem8x8', (n, claripy.BVV(7, 8)))
+    correct_result = claripy.BVV(0x01, 8)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem16x4', (n, claripy.BVV(0, 8)))
+    correct_result = claripy.BVV(0xcdef, 16)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem16x4', (n, claripy.BVV(3, 8)))
+    correct_result = claripy.BVV(0x0123, 16)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem32x2', (n, claripy.BVV(0, 8)))
+    correct_result = claripy.BVV(0x89abcdef, 32)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem32x2', (n, claripy.BVV(1, 8)))
+    correct_result = claripy.BVV(0x01234567, 32)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem8x8', (n, claripy.BVV(0, 8), o))
+    correct_result = claripy.BVV(0x0123456789abcdaf, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem8x8', (n, claripy.BVV(1, 8), o))
+    correct_result = claripy.BVV(0x0123456789abafef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem8x8', (n, claripy.BVV(6, 8), o))
+    correct_result = claripy.BVV(0x01af456789abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem8x8', (n, claripy.BVV(7, 8), o))
+    correct_result = claripy.BVV(0xaf23456789abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem16x4', (n, claripy.BVV(0, 8), p))
+    correct_result = claripy.BVV(0x0123456789abdfec, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem16x4', (n, claripy.BVV(3, 8), p))
+    correct_result = claripy.BVV(0xdfec456789abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem32x2', (n, claripy.BVV(0, 8), q))
+    correct_result = claripy.BVV(0x01234567bfcfdfef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_SetElem32x2', (n, claripy.BVV(1, 8), q))
+    correct_result = claripy.BVV(0xbfcfdfef89abcdef, 64)
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    # Symbolic indexes
+    calc_result = translate(ss, 'Iop_GetElem8x8', (r, ss))
+    correct_result = claripy.If(ss == 7, claripy.BVV(0x01, 8),
+        claripy.If(ss == 6, claripy.BVV(0x02, 8),
+        claripy.If(ss == 5, claripy.BVV(0x03, 8),
+        claripy.If(ss == 4, claripy.BVV(0x04, 8),
+        claripy.If(ss == 3, claripy.BVV(0x05, 8),
+        claripy.If(ss == 2, claripy.BVV(0x06, 8),
+        claripy.If(ss == 1, claripy.BVV(0x07, 8),
+            claripy.BVV(0x08, 8))))))))
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem16x4', (r, ss))
+    correct_result = claripy.If(ss == 3, claripy.BVV(0x0102, 16),
+        claripy.If(ss == 2, claripy.BVV(0x0304, 16),
+        claripy.If(ss == 1, claripy.BVV(0x0506, 16),
+            claripy.BVV(0x0708, 16))))
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    calc_result = translate(s, 'Iop_GetElem32x2', (r, ss))
+    correct_result = claripy.If(ss == 1, claripy.BVV(0x01020304, 32), claripy.BVV(0x05060708, 32))
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    r_slices = r.chop(8)
+    calc_result = translate(s, 'Iop_SetElem8x8', (r, ss, o))
+    correct_result = claripy.Concat(
+        claripy.If(ss == 7, o, r_slices[0]),
+        claripy.If(ss == 6, o, r_slices[1]),
+        claripy.If(ss == 5, o, r_slices[2]),
+        claripy.If(ss == 4, o, r_slices[3]),
+        claripy.If(ss == 3, o, r_slices[4]),
+        claripy.If(ss == 2, o, r_slices[5]),
+        claripy.If(ss == 1, o, r_slices[6]),
+        claripy.If(ss == 0, o, r_slices[7])
+    )
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    r_slices = r.chop(16)
+    calc_result = translate(s, 'Iop_SetElem16x4', (r, ss, p))
+    correct_result = claripy.Concat(
+        claripy.If(ss == 3, p, r_slices[0]),
+        claripy.If(ss == 2, p, r_slices[1]),
+        claripy.If(ss == 1, p, r_slices[2]),
+        claripy.If(ss == 0, p, r_slices[3])
+    )
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
+    r_slices = r.chop(32)
+    calc_result = translate(s, 'Iop_SetElem32x2', (r, ss, q))
+    correct_result = claripy.Concat(
+        claripy.If(ss == 1, q, r_slices[0]),
+        claripy.If(ss == 0, q, r_slices[1]),
+    )
+    nose.tools.assert_true(s.solver.is_true(calc_result == correct_result))
+
 def test_store_simplification():
     state = SimState(arch='X86')
     state.regs.esp = state.solver.BVS('stack_pointer', 32)
@@ -230,7 +440,7 @@ def test_store_simplification():
     state.regs.eax = state.solver.BVS('base_eax', 32)
 
     irsb = pyvex.IRSB(b'PT]\xc2\x10\x00', 0x4000, state.arch)
-    sim_successors = SimEngineVEX().process(state.copy(), irsb)
+    sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
     exit_state = sim_successors.all_successors[0]
 
     nose.tools.assert_true(claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))
@@ -239,26 +449,81 @@ def test_store_simplification():
 def test_loadg_no_constraint_creation():
 
     state = SimState(arch='armel', mode='symbolic')
+    engine = HeavyVEXMixin(None)
 
-    from angr.engines.vex.statements.loadg import SimIRStmt_LoadG
-
-    state.scratch.temps[1] = state.solver.BVS('tmp_1', 32)
     stmt = pyvex.IRStmt.LoadG('Iend_LE', 'ILGop_16Uto32',
-                              pyvex.IRExpr.Const(pyvex.const.U32(0x1000)),
-                              pyvex.IRExpr.Const(pyvex.const.U32(0x2000)),
-                              pyvex.IRExpr.Const(pyvex.const.U32(0x1337)),
+                              0, # dst
+                              pyvex.IRExpr.Const(pyvex.const.U32(0x2000)), # addr (src)
+                              pyvex.IRExpr.Const(pyvex.const.U32(0x1337)), # alt
                               pyvex.IRExpr.RdTmp(1)  # guard
                               )
     tyenv = pyvex.IRTypeEnv(state.arch)
-    tyenv.types = [ None, 'Ity_I32' ]
-    state.scratch.tyenv = tyenv
-    loadg = SimIRStmt_LoadG(stmt, state)
-
-    loadg._execute()
+    tyenv.types = [ 'Ity_I32', 'Ity_I32' ]
+    state.scratch.set_tyenv(tyenv)
+    state.scratch.temps[1] = state.solver.BVS('tmp_1', 32)
+    engine.state = state
+    engine._handle_vex_stmt(stmt)
 
     # LOADG should not create new constraints - it is a simple conditional memory read. The conditions should only be
     # used inside the value AST to guard the memory read.
     assert not state.solver.constraints
+    assert state.scratch.temps[0] is not None
+    assert state.scratch.temps[0].variables.issuperset(state.scratch.temps[1].variables)
+    assert state.scratch.temps[0].op == 'If'
+
+
+def test_amd64_ud012_behaviors():
+
+    # Test if VEX's lifter behaves as what CFGFast expects
+    #
+    # Note: if such behaviors change in the future, you also need to fix the ud{0,1,2} handling logic in
+    # CFGFast._generate_cfgnode().
+
+    # according to VEX, ud0 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\xff", "amd64")
+    block_0 = a.factory.block(0)
+    assert block_0.size == 2
+
+    # according to VEX, ud1 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\xb9", "amd64")
+    block_1 = a.factory.block(0)
+    assert block_1.size == 2
+
+    # according to VEX, ud2 under AMD64 *is* part of the block
+    a = load_shellcode(b"\x90\x90\x0f\x0b", "amd64")
+    block_2 = a.factory.block(0)
+    assert block_2.size == 4
+
+
+def test_x86_ud2_behaviors():
+
+    # Test if VEX's lifter behaves as what CFGFast expects
+    #
+    # Note: if such behaviors change in the future, you also need to fix the ud2 handling logic in
+    # CFGFast._generate_cfgnode().
+
+    # according to VEX, ud2 on x86 is not part of the block
+    a = load_shellcode(b"\x90\x90\x0f\x0b", "x86")
+    block_0 = a.factory.block(0)
+    assert block_0.size == 2
+
+def test_blsr():
+    p = load_shellcode(bytes.fromhex('c4e2f8f3cf0f95c00fb6c0c3'), arch='amd64')
+    # compiled form of !!(x & (x - 1))
+    # 2c0:   c4 e2 f8 f3 cf          blsr   %rdi,%rax
+
+    # 2c5:   0f 95 c0                setne  %al
+    # 2c8:   0f b6 c0                movzbl %al,%eax
+    # 2cb:   c3                      retq
+    x = claripy.BVS('x', 64)
+    s = p.factory.call_state(0, x)
+    sm = p.factory.simulation_manager(s)
+    sm.run()
+
+    target_func = claripy.If((x & (x - 1)) == 0, claripy.BVV(0, 64), 1)
+    solver = claripy.Solver()
+    solver.add(sm.one_deadended.regs.rax != target_func)
+    assert not solver.satisfiable()
 
 
 if __name__ == '__main__':

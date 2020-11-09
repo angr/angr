@@ -6,7 +6,7 @@ l = logging.getLogger(name=__name__)
 
 class LoadLibraryA(angr.SimProcedure):
     def run(self, lib_ptr):
-        lib = self.state.mem[lib_ptr].string.concrete
+        lib = self.state.mem[lib_ptr].string.concrete.decode('utf-8')
         return self.load(lib)
 
     def load(self, lib):
@@ -25,7 +25,7 @@ class LoadLibraryA(angr.SimProcedure):
         return self.project.loader.find_object(lib).mapped_base
 
     def register(self, obj): # can be overridden for instrumentation
-        self.project._register_object(obj)
+        self.project._register_object(obj, obj.arch)
 
 class LoadLibraryExW(LoadLibraryA):
     def run(self, lib_ptr, flag1, flag2):
@@ -57,7 +57,7 @@ class GetProcAddress(angr.SimProcedure):
             ordinal = self.state.solver.eval(name_addr)
             name = 'ordinal.%d.%s' % (ordinal, obj.provides)
         else:
-            name = self.state.mem[name_addr].string.concrete
+            name = self.state.mem[name_addr].string.concrete.decode('utf-8')
 
         full_name = '%s.%s' % (obj.provides, name)
         self.procs.add(full_name)

@@ -4,7 +4,7 @@ import sys
 import angr
 import nose.tools
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
 def test_various_loops():
@@ -131,6 +131,22 @@ def test_loop_limiter():
 
     nose.tools.assert_true('spinning' in simgr.stashes)
     nose.tools.assert_equal(simgr.spinning[0].loop_data.back_edge_trip_counts[0x4005fd][0], 6)
+
+
+def test_loop_limiter_constant_loop():
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'constant_loopseer'), auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True)
+
+    state = p.factory.entry_state()
+    simgr = p.factory.simulation_manager(state)
+
+    simgr.use_technique(angr.exploration_techniques.LoopSeer(cfg=cfg, functions='main', bound=5, limit_concrete_loops=False))
+
+    simgr.run()
+    nose.tools.assert_true(simgr.deadended[0].regs.eax.concrete)
+    val = simgr.deadended[0].solver.eval_one(simgr.deadended[0].regs.eax)
+    nose.tools.assert_equal(val, 420)
 
 
 if __name__ == "__main__":

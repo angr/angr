@@ -139,7 +139,9 @@ class BinaryOptimizer(Analysis):
     def optimize(self):
         for f in self.kb.functions.values():  # type: angr.knowledge.Function
             # if there are unresolved targets in this function, we do not try to optimize it
-            if any([ n.sim_procedure is SIM_PROCEDURES['stubs']['UnresolvableTarget'] for n in f.graph.nodes()
+            unresolvable_targets = (SIM_PROCEDURES['stubs']['UnresolvableJumpTarget'],
+                                    SIM_PROCEDURES['stubs']['UnresolvableCallTarget'])
+            if any([ n.sim_procedure in unresolvable_targets for n in f.graph.nodes()
                      if isinstance(n, HookNode) ]):
                 continue
 
@@ -158,7 +160,7 @@ class BinaryOptimizer(Analysis):
         #if function.addr != 0x8048250:
         #    return
 
-        func_kb = KnowledgeBase(self.project, self.project.loader.main_object)
+        func_kb = KnowledgeBase(self.project)
 
         # switch to non-optimized IR, since optimized IR will optimize away register reads/writes
         # for example,

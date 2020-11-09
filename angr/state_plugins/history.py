@@ -1,8 +1,11 @@
 import operator
 import logging
 import itertools
+import contextlib
+from typing import Optional
 
 import claripy
+from claripy.ast.bv import BV
 
 from .plugin import SimStatePlugin
 from .. import sim_options
@@ -36,7 +39,7 @@ class SimStateHistory(SimStatePlugin):
         self.jump_target = None if clone is None else clone.jump_target
         self.jump_source = None if clone is None else clone.jump_source
         self.jump_avoidable = None if clone is None else clone.jump_avoidable
-        self.jump_guard = None if clone is None else clone.jump_guard
+        self.jump_guard = None if clone is None else clone.jump_guard # type: Optional[BV]
         self.jumpkind = None if clone is None else clone.jumpkind
 
         # the execution log for this history
@@ -64,6 +67,10 @@ class SimStateHistory(SimStatePlugin):
 
     def __getstate__(self):
         # flatten ancestry, otherwise we hit recursion errors trying to get the entire history...
+        # the important intuition here is that if we provide the entire linked list to pickle, pickle
+        # will traverse it recursively. If we provide it as a real list, it will not do any recursion.
+        # the nuance is in whether the list we provide has live parent links, in which case it matters
+        # what order pickle iterates the list, as it will suddenly be able to perform memoization.
         ancestry = []
         parent = self.parent
         self.parent = None
@@ -72,18 +79,31 @@ class SimStateHistory(SimStatePlugin):
             parent = parent.parent
             ancestry[-1].parent = None
 
+        rev_ancestry = list(reversed(ancestry))
         d = super(SimStateHistory, self).__getstate__()
         d['strongref_state'] = None
-        d['ancestry'] = ancestry
+        d['rev_ancestry'] = rev_ancestry
         d['successor_ip'] = self.successor_ip
+
+        # reconstruct chain
+        child = self
+        for parent in ancestry:
+            child.parent = parent
+            child = parent
+
+        d.pop('parent')
         return d
 
     def __setstate__(self, d):
         child = self
-        for parent in d.pop('ancestry'):
+        ancestry = list(reversed(d.pop('rev_ancestry')))
+        for parent in ancestry:
+            if hasattr(child, 'parent'):
+                break
             child.parent = parent
             child = parent
-        child.parent = None
+        else:
+            child.parent = None
         self.__dict__.update(d)
 
     def __repr__(self):
@@ -312,6 +332,13 @@ class SimStateHistory(SimStatePlugin):
     def extend_actions(self, new_actions):
         self.recent_events.extend(new_actions)
 
+    @contextlib.contextmanager
+    def subscribe_actions(self):
+        start_idx = len(self.recent_actions)
+        res = []
+        yield res
+        res.extend(self.recent_actions[start_idx:])
+
     #
     # Convenient accessors
     #
@@ -351,6 +378,9 @@ class SimStateHistory(SimStatePlugin):
     @property
     def jump_targets(self):
         return LambdaAttrIter(self, operator.attrgetter('jump_target'))
+    @property
+    def jump_sources(self):
+        return LambdaAttrIter(self, operator.attrgetter('jump_source'))
     @property
     def descriptions(self):
         return LambdaAttrIter(self, operator.attrgetter('recent_description'))

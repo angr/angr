@@ -1,23 +1,25 @@
-
+from typing import Optional, List
 import logging
 from collections import defaultdict
 
+import pyvex
 import ailment
 
-from .. import Analysis
-from ..calling_convention import CallingConventionAnalysis
-from ..code_location import CodeLocation
-from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ...engines.light import SpOffset, SimEngineLightVEX, SimEngineLightAIL
-from ...errors import SimEngineError
-from ...keyed_region import KeyedRegion
+from ...block import Block
+from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
-from ...sim_variable import SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
+from ...engines.vex.claripy.irop import vexop_to_simop
+from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
+from ..typehoon.typevars import Equivalence, TypeVariable
+from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
+from .engine_vex import SimEngineVRVEX
+from .engine_ail import SimEngineVRAIL
 
 l = logging.getLogger(name=__name__)
 
 
-class ProcessorState(object):
+class ProcessorState:
 
     __slots__ = ['_arch', 'sp_adjusted', 'sp_adjustment', 'bp_as_base', 'bp']
 
@@ -53,7 +55,13 @@ class ProcessorState(object):
         if self.bp is None:
             self.bp = other.bp
         elif other.bp is not None:  # and self.bp is not None
-            self.bp = max(self.bp, other.bp)
+            if self.bp == other.bp:
+                pass
+            else:
+                if type(self.bp) is int and type(other.bp) is int:
+                    self.bp = max(self.bp, other.bp)
+                else:
+                    self.bp = None
         return self
 
     def __eq__(self, other):
@@ -68,361 +76,46 @@ class ProcessorState(object):
         return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
             " adjusted" if self.sp_adjusted else "", self.bp_as_base)
 
-def get_engine(base_engine):
-    class SimEngineVR(base_engine):
-        def __init__(self):
-            super(SimEngineVR, self).__init__()
 
-            self.processor_state = None
-            self.variable_manager = None
-
-        @property
-        def func_addr(self):
-            if self.state is None:
-                return None
-            return self.state.function.addr
-
-        def process(self, state, *args, **kwargs):  # pylint:disable=unused-argument
-            # we are using a completely different state. Therefore, we directly call our _process() method before
-            # SimEngine becomes flexible enough.
-            try:
-                self._process(state, None, block=kwargs.pop('block', None))
-            except SimEngineError as e:
-                if kwargs.pop('fail_fast', False) is True:
-                    raise e
-
-        def _process(self, state, successors, block=None, func_addr=None):  # pylint:disable=unused-argument
-
-            self.processor_state = state.processor_state
-            self.variable_manager = state.variable_manager
-
-            super(SimEngineVR, self)._process(state, successors, block=block)
-
-        #
-        # VEX
-        #
-
-        # Statement handlers
-
-        def _handle_Put(self, stmt):
-            offset = stmt.offset
-            data = self._expr(stmt.data)
-            size = stmt.data.result_size(self.tyenv) // 8
-
-            self._assign_to_register(offset, data, size)
-
-        def _handle_Store(self, stmt):
-            addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) // 8
-            data = self._expr(stmt.data)
-
-            self._store(addr, data, size)
-
-
-        # Expression handlers
-
-        def _handle_Get(self, expr):
-            reg_offset = expr.offset
-            reg_size = expr.result_size(self.tyenv) // 8
-
-            return self._read_from_register(reg_offset, reg_size)
-
-
-        def _handle_Load(self, expr):
-            addr = self._expr(expr.addr)
-            size = expr.result_size(self.tyenv) // 8
-
-            return self._load(addr, size)
-
-        #
-        # AIL
-        #
-
-        # Statement handlers
-
-        def _ail_handle_Assignment(self, stmt):
-            dst_type = type(stmt.dst)
-
-            if dst_type is ailment.Expr.Register:
-                offset = stmt.dst.reg_offset
-                data = self._expr(stmt.src)
-                size = stmt.src.bits // 8
-
-                self._assign_to_register(offset, data, size)
-
-            elif dst_type is ailment.Expr.Tmp:
-                # simply write to self.tmps
-                data = self._expr(stmt.src)
-                if data is None:
-                    return
-
-                self.tmps[stmt.dst.tmp_idx] = data
-
-            else:
-                l.warning('Unsupported dst type %s.', dst_type)
-
-        def _ail_handle_Store(self, stmt):
-            addr = self._expr(stmt.addr)
-            data = self._expr(stmt.data)
-            size = stmt.data.bits // 8
-
-            self._store(addr, data, size)
-
-        def _ail_handle_Jump(self, stmt):
-            pass
-
-        def _ail_handle_ConditionalJump(self, stmt):
-            pass
-
-        def _ail_handle_Call(self, stmt):
-            pass
-
-        # Expression handlers
-
-        def _ail_handle_Register(self, expr):
-            offset = expr.reg_offset
-            size = expr.bits // 8
-
-            return self._read_from_register(offset, size)
-
-        def _ail_handle_Load(self, expr):
-            addr = self._expr(expr.addr)
-            size = expr.size
-
-            return self._load(addr, size)
-
-        #
-        # Logic
-        #
-
-        def _assign_to_register(self, offset, data, size):
-            """
-
-            :param int offset:
-            :param data:
-            :param int size:
-            :return:
-            """
-
-            codeloc = self._codeloc()
-
-            if offset == self.arch.sp_offset:
-                if type(data) is SpOffset:
-                    sp_offset = data.offset
-                    self.processor_state.sp_adjusted = True
-                    self.processor_state.sp_adjustment = sp_offset
-                    l.debug('Adjusting stack pointer at %#x with offset %+#x.', self.ins_addr, sp_offset)
-                return
-
-            if offset == self.arch.bp_offset:
-                if data is not None:
-                    self.processor_state.bp = data
-                else:
-                    self.processor_state.bp = None
-                return
-
-            # handle register writes
-            if type(data) is SpOffset:
-                # lea
-                stack_offset = data.offset
-                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr,
-                                                                                             self.stmt_idx,
-                                                                                             'memory')
-
-                if not existing_vars:
-                    # TODO: how to determine the size for a lea?
-                    existing_vars = self.state.stack_region.get_variables_by_offset(stack_offset)
-                    if not existing_vars:
-                        size = 1
-                        variable = SimStackVariable(stack_offset, size, base='bp',
-                                                    ident=self.variable_manager[self.func_addr].next_variable_ident(
-                                                        'stack'),
-                                                    region=self.func_addr,
-                                                    )
-
-                        self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                        l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-                    else:
-                        variable = next(iter(existing_vars))
-
-                else:
-                    variable, _ = existing_vars[0]
-
-                self.state.stack_region.add_variable(stack_offset, variable)
-                base_offset = self.state.stack_region.get_base_addr(stack_offset)
-                for var in self.state.stack_region.get_variables_by_offset(base_offset):
-                    self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset, codeloc)
-
-            else:
-                pass
-
-            # register writes
-
-            existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                         'register'
-                                                                                         )
-            if not existing_vars:
-                variable = SimRegisterVariable(offset, size,
-                                               ident=self.variable_manager[self.func_addr].next_variable_ident(
-                                                   'register'),
-                                               region=self.func_addr
-                                               )
-                self.variable_manager[self.func_addr].add_variable('register', offset, variable)
-            else:
-                variable, _ = existing_vars[0]
-
-            self.state.register_region.set_variable(offset, variable)
-            self.variable_manager[self.func_addr].write_to(variable, 0, codeloc)
-
-        def _store(self, addr, data, size):  # pylint:disable=unused-argument
-            """
-
-            :param addr:
-            :param data:
-            :param int size:
-            :return:
-            """
-
-            if type(addr) is SpOffset:
-                # Storing data to stack
-                stack_offset = addr.offset
-
-                existing_vars = self.variable_manager[self.func_addr].find_variables_by_stmt(self.block.addr, self.stmt_idx,
-                                                                                             'memory')
-                if not existing_vars:
-                    variable = SimStackVariable(stack_offset, size, base='bp',
-                                                ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                                region=self.func_addr,
-                                                )
-                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-
-                else:
-                    variable, _ = existing_vars[0]
-
-                self.state.stack_region.set_variable(stack_offset, variable)
-
-                base_offset = self.state.stack_region.get_base_addr(stack_offset)
-                codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-                for var in self.state.stack_region.get_variables_by_offset(stack_offset):
-                    self.variable_manager[self.func_addr].write_to(var,
-                                                                   stack_offset - base_offset,
-                                                                   codeloc
-                                                                   )
-
-        def _load(self, addr, size):
-            """
-
-            :param addr:
-            :param size:
-            :return:
-            """
-
-            if type(addr) is SpOffset:
-                # Loading data from stack
-                stack_offset = addr.offset
-
-                if stack_offset not in self.state.stack_region:
-                    variable = SimStackVariable(stack_offset, size, base='bp',
-                                                ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                                region=self.func_addr,
-                                                )
-                    self.state.stack_region.add_variable(stack_offset, variable)
-
-                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-
-                base_offset = self.state.stack_region.get_base_addr(stack_offset)
-
-                codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-
-                all_vars = self.state.stack_region.get_variables_by_offset(base_offset)
-                assert len(all_vars) == 1  # we enabled phi nodes
-
-                var = next(iter(all_vars))
-                self.variable_manager[self.func_addr].read_from(var,
-                                                                stack_offset - base_offset,
-                                                                codeloc,
-                                                                # overwrite=True
-                                                                )
-
-
-        def _read_from_register(self, offset, size):
-            """
-
-            :param offset:
-            :param size:
-            :return:
-            """
-
-            codeloc = self._codeloc()
-
-            if offset == self.arch.sp_offset:
-                # loading from stack pointer
-                return SpOffset(self.arch.bits, self.processor_state.sp_adjustment, is_base=False)
-            elif offset == self.arch.bp_offset:
-                return self.processor_state.bp
-
-            if offset not in self.state.register_region:
-                variable = SimRegisterVariable(offset, size,
-                                               ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
-                                               region=self.func_addr,
-                                               )
-                self.state.register_region.add_variable(offset, variable)
-                self.variable_manager[self.func_addr].add_variable('register', offset, variable)
-
-            for var in self.state.register_region.get_variables_by_offset(offset):
-                self.variable_manager[self.func_addr].read_from(var, 0, codeloc)
-
-            return None
-
-
-    return SimEngineVR
-
-
-class VariableRecoveryFastState(object):
+class VariableRecoveryFastState(VariableRecoveryStateBase):
     """
     The abstract state of variable recovery analysis.
+
+    :ivar KeyedRegion stack_region: The stack store.
+    :ivar KeyedRegion register_region:  The register store.
     """
+    def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, processor_state=None):
 
-    def __init__(self, variable_manager, arch, func, stack_region=None, register_region=None, processor_state=None,
-                 make_phi=None):
-        self.variable_manager = variable_manager
-        self.arch = arch
-        self.function = func
-        self._make_phi = make_phi
-
-        if stack_region is not None:
-            self.stack_region = stack_region
-        else:
-            self.stack_region = KeyedRegion()
-        if register_region is not None:
-            self.register_region = register_region
-        else:
-            self.register_region = KeyedRegion()
+        super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
+                         global_region=global_region, typevars=typevars, type_constraints=type_constraints,
+                         delayed_type_constraints=delayed_type_constraints)
 
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
 
     def __repr__(self):
-        return "<VRAbstractState: %d register variables, %d stack variables>" % (len(self.register_region), len(self.stack_region))
+        return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
+            self.block_addr, len(self.register_region), len(self.stack_region))
 
     def __eq__(self, other):
         if type(other) is not VariableRecoveryFastState:
             return False
-
         return self.stack_region == other.stack_region and self.register_region == other.register_region
 
     def copy(self):
 
         state = VariableRecoveryFastState(
-            self.variable_manager,
+            self.block_addr,
+            self._analysis,
             self.arch,
             self.function,
             stack_region=self.stack_region.copy(),
             register_region=self.register_region.copy(),
+            global_region=self.global_region.copy(),
+            typevars=self.typevars.copy(),
+            type_constraints=self.type_constraints.copy(),
             processor_state=self.processor_state.copy(),
-            make_phi=self._make_phi,
+            delayed_type_constraints=self.delayed_type_constraints.copy(),
         )
 
         return state
@@ -431,25 +124,60 @@ class VariableRecoveryFastState(object):
         """
         Merge two abstract states.
 
+        For any node A whose dominance frontier that the current node (at the current program location) belongs to, we
+        create a phi variable V' for each variable V that is defined in A, and then replace all existence of V with V'
+        in the merged abstract state.
+
         :param VariableRecoveryState other: The other abstract state to merge.
         :return:                            The merged abstract state.
         :rtype:                             VariableRecoveryState
         """
 
-        def _make_phi(*variables):
-            return self._make_phi(successor, *variables)
+        replacements = {}
+        if successor in self.dominance_frontiers:
+            replacements = self._make_phi_variables(successor, self, other)
 
-        merged_stack_region = self.stack_region.copy().merge(other.stack_region, make_phi_func=_make_phi)
-        merged_register_region = self.register_region.copy().merge(other.register_region, make_phi_func=_make_phi)
+        merged_stack_region = self.stack_region.copy().replace(replacements).merge(other.stack_region,
+                                                                                   replacements=replacements)
+        merged_register_region = self.register_region.copy().replace(replacements).merge(other.register_region,
+                                                                                         replacements=replacements)
+        merged_global_region = self.global_region.copy().merge(other.global_region)
+        merged_typevars = self.typevars.merge(other.typevars)
+        merged_typeconstraints = self.type_constraints.copy() | other.type_constraints
+        delayed_typeconstraints = self.delayed_type_constraints.copy()
+        for v, cons in other.delayed_type_constraints.items():
+            delayed_typeconstraints[v] |= cons
+        # add subtype constraints for all replacements
+        for v0, v1 in replacements.items():
+            # v0 will be replaced by v1
+            if not merged_typevars.has_type_variable_for(v1, None):
+                merged_typevars.add_type_variable(v1, None, TypeVariable())
+            if not merged_typevars.has_type_variable_for(v0, None):
+                merged_typevars.add_type_variable(v0, None, TypeVariable())
+            # Assuming v2 = phi(v0, v1), then we know that v0_typevar == v1_typevar == v2_typevar
+            # However, it's possible that neither v0 nor v1 will ever be used in future blocks, which not only makes
+            # this phi function useless, but also leads to the incorrect assumption that v1_typevar == v2_typevar.
+            # Hence, we delay the addition of the equivalence relationship into the type constraints. It is only added
+            # when v1 (the new variable that will end up in the state) is ever used in the future.
+
+            # create an equivalence relationship
+            equivalence = Equivalence(merged_typevars.get_type_variable(v1, None),
+                                      merged_typevars.get_type_variable(v0, None)
+                                      )
+            delayed_typeconstraints[v1].add(equivalence)
 
         state = VariableRecoveryFastState(
-            self.variable_manager,
+            successor,
+            self._analysis,
             self.arch,
             self.function,
             stack_region=merged_stack_region,
             register_region=merged_register_region,
+            global_region=merged_global_region,
+            typevars=merged_typevars,
+            type_constraints=merged_typeconstraints,
+            delayed_type_constraints=delayed_typeconstraints,
             processor_state=self.processor_state.copy().merge(other.processor_state),
-            make_phi=self._make_phi,
         )
 
         return state
@@ -473,12 +201,16 @@ class VariableRecoveryFastState(object):
         return n
 
 
-class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract-method
+class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=abstract-method
     """
-    Recover "variables" from a function by keeping track of stack pointer offsets and  pattern matching VEX statements.
+    Recover "variables" from a function by keeping track of stack pointer offsets and pattern matching VEX statements.
+
+    If calling conventions are recovered prior to running VariableRecoveryFast, variables can be recognized more
+    accurately. However, it is not a requirement.
     """
 
-    def __init__(self, func, max_iterations=3, clinic=None):
+    def __init__(self, func, func_graph=None, max_iterations=1, low_priority=False, track_sp=True,
+                 func_args: Optional[List[SimVariable]]=None):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -486,47 +218,62 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         :param clinic:
         """
 
-        function_graph_visitor = FunctionGraphVisitor(func)
+        function_graph_visitor = FunctionGraphVisitor(func, graph=func_graph)
 
+        # Make sure the function is not empty
+        if not func.block_addrs_set or func.startpoint is None:
+            raise AngrVariableRecoveryError("Function %s is empty." % repr(func))
+
+        VariableRecoveryBase.__init__(self, func, max_iterations)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
-        self.function = func
-        self._node_to_state = { }
-        self._node_to_input_state = { }
+        self._low_priority = low_priority
+        self._job_ctr = 0
+        self._track_sp = track_sp
+        self._func_args = func_args
 
-        self.variable_manager = self.kb.variables
-
-        self._max_iterations = max_iterations
-        self._clinic = clinic
-
-        self._ail_engine = get_engine(SimEngineLightAIL)()
-        self._vex_engine = get_engine(SimEngineLightVEX)()
+        self._ail_engine = SimEngineVRAIL(self.project, self.kb)
+        self._vex_engine = SimEngineVRVEX(self.project, self.kb)
 
         self._node_iterations = defaultdict(int)
 
-        # phi nodes dict
-        self._cached_phi_nodes = { }
-
         self._node_to_cc = { }
+        self.var_to_typevar = { }
+        self.type_constraints = None
 
         self._analyze()
+
+        # cleanup (for cpython pickle)
+        self._ail_engine = None
+        self._vex_engine = None
 
     #
     # Main analysis routines
     #
 
     def _pre_analysis(self):
-        CallingConventionAnalysis.recover_calling_conventions(self.project)
 
-        # initialize node_to_cc map
-        function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
-        for func_node in function_nodes:
-            for callsite_node in self.function.transition_graph.predecessors(func_node):
-                self._node_to_cc[callsite_node.addr] = func_node.calling_convention
+        self.type_constraints = set()
+
+        self.initialize_dominance_frontiers()
+
+        if self._track_sp:
+            # initialize node_to_cc map
+            function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
+            # all nodes that end with a call must be in the _node_to_cc dict
+            for func_node in function_nodes:
+                for callsite_node in self.function.transition_graph.predecessors(func_node):
+                    if func_node.calling_convention is None:
+                        l.warning("Unknown calling convention for %r.", func_node)
+                        self._node_to_cc[callsite_node.addr] = None
+                    else:
+                        self._node_to_cc[callsite_node.addr] = func_node.calling_convention
 
     def _pre_job_handling(self, job):
-        pass
+        self._job_ctr += 1
+        if self._low_priority:
+            self._release_gil(self._job_ctr, 5, 0.000001)
 
     def _initial_abstract_state(self, node):
 
@@ -536,8 +283,7 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         # give it enough stack space
         # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        state = VariableRecoveryFastState(self.variable_manager, self.project.arch, self.function,
-                                          make_phi=self._make_phi_node
+        state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function,
                                           )
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
@@ -546,6 +292,17 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                                             region=self.function.addr, category='return_address',
                                             )
             state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
+
+        if self._func_args:
+            for arg in self._func_args:
+                if isinstance(arg, SimRegisterVariable):
+                    state.register_region.set_variable(arg.reg, arg)
+                    self.variable_manager[self.function.addr].add_variable('register', arg.reg, arg)
+                elif isinstance(arg, SimStackVariable):
+                    state.stack_region.set_variable(arg.offset, arg)
+                    self.variable_manager[self.function.addr].add_variable('stack', arg.offset, arg)
+                else:
+                    raise TypeError("Unsupported function argument type %s." % type(arg))
 
         return state
 
@@ -564,15 +321,15 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         input_state = state  # make it more meaningful
 
-        if self._clinic:
+        if type(node) is ailment.Block:
             # AIL mode
-            block = self._clinic.block(node.addr, node.size)
+            block = node
         else:
-            # VEX mode
-            block = self.project.factory.block(node.addr, node.size, opt_level=0)
+            # VEX mode, get the block again
+            block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
 
-        if node.addr in self._node_to_input_state:
-            prev_state = self._node_to_input_state[node.addr]
+        if node.addr in self._instates:
+            prev_state = self._instates[node.addr]
             if input_state == prev_state:
                 l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
                 return False, input_state
@@ -581,7 +338,8 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
                 input_state = prev_state.merge(input_state, successor=node.addr)
 
         state = input_state.copy()
-        self._node_to_input_state[node.addr] = input_state
+        state.block_addr = node.addr
+        self._instates[node.addr] = input_state
 
         if self._node_iterations[node.addr] >= self._max_iterations:
             l.debug('Skip node %#x as we have iterated %d times on it.', node.addr, self._node_iterations[node.addr])
@@ -589,9 +347,11 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         self._process_block(state, block)
 
-        self._node_to_state[node.addr] = state
+        self._outstates[node.addr] = state
 
         self._node_iterations[node.addr] += 1
+        self.type_constraints |= state.type_constraints
+        self.var_to_typevar.update(state.typevars._typevars)
 
         return True, state
 
@@ -599,9 +359,10 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
         pass
 
     def _post_analysis(self):
-        self.variable_manager.initialize_variable_names()
+        self.variable_manager['global'].assign_variable_names(labels=self.kb.labels)
+        self.variable_manager[self.function.addr].assign_variable_names()
 
-        for addr, state in self._node_to_state.items():
+        for addr, state in self._outstates.items():
             self.variable_manager[self.function.addr].set_live_variables(addr,
                                                                          state.register_region,
                                                                          state.stack_region
@@ -611,7 +372,54 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
     # Private methods
     #
 
-    def _process_block(self, state, block):  #pylint:disable=no-self-use
+    @staticmethod
+    def _get_irconst(value, size):
+        mapping = {
+            1: pyvex.const.U1,
+            8: pyvex.const.U8,
+            16: pyvex.const.U16,
+            32: pyvex.const.U32,
+            64: pyvex.const.U64,
+            128: pyvex.const.V128,
+            256: pyvex.const.V256,
+        }
+        if size not in mapping:
+            raise TypeError("Unsupported size %d." % size)
+        return mapping.get(size)(value)
+
+    def _peephole_optimize(self, block: Block):
+
+        # find regN = xor(regN, regN) and replace it with PUT(regN) = 0
+        i = 0
+        while i < len(block.vex.statements) - 3:
+            stmt0 = block.vex.statements[i]
+            next_i = i + 1
+            if isinstance(stmt0, pyvex.IRStmt.WrTmp) and isinstance(stmt0.data, pyvex.IRStmt.Get):
+                stmt1 = block.vex.statements[i + 1]
+                if isinstance(stmt1, pyvex.IRStmt.WrTmp) and isinstance(stmt1.data, pyvex.IRStmt.Get):
+                    next_i = i + 2
+                    if stmt0.data.offset == stmt1.data.offset and stmt0.data.ty == stmt1.data.ty:
+                        next_i = i + 3
+                        reg_offset = stmt0.data.offset
+                        tmp0 = stmt0.tmp
+                        tmp1 = stmt1.tmp
+                        stmt2 = block.vex.statements[i + 2]
+                        if isinstance(stmt2, pyvex.IRStmt.WrTmp) and isinstance(stmt2.data, pyvex.IRExpr.Binop):
+                            if isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp) \
+                                    and isinstance(stmt2.data.args[1], pyvex.IRExpr.RdTmp) \
+                                    and {stmt2.data.args[0].tmp, stmt2.data.args[1].tmp} == {tmp0, tmp1}\
+                                    and vexop_to_simop(stmt2.data.op)._generic_name == 'Xor':
+                                # found it!
+                                # make a copy so we don't trash the cached VEX IRSB
+                                block._vex = block.vex.copy()
+                                block.vex.statements[i] = pyvex.IRStmt.NoOp()
+                                block.vex.statements[i + 1] = pyvex.IRStmt.NoOp()
+                                zero = pyvex.IRExpr.Const(self._get_irconst(0, block.vex.tyenv.sizeof(tmp0)))
+                                block.vex.statements[i + 2] = pyvex.IRStmt.Put(zero, reg_offset)
+            i = next_i
+        return block
+
+    def _process_block(self, state, block):  # pylint:disable=no-self-use
         """
         Scan through all statements and perform the following tasks:
         - Find stack pointers and the VEX temporary variable storing stack pointers
@@ -624,30 +432,36 @@ class VariableRecoveryFast(ForwardAnalysis, Analysis):  #pylint:disable=abstract
 
         l.debug('Processing block %#x.', block.addr)
 
+        if isinstance(block, Block):
+            try:
+                _ = block.vex
+            except SimEngineError:
+                # the block does not exist or lifting failed
+                return
+            block = self._peephole_optimize(block)
+
         processor = self._ail_engine if isinstance(block, ailment.Block) else self._vex_engine
         processor.process(state, block=block, fail_fast=self._fail_fast)
 
-        # readjusting sp at the end for blocks that end in a call
-        if block.addr in self._node_to_cc:
+        if self._track_sp and block.addr in self._node_to_cc:
+            # readjusting sp at the end for blocks that end in a call
+            adjusted = False
+            if state.processor_state.sp_adjustment is None:
+                state.processor_state.sp_adjustment = 0
             cc = self._node_to_cc[block.addr]
-            if cc is not None:
+            if cc is not None and cc.sp_delta is not None:
                 state.processor_state.sp_adjustment += cc.sp_delta
                 state.processor_state.sp_adjusted = True
-                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, state.processor_state.sp_adjustment)
+                adjusted = True
+                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
+                        block.addr, state.processor_state.sp_adjustment)
 
-    def _make_phi_node(self, block_addr, *variables):
-
-        key = tuple(sorted(variables, key=lambda v: v.ident))
-
-        if block_addr not in self._cached_phi_nodes:
-            self._cached_phi_nodes[block_addr] = { }
-
-        if key in self._cached_phi_nodes[block_addr]:
-            return self._cached_phi_nodes[block_addr][key]
-
-        phi_node = self.variable_manager[self.function.addr].make_phi_node(*variables)
-        self._cached_phi_nodes[block_addr][key] = phi_node
-        return phi_node
+            if not adjusted:
+                # make a guess
+                # of course, this will fail miserably if the function called is not cdecl
+                if self.project.arch.call_pushes_ret:
+                    state.processor_state.sp_adjustment += self.project.arch.bytes
+                    state.processor_state.sp_adjusted = True
 
 
 from angr.analyses import AnalysesHub

@@ -6,7 +6,7 @@ import logging
 
 l = logging.getLogger('angr.tests.test_file_struct_funcs')
 
-test_location = str(os.path.dirname(os.path.realpath(__file__)))
+test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 def check_state_1(state):
@@ -31,7 +31,7 @@ def check_state_3(state):
 
 
 def test_file_struct_funcs():
-    test_bin = os.path.join(test_location, "../../binaries/tests/x86_64/file_func_test")
+    test_bin = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'file_func_test')
     b = angr.Project(test_bin)
 
     pg = b.factory.simulation_manager()

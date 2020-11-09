@@ -8,7 +8,7 @@ import nose.tools
 import angr
 from angr.sim_type import SimTypePointer, SimTypeChar
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests'))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_execute_address_brancher():
 

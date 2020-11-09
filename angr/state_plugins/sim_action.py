@@ -17,6 +17,7 @@ class SimAction(SimEvent):
     TMP = 'tmp'
     REG = 'reg'
     MEM = 'mem'
+    _MAX_ACTION_ID = -1
 
     def __init__(self, state, region_type):
         """
@@ -26,6 +27,8 @@ class SimAction(SimEvent):
         """
         SimEvent.__init__(self, state, 'action')
         self.type = region_type
+        SimAction._MAX_ACTION_ID += 1
+        self._action_id = SimAction._MAX_ACTION_ID
 
     def __repr__(self):
         if self.sim_procedure is not None:
@@ -64,6 +67,10 @@ class SimAction(SimEvent):
 
     @property
     def all_objects(self):
+        raise NotImplementedError()
+
+    @property
+    def is_symbolic(self):
         raise NotImplementedError()
 
     @property
@@ -117,6 +124,10 @@ class SimActionExit(SimAction):
     def all_objects(self):
         return [ a for a in ( self.target, self.condition ) if a is not None ]
 
+    @property
+    def is_symbolic(self):
+        return getattr(self.target, "symbolic", False)
+
     def _copy_objects(self, c):
         c.exit_type = self.exit_type
         c.target = self._copy_object(self.target)
@@ -137,6 +148,10 @@ class SimActionConstraint(SimAction):
     @property
     def all_objects(self):
         return [ a for a in ( self.constraint, self.condition ) if a is not None ]
+
+    @property
+    def is_symbolic(self):
+        return getattr(self.constraint, "symbolic", False)
 
     def _copy_objects(self, c):
         c.constraint = self._copy_object(self.constraint)
@@ -165,6 +180,10 @@ class SimActionOperation(SimAction):
     @property
     def all_objects(self):
         return [ ex for ex in self.exprs if isinstance(ex, SimActionObject) ]
+
+    @property
+    def is_symbolic(self):
+        return any([ getattr(ex, "symbolic", False) for ex in self.exprs ])
 
     def _copy_objects(self, c):
         c.op = self.op
@@ -229,6 +248,10 @@ class SimActionData(SimAction):
     @property
     def all_objects(self):
         return [ a for a in [ self.addr, self.size, self.data, self.condition, self.fallback, self.fd ] if a is not None ]
+
+    @property
+    def is_symbolic(self):
+        return any([ getattr(a, "symbolic", False) for a in [ self.addr, self.size, self.data ] if a is not None ])
 
     @property
     def tmp_deps(self):

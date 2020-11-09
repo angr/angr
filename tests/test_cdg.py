@@ -8,7 +8,7 @@ import nose.tools
 import angr
 from angr.analyses.cdg import TemporaryNode
 
-test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"))
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
 
 
 def test_graph_0():
@@ -17,7 +17,7 @@ def test_graph_0():
     # etc.
 
     # Create a project with a random binary - it will not be used anyways
-    p = angr.Project(test_location + "/x86_64/datadep_test",
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'datadep_test'),
                      load_options={'auto_load_libs': False},
                      use_sim_procedures=True)
 
@@ -55,8 +55,8 @@ def test_graph_0():
         g.add_edge(n1, n2)
 
     # Manually set the CFG
-    cfg._graph = g
-    cfg._nodes = { }
+    cfg.model.graph = g
+    cfg.model._nodes = { }
     cfg._edge_map = { }
     cfg._loop_back_edges = [ ]
     cfg._overlapped_loop_headers = [ ]

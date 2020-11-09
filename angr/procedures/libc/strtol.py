@@ -1,11 +1,9 @@
 import angr
 import claripy
-from angr.sim_type import SimTypeString, SimTypeInt
+import logging
 from angr.errors import SimProcedureError
 
-import logging
 l = logging.getLogger(name=__name__)
-
 
 # note: this does not handle skipping white space
 
@@ -41,6 +39,8 @@ class strtol(angr.SimProcedure):
         possible_num_bytes = []
 
         for prefix in prefixes:
+            if read_length and read_length < len(prefix):
+                continue
             condition, value, num_bytes = strtol._load_num_with_prefix(prefix, s, region, state, base, signed, read_length)
             conditions.append(condition)
             cases.append((condition, value))
@@ -81,8 +81,7 @@ class strtol(angr.SimProcedure):
         """
 
         # if length wasn't provided, read the maximum bytes
-        cutoff = (read_length == None)
-        length = state.libc.max_strtol_len if cutoff else read_length
+        length = state.libc.max_strtol_len if read_length is None else read_length
 
         # expression whether or not it was valid at all
         expression, _ = strtol._char_to_val(region.load(s, 1), base)
@@ -93,34 +92,63 @@ class strtol(angr.SimProcedure):
         num_bits = min(state.arch.bits*2, 128)
         current_val = state.solver.BVV(0, num_bits)
         num_bytes = state.solver.BVS("num_bytes", state.arch.bits)
+        # constarints_num_bytes: a series of constraints of the form:
+        # AND(<constraint on the string guaranteeing that the number of digits is n>, num_bytes == n)
+        # these will be combined via OR and added to the state together num_bytes and the string
         constraints_num_bytes = []
+        # conditions: one entry per byte loaded. contains the constraint that the byte is a parsable digit
         conditions = []
 
+        # cutoff: whether the loop was broken with an unconvertable character
+        cutoff = False
         # we need all the conditions to hold except the last one to have found a value
         for i in range(length):
+            # begin reasoning about the currently indexed character
             char = region.load(s + i, 1)
             condition, value = strtol._char_to_val(char, base)
 
             # if it was the end we'll get the current val
             cases.append((num_bytes == i, current_val))
-            case_constraints = conditions + [state.solver.Not(condition)] + [num_bytes == i]
+
+            # identify the constraints necessary to set num_bytes to the current value
+            # the current char (i.e. the terminator if this is satisfied) should not be a char,
+            # so `condition` should be false, plus all the previous conditions should be satisfied
+            case_constraints = conditions + [state.solver.Not(condition), num_bytes == i]
             constraints_num_bytes.append(state.solver.And(*case_constraints))
+
+            # break the loop early if no value past this is viable
+            if condition.is_false():
+                cutoff = True
+                break
 
             # add the value and the condition
             current_val = current_val*base + value.zero_extend(num_bits-8)
             conditions.append(condition)
 
-        # the last one is unterminated, let's ignore it
+        # if we ran out of bytes, we still need to add the case that every single byte was a digit
         if not cutoff:
             cases.append((num_bytes == length, current_val))
             case_constraints = conditions + [num_bytes == length]
+            if read_length is None:
+                # the loop broke because we hit angr's coded max. we need to assert that the following char is not
+                # a digit in order for this case to generate correct models
+                char = region.load(s + length, 1)
+                condition, _ = strtol._char_to_val(char, base)
+                case_constraints.append(state.solver.Not(condition))
             constraints_num_bytes.append(state.solver.And(*case_constraints))
 
         # only one of the constraints need to hold
         # since the constraints look like (num_bytes == 2 and the first 2 chars are valid, and the 3rd isn't)
-        state.add_constraints(state.solver.Or(*constraints_num_bytes))
 
-        result = state.solver.ite_cases(cases, 0)
+        final_constraint = state.solver.Or(*constraints_num_bytes)
+        if final_constraint.op == '__eq__' and final_constraint.args[0] is num_bytes and not final_constraint.args[1].symbolic:
+            # CONCRETE CASE
+            result = cases[state.solver.eval(final_constraint.args[1])][1]
+            num_bytes = final_constraint.args[1]
+        else:
+            # symbolic case
+            state.add_constraints(final_constraint)
+            result = state.solver.ite_cases(cases, 0)
 
         # overflow check
         max_bits = state.arch.bits-1 if signed else state.arch.bits
@@ -167,14 +195,7 @@ class strtol(angr.SimProcedure):
 
         return expression, result
 
-    def run(self, nptr, endptr, base):
-
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                               1: self.ty_ptr(self.ty_ptr(SimTypeString())),
-                               2: SimTypeInt(self.state.arch, True)}
-
-        self.return_type = SimTypeInt(self.state.arch, True)
-
+    def run(self, nptr, endptr, base):  # pylint: disable=arguments-differ
         if self.state.solver.symbolic(base):
             l.warning("Concretizing symbolic base in strtol")
             base_concrete = self.state.solver.eval(base)
@@ -205,8 +226,8 @@ class strtol(angr.SimProcedure):
 
             # read a string to long for each possibility
             pred_base = zip([base_16_pred, base_10_pred, base_8_pred], [16, 10, 8])
-            for pred, base in pred_base:
-                expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
+            for pred, sub_base in pred_base:
+                expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, sub_base, True)
                 expressions.append(self.state.solver.And(expression, pred))
                 values.append(value)
                 num_bytes_arr.append(num_bytes)
@@ -222,6 +243,7 @@ class strtol(angr.SimProcedure):
 
             return value
 
-        expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
-        self.state.memory.store(endptr, nptr+num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness)
-        return self.state.solver.If(expression, value, 0)
+        else:
+            expression, value, num_bytes = self.strtol_inner(nptr, self.state, self.state.memory, base, True)
+            self.state.memory.store(endptr, nptr+num_bytes, condition=(endptr != 0), endness=self.state.arch.memory_endness)
+            return self.state.solver.If(expression, value, 0)

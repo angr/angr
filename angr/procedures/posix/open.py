@@ -1,18 +1,13 @@
 import angr
-from angr.sim_type import SimTypeString, SimTypeInt, SimTypeFd
 
 ######################################
 # open
 ######################################
 
 class open(angr.SimProcedure): #pylint:disable=W0622
-    #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ,unused-argument
 
-    def run(self, p_addr, flags, mode):  # pylint:disable=unused-argument
-        self.argument_types = {0: self.ty_ptr(SimTypeString()),
-                               1: SimTypeInt(32, True)}
-        self.return_type = SimTypeFd()
-
+    def run(self, p_addr, flags, mode):
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
 
         p_strlen = self.inline_call(strlen, p_addr)
