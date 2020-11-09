@@ -6,44 +6,14 @@ l = logging.getLogger(name=__name__)
 import angr
 import claripy
 
-from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
-from .engine import SuccessorsMixin
+from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
+from ..engine import SuccessorsMixin
+from .configuration import RemoteSyscallDecision, DEFAULT_CONFIG
 
 if TYPE_CHECKING:
     from angr import SimState
     from angr.simos import SimUserland
     from angr.procedures.definitions import SimSyscallLibrary
-
-
-BASE_SYSCALL_BYPASS_LIST = {
-    'mmap',
-    'munmap',
-    'brk',
-    # 'open',
-    'write',
-    'read',
-    # 'close',
-    'dup',
-    'dup2',
-    'dup3',
-    'exit',
-    'exit_group',
-}
-
-
-SYSCALL_BYPASS_LISTS = {
-    'amd64': BASE_SYSCALL_BYPASS_LIST,
-    'i386': BASE_SYSCALL_BYPASS_LIST,
-    'mips-n32': BASE_SYSCALL_BYPASS_LIST | {
-        'set_thread_area',
-    },
-    'mips-o32': BASE_SYSCALL_BYPASS_LIST | {
-        'set_thread_area',
-    },
-    'mips-n64': BASE_SYSCALL_BYPASS_LIST | {
-        'set_thread_area',
-    }
-}
 
 
 #pylint:disable=abstract-method,arguments-differ
@@ -52,6 +22,10 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
     This mixin dispatches certain syscalls to a syscall agent that runs on another host (a local machine, a chroot jail,
     a Linux VM, a Windows VM, etc.).
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.config = kwargs.pop('remote_syscall_configuration', DEFAULT_CONFIG)
+
     def process_successors(self, successors, **kwargs):
         state: 'angr.SimState' = self.state
         if (not state.history or
@@ -90,11 +64,12 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
                                                   "mapping" % (num, state.arch.name.lower()))
             raise NotImplementedError("what to do...")
 
-        # check against the blacklist. for certain syscalls, we always want to use angr's support
-        syscall_blacklist = SYSCALL_BYPASS_LISTS.get(syscall_abi, BASE_SYSCALL_BYPASS_LIST)
-        if syscall_name in syscall_blacklist:
+        # check against the blacklist. for certain syscalls, we may want to use angr's support
+        decision = self.config.get_decision(syscall_name)
+        if decision == RemoteSyscallDecision.BYPASS:
             # ask the next mixin in the hierarchy to process this syscall
             return super().process_successors(successors, **kwargs)
+        assert decision == RemoteSyscallDecision.PROXY
 
         syscall_proto = lib.get_prototype(syscall_abi, syscall_name, arch=state.arch)
         if syscall_proto is None:
@@ -172,4 +147,4 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         raise AngrSyscallError("Cannot determine the ABI for syscall %d on architecture %s." % (num, state.arch.name))
 
 
-from ..errors import AngrSyscallError, AngrUnsupportedSyscallError
+from ...errors import AngrSyscallError, AngrUnsupportedSyscallError
