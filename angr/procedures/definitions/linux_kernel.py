@@ -2,7 +2,7 @@ import logging
 from typing import Dict
 
 from ...sim_type import SimTypeFunction, SimTypePointer, SimTypeLong, SimStruct, SimTypeInt, SimTypeChar, \
-    SimTypeBottom
+    SimTypeBottom, SimTypeFd
 from .. import SIM_PROCEDURES as P
 from . import SimSyscallLibrary
 
@@ -33,8 +33,6 @@ lib.add_alias('getgid', 'getegid')
 # print(angr.utils.library.cprotos2py(angr.procedures.definitions.linux_kernel._amd64_c_decls, fd_spots=angr.procedures.definitions.linux_kernel._amd64_fd_spots, remove_sys_prefix=True))
 _base_syscall_decls = \
     {
-        # long sys32_quotactl(unsigned int cmd, const char *special, qid_t id, void *addr);
-        'quotactl': None,
         # long sys_time(time_t *tloc);
         'time': SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeLong(signed=True), arg_names=["tloc"]),
         # long sys_stime(time_t *tptr);
@@ -752,11 +750,10 @@ _base_syscall_decls = \
         # long sys_statx(int dfd, const char *path, unsigned flags, unsigned mask, struct statx *buffer);
         'statx': None,
         # void *mmap(void *addr, size_t len, int prot, int flags, int fildes, off_t off);
-        'mmap': SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeFd(), SimTypeLong(signed=False, label="off_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["
+        'mmap': SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeFd(), SimTypeLong(signed=False, label="off_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["addr", "len", "prot", "flags", "fildes", "off"]),
     }
 
 _amd64_c_decls = [
-    "long sys32_quotactl(unsigned int cmd, const char *special, qid_t id, void *addr);",
     "long sys_time(time_t *tloc);",
     "long sys_stime(time_t *tptr);",
     "long sys_gettimeofday(struct timeval *tv, struct timezone *tz);",
