@@ -29,14 +29,27 @@ class Bureau:
         # zeromq
         self.zmq_context = zmq.Context()
         self.zmq_sessions: List[Session] = [ ]
+        self.zmq_port: Optional[int] = None
 
         self.serve_thread: Optional[threading.Thread] = None
 
     def start(self):
-        for i in range(10):
-            socket = self.zmq_context.socket(zmq.REP)
-            socket.bind("tcp://*:%d" % (5555 + i))
-            self.zmq_sessions.append(Session(socket))
+        socket = self.zmq_context.socket(zmq.REP)
+        port = 5555
+        while port < 65536:
+            try:
+                socket.bind("tcp://*:%d" % port)
+                _l.debug("ZMQ socket binds to port %d." % port)
+                break
+            except zmq.error.ZMQError:
+                # port in use. try the next port
+                port += 1
+                if port == 65536:
+                    # over max port
+                    raise RuntimeError("Run out of usable TCP port.")
+
+        self.zmq_port = port
+        self.zmq_sessions.append(Session(socket))
 
         # handler thread
         self.serve_thread = threading.Thread(target=self.serve, daemon=True)
