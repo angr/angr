@@ -1,6 +1,6 @@
 from typing import Tuple, Optional
 
-from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction
+from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction, SimTypeFd
 
 
 def get_function_name(s):
@@ -109,7 +109,7 @@ def convert_cppproto_to_py(cpp_decl: str,
     return func_name, func_proto, "\n".join(s)
 
 
-def cprotos2py(cprotos):
+def cprotos2py(cprotos, fd_spots=frozenset(), remove_sys_prefix=False):
     """
     Parse a list of C function declarations and output to Python code that can be embedded into
     angr.procedures.definitions.
@@ -125,7 +125,18 @@ def cprotos2py(cprotos):
     s = ""
     for decl in cprotos:
         func_name, proto_, str_ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
-        s += " " * 8 + str_.replace("\n", "\n" + " " * 8) + "\n"
+        if remove_sys_prefix and func_name.startswith('sys'):
+            func_name = '_'.join(func_name.split('_')[1:])
+        if proto_ is not None:
+            if (func_name, -1) in fd_spots:
+                proto_.returnty = SimTypeFd(label=proto_.returnty.label)
+            for i, arg in enumerate(proto_.args):
+                if (func_name, i) in fd_spots:
+                    proto_.args[i] = SimTypeFd(label=arg.label)
+
+        line1 = ' '*8 + '# ' + decl + '\n'
+        line2 = ' '*8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + ',' + '\n'
+        s += line1 + line2
     return s
 
 

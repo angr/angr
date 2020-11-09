@@ -483,6 +483,12 @@ class SimTypeFd(SimTypeReg):
     def copy(self):
         return SimTypeFd(label=self.label)
 
+    def _init_str(self):
+        return "%s(%s)" % (
+            self.__class__.__name__,
+            ('label="%s"' % self.label) if self.label is not None else "",
+        )
+
 
 class SimTypePointer(SimTypeReg):
     """
