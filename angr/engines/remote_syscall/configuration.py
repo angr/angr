@@ -3,8 +3,9 @@ from typing import Dict
 
 class RemoteSyscallDecision:
     PROXY = 1  # proxy the syscall by a syscall agent
-    BYPASS = 2  # do not proxy the syscall through a syscall agent. instead, use a SimProcedure for this sycall
-    ASK = 3  # ask the user to determine
+    BYPASS = 2  # do not proxy the syscall through a syscall agent. instead, use a SimProcedure for this syscall
+    BOTH = 3  # proxy the syscall through a syscall agent *and* execute the corresponding SimProcedure
+    ASK = 4  # ask the user to determine
 
 
 class RemoteSyscallConfiguration:
