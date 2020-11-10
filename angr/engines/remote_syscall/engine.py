@@ -71,6 +71,10 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         self.successors.processed = True
 
     def policy(self, syscall_num, syscall_name, syscall_args, **kwargs):
+        if syscall_name in basic_blacklist:
+            self.apply_symbolic(self.dispatch_symbolic(syscall_args))
+            return
+
         concrete_result = self.dispatch_concrete(syscall_args)
         if isinstance(self._syscall_proc, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']):
             self.apply_concrete(concrete_result)
@@ -121,4 +125,8 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
     def apply_symbolic(self, result_state):
         self.state = result_state
 
+basic_blacklist = [
+    'mmap', 'munmap', 'mprotect', 'brk', 'sbrk',
+    'exit', 'exit_group', 'set_thread_area'
+]
 from ...errors import AngrSyscallError, AngrUnsupportedSyscallError
