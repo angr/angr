@@ -1,11 +1,12 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
 l = logging.getLogger(name=__name__)
 
 import angr
 import claripy
 
+from ...bureau.actions import BaseAction, SyscallReturnAction, WriteMemoryAction
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..engine import SuccessorsMixin
 
@@ -75,18 +76,19 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
             self.apply_symbolic(self.dispatch_symbolic(syscall_args))
             return
 
-        concrete_result = self.dispatch_concrete(syscall_args)
+        concrete_result = self.dispatch_concrete(syscall_args, syscall_num=syscall_num)
         if isinstance(self._syscall_proc, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']):
             self.apply_concrete(concrete_result)
             return
 
         symbolic_result = self.dispatch_symbolic(syscall_args)
-        if not (concrete_result.return_value == self._syscall_proc.cc.ret_val.get_value(symbolic_result)).is_true():
+        concrete_return = next(iter(r for r in concrete_result if isinstance(r, SyscallReturnAction)))
+        if not (concrete_return.retval == self._syscall_proc.cc.ret_val.get_value(symbolic_result)).is_true():
             l.warning("Emulation warning: concrete and symbolic executions gave different return values")
 
         self.apply_symbolic(symbolic_result)
 
-    def dispatch_concrete(self, args, syscall_num=None, **kwargs):
+    def dispatch_concrete(self, args, syscall_num: Optional[int]=None, **kwargs) -> List[BaseAction]:
         l.debug("Invoking remote system call handler")
         if syscall_num is None:
             syscall_num = self._syscall_proc.syscall_number
@@ -103,9 +105,7 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
                     raise AngrSyscallError("Trying to push a symbolic syscall to the agent")
 
         self.__description += ' concrete()'
-
-        # TODO FISH HELP
-        return result
+        return self.project.bureau.invoke_syscall(self.state, syscall_num, args, self._syscall_proc.cc)
 
     def dispatch_symbolic(self, args, proc=None, **kwargs):
         self.__description += ' symbolic()'
@@ -117,10 +117,15 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         proc.execute(state, arguments=args)
         return state
 
-    def apply_concrete(self, agent_results):
-        self._syscall_proc.cc.ret_val.set_value(self.state, agent_results.return_value)
-        for addr, data in agent_results.memory_writes:
-            self.state.memory.write(addr, data)
+    def apply_concrete(self, agent_results: List[BaseAction]):
+
+        for action in agent_results:
+            if isinstance(action, SyscallReturnAction):
+                self._syscall_proc.cc.set_return_val(self.state, action.retval)
+            elif isinstance(action, WriteMemoryAction):
+                self.state.memory.store(action.addr, action.data, endness='Iend_BE')
+            else:
+                raise TypeError("Unsupported action type %s." % type(action))
 
     def apply_symbolic(self, result_state):
         self.state = result_state

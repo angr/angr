@@ -6,6 +6,7 @@ import zmq
 
 from .messages import MessageBase, InvokeSyscall, SyscallReturn, RetrieveMemory, RetrieveMemoryReturn, SyncMemory, \
     RetrieveMemoryReturnResult, TargetStrlen, TargetStrlenResponse
+from .actions import BaseAction, SyscallReturnAction, WriteMemoryAction
 
 if TYPE_CHECKING:
     from angr import SimState
@@ -60,11 +61,13 @@ class Bureau:
         assert tmp  # non-empty
         self.zmq_sessions[0].event.set()
 
-    def invoke_syscall(self, state: 'SimState', num: int, args: List, syscall_cc: 'SimCCSyscall'):
+    def invoke_syscall(self, state: 'SimState', num: int, args: List, syscall_cc: 'SimCCSyscall') -> List[BaseAction]:
         self.states[0] = state
 
         msg = InvokeSyscall(num, args)
         _l.debug("Sending %r.", msg)
+
+        actions: List[BaseAction] = [ ]
 
         # wait until the socket is ready
         _l.debug("invoke_syscall(): Waiting for the socket to become ready.")
@@ -80,7 +83,7 @@ class Bureau:
 
             if isinstance(ret, SyscallReturn):
                 # syscall execution completes
-                syscall_cc.set_return_val(state, ret.retval)
+                actions.append(SyscallReturnAction(ret.reval))
                 break
             elif isinstance(ret, RetrieveMemory):
                 # the agent is asking for memory data
@@ -95,8 +98,7 @@ class Bureau:
                 self.zmq_sessions[0].socket.send(r.serialize())
             elif isinstance(ret, SyncMemory):
                 # the agent is sending us back some memory data
-                state = self.states[0]
-                state.memory.store(ret.addr, ret.data, endness='Iend_BE')
+                actions.append(WriteMemoryAction(ret.addr, ret.data))
                 self.zmq_sessions[0].socket.send(b"\x61")  # just send something back...
             elif isinstance(ret, TargetStrlen):
                 # the agent needs to know the length of a string in memory
@@ -114,4 +116,4 @@ class Bureau:
 
         self.states[0] = None
 
-        return state
+        return actions
