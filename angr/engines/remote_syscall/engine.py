@@ -8,12 +8,9 @@ import claripy
 
 from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..engine import SuccessorsMixin
-from .configuration import RemoteSyscallDecision, DEFAULT_CONFIG
 
 if TYPE_CHECKING:
     from angr import SimState
-    from angr.simos import SimUserland
-    from angr.procedures.definitions import SimSyscallLibrary
 
 
 #pylint:disable=abstract-method,arguments-differ
@@ -22,9 +19,13 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
     This mixin dispatches certain syscalls to a syscall agent that runs on another host (a local machine, a chroot jail,
     a Linux VM, a Windows VM, etc.).
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.config = kwargs.pop('remote_syscall_configuration', DEFAULT_CONFIG)
+
+    def __init__(self, project, **kwargs):
+        super().__init__(project, **kwargs)
+        self.__description: str = ''
+        self._syscall_proc: angr.SimProcedure = None
+
+    __tls = ('__description', '_syscall_proc')
 
     def process_successors(self, successors, **kwargs):
         state: 'angr.SimState' = self.state
@@ -34,60 +35,21 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
                 not state.history.parent.jumpkind.startswith('Ijk_Sys')):
             return super().process_successors(successors, **kwargs)
 
-        l.debug("Invoking remote system call handler")
-        syscall_cc = self.project.simos.syscall_cc(state)
-        syscall_num = syscall_cc.syscall_num(state)
+        syscall_proc = self.project.simos.syscall(state)
+        syscall_num = syscall_proc.syscall_number
+        syscall_name = syscall_proc.name
+        syscall_args = [syscall_proc.arg(i) for i in range(len(syscall_proc.cc.func_ty.args))]
 
-        # convert the syscall number to a concrete integer
-        try:
-            num = state.solver.eval_one(syscall_num)
-        except angr.SimSolverError:
-            if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
-                raise AngrUnsupportedSyscallError("Trying to perform a syscall on an emulated system which is not "
-                                                  "currently cofigured to support syscalls. To resolve this, make sure "
-                                                  "that your SimOS is a subclass of SimUserspace, or set the "
-                                                  "BYPASS_UNSUPPORTED_SYSCALL state option.")
-            if not state.solver.satisfiable():
-                raise AngrUnsupportedSyscallError("The program state is not satisfiable")
-            else:
-                raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
+        self.__description = 'Syscall dispatch: ' + syscall_name
+        self._syscall_proc = syscall_proc
 
-        # determine the abi
-        syscall_abi = self._syscall_abi(state, num)
+        # inspect support
+        self.state._inspect('syscall', BP_BEFORE, syscall_name=syscall_name)
 
-        # extract the syscall prototype
-        lib: SimSyscallLibrary = angr.SIM_LIBRARIES['linux']
-        syscall_name = lib.syscall_number_mapping[syscall_abi].get(num)
-        if not syscall_name:
-            if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
-                raise AngrUnsupportedSyscallError("Syscall %d for architecture %s is not found in the syscall "
-                                                  "mapping" % (num, state.arch.name.lower()))
-            raise NotImplementedError("what to do...")
+        self.policy(syscall_num, syscall_name, syscall_args, **kwargs)
 
-        # check against the blacklist. for certain syscalls, we may want to use angr's support
-        decision = self.config.get_decision(syscall_name)
-        if decision == RemoteSyscallDecision.BYPASS:
-            # ask the next mixin in the hierarchy to process this syscall
-            return super().process_successors(successors, **kwargs)
-        assert decision == RemoteSyscallDecision.PROXY
-
-        syscall_proto = lib.get_prototype(syscall_abi, syscall_name, arch=state.arch)
-        if syscall_proto is None:
-            if angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL not in state.options:
-                raise AngrUnsupportedSyscallError("Syscall %d %s for architecture %s is not found in the syscall "
-                                                  "prototypes" % (num, syscall_name, state.arch.name.lower()))
-            raise NotImplementedError("what to do...")
-
-        # extract syscall arguments
-        args = [ ]
-        for arg_idx, arg_type in enumerate(syscall_proto.args):
-            # TODO: Use arg_type to determine what to do in a finer-grained manner
-            arg = syscall_cc.arg(state, arg_idx)
-            if not state.solver.symbolic(arg):
-                args.append(state.solver.eval_one(arg))
-            else:
-                # symbolic arguments...
-                return super().process_successors(successors, **kwargs)
+        # inspect - post execution
+        self.state._inspect('syscall', BP_AFTER, syscall_name=syscall_name)
 
         # create the successor
         successors.sort = 'SimProcedure'
@@ -99,52 +61,64 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
         successors.artifacts['adds_exits'] = True  # TODO
 
         # Update state.scratch
-        state.scratch.sim_procedure = None
-        state.history.recent_block_count = 1
-
-        # inspect support
-        state._inspect('syscall', BP_BEFORE, syscall_name=syscall_name)
-
-        # talk to Bureau
-        succ_state = self.project.bureau.invoke_syscall(state, num, args, syscall_cc)
+        self.state.scratch.sim_procedure = None
+        self.state.history.recent_block_count = 1
 
         # add the successor
-        successors.add_successor(succ_state, syscall_cc.return_addr.get_value(state), claripy.true,
-                                 jumpkind='Ijk_Ret')
+        self.successors.add_successor(self.state, syscall_proc.cc.return_addr.get_value(self.state), claripy.true, jumpkind='Ijk_Ret')
 
-        # inspect - post execution
-        state._inspect('syscall', BP_AFTER, syscall_name=syscall_name)
+        self.successors.description = self.__description
+        self.successors.processed = True
 
-        successors.description = 'SimProcedure ' + syscall_name
-        successors.description += ' (syscall)'
-        successors.processed = True
+    def policy(self, syscall_num, syscall_name, syscall_args, **kwargs):
+        concrete_result = self.dispatch_concrete(syscall_args)
+        if isinstance(self._syscall_proc, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']):
+            self.apply_concrete(concrete_result)
+            return
 
-    def _syscall_abi(self, state: 'SimState', num: int) -> str:
-        """
-        Determine the ABI of the current syscall.
+        symbolic_result = self.dispatch_symbolic(syscall_args)
+        if not (concrete_result.return_value == self._syscall_proc.cc.ret_val.get_value(symbolic_result)).is_true():
+            l.warning("Emulation warning: concrete and symbolic executions gave different return values")
 
-        :param state:   The state right after the syscall jump.
-        :param num:     The syscall number.
-        :return:        A string for the ABI.
-        """
+        self.apply_symbolic(symbolic_result)
 
-        # attempt to get the ABI from syscall_abi, which apparently only works for AMD64
-        syscall_abi = self.project.simos.syscall_abi(state)
-        if syscall_abi is not None:
-            return syscall_abi
+    def dispatch_concrete(self, args, syscall_num=None, **kwargs):
+        l.debug("Invoking remote system call handler")
+        if syscall_num is None:
+            syscall_num = self._syscall_proc.syscall_number
+        if isinstance(syscall_num, claripy.Base):
+            if syscall_num.op == 'BVV':
+                syscall_num = syscall_num.args[0]
+            else:
+                raise AngrSyscallError("Trying to push a symbolic syscall to the agent")
+        for i in range(len(args)):
+            if isinstance(args[i], claripy.Base):
+                if args[i].op == 'BVV':
+                    args[i] = args[i].args[0]
+                else:
+                    raise AngrSyscallError("Trying to push a symbolic syscall to the agent")
 
-        self.project.simos: SimUserland  # we really only support Linux userspace applications
+        self.__description += ' concrete()'
 
-        if len(self.project.simos.syscall_abis) == 1:
-            # that has to be it
-            return next(iter(self.project.simos.syscall_abis))
+        # TODO FISH HELP
+        return result
 
-        # if there are more than one, pick the correct one
-        for abi, (_, min_syscall_num, max_syscall_num) in self.project.simos.syscall_abis.items():
-            if min_syscall_num <= num < max_syscall_num:
-                return abi
+    def dispatch_symbolic(self, args, proc=None, **kwargs):
+        self.__description += ' symbolic()'
+        state = self.state.copy()
+        if proc is None:
+            proc = self._syscall_proc
 
-        raise AngrSyscallError("Cannot determine the ABI for syscall %d on architecture %s." % (num, state.arch.name))
+        # if we ever want syscalls to be able to use self.jump or add multiple successors, this will have to be reworked
+        proc.execute(state, arguments=args)
+        return state
 
+    def apply_concrete(self, agent_results):
+        self._syscall_proc.cc.ret_val.set_value(self.state, agent_results.return_value)
+        for addr, data in agent_results.memory_writes:
+            self.state.memory.write(addr, data)
+
+    def apply_symbolic(self, result_state):
+        self.state = result_state
 
 from ...errors import AngrSyscallError, AngrUnsupportedSyscallError

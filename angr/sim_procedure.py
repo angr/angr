@@ -2,6 +2,7 @@ import inspect
 import copy
 import itertools
 import logging
+import angr
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
@@ -91,10 +92,10 @@ class SimProcedure:
         is_function=None, **kwargs
     ):
         # WE'LL FIGURE IT OUT
-        self.project = project
+        self.project = project # type: angr.Project
         self.arch = project.arch if project is not None else None
         self.addr = None
-        self.cc = cc
+        self.cc = cc # type: angr.SimCC
         self.canonical = self
 
         self.kwargs = kwargs
