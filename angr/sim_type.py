@@ -1298,6 +1298,8 @@ BASIC_TYPES = {
     'unsigned short int': SimTypeShort(False),
 
     'int': SimTypeInt(True),
+    'signed': SimTypeInt(True),
+    'unsigned': SimTypeInt(False),
     'signed int': SimTypeInt(True),
     'unsigned int': SimTypeInt(False),
 
@@ -1361,6 +1363,7 @@ ALL_TYPES.update(BASIC_TYPES)
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
 def make_preamble():
     out = ['typedef int TOP;',
+           'typedef void BOT;',
            'typedef struct FILE_t FILE;',
            'typedef int pid_t;',
            'typedef int sigset_t;',

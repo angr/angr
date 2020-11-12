@@ -83,7 +83,7 @@ class Bureau:
 
             if isinstance(ret, SyscallReturn):
                 # syscall execution completes
-                actions.append(SyscallReturnAction(ret.reval))
+                actions.append(SyscallReturnAction(ret.retval))
                 break
             elif isinstance(ret, RetrieveMemory):
                 # the agent is asking for memory data

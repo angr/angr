@@ -416,6 +416,7 @@ class SimSyscallLibrary(SimLibrary):
         o.names = list(self.names)
         o.syscall_number_mapping = defaultdict(dict, self.syscall_number_mapping) # {abi: {number: name}}
         o.syscall_name_mapping = defaultdict(dict, self.syscall_name_mapping) # {abi: {name: number}}
+        o.syscall_prototypes = defaultdict(dict, self.syscall_prototypes) # as above
         o.default_cc_mapping = dict(self.default_cc_mapping) # {abi: cc}
         return o
 
@@ -513,6 +514,10 @@ class SimSyscallLibrary(SimLibrary):
             if proc.cc is not None:
                 cc.set_func_type_with_arch(proc.cc.func_ty)
             proc.cc = cc
+        # a bit of a hack.
+        name = proc.display_name
+        if self.syscall_prototypes[abi].get(name, None) is not None and proc.cc is not None:
+            proc.cc.func_ty = self.syscall_prototypes[abi][name].with_arch(arch)
 
     # pylint: disable=arguments-differ
     def get(self, number, arch, abi_list=()):

@@ -1,6 +1,7 @@
 from typing import Tuple, Optional
 
-from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction, SimTypeFd
+from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction, SimTypeFd, \
+    register_types, parse_types
 
 
 def get_function_name(s):
@@ -35,6 +36,23 @@ def get_function_name(s):
 
     func_name = func_name[pos + 1 : ]
     return func_name
+
+def register_kernel_types():
+    register_types(parse_types("""
+    typedef int mode_t;
+    typedef unsigned int umode_t;
+    typedef int clockid_t;
+    typedef int pid_t;
+    typedef int qid_t;
+    typedef int key_t;
+    typedef int mqd_t;
+    typedef void *timer_t;
+    typedef uint32_t u32;
+    typedef uint32_t __u32;
+    typedef uint64_t u64;
+    typedef int32_t __s32;
+    typedef int64_t loff_t;
+    """))
 
 
 def convert_cproto_to_py(c_decl):

@@ -1093,4 +1093,42 @@ class SimPacketsSlots(SimFileBase):
         raise SimMergeError("Widening the filesystem is unsupported")
 
 
+# HACK. this really should not live in this file but circular imports will be the death of us all
+class RemoteFd(SimFileDescriptorBase):
+    def __init__(self, remote_fd):
+        super().__init__()
+        self.remote_fd = remote_fd
+
+    def copy(self, memo):
+        return self
+
+    @staticmethod
+    def nope(*args, **kwargs):
+        raise Exception("Cannot query contents of remotely opened file")
+
+    read_data = nope
+    write_data = nope
+    seek = nope
+    tell = nope
+    eof = nope
+    size = nope
+    concretize = nope
+
+    @property
+    def read_storage(self):
+        return self.nope()
+
+    @property
+    def write_storage(self):
+        return self.nope()
+
+    @property
+    def read_pos(self):
+        return self.nope()
+
+    @property
+    def write_pos(self):
+        return self.nope()
+
+
 from ..errors import SimMergeError, SimFileError, SimSolverError

@@ -11,7 +11,8 @@ class syscall(angr.SimProcedure):
 
         self.resolves = resolves  # pylint:disable=attribute-defined-outside-init
 
-        self.successors.artifacts['resolves'] = resolves
+        if self.successors is not None:
+            self.successors.artifacts['resolves'] = resolves
 
         return self.state.solver.Unconstrained("syscall_stub_%s" % self.display_name, self.state.arch.bits, key=('syscall', '?', self.display_name))
 
