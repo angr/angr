@@ -32,6 +32,11 @@ class SimEngineRemoteSyscall(SuccessorsMixin):
 
     def process_successors(self, successors, **kwargs):
         state: 'angr.SimState' = self.state
+        # Hack: move this into state construction
+        state.posix.fd[0].remote_fd = 0
+        state.posix.fd[1].remote_fd = 1
+        state.posix.fd[2].remote_fd = 2
+
         if (not state.history or
                 not state.history.parent or
                 not state.history.parent.jumpkind or
