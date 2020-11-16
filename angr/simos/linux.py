@@ -113,7 +113,12 @@ class SimLinux(SimUserland):
 
 
         if isinstance(self.project.arch, ArchARM):
-            self.project.hook(0xffff0fe0, P['linux_kernel']['_kernel_user_helper_get_tls']())
+            # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
+            for func_name in P['linux_kernel']:
+                if not func_name.startswith('_kuser_'):
+                    continue
+                func = P['linux_kernel'][func_name]
+                self.project.hook(func.kuser_addr, func())
 
         # maybe move this into archinfo?
         if self.arch.name == 'X86':
