@@ -27,3 +27,6 @@ class HeapAddress:
 
     def __eq__(self, other):
         return isinstance(other, HeapAddress) and self._value == other._value
+
+    def __hash__(self):
+        return hash(self._value)
