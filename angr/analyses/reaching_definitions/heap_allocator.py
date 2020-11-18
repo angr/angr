@@ -38,7 +38,7 @@ class HeapAllocator:
         address = self._next_heap_address
 
         size = self._canonical_size if isinstance(size, UnknownSize) else size
-        self._next_heap_address = HeapAddress(self._next_heap_address.value + size)
+        self._next_heap_address += size
 
         self._allocated_addresses += [self._next_heap_address]
 
