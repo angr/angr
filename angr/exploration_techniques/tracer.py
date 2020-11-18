@@ -43,7 +43,7 @@ class RepHook:
 
     def run(self, state):
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES # pylint: disable=import-outside-toplevel
 
         dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
 
@@ -107,7 +107,7 @@ class RepHook:
                 state.regs.rcx = 0
 
         else:
-            import ipdb; ipdb.set_trace()
+            raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
 
 
 class Tracer(ExplorationTechnique):
@@ -181,6 +181,7 @@ class Tracer(ExplorationTechnique):
 
         # calc ASLR slide for main binary and find the entry point in one fell swoop
         # ...via heuristics
+        idx = None
         for idx, addr in enumerate(self._trace):
             if self.project.loader.main_object.pic:
                 if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x100000):
