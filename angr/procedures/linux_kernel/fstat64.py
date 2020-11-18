@@ -1,5 +1,4 @@
 import angr
-from pwn import cyclic
 
 class fstat64(angr.SimProcedure):
     """
