@@ -43,7 +43,7 @@ class RepHook:
 
     def run(self, state):
 
-        from .. import SIM_PROCEDURES
+        from .. import SIM_PROCEDURES # pylint: disable=import-outside-toplevel
 
         dst = state.regs.edi if state.arch.name == "X86" else state.regs.rdi
 
@@ -107,7 +107,7 @@ class RepHook:
                 state.regs.rcx = 0
 
         else:
-            import ipdb; ipdb.set_trace()
+            raise NotImplementedError("Unsupported mnemonic %s" % self.mnemonic)
 
 
 class Tracer(ExplorationTechnique):
@@ -132,6 +132,8 @@ class Tracer(ExplorationTechnique):
                                 in order to set the predecessors list correctly. If you turn this
                                 on you may want to enable the LAZY_SOLVES option.
     :param mode:                Tracing mode.
+    :param aslr:                Whether there are aslr slides. if not, tracer uses trace address
+                                as state address.
 
     :ivar predecessors:         A list of states in the history before the final state.
     """
@@ -142,13 +144,15 @@ class Tracer(ExplorationTechnique):
             keep_predecessors=1,
             crash_addr=None,
             copy_states=False,
-            mode=TracingMode.Strict):
+            mode=TracingMode.Strict,
+            aslr=True):
         super(Tracer, self).__init__()
         self._trace = trace
         self._resiliency = resiliency
         self._crash_addr = crash_addr
         self._copy_states = copy_states
         self._mode = mode
+        self._aslr = aslr
 
         self._aslr_slides = {}
         self._current_slide = None
@@ -177,6 +181,7 @@ class Tracer(ExplorationTechnique):
 
         # calc ASLR slide for main binary and find the entry point in one fell swoop
         # ...via heuristics
+        idx = None
         for idx, addr in enumerate(self._trace):
             if self.project.loader.main_object.pic:
                 if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x100000):
@@ -187,9 +192,15 @@ class Tracer(ExplorationTechnique):
         else:
             raise AngrTracerError("Could not identify program entry point in trace!")
 
-        # pylint: disable=undefined-loop-variable
-        # pylint doesn't know jack shit
-        self._current_slide = self._aslr_slides[self.project.loader.main_object] = self._trace[idx] - self.project.entry
+        # handle aslr slides
+        if self._aslr:
+            # pylint: disable=undefined-loop-variable
+            # pylint doesn't know jack shit
+            self._current_slide = self._aslr_slides[self.project.loader.main_object] = self._trace[idx] - self.project.entry
+        else:
+            for obj in self.project.loader.all_elf_objects:
+                self._aslr_slides[obj] = 0
+            self._current_slide = 0
 
         # step to entry point
         while self._trace and self._trace[idx] != simgr.one_active.addr + self._current_slide:
@@ -252,13 +263,15 @@ class Tracer(ExplorationTechnique):
         # optimization:
         # look forward, is it a rep stos/movs instruction?
         # if so, we add a temporary hook to speed up constraint solving
-        block = self.project.factory.block(state.addr)
-        if len(block.capstone.insns) == 1 and (
-                block.capstone.insns[0].mnemonic.startswith("rep m") or
-                block.capstone.insns[0].mnemonic.startswith("rep s")
-        ) and not self.project.is_hooked(state.addr):
-            insn = block.capstone.insns[0]
-            self.project.hook(state.addr, RepHook(insn.mnemonic.split(" ")[1]).run, length=insn.size)
+        if not self.project.is_hooked(state.addr):
+            block = self.project.factory.block(state.addr)
+
+            if len(block.capstone.insns) == 1 and (
+                    block.capstone.insns[0].mnemonic.startswith("rep m") or
+                    block.capstone.insns[0].mnemonic.startswith("rep s")
+            ):
+                insn = block.capstone.insns[0]
+                self.project.hook(state.addr, RepHook(insn.mnemonic.split(" ")[1]).run, length=insn.size)
 
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
@@ -429,7 +442,8 @@ class Tracer(ExplorationTechnique):
                 raise Exception("Extremely bad news: we're executing an unhooked address in the externs space")
             if proc.is_continuation:
                 orig_addr = self.project.loader.find_symbol(proc.display_name).rebased_addr
-                orig_trace_addr = orig_addr + self._aslr_slides[self.project.loader.find_object_containing(orig_addr)]
+                obj = self.project.loader.find_object_containing(orig_addr)
+                orig_trace_addr = self._translate_state_addr(orig_addr, obj)
                 if 0 <= self._trace[idx + 1] - orig_trace_addr <= 0x10000:
                     # this is fine. we do nothing and then next round it'll get handled by the is_hooked(state.history.addr) case
                     pass

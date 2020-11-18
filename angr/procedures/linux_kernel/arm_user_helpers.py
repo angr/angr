@@ -35,6 +35,11 @@ class _kuser_cmpxchg(angr.SimProcedure):
         # handle cmpxchg
         if self.state.solver.is_true(retval == 0):
             self.state.memory.store(ptr, newval)
+            # set CARRY flag
+            self.state.regs.flags |= 0x20000000
+        else:
+            # zero CARRY flag
+            self.state.regs.flags &= 0xdfffffff
         return retval
 
 class _kuser_memory_barrier(angr.SimProcedure):

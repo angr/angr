@@ -428,7 +428,7 @@ class SimSystemPosix(SimStatePlugin):
                     self.state.solver.BVV(0, 32), # st_gid
                     self.state.solver.BVV(0, 64), # st_rdev
                     size, # st_size
-                    self.state.solver.BVV(0, 64), # st_blksize
+                    self.state.solver.BVV(0x400, 64), # st_blksize
                     self.state.solver.BVV(0, 64), # st_blocks
                     self.state.solver.BVV(0, 64), # st_atime
                     self.state.solver.BVV(0, 64), # st_atimensec
