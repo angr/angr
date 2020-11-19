@@ -323,7 +323,7 @@ class SimEngineRDVEX(
                 current_defs = self.state.stack_definitions.get_objects_by_offset(a.offset)
                 if current_defs:
                     for def_ in current_defs:
-                        data.update(def_.data)
+                        data.update(def_.data.truncate(self.arch.bits))
                 else:
                     data.add(UNDEFINED)
                 memory_location = MemoryLocation(a, size)
