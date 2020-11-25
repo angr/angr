@@ -15,6 +15,12 @@ class UnknownSize:
     def __rsub__(self, other):
         return self
 
+    def __div__(self, other):
+        return self
+
+    def __floordiv__(self, other):
+        return self
+
     def __lshift__(self, other):
         return self
 
