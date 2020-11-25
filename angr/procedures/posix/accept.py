@@ -18,7 +18,8 @@ class accept(angr.SimProcedure):
             if sockfd in self.state.posix.fd:
                 simsockfd = self.state.posix.fd[sockfd]
                 for potential_ident in self.state.posix.sockets:
-                    if self.state.posix.sockets[potential_ident] is simsockfd:
+                    if self.state.posix.sockets[potential_ident][0] is simsockfd.read_storage and \
+                            self.state.posix.sockets[potential_ident][1] is simsockfd.write_storage:
                         ident = potential_ident
                         break
 
