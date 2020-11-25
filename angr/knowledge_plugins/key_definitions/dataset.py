@@ -21,7 +21,7 @@ class DataSet:
     Addition and subtraction are performed on the cartesian product of the operands. Duplicate results are removed.
     Data must always include a set.
 
-    :ivar set data:    The set of data to represent.
+    :ivar set[Union[int,str,Undefined]] data: The set of data to represent.
     :ivar Union[int,UnknownSize] bits: The size of an element of the set, in number of bits its representation takes.
     """
     maximum_size = 5
@@ -57,8 +57,17 @@ class DataSet:
         if self._bits <= bits:
             return DataSet(self.data, bits)
 
-        mask = (1 << bits) - 1
-        data = { d & mask if isinstance(d, int) else d for d in self.data }
+        def _truncate(datum):
+            if isinstance(datum, int):
+                mask = (1 << bits) - 1
+                return datum & mask
+            elif isinstance(datum, str):
+                number_of_bytes = bits // 8
+                return datum[:number_of_bytes]
+            else:
+                return datum
+
+        data = { _truncate(d) for d in self.data }
         return DataSet(data, bits)
 
     def update(self, data):

@@ -83,8 +83,6 @@ class CodeLocation:
         returns the hash value of self.
         """
         context = self.info.get('context', None)
-        if not context:
-            context = None
         return hash((self.block_addr, self.stmt_idx, self.sim_procedure, context))
 
     def _store_kwargs(self, **kwargs):
