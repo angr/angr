@@ -13,6 +13,7 @@ from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, Parameter
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Parameter, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
+from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
 from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
 from ...code_location import CodeLocation
 from .rd_state import ReachingDefinitionsState
@@ -120,9 +121,12 @@ class SimEngineRDVEX(
             l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
 
-        # special handling for references to stack variables
+        # special handling for references to heap or stack variables
         for d in data:
-            if isinstance(d, SpOffset) and isinstance(d.offset, int):
+            if (
+                (isinstance(d, HeapAddress) and isinstance(d.value, int)) or
+                (isinstance(d, SpOffset) and isinstance(d.offset, int))
+            ):
                 self.state.add_use(MemoryLocation(d, 1), self._codeloc())
 
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
@@ -155,7 +159,7 @@ class SimEngineRDVEX(
 
             self._store_core(addr, size, data, data_old=data_old)
 
-    def _store_core(self, addr: Iterable[Union[int,SpOffset,Undefined]], size: int, data, data_old=None):
+    def _store_core(self, addr: Iterable[Union[int,HeapAddress,SpOffset,Undefined]], size: int, data, data_old=None):
         if data_old:
             data.update(data_old)
 
@@ -166,7 +170,11 @@ class SimEngineRDVEX(
                 if any(type(d) is Undefined for d in data):
                     l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
 
-                if isinstance(a, int) or (isinstance(a, SpOffset) and isinstance(a.offset, int)):
+                if (
+                    isinstance(a, int) or
+                    (isinstance(a, SpOffset) and isinstance(a.offset, int)) or
+                    (isinstance(a, HeapAddress) and isinstance(a.value, int))
+                ):
                     tags: Optional[Set[Tag]]
                     if isinstance(a, SpOffset):
                         function_address = (
@@ -295,7 +303,7 @@ class SimEngineRDVEX(
 
         return self._load_core(addr, size, expr.endness)
 
-    def _load_core(self, addr: Iterable[Union[int,SpOffset]], size: int, endness: str):  # pylint:disable=unused-argument
+    def _load_core(self, addr: Iterable[Union[int,HeapAddress,SpOffset]], size: int, endness: str):  # pylint:disable=unused-argument
 
         current_defs: Iterable[Definition]
 
@@ -321,6 +329,16 @@ class SimEngineRDVEX(
             elif isinstance(a, SpOffset) and isinstance(a.offset, int):
                 # Load data from a local variable
                 current_defs = self.state.stack_definitions.get_objects_by_offset(a.offset)
+                if current_defs:
+                    for def_ in current_defs:
+                        data.update(def_.data.truncate(self.arch.bits))
+                else:
+                    data.add(UNDEFINED)
+                memory_location = MemoryLocation(a, size)
+                self.state.add_use(memory_location, self._codeloc())
+            elif isinstance(a, HeapAddress) and isinstance(a.value, int):
+                # Load data from the heap
+                current_defs = self.state.heap_definitions.get_objects_by_offset(a.value)
                 if current_defs:
                     for def_ in current_defs:
                         data.update(def_.data.truncate(self.arch.bits))

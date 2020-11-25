@@ -13,6 +13,7 @@ from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from .external_codeloc import ExternalCodeLocation
+from .heap_allocator import HeapAllocator
 from .subject import Subject, SubjectType
 
 if TYPE_CHECKING:
@@ -37,14 +38,18 @@ class ReachingDefinitionsState:
                               variables, false otherwise.
     :param analysis: The analysis that generated the state represented by this object.
     :param rtoc_value: When the targeted architecture is ppc64, the initial function needs to know the `rtoc_value`.
+    :param live_definitions:
+    :param canonical_size:
+        The sizes (in bytes) that objects with an UNKNOWN_SIZE are treated as for operations where sizes are necessary.
+    :param heap_allocator: Mechanism to model the management of heap memory.
     """
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
-                 'all_definitions', '_canonical_size')
+                 'all_definitions', '_canonical_size', 'heap_allocator' )
 
     def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False,
                  analysis: Optional['ReachingDefinitionsAnalysis']=None, rtoc_value=None,
-                 live_definitions=None, canonical_size=8):
+                 live_definitions=None, canonical_size: int=8, heap_allocator: HeapAllocator=None):
 
         # handy short-hands
         self.arch = arch
@@ -63,6 +68,8 @@ class ReachingDefinitionsState:
             self.live_definitions = live_definitions
 
         self.all_definitions: Set[Definition] = set()
+
+        self.heap_allocator = heap_allocator or HeapAllocator(canonical_size)
 
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
@@ -84,6 +91,12 @@ class ReachingDefinitionsState:
 
     @property
     def stack_uses(self): return self.live_definitions.stack_uses
+
+    @property
+    def heap_definitions(self): return self.live_definitions.heap_definitions
+
+    @property
+    def heap_uses(self): return self.live_definitions.heap_uses
 
     @property
     def memory_uses(self): return self.live_definitions.memory_uses
@@ -178,6 +191,7 @@ class ReachingDefinitionsState:
             analysis=self.analysis,
             live_definitions=self.live_definitions.copy(),
             canonical_size=self._canonical_size,
+            heap_allocator=self.heap_allocator,
         )
 
         return rd
