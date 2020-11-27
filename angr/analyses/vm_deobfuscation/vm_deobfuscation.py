@@ -1,6 +1,7 @@
 import angr
 import logging
 import pyvex
+import claripy
 import networkx as nx
 import re
 import copy
@@ -8,6 +9,7 @@ import os
 from collections import defaultdict
 from angr.code_location import CodeLocation
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
+from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..reaching_definitions.dep_graph import DepGraph
@@ -24,19 +26,48 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+
+
 class StatementNode:
-    def __init__(self, stmt, codeloc):
+    def __init__(self, stmt, codeloc, def_atom=None):
         self.stmt = stmt
         self.codeloc = codeloc
-        self.simplified_expr = None
+
+        #definition_atom
+        self.def_atom = def_atom
+
     def __repr__(self):
-        return f"<Statement:{self.stmt} Expr:{self.simplified_expr}, Codeloc:{self.codeloc}>"
+        return f"<Statement:{self.stmt} Codeloc:{self.codeloc} Atom:{self.def_atom}>"
 
     def __eq__(self, other):
-        return self.stmt == other.stmt and self.codeloc == other.codeloc
+        return self.stmt == other.stmt and self.codeloc == other.codeloc and self.def_atom == other.def_atom
 
     def __hash__(self):
-        return hash((self.stmt, self.codeloc))
+        return hash((self.stmt, self.codeloc, self.def_atom))
+
+class StatementGraph:
+    def __init__(self, graph=None):
+        if graph is None:
+            self._graph = nx.DiGraph()
+        else:
+            self._graph = graph
+        self.simplified_asts = {}
+
+    @property
+    def graph(self):
+        return self._graph
+
+    def add_edge(self, src_node, dst_node, **labels):
+        self._graph.add_edge(src_node, dst_node, **labels)
+
+    def add_node(self, node):
+        self._graph.add_node(node)
+
+    def nodes(self):
+        return self._graph.nodes()
+
+    def subgraph(self, nodes):
+        return self._graph.subgraph(nodes)
 
 
 class VMDeobfuscation(Analysis):
@@ -67,10 +98,10 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
-        # DCE
-        for i in range(11):
-            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
+        # DCE commented out temporarily to make testing faster for block simplifications
+        # for i in range(11):
+        #     new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr,
@@ -80,15 +111,30 @@ class VMDeobfuscation(Analysis):
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, proj, folder_name)
 
+    def convert_to_atom(self, vex_inst, tyenv, byte_width):
+        if isinstance(vex_inst, pyvex.expr.RdTmp):
+            atom = Tmp(vex_inst.tmp, vex_inst.result_size(tyenv) // byte_width)
+        elif isinstance(vex_inst, pyvex.stmt.WrTmp):
+            atom = Tmp(vex_inst.tmp, vex_inst.data.result_size(tyenv) // byte_width)
+        else:
+            atom = None
+        return atom
+    def vex_expr_to_ast(self, vex_expr, tyenv):
+        if isinstance(vex_expr, pyvex.expr.Get):
+            ast = claripy.BVS(f'reg_{vex_expr.offset}', vex_expr.result_size(tyenv))
+        return ast
+
+    def ast_t_vex_expr(self):
+        return vex_expr
+
     def block_arithmetic_simplifications(self, cfg, proj, start_addr=None, vm_vpc_addr=None, start_state=None):
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
                 result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph())
 
-                import ipdb;ipdb.set_trace()
                 ## create stmt dependency graph
-                stmt_graph = nx.DiGraph()
+                stmt_graph = StatementGraph()
                 for ind, stmt in enumerate(node.irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark):
                         cur_ins_addr = stmt.addr
@@ -96,39 +142,110 @@ class VMDeobfuscation(Analysis):
                     code_loc = CodeLocation(node.addr, ind, ins_addr=cur_ins_addr)
                     if code_loc in result.all_uses_by_code_loc:
                         for use in result.all_uses_by_code_loc[code_loc]:
+                            use_stmt = node.irsb.statements[use.codeloc.stmt_idx]
+                            tmp_atom = self.convert_to_atom(use_stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
                             if isinstance(use.codeloc, ExternalCodeLocation):
-                                use_node = StatementNode(None, use.codeloc)
+                                use_node = StatementNode(None, use.codeloc, def_atom=use.atom)
                             else:
-                                use_node = StatementNode(node.irsb.statements[use.codeloc.stmt_idx], use.codeloc)
-                            stmt_node = StatementNode(stmt, code_loc)
+                                use_node = StatementNode(use_stmt, use.codeloc, def_atom=tmp_atom)
+                            stmt_atom = self.convert_to_atom(stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
+                            stmt_node = StatementNode(stmt, code_loc, def_atom=stmt_atom)
                             stmt_graph.add_edge(stmt_node, use_node)
                     else:
-                        ## This statement has no dependency on other statements
+                        ## These are independent statements so we do not have atoms associated with them
                         stmt_node = StatementNode(stmt, code_loc)
                         stmt_graph.add_node(stmt_node)
 
-                import ipdb;ipdb.set_trace()
-
-                ## split the graph onto connected components
-                conn_comps = nx.weakly_connected_components(stmt_graph)
+                ## split the graph into connected components
+                conn_comps = nx.weakly_connected_components(stmt_graph.graph)
                 conn_comps = list(conn_comps)
 
                 sub_graphs = []
                 for comp in conn_comps:
-                    comp_graph = nx.DiGraph()
-                    for temp_node in stmt_graph.subgraph(comp).nodes():
-                        comp_graph.add_node(copy.deepcopy(temp_node))
-                    for edge in stmt_graph.subgraph(comp).edges():
-                        comp_graph.add_edge(copy.deepcopy(edge[0]), copy.deepcopy(edge[1]))
+                    comp_graph = StatementGraph(graph=copy.deepcopy(stmt_graph.graph.subgraph(comp)))
+                    # for temp_node in stmt_graph.graph.subgraph(comp).nodes():
+                    #     comp_graph.add_node(copy.deepcopy(temp_node))
+                    # for edge in stmt_graph.graph.subgraph(comp).edges():
+                    #     comp_graph.add_edge(edge[0], edge[1])
                     sub_graphs.append(comp_graph)
 
                 ## perform arithmetic simplifications on each component individually
-                import ipdb;ipdb.set_trace()
+                for sub_graph in sub_graphs:
+                    stmt_node_queue = []
+                    for stmt_node in sub_graph.nodes():
+                        if sub_graph.graph.out_degree(stmt_node) == 0:
+                            stmt_node_queue.append(stmt_node)
+                            print(stmt_node)
+
+                    while len(stmt_node_queue) > 0:
+                        cur_stmt_node = stmt_node_queue.pop(0)
+                        preds = list(sub_graph.graph.predecessors(cur_stmt_node))
+                        stmt_node_queue = stmt_node_queue + preds
+
+                        if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
+                            continue
+                        ## Make sure all the dependencies have been simplified first before simplifying the statements itself
+                        successors = list(sub_graph.graph.successors(cur_stmt_node))
+                        for succ in successors:
+                            if succ not in sub_graph.simplified_asts:
+                                continue
+
+                        cur_stmt = cur_stmt_node.stmt
+                        if isinstance(cur_stmt, pyvex.stmt.WrTmp):
+                            if isinstance(cur_stmt.data, pyvex.expr.Binop) and \
+                                    cur_stmt.data.op == "Iop_Sub64":
+
+                                if isinstance(cur_stmt.data.args[0], pyvex.expr.Const):
+                                    left_arg_atom = cur_stmt.data.args[0].con.value
+                                else:
+                                    left_arg_atom = self.convert_to_atom(cur_stmt.data.args[0], node.irsb.tyenv, node.irsb.arch.byte_width)
+
+                                if isinstance(cur_stmt.data.args[1], pyvex.expr.Const):
+                                    right_arg_atom = cur_stmt.data.args[1].con.value
+                                else:
+                                    right_arg_atom = self.convert_to_atom(cur_stmt.data.args[1], node.irsb.tyenv, node.irsb.arch.byte_width)
+
+                                successors = list(sub_graph.graph.successors(cur_stmt_node))
+
+                                print(left_arg_atom)
+                                print(right_arg_atom)
+
+
+                                ### match the arguments with the successors nodes, to get the simplified expr for each
+                                left_arg_node = None
+                                right_arg_node = None
+                                for succ in successors:
+                                    if succ.def_atom == left_arg_atom:
+                                        left_arg_node = succ
+                                    elif succ.def_atom == right_arg_atom:
+                                        right_arg_node = succ
+
+                                if left_arg_node:
+                                    left_simplified_ast = sub_graph.simplified_asts[left_arg_node]
+                                else:
+                                    ## probably a constant
+                                    left_simplified_ast = left_arg_atom
+
+                                if right_arg_node:
+                                    right_simplified_ast = sub_graph.simplified_asts[right_arg_node]
+                                else:
+                                    ## probably a constant
+                                    right_simplified_ast = right_arg_atom
+
+
+                                import ipdb;
+                                ipdb.set_trace()
+                            else:
+                                import ipdb;
+                                ipdb.set_trace()
+                                sub_graph.simplified_asts[cur_stmt_node] = self.vex_expr_to_ast(cur_stmt.data, node.irsb.tyenv)
+
+
+                    import ipdb;
+                    ipdb.set_trace()
+
 
                 ## reconstrcut the statements from the simplififed graph
-
-                import ipdb;
-                ipdb.set_trace()
         return new_cfg
 
     ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
