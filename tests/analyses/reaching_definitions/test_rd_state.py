@@ -1,13 +1,14 @@
 import os
 import random
 
-from unittest import TestCase
+from unittest import mock, TestCase
 
 import archinfo
 
 from angr.analyses.reaching_definitions.heap_allocator import HeapAllocator
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import SubjectType
+from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 
 
 TESTS_LOCATION = os.path.join(
@@ -55,3 +56,16 @@ class TestReachingDefinitionsState(TestCase):
         state = ReachingDefinitionsState(arch, _MockFunctionSubject())
 
         self.assertTrue(isinstance(state.heap_allocator, HeapAllocator))
+
+    def test_get_sp_delegates_to_the_underlying_live_definitions(self):
+        arch = archinfo.arch_arm.ArchARM()
+        live_definitions = LiveDefinitions(arch)
+
+        state = ReachingDefinitionsState(
+           arch=arch, subject=_MockFunctionSubject(), live_definitions=live_definitions
+        )
+
+        with mock.patch.object(LiveDefinitions, 'get_sp') as live_definitions_get_sp_mock:
+            state.get_sp()
+
+            live_definitions_get_sp_mock.assert_called_once()

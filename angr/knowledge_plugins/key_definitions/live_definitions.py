@@ -80,12 +80,15 @@ class LiveDefinitions:
         Return the concrete value contained by the stack pointer.
         """
         sp_definitions = self.register_definitions.get_objects_by_offset(self.arch.sp_offset)
+        [first_value, *other_values] = [ d.data.get_first_element() for d in sp_definitions ]
 
-        assert len(sp_definitions) == 1
-        [sp_definition] = sp_definitions
+        # If there are several definitions for SP, all values must be the same.
+        if len(sp_definitions) > 1:
+            [first_value, *other_values] = [ d.data.get_first_element() for d in sp_definitions ]
+            all_have_same_value = all(map(lambda v: v == first_value, other_values))
+            assert all_have_same_value
 
-        # Assuming sp_definition has only one concrete value.
-        return sp_definition.data.get_first_element()
+        return first_value
 
     def merge(self, *others):
 
