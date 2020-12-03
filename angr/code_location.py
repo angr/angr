@@ -72,7 +72,7 @@ class CodeLocation:
         """
         Check if self is the same as other.
         """
-        return type(other) is CodeLocation and self.block_addr == other.block_addr and \
+        return type(self) is type(other) and self.block_addr == other.block_addr and \
                 self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure and \
                 self.context == other.context
 
