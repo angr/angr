@@ -9,7 +9,7 @@ from claripy.ast.fp import FP, fpToIEEEBV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SootMixin
-from ..engines.soot.expressions import SimSootExpr_NewArray #, SimSootExpr_NewMultiArray
+from ..engines.soot.expressions import SimSootExpr_NewArray, SimSootExpr_NewMultiArray
 from ..engines.soot.values import (SimSootValue_ArrayRef,
                                    SimSootValue_StringRef,
                                    SimSootValue_ThisRef,
@@ -297,10 +297,10 @@ class SimJavaVM(SimOS):
         if type_ == 'java.lang.String':
             return SimSootValue_StringRef.new_object(state, StringS('default_value_{}'.format(type_), 1000), symbolic=True)
         if type_.endswith('[][]'):
-            raise NotImplementedError
-            # multiarray = SimSootExpr_NewMultiArray.new_array(self.state, element_type, size)
-            # multiarray.add_default_value_generator(lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, sizes))
-            # return  multiarray
+            element_type = type_[:-2]
+            multiarray = SimSootExpr_NewMultiArray.new_array(state, element_type, BVV(2, 32), default_value_generator=
+                lambda s: SimSootExpr_NewMultiArray._generate_inner_array(s, element_type, [BVV(2, 32)]))
+            return multiarray
         if type_.endswith('[]'):
             array = SimSootExpr_NewArray.new_array(state, type_[:-2], BVV(2, 32))
             return array

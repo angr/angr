@@ -20,7 +20,7 @@ class StringConcat(JavaSimProcedure):
         str_1 = self.state.javavm_memory.load(str_1_ref)
         str_2 = self.state.javavm_memory.load(str_2_ref)
         result = claripy.StrConcat(str_1, str_2)
-        return result
+        return SimSootValue_StringRef.new_object(self.state, result)
 
 
 class StringEquals(JavaSimProcedure):
