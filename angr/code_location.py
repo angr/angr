@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 
 
 class CodeLocation:
@@ -7,23 +7,27 @@ class CodeLocation:
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'info', )
+    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', )
 
-    def __init__(self, block_addr, stmt_idx, sim_procedure=None, ins_addr=None, **kwargs):
+    def __init__(self, block_addr: int, stmt_idx: int, sim_procedure=None, ins_addr: Optional[int]=None,
+                 context: Optional[Tuple]=None, **kwargs):
         """
         Constructor.
 
-        :param int block_addr:      Address of the block
-        :param int stmt_idx:        Statement ID. None for SimProcedures
+        :param block_addr:          Address of the block
+        :param stmt_idx:            Statement ID. None for SimProcedures
         :param class sim_procedure: The corresponding SimProcedure class.
-        :param int ins_addr:        The instruction address. Optional.
+        :param ins_addr:            The instruction address.
+        :param context:             A tuple that represents the context of this CodeLocation.
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
-        self.block_addr = block_addr
-        self.stmt_idx = stmt_idx
+        self.block_addr: int = block_addr
+        self.stmt_idx: int = stmt_idx
         self.sim_procedure = sim_procedure
-        self.ins_addr = ins_addr
+        self.ins_addr: Optional[int] = ins_addr
+        # sanitization: if context is an empty tuple, we store a None instead
+        self.context: Optional[Tuple] = None if not context else context
 
         self.info: Optional[Dict] = None
 
@@ -68,22 +72,15 @@ class CodeLocation:
         """
         Check if self is the same as other.
         """
-        if type(self) is type(other) and self.block_addr == other.block_addr and \
-               self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure:
-            # compare context
-            ctx0 = self.info.get('context', None)
-            ctx1 = other.info.get('context', None)
-            if not ctx0 and not ctx1:
-                return True
-            return ctx0 == ctx1
-        return False
+        return type(other) is CodeLocation and self.block_addr == other.block_addr and \
+                self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure and \
+                self.context == other.context
 
     def __hash__(self):
         """
         returns the hash value of self.
         """
-        context = self.info.get('context', None)
-        return hash((self.block_addr, self.stmt_idx, self.sim_procedure, context))
+        return hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.context))
 
     def _store_kwargs(self, **kwargs):
         if self.info is None:
