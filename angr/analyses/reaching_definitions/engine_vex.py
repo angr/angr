@@ -531,7 +531,7 @@ class SimEngineRDVEX(
 
     def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
 
-        if len(self._call_stack) + 1 > self._maximum_local_call_depth:
+        if self._call_stack is not None and len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
             return False
 
