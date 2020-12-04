@@ -10,7 +10,7 @@ class CodeLocation:
     __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', )
 
     def __init__(self, block_addr: int, stmt_idx: int, sim_procedure=None, ins_addr: Optional[int]=None,
-                 context: Optional[Tuple]=None, **kwargs):
+                 context: Optional[Tuple[int]]=None, **kwargs):
         """
         Constructor.
 
@@ -18,7 +18,8 @@ class CodeLocation:
         :param stmt_idx:            Statement ID. None for SimProcedures
         :param class sim_procedure: The corresponding SimProcedure class.
         :param ins_addr:            The instruction address.
-        :param context:             A tuple that represents the context of this CodeLocation.
+        :param context:             A tuple that represents the context of this CodeLocation in contextful mode, or
+                                    None in contextless mode.
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
@@ -26,8 +27,7 @@ class CodeLocation:
         self.stmt_idx: int = stmt_idx
         self.sim_procedure = sim_procedure
         self.ins_addr: Optional[int] = ins_addr
-        # sanitization: if context is an empty tuple, we store a None instead
-        self.context: Optional[Tuple] = context
+        self.context: Optional[Tuple[int]] = context
 
         self.info: Optional[Dict] = None
 
