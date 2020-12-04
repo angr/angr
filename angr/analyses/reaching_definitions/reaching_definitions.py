@@ -101,7 +101,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             self._function_handler = function_handler.hook(self)
 
         self._call_stack: Optional[List[int]] = None
-        if call_stack:
+        if call_stack is not None:
             self._call_stack = self._init_call_stack(call_stack, subject)
 
         if self._init_state is not None:

@@ -49,7 +49,7 @@ class InsnAndNodeObserveTestingUtils():
 
         main_function = cfg.kb.functions['main']
         reaching_definitions = project.analyses.ReachingDefinitions(
-            subject=main_function, observation_points=observation_points
+            subject=main_function, observation_points=observation_points, call_stack=[],
         )
 
         state = ReachingDefinitionsState(
