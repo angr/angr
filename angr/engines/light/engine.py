@@ -1,6 +1,5 @@
 # pylint:disable=no-self-use
-from typing import Tuple
-
+from typing import Tuple, Optional
 import logging
 
 import ailment
@@ -48,8 +47,13 @@ class SimEngineLight(SimEngine):
     #
 
     @property
-    def _context(self) -> Tuple[int]:
+    def _context(self) -> Optional[Tuple[int]]:
+        if self._call_stack is None:
+            # contextless mode
+            return None
+
         if not self._call_stack:
+            # contextful but the callstack is empty
             return tuple()
 
         # Convert to Tuple to make `context` hashable if not None
