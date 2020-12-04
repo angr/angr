@@ -27,7 +27,7 @@ class CodeLocation:
         self.sim_procedure = sim_procedure
         self.ins_addr: Optional[int] = ins_addr
         # sanitization: if context is an empty tuple, we store a None instead
-        self.context: Optional[Tuple] = None if not context else context
+        self.context: Optional[Tuple] = context
 
         self.info: Optional[Dict] = None
 
@@ -37,29 +37,33 @@ class CodeLocation:
         if self.block_addr is None:
             return '<%s>' % self.sim_procedure
 
+        if self.stmt_idx is None:
+            s = "<%s%#x(-)" % (
+                ("%#x " % self.ins_addr) if self.ins_addr else "",
+                self.block_addr,
+            )
         else:
-            if self.stmt_idx is None:
-                s = "<%s%#x(-)" % (
-                    ("%#x " % self.ins_addr) if self.ins_addr else "",
-                    self.block_addr,
-                )
-            else:
-                s = "<%s%#x[%d]" % (
-                    ("%#x id=" % self.ins_addr) if self.ins_addr else "",
-                    self.block_addr,
-                    self.stmt_idx,
-                )
+            s = "<%s%#x[%d]" % (
+                ("%#x id=" % self.ins_addr) if self.ins_addr else "",
+                self.block_addr,
+                self.stmt_idx,
+            )
 
-            ss = [ ]
-            if self.info:
-                for k, v in self.info.items():
-                    if v != tuple() and v is not None:
-                        ss.append("%s=%s" % (k, v))
-                if ss:
-                    s += " with %s" % ", ".join(ss)
-            s += ">"
+        if self.context is None:
+            s += " contextless"
+        else:
+            s += " context: %r" % self.context
 
-            return s
+        ss = [ ]
+        if self.info:
+            for k, v in self.info.items():
+                if v != tuple() and v is not None:
+                    ss.append("%s=%s" % (k, v))
+            if ss:
+                s += " with %s" % ", ".join(ss)
+        s += ">"
+
+        return s
 
     @property
     def short_repr(self):

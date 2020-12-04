@@ -67,7 +67,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                                 leading to the analysed subject, from older to newer calls. Setting it
                                                 to None to limit the analysis to a single function and disable call
                                                 stack tracking; In that case, all contexts in CodeLocation will be
-                                                empty.
+                                                None, which makes CodeLocation objects contextless.
         :param int maximum_local_call_depth:    Maximum local function recursion depth.
         :param Boolean observe_all:             Observe every statement, both before and after.
         :param visited_blocks:                  A set of previously visited blocks.
@@ -100,8 +100,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         else:
             self._function_handler = function_handler.hook(self)
 
-        self._call_stack: List[int] = [ ]
-        if call_stack is not None:
+        self._call_stack: Optional[List[int]] = None
+        if call_stack:
             self._call_stack = self._init_call_stack(call_stack, subject)
 
         if self._init_state is not None:
