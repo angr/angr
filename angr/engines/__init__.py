@@ -6,6 +6,7 @@ from .procedure import ProcedureMixin, ProcedureEngine
 from .unicorn import SimEngineUnicorn
 from .failure import SimEngineFailure
 from .syscall import SimEngineSyscall
+from .remote_syscall import SimEngineRemoteSyscall
 from .concrete import SimEngineConcrete
 from .hook import HooksMixin
 from .soot import SootMixin
@@ -28,6 +29,23 @@ class UberEngine(
     pass
 
 
+# Uber engine with syscall-tracing enabled
+class UberEngineSyscallTracing(
+        SimEngineFailure,
+        SimEngineRemoteSyscall,
+        SimEngineSyscall,
+        HooksMixin,
+        SimEngineUnicorn,
+        SuperFastpathMixin,
+        TrackActionsMixin,
+        SimInspectMixin,
+        HeavyResilienceMixin,
+        SootMixin,
+        HeavyVEXMixin
+):
+    pass
+
+-
 try:
     from .pcode import HeavyPcodeMixin
 

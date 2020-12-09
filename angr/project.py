@@ -11,6 +11,7 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 
+from .bureau import Bureau
 from .misc.ux import deprecated
 from .errors import AngrNoPluginError
 
@@ -222,6 +223,9 @@ class Project:
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
+
+        # Step 8: Initialize Bureau
+        self.bureau = Bureau(self)
 
     def _initialize_analyses_hub(self):
         """
