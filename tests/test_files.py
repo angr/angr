@@ -41,7 +41,7 @@ def test_concrete_fs_resolution():
     size = state.solver.eval(stat.st_blksize)
 
     nose.tools.assert_true(stat)
-    nose.tools.assert_not_equal(stat, 0)
+    nose.tools.assert_not_equal(size, 0)
 
 if __name__ == '__main__':
     test_files()
