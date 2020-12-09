@@ -400,7 +400,7 @@ class SimSyscallLibrary(SimLibrary):
     associates them with numbers.
     """
     def __init__(self):
-        super(SimSyscallLibrary, self).__init__()
+        super().__init__()
         self.syscall_number_mapping: Dict[str,Dict[int,str]] = defaultdict(dict)  # keyed by abi
         self.syscall_name_mapping: Dict[str,Dict[str,int]] = defaultdict(dict)  # keyed by abi
         self.default_cc_mapping: Dict[str,Type['SimCCSyscall']] = {}  # keyed by abi
@@ -421,7 +421,7 @@ class SimSyscallLibrary(SimLibrary):
         return o
 
     def update(self, other):
-        super(SimSyscallLibrary, self).update(other)
+        super().update(other)
         self.syscall_number_mapping.update(other.syscall_number_mapping)
         self.syscall_name_mapping.update(other.syscall_name_mapping)
         self.default_cc_mapping.update(other.default_cc_mapping)
@@ -476,7 +476,7 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.default_cc_mapping[abi] = cc_cls
 
-    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:
+    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # pylint: disable=arguments-differ
         """
         Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
 
@@ -486,7 +486,7 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.syscall_prototypes[abi][name] = proto
 
-    def set_prototypes(self, abi: str, protos: Dict[str,SimTypeFunction]) -> None:
+    def set_prototypes(self, abi: str, protos: Dict[str,SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
         """
         Set the prototypes of many syscalls.
 
@@ -537,7 +537,7 @@ class SimSyscallLibrary(SimLibrary):
                             implementation is available
         """
         name, arch, abi = self._canonicalize(number, arch, abi_list)
-        proc = super(SimSyscallLibrary, self).get(name, arch)
+        proc = super().get(name, arch)
         proc.is_syscall = True
         self._apply_numerical_metadata(proc, number, arch, abi)
         return proc
@@ -552,7 +552,7 @@ class SimSyscallLibrary(SimLibrary):
         :return:            A SimProcedure representing a plausable stub that could model the syscall
         """
         name, arch, abi = self._canonicalize(number, arch, abi_list)
-        proc = super(SimSyscallLibrary, self).get_stub(name, arch)
+        proc = super().get_stub(name, arch)
         self._apply_numerical_metadata(proc, number, arch, abi)
         l.debug("unsupported syscall: %s", number)
         return proc
@@ -584,7 +584,7 @@ class SimSyscallLibrary(SimLibrary):
         :return:            A bool of whether or not any implementation or metadata is known about the given syscall
         """
         name, _, _ = self._canonicalize(number, arch, abi_list)
-        return super(SimSyscallLibrary, self).has_metadata(name)
+        return super().has_metadata(name)
 
     def has_implementation(self, number, arch, abi_list=()):
         """
@@ -596,7 +596,7 @@ class SimSyscallLibrary(SimLibrary):
         :return:            A bool of whether or not an implementation of the syscall is available
         """
         name, _, _ = self._canonicalize(number, arch, abi_list)
-        return super(SimSyscallLibrary, self).has_implementation(name)
+        return super().has_implementation(name)
 
     def has_prototype(self, abi: str, name: str) -> bool:
         """

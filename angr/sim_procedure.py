@@ -2,9 +2,12 @@ import inspect
 import copy
 import itertools
 import logging
-import angr
+from typing import TYPE_CHECKING
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
+
+if TYPE_CHECKING:
+    import angr
 
 l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()

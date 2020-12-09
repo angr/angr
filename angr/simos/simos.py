@@ -18,7 +18,6 @@ from ..calling_conventions import DEFAULT_CC
 from ..procedures import SIM_PROCEDURES as P
 from .. import sim_options as o
 from ..storage.file import SimFileStream, SimFileBase
-from ..misc import IRange
 
 
 _l = logging.getLogger(name=__name__)
@@ -327,7 +326,7 @@ class SimOS:
         return None
 
     def syscall_cc(self, state) -> Optional[angr.calling_conventions.SimCCSyscall]:
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def is_syscall_addr(self, addr):
         return False
