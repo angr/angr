@@ -390,9 +390,9 @@ class SimSystemPosix(SimStatePlugin):
     def fstat(self, sim_fd): #pylint:disable=unused-argument
         # sizes are AMD64-specific for symbolic files for now
         fd = None
-        sim_file = None
         mount = None
         mode = None
+        guest_path = None
 
         if not self.state.solver.symbolic(sim_fd):
             fd = self.state.solver.eval(sim_fd)
@@ -403,12 +403,13 @@ class SimSystemPosix(SimStatePlugin):
             if isinstance(fd_desc, SimFileDescriptor):
                 sim_file = fd_desc.file
                 mount = self.state.fs.get_mountpoint(sim_file.name)[0]
+                guest_path = mount.lookup(sim_file)
 
         # if it is mounted, let the filesystem figure out the stat
-        if sim_file is not None and mount is not None:
-            stat = mount._get_stat(sim_file.name)
+        if guest_path is not None and mount is not None:
+            stat = mount._get_stat(guest_path)
             if stat is None:
-                raise SimPosixError("file %s does not exist on mount %s" % (sim_file.name, mount))
+                raise SimPosixError("file %s does not exist on mount %s" % (guest_path, mount))
             size = stat.st_size
             mode = stat.st_mode
         else:

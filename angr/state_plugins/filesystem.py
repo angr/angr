@@ -268,6 +268,16 @@ class SimMount(SimStatePlugin):
         """
         raise NotImplementedError
 
+    def lookup(self, sim_file):
+        """
+        Look up the path of a SimFile in the mountpoint
+
+        :param sim_file:        A SimFile object needs to be looked up
+        :return:                A string representing the path of the file in the mountpoint
+                                Or None if the SimFile does not exist in the mountpoint
+        """
+        raise NotImplementedError
+
 class SimConcreteFilesystem(SimMount):
     """
     Abstract SimMount allowing the user to import files from some external source into the guest
@@ -309,6 +319,12 @@ class SimConcreteFilesystem(SimMount):
         path = self.pathsep.join(x.decode() for x in path_elements)
         self.deleted_list.add(path)
         return self.cache.pop(path, None) is not None
+
+    def lookup(self, sim_file):
+        for key, val in self.cache.items():
+            if sim_file == val:
+                return key
+        return None
 
     @SimStatePlugin.memo
     def copy(self, memo):
@@ -361,6 +377,7 @@ class SimConcreteFilesystem(SimMount):
         Takes a list of directories from the root and joins them into a string path
         """
         return self.pathsep + self.pathsep.join(keys)
+
 
 class SimHostFilesystem(SimConcreteFilesystem):
     """
