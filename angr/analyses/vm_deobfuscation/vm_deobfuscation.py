@@ -12,6 +12,7 @@ from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
+from .engines.engine_vex import SimplificationVEXMixin
 from ..reaching_definitions.dep_graph import DepGraph
 from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
@@ -104,8 +105,7 @@ class VMDeobfuscation(Analysis):
         #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr,
-                                                        start_state=start_state)
+        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -119,15 +119,61 @@ class VMDeobfuscation(Analysis):
         else:
             atom = None
         return atom
-    def vex_expr_to_ast(self, vex_expr, tyenv):
-        if isinstance(vex_expr, pyvex.expr.Get):
-            ast = claripy.BVS(f'reg_{vex_expr.offset}', vex_expr.result_size(tyenv))
-        return ast
 
-    def ast_t_vex_expr(self):
+    def ast_to_vex_expr(self):
         return vex_expr
 
-    def block_arithmetic_simplifications(self, cfg, proj, start_addr=None, vm_vpc_addr=None, start_state=None):
+    def simplify_vex_expr_to_ast(self, expr, tyenv, byte_width, node, sub_graph, cur_stmt_node):
+        ### This method assumes that expressions are in their most simplified form and don't contain expressions within expressions e.g. Add(Get(rsp), 0x8)
+
+        if isinstance(expr, pyvex.expr.Binop) and expr.op == "Iop_Sub64":
+            if isinstance(expr.args[0], pyvex.expr.Const):
+                left_arg_atom = expr.args[0].con.value
+            else:
+                left_arg_atom = self.convert_to_atom(expr.args[0], tyenv, byte_width)
+
+            if isinstance(expr.args[1], pyvex.expr.Const):
+                right_arg_atom = expr.args[1].con.value
+            else:
+                right_arg_atom = self.convert_to_atom(expr.args[1], tyenv, byte_width)
+
+            successors = list(sub_graph.graph.successors(cur_stmt_node))
+
+            print(left_arg_atom)
+            print(right_arg_atom)
+
+            ### match the arguments with the successors nodes, to get the simplified expr for each
+            left_arg_node = None
+            right_arg_node = None
+            for succ in successors:
+                if succ.def_atom == left_arg_atom:
+                    left_arg_node = succ
+                elif succ.def_atom == right_arg_atom:
+                    right_arg_node = succ
+
+            if left_arg_node:
+                left_simplified_ast = sub_graph.simplified_asts[left_arg_node]
+            else:
+                ## probably a constant
+                left_simplified_ast = left_arg_atom
+
+            if right_arg_node:
+                right_simplified_ast = sub_graph.simplified_asts[right_arg_node]
+            else:
+                ## probably a constant
+                right_simplified_ast = right_arg_atom
+
+            ## Using the input state shouldn't make a difference here since these asts were created specifically for simplification
+            return node.input_state.solver.simplify(left_simplified_ast - right_simplified_ast)
+        elif isinstance(expr, pyvex.expr.RdTmp):
+            successors = list(sub_graph.graph.successors(cur_stmt_node))
+            return node.input_state.solver.simplify(sub_graph.simplified_asts[successors[0]])
+        elif isinstance(expr, pyvex.expr.Get):
+            return claripy.BVS(f'reg_{expr.offset}', expr.result_size(tyenv))
+        elif isinstance(expr, pyvex.expr.Const):
+            return expr.con.value
+
+    def block_arithmetic_simplifications(self, cfg, proj):
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
@@ -176,77 +222,134 @@ class VMDeobfuscation(Analysis):
                         if sub_graph.graph.out_degree(stmt_node) == 0:
                             stmt_node_queue.append(stmt_node)
                             print(stmt_node)
-
+                    engine = SimplificationVEXMixin(project=self.project)
+                    engine.state = proj.factory.blank_state()
+                    engine.state.regs.sp = claripy.BVS("sp", 64)
+                    engine.state.scratch.set_tyenv(node.irsb.tyenv)
+                    engine.state.scratch.irsb = node.irsb
+                    simplified_statements = []
                     while len(stmt_node_queue) > 0:
+                        all_children_simp = True
                         cur_stmt_node = stmt_node_queue.pop(0)
                         preds = list(sub_graph.graph.predecessors(cur_stmt_node))
                         stmt_node_queue = stmt_node_queue + preds
 
+                        import ipdb;
+                        ipdb.set_trace()
+
                         if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
                             continue
-                        ## Make sure all the dependencies have been simplified first before simplifying the statements itself
-                        successors = list(sub_graph.graph.successors(cur_stmt_node))
-                        for succ in successors:
-                            if succ not in sub_graph.simplified_asts:
-                                continue
 
                         cur_stmt = cur_stmt_node.stmt
-                        if isinstance(cur_stmt, pyvex.stmt.WrTmp):
-                            if isinstance(cur_stmt.data, pyvex.expr.Binop) and \
-                                    cur_stmt.data.op == "Iop_Sub64":
+                        simplified_statements.append(cur_stmt)
+                        if isinstance(cur_stmt, pyvex.stmt.AbiHint):
+                            continue
 
-                                if isinstance(cur_stmt.data.args[0], pyvex.expr.Const):
-                                    left_arg_atom = cur_stmt.data.args[0].con.value
-                                else:
-                                    left_arg_atom = self.convert_to_atom(cur_stmt.data.args[0], node.irsb.tyenv, node.irsb.arch.byte_width)
+                        # 64-bit
+                        # x86
+                        # add eax,const1         ==> add eax, const1+const2
+                        # add eax, const2
+                        # VEX
+                        # t33 = GET:I64(rax)                                t33 = GET:I64(rax)
+                        # t32 = 64to32(t33)                                 t37 = 64to32(t33)
+                        # t0 = Add32(t32, 0x00000001)                       t3 = Add32(t37, 0x00000003)
+                        # t36 = 32Uto64(t0)                 ==>             t41 = 32Uto64(t3)
+                        # t37 = 64to32(t36)
+                        # t3 = Add32(t37, 0x00000002)
+                        # t41 = 32Uto64(t3)
 
-                                if isinstance(cur_stmt.data.args[1], pyvex.expr.Const):
-                                    right_arg_atom = cur_stmt.data.args[1].con.value
-                                else:
-                                    right_arg_atom = self.convert_to_atom(cur_stmt.data.args[1], node.irsb.tyenv, node.irsb.arch.byte_width)
+                        successors = list(sub_graph.graph.successors(cur_stmt_node))
+                        stmts_to_remove = []
+                        if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op == "Iop_Add32" and len(successors) == 1:
+                            for arg in cur_stmt.data.args:
+                                if isinstance(arg, pyvex.expr.Const):
+                                    const_0 = arg
+                            successor = successors[0]
+                            successors = list(sub_graph.graph.successors(successor))
+                            if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Unop) and successor.stmt.data.op == "Iop_64to32":
 
-                                successors = list(sub_graph.graph.successors(cur_stmt_node))
-
-                                print(left_arg_atom)
-                                print(right_arg_atom)
-
-
-                                ### match the arguments with the successors nodes, to get the simplified expr for each
-                                left_arg_node = None
-                                right_arg_node = None
-                                for succ in successors:
-                                    if succ.def_atom == left_arg_atom:
-                                        left_arg_node = succ
-                                    elif succ.def_atom == right_arg_atom:
-                                        right_arg_node = succ
-
-                                if left_arg_node:
-                                    left_simplified_ast = sub_graph.simplified_asts[left_arg_node]
-                                else:
-                                    ## probably a constant
-                                    left_simplified_ast = left_arg_atom
-
-                                if right_arg_node:
-                                    right_simplified_ast = sub_graph.simplified_asts[right_arg_node]
-                                else:
-                                    ## probably a constant
-                                    right_simplified_ast = right_arg_atom
-
-
-                                import ipdb;
-                                ipdb.set_trace()
-                            else:
-                                import ipdb;
-                                ipdb.set_trace()
-                                sub_graph.simplified_asts[cur_stmt_node] = self.vex_expr_to_ast(cur_stmt.data, node.irsb.tyenv)
+                                successor = successors[0]
+                                successors = list(sub_graph.graph.successors(successor))
+                                if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Unop) and successor.stmt.data.op == "Iop_32Uto64":
+                                    successor = successors[0]
+                                    successors = list(sub_graph.graph.successors(successor))
+                                    if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op == "Iop_Add32" and len(successors) == 1:
+                                        for arg in successor.stmt.data.args:
+                                            if isinstance(arg, pyvex.expr.Const):
+                                                const_1 = arg
+                                                node.irsb.statements[cur_stmt_node.codeloc.stmt_idx] = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop(cur_stmt.data.op, [cur_stmt.data.args[0], pyvex.expr.Const(cur_stmt.data.args[1].__class__(pyvex.const_0.con.value+const_1.con.value))]))
+                                        stmts_to_remove.append(successor.codeloc.stmt_idx)
+                                        successor = successors[0]
+                                        successors = list(sub_graph.graph.successors(successor))
+                                        if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Unop) and successor.stmt.data.op == "Iop_64to32":
+                                            successor = successors[0]
+                                            successors = list(sub_graph.graph.successors(successor))
+                                            if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Get):
+                                                import ipdb;
+                                                ipdb.set_trace()
+                        # 32-bit
+                        # x86
+                        # add eax,const1         ==> add eax, const1+const2
+                        # add eax, const2
+                        # VEX
+                        # t2 = GET:I32(eax)
+                        # t0 = Add32(t2, 0x00000001)    ==>
+                        # t3 = Add32(t0, 0x00000002)
 
 
-                    import ipdb;
-                    ipdb.set_trace()
+
+
+                        # Using VEX Engine
+                        # if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
+                        #     continue
+                        # successors = list(sub_graph.graph.successors(cur_stmt_node))
+                        # for succ in successors:
+                        #     if succ not in sub_graph.simplified_asts and not isinstance(succ.codeloc, ExternalCodeLocation):
+                        #         all_children_simp = False
+                        #         break
+                        #
+                        # if all_children_simp:
+                        #     cur_stmt = cur_stmt_node.stmt
+                        #     ### The claripy ast for the stmt data will be in state.globals['cur_stmt_data_ast']
+                        #     print(str(cur_stmt))
+                        #     engine._handle_vex_stmt(cur_stmt)
+                        #     sub_graph.simplified_asts[cur_stmt_node] = engine.state.globals['cur_stmt_data_ast']
+                        #     print(engine.state.globals['cur_stmt_data_ast'])
+                        #     import ipdb;
+                        #     ipdb.set_trace()
+
+                        ################
+
+                        # if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
+                        #     continue
+                        # ## Make sure all the dependencies have been simplified first before simplifying the statements itself
+                        # successors = list(sub_graph.graph.successors(cur_stmt_node))
+                        # for succ in successors:
+                        #     if succ not in sub_graph.simplified_asts:
+                        #         continue
+                        #
+                        #     cur_stmt = cur_stmt_node.stmt
+                        #     if isinstance(cur_stmt, pyvex.stmt.WrTmp):
+                        #         sub_graph.simplified_asts[cur_stmt_node] = self.simplify_vex_expr_to_ast(cur_stmt.data,
+                        #                                                                         node.irsb.tyenv,
+                        #                                                                         node.irsb.arch.byte_width,
+                        #                                                                         node,
+                        #                                                                         sub_graph,
+                        #                                                                         cur_stmt_node)
+                        #     elif isinstance(cur_stmt, pyvex.stmt.Put):
+                        #         sub_graph.simplified_asts[cur_stmt_node] = self.simplify_vex_expr_to_ast(cur_stmt.data,
+                        #                                                                         node.irsb.tyenv,
+                        #                                                                         node.irsb.arch.byte_width,
+                        #                                                                         node,
+                        #                                                                         sub_graph,
+                        #                                                                         cur_stmt_node)
+
+
+
 
 
                 ## reconstrcut the statements from the simplififed graph
-        return new_cfg
+        return
 
     ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
     ## and keeps certain attributes
