@@ -413,7 +413,8 @@ class SimSystemPosix(SimStatePlugin):
             if isinstance(fd_desc, SimFileDescriptor):
                 sim_file = fd_desc.file
                 mount = self.state.fs.get_mountpoint(sim_file.name)[0]
-                guest_path = mount.lookup(sim_file)
+                if mount:
+                    guest_path = mount.lookup(sim_file)
 
         # if it is mounted, let the filesystem figure out the stat
         if guest_path is not None and mount is not None:

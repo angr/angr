@@ -38,12 +38,26 @@ def test_concrete_fs_resolution():
     state = proj.factory.entry_state(concrete_fs=True)
     fd = state.posix.open(bin_path, Flags.O_RDONLY)
     stat = state.posix.fstat(fd)
-    size = state.solver.eval(stat.st_blksize)
+    size = stat.st_size
+    int_size = state.solver.eval(size)
 
     nose.tools.assert_true(stat)
-    nose.tools.assert_not_equal(size, 0)
+    nose.tools.assert_not_equal(int_size, 0)
+    nose.tools.assert_false(state.solver.symbolic(size))
+
+def test_sim_fs_resolution():
+    bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
+    proj = angr.Project(bin_path)
+    state = proj.factory.entry_state()
+    fd = state.posix.open(bin_path, Flags.O_RDONLY)
+    stat = state.posix.fstat(fd)
+    size = stat.st_size
+
+    nose.tools.assert_true(stat)
+    nose.tools.assert_true(state.solver.symbolic(size))
 
 if __name__ == '__main__':
     test_files()
     test_file_read_missing_content()
     test_concrete_fs_resolution()
+    test_sim_fs_resolution()
