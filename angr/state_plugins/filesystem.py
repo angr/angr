@@ -85,7 +85,7 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
             try:
                 subdeck = [o._mountpoints[fname] for o in others]
             except KeyError:
-                raise SimMergeError("Can't merge filesystems with disparate file sets")
+                raise SimMergeError("Can't merge filesystems with disparate file sets") # pylint: disable=raise-missing-from
 
             if common_ancestor is not None and fname in common_ancestor._mountpoints:
                 common_mp = common_ancestor._mountpoints[fname]

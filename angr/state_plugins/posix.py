@@ -10,7 +10,7 @@ l = logging.getLogger(name=__name__)
 max_fds = 8192
 
 class PosixDevFS(SimMount): # this'll be mounted at /dev
-    def get(self, path):
+    def get(self, path): # pylint: disable=arguments-differ
         if path == ['stdin']:
             return self.state.posix.fd.get(0, None)
         elif path == ['stdout']:
@@ -20,13 +20,16 @@ class PosixDevFS(SimMount): # this'll be mounted at /dev
         else:
             return None
 
-    def insert(self, path, simfile): # pylint: disable=unused-argument
+    def insert(self, path, simfile): # pylint: disable=unused-argument, arguments-differ
         return False
 
-    def delete(self, path): # pylint: disable=unused-argument
+    def delete(self, path): # pylint: disable=unused-argument, arguments-differ
         return False
 
-    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def lookup(self, _): # disable=unused-argument
+        return False
+
+    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument, arguments-differ
         return False
 
     def widen(self, others): # pylint: disable=unused-argument
@@ -40,19 +43,22 @@ class PosixProcFS(SimMount):
     """
     The virtual file system mounted at /proc (as of now, on Linux).
     """
-    def get(self, path):
+    def get(self, path): # pylint: disable=arguments-differ
         if path == [b"uptime"]:
             return SimFile(b"uptime", content=b"0 0")
         else:
             return None
 
-    def insert(self, path, simfile): # pylint: disable=unused-argument
+    def insert(self, path, simfile): # pylint: disable=unused-argument, arguments-differ
         return False
 
-    def delete(self, path): # pylint: disable=unused-argument
+    def delete(self, path): # pylint: disable=unused-argument, arguments-differ
         return False
 
-    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument
+    def lookup(self, _): # disable=unused-argument
+        return False
+
+    def merge(self, others, conditions, common_ancestor=None): # pylint: disable=unused-argument, arguments-differ
         return False
 
     def widen(self, others): # pylint: disable=unused-argument
@@ -128,7 +134,7 @@ class SimSystemPosix(SimStatePlugin):
             uid=None,
             gid=None,
             brk=None):
-        super(SimSystemPosix, self).__init__()
+        super().__init__()
 
         # some limits and constants
         self.sigmask_bits = 1024
@@ -229,7 +235,7 @@ class SimSystemPosix(SimStatePlugin):
         return self.brk
 
     def set_state(self, state):
-        super(SimSystemPosix, self).set_state(state)
+        super().set_state(state)
 
         for fd in self.fd:
             self.fd[fd].set_state(state)
@@ -350,19 +356,23 @@ class SimSystemPosix(SimStatePlugin):
         If the number is concrete and does not map to anything, return None.
         If the number is symbolic, constrain it to an open fd and create a new file for it.
         """
+
         try:
             fd = self.state.solver.eval_one(fd)
+            return self.fd.get(fd)
         except SimSolverError:
-            ideal = self._pick_fd()
-            self.state.solver.add(fd == ideal)
-            if not self.state.solver.satisfiable():
-                raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
-            fd = ideal
-            new_filename = b'/tmp/angr_implicit_%d' % self.autotmp_counter
-            l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", ideal, new_filename)
-            self.autotmp_counter += 1
-            if self.open(new_filename, Flags.O_RDWR, preferred_fd=fd) != fd:
-                raise SimPosixError("Something went wrong trying to open implicit temp")
+            pass
+
+        ideal = self._pick_fd()
+        self.state.solver.add(fd == ideal)
+        if not self.state.solver.satisfiable():
+            raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
+        fd = ideal
+        new_filename = b'/tmp/angr_implicit_%d' % self.autotmp_counter
+        l.warning("Tried to look up a symbolic fd - constrained to %d and opened %s", ideal, new_filename)
+        self.autotmp_counter += 1
+        if self.open(new_filename, Flags.O_RDWR, preferred_fd=fd) != fd:
+            raise SimPosixError("Something went wrong trying to open implicit temp")
 
         return self.fd.get(fd)
 
