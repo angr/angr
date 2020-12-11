@@ -1,9 +1,10 @@
-
+import os
 import nose.tools
 
 import angr
 from angr.state_plugins.posix import Flags
 
+test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..')
 
 def test_files():
     s = angr.SimState(arch='AMD64')
@@ -31,7 +32,32 @@ def test_file_read_missing_content():
     nose.tools.assert_equal(len(data.variables), 1)
     nose.tools.assert_in("oops", next(iter(data.variables)))  # file name should be part of the variable name
 
+def test_concrete_fs_resolution():
+    bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
+    proj = angr.Project(bin_path)
+    state = proj.factory.entry_state(concrete_fs=True)
+    fd = state.posix.open(bin_path, Flags.O_RDONLY)
+    stat = state.posix.fstat(fd)
+    size = stat.st_size
+    int_size = state.solver.eval(size)
+
+    nose.tools.assert_true(stat)
+    nose.tools.assert_not_equal(int_size, 0)
+    nose.tools.assert_false(state.solver.symbolic(size))
+
+def test_sim_fs_resolution():
+    bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
+    proj = angr.Project(bin_path)
+    state = proj.factory.entry_state()
+    fd = state.posix.open(bin_path, Flags.O_RDONLY)
+    stat = state.posix.fstat(fd)
+    size = stat.st_size
+
+    nose.tools.assert_true(stat)
+    nose.tools.assert_true(state.solver.symbolic(size))
 
 if __name__ == '__main__':
     test_files()
     test_file_read_missing_content()
+    test_concrete_fs_resolution()
+    test_sim_fs_resolution()
