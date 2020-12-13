@@ -84,8 +84,8 @@ class RegionedMemoryMixin(MemoryMixin):
         val = None
         regioned_addrs_desc = self._normalize_address(addr, condition=condition)
 
-        if (len(regioned_addrs_desc) > 1 and AVOID_MULTIVALUED_READS in self.state.options) or \
-                (len(regioned_addrs_desc) >= self._read_targets_limit and CONSERVATIVE_READ_STRATEGY in self.state.options):
+        if (regioned_addrs_desc.cardinality > 1 and AVOID_MULTIVALUED_READS in self.state.options) or \
+                (regioned_addrs_desc.cardinality >= self._read_targets_limit and CONSERVATIVE_READ_STRATEGY in self.state.options):
             val = self.state.solver.Unconstrained('unconstrained_read', size * self.state.arch.byte_width)
             return val
 
