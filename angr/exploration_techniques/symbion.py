@@ -62,7 +62,7 @@ class Symbion(ExplorationTechnique):
 
         new_state = ss.successors
 
-        if new_state[0].timeout:
+        if new_state[0].globals.get("symbion_timeout", None):
             return {'timeout': new_state}
 
         return {'found': new_state}
