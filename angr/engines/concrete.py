@@ -72,8 +72,7 @@ class SimEngineConcrete(SuccessorsMixin):
         :return: None
         """
 
-        state.timeout = False
-        state.errored = False
+        state.globals["symbion_timeout"] = False
         extra_stop_points = [] if extra_stop_points is None else extra_stop_points
 
         l.debug("Entering in SimEngineConcrete: simulated address %#x concrete address %#x stop points %s",
@@ -106,7 +105,7 @@ class SimEngineConcrete(SuccessorsMixin):
 
             def timeout_handler():
                 self.target.stop()    # stop the concrete target now!
-                state.timeout = True  # this will end up in the timeout stash
+                state.globals["symbion_timeout"] = True  # this will end up in the timeout stash
 
             execution_timer = threading.Timer(timeout, timeout_handler)
             execution_timer.start()  # start the timer!
@@ -117,7 +116,7 @@ class SimEngineConcrete(SuccessorsMixin):
         self.target.run()
         l.debug("SimEngineConcrete has successfully resumed the process")
 
-        if state.timeout:
+        if state.globals["symbion_timeout"]:
             l.critical("Timeout has been reached during resuming of concrete process")
             l.critical("This can be a bad thing ( the ConcreteTarget didn't hit your breakpoint ) or"
                        "just it will take a while.")
@@ -133,7 +132,7 @@ class SimEngineConcrete(SuccessorsMixin):
         # handling the case in which the program stops at a point different than the breakpoints set
         # by the user.
         current_pc = self.target.read_register("pc")
-        if current_pc not in extra_stop_points and not state.timeout:
+        if current_pc not in extra_stop_points and not state.globals["symbion_timeout"]:
             l.critical("Stopped at unexpected location inside the concrete process: %#x", current_pc)
             raise AngrError
 
