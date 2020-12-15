@@ -80,6 +80,8 @@ class Callable(object):
         if self._perform_merge:
             caller.merge()
             self.result_state = caller.active[0]
+        elif len(caller.active) == 1:
+            self.result_state = caller.active[0]
 
     def call_c(self, c_args):
         """
