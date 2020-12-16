@@ -68,16 +68,17 @@ def test_smoketest():
             if dict(node)['GREEN'] == 1 and dict(node)['PED_GREEN'] == 1:
                 # both car green light and the pedstrain green light are on at the same time
                 # this is bad!
-                return True
-            return False
-
+                return False
+            return True
 
 
     finder = RuleVerifier(state_graph)
     rule = MinDelayRule(10.0)
     finder.verify(rule)
 
-    import ipdb; ipdb.set_trace()
+    # output the graph to a dot file
+    from networkx.drawing.nx_agraph import write_dot
+    write_dot(sgr.state_graph, "state_graph.dot")
 
 
 if __name__ == "__main__":
