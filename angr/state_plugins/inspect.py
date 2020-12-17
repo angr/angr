@@ -145,7 +145,7 @@ BP_BOTH = 'both'
 BP_IPDB = 'ipdb'
 BP_IPYTHON = 'ipython'
 
-class BP(object):
+class BP:
     """
     A breakpoint.
     """

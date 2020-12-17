@@ -2,7 +2,7 @@ import logging
 import zlib
 from .testing import is_testing
 
-class Loggers(object):
+class Loggers:
     def __init__(self, default_level=logging.WARNING):
         self.default_level = default_level
         self._loggers = {}
