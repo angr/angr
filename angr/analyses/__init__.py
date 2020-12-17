@@ -43,3 +43,4 @@ from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
 from .flirt import FlirtAnalysis
+from .state_graph_recovery import StateGraphRecoveryAnalysis
