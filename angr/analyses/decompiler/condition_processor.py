@@ -99,9 +99,14 @@ class ConditionProcessor:
         reaching_conditions = {}
         # recover the reaching condition for each node
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(_g)
+        terminating_nodes = [ ]
         for node in sorted_nodes:
             preds = _g.predecessors(node)
             reaching_condition = None
+
+            out_degree = _g.out_degree(node)
+            if out_degree == 0:
+                terminating_nodes.append(node)
 
             if node is region.head:
                 # the head is always reachable
@@ -122,6 +127,22 @@ class ConditionProcessor:
 
             if reaching_condition is not None:
                 reaching_conditions[node] = self.simplify_condition(reaching_condition)
+
+        # My hypothesis to be proved: in any regioned graph, there must be a node with a 0 out-degree whose reaching
+        # conditions can be marked as True. In other words, if all 0 out-degree nodes have non-trivial reaching
+        # conditions, we can always pick one of them and change its reaching condition to True, without changing the
+        # semantics of the regioned graph.
+        if terminating_nodes and all(not reaching_conditions[node].is_true() for node in terminating_nodes
+                                     if node in reaching_conditions):
+            # pick the node with the greatest in-degree
+            terminating_nodes = sorted(terminating_nodes, key=lambda node: _g.in_degree(node))
+            node_with_greatest_indegree = terminating_nodes[-1]
+            if _g.in_degree(node_with_greatest_indegree) > 1:
+                # forcing the in-degree to be greater than 1 allows us to skip the case blocks in switch-cases
+                # otherwise structurer will fail to structure the control flow
+                reaching_conditions[node_with_greatest_indegree] = claripy.true
+                l.warning("Marking node %r as trivially reachable. Disable this optimization in condition_processor.py "
+                          "if it leads to incorrect decompilation result.", node_with_greatest_indegree)
 
         self.reaching_conditions = reaching_conditions
 
