@@ -411,6 +411,23 @@ def test_decompilation_call_expr_folding():
     assert code.count("strlen(") == 1
 
 
+def test_decompilation_excessive_condition_removal():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions[0x100003890]
+
+    dec = p.analyses.Decompiler(func, cfg=cfg)
+    code = dec.codegen.text
+    print(code)
+
+    code = code.replace(" ", "").replace("\n", "")
+    # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
+    assert "}s_1a=s_1a+1;}" in code
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
