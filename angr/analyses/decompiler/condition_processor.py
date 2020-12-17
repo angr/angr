@@ -135,7 +135,7 @@ class ConditionProcessor:
         if terminating_nodes and all(not reaching_conditions[node].is_true() for node in terminating_nodes
                                      if node in reaching_conditions):
             # pick the node with the greatest in-degree
-            terminating_nodes = sorted(terminating_nodes, key=lambda node: _g.in_degree(node))
+            terminating_nodes = sorted(terminating_nodes, key=_g.in_degree)
             node_with_greatest_indegree = terminating_nodes[-1]
             if _g.in_degree(node_with_greatest_indegree) > 1:
                 # forcing the in-degree to be greater than 1 allows us to skip the case blocks in switch-cases
@@ -498,7 +498,7 @@ class ConditionProcessor:
     def claripy_ast_from_ail_condition(self, condition) -> claripy.ast.Base:
 
         # Unpack a condition all the way to the leaves
-        if isinstance(condition, claripy.ast.Base):
+        if isinstance(condition, claripy.ast.Base):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
 
         def _op_with_unified_size(op, conv, operand0, operand1):
