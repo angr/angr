@@ -7,10 +7,11 @@ class Expression(TaggedObject):
     The base class of all AIL expressions.
     """
 
-    __slots__ = ()
+    __slots__ = ('depth', )
 
-    def __init__(self, idx, **kwargs):
+    def __init__(self, idx, depth, **kwargs):
         super(Expression, self).__init__(idx, **kwargs)
+        self.depth = depth
 
     def __repr__(self):
         raise NotImplementedError()
@@ -47,7 +48,7 @@ class Atom(Expression):
     __slots__ = ('variable', 'variable_offset', )
 
     def __init__(self, idx, variable, variable_offset=0, **kwargs):
-        super(Atom, self).__init__(idx, **kwargs)
+        super(Atom, self).__init__(idx, 0, **kwargs)
         self.variable = variable
         self.variable_offset = variable_offset
 
@@ -158,8 +159,8 @@ class Op(Expression):
 
     __slots__ = ('op', )
 
-    def __init__(self, idx, op, **kwargs):
-        super(Op, self).__init__(idx, **kwargs)
+    def __init__(self, idx, depth, op, **kwargs):
+        super(Op, self).__init__(idx, depth, **kwargs)
         self.op = op
 
     @property
@@ -172,7 +173,7 @@ class UnaryOp(Op):
     __slots__ = ('operand', 'bits', 'variable', 'variable_offset', )
 
     def __init__(self, idx, op, operand, variable=None, variable_offset=None, **kwargs):
-        super(UnaryOp, self).__init__(idx, op, **kwargs)
+        super(UnaryOp, self).__init__(idx, (operand.depth if isinstance(operand, Expression) else 0) + 1, op, **kwargs)
 
         self.operand = operand
         self.bits = operand.bits
@@ -284,7 +285,11 @@ class BinaryOp(Op):
     }
 
     def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, **kwargs):
-        super(BinaryOp, self).__init__(idx, op, **kwargs)
+        depth = max(
+            operands[0].depth if isinstance(operands[0], Expression) else 0,
+            operands[1].depth if isinstance(operands[1], Expression) else 0,
+        ) + 1
+        super(BinaryOp, self).__init__(idx, depth, op, **kwargs)
 
         assert len(operands) == 2
         self.operands = operands
@@ -359,7 +364,8 @@ class Load(Expression):
     __slots__ = ('addr', 'size', 'endness', 'variable', 'variable_offset', 'guard', 'alt', )
 
     def __init__(self, idx, addr, size, endness, variable=None, variable_offset=None, guard=None, alt=None, **kwargs):
-        super(Load, self).__init__(idx, **kwargs)
+        depth = max(addr.depth, size.depth if isinstance(size, Expression) else 0) + 1
+        super(Load, self).__init__(idx, depth, **kwargs)
 
         self.addr = addr
         self.size = size
@@ -409,7 +415,11 @@ class ITE(Expression):
     __slots__ = ('cond', 'iffalse', 'iftrue', 'bits', )
 
     def __init__(self, idx, cond, iffalse, iftrue, **kwargs):
-        super(ITE, self).__init__(idx, **kwargs)
+        depth = max(cond.depth if isinstance(cond, Expression) else 0,
+                    iffalse.depth if isinstance(iffalse, Expression) else 0,
+                    iftrue.depth if isinstance(iftrue, Expression) else 0
+                    ) + 1
+        super(ITE, self).__init__(idx, depth, **kwargs)
 
         self.cond = cond
         self.iffalse = iffalse
@@ -448,7 +458,7 @@ class DirtyExpression(Expression):
     __slots__ = ('dirty_expr', )
 
     def __init__(self, idx, dirty_expr, **kwargs):
-        super(DirtyExpression, self).__init__(idx, **kwargs)
+        super(DirtyExpression, self).__init__(idx, 1, **kwargs)
         self.dirty_expr = dirty_expr
 
     def replace(self, old_expr, new_expr):
@@ -471,7 +481,7 @@ class BasePointerOffset(Expression):
     __slots__ = ('bits', 'base', 'offset', 'variable', 'variable_offset', )
 
     def __init__(self, idx, bits, base, offset, variable=None, variable_offset=None, **kwargs):
-        super().__init__(idx, **kwargs)
+        super().__init__(idx, (offset.depth if isinstance(offset, Expression) else 0) + 1, **kwargs)
         self.bits = bits
         self.base = base
         self.offset = offset
