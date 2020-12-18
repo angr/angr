@@ -43,7 +43,7 @@ class allocate(angr.SimProcedure):
         if self.state.solver.max_int(r) == 0:  # map only on success
 
             chosen_conc = self.state.solver.eval(chosen)
-            l.debug("Allocate address %#x", chosen_conc)
+            l.debug("Allocating [%#x, %#x]", chosen_conc, chosen_conc + aligned_length - 1)
             self.state.memory.map_region(
                     chosen_conc,
                     aligned_length,
