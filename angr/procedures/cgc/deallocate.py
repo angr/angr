@@ -45,6 +45,7 @@ class deallocate(angr.SimProcedure):
             allowed_length = allowed_pages * page_size
             self.state.cgc.add_sinkhole(addr, allowed_length)
 
+            l.debug("Deallocating [%#x, %#x]", addr, addr + allowed_length - 1)
             self.state.memory.unmap_region(addr, allowed_length)
 
         return r
