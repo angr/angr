@@ -418,6 +418,21 @@ class ConditionProcessor:
     # Expression conversion
     #
 
+    def _convert_extract(self, hi, lo, expr, annotations, memo=None):
+        # ailment does not support Extract. We translate Extract to Convert and shift.
+        if lo == 0:
+            try:
+                tag_annotation = next(iter(anno for anno in annotations if isinstance(anno, TagsAnnotation)))
+                tags = tag_annotation.tags
+            except StopIteration:
+                tags = {}
+            return ailment.Expr.Convert(None, expr.size(), hi + 1, False,
+                                        self.convert_claripy_bool_ast(expr, memo=memo),
+                                        **tags,
+                                        )
+
+        raise NotImplementedError("This case will be implemented once encountered.")
+
     def convert_claripy_bool_ast(self, cond, memo=None):
         """
         Convert recovered reaching conditions from claripy ASTs to ailment Expressions
@@ -488,6 +503,7 @@ class ConditionProcessor:
             'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
             'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
                                                                         else ailment.Expr.Const(None, None, False, 1),
+            'Extract': lambda cond_: self._convert_extract(*cond_.args, cond_.annotations, memo=memo),
         }
 
         if cond.op in _mapping:
