@@ -1,7 +1,6 @@
 
 import logging
 
-import pyvex
 import angr
 
 l = logging.getLogger(name=__name__)
@@ -155,9 +154,7 @@ class __libc_start_main(angr.SimProcedure):
         # Execute each block
         state = blank_state
         for b in blocks:
-            # state.regs.ip = next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-            irsb = self.project.factory.default_engine.process(state, b,
-                    force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr)
+            irsb = self.project.factory.default_engine.process(state, b, force_addr=b.addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
