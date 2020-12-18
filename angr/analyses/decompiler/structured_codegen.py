@@ -664,6 +664,20 @@ class CStructField(CExpression):
         yield str(self.field), self
 
 
+class CPlaceholder(CExpression):
+
+    __slots__ = ('placeholder', )
+
+    def __init__(self, placeholder):
+        super().__init__()
+
+        self.placeholder = placeholder
+
+    def c_repr_chunks(self, indent=0):
+
+        yield self.placeholder, self
+
+
 class CVariable(CExpression):
     """
     Read value from a variable.
@@ -1125,7 +1139,7 @@ class CDirtyExpression(CExpression):
 
 class StructuredCodeGenerator(Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
-                 func_args: Optional[List[SimVariable]]=None):
+                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10):
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1165,8 +1179,10 @@ class StructuredCodeGenerator(Analysis):
         self._cfg = cfg
         self._sequence = sequence
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
+        self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: Optional[Dict] = None
+        self._memo: Optional[Dict[Expr,CExpression]] = None
 
         self.text = None
         self.posmap = None
@@ -1182,7 +1198,11 @@ class StructuredCodeGenerator(Analysis):
             arg_list = [self._handle(arg) for arg in self._func_args]
         else:
             arg_list = [ ]
+
+        # memo
+        self._memo = {}
         obj = self._handle(self._sequence)
+        self._memo = None  # clear the memo since it's useless now
 
         func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
                          self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
@@ -1267,12 +1287,19 @@ class StructuredCodeGenerator(Analysis):
     #
 
     def _handle(self, node, is_expr: bool=True):
+
+        if node in self._memo:
+            return self._memo[node]
+
         handler = self._handlers.get(node.__class__, None)
         if handler is not None:
             # special case for Call
             if isinstance(node, Stmt.Call):
-                return handler(node, is_expr=is_expr)
-            return handler(node)
+                converted = handler(node, is_expr=is_expr)
+            else:
+                converted = handler(node)
+            self._memo[node] = converted
+            return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
     def _handle_Code(self, node):
@@ -1539,6 +1566,9 @@ class StructuredCodeGenerator(Analysis):
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
+
+        if expr.depth > self.binop_depth_cutoff:
+            return CPlaceholder("...")
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1])
