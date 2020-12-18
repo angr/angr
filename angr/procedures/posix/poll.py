@@ -11,8 +11,8 @@ class poll(angr.SimProcedure):
     def run(self, fds, nfds, timeout):  # pylint: disable=unused-argument
         try:
             nfds_v = self.state.solver.eval_one(nfds)
-        except angr.errors.SimSolverError:
-            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic pollfd arguments")
+        except angr.errors.SimSolverError as e:
+            raise angr.errors.SimProcedureArgumentError("Can't handle symbolic pollfd arguments") from e
         ###
         # struct pollfd {
         #     int   fd;         /* file descriptor */
@@ -36,8 +36,8 @@ class poll(angr.SimProcedure):
             try:
                 fd = self.state.solver.eval_one(pollfd["fd"])
                 events = self.state.solver.eval_one(pollfd["events"])
-            except angr.errors.SimSolverError:
-                raise angr.errors.SimProcedureArgumentError("Can't handle symbolic pollfd arguments")
+            except angr.errors.SimSolverError as e:
+                raise angr.errors.SimProcedureArgumentError("Can't handle symbolic pollfd arguments") from e
 
             if events & select.POLLIN and fd >= 0:
                 revents = pollfd["revents"][self.arch.sizeof["short"]-1:1].concat(self.state.solver.BVS('fd_POLLIN', 1))
