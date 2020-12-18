@@ -448,6 +448,14 @@ class State {
 		if (vex_sub_reg_mapping_entry != vex_sub_reg_map.end()) {
 			return vex_sub_reg_mapping_entry->second;
 		}
+		if (reg_size_map.find(reg_offset) != reg_size_map.end()) {
+			return reg_offset;
+		}
+		for (auto &entry: reg_size_map) {
+			if ((entry.first <= reg_offset) && (reg_offset <= entry.first + entry.second)) {
+				return entry.first;
+			}
+		}
 		return reg_offset;
 	}
 

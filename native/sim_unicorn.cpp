@@ -646,8 +646,13 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 	for (auto &dependency: instr_taint_entry.dependencies_to_save) {
 		if (dependency.entity_type == TAINT_ENTITY_REG) {
 			vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
+			auto dep_reg_slice_entry = reg_instr_slice.find(dependency_full_register_offset);
+			if (dep_reg_slice_entry == reg_instr_slice.end()) {
+				// We don't care about slice of this register because it's artificial, blacklisted or something else.
+				continue;
+			}
 			if (!is_symbolic_register(dependency_full_register_offset)) {
-				auto dep_reg_slice_instrs = reg_instr_slice.at(dependency_full_register_offset);
+				auto dep_reg_slice_instrs = dep_reg_slice_entry->second;
 				if (dep_reg_slice_instrs.size() == 0) {
 					// The register was not modified in this block by any preceding instruction
 					// and so it's value at start of block is a dependency of the block
@@ -1279,15 +1284,16 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		}
 		return false;
 	}
+	reg_offset = get_full_register_offset(reg_offset);
 	// The register is not a CPU flag and so we check every byte of the register
-	for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
 		if (block_symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
 	}
 	bool is_concrete = true;
-	for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (block_concrete_registers.count(reg_offset) == 0) {
 			is_concrete = false;
 			break;
@@ -1299,7 +1305,7 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	// If we reach here, it means that the register is not marked symbolic or concrete in the block
 	// level taint status tracker. We check the state's symbolic register list.
-	for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
@@ -1637,6 +1643,9 @@ void State::update_register_slice(address_t instr_addr, const instruction_taint_
 	for (auto &reg_entry: curr_instr_taint_entry.modified_regs) {
 		vex_reg_offset_t full_register_offset = get_full_register_offset(reg_entry.first);
 		if ((full_register_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(full_register_offset)) {
+			continue;
+		}
+		if (reg_instr_slice.find(full_register_offset) == reg_instr_slice.end()) {
 			continue;
 		}
 		if (!reg_entry.second) {
