@@ -1279,15 +1279,16 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		}
 		return false;
 	}
+	reg_offset = get_full_register_offset(reg_offset);
 	// The register is not a CPU flag and so we check every byte of the register
-	for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
 		if (block_symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
 	}
 	bool is_concrete = true;
-	for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (block_concrete_registers.count(reg_offset) == 0) {
 			is_concrete = false;
 			break;
@@ -1299,7 +1300,7 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	// If we reach here, it means that the register is not marked symbolic or concrete in the block
 	// level taint status tracker. We check the state's symbolic register list.
-	for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
