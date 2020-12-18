@@ -10,7 +10,7 @@ class Expression(TaggedObject):
     __slots__ = ('depth', )
 
     def __init__(self, idx, depth, **kwargs):
-        super(Expression, self).__init__(idx, **kwargs)
+        super().__init__(idx, **kwargs)
         self.depth = depth
 
     def __repr__(self):
@@ -22,7 +22,7 @@ class Expression(TaggedObject):
         else:
             return self.likes(atom)
 
-    def likes(self, atom):
+    def likes(self, atom):  # pylint:disable=unused-argument,no-self-use
         return False
 
     def replace(self, old_expr, new_expr):
@@ -48,7 +48,7 @@ class Atom(Expression):
     __slots__ = ('variable', 'variable_offset', )
 
     def __init__(self, idx, variable, variable_offset=0, **kwargs):
-        super(Atom, self).__init__(idx, 0, **kwargs)
+        super().__init__(idx, 0, **kwargs)
         self.variable = variable
         self.variable_offset = variable_offset
 
@@ -61,7 +61,7 @@ class Const(Atom):
     __slots__ = ('value', 'bits', )
 
     def __init__(self, idx, variable, value, bits, **kwargs):
-        super(Const, self).__init__(idx, variable, **kwargs)
+        super().__init__(idx, variable, **kwargs)
 
         self.value = value
         self.bits = bits
@@ -81,7 +81,9 @@ class Const(Atom):
             self.value == other.value and \
             self.bits == other.bits
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((self.value, self.bits))
 
     @property
@@ -94,7 +96,7 @@ class Tmp(Atom):
     __slots__ = ('tmp_idx', 'bits', )
 
     def __init__(self, idx, variable, tmp_idx, bits, **kwargs):
-        super(Tmp, self).__init__(idx, variable, **kwargs)
+        super().__init__(idx, variable, **kwargs)
 
         self.tmp_idx = tmp_idx
         self.bits = bits
@@ -114,7 +116,9 @@ class Tmp(Atom):
             self.tmp_idx == other.tmp_idx and \
             self.bits == other.bits
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash(('tmp', self.tmp_idx, self.bits))
 
 
@@ -123,7 +127,7 @@ class Register(Atom):
     __slots__ = ('reg_offset', 'bits', )
 
     def __init__(self, idx, variable, reg_offset, bits, **kwargs):
-        super(Register, self).__init__(idx, variable, **kwargs)
+        super().__init__(idx, variable, **kwargs)
 
         self.reg_offset = reg_offset
         self.bits = bits
@@ -151,7 +155,9 @@ class Register(Atom):
     def __eq__(self, other):
         return self.likes(other) and self.idx == other.idx
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash(('reg', self.reg_offset, self.bits, self.idx))
 
 
@@ -160,7 +166,7 @@ class Op(Expression):
     __slots__ = ('op', )
 
     def __init__(self, idx, depth, op, **kwargs):
-        super(Op, self).__init__(idx, depth, **kwargs)
+        super().__init__(idx, depth, **kwargs)
         self.op = op
 
     @property
@@ -173,7 +179,7 @@ class UnaryOp(Op):
     __slots__ = ('operand', 'bits', 'variable', 'variable_offset', )
 
     def __init__(self, idx, op, operand, variable=None, variable_offset=None, **kwargs):
-        super(UnaryOp, self).__init__(idx, (operand.depth if isinstance(operand, Expression) else 0) + 1, op, **kwargs)
+        super().__init__(idx, (operand.depth if isinstance(operand, Expression) else 0) + 1, op, **kwargs)
 
         self.operand = operand
         self.bits = operand.bits
@@ -192,7 +198,9 @@ class UnaryOp(Op):
                self.operand == other.operand and \
                self.bits == other.bits
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((self.op, self.operand, self.bits))
 
     def replace(self, old_expr, new_expr):
@@ -217,7 +225,7 @@ class Convert(UnaryOp):
     __slots__ = ('from_bits', 'to_bits', 'is_signed', )
 
     def __init__(self, idx, from_bits, to_bits, is_signed, operand, **kwargs):
-        super(Convert, self).__init__(idx, 'Convert', operand, **kwargs)
+        super().__init__(idx, 'Convert', operand, **kwargs)
 
         self.from_bits = from_bits
         self.to_bits = to_bits
@@ -239,7 +247,9 @@ class Convert(UnaryOp):
                self.bits == other.bits and \
                self.is_signed == other.is_signed
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
 
     def replace(self, old_expr, new_expr):
@@ -289,7 +299,7 @@ class BinaryOp(Op):
             operands[0].depth if isinstance(operands[0], Expression) else 0,
             operands[1].depth if isinstance(operands[1], Expression) else 0,
         ) + 1
-        super(BinaryOp, self).__init__(idx, depth, op, **kwargs)
+        super().__init__(idx, depth, op, **kwargs)
 
         assert len(operands) == 2
         self.operands = operands
@@ -315,7 +325,9 @@ class BinaryOp(Op):
                self.bits == other.bits and \
                self.signed == other.signed
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((self.op, tuple(self.operands), self.bits, self.signed))
 
     def has_atom(self, atom, identity=True):
@@ -365,7 +377,7 @@ class Load(Expression):
 
     def __init__(self, idx, addr, size, endness, variable=None, variable_offset=None, guard=None, alt=None, **kwargs):
         depth = max(addr.depth, size.depth if isinstance(size, Expression) else 0) + 1
-        super(Load, self).__init__(idx, depth, **kwargs)
+        super().__init__(idx, depth, **kwargs)
 
         self.addr = addr
         self.size = size
@@ -406,7 +418,9 @@ class Load(Expression):
                self.guard == other.guard and \
                self.alt == other.alt
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash(('Load', self.addr, self.size, self.endness))
 
 
@@ -419,7 +433,7 @@ class ITE(Expression):
                     iffalse.depth if isinstance(iffalse, Expression) else 0,
                     iftrue.depth if isinstance(iftrue, Expression) else 0
                     ) + 1
-        super(ITE, self).__init__(idx, depth, **kwargs)
+        super().__init__(idx, depth, **kwargs)
 
         self.cond = cond
         self.iffalse = iffalse
@@ -431,6 +445,9 @@ class ITE(Expression):
 
     def __str__(self):
         return "((%s) ? (%s) : (%s))" % (self.cond, self.iftrue, self.iffalse)
+
+    def _hash_core(self):
+        return hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
 
     def has_atom(self, atom, identity=True):
         return self.cond.has_atom(atom, identity=identity) or \
@@ -458,11 +475,19 @@ class DirtyExpression(Expression):
     __slots__ = ('dirty_expr', )
 
     def __init__(self, idx, dirty_expr, **kwargs):
-        super(DirtyExpression, self).__init__(idx, 1, **kwargs)
+        super().__init__(idx, 1, **kwargs)
         self.dirty_expr = dirty_expr
 
     def replace(self, old_expr, new_expr):
         return False, self
+
+    def __eq__(self, other):
+        return type(other) is DirtyExpression and other.dirty_expr == self.dirty_expr
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return hash((DirtyExpression, self.dirty_expr))
 
     def __repr__(self):
         return "DirtyExpression (%s)" % type(self.dirty_expr)
@@ -508,7 +533,9 @@ class BasePointerOffset(Expression):
                self.base == other.base and \
                self.offset == other.offset
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((self.bits, self.base, self.offset))
 
     def replace(self, old_expr, new_expr):

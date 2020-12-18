@@ -12,6 +12,8 @@ class Statement(TaggedObject):
     The base class of all AIL statements.
     """
 
+    __slots__ = ()
+
     def __init__(self, idx, **kwargs):
         super(Statement, self).__init__(idx, **kwargs)
 
@@ -19,9 +21,6 @@ class Statement(TaggedObject):
         raise NotImplementedError()
 
     def __str__(self):
-        raise NotImplementedError()
-
-    def __hash__(self):
         raise NotImplementedError()
 
     def replace(self, old_expr, new_expr):
@@ -47,7 +46,9 @@ class Assignment(Statement):
                self.dst == other.dst and \
                self.src == other.src
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((Assignment, self.idx, self.dst, self.src))
 
     def __repr__(self):
@@ -100,7 +101,9 @@ class Store(Statement):
                self.guard == other.guard and \
                self.endness == other.endness
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
 
     def __repr__(self):
@@ -154,7 +157,9 @@ class Jump(Statement):
                self.idx == other.idx and \
                self.target == other.target
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((Jump, self.idx, self.target))
 
     def __repr__(self):
@@ -190,7 +195,9 @@ class ConditionalJump(Statement):
                self.true_target == other.true_target and \
                self.false_target == other.false_target
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
 
     def __repr__(self):
@@ -250,7 +257,9 @@ class Call(Expression, Statement):
                self.args == other.args and \
                self.ret_expr == other.ret_expr
 
-    def __hash__(self):
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
         return hash((Call, self.idx, self.target))
 
     def __repr__(self):
@@ -347,8 +356,10 @@ class Return(Statement):
                 self.target == other.target and \
                 self.ret_exprs == other.ret_exprs
 
-    def __hash__(self):
-        return hash((self.Return, self.idx, self.target, tuple(self.ret_exprs)))
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return hash((Return, self.idx, self.target, tuple(self.ret_exprs)))
 
     def __repr__(self):
         return "Return to %r (%r)" % (self.target, ",".join(self.ret_exprs))
@@ -408,7 +419,7 @@ class DirtyStatement(Statement):
         super(DirtyStatement, self).__init__(idx, **kwargs)
         self.dirty_stmt = dirty_stmt
 
-    def __hash__(self):
+    def _hash_core(self):
         return hash((DirtyStatement, self.dirty_stmt))
 
     def __repr__(self):
