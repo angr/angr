@@ -296,8 +296,14 @@ class CongruencyCheck(Analysis):
             n_canoner_constraint = u_canoner_constraint = n_canon_constraint
         joint_solver.add((n_canoner_constraint, u_canoner_constraint))
         if n_canoner_constraint is not u_canoner_constraint:
-            self._report_incongruency("Different constraints!")
-            return False
+            # extra check: are these two constraints equivalent?
+            tmp_solver = claripy.Solver()
+            a = tmp_solver.satisfiable(extra_constraints=(n_canoner_constraint == u_canoner_constraint,))
+            b = tmp_solver.satisfiable(extra_constraints=(n_canoner_constraint != u_canoner_constraint,))
+
+            if not (a is True and b is False):
+                self._report_incongruency("Different constraints!")
+                return False
 
         # get the differences in registers and memory
         mem_diff = sr.memory.changed_bytes(sl.memory)
