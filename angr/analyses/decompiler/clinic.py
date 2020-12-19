@@ -104,6 +104,10 @@ class Clinic(Analysis):
         # Remove alignment blocks
         self._remove_alignment_blocks()
 
+        # if the graph is empty, don't continue
+        if not self._func_graph:
+            return
+
         # Make sure calling conventions of all functions have been recovered
         self._recover_calling_conventions()
 
@@ -159,7 +163,8 @@ class Clinic(Analysis):
         Alignment blocks are basic blocks that only consist of nops. They should not be included in the graph.
         """
         for node in list(self._func_graph.nodes()):
-            if CFGBase._is_noop_block(self.project.arch, self.project.factory.block(node.addr, node.size)):
+            if self._func_graph.in_degree(node) == 0 and \
+                    CFGBase._is_noop_block(self.project.arch, self.project.factory.block(node.addr, node.size)):
                 self._func_graph.remove_node(node)
 
     @timethis

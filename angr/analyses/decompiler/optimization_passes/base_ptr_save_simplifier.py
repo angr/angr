@@ -75,6 +75,8 @@ class BasePointerSaveSimplifier(OptimizationPass):
         """
 
         first_block = self._get_block(self._func.addr)
+        if first_block is None:
+            return None
 
         for idx, stmt in enumerate(first_block.statements):
             if isinstance(stmt, ailment.Stmt.Store) \

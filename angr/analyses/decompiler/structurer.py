@@ -835,11 +835,10 @@ class Structurer(Analysis):
             for case_node in cases.values():
                 walker.walk(case_node)
 
-            try:
-                switch_end_addr = sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
-            except StopIteration:
+            if not goto_addrs:
                 # there is no Goto statement - perfect
                 return
+            switch_end_addr = sorted(goto_addrs.items(), key=lambda x: x[1], reverse=True)[0][0]
 
         # rewrite all _goto switch_end_addr_ to _break_
 
