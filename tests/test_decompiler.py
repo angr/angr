@@ -233,8 +233,14 @@ def test_decompiling_switch2_x86_64():
 
     cfg = p.analyses.CFG(normalize=True, data_references=True)
 
+    # disable eager returns simplifier
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                           "linux")
+    all_optimization_passes = [ p for p in all_optimization_passes
+                                if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
+
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg, optimization_passes=all_optimization_passes)
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "switch" in code

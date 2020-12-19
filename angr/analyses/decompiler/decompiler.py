@@ -44,6 +44,11 @@ class Decompiler(Analysis):
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
+        self.clinic = clinic
+
+        if clinic.graph is None:
+            # the function is empty
+            return
 
         cond_proc = ConditionProcessor()
 
@@ -61,7 +66,6 @@ class Decompiler(Analysis):
                                                                 kb=self.kb,
                                                                 variable_kb=clinic.variable_kb)
 
-        self.clinic = clinic
         self.codegen = codegen
 
     def _set_global_variables(self):

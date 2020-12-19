@@ -73,7 +73,10 @@ class RegionIdentifier(Analysis):
 
     @staticmethod
     def _get_start_node(graph):
-        return next(n for n in graph.nodes() if graph.in_degree(n) == 0)
+        try:
+            return next(n for n in graph.nodes() if graph.in_degree(n) == 0)
+        except StopIteration:
+            return None
 
     def _test_reducibility(self):
 

@@ -2136,10 +2136,13 @@ class CFGBase(Analysis):
                     return True
 
         # Fallback
-        # the block is a noop block if it only has IMark statements. VEX will generate such blocks when opt_level==1
-        # and cross_insn_opt is True
-        if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
-            return True
+        # the block is a noop block if it only has IMark statements **and** it jumps to its immediate successor. VEX
+        # will generate such blocks when opt_level==1 and cross_insn_opt is True
+        fallthrough_addr = block.addr + block.size
+        next_ = block.vex.next
+        if isinstance(next_, pyvex.IRExpr.Const) and next_.con.value == fallthrough_addr:
+            if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
+                return True
 
         # the block is a noop block if it only has IMark statements and IP-setting statements that set the IP to the
         # next location. VEX will generate such blocks when opt_level==1 and cross_insn_opt is False
@@ -2151,9 +2154,7 @@ class CFGBase(Analysis):
             if block.vex.statements:
                 last_stmt = block.vex.statements[-1]
                 if isinstance(last_stmt, pyvex.IRStmt.IMark):
-                    fallthrough_addr = last_stmt.addr + last_stmt.delta + last_stmt.len
-                    n = block.vex.next
-                    if isinstance(n, pyvex.IRExpr.Const) and n.con.value == fallthrough_addr:
+                    if isinstance(next_, pyvex.IRExpr.Const) and next_.con.value == fallthrough_addr:
                         return True
         return False
 
