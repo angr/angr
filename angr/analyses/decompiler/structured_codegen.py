@@ -125,7 +125,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     def __init__(self, name, functy: SimTypeFunction, arg_list: List['CExpression'], statements, variables_in_use,
                  variable_manager, demangled_name=None):
 
-        super(CFunction, self).__init__()
+        super().__init__()
 
         self.name = name
         self.functy = functy
@@ -245,7 +245,7 @@ class CStatements(CStatement):
 
     def __init__(self, statements):
 
-        super(CStatements, self).__init__()
+        super().__init__()
 
         self.statements = statements
 
@@ -264,7 +264,7 @@ class CAILBlock(CStatement):
 
     def __init__(self, block):
 
-        super(CAILBlock, self).__init__()
+        super().__init__()
 
         self.block = block
 
@@ -295,7 +295,7 @@ class CWhileLoop(CLoop):
 
     def __init__(self, condition, body):
 
-        super(CWhileLoop, self).__init__()
+        super().__init__()
 
         self.condition = condition
         self.body = body
@@ -359,7 +359,7 @@ class CIfElse(CStatement):
 
     def __init__(self, condition, true_node=None, false_node=None):
 
-        super(CIfElse, self).__init__()
+        super().__init__()
 
         self.condition = condition
         self.true_node = true_node
@@ -403,7 +403,7 @@ class CIfBreak(CStatement):
 
     def __init__(self, condition):
 
-        super(CIfBreak, self).__init__()
+        super().__init__()
 
         self.condition = condition
 
@@ -502,7 +502,7 @@ class CAssignment(CStatement):
 
     def __init__(self, lhs, rhs):
 
-        super(CAssignment, self).__init__()
+        super().__init__()
 
         self.lhs = lhs
         self.rhs = rhs
@@ -671,10 +671,9 @@ class CPlaceholder(CExpression):
     def __init__(self, placeholder):
         super().__init__()
 
-        self.placeholder = placeholder
+        self.placeholder: str = placeholder
 
-    def c_repr_chunks(self, indent=0):
-
+    def c_repr_chunks(self):
         yield self.placeholder, self
 
 
