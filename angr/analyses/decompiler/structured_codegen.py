@@ -125,7 +125,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     def __init__(self, name, functy: SimTypeFunction, arg_list: List['CExpression'], statements, variables_in_use,
                  variable_manager, demangled_name=None):
 
-        super(CFunction, self).__init__()
+        super().__init__()
 
         self.name = name
         self.functy = functy
@@ -245,7 +245,7 @@ class CStatements(CStatement):
 
     def __init__(self, statements):
 
-        super(CStatements, self).__init__()
+        super().__init__()
 
         self.statements = statements
 
@@ -264,7 +264,7 @@ class CAILBlock(CStatement):
 
     def __init__(self, block):
 
-        super(CAILBlock, self).__init__()
+        super().__init__()
 
         self.block = block
 
@@ -295,7 +295,7 @@ class CWhileLoop(CLoop):
 
     def __init__(self, condition, body):
 
-        super(CWhileLoop, self).__init__()
+        super().__init__()
 
         self.condition = condition
         self.body = body
@@ -359,7 +359,7 @@ class CIfElse(CStatement):
 
     def __init__(self, condition, true_node=None, false_node=None):
 
-        super(CIfElse, self).__init__()
+        super().__init__()
 
         self.condition = condition
         self.true_node = true_node
@@ -403,7 +403,7 @@ class CIfBreak(CStatement):
 
     def __init__(self, condition):
 
-        super(CIfBreak, self).__init__()
+        super().__init__()
 
         self.condition = condition
 
@@ -502,7 +502,7 @@ class CAssignment(CStatement):
 
     def __init__(self, lhs, rhs):
 
-        super(CAssignment, self).__init__()
+        super().__init__()
 
         self.lhs = lhs
         self.rhs = rhs
@@ -662,6 +662,19 @@ class CStructField(CExpression):
 
     def c_repr_chunks(self):
         yield str(self.field), self
+
+
+class CPlaceholder(CExpression):
+
+    __slots__ = ('placeholder', )
+
+    def __init__(self, placeholder):
+        super().__init__()
+
+        self.placeholder: str = placeholder
+
+    def c_repr_chunks(self):
+        yield self.placeholder, self
 
 
 class CVariable(CExpression):
@@ -1125,7 +1138,7 @@ class CDirtyExpression(CExpression):
 
 class StructuredCodeGenerator(Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
-                 func_args: Optional[List[SimVariable]]=None):
+                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10):
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1165,8 +1178,10 @@ class StructuredCodeGenerator(Analysis):
         self._cfg = cfg
         self._sequence = sequence
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
+        self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: Optional[Dict] = None
+        self._memo: Optional[Dict[Expr,CExpression]] = None
 
         self.text = None
         self.posmap = None
@@ -1178,11 +1193,18 @@ class StructuredCodeGenerator(Analysis):
     def _analyze(self):
 
         self._variables_in_use = {}
+
+        # memo
+        self._memo = {}
+
         if self._func_args:
             arg_list = [self._handle(arg) for arg in self._func_args]
         else:
             arg_list = [ ]
+
         obj = self._handle(self._sequence)
+
+        self._memo = None  # clear the memo since it's useless now
 
         func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
                          self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
@@ -1267,12 +1289,19 @@ class StructuredCodeGenerator(Analysis):
     #
 
     def _handle(self, node, is_expr: bool=True):
+
+        if node in self._memo:
+            return self._memo[node]
+
         handler = self._handlers.get(node.__class__, None)
         if handler is not None:
             # special case for Call
             if isinstance(node, Stmt.Call):
-                return handler(node, is_expr=is_expr)
-            return handler(node)
+                converted = handler(node, is_expr=is_expr)
+            else:
+                converted = handler(node)
+            self._memo[node] = converted
+            return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
     def _handle_Code(self, node):
@@ -1539,6 +1568,9 @@ class StructuredCodeGenerator(Analysis):
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
+
+        if expr.depth > self.binop_depth_cutoff:
+            return CPlaceholder("...")
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1])
