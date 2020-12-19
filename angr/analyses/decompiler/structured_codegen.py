@@ -1193,14 +1193,17 @@ class StructuredCodeGenerator(Analysis):
     def _analyze(self):
 
         self._variables_in_use = {}
+
+        # memo
+        self._memo = {}
+
         if self._func_args:
             arg_list = [self._handle(arg) for arg in self._func_args]
         else:
             arg_list = [ ]
 
-        # memo
-        self._memo = {}
         obj = self._handle(self._sequence)
+
         self._memo = None  # clear the memo since it's useless now
 
         func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
