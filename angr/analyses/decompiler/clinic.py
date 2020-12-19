@@ -14,6 +14,7 @@ from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, 
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from .. import Analysis, register_analysis
+from ..cfg.cfg_base import CFGBase
 from .ailgraph_walker import AILGraphWalker
 from .optimization_passes import get_default_optimization_passes
 
@@ -100,6 +101,9 @@ class Clinic(Analysis):
         # Set up the function graph according to configurations
         self._set_function_graph()
 
+        # Remove alignment blocks
+        self._remove_alignment_blocks()
+
         # Make sure calling conventions of all functions have been recovered
         self._recover_calling_conventions()
 
@@ -148,6 +152,15 @@ class Clinic(Analysis):
     @timethis
     def _set_function_graph(self):
         self._func_graph = self.function.graph_ex(exception_edges=self._exception_edges)
+
+    @timethis
+    def _remove_alignment_blocks(self):
+        """
+        Alignment blocks are basic blocks that only consist of nops. They should not be included in the graph.
+        """
+        for node in list(self._func_graph.nodes()):
+            if CFGBase._is_noop_block(self.project.arch, self.project.factory.block(node.addr, node.size)):
+                self._func_graph.remove_node(node)
 
     @timethis
     def _recover_calling_conventions(self):
