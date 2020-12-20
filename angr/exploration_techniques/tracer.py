@@ -169,50 +169,62 @@ class Tracer(ExplorationTechnique):
         if self._mode == TracingMode.Permissive and not self._copy_states:
             raise ValueError('"copy_states" must be True when tracing in permissive mode.')
 
+    def _locate_entry_point(self, angr_addr):
+        # ...via heuristics
+        indices = set()
+        for idx, addr in enumerate(self._trace):
+            if ((addr - angr_addr) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x80000):
+                indices.add(idx)
+
+        if len(indices) > 1:
+            indices = set(i for i in indices if self._filter_idx(angr_addr, i))
+
+        return indices
+
+    def _filter_idx(self, angr_addr, idx):
+        slide = self._trace[idx] - angr_addr
+        block = self.project.factory.block(angr_addr)
+        legal_next = block.vex.constant_jump_targets
+        return not legal_next or any(a + slide == self._trace[idx + 1] for a in legal_next)
+
     def setup(self, simgr):
         simgr.populate('missed', [])
         simgr.populate('traced', [])
         simgr.populate('crashed', [])
         simgr.populate('desync', [])
 
-        self.project = simgr._project
         if len(simgr.active) != 1:
             raise AngrTracerError("Tracer is being invoked on a SimulationManager without exactly one active state")
 
-        # calc ASLR slide for main binary and find the entry point in one fell swoop
-        # ...via heuristics
-        idx = None
-        for idx, addr in enumerate(self._trace):
-            if self.project.loader.main_object.pic:
-                if ((addr - self.project.entry) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x100000):
-                    break
-            else:
-                if addr == self.project.entry:
-                    break
-        else:
-            raise AngrTracerError("Could not identify program entry point in trace!")
-
         # handle aslr slides
         if self._aslr:
-            # pylint: disable=undefined-loop-variable
-            # pylint doesn't know jack shit
-            self._current_slide = self._aslr_slides[self.project.loader.main_object] = self._trace[idx] - self.project.entry
+            for obj in self.project.loader.all_elf_objects:
+                possibilities = None
+                for entry in obj.initializers + ([obj.entry] if obj.is_main_bin else []):
+                    indices = self._locate_entry_point(entry)
+                    slides = {self._trace[idx] - entry for idx in indices}
+                    if possibilities is None:
+                        possibilities = slides
+                    else:
+                        possibilities.intersection_update(slides)
+
+                if possibilities is None:
+                    continue
+
+                if len(possibilities) == 0:
+                    raise AngrTracerError("Trace does not seem to contain object initializers for %s. Do you want to have a Tracer(aslr=False)?" % obj)
+                elif len(possibilities) == 1:
+                    self._aslr_slides[obj] = next(iter(possibilities))
+                else:
+                    raise AngrTracerError("Trace seems ambiguous with respect to what the ASLR slides are for %s. This is surmountable, please open an issue." % obj)
+
         else:
             for obj in self.project.loader.all_elf_objects:
                 self._aslr_slides[obj] = 0
             self._current_slide = 0
 
-        # step to entry point
-        while self._trace and self._trace[idx] != simgr.one_active.addr + self._current_slide:
-            simgr.step(extra_stop_points={self._trace[idx] - self._current_slide})
-            if len(simgr.active) == 0:
-                raise AngrTracerError("Could not step to the first address of the trace - simgr is empty")
-            elif len(simgr.active) > 1:
-                raise AngrTracerError("Could not step to the first address of the trace - state split")
-            simgr.drop(stash='unsat')
-
         # initialize the state info
-        simgr.one_active.globals['trace_idx'] = idx
+        simgr.one_active.globals['trace_idx'] = 0
         simgr.one_active.globals['sync_idx'] = None
         simgr.one_active.globals['sync_timer'] = 0
         simgr.one_active.globals['is_desync'] = False
@@ -418,7 +430,13 @@ class Tracer(ExplorationTechnique):
 
             idx -= 1 # use normal code to do the last synchronization
 
-        if sync is not None:
+        if sync == 'entry':
+            trace_addr = self._translate_state_addr(state.addr)
+            # this address should only ever appear once in the trace. we verified this during setup.
+            idx = self._trace.index(trace_addr)
+            state.globals['trace_idx'] = idx
+            state.globals['sync_idx'] = None
+        elif sync is not None:
             timer -= 1
             if self._compare_addr(self._trace[sync], state.addr):
                 state.globals['trace_idx'] = sync
@@ -427,7 +445,7 @@ class Tracer(ExplorationTechnique):
             elif timer > 0:
                 state.globals['sync_timer'] = timer
             else:
-                raise Exception("Trace failed to synchronize! We expected it to hit %#x (untranslated), but it failed to do this within a timeout" % self._trace[sync])
+                raise Exception("Trace failed to synchronize! We expected it to hit %#x (trace addr), but it failed to do this within a timeout" % self._trace[sync])
 
         elif state.history.jumpkind.startswith('Ijk_Exit'):
             # termination! will be handled by filter
@@ -440,7 +458,9 @@ class Tracer(ExplorationTechnique):
             proc = self.project.hooked_by(state.addr)
             if proc is None:
                 raise Exception("Extremely bad news: we're executing an unhooked address in the externs space")
-            if proc.is_continuation:
+            if proc.display_name == 'LinuxLoader':
+                state.globals['sync_idx'] = 'entry'
+            elif proc.is_continuation:
                 orig_addr = self.project.loader.find_symbol(proc.display_name).rebased_addr
                 obj = self.project.loader.find_object_containing(orig_addr)
                 orig_trace_addr = self._translate_state_addr(orig_addr, obj)
@@ -476,9 +496,9 @@ class Tracer(ExplorationTechnique):
                                     deviating_trace_idx=idx+1)
 
         if state.globals['sync_idx'] is not None:
-            l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
+            l.debug("Trace: %s-%s/%s synchronizing %s", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
         else:
-            l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
+            l.debug("Trace: %s/%s", state.globals['trace_idx'], len(self._trace))
 
     def _translate_state_addr(self, state_addr, obj=None):
         if obj is None:
@@ -503,8 +523,8 @@ class Tracer(ExplorationTechnique):
             self._current_slide = self._aslr_slides[current_bin]
             return trace_addr == state_addr + self._current_slide
         elif ((trace_addr - state_addr) & 0xfff) == 0:
-                self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
-                return True
+            self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
+            return True
         # error handling
         elif current_bin:
             raise AngrTracerError("Trace desynced on jumping into %s. Did you load the right version of this library?" % current_bin.provides)
