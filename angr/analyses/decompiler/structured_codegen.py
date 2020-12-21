@@ -141,6 +141,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         # output each variable and its type
         for var, cvar in self.variables_in_use.items():
+            if cvar in self.arg_list:
+                continue
+
             var_type = self.variable_manager.get_variable_type(var)
 
             if var_type is None:
