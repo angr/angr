@@ -910,10 +910,12 @@ class CBinaryOp(CExpression):
         }
 
         handler = OP_MAP.get(self.op, None)
+        yield "(", None
         if handler is not None:
             yield from handler()
         else:
             yield "BinaryOp %s" % (self.op), None
+        yield ")", None
 
     #
     # Handlers
