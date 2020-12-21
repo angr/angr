@@ -431,7 +431,7 @@ def test_decompilation_excessive_condition_removal():
 
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
-    assert "}s_1a=s_1a+1;}" in code
+    assert "}s_1a=(s_1a+1);}" in code
 
 
 if __name__ == "__main__":
