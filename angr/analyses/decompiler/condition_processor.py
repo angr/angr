@@ -583,7 +583,7 @@ class ConditionProcessor:
             if condition.bits == 1:
                 var = claripy.BoolV('ailtmp_%d' % condition.tmp_idx)
             else:
-                var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits)
+                var = claripy.BVS('ailtmp_%d' % condition.tmp_idx, condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
 
