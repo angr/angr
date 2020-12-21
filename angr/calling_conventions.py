@@ -1503,7 +1503,7 @@ DEFAULT_CC: Dict[str,Type[SimCC]] = {
     'PPC64': SimCCPowerPC64,
     'AARCH64': SimCCAArch64,
     'Soot': SimCCSoot,
-    'AVR': SimCCUnknown,
+    'AVR8': SimCCUnknown,
     'MSP': SimCCUnknown,
     'S390X': SimCCS390X,
 }
