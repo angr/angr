@@ -711,7 +711,10 @@ class CVariable(CExpression):
     def c_repr_chunks(self):
         if self.offset is None:
             if isinstance(self.variable, SimVariable):
-                yield str(self.variable.name), self
+                if self.variable.name:
+                    yield self.variable.name, self
+                else:
+                    yield str(self.variable), self
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
                     if isinstance(self.variable.type, SimTypePointer):
