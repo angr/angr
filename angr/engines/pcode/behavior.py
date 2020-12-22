@@ -1,11 +1,22 @@
 import operator
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Tuple
 
 from pypcode import OpCode, Sleigh
 import claripy
 from claripy.ast.bv import BV
 
 # pylint:disable=abstract-method
+
+def make_bv_sizes_equal(bv1: BV, bv2: BV) -> Tuple[BV, BV]:
+    """
+    Makes two BVs equal in length through sign extension.
+    """
+    if bv1.size() < bv2.size():
+        return (bv1.sign_extend(bv2.size() - bv1.size()), bv2)
+    elif bv1.size() > bv2.size():
+        return (bv1, bv2.sign_extend(bv1.size() - bv2.size()))
+    else:
+        return (bv1, bv2)
 
 # FIXME: Unimplemented ops (mostly floating point related) have associated C++
 # reference code from Ghidra which will need to be ported.
@@ -282,8 +293,7 @@ class OpBehaviorIntLeft(OpBehavior):
         super().__init__(OpCode.CPUI_INT_LEFT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        if in2.size() < in1.size():
-            in2 = in2.sign_extend(in1.size() - in2.size())
+        in1, in2 = make_bv_sizes_equal(in1, in2)
         return in1 << in2
 
 
@@ -295,8 +305,7 @@ class OpBehaviorIntRight(OpBehavior):
         super().__init__(OpCode.CPUI_INT_RIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        if in2.size() < in1.size():
-            in2 = in2.sign_extend(in1.size() - in2.size())
+        in1, in2 = make_bv_sizes_equal(in1, in2)
         return in1.LShR(in2)
 
 
@@ -308,8 +317,7 @@ class OpBehaviorIntSright(OpBehavior):
         super().__init__(OpCode.CPUI_INT_SRIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        if in2.size() < in1.size():
-            in2 = in2.sign_extend(in1.size() - in2.size())
+        in1, in2 = make_bv_sizes_equal(in1, in2)
         return in1 >> in2
 
 
