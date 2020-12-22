@@ -437,9 +437,13 @@ class SimEngineRDAIL(
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
     _ail_handle_CmpLE = _ail_handle_Cmp
+    _ail_handle_CmpLEs = _ail_handle_Cmp
     _ail_handle_CmpLT = _ail_handle_Cmp
+    _ail_handle_CmpLTs = _ail_handle_Cmp
     _ail_handle_CmpGE = _ail_handle_Cmp
+    _ail_handle_CmpGEs = _ail_handle_Cmp
     _ail_handle_CmpGT = _ail_handle_Cmp
+    _ail_handle_CmpGTs = _ail_handle_Cmp
 
     def _ail_handle_Const(self, expr):
         return DataSet(expr.value, expr.bits)

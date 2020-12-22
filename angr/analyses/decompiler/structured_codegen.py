@@ -923,9 +923,13 @@ class CBinaryOp(CExpression):
             'LogicalAnd': self._c_repr_chunks_logicaland,
             'LogicalOr': self._c_repr_chunks_logicalor,
             'CmpLE': self._c_repr_chunks_cmple,
+            'CmpLEs': self._c_repr_chunks_cmple,
             'CmpLT': self._c_repr_chunks_cmplt,
+            'CmpLTs': self._c_repr_chunks_cmplt,
             'CmpGT': self._c_repr_chunks_cmpgt,
+            'CmpGTs': self._c_repr_chunks_cmpgt,
             'CmpGE': self._c_repr_chunks_cmpge,
+            'CmpGEs': self._c_repr_chunks_cmpge,
             'CmpEQ': self._c_repr_chunks_cmpeq,
             'CmpNE': self._c_repr_chunks_cmpne,
         }
