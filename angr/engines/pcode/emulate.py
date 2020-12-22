@@ -168,7 +168,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         elif space_name == "unique":
             self._pcode_tmps[var_data.offset] = value
 
-        elif space_name == "ram":
+        elif space_name in ("ram", "mem"):
             l.debug("Storing %s to offset %s", value, var_data.offset)
             self.state.memory.store(var_data.offset, value, endness=self.project.arch.memory_endness)
 
@@ -197,7 +197,7 @@ class PcodeEmulatorMixin(SimEngineBase):
             # size of values read are same as size written.
             assert self._pcode_tmps[var_data.offset].size() == size*8
             return self._pcode_tmps[var_data.offset]
-        elif space_name == "ram":
+        elif space_name in ("ram", "mem"):
             val = self.state.memory.load(var_data.offset, endness=self.project.arch.memory_endness, size=size)
             l.debug("Loaded %s from offset %s", val, var_data.offset)
             return val
@@ -235,7 +235,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute a p-code load operation.
         """
         spc = pypcode.Address.getSpaceFromConst(self._current_op.getInput(0).getAddr())
-        assert spc.getName() == "ram"
+        assert spc.getName() in ("ram", "mem")
         off = self._get_value(self._current_op.getInput(1))
         out = self._current_op.getOutput()
         res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
@@ -247,7 +247,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute a p-code store operation.
         """
         spc = pypcode.Address.getSpaceFromConst(self._current_op.getInput(0).getAddr())
-        assert spc.getName() == "ram"
+        assert spc.getName() in ("ram", "mem")
         off = self._get_value(self._current_op.getInput(1))
         data = self._get_value(self._current_op.getInput(2))
         l.debug("Storing %s at offset %s", data, off)
