@@ -1,7 +1,7 @@
 import logging
 import nose
 
-from angr.calling_conventions import DEFAULT_CC
+from angr.calling_conventions import DEFAULT_CC, SimCCUnknown
 from angr import SimState
 from archinfo import all_arches, ArchAMD64, ArchSoot
 
@@ -10,7 +10,7 @@ l = logging.getLogger('angr.tests.test_stack_alignment')
 
 def test_alignment():
     for arch in all_arches:
-        if arch.name in DEFAULT_CC:
+        if arch.name in DEFAULT_CC and DEFAULT_CC[arch.name] is not SimCCUnknown:
             # There is nothing to test for soot about stack alignment
             if isinstance(arch, ArchSoot):
                 continue
