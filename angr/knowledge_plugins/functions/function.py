@@ -696,7 +696,7 @@ class Function(Serializable):
             if hooker is not None:
                 binary_name = hooker.library_name
 
-        if binary_name is None and self.binary is not None:
+        if binary_name is None and self.binary is not None and self.binary.binary:
             binary_name = os.path.basename(self.binary.binary)
 
         return binary_name
