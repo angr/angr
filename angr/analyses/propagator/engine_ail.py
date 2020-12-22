@@ -201,6 +201,15 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
+    def _ail_handle_CmpLEs(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if type(operand_0) is Top or type(operand_1) is Top:
+            return Top(1)
+
+        return Expr.BinaryOp(expr.idx, 'CmpLEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
     def _ail_handle_CmpLT(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -209,6 +218,15 @@ class SimEnginePropagatorAIL(
             return Top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    def _ail_handle_CmpLTs(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if type(operand_0) is Top or type(operand_1) is Top:
+            return Top(1)
+
+        return Expr.BinaryOp(expr.idx, 'CmpLTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpGE(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -219,6 +237,15 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
+    def _ail_handle_CmpGE(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if type(operand_0) is Top or type(operand_1) is Top:
+            return Top(1)
+
+        return Expr.BinaryOp(expr.idx, 'CmpGEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
     def _ail_handle_CmpGT(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
@@ -227,6 +254,15 @@ class SimEnginePropagatorAIL(
             return Top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    def _ail_handle_CmpGTs(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if type(operand_0) is Top or type(operand_1) is Top:
+            return Top(1)
+
+        return Expr.BinaryOp(expr.idx, 'CmpGTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     def _ail_handle_CmpEQ(self, expr):
         operand_0 = self._expr(expr.operands[0])
