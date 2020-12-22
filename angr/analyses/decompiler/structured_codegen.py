@@ -881,6 +881,27 @@ class CBinaryOp(CExpression):
             return self.lhs.type
         return self._type
 
+    @property
+    def op_precedence(self):
+        precedence_list = [
+            # lowest precedence
+            ['LogicalOr'],
+            ['LogicalAnd'],
+            ['Or'],
+            ['Xor'],
+            ['And'],
+            ['CmpEQ', 'CmpNE'],
+            ['CmpLE', 'CmpLT', 'CmpGT', 'CmpGE'],
+            ['Shl', 'Shr', 'Sar'],
+            ['Add', 'Sub'],
+            ['Mul', 'Div'],
+            # highest precedence
+        ]
+        for i, sublist in enumerate(precedence_list):
+            if self.op in sublist:
+                return i
+        return len(precedence_list)
+
     def c_repr_chunks(self):
 
         if self.variable is not None:
@@ -919,97 +940,77 @@ class CBinaryOp(CExpression):
     # Handlers
     #
 
+    def _c_repr_chunks(self, op):
+        # lhs
+        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
+            yield "(", None
+            yield from self._try_c_repr_chunks(self.lhs)
+            yield ")", None
+        else:
+            yield from self._try_c_repr_chunks(self.lhs)
+        # operator
+        yield op, None
+        # rhs
+        if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (1 if self.op in ['Sub', 'Div'] else 0):
+            yield "(", None
+            yield from self._try_c_repr_chunks(self.rhs)
+            yield ")", None
+        else:
+            yield from self._try_c_repr_chunks(self.rhs)
+
     def _c_repr_chunks_add(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " + ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" + ")
 
     def _c_repr_chunks_sub(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " - ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" - ")
 
     def _c_repr_chunks_mul(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " * ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" * ")
 
     def _c_repr_chunks_div(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " / ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" / ")
 
     def _c_repr_chunks_and(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " & ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" & ")
 
     def _c_repr_chunks_xor(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " ^ ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" ^ ")
 
     def _c_repr_chunks_or(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " | ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" | ")
 
     def _c_repr_chunks_shr(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " >> ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" >> ")
 
     def _c_repr_chunks_shl(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " << ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " >> ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" >> ")
 
     def _c_repr_chunks_logicaland(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " && ", None
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" && ")
 
     def _c_repr_chunks_logicalor(self):
-        yield "(", None
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield ") || (", None
-        yield from self._try_c_repr_chunks(self.rhs)
-        yield ")", None
+        yield from self._c_repr_chunks(" || ")
 
     def _c_repr_chunks_cmple(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " <= ", self
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" <= ")
 
     def _c_repr_chunks_cmplt(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " < ", self
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" < ")
 
     def _c_repr_chunks_cmpgt(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " > ", self
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" > ")
 
     def _c_repr_chunks_cmpge(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " >= ", self
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" >= ")
 
     def _c_repr_chunks_cmpeq(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " == ", self
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" == ")
 
     def _c_repr_chunks_cmpne(self):
-        yield from self._try_c_repr_chunks(self.lhs)
-        yield " != ", self
-        yield from self._try_c_repr_chunks(self.rhs)
+        yield from self._c_repr_chunks(" != ")
 
 
 class CTypeCast(CExpression):
