@@ -45,4 +45,3 @@ class poll(angr.SimProcedure):
 
         retval = self.state.solver.BVV(0, 1).concat(self.state.solver.BVS('poll_ret', 31))
         return retval
-
