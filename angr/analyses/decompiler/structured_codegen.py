@@ -897,8 +897,8 @@ class CBinaryOp(CExpression):
             ['Mul', 'Div'],
             # highest precedence
         ]
-        for i in range(len(precedence_list)):
-            if self.op in precedence_list[i]:
+        for i, sublist in enumerate(precedence_list):
+            if self.op in sublist:
                 return i
         return len(precedence_list)
 
