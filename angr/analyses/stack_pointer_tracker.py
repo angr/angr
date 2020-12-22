@@ -278,7 +278,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     def _offset_for(self, addr, pre_or_post, reg):
         try:
-            regval = dict(self._state_for(addr, pre_or_post).regs)[reg]
+            s = self._state_for(addr, pre_or_post)
+            if s is None:
+                return TOP
+            regval = dict(s.regs)[reg]
         except KeyError:
             return TOP
         if regval is TOP or type(regval) is Constant:
