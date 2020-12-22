@@ -1,5 +1,4 @@
 import angr
-import pyvex
 
 # pylint: disable=arguments-differ,unused-argument,no-self-use,inconsistent-return-statements
 
@@ -25,9 +24,7 @@ class pthread_create(angr.SimProcedure):
         # Execute each block
         state = blank_state
         for b in blocks:
-            irsb = self.project.factory.default_engine.process(state, b,
-                    force_addr=next(iter(stmt for stmt in b.statements if isinstance(stmt, pyvex.IRStmt.IMark))).addr
-                                                  )
+            irsb = self.project.factory.default_engine.process(state, b, force_addr=b.addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
