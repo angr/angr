@@ -1,6 +1,7 @@
 from unittest import TestCase
 
 from angr.knowledge_plugins.key_definitions.dataset import DataSet, dataset_from_datasets, size_of_datasets
+from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 from angr.knowledge_plugins.key_definitions.unknown_size import UNKNOWN_SIZE
 
 
@@ -18,6 +19,11 @@ class TestDataSet(TestCase):
             DataSet(set(), 2),
             DataSet(set(), 4),
         ]
+
+        self.assertEqual(size_of_datasets(datasets), UNKNOWN_SIZE)
+
+    def test_size_of_datasets_with_empty_list_of_datasets(self):
+        datasets = []
 
         self.assertEqual(size_of_datasets(datasets), UNKNOWN_SIZE)
 
@@ -41,6 +47,13 @@ class TestDataSet(TestCase):
         result = dataset_from_datasets(datasets)
 
         self.assertSetEqual(result.data, {1, 2, 3})
+        self.assertEqual(result._bits, UNKNOWN_SIZE)
+
+    def test_dataset_from_datasets_with_empty_list_of_datasets(self):
+        datasets = []
+        result = dataset_from_datasets(datasets)
+
+        self.assertSetEqual(result.data, {UNDEFINED})
         self.assertEqual(result._bits, UNKNOWN_SIZE)
 
     def test_representation_shortens_content_with_repeated_character(self):
