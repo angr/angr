@@ -240,7 +240,7 @@ class VMDeobfuscation(Analysis):
                         if isinstance(cur_stmt, pyvex.stmt.AbiHint) or isinstance(cur_stmt, pyvex.stmt.Exit):
                             continue
 
-                        # 64-bit
+                        # using 32 bit registers in 64-bit
                         # x86
                         # add eax,const1         ==> add eax, const1+const2
                         # add eax, const2
@@ -251,24 +251,28 @@ class VMDeobfuscation(Analysis):
                         # t36 = 32Uto64(t0)                 ==>
                         # t37 = 64to32(t36)
                         # t3 = Add32(t37, 0x00000002)
+
                         successors = list(sub_graph.graph.successors(cur_stmt_node))
-                        if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op == "Iop_Add32" and len(successors) == 1:
+                        if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op in ["Iop_Add32", "Iop_Sub32"] and len(successors) == 1:
                             for arg in cur_stmt.data.args:
                                 if isinstance(arg, pyvex.expr.Const):
-                                    const_0 = arg
+                                    const_0 = arg.con.value
+                            if cur_stmt.data.op in ["Iop_Add32", "Iop_Sub32"]:
+                                const_0 = -const_0
                             successor = successors[0]
                             successors = list(sub_graph.graph.successors(successor))
                             if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Unop) and successor.stmt.data.op == "Iop_64to32":
-
                                 successor = successors[0]
                                 successors = list(sub_graph.graph.successors(successor))
                                 if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Unop) and successor.stmt.data.op == "Iop_32Uto64":
                                     successor = successors[0]
                                     successors = list(sub_graph.graph.successors(successor))
-                                    if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op == "Iop_Add32" and len(successors) == 1:
+                                    if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op in ["Iop_Add32", "Iop_Sub32"] and len(successors) == 1:
                                         for arg in successor.stmt.data.args:
                                             if isinstance(arg, pyvex.expr.Const):
                                                 const_1 = arg
+                                        if successor.stmt.data.op in ["Iop_Add32", "Iop_Sub32"]:
+                                            const_1 = -const_1
                                         successor = successors[0]
                                         successors = list(sub_graph.graph.successors(successor))
                                         if isinstance(successor.stmt, pyvex.stmt.WrTmp) and isinstance(successor.stmt.data, pyvex.expr.Unop) and successor.stmt.data.op == "Iop_64to32":
@@ -281,7 +285,7 @@ class VMDeobfuscation(Analysis):
                                                 simplified_statements.pop(-3)
                                                 simplified_statements.pop(-2)
 
-                        # 32-bit
+                        # using the full size register for the respective binary i.e. rax or eax
                         # x86
                         # add eax,const1         ==> add eax, const1+const2
                         # add eax, const2
@@ -290,10 +294,12 @@ class VMDeobfuscation(Analysis):
                         # t0 = Add32(t2, 0x00000001)    ==>     t3 = Add32(t2, 0x00000003)
                         # t3 = Add32(t0, 0x00000002)
                         successors = list(sub_graph.graph.successors(cur_stmt_node))
-                        if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op == "Iop_Add32" and len(successors) == 1:
+                        if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1:
                             for arg in cur_stmt.data.args:
                                 if isinstance(arg, pyvex.expr.Const):
-                                    const_0 = arg
+                                    const_0 = arg.con.value
+                            if cur_stmt.data.op in ["Iop_Sub32", "Iop_Sub64"]:
+                                const_0 = -const_0
                             successor = successors[0]
                             import ipdb;
                             ipdb.set_trace()
@@ -301,11 +307,13 @@ class VMDeobfuscation(Analysis):
                                 continue
 
                             successors = list(sub_graph.graph.successors(successor))
-                            if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op == "Iop_Add32" and len(successors) == 1:
+                            if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1:
                                 for arg in successor.stmt.data.args:
                                     if isinstance(arg, pyvex.expr.Const):
-                                        const_1 = arg
-                                simplified_statements[-1] = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop(cur_stmt.data.op, [pyvex.expr.RdTmp(simplified_statements[-3].tmp), pyvex.expr.Const(cur_stmt.data.args[1].__class__(const_0.con.value+const_1.con.value))]))
+                                        const_1 = arg.con.value
+                                if successor.stmt.data.op in ["Iop_Sub32", "Iop_Sub64"]:
+                                    const_1 = -const_1
+                                simplified_statements[-1] = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop(cur_stmt.data.op, [pyvex.expr.RdTmp(simplified_statements[-3].tmp), pyvex.expr.Const(cur_stmt.data.args[1].__class__(const_0+const_1))]))
                                 simplified_statements.pop(-2)
                                 import ipdb;
                                 ipdb.set_trace()
