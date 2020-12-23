@@ -52,7 +52,7 @@ class CodeLocation:
         if self.context is None:
             s += " contextless"
         else:
-            s += " context: %r" % self.context
+            s += " context: %r" % (self.context,)
 
         ss = [ ]
         if self.info:
