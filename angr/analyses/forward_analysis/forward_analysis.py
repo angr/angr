@@ -146,7 +146,7 @@ class ForwardAnalysis:
         raise NotImplementedError('_job_queue_empty() is not implemented.')
 
     def _initial_abstract_state(self, node):
-        raise NotImplementedError('_get_initial_abstract_state() is not implemented.')
+        raise NotImplementedError('_initial_abstract_state() is not implemented.')
 
     def _run_on_node(self, node, state):
         """
