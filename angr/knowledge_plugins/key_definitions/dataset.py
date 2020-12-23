@@ -1,4 +1,4 @@
-from typing import List, Union, Set
+from typing import List, Union, Set, Tuple
 import logging
 import operator
 import re
@@ -202,18 +202,19 @@ def _stringify_datum(datum):
     return datum
 
 
-def size_of_datasets(datasets: List[DataSet]) -> DataSet:
+def size_of_datasets(datasets: List[DataSet]) -> Tuple[int,UnknownSize]:
     """
     If the size of all datasets are equal, then the result will be of that size; Otherwise, it will be of size UNKNOWN_SIZE.
 
     :param datasets: The datasets to get the size from.
     :return: The common size of the given datasets.
     """
+    if not datasets:
+        return UNKNOWN_SIZE
     return (
         datasets[0]._bits if all(map(lambda d: d._bits == datasets[0]._bits, datasets))
         else UNKNOWN_SIZE
     )
-
 
 
 def dataset_from_datasets(datasets: List[DataSet]) -> DataSet:
@@ -223,6 +224,9 @@ def dataset_from_datasets(datasets: List[DataSet]) -> DataSet:
     :param datasets: The datasets to merge into one.
     :return: A new <DataSet>, containing the data from all given datasets.
     """
+    if not datasets:
+        return DataSet({UNDEFINED}, UNKNOWN_SIZE)
+
     size = size_of_datasets(datasets)
 
     result = DataSet(set(), size)
