@@ -70,9 +70,7 @@ class SimEngineLight(SimEngine):
 
 class SimEngineLightVEXMixin:
 
-    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
-
-        assert block is not None
+    def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
         # initialize local variables
         self.tmps = {}
