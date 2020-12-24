@@ -870,6 +870,14 @@ def test_generate_special_info():
     nose.tools.assert_equal(cfg.functions['main'].info['gp'], 0x418ca0)
 
 
+def test_load_from_shellcode():
+
+    proj = angr.load_shellcode('loop: dec ecx; jnz loop; ret', 'x86')
+    cfg = proj.analyses.CFGFast()
+
+    nose.tools.assert_equal(len(cfg.model.nodes()), 2)
+
+
 def run_all():
 
     g = globals()
@@ -912,6 +920,7 @@ def run_all():
     test_indirect_jump_to_outside()
     test_generate_special_info()
     test_plt_stub_has_one_jumpout_site()
+    test_load_from_shellcode()
 
 
 def main():
