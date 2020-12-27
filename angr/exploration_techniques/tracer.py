@@ -478,7 +478,17 @@ class Tracer(ExplorationTechnique):
         if state.globals['sync_idx'] is not None:
             l.debug("Trace: %d-%d/%d synchronizing %d", state.globals['trace_idx'], state.globals['sync_idx'], len(self._trace), state.globals['sync_timer'])
         else:
-            l.debug("Trace: %d/%d", state.globals['trace_idx'], len(self._trace))
+            l.debug("Trace: %d/%d (0x%x)", state.globals['trace_idx'], len(self._trace), state.addr)
+
+        iaddrs = state.block().instruction_addrs
+        if idx + 2 < len(self._trace) and self._trace[idx+2] in iaddrs:
+            index = iaddrs.index(self._trace[idx+2])
+            if index > 0 and state.block().capstone.insns[index - 1].mnemonic == "popfd":
+                # Sometimes qemu traces contain extra addresses from within a
+                # basic block. It occurs after `popfd` on x86. This would throw
+                # off our analysis, so we just remove them from the trace.
+                l.debug("removing address 0x{:x} from trace.".format(self._trace[idx+2]))
+                self._trace.pop(idx+2)
 
     def _translate_state_addr(self, state_addr, obj=None):
         if obj is None:
