@@ -1,11 +1,13 @@
-from typing import List
+from typing import List, Dict, TYPE_CHECKING
 import logging
+import cle
 
 from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 from . import ExplorationTechnique
 from .. import BP_BEFORE, BP_AFTER, sim_options
 from ..errors import AngrTracerError
+
 
 l = logging.getLogger(name=__name__)
 
@@ -154,7 +156,7 @@ class Tracer(ExplorationTechnique):
         self._mode = mode
         self._aslr = aslr
 
-        self._aslr_slides = {}
+        self._aslr_slides = {}  # type: Dict[cle.Backend, int]
         self._current_slide = None
 
         # keep track of the last basic block we hit
@@ -172,12 +174,15 @@ class Tracer(ExplorationTechnique):
     def _locate_entry_point(self, angr_addr):
         # ...via heuristics
         indices = set()
-        for idx, addr in enumerate(self._trace):
-            if ((addr - angr_addr) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > 0x80000):
-                indices.add(idx)
+        threshold = 0x40000
+        while not indices and threshold > 0x2000:
+            for idx, addr in enumerate(self._trace):
+                if ((addr - angr_addr) & 0xfff) == 0 and (idx == 0 or abs(self._trace[idx-1] - addr) > threshold):
+                    indices.add(idx)
 
-        if len(indices) > 1:
             indices = set(i for i in indices if self._filter_idx(angr_addr, i))
+            threshold //= 2
+
 
         return indices
 
@@ -288,6 +293,8 @@ class Tracer(ExplorationTechnique):
         # perform the step. ask qemu to stop at the termination point.
         stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
         succs_dict = simgr.step_state(state, extra_stop_points=stops, **kwargs)
+        if None not in succs_dict and simgr.errored:
+            raise simgr.errored[-1].error
         sat_succs = succs_dict[None]  # satisfiable states
         succs = sat_succs + succs_dict['unsat']  # both satisfiable and unsatisfiable states
 
@@ -473,6 +480,9 @@ class Tracer(ExplorationTechnique):
             elif state.addr == getattr(self.project.simos, 'vsyscall_addr', None):
                 if not self._sync_callsite(state, idx, state.history.addr):
                     raise AngrTracerError("Could not synchronize following vsyscall")
+            elif self.project.hooked_by(state.addr).display_name.startswith('IFuncResolver'):
+                if not self._sync_return(state, idx):
+                    raise AngrTracerError("Could not synchronize at ifunc return address")
             else:
                 # see above
                 pass
@@ -487,6 +497,11 @@ class Tracer(ExplorationTechnique):
             # we may have prematurely stopped because of setting stop points. try to resync.
             state.globals['sync_idx'] = idx + 1
             state.globals['sync_timer'] = 1
+        elif self.project.is_hooked(state.addr) and \
+                self.project.loader.find_symbol(self.project.hooked_by(state.addr).display_name) is not None and \
+                self.project.loader.find_symbol(self.project.hooked_by(state.addr).display_name).subtype.value[0] == 10:  # STT_GNU_IFUNC
+            if not self._sync_return(state, idx):
+                raise AngrTracerError("Could not synchronize at ifunc return address")
         elif self._analyze_misfollow(state, idx):
             # misfollow analysis will set a sync point somewhere if it succeeds
             pass
@@ -507,7 +522,13 @@ class Tracer(ExplorationTechnique):
             raise Exception("Internal error: cannot translate address")
         return state_addr + self._aslr_slides[obj]
 
-    def _translate_trace_addr(self, trace_addr, obj):
+    def _translate_trace_addr(self, trace_addr, obj=None):
+        if obj is None:
+            for obj in self._aslr_slides:
+                if obj.contains_addr(trace_addr - self._aslr_slides[obj]):
+                    break
+            else:
+                raise Exception("Can't figure out which object this address belongs to")
         if obj not in self._aslr_slides:
             raise Exception("Internal error: object is untranslated")
         return trace_addr - self._aslr_slides[obj]
@@ -540,7 +561,7 @@ class Tracer(ExplorationTechnique):
 
         control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
 
-        prev_trace_block = state.project.factory.block(self._trace[trace_curr_idx - 1])
+        prev_trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_curr_idx - 1]))
         for insn_type in control_flow_insn_types:
             if prev_trace_block.capstone.insns[-1].group(insn_type):
                 # Previous block ends in a control flow instruction. It is a trace desync.
@@ -550,11 +571,11 @@ class Tracer(ExplorationTechnique):
         # trace: it'll be the first block executed after a control flow instruction.
         big_block_start_addr = None
         for trace_block_idx in range(trace_curr_idx - 2, -1, -1):
-            trace_block = state.project.factory.block(self._trace[trace_block_idx])
+            trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_block_idx]))
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
                 if trace_block_last_insn.group(insn_type):
-                    big_block_start_addr = self._trace[trace_block_idx + 1]
+                    big_block_start_addr = self._translate_trace_addr(self._trace[trace_block_idx + 1])
                     break
 
             if big_block_start_addr is not None:
@@ -598,7 +619,7 @@ class Tracer(ExplorationTechnique):
         # Let's find the address of the last bytes of the big basic block from the trace
         big_block_end_addr = None
         for trace_block_idx in range(trace_curr_idx + 1, len(self._trace)):
-            trace_block = state.project.factory.block(self._trace[trace_block_idx])
+            trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_block_idx]))
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
                 if trace_block_last_insn.group(insn_type):
