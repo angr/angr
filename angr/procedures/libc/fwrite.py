@@ -16,3 +16,5 @@ class fwrite(angr.SimProcedure):
         if simfd is None:
             return -1
         return simfd.write(src, size*nmemb)
+
+fwrite_unlocked = fwrite

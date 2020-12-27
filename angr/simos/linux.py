@@ -112,7 +112,7 @@ class SimLinux(SimUserland):
                             }
                             # TODO: should this be replaced with hook_symbol?
                             randaddr = self.project.loader.extern_object.allocate()
-                            self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
+                            self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](display_name='IFuncResolver.' + reloc.symbol.name, **kwargs))
                             self.project.loader.memory.pack_word(gotaddr, randaddr)
 
         if isinstance(self.project.arch, ArchARM):

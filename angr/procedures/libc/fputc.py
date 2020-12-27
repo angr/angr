@@ -18,3 +18,7 @@ class fputc(angr.SimProcedure):
 
         simfd.write_data(c[7:0])
         return c & 0xff
+
+putc = fputc
+fputc_unlocked = fputc
+putc_unlocked = fputc

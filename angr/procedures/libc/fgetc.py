@@ -20,3 +20,5 @@ class fgetc(angr.SimProcedure):
         return self.state.solver.If(real_length == 0, -1, data.zero_extend(self.state.arch.bits - 8))
 
 getc = fgetc
+fgetc_unlocked = fgetc
+getc_unlocked = fgetc

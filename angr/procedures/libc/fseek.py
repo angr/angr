@@ -30,3 +30,5 @@ class fseek(angr.SimProcedure):
         if simfd is None:
             return -1
         return self.state.solver.If(simfd.seek(offset, whence), self.state.solver.BVV(0, self.state.arch.bits), -1)
+
+fseeko = fseek

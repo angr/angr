@@ -21,3 +21,5 @@ class fputs(angr.SimProcedure):
         p_strlen = self.inline_call(strlen, str_addr)
         simfd.write(str_addr, p_strlen.max_null_index)
         return 1
+
+fputs_unlocked = fputs
