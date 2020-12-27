@@ -705,6 +705,9 @@ class SimEngineLightAILMixin:
     def _ail_handle_Call(self, stmt):
         raise NotImplementedError('Please implement the Call handler with your own logic.')
 
+    def _ail_handle_Return(self, stmt):
+        raise NotImplementedError('Please implement the Return handler with your own logic.')
+
     #
     # Expression handlers
     #

@@ -2,7 +2,7 @@
 from typing import Dict, Type, Callable, Any, Optional
 
 from ailment import Block
-from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store
+from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
 from ailment.expression import Load, Expression, BinaryOp, UnaryOp
 
 
@@ -17,6 +17,7 @@ class AILBlockWalker:
             Call: self._handle_Call,
             Store: self._handle_Store,
             ConditionalJump: self._handle_ConditionalJump,
+            Return: self._handle_Return,
         }
 
         _default_expr_handlers = {
@@ -88,6 +89,13 @@ class AILBlockWalker:
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
+
+    def _handle_Return(self, stmt_idx: int, stmt: Return, block: Optional[Block]):
+        if stmt.ret_exprs:
+            i = 0
+            while i < len(stmt.ret_exprs):
+                self._handle_expr(i, stmt.ret_exprs[i], stmt_idx, stmt, block)
+                i += 1
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         if expr.args:
