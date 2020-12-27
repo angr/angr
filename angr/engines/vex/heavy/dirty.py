@@ -41,6 +41,13 @@ x86g_dirtyhelper_RDTSC = amd64g_dirtyhelper_RDTSC
 
 # Copied basically directly from the vex source
 def amd64g_dirtyhelper_CPUID_baseline(state, _):
+    if 'CPUID_SYMBOLIC' in state.options:
+        state.regs.rax = claripy.BVS("cpuid_a", 32).zero_extend(32)
+        state.regs.rbx = claripy.BVS("cpuid_b", 32).zero_extend(32)
+        state.regs.rcx = claripy.BVS("cpuid_c", 32).zero_extend(32)
+        state.regs.rdx = claripy.BVS("cpuid_d", 32).zero_extend(32)
+        return None, []
+
     old_eax = state.regs.rax[31:0]
     def SET_ABCD(a, b, c, d, condition=None):
         if condition is None:
@@ -142,6 +149,13 @@ def amd64g_dirtyhelper_XRSTOR_COMPONENT_1_EXCLUDING_XMMREGS(state, _, addr):
 
 
 def CORRECT_amd64g_dirtyhelper_CPUID_avx_and_cx16(state, _):
+    if 'CPUID_SYMBOLIC' in state.options:
+        state.regs.rax = claripy.BVS("cpuid_a", 32).zero_extend(32)
+        state.regs.rbx = claripy.BVS("cpuid_b", 32).zero_extend(32)
+        state.regs.rcx = claripy.BVS("cpuid_c", 32).zero_extend(32)
+        state.regs.rdx = claripy.BVS("cpuid_d", 32).zero_extend(32)
+        return None, []
+
     old_eax = state.regs.rax[31:0]
     old_ecx = state.regs.rcx[31:0]
 
@@ -220,6 +234,13 @@ def amd64g_dirtyhelper_SxDT(state, addr, op): #pylint:disable=unused-argument
     return None, [ ]
 
 def x86g_dirtyhelper_CPUID_sse0(state, _):
+    if 'CPUID_SYMBOLIC' in state.options:
+        state.regs.eax = claripy.BVS("cpuid_a", 32)
+        state.regs.ebx = claripy.BVS("cpuid_b", 32)
+        state.regs.ecx = claripy.BVS("cpuid_c", 32)
+        state.regs.edx = claripy.BVS("cpuid_d", 32)
+        return None, []
+
     old_eax = state.regs.eax
 
     def SET_ABCD(a, b, c, d, condition=None, condition2=None):
@@ -245,6 +266,13 @@ x86g_dirtyhelper_CPUID_sse2 = x86g_dirtyhelper_CPUID_sse0
 x86g_dirtyhelper_CPUID_sse3 = x86g_dirtyhelper_CPUID_sse0
 
 def CORRECT_x86g_dirtyhelper_CPUID_sse2(state, _):
+    if 'CPUID_SYMBOLIC' in state.options:
+        state.regs.eax = claripy.BVS("cpuid_a", 32)
+        state.regs.ebx = claripy.BVS("cpuid_b", 32)
+        state.regs.ecx = claripy.BVS("cpuid_c", 32)
+        state.regs.edx = claripy.BVS("cpuid_d", 32)
+        return None, []
+
     old_eax = state.regs.eax
     old_ecx = state.regs.ecx
 
