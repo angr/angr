@@ -1,6 +1,6 @@
 from collections import defaultdict
 import logging
-from typing import List
+from typing import List, Optional, TYPE_CHECKING
 
 import networkx
 
@@ -13,10 +13,15 @@ from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
+from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from .ailgraph_walker import AILGraphWalker
 from .optimization_passes import get_default_optimization_passes
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.cfg import CFGModel
 
 
 l = logging.getLogger(name=__name__)
@@ -31,6 +36,7 @@ class Clinic(Analysis):
                  exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
+                 cfg=None
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -41,13 +47,14 @@ class Clinic(Analysis):
         self.arg_list = None
         self.variable_kb = None
 
-        self._func_graph = None  # type: networkx.DiGraph
+        self._func_graph: Optional[networkx.DiGraph] = None
         self._ail_manager = None
         self._blocks_by_addr_and_size = { }
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
+        self._cfg: Optional['CFGModel'] = cfg
 
         # sanity checks
         if not self.kb.functions:
@@ -120,6 +127,9 @@ class Clinic(Analysis):
         # Convert VEX blocks to AIL blocks and then simplify them
 
         self._convert_all()
+
+        self._replace_single_target_indirect_transitions()
+
         ail_graph = self._simplify_blocks(stack_pointer_tracker=spt)
 
         # Simplify the entire function for the first time
@@ -217,6 +227,46 @@ class Clinic(Analysis):
 
         ail_block = ailment.IRSBConverter.convert(block.vex, self._ail_manager)
         return ail_block
+
+    @timethis
+    def _replace_single_target_indirect_transitions(self):
+        """
+        Remove single-target indirect jumps and calls and replace them with direct jumps or calls.
+        """
+        if self._cfg is None:
+            return
+
+        for block in list(self._blocks_by_addr_and_size.values()):
+            if not block.statements:
+                continue
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Call) and not isinstance(last_stmt.target, ailment.Expr.Const):
+                # indirect call
+                # consult CFG to see if this is a call with a single successor
+                node = self._cfg.get_any_node(block.addr)
+                if node is None:
+                    continue
+                successors = self._cfg.get_successors(node, excluding_fakeret=True, jumpkind='Ijk_Call')
+                if len(successors) == 1 and \
+                        not isinstance(self.project.hooked_by(successors[0].addr), UnresolvableCallTarget):
+                    # found a single successor - replace the last statement
+                    new_last_stmt = last_stmt.copy()
+                    new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
+                    block.statements[-1] = new_last_stmt
+
+            elif isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
+                # indirect jump
+                # consult CFG to see if there is a jump with a single successor
+                node = self._cfg.get_any_node(block.addr)
+                if node is None:
+                    continue
+                successors = self._cfg.get_successors(node, excluding_fakeret=True, jumpkind='Ijk_Boring')
+                if len(successors) == 1 and \
+                        not isinstance(self.project.hooked_by(successors[0].addr), UnresolvableJumpTarget):
+                    # found a single successor - replace the last statement
+                    new_last_stmt = last_stmt.copy()
+                    new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
+                    block.statements[-1] = new_last_stmt
 
     @timethis
     def _simplify_blocks(self, stack_pointer_tracker=None):

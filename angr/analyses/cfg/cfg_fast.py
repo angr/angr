@@ -2009,6 +2009,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         if irsb.data_refs:
+            if self.project.arch.name in ('MIPS32', 'MIPS64', 'ARMEL', 'ARMHF'):
+                # temporary workaround: re-lift the block with full optimization, and then use the traditional approach
+                # this workaround can be removed once we support register writes and additions in
+                # collect_data_references() in pyvex.
+                irsb = self._lift(irsb_addr, size=irsb.size, collect_data_refs=True, cross_insn_opt=True).vex_nostmt
+
             self._process_irsb_data_refs(irsb)
         elif irsb.statements:
             # for each statement, collect all constants that are referenced or used.

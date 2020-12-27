@@ -14,7 +14,7 @@ def test_decompiling_all_x86_64():
         if f.is_simprocedure:
             print("Skipping SimProcedure %s." % repr(f))
             continue
-        dec = p.analyses.Decompiler(f, cfg=cfg)
+        dec = p.analyses.Decompiler(f, cfg=cfg.model)
         if dec.codegen is not None:
             print(dec.codegen.text)
         else:
@@ -32,7 +32,7 @@ def test_decompiling_babypwn_i386():
             continue
         if f.addr not in (0x8048a71, 0x8048c6b):
             continue
-        dec = p.analyses.Decompiler(f, cfg=cfg)
+        dec = p.analyses.Decompiler(f, cfg=cfg.model)
         if dec.codegen is not None:
             print(dec.codegen.text)
         else:
@@ -45,7 +45,7 @@ def test_decompiling_loop_x86_64():
 
     cfg = p.analyses.CFG(normalize=True, data_references=True)
     f = cfg.functions['loop']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
 
         # it should be properly structured to a while loop without conditional breaks
@@ -63,7 +63,7 @@ def test_decompiling_all_i386():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -81,7 +81,7 @@ def test_decompiling_aes_armel():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -95,7 +95,7 @@ def test_decompiling_mips_allcmps():
     cfg = p.analyses.CFG(collect_data_references=True, normalize=True)
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -109,7 +109,7 @@ def test_decompiling_linked_list():
     cfg = p.analyses.CFG(normalize=True, data_references=True)
 
     f = cfg.functions['sum']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -124,7 +124,7 @@ def test_decompiling_dir_gcc_O0_free_ent():
     cfg = p.analyses.CFG(normalize=True)
 
     f = cfg.functions['free_ent']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -141,7 +141,7 @@ def test_decompiling_dir_gcc_O0_main():
     cfg = p.analyses.CFG(normalize=True)
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -156,7 +156,7 @@ def test_decompiling_dir_gcc_O0_emit_ancillary_info():
     cfg = p.analyses.CFG(normalize=True)
 
     f = cfg.functions['emit_ancillary_info']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         print(dec.codegen.text)
     else:
@@ -172,7 +172,7 @@ def test_decompiling_switch0_x86_64():
     cfg = p.analyses.CFG(normalize=True, data_references=True)
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
 
     if dec.codegen is not None:
         code = dec.codegen.text
@@ -206,7 +206,7 @@ def test_decompiling_switch1_x86_64():
                                 if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg, optimization_passes=all_optimization_passes)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "switch" in code
@@ -240,7 +240,7 @@ def test_decompiling_switch2_x86_64():
                                 if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
 
     f = cfg.functions['main']
-    dec = p.analyses.Decompiler(f, cfg=cfg, optimization_passes=all_optimization_passes)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "switch" in code
@@ -273,7 +273,7 @@ def test_decompiling_1after909():
 
     # verify_password
     f = cfg.functions['verify_password']
-    dec = p.analyses.Decompiler(f, cfg=cfg)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "stack_base" not in code, "Some stack variables are not recognized"
@@ -291,7 +291,7 @@ def test_decompiling_1after909():
     ) + [
         angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier,
     ]
-    dec = p.analyses.Decompiler(f, cfg=cfg, optimization_passes=optimization_passes)
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=optimization_passes)
     if dec.codegen is not None:
         code = dec.codegen.text
         print(code)
@@ -310,7 +310,7 @@ def test_decompiling_libsoap():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     func = cfg.functions[0x41d000]
-    dec = p.analyses.Decompiler(func, cfg=cfg)
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
     if dec.codegen is not None:
         code = dec.codegen.text
         print(code)
@@ -328,10 +328,10 @@ def test_decompiling_strings_local_strlen():
     func = cfg.functions['local_strlen']
 
     _ = p.analyses.VariableRecoveryFast(func)
-    cca = p.analyses.CallingConvention(func, cfg=cfg)
+    cca = p.analyses.CallingConvention(func, cfg=cfg.model)
     func.calling_convention = cca.cc
 
-    dec = p.analyses.Decompiler(func, cfg=cfg)
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
 
     code = dec.codegen.text
@@ -349,10 +349,10 @@ def test_decompiling_strings_local_strcat():
     func = cfg.functions['local_strcat']
 
     _ = p.analyses.VariableRecoveryFast(func)
-    cca = p.analyses.CallingConvention(func, cfg=cfg)
+    cca = p.analyses.CallingConvention(func, cfg=cfg.model)
     func.calling_convention = cca.cc
 
-    dec = p.analyses.Decompiler(func, cfg=cfg)
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
 
     code = dec.codegen.text
@@ -370,17 +370,17 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
     func_strlen = cfg.functions['local_strlen']
     _ = p.analyses.VariableRecoveryFast(func_strlen)
-    cca = p.analyses.CallingConvention(func_strlen, cfg=cfg)
+    cca = p.analyses.CallingConvention(func_strlen, cfg=cfg.model)
     func_strlen.calling_convention = cca.cc
-    p.analyses.Decompiler(func_strlen, cfg=cfg)
+    p.analyses.Decompiler(func_strlen, cfg=cfg.model)
 
     func = cfg.functions['local_strcat']
 
     _ = p.analyses.VariableRecoveryFast(func)
-    cca = p.analyses.CallingConvention(func, cfg=cfg)
+    cca = p.analyses.CallingConvention(func, cfg=cfg.model)
     func.calling_convention = cca.cc
 
-    dec = p.analyses.Decompiler(func, cfg=cfg)
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
 
     code = dec.codegen.text
@@ -398,20 +398,20 @@ def test_decompilation_call_expr_folding():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     func_0 = cfg.functions['strlen_should_fold']
-    dec = p.analyses.Decompiler(func_0, cfg=cfg)
+    dec = p.analyses.Decompiler(func_0, cfg=cfg.model)
     code = dec.codegen.text
     print(code)
     assert "s_428 = (int)strlen(&s_418);" in code, "The result of strlen() should be directly assigned to a stack " \
                                                    "variable because of call-expression folding."
 
     func_1 = cfg.functions['strlen_should_not_fold']
-    dec = p.analyses.Decompiler(func_1, cfg=cfg)
+    dec = p.analyses.Decompiler(func_1, cfg=cfg.model)
     code = dec.codegen.text
     print(code)
     assert code.count("strlen(") == 1
 
     func_2 = cfg.functions['strlen_should_not_fold_into_loop']
-    dec = p.analyses.Decompiler(func_2, cfg=cfg)
+    dec = p.analyses.Decompiler(func_2, cfg=cfg.model)
     code = dec.codegen.text
     print(code)
     assert code.count("strlen(") == 1
@@ -425,13 +425,33 @@ def test_decompilation_excessive_condition_removal():
 
     func = cfg.functions[0x100003890]
 
-    dec = p.analyses.Decompiler(func, cfg=cfg)
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
     code = dec.codegen.text
     print(code)
 
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
     assert "}s_1a=s_1a+1;}" in code
+
+
+def test_decompiling_fauxware_mipsel():
+    bin_path = os.path.join(test_location, "mipsel", "fauxware")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    # The function calls must be correctly decompiled
+    assert "puts(" in code
+    assert "read(" in code
+    assert "authenticate()" in code
+    # The string references must be correctly recovered
+    assert '"Username: "' in code
+    assert '"Password: "' in code
 
 
 if __name__ == "__main__":
