@@ -176,6 +176,13 @@ class Jump(Statement):
         else:
             return False, self
 
+    def copy(self):
+        return Jump(
+            self.idx,
+            self.target,
+            **self.tags,
+        )
+
 
 class ConditionalJump(Statement):
 
