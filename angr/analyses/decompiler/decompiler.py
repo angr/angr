@@ -42,6 +42,7 @@ class Decompiler(Analysis):
                                               kb=self.kb,
                                               optimization_passes=self._optimization_passes,
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
+                                              cfg=self._cfg,
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
         self.clinic = clinic
