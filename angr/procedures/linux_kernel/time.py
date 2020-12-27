@@ -20,7 +20,9 @@ class time(angr.SimProcedure):
         else:
             result = self.state.solver.BVS('sys_time', self.state.arch.bits, key=('api', 'time'))
             if self.last_time is not None:
-                self.state.add_constraints(result >= self.last_time)
+                self.state.add_constraints(result.SGE(self.last_time))
+            else:
+                self.state.add_constraints(result.SGE(0))
             self.last_time = result
         self.state.memory.store(pointer, result, condition=(pointer != 0))
         return result

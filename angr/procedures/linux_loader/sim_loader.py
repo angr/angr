@@ -36,7 +36,7 @@ class IFuncResolver(angr.SimProcedure):
         for name, val in self.saved_regs.items():
             self.state.registers.store(name, val)
 
-        self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness)
+        self.state.memory.store(gotaddr, value, endness=self.state.arch.memory_endness, priv=True)
         self.jump(value)
 
     def __repr__(self):
