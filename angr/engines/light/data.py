@@ -339,7 +339,7 @@ class SpOffset(RegisterOffset):
 
     def __repr__(self):
         if type(self.offset) is int:
-            offset_str = '' if self.offset == 0 else "%+x" % self.offset
+            offset_str = '' if self.offset == 0 else "%+#x" % self.offset
         else:
             offset_str = str(self.offset)
         return "%s%s" % ('BP' if self.is_base else 'SP', offset_str)
