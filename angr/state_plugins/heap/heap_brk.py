@@ -4,7 +4,7 @@ from . import SimHeapBase
 
 import logging
 
-l = logging.getLogger("angr.state_plugins.heap.heap_brk")
+l = logging.getLogger(__name__)
 
 class SimHeapBrk(SimHeapBase):
     """
@@ -37,6 +37,8 @@ class SimHeapBrk(SimHeapBase):
         :returns: a pointer to the previous break position, above which there is now allocated space
         """
         size = self._conc_alloc_size(sim_size)
+        while size % 16 != 0:
+            size += 1
         addr = self.state.heap.heap_location
         self.state.heap.heap_location += size
         l.debug("Allocating %d bytes at address %#08x", size, addr)
