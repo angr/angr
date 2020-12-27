@@ -753,11 +753,12 @@ def test_blanket_fauxware():
     # a block ends at 0x4005a9 (exclusive)
     nose.tools.assert_equal(cfb.ceiling_addr(0x400581), 0x4005a9)
 
+
 #
 # Data references
 #
 
-def test_data_references():
+def test_data_references_x86_64():
 
     path = os.path.join(test_location, 'x86_64', 'fauxware')
     proj = angr.Project(path, auto_load_libs=False)
@@ -777,6 +778,48 @@ def test_data_references():
     sneaky_str = memory_data[0x4008d0]
     nose.tools.assert_equal(sneaky_str.sort, "string")
     nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
+
+
+def test_data_references_mipsel():
+
+    path = os.path.join(test_location, 'mipsel', 'fauxware')
+    proj = angr.Project(path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFGFast(data_references=True)
+
+    memory_data = cfg.memory_data
+    # There is no code reference
+    code_ref_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference])
+    nose.tools.assert_greater_equal(code_ref_count, 0, msg="There should be no code reference.")
+
+    # There are at least 2 pointer arrays
+    ptr_array_count = len([d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray])
+    nose.tools.assert_greater_equal(ptr_array_count, 1, msg="Missing some pointer arrays.")
+
+    nose.tools.assert_in(0x400c00, memory_data)
+    sneaky_str = memory_data[0x400c00]
+    nose.tools.assert_equal(sneaky_str.sort, "string")
+    nose.tools.assert_equal(sneaky_str.content, b"SOSNEAKY")
+
+    nose.tools.assert_in(0x400c0c, memory_data)
+    str_ = memory_data[0x400c0c]
+    nose.tools.assert_equal(str_.sort, "string")
+    nose.tools.assert_equal(str_.content, b"Welcome to the admin console, trusted user!")
+
+    nose.tools.assert_in(0x400c38, memory_data)
+    str_ = memory_data[0x400c38]
+    nose.tools.assert_equal(str_.sort, "string")
+    nose.tools.assert_equal(str_.content, b"Go away!")
+
+    nose.tools.assert_in(0x400c44, memory_data)
+    str_ = memory_data[0x400c44]
+    nose.tools.assert_equal(str_.sort, "string")
+    nose.tools.assert_equal(str_.content, b"Username: ")
+
+    nose.tools.assert_in(0x400c50, memory_data)
+    str_ = memory_data[0x400c50]
+    nose.tools.assert_equal(str_.sort, "string")
+    nose.tools.assert_equal(str_.content, b"Password: ")
 
 
 #
@@ -914,7 +957,8 @@ def run_all():
     test_block_instruction_addresses_armhf()
     test_tail_call_optimization_detection_armel()
     test_blanket_fauxware()
-    test_data_references()
+    test_data_references_x86_64()
+    test_data_references_mipsel()
     test_function_leading_blocks_merging()
     test_cfg_with_patches()
     test_indirect_jump_to_outside()
