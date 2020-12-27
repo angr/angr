@@ -412,13 +412,13 @@ class SimSystemPosix(SimStatePlugin):
             # a fd can be SimFileDescriptorDuplex which is not backed by a file
             if isinstance(fd_desc, SimFileDescriptor):
                 sim_file = fd_desc.file
-                mount = self.state.fs.get_mountpoint(sim_file.name)[0]
+                mount = self.state.fs.get_mountpoint(sim_file.name)[0]  # TODO this is wrong. .name starts with file://
                 if mount:
                     guest_path = mount.lookup(sim_file)
 
         # if it is mounted, let the filesystem figure out the stat
         if guest_path is not None and mount is not None:
-            stat = mount._get_stat(guest_path)
+            stat = mount._get_stat(guest_path, dereference=True)
             if stat is None:
                 raise SimPosixError("file %s does not exist on mount %s" % (guest_path, mount))
             size = stat.st_size
