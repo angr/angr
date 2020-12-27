@@ -145,6 +145,9 @@ class CallingConventionAnalysis(Analysis):
             args = self._reorder_args(input_args, cc)
             cc.args = args
 
+            # set return value
+            cc.ret_val = cc.return_val
+
         return cc
 
     def _analyze_callsites(self) -> List[CallSiteFact]:  # pylint:disable=no-self-use

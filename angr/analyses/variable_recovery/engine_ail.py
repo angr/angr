@@ -126,6 +126,11 @@ class SimEngineVRAIL(
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
         return self._ail_handle_Call(expr, is_expr=True)
 
+    def _ail_handle_Return(self, stmt: ailment.Stmt.Return):
+        if stmt.ret_exprs:
+            for ret_expr in stmt.ret_exprs:
+                self._expr(ret_expr)
+
     # Expression handlers
 
     def _expr(self, expr):

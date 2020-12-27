@@ -89,6 +89,11 @@ class SimEnginePropagatorAIL(
         _ = self._expr(stmt.true_target)
         _ = self._expr(stmt.false_target)
 
+    def _ail_handle_Return(self, stmt: Stmt.Return):
+        if stmt.ret_exprs:
+            for ret_expr in stmt.ret_exprs:
+                self._expr(ret_expr)
+
     #
     # AIL expression handlers
     #
@@ -237,7 +242,7 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_CmpGE(self, expr):
+    def _ail_handle_CmpGEs(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 

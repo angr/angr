@@ -18,6 +18,7 @@ from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from .ailgraph_walker import AILGraphWalker
+from .ailblock_walker import AILBlockWalker
 from .optimization_passes import get_default_optimization_passes
 
 if TYPE_CHECKING:
@@ -128,9 +129,16 @@ class Clinic(Analysis):
 
         self._convert_all()
 
-        self._replace_single_target_indirect_transitions()
+        ail_graph = self._make_ailgraph()
 
-        ail_graph = self._simplify_blocks(stack_pointer_tracker=spt)
+        # Fix "fake" indirect jumps and calls
+        ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
+
+        # Make returns
+        ail_graph = self._make_returns(ail_graph)
+
+        # Simplify blocks
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the first time
         self._simplify_function(ail_graph, unify_variables=False)
@@ -229,14 +237,14 @@ class Clinic(Analysis):
         return ail_block
 
     @timethis
-    def _replace_single_target_indirect_transitions(self):
+    def _replace_single_target_indirect_transitions(self, ail_graph: networkx.DiGraph):
         """
         Remove single-target indirect jumps and calls and replace them with direct jumps or calls.
         """
         if self._cfg is None:
             return
 
-        for block in list(self._blocks_by_addr_and_size.values()):
+        for block in ail_graph.nodes():
             if not block.statements:
                 continue
             last_stmt = block.statements[-1]
@@ -268,24 +276,31 @@ class Clinic(Analysis):
                     new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
                     block.statements[-1] = new_last_stmt
 
+        return ail_graph
+
     @timethis
-    def _simplify_blocks(self, stack_pointer_tracker=None):
+    def _make_ailgraph(self) -> networkx.DiGraph:
+        graph = self._function_graph_to_ail_graph(self._func_graph)
+        return graph
+
+    @timethis
+    def _simplify_blocks(self, ail_graph: networkx.DiGraph, stack_pointer_tracker=None):
         """
         Simplify all blocks in self._blocks.
 
+        :param ail_graph:               The AIL function graph.
         :param stack_pointer_tracker:   The RegisterDeltaTracker analysis instance.
         :return:                        None
         """
 
-        # First of all, let's simplify blocks one by one
+        blocks_by_addr_and_size = {}
 
-        for key in self._blocks_by_addr_and_size:
-            ail_block = self._blocks_by_addr_and_size[key]
+        for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
-            self._blocks_by_addr_and_size[key] = simplified
+            key = ail_block.addr, ail_block.original_size
+            blocks_by_addr_and_size[key] = simplified
 
-        # Update the function graph so that we can use reaching definitions
-        graph = self._function_graph_to_ail_graph(self._func_graph)
+        graph = self._function_graph_to_ail_graph(self._func_graph, blocks_by_addr_and_size=blocks_by_addr_and_size)
         return graph
 
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
@@ -406,6 +421,44 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
+    def _make_returns(self, ail_graph: networkx.DiGraph):
+        """
+        Work on each return statement and fill in its return expressions.
+        """
+
+        # Block walker
+
+        def _handle_Return(stmt_idx: int, stmt: ailment.Stmt.Return, block: Optional[ailment.Block]):  # pylint:disable=unused-argument
+            if block is not None \
+                    and not stmt.ret_exprs \
+                    and self.function.calling_convention.ret_val is not None:
+                new_stmt = stmt.copy()
+                ret_val = self.function.calling_convention.ret_val
+                if isinstance(ret_val, SimRegArg):
+                    reg = self.project.arch.registers[ret_val.reg_name]
+                    new_stmt.ret_exprs.append(ailment.Expr.Register(None, None, reg[0],
+                                                                    reg[1] * self.project.arch.byte_width))
+                else:
+                    l.warning("Unsupported type of return expression %s.",
+                              type(self.function.calling_convention.ret_val))
+                block.statements[stmt_idx] = new_stmt
+
+
+        def _handler(block):
+            walker = AILBlockWalker()
+            # we don't need to handle any statement besides Returns
+            walker.stmt_handlers.clear()
+            walker.expr_handlers.clear()
+            walker.stmt_handlers[ailment.Stmt.Return] = _handle_Return
+            walker.walk(block)
+
+        # Graph walker
+
+        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
+
+        return ail_graph
+
+    @timethis
     def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
         if self.function.prototype is not None:
             # do not overwrite an existing function prototype
@@ -517,6 +570,15 @@ class Clinic(Analysis):
             elif stmt_type is ailment.Stmt.Call:
                 self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False)
 
+            elif stmt_type is ailment.Stmt.Return:
+                self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
+
+    def _link_variables_on_return(self, variable_manager, global_variables, block: ailment.Block, stmt_idx: int,
+                                  stmt: ailment.Stmt.Return):
+        if stmt.ret_exprs:
+            for ret_expr in stmt.ret_exprs:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, ret_expr)
+
     def _link_variables_on_call(self, variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False):
         if stmt.args:
             for arg in stmt.args:
@@ -601,13 +663,16 @@ class Clinic(Analysis):
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
 
-    def _function_graph_to_ail_graph(self, func_graph):
+    def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
+
+        if blocks_by_addr_and_size is None:
+            blocks_by_addr_and_size = self._blocks_by_addr_and_size
 
         node_to_block_mapping = {}
         graph = networkx.DiGraph()
 
         for node in func_graph.nodes():
-            ail_block = self._blocks_by_addr_and_size.get((node.addr, node.size), node)
+            ail_block = blocks_by_addr_and_size.get((node.addr, node.size), node)
             node_to_block_mapping[node] = ail_block
 
             if ail_block is not None:

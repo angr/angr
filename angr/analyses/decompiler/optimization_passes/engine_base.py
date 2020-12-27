@@ -136,6 +136,19 @@ class SimplifierAILEngine(
                          prototype=stmt.prototype, args=new_args, ret_expr=stmt.ret_expr,
                          **stmt.tags)
 
+    def _ail_handle_Return(self, stmt: Stmt.Return):
+        if stmt.ret_exprs:
+            new_retexprs = [ ]
+            for ret_expr in stmt.ret_exprs:
+                new_retexpr = self._expr(ret_expr)
+                new_retexprs.append(new_retexpr)
+
+            if new_retexprs != stmt.ret_exprs:
+                new_stmt = stmt.copy()
+                new_stmt.ret_exprs = new_retexprs
+                return new_stmt
+        return stmt
+
     def _ail_handle_Load(self, expr):
 
         addr = self._expr(expr.addr)

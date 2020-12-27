@@ -597,9 +597,9 @@ class CReturn(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        if self.retval is None:
+        if not self.retval:
             yield indent_str, None
-            yield "return;", None
+            yield "return;\n", None
         else:
             yield indent_str, None
             yield "return ", None
@@ -1167,6 +1167,7 @@ class StructuredCodeGenerator(Analysis):
             Stmt.Assignment: self._handle_Stmt_Assignment,
             Stmt.Call: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
+            Stmt.Return: self._handle_Stmt_Return,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -1527,6 +1528,22 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Stmt_Jump(self, stmt):
         return CGoto(self._handle(stmt.target))
+
+    def _handle_Stmt_Return(self, stmt: Stmt.Return):
+        if not stmt.ret_exprs:
+            return CReturn(None)
+        elif len(stmt.ret_exprs) == 1:
+            ret_expr = stmt.ret_exprs[0]
+            if ret_expr.variable is not None:
+                return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset))
+            return CReturn(self._handle(ret_expr))
+        else:
+            # TODO: Multiple return expressions
+            l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
+            ret_expr = stmt.ret_exprs[0]
+            if ret_expr.variable is not None:
+                return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset))
+            return CReturn(self._handle(ret_expr))
 
     #
     # AIL expression handlers
