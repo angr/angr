@@ -1,6 +1,7 @@
 import claripy
 
 from . import MemoryMixin
+from ...errors import SimSegfaultException
 
 class SmartFindMixin(MemoryMixin):
     def find(self, addr, data, max_search,
@@ -25,24 +26,35 @@ class SmartFindMixin(MemoryMixin):
         match_indices = []
         constraints = []
 
-        for i, (subaddr, element) in enumerate(self._find_iter_items(addr, stride, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs)):
-            comparison, concrete_comparison = self._find_compare(element, data, **kwargs)
+        try:
+            for i, (subaddr, element) in enumerate(self._find_iter_items(addr, stride, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs)):
+                comparison, concrete_comparison = self._find_compare(element, data, **kwargs)
 
-            if concrete_comparison is False:
-                continue
+                if concrete_comparison is False:
+                    continue
 
-            match_indices.append(i*stride)
-            if isinstance(subaddr, int):
-                subaddr = claripy.BVV(subaddr, size=self.state.arch.bits)
-            cases.append((comparison, subaddr))
+                match_indices.append(i*stride)
+                if isinstance(subaddr, int):
+                    subaddr = claripy.BVV(subaddr, size=self.state.arch.bits)
+                cases.append((comparison, subaddr))
 
-            if concrete_comparison is True:
-                break
+                if concrete_comparison is True:
+                    break
 
-        else:
-            # the loop terminated, meaning we exhausted some sort of limit instead of finding a concrete answer.
-            if default is None:
-                constraints.append(claripy.Or(*(c for c, _ in cases)))
+            else:
+                # the loop terminated, meaning we exhausted some sort of limit instead of finding a concrete answer.
+                if default is None:
+                    constraints.append(claripy.Or(*(c for c, _ in cases)))
+        except SimSegfaultException:
+            if chunk_size > 1:
+                return self.find(addr, data, max_search,
+                                 default=default,
+                                 endness=endness,
+                                 chunk_size=1,
+                                 max_symbolic_bytes=max_symbolic_bytes,
+                                 condition=condition,
+                                 **kwargs)
+            raise
 
         if len(cases) == 1:
             return cases[0][1], constraints, match_indices
