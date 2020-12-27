@@ -35,7 +35,7 @@ class SimLinux(SimUserland):
         self._loader_addr = None
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
-        self._loader_destructor = None
+        self._loader_destructor = 0
         self._error_catch_tsd_addr = None
         self._is_core = None
         self.vsyscall_addr = None
