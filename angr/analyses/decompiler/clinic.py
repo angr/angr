@@ -237,12 +237,12 @@ class Clinic(Analysis):
         return ail_block
 
     @timethis
-    def _replace_single_target_indirect_transitions(self, ail_graph: networkx.DiGraph):
+    def _replace_single_target_indirect_transitions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
         Remove single-target indirect jumps and calls and replace them with direct jumps or calls.
         """
         if self._cfg is None:
-            return
+            return ail_graph
 
         for block in ail_graph.nodes():
             if not block.statements:
