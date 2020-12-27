@@ -355,7 +355,7 @@ class Return(Statement):
         super().__init__(idx, **kwargs)
 
         self.target = target
-        self.ret_exprs = list(ret_exprs) if not isinstance(ret_exprs, list) else [ ]
+        self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 
     def __eq__(self, other):
         return type(other) is Return and \
