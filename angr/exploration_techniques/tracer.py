@@ -146,6 +146,7 @@ class Tracer(ExplorationTechnique):
             keep_predecessors=1,
             crash_addr=None,
             copy_states=False,
+            fast_forward_to_entry=True,
             mode=TracingMode.Strict,
             aslr=True):
         super(Tracer, self).__init__()
@@ -155,6 +156,7 @@ class Tracer(ExplorationTechnique):
         self._copy_states = copy_states
         self._mode = mode
         self._aslr = aslr
+        self._fast_forward_to_entry = fast_forward_to_entry
 
         self._aslr_slides = {}  # type: Dict[cle.Backend, int]
         self._current_slide = None
@@ -228,8 +230,21 @@ class Tracer(ExplorationTechnique):
                 self._aslr_slides[obj] = 0
             self._current_slide = 0
 
+        if self._fast_forward_to_entry:
+            idx = self._trace.index(self._translate_state_addr(self.project.entry))
+            # step to entry point
+            while simgr.one_active.addr != self.project.entry:
+                simgr.step(extra_stop_points={self.project.entry})
+                if len(simgr.active) == 0:
+                    raise AngrTracerError("Could not step to the first address of the trace - simgr is empty")
+                elif len(simgr.active) > 1:
+                    raise AngrTracerError("Could not step to the first address of the trace - state split. Do you want to have a Tracer(fast_forward_to_entry=False)?")
+                simgr.drop(stash='unsat')
+        else:
+            idx = 0
+
         # initialize the state info
-        simgr.one_active.globals['trace_idx'] = 0
+        simgr.one_active.globals['trace_idx'] = idx
         simgr.one_active.globals['sync_idx'] = None
         simgr.one_active.globals['sync_timer'] = 0
         simgr.one_active.globals['is_desync'] = False
@@ -431,7 +446,7 @@ class Tracer(ExplorationTechnique):
                 if self._compare_addr(self._trace[idx], addr) or self._check_qemu_unicorn_desync(state, idx, addr):
                     idx += 1
                 else:
-                    raise TracerDesyncError('BUG! Please investigate the claim in the comment above me',
+                    raise TracerDesyncError('Oops! angr did not follow the trace',
                                             deviating_addr=addr,
                                             deviating_trace_idx=idx)
 
