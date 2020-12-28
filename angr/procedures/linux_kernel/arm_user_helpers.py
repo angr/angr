@@ -41,7 +41,7 @@ class _kuser_memory_barrier(angr.SimProcedure):
     # pylint: disable=arguments-differ
     kuser_addr = 0xffff0fa0
     def run(self):
-        raise NotImplementedError(f"{self.__class__.__name__} is not implemented")
+        pass
 
 class _kuser_cmpxchg64(angr.SimProcedure):
     # pylint: disable=arguments-differ

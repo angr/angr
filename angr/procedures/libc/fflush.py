@@ -8,3 +8,5 @@ class fflush(angr.SimProcedure):
 
     def run(self, fd):
         return self.state.solver.BVV(0, self.state.arch.bits)
+
+fflush_unlocked = fflush

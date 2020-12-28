@@ -20,3 +20,5 @@ class fread(angr.SimProcedure):
 
         ret = simfd.read(dst, size * nm)
         return self.state.solver.If(self.state.solver.Or(size == 0, nm == 0), 0, ret // size)
+
+fread_unlocked = fread

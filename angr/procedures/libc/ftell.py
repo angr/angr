@@ -19,3 +19,5 @@ class ftell(angr.SimProcedure):
         if pos is None:
             return -1
         return pos
+
+ftello = ftell

@@ -17,3 +17,5 @@ class fileno(angr.SimProcedure):
         # Get the file descriptor from FILE struct
         result = self.state.mem[f + io_file_data['fd']].int.resolved
         return result.sign_extend(self.arch.bits - len(result))
+
+fileno_unlocked = fileno

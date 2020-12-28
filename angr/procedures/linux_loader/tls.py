@@ -31,3 +31,9 @@ class tlsdesc_resolver(angr.SimProcedure):
     def run(self, descriptor):
         _, offset = self.state.mem[descriptor].uintptr_t.array(2).resolved
         return offset  # ???
+
+class _dl_get_tls_static_info(angr.SimProcedure):
+    # pylint: disable=arguments-differ
+    def run(self, sizep, alignp):
+        self.state.mem[sizep].size_t = 2048
+        self.state.mem[alignp].size_t = 16

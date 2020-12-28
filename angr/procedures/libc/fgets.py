@@ -59,3 +59,5 @@ class fgets(angr.SimProcedure):
             self.state.memory.store(dst+real_size, b'\0')
 
             return real_size
+
+fgets_unlocked = fgets

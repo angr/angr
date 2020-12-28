@@ -305,7 +305,7 @@ class SimConcreteFilesystem(SimMount):
     def _load_file(self, guest_path):
         raise NotImplementedError
 
-    def _get_stat(self, guest_path):
+    def _get_stat(self, guest_path, dereference=False):
         raise NotImplementedError
 
     def insert(self, path_elements, simfile):
@@ -405,12 +405,14 @@ class SimHostFilesystem(SimConcreteFilesystem):
         except OSError:
             return None
         else:
-            return SimFile(name='file://' + path, content=content, size=len(content))
+            return SimFile(name='file://' + os.path.realpath(path), content=content, size=len(content))
 
-    def _get_stat(self, guest_path):
+    def _get_stat(self, guest_path, dereference=False):
         guest_path = guest_path.lstrip(self.pathsep)
         path = os.path.join(self.host_path, guest_path)
         try:
+            if dereference:
+                path = os.path.realpath(path)
             s = os.stat(path)
             stat = Stat(s.st_dev, s.st_ino, s.st_nlink, s.st_mode, s.st_uid,
                         s.st_gid, s.st_rdev, s.st_size, s.st_blksize, s.st_blocks,

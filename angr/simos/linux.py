@@ -35,6 +35,7 @@ class SimLinux(SimUserland):
         self._loader_addr = None
         self._loader_lock_addr = None
         self._loader_unlock_addr = None
+        self._loader_destructor = 0
         self._error_catch_tsd_addr = None
         self._is_core = None
         self.vsyscall_addr = None
@@ -46,11 +47,13 @@ class SimLinux(SimUserland):
             self._loader_addr = self.project.loader.extern_object.allocate()
             self._loader_lock_addr = self.project.loader.extern_object.allocate()
             self._loader_unlock_addr = self.project.loader.extern_object.allocate()
+            self._loader_destructor = self.project.loader.extern_object.allocate()
             self._error_catch_tsd_addr = self.project.loader.extern_object.allocate()
             self.vsyscall_addr = self.project.loader.extern_object.allocate()
             self.project.hook(self._loader_addr, P['linux_loader']['LinuxLoader']())
             self.project.hook(self._loader_lock_addr, P['linux_loader']['_dl_rtld_lock_recursive']())
             self.project.hook(self._loader_unlock_addr, P['linux_loader']['_dl_rtld_unlock_recursive']())
+            self.project.hook(self._loader_destructor, P['stubs']['ReturnUnconstrained'](return_val=0))
             self.project.hook(self._error_catch_tsd_addr,
                               P['linux_loader']['_dl_initial_error_catch_tsd'](
                                   static_addr=self.project.loader.extern_object.allocate()
@@ -61,6 +64,7 @@ class SimLinux(SimUserland):
             # there are some functions we MUST use the simprocedures for, regardless of what the user wants
             self._weak_hook_symbol('__tls_get_addr', L['ld.so'].get('__tls_get_addr', self.arch))    # ld
             self._weak_hook_symbol('___tls_get_addr', L['ld.so'].get('___tls_get_addr', self.arch))  # ld
+            self._weak_hook_symbol('_dl_get_tls_static_info', L['ld.so'].get('_dl_get_tls_static_info', self.arch))  # ld
             self._weak_hook_symbol('_dl_vdso_vsym', L['libc.so.6'].get('_dl_vdso_vsym', self.arch))  # libc
 
             # set up some static data in the loader object...
@@ -77,7 +81,8 @@ class SimLinux(SimUserland):
             # TODO: what the hell is this
             _rtld_global_ro = self.project.loader.find_symbol('_rtld_global_ro')
             if _rtld_global_ro is not None:
-                pass
+                if isinstance(self.project.arch, ArchAMD64):
+                    self.project.loader.memory.pack_word(_rtld_global_ro.rebased_addr + 0x0D0, 2)  # cpu features: kind = amd
 
             tls_obj = self.project.loader.tls.new_thread()
             if isinstance(self.project.arch, ArchAMD64):
@@ -112,7 +117,7 @@ class SimLinux(SimUserland):
                             }
                             # TODO: should this be replaced with hook_symbol?
                             randaddr = self.project.loader.extern_object.allocate()
-                            self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](**kwargs))
+                            self.project.hook(randaddr, P['linux_loader']['IFuncResolver'](display_name='IFuncResolver.' + reloc.symbol.name, **kwargs))
                             self.project.loader.memory.pack_word(gotaddr, randaddr)
 
         if isinstance(self.project.arch, ArchARM):
@@ -347,8 +352,7 @@ class SimLinux(SimUserland):
                     state.registers.store(reg, state.posix.auxv)
                 elif val == 'ld_destructor':
                     # a pointer to the dynamic linker's destructor routine, to be called at exit
-                    # or NULL. We like NULL. It makes things easier.
-                    state.registers.store(reg, 0)
+                    state.registers.store(reg, self._loader_destructor)
                 elif val == 'toc':
                     if self.project.loader.main_object.is_ppc64_abiv1:
                         state.registers.store(reg, self.project.loader.main_object.ppc64_initial_rtoc)
