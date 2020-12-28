@@ -1,4 +1,4 @@
-from typing import List, Dict, TYPE_CHECKING
+from typing import List, Dict
 import logging
 import cle
 
@@ -38,7 +38,8 @@ class RepHook:
     def __init__(self, mnemonic):
         self.mnemonic = mnemonic
 
-    def _inline_call(self, state, procedure, *arguments, **kwargs):
+    @staticmethod
+    def _inline_call(state, procedure, *arguments, **kwargs):
         e_args = [state.solver.BVV(a, state.arch.bits) if isinstance(a, int) else a for a in arguments]
         p = procedure(project=state.project, **kwargs)
         return p.execute(state, None, arguments=e_args)
@@ -149,7 +150,7 @@ class Tracer(ExplorationTechnique):
             fast_forward_to_entry=True,
             mode=TracingMode.Strict,
             aslr=True):
-        super(Tracer, self).__init__()
+        super().__init__()
         self._trace = trace
         self._resiliency = resiliency
         self._crash_addr = crash_addr
@@ -220,7 +221,7 @@ class Tracer(ExplorationTechnique):
 
                 if len(possibilities) == 0:
                     raise AngrTracerError("Trace does not seem to contain object initializers for %s. Do you want to have a Tracer(aslr=False)?" % obj)
-                elif len(possibilities) == 1:
+                if len(possibilities) == 1:
                     self._aslr_slides[obj] = next(iter(possibilities))
                 else:
                     raise AngrTracerError("Trace seems ambiguous with respect to what the ASLR slides are for %s. This is surmountable, please open an issue." % obj)
@@ -237,7 +238,7 @@ class Tracer(ExplorationTechnique):
                 simgr.step(extra_stop_points={self.project.entry})
                 if len(simgr.active) == 0:
                     raise AngrTracerError("Could not step to the first address of the trace - simgr is empty")
-                elif len(simgr.active) > 1:
+                if len(simgr.active) > 1:
                     raise AngrTracerError("Could not step to the first address of the trace - state split. Do you want to have a Tracer(fast_forward_to_entry=False)?")
                 simgr.drop(stash='unsat')
         else:
@@ -539,7 +540,7 @@ class Tracer(ExplorationTechnique):
 
     def _translate_trace_addr(self, trace_addr, obj=None):
         if obj is None:
-            for obj in self._aslr_slides:
+            for obj in self._aslr_slides:  # pylint: disable=redefined-argument-from-local
                 if obj.contains_addr(trace_addr - self._aslr_slides[obj]):
                     break
             else:
