@@ -421,10 +421,14 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _make_returns(self, ail_graph: networkx.DiGraph):
+    def _make_returns(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
         Work on each return statement and fill in its return expressions.
         """
+
+        if self.function.calling_convention is None:
+            # unknown calling convention. cannot do much about return expressions.
+            return ail_graph
 
         # Block walker
 
