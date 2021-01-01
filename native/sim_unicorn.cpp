@@ -1814,12 +1814,12 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	state->commit();
+	state->update_previous_stack_top();
 	state->step(address, size);
 
 	if (!state->stopped) {
 		state->start_propagating_taint(address, size);
 	}
-	state->update_previous_stack_top();
 	return;
 }
 
