@@ -653,9 +653,9 @@ class State {
 
 		void continue_propagating_taint();
 
-		address_t get_instruction_pointer();
+		address_t get_instruction_pointer() const;
 
-		address_t get_stack_pointer();
+		address_t get_stack_pointer() const;
 
 		// Inline functions
 

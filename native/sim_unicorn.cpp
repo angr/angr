@@ -1668,7 +1668,7 @@ bool State::is_block_next_target_symbolic() const {
 	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
 }
 
-address_t State::get_instruction_pointer() {
+address_t State::get_instruction_pointer() const {
 	address_t out = 0;
 	unsigned int reg = arch_pc_reg();
 	if (reg == -1) {
@@ -1680,7 +1680,7 @@ address_t State::get_instruction_pointer() {
 	return out;
 }
 
-address_t State::get_stack_pointer() {
+address_t State::get_stack_pointer() const {
 	address_t out = 0;
 	unsigned int reg = arch_sp_reg();
 	if (reg == -1) {
