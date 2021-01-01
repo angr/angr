@@ -144,6 +144,7 @@ void State::stop(stop_t reason) {
 	stop_details.block_size = block_details.block_size;
 	switch (reason) {
 		case STOP_SYSCALL:
+		case STOP_SYMBOLIC_MEM_DEP_NOT_LIVE:
 			commit();
 			break;
 	}
@@ -226,7 +227,7 @@ void State::commit() {
 			block_details.register_values.emplace_back(block_start_reg_values.at(concrete_reg));
 		}
 		for (auto &symbolic_instr: block_details.symbolic_instrs) {
-			if (symbolic_instr.has_memory_dep) {
+			if (symbolic_instr.has_concrete_memory_dep) {
 				archived_memory_values.emplace_back(mem_reads_map.at(symbolic_instr.instr_addr).memory_values);
 				symbolic_instr.memory_values = &(archived_memory_values.back()[0]);
 				symbolic_instr.memory_values_count = archived_memory_values.back().size();
@@ -1445,11 +1446,8 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 
 	is_instr_symbolic = false;
 	instr_details = compute_instr_details(instr_addr, instr_taint_entry);
-	if (instr_taint_entry.has_memory_read) {
-		auto mem_read_result = mem_reads_map.at(instr_addr);
-		if (mem_read_result.is_value_symbolic) {
-			is_instr_symbolic = true;
-		}
+	if (instr_details.has_symbolic_memory_dep) {
+		is_instr_symbolic = true;
 	}
 	for (auto &taint_data_entry: instr_taint_entry.taint_sink_src_map) {
 		taint_entity_t taint_sink = taint_data_entry.first;
@@ -1533,14 +1531,17 @@ instr_details_t State::compute_instr_details(address_t instr_addr, const instruc
 	if (instr_taint_entry.has_memory_read) {
 		auto mem_read_result = mem_reads_map.at(instr_addr);
 		if (!mem_read_result.is_value_symbolic) {
-			instr_details.has_memory_dep = true;
+			instr_details.has_concrete_memory_dep = true;
+			instr_details.has_symbolic_memory_dep = false;
 		}
 		else {
-			instr_details.has_memory_dep = false;
+			instr_details.has_concrete_memory_dep = false;
+			instr_details.has_symbolic_memory_dep = true;
 		}
 	}
 	else {
-		instr_details.has_memory_dep = false;
+		instr_details.has_concrete_memory_dep = false;
+		instr_details.has_symbolic_memory_dep = false;
 	}
 	return instr_details;
 }
@@ -1668,6 +1669,33 @@ bool State::is_block_next_target_symbolic() const {
 	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
 }
 
+bool State::check_symbolic_stack_mem_dependencies_liveness() const {
+	// Stop concrete execution if a stack frame was deallocated and if any symbolic memory dependencies were present
+	// on that stack frame.
+	address_t curr_stack_top_addr = get_stack_pointer();
+	if (curr_stack_top_addr <= prev_stack_top_addr) {
+		// No change in stack frame and so no need to perform a liveness check.
+		// TODO: What is stack growth direction is different?
+		return true;
+	}
+	for (auto &block: blocks_with_symbolic_instrs) {
+		auto &block_symbolic_instrs = block_details.symbolic_instrs;
+		for (auto symbolic_instr = block_symbolic_instrs.rbegin(); symbolic_instr != block_symbolic_instrs.rend(); symbolic_instr++) {
+			if (symbolic_instr->has_symbolic_memory_dep) {
+				auto mem_read_entry = mem_reads_map.at(symbolic_instr->instr_addr);
+				for (auto &mem_value: mem_read_entry.memory_values) {
+					if ((curr_stack_top_addr > mem_value.address) && (mem_value.address > prev_stack_top_addr)) {
+						// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
+						// and could be overwritten by future code. We stop concrete execution here to avoid that.
+						return false;
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
 address_t State::get_instruction_pointer() const {
 	address_t out = 0;
 	unsigned int reg = arch_pc_reg();
@@ -1781,12 +1809,17 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
+	if (!state->check_symbolic_stack_mem_dependencies_liveness()) {
+		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+		return;
+	}
 	state->commit();
 	state->step(address, size);
 
 	if (!state->stopped) {
 		state->start_propagating_taint(address, size);
 	}
+	state->update_previous_stack_top();
 	return;
 }
 
