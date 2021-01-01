@@ -150,7 +150,7 @@ class STOP:  # stop_t
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
-        STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYMBOLIC_MEM_DEP_NOT_LIVE]
+        STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET]
 
     unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
         STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
@@ -1168,7 +1168,7 @@ class Unicorn(SimStatePlugin):
             stdout.write_data(string)
             i += 1
 
-        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL):
+        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE):
             self.countdown_nonunicorn_blocks = 0
         elif self.stop_reason == STOP.STOP_STOPPOINT:
             self.countdown_nonunicorn_blocks = 0
