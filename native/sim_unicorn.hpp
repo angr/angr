@@ -132,12 +132,14 @@ struct register_value_t {
 
 struct instr_details_t {
 	address_t instr_addr;
-	bool has_memory_dep;
+	bool has_concrete_memory_dep;
+	bool has_symbolic_memory_dep;
 	memory_value_t *memory_values;
 	uint64_t memory_values_count;
 
 	bool operator==(const instr_details_t &other_instr) const {
-		if ((instr_addr != other_instr.instr_addr) || (has_memory_dep != other_instr.has_memory_dep) ||
+		if ((instr_addr != other_instr.instr_addr) || (has_concrete_memory_dep != other_instr.has_concrete_memory_dep) ||
+			(has_symbolic_memory_dep != other_instr.has_symbolic_memory_dep) ||
 			(memory_values_count != other_instr.memory_values_count)) {
 				return false;
 		}
@@ -211,6 +213,7 @@ enum stop_t {
 	STOP_UNSUPPORTED_EXPR_GETI,
 	STOP_UNSUPPORTED_EXPR_UNKNOWN,
 	STOP_UNKNOWN_MEMORY_WRITE,
+	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE,
 };
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -388,6 +391,7 @@ class State {
 	uint32_t taint_engine_stop_mem_read_count;
 
 	address_t unicorn_next_instr_addr;
+	address_t prev_stack_top_addr;
 
 	// Vector of values from previous memory reads. Serves as archival storage for pointers in details
 	// of symbolic instructions returned via ctypes to Python land.
@@ -653,9 +657,11 @@ class State {
 
 		void continue_propagating_taint();
 
-		address_t get_instruction_pointer();
+		bool check_symbolic_stack_mem_dependencies_liveness() const;
 
-		address_t get_stack_pointer();
+		address_t get_instruction_pointer() const;
+
+		address_t get_stack_pointer() const;
 
 		// Inline functions
 
@@ -681,6 +687,11 @@ class State {
 
 		inline void decrement_pending_mem_reads_count() {
 			taint_engine_stop_mem_read_count--;
+			return;
+		}
+
+		inline void update_previous_stack_top() {
+			prev_stack_top_addr = get_stack_pointer();
 			return;
 		}
 };

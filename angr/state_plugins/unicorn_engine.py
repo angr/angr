@@ -114,6 +114,7 @@ class STOP:  # stop_t
     STOP_UNSUPPORTED_STMT_UNKNOWN = 26
     STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
     STOP_UNKNOWN_MEMORY_WRITE     = 28
+    STOP_SYMBOLIC_MEM_DEP_NOT_LIVE = 29
 
     stop_message = {}
     stop_message[STOP_NORMAL]        = "Reached maximum steps"
@@ -145,6 +146,7 @@ class STOP:  # stop_t
     stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
     stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
     stop_message[STOP_UNKNOWN_MEMORY_WRITE]    = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly"
+    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE] = "A symbolic memory dependency on stack is no longer in scope"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
@@ -1166,7 +1168,7 @@ class Unicorn(SimStatePlugin):
             stdout.write_data(string)
             i += 1
 
-        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL):
+        if self.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE):
             self.countdown_nonunicorn_blocks = 0
         elif self.stop_reason == STOP.STOP_STOPPOINT:
             self.countdown_nonunicorn_blocks = 0
