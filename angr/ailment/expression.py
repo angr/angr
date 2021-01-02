@@ -292,6 +292,7 @@ class BinaryOp(Op):
         'CmpLEs': '<=s',
         'CmpGTs': '>s',
         'CmpGEs': '>=s',
+        'Concat': 'CONCAT',
     }
 
     def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, **kwargs):

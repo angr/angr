@@ -22,6 +22,11 @@ class Converter:
 
 
 class VEXExprConverter(Converter):
+
+    @staticmethod
+    def simop_from_vexop(vex_op):
+        return vexop_to_simop(vex_op)
+
     @staticmethod
     def generic_name_from_vex_op(vex_op):
         return vexop_to_simop(vex_op)._generic_name
@@ -116,24 +121,32 @@ class VEXExprConverter(Converter):
 
     @staticmethod
     def Binop(expr, manager):
-        op = VEXExprConverter.generic_name_from_vex_op(expr.op)
+        op = VEXExprConverter.simop_from_vexop(expr.op)
+        op_name = op._generic_name
         operands = VEXExprConverter.convert_list(expr.args, manager)
 
-        if op == 'Add' and \
+        if op_name == 'Add' and \
                 type(operands[1]) is Const and \
                 operands[1].sign_bit == 1:
             # convert it to a sub
-            op = 'Sub'
+            op_name = 'Sub'
             op1_val, op1_bits = operands[1].value, operands[1].bits
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
-        if op in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT'}:
+        if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT'}:
             if vexop_to_simop(expr.op).is_signed:
                 signed = True
 
+        if op_name is None and op._conversion:
+            # conversion
+            # TODO: Finish this
+            if op._from_side == "HL":
+                # Concatenating the two arguments and form a new value
+                op_name = "Concat"
+
         return BinaryOp(manager.next_atom(),
-                        op,
+                        op_name,
                         operands,
                         signed,
                         ins_addr=manager.ins_addr,
