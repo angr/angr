@@ -885,6 +885,7 @@ class CBinaryOp(CExpression):
     def op_precedence(self):
         precedence_list = [
             # lowest precedence
+            ['Concat'],
             ['LogicalOr'],
             ['LogicalAnd'],
             ['Or'],
@@ -932,6 +933,7 @@ class CBinaryOp(CExpression):
             'CmpGEs': self._c_repr_chunks_cmpge,
             'CmpEQ': self._c_repr_chunks_cmpeq,
             'CmpNE': self._c_repr_chunks_cmpne,
+            'Concat': self._c_repr_chunks_concat,
         }
 
         handler = OP_MAP.get(self.op, None)
@@ -1015,6 +1017,9 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks_cmpne(self):
         yield from self._c_repr_chunks(" != ")
+
+    def _c_repr_chunks_concat(self):
+        yield from self._c_repr_chunks(" CONCAT ")
 
 
 class CTypeCast(CExpression):

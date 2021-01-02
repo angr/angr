@@ -508,6 +508,16 @@ class SimEngineVRAIL(
             self.l.warning("_ail_handle_Or(): TypeError.", exc_info=True)
             return RichR(None)
 
+    def _ail_handle_Concat(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
+
+        # TODO: Model the operation. Don't lose type constraints
+        return RichR(None)
+
     def _ail_handle_Not(self, expr):
         arg = expr.operands[0]
         expr = self._expr(arg)
