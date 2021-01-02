@@ -512,10 +512,10 @@ class SimEngineVRAIL(
 
         arg0, arg1 = expr.operands
 
-        r0 = self._expr(arg0)
-        r1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
-        # FIXME: Model it
+        # TODO: Model the operation. Don't lose type constraints
         return RichR(None)
 
     def _ail_handle_Not(self, expr):
