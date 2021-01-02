@@ -1290,7 +1290,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         if is_indirect_jump and self._resolve_indirect_jumps:
             # Try to resolve indirect jumps
-            irsb = input_state.block().vex
+            irsb = input_state.block(cross_insn_opt=False).vex
 
             resolved, resolved_targets, ij = self._indirect_jump_encountered(addr, cfg_node, irsb, func_addr,
                                                                              stmt_idx=DEFAULT_STATEMENT)

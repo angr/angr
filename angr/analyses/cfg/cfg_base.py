@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple, List, Optional, Union
 import logging
 from collections import defaultdict
 
@@ -2308,20 +2308,23 @@ class CFGBase(Analysis):
         # TODO: self.kb._unresolved_indirect_jumps is not processed during normalization. Fix it.
         self.kb.unresolved_indirect_jumps.add(jump.addr)
 
-    def _indirect_jump_encountered(self, addr, cfg_node, irsb, func_addr, stmt_idx=DEFAULT_STATEMENT):
+    def _indirect_jump_encountered(self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int,
+                                   stmt_idx: Union[int,str]=DEFAULT_STATEMENT
+                                   ) -> Tuple[bool,List[int],Optional[IndirectJump]]:
         """
         Called when we encounter an indirect jump. We will try to resolve this indirect jump using timeless (fast)
         indirect jump resolvers. If it cannot be resolved, we will see if this indirect jump has been resolved before.
 
-        :param int addr:                Address of the block containing the indirect jump.
-        :param cfg_node:                The CFGNode instance of the block that contains the indirect jump.
-        :param pyvex.IRSB irsb:         The IRSB instance of the block that contains the indirect jump.
-        :param int func_addr:           Address of the current function.
-        :param int or str stmt_idx:     ID of the source statement.
+        :param addr:        Address of the block containing the indirect jump.
+        :param cfg_node:    The CFGNode instance of the block that contains the indirect jump.
+        :param irsb:        The IRSB instance of the block that contains the indirect jump. It must be lifted with
+                            cross-instruction optimization disabled (cross_insn_opt=True when opt_level=1, or
+                            opt_level=0).
+        :param func_addr:   Address of the current function.
+        :param stmt_idx:    ID of the source statement.
 
         :return:    A 3-tuple of (whether it is resolved or not, all resolved targets, an IndirectJump object
                     if there is one or None otherwise)
-        :rtype:     tuple
         """
 
         jumpkind = irsb.jumpkind
