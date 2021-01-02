@@ -269,6 +269,8 @@ class SimEngineLightVEXMixin:
             handler = '_handle_CmpGT'
         elif expr.op.startswith('Iop_CmpORD'):
             handler = '_handle_CmpORD'
+        elif expr.op == 'Iop_32HLto64':
+            handler = '_handle_32HLto64'
         elif expr.op.startswith('Const'):
             handler = '_handle_Const'
         if handler is not None and hasattr(self, handler):
@@ -623,6 +625,18 @@ class SimEngineLightVEXMixin:
         # Yeah.... no.
         return None
 
+    def _handle_32HLto64(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        expr_1 = self._expr(arg1)
+        if expr_1 is None:
+            return None
+
+        return None
+
+
 class SimEngineLightAILMixin:
 
     def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
@@ -943,6 +957,19 @@ class SimEngineLightAILMixin:
             return expr_0 >> expr_1
         except TypeError:
             return ailment.Expr.BinaryOp(expr.idx, 'Sar', [expr_0, expr_1], expr.signed, **expr.tags)
+
+    def _ail_handle_Concat(self, expr):
+
+        arg0, arg1 = expr.operands
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        return ailment.Expr.BinaryOp(expr.idx, 'Concat', [expr_0, expr_1], expr.signed, **expr.tags)
 
     #
     # Unary operation handlers
