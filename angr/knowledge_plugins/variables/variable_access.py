@@ -1,3 +1,7 @@
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from angr.code_location import CodeLocation
 
 
 class VariableAccess:
@@ -7,7 +11,7 @@ class VariableAccess:
     def __init__(self, variable, access_type, location):
         self.variable = variable
         self.access_type = access_type
-        self.location = location
+        self.location: 'CodeLocation' = location
 
     def __repr__(self):
         return "%s %s @ %s" % (self.access_type, self.variable, self.location)
