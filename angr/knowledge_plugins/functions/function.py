@@ -233,7 +233,7 @@ class Function(Serializable):
 
         for block_addr, block in self._local_blocks.items():
             try:
-                yield self._get_block(block_addr, size=block.size,
+                yield self.get_block(block_addr, size=block.size,
                                       byte_string=block.bytestr if isinstance(block, BlockNode) else None)
             except (SimEngineError, SimMemoryError):
                 pass
@@ -259,7 +259,7 @@ class Function(Serializable):
 
         return self._local_block_addrs
 
-    def _get_block(self, addr, size=None, byte_string=None):
+    def get_block(self, addr, size=None, byte_string=None):
         if addr in self._block_cache:
             b = self._block_cache[addr]
             if size is None or b.size == size:
@@ -278,6 +278,9 @@ class Function(Serializable):
             self._block_sizes[addr] = block.size
         self._block_cache[addr] = block
         return block
+
+    # compatibility
+    _get_block = get_block
 
     @property
     def nodes(self):
@@ -1123,7 +1126,7 @@ class Function(Serializable):
 
         for b in self._local_blocks.values():
             # TODO: should I call get_blocks?
-            block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
+            block = self.get_block(b.addr, size=b.size, byte_string=b.bytestr)
             common_insns = set(block.instruction_addrs).intersection(ins_addrs)
             if common_insns:
                 blocks.append(b)
@@ -1161,7 +1164,7 @@ class Function(Serializable):
         """
 
         for b in self.blocks:
-            block = self._get_block(b.addr, size=b.size, byte_string=b.bytestr)
+            block = self.get_block(b.addr, size=b.size, byte_string=b.bytestr)
             if insn_addr in block.instruction_addrs:
                 index = block.instruction_addrs.index(insn_addr)
                 if index == len(block.instruction_addrs) - 1:

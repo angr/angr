@@ -195,6 +195,42 @@ def test_x8664_void():
                 assert func.calling_convention.ret_val.reg_name == r
 
 
+def test_x86_saved_regs():
+
+    # Calling convention analysis should be able to determine calling convention of functions with registers saved on
+    # the stack.
+    binary_path = os.path.join(test_location, "tests", "cgc", "NRFIN_00036")
+    proj = angr.Project(binary_path, auto_load_libs=False)
+
+    cfg = proj.analyses.CFG()
+    func = cfg.functions[0x80494f0]  # int2str
+
+    proj.analyses.VariableRecoveryFast(func)
+    cca = proj.analyses.CallingConvention(func)
+    cc = cca.cc
+
+    assert cc is not None, "Calling convention analysis failed to determine the calling convention of function " \
+                           "0x80494f0."
+    assert isinstance(cc, SimCCCdecl)
+    assert len(cc.args) == 3
+    assert cc.args[0] == SimStackArg(4, 4)
+    assert cc.args[1] == SimStackArg(8, 4)
+    assert cc.args[2] == SimStackArg(12, 4)
+
+    func_exit = cfg.functions[0x804a1a9]  # exit
+
+    proj.analyses.VariableRecoveryFast(func_exit)
+    cca = proj.analyses.CallingConvention(func_exit)
+    cc = cca.cc
+
+    assert func_exit.returning is False
+    assert cc is not None, "Calling convention analysis failed to determine the calling convention of function " \
+                           "0x804a1a9."
+    assert isinstance(cc, SimCCCdecl)
+    assert len(cc.args) == 1
+    assert cc.args[0] == SimStackArg(4, 4)
+
+
 def run_all():
     for args in test_fauxware():
         func, args = args[0], args[1:]

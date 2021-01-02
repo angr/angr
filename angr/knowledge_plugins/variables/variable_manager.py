@@ -1,4 +1,4 @@
-from typing import Set, List, Tuple, Dict, TYPE_CHECKING
+from typing import Set, List, Tuple, Dict, Union, TYPE_CHECKING
 import logging
 from collections import defaultdict
 from itertools import count
@@ -265,7 +265,7 @@ class VariableManagerInternal:
 
         return accesses
 
-    def get_variables(self, sort=None, collapse_same_ident=False):
+    def get_variables(self, sort=None, collapse_same_ident=False) -> List[Union[SimStackVariable,SimRegisterVariable]]:
         """
         Get a list of variables.
 

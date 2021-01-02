@@ -1834,7 +1834,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if is_syscall:
             # Fix the target_addr for syscalls
-            tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr)
+            tmp_state = self.project.factory.blank_state(mode="fastpath", addr=cfg_node.addr,
+                                                         add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                                                                      o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
             # Find the first successor with a syscall jumpkind
             successors = self._simulate_block_with_resilience(tmp_state)
             if successors is not None:
