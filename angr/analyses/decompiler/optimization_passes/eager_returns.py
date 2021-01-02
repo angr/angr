@@ -30,7 +30,7 @@ class EagerReturnsSimplifier(OptimizationPass):
 
     # TODO: This optimization pass may support more architectures and platforms
     ARCHES = ["X86", "AMD64"]
-    PLATFORMS = ["linux"]
+    PLATFORMS = ["cgc", "linux"]
 
     def __init__(self, func, blocks, graph,
                  # internal parameters that should be used by Clinic
