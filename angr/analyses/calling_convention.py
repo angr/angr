@@ -4,7 +4,6 @@ import logging
 
 from archinfo.arch_arm import is_arm_arch
 
-from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register
@@ -293,7 +292,7 @@ class CallingConventionAnalysis(Analysis):
 
         # the function might be saving registers at the beginning and restoring them at the end
         # we should remove all registers that are strictly callee-saved and are not used anywhere in this function
-        end_blocks = [ (endpoint.addr, endpoint.size) for endpoint in self._function.endpoints ]
+        end_blocks = [ (endpoint.addr, endpoint.size) for endpoint in self._function.endpoints_with_type['return'] ]
 
         restored_reg_vars: Set[SimRegArg] = set()
 
