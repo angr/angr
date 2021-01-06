@@ -197,6 +197,18 @@ class Tracer(ExplorationTechnique):
         if self._aslr:
             # if we don't know whether there is any slide, we need to identify the slides via heuristics
             for obj in self.project.loader.all_elf_objects:
+                # heuristic 1: non-PIC  objects are loaded without aslr slides
+                if not obj.pic:
+                    self._aslr_slides[obj] = 0
+                    continue
+
+                # heuristic 2: library objects with custom_base_addr are loaded at the correct locations
+                if obj._custom_base_addr:
+                    l.info("%s is assumed to be loaded at the address matching the one in the trace", obj)
+                    self._aslr_slides[obj] = 0
+                    continue
+
+                # heuristic 3: entry point of an object should appear in the trace
                 possibilities = None
                 for entry in obj.initializers + ([obj.entry] if obj.is_main_bin else []):
                     indices = self._locate_entry_point(entry)
