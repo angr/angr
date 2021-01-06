@@ -963,6 +963,8 @@ class PcodeBasicBlockLifter:
         # may be garbage collected while processing!
         self.data = bytearray(data)
         self.loader.setData(baseaddr, self.data, len(data))
+        self.trans.reset(self.loader, self.context)
+        self.trans.initialize(self.docstorage)
         irsb.behaviors = self.behaviors
 
         # Lift basic block to pcode
