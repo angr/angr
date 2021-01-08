@@ -89,6 +89,9 @@ class CDG(Analysis):
         Form by Ron Cytron, etc.
         """
 
+        if not self._cfg._model.ident.startswith('CFGEmulated'):
+            raise ValueError("CDG is only supported by CFGEmulated.")
+
         self._acyclic_cfg = self._cfg.copy()
         # TODO: Cycle-removing is not needed - confirm it later
         # The CFG we use should be acyclic!
@@ -174,9 +177,6 @@ class CDG(Analysis):
         connection to the next BBL
         """
         loop_back_edges = self._cfg.get_loop_back_edges()
-
-        if loop_back_edges is None:
-            return
 
         for b1, b2 in loop_back_edges:
             # The edge between b1 and b2 is manually broken
