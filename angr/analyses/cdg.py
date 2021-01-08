@@ -175,6 +175,9 @@ class CDG(Analysis):
         """
         loop_back_edges = self._cfg.get_loop_back_edges()
 
+        if loop_back_edges is None:
+            return
+
         for b1, b2 in loop_back_edges:
             # The edge between b1 and b2 is manually broken
             # The post dominator of b1 should be b2 (or not?)
