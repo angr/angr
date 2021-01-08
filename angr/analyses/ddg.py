@@ -833,7 +833,7 @@ class DDG(Analysis):
             if last_statement_id is None or last_statement_id != a.stmt_idx:
                 # update statement ID
                 last_statement_id = a.stmt_idx
-                statement = statements[last_statement_id] if statements and last_statement_id < len(statements) else None
+                statement = statements[last_statement_id] if statements and last_statement_id >= 0 and last_statement_id < len(statements) else None
 
                 # initialize all per-statement data structures
                 self._variables_per_statement = [ ]
