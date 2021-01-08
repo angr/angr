@@ -89,6 +89,9 @@ class CDG(Analysis):
         Form by Ron Cytron, etc.
         """
 
+        if not self._cfg._model.ident.startswith('CFGEmulated'):
+            raise ValueError("CDG is only supported by CFGEmulated.")
+
         self._acyclic_cfg = self._cfg.copy()
         # TODO: Cycle-removing is not needed - confirm it later
         # The CFG we use should be acyclic!
