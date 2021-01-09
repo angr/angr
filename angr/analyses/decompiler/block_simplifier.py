@@ -188,12 +188,17 @@ class BlockSimplifier(Analysis):
         statements = [ ]
         any_update = False
         for stmt in block.statements:
-            if isinstance(stmt, ConditionalJump):
+            new_stmt = None
+            if isinstance(stmt, Assignment):
+                new_stmt = self._peephole_optimize_ConstantDereference(stmt)
+
+            elif isinstance(stmt, ConditionalJump):
                 new_stmt = self._peephole_optimize_ConditionalJump(stmt)
-                if new_stmt is not stmt:
-                    statements.append(new_stmt)
-                    any_update = True
-                    continue
+
+            if new_stmt is not None and new_stmt is not stmt:
+                statements.append(new_stmt)
+                any_update = True
+                continue
 
             statements.append(stmt)
 
@@ -201,6 +206,24 @@ class BlockSimplifier(Analysis):
             return block
         new_block = block.copy(statements=statements)
         return new_block
+
+    def _peephole_optimize_ConstantDereference(self, stmt: Assignment):
+        if isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Const):
+            # is it loading from a read-only section?
+            sec = self.project.loader.find_section_containing(stmt.src.addr.value)
+            if sec is not None and sec.is_readable and not sec.is_writable:
+                # do we know the value that it's reading?
+                try:
+                    val = self.project.loader.memory.unpack_word(stmt.src.addr.value, size=self.project.arch.bytes)
+                except KeyError:
+                    return stmt
+
+                return Assignment(stmt.idx, stmt.dst,
+                                  Const(None, None, val, stmt.src.size * self.project.arch.byte_width),
+                                  **stmt.tags,
+                                  )
+
+        return stmt
 
     def _peephole_optimize_ConditionalJump(self, stmt: ConditionalJump):
 

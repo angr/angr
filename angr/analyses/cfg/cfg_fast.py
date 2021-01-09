@@ -2030,6 +2030,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     data_type=ref.data_type_str
             )
 
+            if ref.data_size == self.project.arch.bytes and is_arm_arch(self.project.arch):
+                # ARM (and maybe a few other architectures as well) has inline pointers
+                sec = self.project.loader.find_section_containing(ref.data_addr)
+                if sec is not None and sec.is_readable and not sec.is_writable:
+                    # points to a non-writable region. read it out and see if there is another pointer!
+                    ptr = self._fast_memory_load_pointer(ref.data_addr, ref.data_size)
+                    sec_2nd = self.project.loader.find_section_containing(ptr)
+
+                    if sec_2nd is not None and sec_2nd.is_readable and not sec_2nd.is_writable:
+                        # found it!
+                        self._add_data_reference(
+                            irsb.addr,
+                            ref.stmt_idx,
+                            ref.ins_addr,
+                            ptr,
+                            data_size=None,
+                            data_type=MemoryDataSort.Unknown,
+                        )
+
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
 
         # helper methods
