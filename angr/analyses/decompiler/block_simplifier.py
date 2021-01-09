@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
+from typing import Optional, TYPE_CHECKING
 
 from ailment.statement import Assignment, ConditionalJump, Call
 from ailment.expression import Expression, Convert, Tmp, Register, Load, BinaryOp, UnaryOp, Const, ITE
@@ -11,6 +12,9 @@ from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocati
 
 from .. import Analysis, register_analysis
 
+if TYPE_CHECKING:
+    from ailment.block import Block
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -19,10 +23,10 @@ class BlockSimplifier(Analysis):
     """
     Simplify an AIL block.
     """
-    def __init__(self, block, remove_dead_memdefs=False, stack_pointer_tracker=None):
+    def __init__(self, block: Optional['Block'], remove_dead_memdefs=False, stack_pointer_tracker=None):
         """
-
-        :param Block block:
+        :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
+                        in test cases.
         """
 
         self.block = block
@@ -32,7 +36,8 @@ class BlockSimplifier(Analysis):
 
         self.result_block = None
 
-        self._analyze()
+        if self.block is not None:
+            self._analyze()
 
     def _analyze(self):
 
