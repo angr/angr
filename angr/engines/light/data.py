@@ -355,6 +355,9 @@ class SpOffset(RegisterOffset):
                 return SpOffset(self._bits, ArithmeticExpression(ArithmeticExpression.Add, (self.offset, other, )))
 
     def __sub__(self, other):
+        if isinstance(other, self.__class__):
+            return self.offset - other.offset
+
         other = ArithmeticExpression.try_unpack_const(other)
         if not self.symbolic and type(other) is int:
             return SpOffset(self._bits, self._to_signed(self.offset - other))
