@@ -602,7 +602,7 @@ class State {
 
 		uc_err start(address_t pc, uint64_t step = 1);
 
-		void stop(stop_t reason);
+		void stop(stop_t reason, bool do_commit=false);
 
 		void step(address_t current_address, int32_t size, bool check_stop_points=true);
 

@@ -137,16 +137,13 @@ uc_err State::start(address_t pc, uint64_t step) {
 	return out;
 }
 
-void State::stop(stop_t reason) {
+void State::stop(stop_t reason, bool do_commit) {
 	stopped = true;
 	stop_details.stop_reason = reason;
 	stop_details.block_addr = block_details.block_addr;
 	stop_details.block_size = block_details.block_size;
-	switch (reason) {
-		case STOP_SYSCALL:
-		case STOP_SYMBOLIC_MEM_DEP_NOT_LIVE:
-			commit();
-			break;
+	if ((reason == STOP_SYSCALL) || do_commit) {
+		commit();
 	}
 	uc_emu_stop(uc);
 }
@@ -1810,7 +1807,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	if (!state->check_symbolic_stack_mem_dependencies_liveness()) {
-		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE, true);
 		return;
 	}
 	state->commit();
