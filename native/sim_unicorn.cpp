@@ -1591,6 +1591,11 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 			}
 			return;
 		}
+		if ((arch == UC_ARCH_ARM) && (lift_ret->irsb->jumpkind == Ijk_Sys_syscall)) {
+			// This block invokes a syscall. For now, such blocks are handled by VEX engine.
+			stop(STOP_SYSCALL_ARM);
+			return;
+		}
 		auto block_taint_entry = process_vex_block(lift_ret->irsb, block_address);
 		// Add entry to taint relations cache
 		block_taint_cache.emplace(block_address, block_taint_entry);
