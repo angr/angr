@@ -79,6 +79,8 @@ class VMDeobfuscation(Analysis):
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
 
+        functions = list(cfg.kb.functions.items())
+
         folder_name = os.path.dirname(self.project.filename)
 
         ### Might be a problem with Angr's decompiler
@@ -96,6 +98,8 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         print("Doing constant propagation")
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        import ipdb;
+        ipdb.set_trace()
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
@@ -105,7 +109,7 @@ class VMDeobfuscation(Analysis):
         #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj)
+        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, functions)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -173,7 +177,13 @@ class VMDeobfuscation(Analysis):
         elif isinstance(expr, pyvex.expr.Const):
             return expr.con.value
 
-    def block_arithmetic_simplifications(self, cfg, proj):
+    def block_arithmetic_simplifications(self, cfg, proj, functions):
+        for tuple in functions:
+            print(tuple)
+            import ipdb;
+            ipdb.set_trace()
+            result = proj.analyses.ReachingDefinitions(tuple[1], track_tmps=True, observe_all=True,
+                                                       dep_graph=DepGraph())
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
@@ -508,7 +518,7 @@ class VMDeobfuscation(Analysis):
                 for stmt, repl_pair in value.items():
                     for old, new in repl_pair.items():
                         ## This is for the next expression
-                        if stmt.stmt_idx == None:
+                        if stmt.stmt_idx == -2:
                             node.irsb.next = new
                         else:
                             new_stmts[stmt.stmt_idx].replace_expression(old, new)
@@ -644,7 +654,7 @@ class VMDeobfuscation(Analysis):
                     elif isinstance(stmt, pyvex.stmt.IMark) and isinstance(old_stmts[ind+1], pyvex.stmt.AbiHint):
                         continue
                     elif isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
-                        ### Removing conditional statements that depend on a constant
+                        # Removing conditional statements that depend on a constant
                         if stmt.guard.con.value == 0:
                             continue
                         elif stmt.guard.con.value == 1:
@@ -658,17 +668,17 @@ class VMDeobfuscation(Analysis):
                         continue
 
                     location = CodeLocation(node.irsb.addr , ind, node.block_id)
-                    #### Check for stmts with no outgoing edges for deadcode
+                    # Check for stmts with no outgoing edges for deadcode
                     if len(ddg._stmt_graph.out_edges([location])) != 0:
                         print("Dependencies of: "+stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
                         for out_edges in ddg._stmt_graph.out_edges([location]):
                             print(out_edges[1])
                         new_stmts.append(stmt)
-                    ### check if there's a Store from a symbolic memory address
+                    # check if there's a Store from a symbolic memory address
                     elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
                         new_stmts.append(stmt)
 
-                ### Dealing with empty blocks i.e. removing them
+                # Dealing with empty blocks i.e. removing them
                 if len(new_stmts) == 0:
                     succ = cfg.graph.successors(node)
                     succ = next(succ)
@@ -676,7 +686,7 @@ class VMDeobfuscation(Analysis):
                     to_remove = False
                     for pred in preds:
                         pred_edge_data = cfg.graph.get_edge_data(pred, node)
-                        ### Reassigning the next expression of the previous
+                        # Reassigning the next expression of the previous
                         if not pred.is_simprocedure:
                             cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
                             if isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
@@ -708,7 +718,7 @@ class VMDeobfuscation(Analysis):
                 print(node)
                 print("\n")
 
-        ### Returning a new CFGVMDeobfuscation object with the updated graph
+        # Returning a new CFGVMDeobfuscation object with the updated graph
         dce_new_model = self.new_model_graph(cfg.graph, proj, 'dce')
         if start_state:
             initial_input_state = start_state

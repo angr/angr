@@ -704,6 +704,13 @@ class CFGENode(CFGNode):
 
         return node
 
+    def to_codenode(self):
+        if self.is_syscall:
+            return SyscallNode(self.addr, self.size, self.simprocedure_name)
+        if self.is_simprocedure:
+            return HookNode(self.addr, self.size, self.simprocedure_name)
+        return BlockNode(self.addr, self.size, thumb=self.thumb, block_id=self.block_id)
+
     #
     # Pickeling
     #
