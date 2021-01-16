@@ -5,6 +5,11 @@ import logging
 import nose
 import angr
 
+try:
+    import tracer
+except ImportError:
+    tracer = None
+
 from common import bin_location, do_trace, slow_test
 
 def tracer_cgc(filename, test_name, stdin, copy_states=False):
@@ -21,6 +26,22 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False):
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 
     return simgr, t
+
+
+def trace_cgc_with_pov_file(binary: str, test_name: str, pov_file: str, output_initial_bytes: bytes, copy_states=False):
+    if tracer is None:
+        raise Exception(f"Tracer is not installed and so cannot run test {test_name}")
+
+    nose.tools.assert_true(os.path.isfile(pov_file))
+    pov = tracer.TracerPoV(pov_file)
+    trace_result = tracer_cgc(binary, test_name, b''.join(pov.writes), copy_states)
+    simgr = trace_result[0]
+    simgr.run()
+    nose.tools.assert_true("traced" in simgr.stashes)
+    nose.tools.assert_equal(len(simgr.traced), 1)
+    stdout_dump = simgr.traced[0].posix.dumps(1)
+    nose.tools.assert_true(stdout_dump.startswith(output_initial_bytes))
+
 
 def tracer_linux(filename, test_name, stdin):
     p = angr.Project(filename)
@@ -167,6 +188,24 @@ def test_fauxware():
     simgr.run()
 
     nose.tools.assert_true('traced' in simgr.stashes)
+
+
+def test_symbolic_memory_dependencies_liveness():
+    # Tests for liveness of symbolic memory dependencies when re-executing symbolic instructions in SimEngineUnicorn
+    # NRFIN_00036
+    binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00036")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "NRFIN_00036_POV_00000.xml")
+    output_initial_bytes = b"New budget created!\nNew budget created!\nNew budget created!\nNew budget created!\n"
+    trace_cgc_with_pov_file(binary, "tracer_symbolic_memory_dependencies_liveness", pov_file, output_initial_bytes)
+
+    # CROMU_00008
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00008")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "CROMU_00008_POV_00000.xml")
+    output_initial_bytes = (b"> You logged in.\n> First name: Last name: User name: Birthdate (mm/dd/yy hh:mm:ss): "
+                            b"Date is: 12/21/1983 5:43:21\nData added, record 0\n"
+                            b"> Enter search express (firstname or fn, lastname or ln, username or un, birthdate or bd,"
+                            b" operators ==, !=, >, <, AND and OR):\n")
+    trace_cgc_with_pov_file(binary, "tracer_symbolic_memory_dependencies_liveness", pov_file, output_initial_bytes)
 
 
 def run_all():
