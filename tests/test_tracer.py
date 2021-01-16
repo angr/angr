@@ -5,12 +5,7 @@ import logging
 import nose
 import angr
 
-try:
-    import tracer
-except ImportError:
-    tracer = None
-
-from common import bin_location, do_trace, slow_test
+from common import bin_location, do_trace, load_cgc_pov, slow_test
 
 def tracer_cgc(filename, test_name, stdin, copy_states=False):
     p = angr.Project(filename)
@@ -29,11 +24,8 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False):
 
 
 def trace_cgc_with_pov_file(binary: str, test_name: str, pov_file: str, output_initial_bytes: bytes, copy_states=False):
-    if tracer is None:
-        raise Exception(f"Tracer is not installed and so cannot run test {test_name}")
-
     nose.tools.assert_true(os.path.isfile(pov_file))
-    pov = tracer.TracerPoV(pov_file)
+    pov = load_cgc_pov(pov_file)
     trace_result = tracer_cgc(binary, test_name, b''.join(pov.writes), copy_states)
     simgr = trace_result[0]
     simgr.run()
