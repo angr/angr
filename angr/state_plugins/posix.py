@@ -546,10 +546,14 @@ class SimSystemPosix(SimStatePlugin):
                 common_sock = common_ancestor.sockets[ident]
             except (AttributeError, KeyError):
                 common_sock = None
-            merging_occurred |= self.sockets[ident].merge(
-                    [o.sockets[ident] for o in others],
+            merging_occurred |= self.sockets[ident][0].merge(
+                    [o.sockets[ident][0] for o in others],
                     merge_conditions,
-                    common_ancestor=common_sock)
+                    common_ancestor=common_sock[0])
+            merging_occurred |= self.sockets[ident][1].merge(
+                [o.sockets[ident][1] for o in others],
+                merge_conditions,
+                common_ancestor=common_sock[1])
 
         # pylint: disable=no-member
         # pylint seems to be seriously flipping out here for reasons I'm unsure of
