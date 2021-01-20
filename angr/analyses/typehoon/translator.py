@@ -89,8 +89,19 @@ class TypeTranslator:
         s = sim_type.SimStruct({}, name=self.struct_name()).with_arch(self.arch)
         self.structs[tc] = s
 
-        for offset, typ in tc.fields.items():
-            s.fields["field_%x" % offset] = self._translate(typ)
+        next_offset = 0
+        for offset, typ in sorted(tc.fields.items(), key=lambda item: item[0]):
+            if offset > next_offset:
+                # we need padding!
+                padding_size = offset - next_offset
+                s.fields["padding_%x" % next_offset] = sim_type.SimTypeFixedSizeArray(
+                    sim_type.SimTypeChar(signed=False).with_arch(self.arch), padding_size
+                ).with_arch(self.arch)
+
+            translated_type = self._translate(typ)
+            s.fields["field_%x" % offset] = translated_type
+
+            next_offset = translated_type.size + offset
 
         return s
 
