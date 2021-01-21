@@ -377,7 +377,8 @@ class RegionSimplifier(Analysis):
         IfElseFlattener(region, self.kb.functions)
         return region
 
-    def _simplify_cascading_ifs(self, region):
+    @staticmethod
+    def _simplify_cascading_ifs(region):
         CascadingIfsRemover(region)
         return region
 
