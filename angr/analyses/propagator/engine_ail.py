@@ -377,7 +377,8 @@ class SimEnginePropagatorAIL(
             # pylint:disable=unused-argument
             def _handle_Register(self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
                 v = self.state.get_variable(expr)
-                if v is not None and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
+                if v is not None and isinstance(v, Expr.TaggedObject) \
+                        and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
                     self.out_dated = True
 
         walker = OutdatedDefinitionWalker(self.state)
