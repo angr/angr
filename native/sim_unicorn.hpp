@@ -105,9 +105,11 @@ struct memory_value_t {
 	uint64_t address;
     uint8_t value[MAX_MEM_ACCESS_SIZE];
     uint64_t size;
+	bool is_value_symbolic;
 
 	bool operator==(const memory_value_t &other_mem_value) const {
-		if ((address != other_mem_value.address) || (size != other_mem_value.size)) {
+		if ((address != other_mem_value.address) || (size != other_mem_value.size) ||
+			(is_value_symbolic != other_mem_value.is_value_symbolic)) {
 			return false;
 		}
 		return (memcmp(value, other_mem_value.value, size) == 0);
@@ -122,7 +124,7 @@ struct memory_value_t {
 
 struct mem_read_result_t {
 	std::vector<memory_value_t> memory_values;
-	bool is_value_symbolic;
+	bool is_mem_read_symbolic;
 };
 
 struct register_value_t {
@@ -161,6 +163,7 @@ struct block_details_t {
 	uint64_t block_size;
 	std::vector<instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
+	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 	bool vex_lift_failed;
 
 	void reset() {
@@ -214,6 +217,7 @@ enum stop_t {
 	STOP_UNSUPPORTED_EXPR_UNKNOWN,
 	STOP_UNKNOWN_MEMORY_WRITE,
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE,
+	STOP_SYSCALL_ARM,
 };
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -602,7 +606,7 @@ class State {
 
 		uc_err start(address_t pc, uint64_t step = 1);
 
-		void stop(stop_t reason);
+		void stop(stop_t reason, bool do_commit=false);
 
 		void step(address_t current_address, int32_t size, bool check_stop_points=true);
 

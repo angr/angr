@@ -137,16 +137,13 @@ uc_err State::start(address_t pc, uint64_t step) {
 	return out;
 }
 
-void State::stop(stop_t reason) {
+void State::stop(stop_t reason, bool do_commit) {
 	stopped = true;
 	stop_details.stop_reason = reason;
 	stop_details.block_addr = block_details.block_addr;
 	stop_details.block_size = block_details.block_size;
-	switch (reason) {
-		case STOP_SYSCALL:
-		case STOP_SYMBOLIC_MEM_DEP_NOT_LIVE:
-			commit();
-			break;
+	if ((reason == STOP_SYSCALL) || do_commit) {
+		commit();
 	}
 	uc_emu_stop(uc);
 }
@@ -224,13 +221,23 @@ void State::commit() {
 	}
 	if (block_details.symbolic_instrs.size() > 0) {
 		for (auto &concrete_reg: block_concrete_dependencies) {
+			// Save values of all register dependencies of the block that were concrete at start of the block
 			block_details.register_values.emplace_back(block_start_reg_values.at(concrete_reg));
 		}
 		for (auto &symbolic_instr: block_details.symbolic_instrs) {
+			// Save all concrete memory dependencies of the block
 			if (symbolic_instr.has_concrete_memory_dep) {
 				archived_memory_values.emplace_back(mem_reads_map.at(symbolic_instr.instr_addr).memory_values);
 				symbolic_instr.memory_values = &(archived_memory_values.back()[0]);
 				symbolic_instr.memory_values_count = archived_memory_values.back().size();
+			}
+			if (symbolic_instr.has_symbolic_memory_dep) {
+				// Track all symbolic memory dependencies used by the block
+				for (auto &mem_value: mem_reads_map.at(symbolic_instr.instr_addr).memory_values) {
+					if (mem_value.is_value_symbolic) {
+						block_details.symbolic_mem_deps.push_back(std::make_pair(mem_value.address, mem_value.size));
+					}
+				}
 			}
 		}
 		blocks_with_symbolic_instrs.emplace_back(block_details);
@@ -535,6 +542,9 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	if ((address & 0xfff) + size > 0x1000) {
 		int chopsize = 0x1000 - (address & 0xfff);
 		handle_write(address, chopsize, is_interrupt);
+		if (stopped) {
+			return;
+		}
 		handle_write(address + chopsize, size - chopsize, is_interrupt);
 		return;
 	}
@@ -593,6 +603,24 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		else {
 			stop(STOP_UNKNOWN_MEMORY_WRITE);
 			return;
+		}
+	}
+	if (find_tainted(address, size) != -1) {
+		// We are writing to a memory location that is currently symbolic. If the destination if a memory dependency
+		// of some instruction to be re-executed, we need to re-execute that instruction before continuing.
+		auto write_start_addr = address;
+		auto write_end_addr = address + size;
+		for (auto &block: blocks_with_symbolic_instrs) {
+			for (auto &symbolic_mem_dep: block.symbolic_mem_deps) {
+				auto symbolic_start_addr = symbolic_mem_dep.first;
+				auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+				if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
+					// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
+					// will be lost. Stop execution.
+					stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+					return;
+				}
+			}
 		}
 	}
 	if (data == NULL) {
@@ -1199,7 +1227,7 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 				catch (std::out_of_range) {
 					assert(false && "[sim_unicorn] Taint sink depends on a read not executed yet! This should not happen!");
 				}
-				is_symbolic = mem_read_result.is_value_symbolic;
+				is_symbolic = mem_read_result.is_mem_read_symbolic;
 			}
 		}
 	}
@@ -1393,7 +1421,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 	}
 	auto mem_read_result = mem_reads_map.at(instr_addr);
 	if (block_details.vex_lift_failed) {
-		if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+		if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
 			// Either the memory value is symbolic or there are symbolic registers: thus, taint
 			// status of registers could change. But since VEX lift failed, the taint relations
 			// are not known and so we can't propagate taint. Stop concrete execution.
@@ -1420,7 +1448,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 	// and overtaint.
 	auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
 	auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
-	if (mem_read_result.is_value_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+	if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
 			// There are symbolic registers and/or memory read was symbolic and there are VEX
 			// statements in block for which taint propagation is not supported.
@@ -1530,7 +1558,7 @@ instr_details_t State::compute_instr_details(address_t instr_addr, const instruc
 	instr_details.instr_addr = instr_addr;
 	if (instr_taint_entry.has_memory_read) {
 		auto mem_read_result = mem_reads_map.at(instr_addr);
-		if (!mem_read_result.is_value_symbolic) {
+		if (!mem_read_result.is_mem_read_symbolic) {
 			instr_details.has_concrete_memory_dep = true;
 			instr_details.has_symbolic_memory_dep = false;
 		}
@@ -1589,6 +1617,11 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 				// There are no symbolic registers so attempt to execute block. Mark block as VEX lift failed.
 				block_details.vex_lift_failed = true;
 			}
+			return;
+		}
+		if ((arch == UC_ARCH_ARM) && (lift_ret->irsb->jumpkind == Ijk_Sys_syscall)) {
+			// This block invokes a syscall. For now, such blocks are handled by VEX engine.
+			stop(STOP_SYSCALL_ARM);
 			return;
 		}
 		auto block_taint_entry = process_vex_block(lift_ret->irsb, block_address);
@@ -1759,16 +1792,17 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		is_memory_value_symbolic = false;
 		state->read_memory_value(address, size, memory_read_value.value, MAX_MEM_ACCESS_SIZE);
 	}
+	memory_read_value.is_value_symbolic = is_memory_value_symbolic;
 	auto mem_reads_map_entry = state->mem_reads_map.find(curr_instr_addr);
 	if (mem_reads_map_entry == state->mem_reads_map.end()) {
 		mem_read_result_t mem_read_result;
 		mem_read_result.memory_values.emplace_back(memory_read_value);
-		mem_read_result.is_value_symbolic = is_memory_value_symbolic;
+		mem_read_result.is_mem_read_symbolic = is_memory_value_symbolic;
 		state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
 	}
 	else {
 		state->mem_reads_map.at(curr_instr_addr).memory_values.emplace_back(memory_read_value);
-		state->mem_reads_map.at(curr_instr_addr).is_value_symbolic |= is_memory_value_symbolic;
+		state->mem_reads_map.at(curr_instr_addr).is_mem_read_symbolic |= is_memory_value_symbolic;
 	}
 	state->propagate_taint_of_mem_read_instr_and_continue(curr_instr_addr);
 	return;
@@ -1810,7 +1844,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		return;
 	}
 	if (!state->check_symbolic_stack_mem_dependencies_liveness()) {
-		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE, true);
 		return;
 	}
 	state->commit();
@@ -1890,6 +1924,9 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 
 				uc_err err = uc_mem_write(uc, tx_bytes, &count, 4);
 				if (tx_bytes != 0) state->handle_write(tx_bytes, 4, true);
+				if (state->stopped) {
+					return;
+				}
 				state->transmit_records.push_back({dup_buf, count});
 				int result = 0;
 				uc_reg_write(uc, UC_X86_REG_EAX, &result);
