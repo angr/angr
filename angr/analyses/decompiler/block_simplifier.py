@@ -267,8 +267,6 @@ class BlockSimplifier(Analysis):
             else:
                 statements.append(old_stmt)
 
-            statements.append(stmt)
-
         return statements, any_update
 
 
