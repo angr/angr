@@ -16,8 +16,6 @@ def test_constant_dereference():
 
     proj = angr.Project(os.path.join(test_location, "armel", "decompiler", "rm"))
 
-    bs = proj.analyses.AILBlockSimplifier(None)
-
     stmt = ailment.Assignment(None,
                               ailment.Register(None, None, proj.arch.registers['r0'][0],
                                                proj.arch.registers['r0'][1] * proj.arch.byte_width,

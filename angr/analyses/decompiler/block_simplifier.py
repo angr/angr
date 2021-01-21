@@ -2,8 +2,8 @@
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from ailment.statement import Statement, Assignment, ConditionalJump, Call
-from ailment.expression import Expression, Convert, Tmp, Register, Load, BinaryOp, UnaryOp, Const, ITE
+from ailment.statement import Statement, Assignment, Call
+from ailment.expression import Expression, Tmp, Register, Load
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -205,7 +205,8 @@ class BlockSimplifier(Analysis):
         new_block = block.copy(statements=statements)
         return new_block
 
-    def _peephole_optimize_exprs(self, block, expr_opts):
+    @staticmethod
+    def _peephole_optimize_exprs(block, expr_opts):
 
         class _any_update:
             v = False
@@ -240,7 +241,8 @@ class BlockSimplifier(Analysis):
 
         return _any_update.v
 
-    def _peephole_optimize_stmts(self, block, stmt_opts):
+    @staticmethod
+    def _peephole_optimize_stmts(block, stmt_opts):
 
         any_update = False
         statements = [ ]

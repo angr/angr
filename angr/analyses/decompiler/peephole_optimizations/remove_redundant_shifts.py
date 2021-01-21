@@ -22,7 +22,7 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
                         None,
                         expr_a.bits,
                         expr_a.bits - n0,
-                        True if expr.op == "Sar" else False,
+                        expr.op == "Sar",  # is_signed
                         inner_expr,
                         **expr.tags,
                     )

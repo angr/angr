@@ -234,6 +234,7 @@ class AILBlockWalker:
             new_expr = expr.copy()
             new_expr.operand = new_operand
             return new_expr
+        return None
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
