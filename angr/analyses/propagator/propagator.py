@@ -1,4 +1,4 @@
-from typing import Set, Optional, Any, Union, Tuple
+from typing import Set, Optional, Any, Tuple
 from collections import defaultdict
 import logging
 
