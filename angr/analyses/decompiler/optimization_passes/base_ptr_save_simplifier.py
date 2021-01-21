@@ -19,22 +19,28 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
     def _check(self):
         save_stmt = self._find_baseptr_save_stmt()
+
+        # Note that restoring statements may not exist since they can be effectively removed by other optimization
         restore_stmts = self._find_baseptr_restore_stmt()
 
-        if save_stmt is None or restore_stmts is None:
+        if save_stmt is None:
             return False, { }
 
         save_dst = save_stmt[2]
-        restore_srcs = [ tpl[2] for tpl in restore_stmts ]
+        if restore_stmts is not None:
+            restore_srcs = [ tpl[2] for tpl in restore_stmts ]
 
-        if all(src == save_dst for src in restore_srcs):
-            return True, \
-                   {
-                       'save_stmt': save_stmt,
-                       'restore_stmts': restore_stmts,
-                   }
+            if all(src == save_dst for src in restore_srcs):
+                return True, \
+                       {
+                           'save_stmt': save_stmt,
+                           'restore_stmts': restore_stmts,
+                       }
 
-        return False, { }
+        return True, {
+            'save_stmt': save_stmt,
+            'restore_stmts': [ ]
+        }
 
     def _analyze(self, cache=None):
         save_stmt = None
@@ -51,8 +57,6 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
         if save_stmt is None:
             return
-        if restore_stmts is None:
-            return
 
         # update the first block
         block, stmt_idx, _ = save_stmt
@@ -61,10 +65,11 @@ class BasePointerSaveSimplifier(OptimizationPass):
         self._update_block(block, block_copy)
 
         # update all endpoint blocks
-        for block, stmt_idx, _ in restore_stmts:
-            block_copy = block.copy()
-            block_copy.statements.pop(stmt_idx)
-            self._update_block(block, block_copy)
+        if restore_stmts:
+            for block, stmt_idx, _ in restore_stmts:
+                block_copy = block.copy()
+                block_copy.statements.pop(stmt_idx)
+                self._update_block(block, block_copy)
 
     def _find_baseptr_save_stmt(self):
         """
