@@ -269,6 +269,71 @@ class IfElseFlattener(SequenceWalker):
         return False
 
 
+class CascadingIfsRemover(SequenceWalker):
+    """
+    Coalesce cascading If constructs. Transforming the following construct::
+
+        if (cond_a) {
+            if (cond_b) {
+                true_body
+            } else { }
+        } else { }
+
+    into::
+
+        if (cond_a and cond_b) {
+            true_body
+        } else { }
+    """
+    def __init__(self, node):
+        handlers = {
+            SequenceNode: self._handle_Sequence,
+            CodeNode: self._handle_Code,
+            MultiNode: self._handle_MultiNode,
+            LoopNode: self._handle_Loop,
+            ConditionNode: self._handle_Condition,
+        }
+
+        super().__init__(handlers)
+        self.walk(node)
+
+    def _handle_Condition(self, node, parent=None, index=None, **kwargs):
+        """
+
+        :param ConditionNode node:
+        :param successor:
+        :return:
+        """
+
+        if node.true_node is not None:
+            self._handle(node.true_node, parent=node, index=0)
+        if node.false_node is not None:
+            self._handle(node.false_node, parent=node, index=1)
+
+        if node.true_node is not None and node.false_node is None:
+            if isinstance(node.true_node, SequenceNode):
+                last_node = None
+                if len(node.true_node.nodes) > 1 and all(self.is_empty_node(node_) for node_ in node.true_node.nodes[:-1]):
+                    last_node = node.true_node.nodes[-1]
+                elif len(node.true_node.nodes) == 1:
+                    last_node = node.true_node.nodes[0]
+
+                true_node = last_node
+
+                if isinstance(true_node, ConditionNode) and true_node.true_node is not None and true_node.false_node is None:
+                    node.condition = ailment.BinaryOp(None, "LogicalAnd", (node.condition, true_node.condition), False,
+                                                      **node.condition.tags)
+                    node.true_node = true_node.true_node
+
+    @staticmethod
+    def is_empty_node(node):
+        if isinstance(node, ailment.Block):
+            return not node.statements
+        if isinstance(node, SequenceNode):
+            return all(CascadingIfsRemover.is_empty_node(n) for n in node.nodes)
+        return False
+
+
 class RegionSimplifier(Analysis):
     def __init__(self, region):
         self.region = region
@@ -291,6 +356,8 @@ class RegionSimplifier(Analysis):
         r = self._simplify_ifs(r)
         # Remove unnecessary else branches if the if branch will always return
         r = self._simplify_ifelses(r)
+        #
+        r = self._simplify_cascading_ifs(r)
 
         self.result = r
 
@@ -310,6 +377,11 @@ class RegionSimplifier(Analysis):
 
     def _simplify_ifelses(self, region):
         IfElseFlattener(region, self.kb.functions)
+        return region
+
+    @staticmethod
+    def _simplify_cascading_ifs(region):
+        CascadingIfsRemover(region)
         return region
 
 
