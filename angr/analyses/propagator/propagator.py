@@ -277,6 +277,9 @@ class PropagatorAILState(PropagatorState):
 
     def add_replacement(self, codeloc, old, new):
 
+        if type(new) is Top:
+            return
+
         prop_count = 0
         if not isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Expression) \
                 and not isinstance(new, ailment.Expr.Const):
