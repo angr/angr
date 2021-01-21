@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Union, Type, Iterable, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call
 from ailment.expression import Expression, Tmp, Register, Load
@@ -10,7 +10,7 @@ from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from .. import Analysis, register_analysis
-from .peephole_optimizations import STMT_OPTS, EXPR_OPTS
+from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 from .ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
@@ -24,7 +24,9 @@ class BlockSimplifier(Analysis):
     """
     Simplify an AIL block.
     """
-    def __init__(self, block: Optional['Block'], remove_dead_memdefs=False, stack_pointer_tracker=None):
+    def __init__(self, block: Optional['Block'], remove_dead_memdefs=False, stack_pointer_tracker=None,
+                 peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],Type[PeepholeOptimizationExprBase]]]]=None,
+                 ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
                         in test cases.
@@ -34,6 +36,15 @@ class BlockSimplifier(Analysis):
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_pointer_tracker = stack_pointer_tracker
+
+        if peephole_optimizations is None:
+            self._expr_peephole_opts = [ cls(self.project) for cls in EXPR_OPTS ]
+            self._stmt_peephole_opts = [ cls(self.project) for cls in STMT_OPTS ]
+        else:
+            self._expr_peephole_opts = [ cls(self.project) for cls in peephole_optimizations
+                                         if issubclass(cls, PeepholeOptimizationExprBase) ]
+            self._stmt_peephole_opts = [ cls(self.project) for cls in peephole_optimizations
+                                         if issubclass(cls, PeepholeOptimizationStmtBase) ]
 
         self.result_block = None
 
@@ -191,14 +202,10 @@ class BlockSimplifier(Analysis):
 
     def _peephole_optimize(self, block):
 
-        # initialize optimizers
-        stmt_opts = [ cls(self.project) for cls in STMT_OPTS ]
-        expr_opts = [ cls(self.project) for cls in EXPR_OPTS ]
-
         # expressions are updated in place
-        self._peephole_optimize_exprs(block, expr_opts)
+        self._peephole_optimize_exprs(block, self._expr_peephole_opts)
 
-        statements, stmts_updated = self._peephole_optimize_stmts(block, stmt_opts)
+        statements, stmts_updated = self._peephole_optimize_stmts(block, self._stmt_peephole_opts)
 
         if not stmts_updated:
             return block

@@ -1,6 +1,6 @@
 # pylint:disable=unused-import
 from collections import defaultdict
-from typing import List, Tuple, Any
+from typing import List, Tuple, Optional, Iterable, Union, Type, TYPE_CHECKING
 
 from cle import SymbolType
 
@@ -9,14 +9,20 @@ from .. import Analysis, AnalysesHub
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 
+if TYPE_CHECKING:
+    from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+
 
 class Decompiler(Analysis):
-    def __init__(self, func, cfg=None, options=None, optimization_passes=None, sp_tracker_track_memory=True):
+    def __init__(self, func, cfg=None, options=None, optimization_passes=None, sp_tracker_track_memory=True,
+                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
+                 ):
         self.func = func
         self._cfg = cfg
         self._options = options
         self._optimization_passes = optimization_passes
         self._sp_tracker_track_memory = sp_tracker_track_memory
+        self._peephole_optimizations = peephole_optimizations
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -43,6 +49,7 @@ class Decompiler(Analysis):
                                               optimization_passes=self._optimization_passes,
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
                                               cfg=self._cfg,
+                                              peephole_optimizations=self._peephole_optimizations,
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
         self.clinic = clinic

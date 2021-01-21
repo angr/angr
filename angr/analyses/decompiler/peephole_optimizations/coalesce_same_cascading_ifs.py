@@ -7,6 +7,7 @@ from .base import PeepholeOptimizationStmtBase
 class CoalesceSameCascadingIfs(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
+    name = "Coalescing cascading If constructs"
     stmt_classes = (ConditionalJump, )
 
     def optimize(self, stmt: ConditionalJump):

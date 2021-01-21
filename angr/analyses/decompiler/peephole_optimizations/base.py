@@ -5,6 +5,8 @@ class PeepholeOptimizationStmtBase:
 
     __slots__ = ('project', )
 
+    name = "Peephole Optimization - Statement"
+    description = "Peephole Optimization - Statement"
     stmt_classes = None
 
     def __init__(self, project):
@@ -18,6 +20,8 @@ class PeepholeOptimizationExprBase:
 
     __slots__ = ('project',)
 
+    name = "Peephole Optimization - Expression"
+    description = "Peephole Optimization - Expression"
     expr_classes = None
 
     def __init__(self, project):

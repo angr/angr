@@ -13,6 +13,7 @@ _MASKS = {
 class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     __slots__ = ()
 
+    name = "Remove redundant bitmasks"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):

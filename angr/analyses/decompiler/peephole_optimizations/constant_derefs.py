@@ -7,6 +7,7 @@ from .base import PeepholeOptimizationStmtBase
 class ConstantDereferences(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
+    name = "Dereference constant references"
     stmt_classes = (Assignment, )  # all expressions are allowed
 
     def optimize(self, stmt: Assignment):

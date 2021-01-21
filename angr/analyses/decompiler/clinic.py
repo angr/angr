@@ -1,6 +1,6 @@
 from collections import defaultdict
 import logging
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Iterable, Union, Type, TYPE_CHECKING
 
 import networkx
 
@@ -23,6 +23,7 @@ from .optimization_passes import get_default_optimization_passes
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 
 l = logging.getLogger(name=__name__)
@@ -37,7 +38,8 @@ class Clinic(Analysis):
                  exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
-                 cfg=None
+                 cfg=None,
+                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -56,6 +58,7 @@ class Clinic(Analysis):
         self._exception_edges = exception_edges
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: Optional['CFGModel'] = cfg
+        self.peephole_optimizations = peephole_optimizations
 
         # sanity checks
         if not self.kb.functions:
@@ -316,6 +319,7 @@ class Clinic(Analysis):
             ail_block,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_pointer_tracker=stack_pointer_tracker,
+            peephole_optimizations=self.peephole_optimizations,
         )
         return simp.result_block
 
@@ -412,7 +416,10 @@ class Clinic(Analysis):
             csm = self.project.analyses.AILCallSiteMaker(block, reaching_definitions=rd)
             if csm.result_block:
                 ail_block = csm.result_block
-                simp = self.project.analyses.AILBlockSimplifier(ail_block, stack_pointer_tracker=stack_pointer_tracker)
+                simp = self.project.analyses.AILBlockSimplifier(ail_block,
+                                                                stack_pointer_tracker=stack_pointer_tracker,
+                                                                peephole_optimizations=self.peephole_optimizations,
+                                                                )
                 return simp.result_block
             return None
 
