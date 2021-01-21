@@ -4,6 +4,8 @@ import angr
 import archinfo
 import ailment
 
+from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences
+
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
@@ -13,8 +15,6 @@ def test_constant_dereference():
     # - A is a pointer that points to a read-only section.
 
     proj = angr.Project(os.path.join(test_location, "armel", "decompiler", "rm"))
-
-    bs = proj.analyses.AILBlockSimplifier(None)
 
     stmt = ailment.Assignment(None,
                               ailment.Register(None, None, proj.arch.registers['r0'][0],
@@ -26,7 +26,8 @@ def test_constant_dereference():
                                                 ),
                               ins_addr=0x400100,
                               )
-    optimized = bs._peephole_optimize_ConstantDereference(stmt)
+    opt = ConstantDereferences(proj)
+    optimized = opt.optimize(stmt)
     assert isinstance(optimized, ailment.Assignment)
     assert optimized.dst is stmt.dst
     assert isinstance(optimized.src, ailment.Const)
@@ -45,8 +46,9 @@ def test_constant_dereference():
                                                 ),
                               ins_addr=0x400100,
                               )
-    optimized = bs._peephole_optimize_ConstantDereference(stmt)
-    assert optimized is stmt
+    opt = ConstantDereferences(proj)
+    optimized = opt.optimize(stmt)
+    assert optimized is None
 
 
 if __name__ == "__main__":

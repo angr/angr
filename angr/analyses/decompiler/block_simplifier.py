@@ -2,15 +2,16 @@
 import logging
 from typing import Optional, TYPE_CHECKING
 
-from ailment.statement import Assignment, ConditionalJump, Call
-from ailment.expression import Expression, Convert, Tmp, Register, Load, BinaryOp, UnaryOp, Const, ITE
+from ailment.statement import Statement, Assignment, Call
+from ailment.expression import Expression, Tmp, Register, Load
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
-
 from .. import Analysis, register_analysis
+from .peephole_optimizations import STMT_OPTS, EXPR_OPTS
+from .ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from ailment.block import Block
@@ -190,96 +191,83 @@ class BlockSimplifier(Analysis):
 
     def _peephole_optimize(self, block):
 
-        statements = [ ]
-        any_update = False
-        for stmt in block.statements:
-            new_stmt = None
-            if isinstance(stmt, Assignment):
-                new_stmt = self._peephole_optimize_ConstantDereference(stmt)
+        # initialize optimizers
+        stmt_opts = [ cls(self.project) for cls in STMT_OPTS ]
+        expr_opts = [ cls(self.project) for cls in EXPR_OPTS ]
 
-            elif isinstance(stmt, ConditionalJump):
-                new_stmt = self._peephole_optimize_ConditionalJump(stmt)
+        # expressions are updated in place
+        self._peephole_optimize_exprs(block, expr_opts)
 
-            if new_stmt is not None and new_stmt is not stmt:
-                statements.append(new_stmt)
-                any_update = True
-                continue
+        statements, stmts_updated = self._peephole_optimize_stmts(block, stmt_opts)
 
-            statements.append(stmt)
-
-        if not any_update:
+        if not stmts_updated:
             return block
         new_block = block.copy(statements=statements)
         return new_block
 
-    def _peephole_optimize_ConstantDereference(self, stmt: Assignment):
-        if isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Const):
-            # is it loading from a read-only section?
-            sec = self.project.loader.find_section_containing(stmt.src.addr.value)
-            if sec is not None and sec.is_readable and not sec.is_writable:
-                # do we know the value that it's reading?
-                try:
-                    val = self.project.loader.memory.unpack_word(stmt.src.addr.value, size=self.project.arch.bytes)
-                except KeyError:
-                    return stmt
+    @staticmethod
+    def _peephole_optimize_exprs(block, expr_opts):
 
-                return Assignment(stmt.idx, stmt.dst,
-                                  Const(None, None, val, stmt.src.size * self.project.arch.byte_width),
-                                  **stmt.tags,
-                                  )
+        class _any_update:
+            v = False
 
-        return stmt
+        def _handle_expr(expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> Optional[Expression]:
 
-    def _peephole_optimize_ConditionalJump(self, stmt: ConditionalJump):
+            old_expr = expr
 
-        new_condition = self._peephole_optimize_Expr(stmt.condition)
+            redo = True
+            while redo:
+                redo = False
+                for expr_opt in expr_opts:
+                    if isinstance(expr, expr_opt.expr_classes):
+                        r = expr_opt.optimize(expr)
+                        if r is not None and r is not expr:
+                            expr = r
+                            redo = True
+                            break
 
-        # if (!cond) {} else { ITE(cond, true_branch, false_branch } ==> if (cond) { ITE(...) } else {}
-        if isinstance(stmt.false_target, ITE) and \
-                isinstance(new_condition, UnaryOp) and \
-                new_condition.op == "Not":
-            new_true_target = stmt.false_target
-            new_false_target = stmt.true_target
-            new_condition = new_condition.operand
-        else:
-            new_true_target = stmt.true_target
-            new_false_target = stmt.false_target
+            if expr is not old_expr:
+                _any_update.v = True
+                # continue to process the expr
+                r = AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+                return expr if r is None else r
 
-        if new_condition is not stmt.condition or \
-                new_true_target is not stmt.true_target or \
-                new_false_target is not stmt.false_target:
-            # it's updated
-            return self._peephole_optimize_ConditionalJump(
-                ConditionalJump(stmt.idx, new_condition, new_true_target, new_false_target, **stmt.tags)
-            )
+            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
-        # if (cond) {ITE(cond, true_branch, false_branch)} else {} ==> if (cond) {true_branch} else {}
-        if isinstance(stmt.true_target, ITE) and new_condition == stmt.true_target.cond:
-            new_true_target = stmt.true_target.iftrue
-        else:
-            new_true_target = stmt.true_target
+        # run expression optimizers
+        walker = AILBlockWalker()
+        walker._handle_expr = _handle_expr
+        walker.walk(block)
 
-        if new_condition is not stmt.condition or new_true_target is not stmt.true_target:
-            # it's updated
-            return self._peephole_optimize_ConditionalJump(
-                ConditionalJump(stmt.idx, new_condition, new_true_target, stmt.false_target, **stmt.tags)
-            )
+        return _any_update.v
 
-        return stmt
+    @staticmethod
+    def _peephole_optimize_stmts(block, stmt_opts):
 
-    def _peephole_optimize_Expr(self, expr: Expression):
+        any_update = False
+        statements = [ ]
 
-        # Convert(N->1, (Convert(1->N, t_x) ^ 0x1<N>) ==> Not(t_x)
-        if isinstance(expr, Convert) and \
-                isinstance(expr.operand, BinaryOp) and \
-                expr.operand.op == "Xor" and \
-                isinstance(expr.operand.operands[0], Convert) and \
-                isinstance(expr.operand.operands[1], Const) and \
-                expr.operand.operands[1].value == 1:
-            new_expr = UnaryOp(None, "Not", expr.operand.operands[0].operand)
-            return self._peephole_optimize_Expr(new_expr)
+        # run statement optimizers
+        for stmt in block.statements:
+            old_stmt = stmt
+            redo = True
+            while redo:
+                redo = False
+                for opt in stmt_opts:
+                    if isinstance(stmt, opt.stmt_classes):
+                        r = opt.optimize(stmt)
+                        if r is not None and r is not stmt:
+                            stmt = r
+                            redo = True
+                            break
 
-        return expr
+            if stmt is not None and stmt is not old_stmt:
+                statements.append(stmt)
+                any_update = True
+            else:
+                statements.append(old_stmt)
+
+        return statements, any_update
 
 
 register_analysis(BlockSimplifier, 'AILBlockSimplifier')
