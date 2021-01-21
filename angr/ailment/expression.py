@@ -55,6 +55,9 @@ class Atom(Expression):
     def __repr__(self):
         return "Atom (%d)" % self.idx
 
+    def copy(self):  # pylint:disable=no-self-use
+        return NotImplementedError()
+
 
 class Const(Atom):
 
@@ -90,6 +93,9 @@ class Const(Atom):
     def sign_bit(self):
         return self.value >> (self.bits - 1)
 
+    def copy(self) -> 'Const':
+        return Const(self.idx, self.variable, self.value, self.bits, **self.tags)
+
 
 class Tmp(Atom):
 
@@ -120,6 +126,9 @@ class Tmp(Atom):
 
     def _hash_core(self):
         return hash(('tmp', self.tmp_idx, self.bits))
+
+    def copy(self) -> 'Tmp':
+        return Tmp(self.idx, self.variable, self.tmp_idx, self.bits, **self.tags)
 
 
 class Register(Atom):
@@ -159,6 +168,9 @@ class Register(Atom):
 
     def _hash_core(self):
         return hash(('reg', self.reg_offset, self.bits, self.idx))
+
+    def copy(self) -> 'Register':
+        return Register(self.idx, self.variable, self.reg_offset, self.bits, **self.tags)
 
 
 class Op(Expression):
@@ -219,6 +231,10 @@ class UnaryOp(Op):
     def size(self):
         return self.bits // 8
 
+    def copy(self) -> 'UnaryOp':
+        return UnaryOp(self.idx, self.op, self.operand, variable=self.variable, variable_offset=self.variable_offset,
+                       **self.tags)
+
 
 class Convert(UnaryOp):
 
@@ -263,6 +279,9 @@ class Convert(UnaryOp):
             return True, Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, replaced_operand, **self.tags)
         else:
             return False, self
+
+    def copy(self) -> 'Convert':
+        return Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, self.operand, **self.tags)
 
 
 class BinaryOp(Op):
@@ -371,6 +390,10 @@ class BinaryOp(Op):
     def size(self):
         return self.bits // 8
 
+    def copy(self) -> 'BinaryOp':
+        return BinaryOp(self.idx, self.op, self.operands[::], self.signed, variable=self.variable,
+                        variable_offset=self.variable_offset, **self.tags)
+
 
 class Load(Expression):
 
@@ -424,6 +447,10 @@ class Load(Expression):
     def _hash_core(self):
         return hash(('Load', self.addr, self.size, self.endness))
 
+    def copy(self) -> 'Load':
+        return Load(self.idx, self.addr, self.size, self.endness, variable=self.variable,
+                    variable_offset=self.variable_offset, guard=self.guard, alt=self.alt, **self.tags)
+
 
 class ITE(Expression):
 
@@ -470,6 +497,9 @@ class ITE(Expression):
     def size(self):
         return self.bits // 8
 
+    def copy(self) -> 'ITE':
+        return ITE(self.idx, self.cond, self.iffalse, self.iftrue, **self.tags)
+
 
 class DirtyExpression(Expression):
 
@@ -496,6 +526,9 @@ class DirtyExpression(Expression):
     def __str__(self):
         return "[D] %s" % str(self.dirty_expr)
 
+    def copy(self) -> 'DirtyExpression':
+        return DirtyExpression(self.idx, self.dirty_expr, **self.tags)
+
 
 #
 # Special (Dummy) expressions
@@ -521,12 +554,16 @@ class BasePointerOffset(Expression):
     def __repr__(self):
         if self.offset is None:
             return "BaseOffset(%s)" % self.base
-        return "BaseOffset(%s, %d)" % (self.base, self.offset)
+        if isinstance(self.offset, int):
+            return "BaseOffset(%s, %d)" % (self.base, self.offset)
+        return "BaseOffset(%s, %s)" % (self.base, self.offset)
 
     def __str__(self):
         if self.offset is None:
             return str(self.base)
-        return "%s%+d" % (self.base, self.offset)
+        if isinstance(self.offset, int):
+            return "%s%+d" % (self.base, self.offset)
+        return "%s+%s" % (self.base, self.offset)
 
     def __eq__(self, other):
         return type(other) is type(self) and \
@@ -553,7 +590,7 @@ class BasePointerOffset(Expression):
             return True, BasePointerOffset(self.idx, self.bits, new_base, new_offset, **self.tags)
         return False, self
 
-    def copy(self):
+    def copy(self) -> 'BasePointerOffset':
         return BasePointerOffset(self.idx, self.bits, self.base, self.offset, **self.tags)
 
 
@@ -567,5 +604,5 @@ class StackBaseOffset(BasePointerOffset):
             offset -= 1 << bits
         super().__init__(idx, bits, 'stack_base', offset, **kwargs)
 
-    def copy(self):
+    def copy(self) -> 'StackBaseOffset':
         return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
