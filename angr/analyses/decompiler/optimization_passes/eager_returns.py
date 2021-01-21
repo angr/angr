@@ -29,7 +29,7 @@ class EagerReturnsSimplifier(OptimizationPass):
     """
 
     # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = ["X86", "AMD64"]
+    ARCHES = ["X86", "AMD64", "ARMCortexM"]
     PLATFORMS = ["cgc", "linux"]
 
     def __init__(self, func, blocks, graph,
