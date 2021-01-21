@@ -1,4 +1,4 @@
-from typing import Set, Optional, Any, Union, Tuple
+from typing import Set, Optional, Any, Tuple
 from collections import defaultdict
 import logging
 
@@ -205,7 +205,7 @@ class PropagatorAILState(PropagatorState):
 
         for o in others:
             state._stack_variables.merge_to_top(o._stack_variables, top=Top(1))
-            state._registers.merge_to_top(o._registers, top=Top(1))
+            state._registers.merge_to_top(o._registers, top=(Top(1), None))
 
         return state
 
@@ -240,15 +240,15 @@ class PropagatorAILState(PropagatorState):
             if not objs:
                 return None
             # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
-            obj: Union[Top,Tuple[Any,CodeLocation]] = next(iter(objs))
-
-            if type(obj) is Top:
-                # return a Top
-                if obj.bits != variable.bits:
-                    return Top(variable.bits // 8)
-                return obj
-
+            obj: Tuple[Any,Optional[CodeLocation]] = next(iter(objs))
             first_obj, def_at = obj
+
+            if type(first_obj) is Top:
+                # return a Top
+                if first_obj.bits != variable.bits:
+                    return Top(variable.bits // 8)
+                return first_obj
+
             if first_obj.bits != variable.bits:
                 # conversion is needed
                 if isinstance(first_obj, ailment.Expr.Convert):
@@ -260,11 +260,9 @@ class PropagatorAILState(PropagatorState):
                 else:
                     first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.bits, variable.bits, False, first_obj)
 
-            if isinstance(first_obj, ailment.Expr.Expression):
-                v = first_obj.copy()
-                v.tags['def_at'] = def_at  # put def_at into tags
-                return v
-            return first_obj
+            v = first_obj.copy()
+            v.tags['def_at'] = def_at  # put def_at into tags
+            return v
         return None
 
     def get_stack_variable(self, addr, size, endness=None):  # pylint:disable=unused-argument
@@ -276,6 +274,16 @@ class PropagatorAILState(PropagatorState):
         return None
 
     def add_replacement(self, codeloc, old, new):
+
+        if isinstance(new, ailment.statement.Call):
+            # do not replace anything with a call expression
+            return
+
+        if type(new) is Top:
+            # eliminate the past propagation of this expression
+            if codeloc in self._replacements and old in self._replacements[codeloc]:
+                del self._replacements[codeloc][old]
+            return
 
         prop_count = 0
         if not isinstance(old, ailment.Expr.Tmp) and isinstance(new, ailment.Expr.Expression) \

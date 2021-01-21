@@ -13,6 +13,7 @@ from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import Analysis, AnalysesHub
 from .ailblock_walker import AILBlockWalker
+from .block_simplifier import BlockSimplifier
 
 
 class HasCallNotification(Exception):
@@ -42,7 +43,40 @@ class AILSimplifier(Analysis):
         if self._unify_vars:
             self._unify_local_variables()
             self._fold_call_exprs()
+
+        folded_exprs = self._fold_exprs()
+        if folded_exprs:
+            # reading definition analysis results are no longer reliable
+            return
+
         self._remove_dead_assignments()
+
+    def _fold_exprs(self):
+        """
+        Fold expressions: Fold assigned expressions that are only used once.
+        """
+
+        # propagator
+        propagator = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        replacements = list(propagator._states.values())[0]._replacements
+
+        # take replacements and rebuild the corresponding blocks
+        replacements_by_block_addrs = defaultdict(dict)
+        for codeloc, reps in replacements.items():
+            if reps:
+                replacements_by_block_addrs[codeloc.block_addr][codeloc] = reps
+
+        if not replacements_by_block_addrs:
+            return False
+
+        blocks_by_addr = dict((node.addr, node) for node in self.func_graph.nodes())
+
+        for block_addr, reps in replacements_by_block_addrs.items():
+            block = blocks_by_addr[block_addr]
+            new_block = BlockSimplifier._replace_and_build(block, reps)
+            self.blocks[block] = new_block
+
+        return True
 
     def _unify_local_variables(self):
         """
