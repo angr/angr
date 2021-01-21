@@ -11,12 +11,14 @@ class SingleBitXor(PeepholeOptimizationExprBase):
     def optimize(self, expr: Convert):
 
         # Convert(N->1, (Convert(1->N, t_x) ^ 0x1<N>) ==> Not(t_x)
-        if isinstance(expr.operand, BinaryOp) and \
-                expr.operand.op == "Xor" and \
-                isinstance(expr.operand.operands[0], Convert) and \
-                isinstance(expr.operand.operands[1], Const) and \
-                expr.operand.operands[1].value == 1:
-            new_expr = UnaryOp(None, "Not", expr.operand.operands[0].operand)
-            return new_expr
+        if expr.to_bits == 1:
+            xor_expr = expr.operand
+            if isinstance(xor_expr, BinaryOp) and xor_expr.op == "Xor":
+                if isinstance(xor_expr.operands[0], Convert) and \
+                        isinstance(xor_expr.operands[1], Const) and \
+                        xor_expr.operands[1].value == 1 and \
+                        xor_expr.operands[0].from_bits == 1:
+                    new_expr = UnaryOp(None, "Not", expr.operand.operands[0].operand)
+                    return new_expr
 
         return expr
