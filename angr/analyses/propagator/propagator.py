@@ -1,4 +1,4 @@
-from typing import Set, Optional, Any
+from typing import Set, Optional, Any, Union, Tuple
 from collections import defaultdict
 import logging
 
@@ -240,12 +240,15 @@ class PropagatorAILState(PropagatorState):
             if not objs:
                 return None
             # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
-            first_obj, def_at = next(iter(objs))
-            if type(first_obj) is Top:
+            obj: Union[Top,Tuple[Any,CodeLocation]] = next(iter(objs))
+
+            if type(obj) is Top:
                 # return a Top
-                if first_obj.bits != variable.bits:
+                if obj.bits != variable.bits:
                     return Top(variable.bits // 8)
-                return first_obj
+                return obj
+
+            first_obj, def_at = obj
             if first_obj.bits != variable.bits:
                 # conversion is needed
                 if isinstance(first_obj, ailment.Expr.Convert):
@@ -256,9 +259,12 @@ class PropagatorAILState(PropagatorState):
                                                          first_obj.is_signed, first_obj.operand)
                 else:
                     first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.bits, variable.bits, False, first_obj)
-            v = first_obj.copy()
-            v.tags['def_at'] = def_at  # put def_at into tags
-            return v
+
+            if isinstance(first_obj, ailment.Expr.Expression):
+                v = first_obj.copy()
+                v.tags['def_at'] = def_at  # put def_at into tags
+                return v
+            return first_obj
         return None
 
     def get_stack_variable(self, addr, size, endness=None):  # pylint:disable=unused-argument
