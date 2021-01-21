@@ -374,8 +374,8 @@ class SimEnginePropagatorAIL(
                 self.expr_handlers[Expr.Register] = self._handle_Register
                 self.out_dated = False
 
-            def _handle_Register(self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
-                                 block: Optional[Block]):
+            # pylint:disable=unused-argument
+            def _handle_Register(self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
                 v = self.state.get_variable(expr)
                 if v is not None and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
                     self.out_dated = True
