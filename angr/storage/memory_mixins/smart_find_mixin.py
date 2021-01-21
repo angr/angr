@@ -33,7 +33,7 @@ class SmartFindMixin(MemoryMixin):
                 if concrete_comparison is False:
                     continue
 
-                match_indices.append(i*stride)
+                match_indices.append(i)
                 if isinstance(subaddr, int):
                     subaddr = claripy.BVV(subaddr, size=self.state.arch.bits)
                 cases.append((comparison, subaddr))
@@ -71,17 +71,17 @@ class SmartFindMixin(MemoryMixin):
             condition = self.state.solver.true
         chunk = None
         chunk_progress = chunk_size
-        for i in range(0, max_search, stride):
+        for i in range(0, max_search):
             subaddr = addr + i
             if chunk_progress == chunk_size:
                 chunk = self.load(subaddr, size=stride*chunk_size, endness=endness, condition=condition & self._find_condition(addr + i, **kwargs), **kwargs)
                 chunk_progress = 0
 
-            chunk_idx = (chunk_progress if endness == 'Iend_BE' else chunk_size - 1 - chunk_progress)*stride
+            chunk_idx = (chunk_progress if endness == 'Iend_BE' else chunk_size - 1 - chunk_progress)
             chunk_progress += 1
             b = chunk.get_bytes(chunk_idx, stride)
 
-            if self._find_are_bytes_symbolic(b) and max_symbolic_bytes is not None:
+            if self._find_are_bytes_symbolic(b.get_byte(0)) and max_symbolic_bytes is not None:
                 if max_symbolic_bytes:
                     max_symbolic_bytes -= 1
                 else:
@@ -89,7 +89,7 @@ class SmartFindMixin(MemoryMixin):
             yield subaddr, b
 
     def _find_are_bytes_symbolic(self, b):
-        return b.symbolic
+        return b.symbolic and len(self.state.solver.eval_upto(b, 2)) > 1
 
     def _find_condition(self, target_addr, **kwargs):
         # TODO: fill this in in order to make each load have the correct condition associated with it
