@@ -277,7 +277,14 @@ class PropagatorAILState(PropagatorState):
 
     def add_replacement(self, codeloc, old, new):
 
+        if isinstance(new, ailment.statement.Call):
+            # do not replace anything with a call expression
+            return
+
         if type(new) is Top:
+            # eliminate the past propagation of this expression
+            if codeloc in self._replacements and old in self._replacements[codeloc]:
+                del self._replacements[codeloc][old]
             return
 
         prop_count = 0

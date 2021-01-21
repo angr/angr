@@ -78,7 +78,6 @@ class AILSimplifier(Analysis):
 
         return True
 
-
     def _unify_local_variables(self):
         """
         Find variables that are definitely equivalent and then eliminate the unnecessary copies.
