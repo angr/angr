@@ -329,7 +329,7 @@ class CWhileLoop(CLoop):
 
         yield indent_str, self
         yield "while(", self
-        if self.condition is self:
+        if self.condition is None:
             yield "true", self
         else:
             yield from self.condition.c_repr_chunks()
