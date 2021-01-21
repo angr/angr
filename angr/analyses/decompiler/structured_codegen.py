@@ -457,6 +457,7 @@ class CBreak(CStatement):
     __slots__ = ('tags', )
 
     def __init__(self, tags=None):
+        super().__init__()
         self.tags = tags
 
     def c_repr_chunks(self, indent=0):
@@ -475,6 +476,7 @@ class CContinue(CStatement):
     __slots__ = ('tags', )
 
     def __init__(self, tags=None):
+        super().__init__()
         self.tags = tags
 
     def c_repr_chunks(self, indent=0):
@@ -1390,13 +1392,14 @@ class StructuredCodeGenerator(Analysis):
             raise NotImplementedError()
 
     def _handle_Condition(self, condition_node):
+        tags = {'ins_addr': condition_node.addr}
 
         code = CIfElse(self._handle(condition_node.condition),
                        true_node=self._handle(condition_node.true_node, is_expr=False)
                                  if condition_node.true_node else None,
                        false_node=self._handle(condition_node.false_node, is_expr=False)
                                   if condition_node.false_node else None,
-                       tags=condition_node.tags
+                       tags=tags
                        )
         return code
 
