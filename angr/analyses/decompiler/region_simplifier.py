@@ -271,17 +271,19 @@ class IfElseFlattener(SequenceWalker):
 
 class CascadingIfsRemover(SequenceWalker):
     """
-    if (cond_a) {
-        if (cond_b) {
+    Coalesce cascading If constructs. Transforming the following construct::
+
+        if (cond_a) {
+            if (cond_b) {
+                true_body
+            } else { }
+        } else { }
+
+    into::
+
+        if (cond_a and cond_b) {
             true_body
         } else { }
-    } else { }
-
-    ==>
-
-    if (cond_a and cond_b) {
-        true_body
-    } else { }
     """
     def __init__(self, node):
         handlers = {
