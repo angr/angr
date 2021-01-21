@@ -188,6 +188,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield " ", None
             if variable.name:
                 yield variable.name, cvariable
+            elif isinstance(variable, SimTemporaryVariable):
+                yield "tmp_%d" % variable.tmp_id, cvariable
             else:
                 yield str(variable), cvariable
             yield ";\n", None
@@ -748,6 +750,8 @@ class CVariable(CExpression):
             if isinstance(self.variable, SimVariable):
                 if self.variable.name:
                     yield self.variable.name, self
+                elif isinstance(self.variable, SimTemporaryVariable):
+                    yield "tmp_%d" % self.variable.tmp_id, self
                 else:
                     yield str(self.variable), self
             elif isinstance(self.variable, CExpression):
