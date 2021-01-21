@@ -96,7 +96,7 @@ class CConstruct:
     def __init__(self):
         pass
 
-    def c_repr(self, indent=0, posmap=None):
+    def c_repr(self, indent=0, posmap=None, stmt_posmap=None):
         """
         Creates the C reperesentation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
@@ -108,12 +108,15 @@ class CConstruct:
         :return:
         """
 
-        def mapper(chunks, posmap):
+        def mapper(chunks, posmap, stmt_posmap):
             pos = 0
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 if obj is not None:
-                    posmap.add_mapping(pos, len(s), obj)
+                    if isinstance(obj, CStatement):
+                        stmt_posmap.add_mapping(pos, len(s), obj)
+                    else:
+                        posmap.add_mapping(pos, len(s), obj)
                 pos += len(s)
                 yield s
 
@@ -121,7 +124,7 @@ class CConstruct:
         # Polymorphism allows that the c_repr_chunks() call will be called
         # by the CFunction class, which will then call each statement within it and construct
         # the chunks that get printed in qccode_edit in angr-management.
-        return ''.join(mapper(self.c_repr_chunks(indent), posmap))
+        return ''.join(mapper(self.c_repr_chunks(indent), posmap, stmt_posmap))
 
     def c_repr_chunks(self, indent=0):
         raise NotImplementedError()
@@ -310,14 +313,15 @@ class CWhileLoop(CLoop):
     Represents a while loop in C.
     """
 
-    __slots__ = ('condition', 'body', )
+    __slots__ = ('condition', 'body', 'tags',)
 
-    def __init__(self, condition, body):
+    def __init__(self, condition, body, tags=None):
 
         super().__init__()
 
         self.condition = condition
         self.body = body
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -342,14 +346,15 @@ class CDoWhileLoop(CLoop):
     Represents a do-while loop in C.
     """
 
-    __slots__ = ('condition', 'body', )
+    __slots__ = ('condition', 'body', 'tags',)
 
-    def __init__(self, condition, body):
+    def __init__(self, condition, body, tags=None):
 
         super().__init__()
 
         self.condition = condition
         self.body = body
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -374,15 +379,16 @@ class CIfElse(CStatement):
     Represents an if-else construct in C.
     """
 
-    __slots__ = ('condition', 'true_node', 'false_node', )
+    __slots__ = ('condition', 'true_node', 'false_node', 'tags')
 
-    def __init__(self, condition, true_node=None, false_node=None):
+    def __init__(self, condition, true_node=None, false_node=None, tags=None):
 
         super().__init__()
 
         self.condition = condition
         self.true_node = true_node
         self.false_node = false_node
+        self.tags = tags
 
         if self.true_node is None and self.false_node is None:
             raise ValueError("'true_node' and 'false_node' cannot be both unspecified.")
@@ -418,13 +424,14 @@ class CIfBreak(CStatement):
     Represents an if-break statement in C.
     """
 
-    __slots__ = ('condition', )
+    __slots__ = ('condition', 'tags', )
 
-    def __init__(self, condition):
+    def __init__(self, condition, tags=None):
 
         super().__init__()
 
         self.condition = condition
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -447,7 +454,10 @@ class CBreak(CStatement):
     Represents a break statement in C.
     """
 
-    __slots__ = ()
+    __slots__ = ('tags', )
+
+    def __init__(self, tags=None):
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -462,7 +472,10 @@ class CContinue(CStatement):
     Represents a continue statement in C.
     """
 
-    __slots__ = ()
+    __slots__ = ('tags', )
+
+    def __init__(self, tags=None):
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -477,14 +490,15 @@ class CSwitchCase(CStatement):
     Represents a switch-case statement in C.
     """
 
-    __slots__ = ('switch', 'cases', 'default', )
+    __slots__ = ('switch', 'cases', 'default', 'tags')
 
-    def __init__(self, switch, cases, default):
+    def __init__(self, switch, cases, default, tags=None):
         super().__init__()
 
         self.switch = switch
         self.cases = cases
         self.default = default
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -517,14 +531,15 @@ class CAssignment(CStatement):
     a = b
     """
 
-    __slots__ = ('lhs', 'rhs', )
+    __slots__ = ('lhs', 'rhs', 'tags', )
 
-    def __init__(self, lhs, rhs):
+    def __init__(self, lhs, rhs, tags=None):
 
         super().__init__()
 
         self.lhs = lhs
         self.rhs = rhs
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -602,12 +617,13 @@ class CFunctionCall(CStatement, CExpression):
 
 class CReturn(CStatement):
 
-    __slots__ = ('retval', )
+    __slots__ = ('retval', 'tags', )
 
-    def __init__(self, retval):
+    def __init__(self, retval, tags=None):
         super().__init__()
 
         self.retval = retval
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -625,12 +641,13 @@ class CReturn(CStatement):
 
 class CGoto(CStatement):
 
-    __slots__ = ('target', )
+    __slots__ = ('target', 'tags', )
 
-    def __init__(self, target):
+    def __init__(self, target, tags=None):
         super().__init__()
 
         self.target = target
+        self.tags = tags
 
     def c_repr_chunks(self, indent=0):
 
@@ -1218,6 +1235,7 @@ class StructuredCodeGenerator(Analysis):
 
         self.text = None
         self.posmap = None
+        self.stmt_posmap = None
         self.nodemap = None
         self._indent = indent
 
@@ -1244,7 +1262,8 @@ class StructuredCodeGenerator(Analysis):
         self._variables_in_use = None
 
         self.posmap = PositionMapping()
-        self.text = func.c_repr(indent=self._indent, posmap=self.posmap)
+        self.stmt_posmap = PositionMapping()
+        self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap)
 
         self.nodemap = defaultdict(set)
         for elem, node in self.posmap.items():
@@ -1354,14 +1373,17 @@ class StructuredCodeGenerator(Analysis):
         return CStatements(lines) if len(lines) > 1 else lines[0]
 
     def _handle_Loop(self, loop_node):
+        tags = {'ins_addr': loop_node.addr}
 
         if loop_node.sort == 'while':
             return CWhileLoop(None if loop_node.condition is None else self._handle(loop_node.condition),
-                              self._handle(loop_node.sequence_node, is_expr=False)
+                              self._handle(loop_node.sequence_node, is_expr=False),
+                              tags=tags
                               )
         elif loop_node.sort == 'do-while':
             return CDoWhileLoop(self._handle(loop_node.condition),
-                                self._handle(loop_node.sequence_node, is_expr=False)
+                                self._handle(loop_node.sequence_node, is_expr=False),
+                                tags=tags
                                 )
 
         else:
@@ -1374,16 +1396,19 @@ class StructuredCodeGenerator(Analysis):
                                  if condition_node.true_node else None,
                        false_node=self._handle(condition_node.false_node, is_expr=False)
                                   if condition_node.false_node else None,
+                       tags=condition_node.tags
                        )
         return code
 
     def _handle_ConditionalBreak(self, node):  # pylint:disable=no-self-use
+        tags = {'ins_addr': node.addr}
 
-        return CIfBreak(self._handle(node.condition))
+        return CIfBreak(self._handle(node.condition), tags=tags)
 
     def _handle_Break(self, node):  # pylint:disable=no-self-use,unused-argument
+        tags = {'ins_addr': node.addr}
 
-        return CBreak()
+        return CBreak(tags=tags)
 
     def _handle_MultiNode(self, node):  # pylint:disable=no-self-use
 
@@ -1405,12 +1430,14 @@ class StructuredCodeGenerator(Analysis):
         switch_expr = self._handle(node.switch_expr)
         cases = [ (idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items() ]
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
-        switch_case = CSwitchCase(switch_expr, cases, default=default)
+        tags = {'ins_addr': node.addr}
+        switch_case = CSwitchCase(switch_expr, cases, default=default, tags=tags)
         return switch_case
 
     def _handle_Continue(self, node):  # pylint:disable=no-self-use,unused-argument
+        tags = {'ins_addr': node.addr}
 
-        return CContinue()
+        return CContinue(tags=tags)
 
     def _handle_AILBlock(self, node):
         """
@@ -1478,14 +1505,14 @@ class StructuredCodeGenerator(Analysis):
 
         cdata = self._handle(stmt.data)
 
-        return CAssignment(cvariable, cdata)
+        return CAssignment(cvariable, cdata, tags=stmt.tags)
 
     def _handle_Stmt_Assignment(self, stmt):
 
         cdst = self._handle(stmt.dst)
         csrc = self._handle(stmt.src)
 
-        return CAssignment(cdst, csrc)
+        return CAssignment(cdst, csrc, tags=stmt.tags)
 
     def _handle_Stmt_Call(self, stmt, is_expr: bool=False):
 
@@ -1548,23 +1575,27 @@ class StructuredCodeGenerator(Analysis):
                              )
 
     def _handle_Stmt_Jump(self, stmt):
-        return CGoto(self._handle(stmt.target))
+        return CGoto(self._handle(stmt.target), tags=stmt.tags)
 
     def _handle_Stmt_Return(self, stmt: Stmt.Return):
         if not stmt.ret_exprs:
-            return CReturn(None)
+            return CReturn(None, tags=stmt.tags)
         elif len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
             if ret_expr.variable is not None:
-                return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset))
-            return CReturn(self._handle(ret_expr))
+                return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset),
+                               tags=stmt.tags
+                               )
+            return CReturn(self._handle(ret_expr), tags=stmt.tags)
         else:
             # TODO: Multiple return expressions
             l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
             ret_expr = stmt.ret_exprs[0]
             if ret_expr.variable is not None:
-                return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset))
-            return CReturn(self._handle(ret_expr))
+                return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset),
+                               tags=stmt.tags
+                               )
+            return CReturn(self._handle(ret_expr), tags=stmt.tags)
 
     #
     # AIL expression handlers
