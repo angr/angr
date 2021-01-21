@@ -1,13 +1,17 @@
 # pylint:disable=arguments-differ
+from typing import Optional, TYPE_CHECKING
 import logging
 
-from ailment import Stmt, Expr
+from ailment import Block, Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable
 from .engine_base import SimEnginePropagatorBase
 from .values import Top
+
+if TYPE_CHECKING:
+    from .propagator import PropagatorAILState
 
 l = logging.getLogger(name=__name__)
 
@@ -28,6 +32,8 @@ class SimEnginePropagatorAIL(
         :return:
         """
 
+        self.state: 'PropagatorAILState'
+
         src = self._expr(stmt.src)
         dst = stmt.dst
 
@@ -35,14 +41,14 @@ class SimEnginePropagatorAIL(
             new_src = self.state.get_variable(src)
             if new_src is not None:
                 l.debug("%s = %s, replace %s with %s.", dst, src, src, new_src)
-                self.state.store_variable(dst, new_src)
+                self.state.store_variable(dst, new_src, self._codeloc())
 
             else:
                 l.debug("Replacing %s with %s.", dst, src)
-                self.state.store_variable(dst, src)
+                self.state.store_variable(dst, src, self._codeloc())
 
         elif type(dst) is Expr.Register:
-            self.state.store_variable(dst, src)
+            self.state.store_variable(dst, src, self._codeloc())
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
@@ -103,8 +109,7 @@ class SimEnginePropagatorAIL(
 
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
-            new_value = self._expr(new_expr)
-            if new_value != new_expr:
+            if self.is_using_outdated_def(new_expr):
                 return expr
 
             l.debug("Add a replacement: %s with %s", expr, new_expr)
@@ -132,9 +137,11 @@ class SimEnginePropagatorAIL(
 
         new_expr = self.state.get_variable(expr)
         if new_expr is not None:
-            l.debug("Add a replacement: %s with %s", expr, new_expr)
-            self.state.add_replacement(self._codeloc(), expr, new_expr)
-            expr = new_expr
+            # check if this new_expr uses any expression that has been overwritten
+            if not self.is_using_outdated_def(new_expr):
+                l.debug("Add a replacement: %s with %s", expr, new_expr)
+                self.state.add_replacement(self._codeloc(), expr, new_expr)
+                expr = new_expr
         return expr
 
     def _ail_handle_Load(self, expr):
@@ -351,3 +358,28 @@ class SimEnginePropagatorAIL(
             return Top(operand_0.size)
 
         return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    #
+    # Util methods
+    #
+
+    def is_using_outdated_def(self, expr: Expr.Expression):
+
+        from ..decompiler.ailblock_walker import AILBlockWalker  #pylint: disable = import-outside-toplevel
+
+        class OutdatedDefinitionWalker(AILBlockWalker):
+            def __init__(self, state: 'PropagatorAILState'):
+                super().__init__()
+                self.state = state
+                self.expr_handlers[Expr.Register] = self._handle_Register
+                self.out_dated = False
+
+            # pylint:disable=unused-argument
+            def _handle_Register(self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
+                v = self.state.get_variable(expr)
+                if v is not None and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
+                    self.out_dated = True
+
+        walker = OutdatedDefinitionWalker(self.state)
+        walker.walk_expression(expr)
+        return walker.out_dated

@@ -1,4 +1,4 @@
-from typing import Set, Optional
+from typing import Set, Optional, Any, Union, Tuple
 from collections import defaultdict
 import logging
 
@@ -209,7 +209,7 @@ class PropagatorAILState(PropagatorState):
 
         return state
 
-    def store_variable(self, old, new):
+    def store_variable(self, old, new, def_at) -> None:
         if old is None or new is None:
             return
         if type(new) is not Top and new.has_atom(old, identity=False):
@@ -218,11 +218,11 @@ class PropagatorAILState(PropagatorState):
         if isinstance(old, ailment.Expr.Tmp):
             self._tmps[old.tmp_idx] = new
         elif isinstance(old, ailment.Expr.Register):
-            self._registers.set_object(old.reg_offset, new, old.size)
+            self._registers.set_object(old.reg_offset, (new, def_at), old.size)
         else:
             _l.warning("Unsupported old variable type %s.", type(old))
 
-    def store_stack_variable(self, addr, size, new, endness=None):  # pylint:disable=unused-argument
+    def store_stack_variable(self, addr, size, new, endness=None) -> None:  # pylint:disable=unused-argument
         if isinstance(addr, ailment.Expr.StackBaseOffset):
             if addr.offset is None:
                 offset = 0
@@ -232,7 +232,7 @@ class PropagatorAILState(PropagatorState):
         else:
             _l.warning("Unsupported addr type %s.", type(addr))
 
-    def get_variable(self, variable):
+    def get_variable(self, variable) -> Any:
         if isinstance(variable, ailment.Expr.Tmp):
             return self._tmps.get(variable.tmp_idx, None)
         elif isinstance(variable, ailment.Expr.Register):
@@ -240,12 +240,15 @@ class PropagatorAILState(PropagatorState):
             if not objs:
                 return None
             # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
-            first_obj = next(iter(objs))
-            if type(first_obj) is Top:
+            obj: Union[Top,Tuple[Any,CodeLocation]] = next(iter(objs))
+
+            if type(obj) is Top:
                 # return a Top
-                if first_obj.bits != variable.bits:
+                if obj.bits != variable.bits:
                     return Top(variable.bits // 8)
-                return first_obj
+                return obj
+
+            first_obj, def_at = obj
             if first_obj.bits != variable.bits:
                 # conversion is needed
                 if isinstance(first_obj, ailment.Expr.Convert):
@@ -256,6 +259,11 @@ class PropagatorAILState(PropagatorState):
                                                          first_obj.is_signed, first_obj.operand)
                 else:
                     first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.bits, variable.bits, False, first_obj)
+
+            if isinstance(first_obj, ailment.Expr.Expression):
+                v = first_obj.copy()
+                v.tags['def_at'] = def_at  # put def_at into tags
+                return v
             return first_obj
         return None
 
