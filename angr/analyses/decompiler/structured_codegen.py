@@ -101,7 +101,8 @@ class CConstruct:
         Creates the C reperesentation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
         The posmap and stmt_posmap act as position maps for the location of each variable and statment to be
-        tracked for later GUI operations.
+        tracked for later GUI operations. The stmt_posmap also contains expressions that are nested inside of
+        statments.
 
         :param indent:  # of indents (int)
         :param posmap:
@@ -109,12 +110,34 @@ class CConstruct:
         """
 
         def mapper(chunks, posmap, stmt_posmap):
+            # start all positions at beginning of document
             pos = 0
+
+            # track all cvars to be used only once
+            used_cvars = []
+
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 if obj is not None:
-                    if isinstance(obj, CStatement):
+                    # first, anything that is a compatible statement must be added
+                    if isinstance(obj, CStatement) and hasattr(obj, 'tags') and obj.tags is not None:
                         stmt_posmap.add_mapping(pos, len(s), obj)
+
+                    # if not a statement, a nested expression works
+                    elif isinstance(obj, CExpression) and hasattr(obj, 'tags') and \
+                            obj.tags is not None and 'ins_addr' in obj.tags:
+
+                        # assure that variables are only placed once in the GUI at the defenition of each var
+                        if isinstance(obj, CVariable):
+                            if obj not in used_cvars:
+                                used_cvars.append(obj)
+                                stmt_posmap.add_mapping(pos, len(s), obj)
+                            else:
+                                posmap.add_mapping(pos, len(s), obj)
+                        else:
+                            stmt_posmap.add_mapping(pos, len(s), obj)
+
+                    # if we are not another type, just add to the default posmap
                     else:
                         posmap.add_mapping(pos, len(s), obj)
                 pos += len(s)
@@ -588,11 +611,11 @@ class CFunctionCall(CStatement, CExpression):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, None
+        yield indent_str, self
 
         if not self.is_expr and self.ret_expr is not None:
             yield from CExpression._try_c_repr_chunks(self.ret_expr)
-            yield " = ", None
+            yield " = ", self
 
         if self.callee_func is not None:
             if self.callee_func.demangled_name:
@@ -603,20 +626,20 @@ class CFunctionCall(CStatement, CExpression):
         else:
             yield from CExpression._try_c_repr_chunks(self.callee_target)
 
-        yield "(", None
+        yield "(", self
 
         for i, arg in enumerate(self.args):
             if i:
-                yield ", ", None
+                yield ", ", self
             yield from CExpression._try_c_repr_chunks(arg)
 
-        yield ")", None
+        yield ")", self
 
         if not self.is_expr:
-            yield ";", None
+            yield ";", self
             if not self.returning:
-                yield " /* do not return */", None
-            yield "\n",  None
+                yield " /* do not return */", self
+            yield "\n",  self
 
 
 class CReturn(CStatement):
@@ -686,15 +709,16 @@ class CUnsupportedStatement(CStatement):
 
 class CStructField(CExpression):
 
-    __slots__ = ('struct_type', 'offset', 'field', )
+    __slots__ = ('struct_type', 'offset', 'field', 'tags', )
 
-    def __init__(self, struct_type, offset, field):
+    def __init__(self, struct_type, offset, field, tags=None):
 
         super().__init__()
 
         self.struct_type = struct_type
         self.offset = offset
         self.field = field
+        self.tags = tags
 
     @property
     def type(self):
@@ -722,15 +746,16 @@ class CVariable(CExpression):
     Read value from a variable.
     """
 
-    __slots__ = ('variable', 'offset', 'variable_type', )
+    __slots__ = ('variable', 'offset', 'variable_type', 'tags', )
 
-    def __init__(self, variable, offset=None, variable_type=None):
+    def __init__(self, variable, offset=None, variable_type=None, tags=None):
 
         super().__init__()
 
         self.variable = variable
         self.offset = offset
         self.variable_type = variable_type
+        self.tags = tags
 
     @property
     def type(self):
@@ -739,9 +764,9 @@ class CVariable(CExpression):
     def _get_offset_string_chunks(self, in_hex=False):
         if type(self.offset) is int:
             if in_hex:
-                yield "%#x" % self.offset, None
+                yield "%#x" % self.offset, self
             else:
-                yield "%d" % self.offset, None
+                yield "%d" % self.offset, self
         else:
             yield from self.offset.c_repr_chunks()
 
@@ -762,29 +787,29 @@ class CVariable(CExpression):
                             first_field, *_ = self.variable.type.pts_to.fields
                             c_field = CStructField(self.variable.type.pts_to, 0, first_field)
                             yield from self.variable.c_repr_chunks()
-                            yield "->", None
+                            yield "->", self
                             yield from c_field.c_repr_chunks()
                             return
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
                             # is it pointing to an array? if so, we take the first element
                             yield from self.variable.c_repr_chunks()
-                            yield "[", None
+                            yield "[", self
                             yield "0", 0
-                            yield "]", None
+                            yield "]", self
                             return
 
                 # default output
-                yield "*(", None
+                yield "*(", self
                 yield from self.variable.c_repr_chunks()
-                yield ")", None
+                yield ")", self
             else:
-                yield str(self.variable), None
+                yield str(self.variable), self
         else:  # self.offset is not None
             if isinstance(self.variable, SimVariable):
                 yield self.variable.name, self
-                yield "[", None
+                yield "[", self
                 yield from self._get_offset_string_chunks()
-                yield "]", None
+                yield "]", self
 
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
@@ -798,7 +823,7 @@ class CVariable(CExpression):
                                     field = offset_to_field[self.offset]
                                     c_field = CStructField(t, self.offset, field)
                                     yield from self.variable.c_repr_chunks()
-                                    yield "->", None
+                                    yield "->", self
                                     yield from c_field.c_repr_chunks()
                                     return
                                 else:
@@ -810,36 +835,36 @@ class CVariable(CExpression):
                             if isinstance(self.offset, int):
                                 # it's pointing to an array! take the corresponding element
                                 yield from self.variable.c_repr_chunks()
-                                yield "[", None
+                                yield "[", self
                                 yield str(self.offset), self.offset
-                                yield "]", None
+                                yield "]", self
                                 return
 
                         # other cases
                         yield from self.variable.c_repr_chunks()
-                        yield "[", None
+                        yield "[", self
                         yield from CExpression._try_c_repr_chunks(self.offset)
-                        yield "]", None
+                        yield "]", self
                         return
 
                 # default output
-                yield "*(", None
+                yield "*(", self
                 yield from self.variable.c_repr_chunks()
-                yield ":", None
+                yield ":", self
                 yield from self._get_offset_string_chunks()
-                yield ")", None
+                yield ")", self
 
             elif isinstance(self.variable, Expr.Register):
                 yield self.variable.reg_name if hasattr(self.variable, 'reg_name') else str(self.variable), self
-                yield ":", None
+                yield ":", self
                 yield from self._get_offset_string_chunks(in_hex=True)
 
             else:
-                yield "*(", None
+                yield "*(", self
                 yield str(self.variable), self
-                yield ":", None
+                yield ":", self
                 yield from self._get_offset_string_chunks()
-                yield ")", None
+                yield ")", self
 
 
 class CUnaryOp(CExpression):
@@ -847,15 +872,16 @@ class CUnaryOp(CExpression):
     Unary operations.
     """
 
-    __slots__ = ('op', 'operand', 'variable', )
+    __slots__ = ('op', 'operand', 'variable', 'tags', )
 
-    def __init__(self, op, operand, variable):
+    def __init__(self, op, operand, variable, tags=None):
 
         super().__init__()
 
         self.op = op
         self.operand = operand
         self.variable = variable
+        self.tags = tags
 
     @property
     def type(self):
@@ -868,7 +894,7 @@ class CUnaryOp(CExpression):
 
     def c_repr_chunks(self):
         if self.variable is not None:
-            yield "&", None
+            yield "&", self
             yield from self.variable.c_repr_chunks()
             return
 
@@ -881,19 +907,19 @@ class CUnaryOp(CExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "UnaryOp %s" % (self.op), None
+            yield "UnaryOp %s" % (self.op), self
 
     #
     # Handlers
     #
 
     def _c_repr_chunks_not(self):
-        yield "!(", None
+        yield "!(", self
         yield from CExpression._try_c_repr_chunks(self.operand)
-        yield ")", None
+        yield ")", self
 
     def _c_repr_chunks_reference(self):
-        yield "&", None
+        yield "&", self
         yield from CExpression._try_c_repr_chunks(self.operand)
 
 
@@ -945,7 +971,7 @@ class CBinaryOp(CExpression):
     def c_repr_chunks(self):
 
         if self.variable is not None:
-            yield "&", None
+            yield "&", self
             yield from self.variable.c_repr_chunks()
             return
 
@@ -979,7 +1005,7 @@ class CBinaryOp(CExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "BinaryOp %s" % (self.op), None
+            yield "BinaryOp %s" % (self.op), self
 
     #
     # Handlers
@@ -988,18 +1014,18 @@ class CBinaryOp(CExpression):
     def _c_repr_chunks(self, op):
         # lhs
         if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
-            yield "(", None
+            yield "(", self
             yield from self._try_c_repr_chunks(self.lhs)
-            yield ")", None
+            yield ")", self
         else:
             yield from self._try_c_repr_chunks(self.lhs)
         # operator
-        yield op, None
+        yield op, self
         # rhs
         if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (1 if self.op in ['Sub', 'Div'] else 0):
-            yield "(", None
+            yield "(", self
             yield from self._try_c_repr_chunks(self.rhs)
-            yield ")", None
+            yield ")", self
         else:
             yield from self._try_c_repr_chunks(self.rhs)
 
@@ -1063,15 +1089,16 @@ class CBinaryOp(CExpression):
 
 class CTypeCast(CExpression):
 
-    __slots__ = ('src_type', 'dst_type', 'expr', )
+    __slots__ = ('src_type', 'dst_type', 'expr', 'tags', )
 
-    def __init__(self, src_type, dst_type, expr):
+    def __init__(self, src_type, dst_type, expr, tags=None):
 
         super().__init__()
 
         self.src_type = src_type
         self.dst_type = dst_type
         self.expr = expr
+        self.tags = tags
 
     @property
     def type(self):
@@ -1080,7 +1107,7 @@ class CTypeCast(CExpression):
         return self._type
 
     def c_repr_chunks(self):
-        yield "({})".format(self.dst_type), None
+        yield "({})".format(self.dst_type), self
         yield from CExpression._try_c_repr_chunks(self.expr)
 
 
@@ -1149,26 +1176,27 @@ class CRegister(CExpression):
 
 class CITE(CExpression):
 
-    __slots__ = ('cond', 'iftrue', 'iffalse', )
+    __slots__ = ('cond', 'iftrue', 'iffalse', 'tags', )
 
-    def __init__(self, cond, iftrue, iffalse):
+    def __init__(self, cond, iftrue, iffalse, tags=None):
         super().__init__()
         self.cond = cond
         self.iftrue = iftrue
         self.iffalse = iffalse
+        self.tags = tags
 
     @property
     def type(self):
         return SimTypeInt()
 
     def c_repr_chunks(self):
-        yield "(", None
+        yield "(", self
         yield from self.cond.c_repr_chunks()
-        yield "? ", None
+        yield "? ", self
         yield from self.iftrue.c_repr_chunks()
-        yield " : ", None
+        yield " : ", self
         yield from self.iffalse.c_repr_chunks()
-        yield ")", None
+        yield ")", self
 
 
 class CDirtyExpression(CExpression):
@@ -1336,8 +1364,8 @@ class StructuredCodeGenerator(Analysis):
         l.warning("Unsupported address expression %r", addr)
         return expr, None
 
-    def _cvariable(self, variable, offset=None, variable_type=None):
-        cvariable = CVariable(variable, offset=offset, variable_type=variable_type)
+    def _cvariable(self, variable, offset=None, variable_type=None, tags=None):
+        cvariable = CVariable(variable, offset=offset, variable_type=variable_type, tags=tags)
         if isinstance(variable, SimVariable):
             self._variables_in_use[variable] = cvariable
         return cvariable
@@ -1565,7 +1593,7 @@ class StructuredCodeGenerator(Analysis):
                             reference_values[type_] = self._cfg.memory_data[arg.value]
                     new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
                                         variable=self._handle(arg.variable) if arg.variable is not None else None,
-                                        tags=arg.tags)
+                                        tags=stmt.tags) #XXX: used from stmt for locating it in the stmt_posmap
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1627,15 +1655,18 @@ class StructuredCodeGenerator(Analysis):
                 offset = None
             return self._cvariable(expr.variable, offset=offset,
                                    variable_type=self._get_variable_type(expr.variable),
+                                   tags=expr.tags
                                    )
 
         variable, offset = self._parse_load_addr(expr.addr)
 
         if variable is not None:
             return self._cvariable(variable, offset=offset,
-                                   variable_type=self._get_variable_type(variable))
+                                   variable_type=self._get_variable_type(variable),
+                                   tags=expr.tags
+                                   )
         else:
-            return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt)))  # TODO: Correctly setup tags for the Constant
+            return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt)), tags=expr.tags)
 
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
@@ -1652,6 +1683,7 @@ class StructuredCodeGenerator(Analysis):
 
         return CUnaryOp(expr.op, self._handle(expr.operand),
                         variable=self._handle(expr.variable) if expr.variable is not None else None,
+                        tags=expr.tags
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
@@ -1683,21 +1715,21 @@ class StructuredCodeGenerator(Analysis):
         else:
             raise UnsupportedNodeTypeError("Unsupported conversion bits %s." % expr.to_bits)
 
-        return CTypeCast(None, dst_type, self._handle(expr.operand))
+        return CTypeCast(None, dst_type, self._handle(expr.operand), tags=expr.tags)
 
     def _handle_Expr_Dirty(self, expr):  # pylint:disable=no-self-use
         return CDirtyExpression(expr)
 
     def _handle_Expr_ITE(self, expr: Expr.ITE):
-        return CITE(self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse))
+        return CITE(self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse), tags=expr.tags)
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
         if expr.variable is not None:
-            return CUnaryOp('Reference', expr, variable=self._handle(expr.variable))
+            return CUnaryOp('Reference', expr, variable=self._handle(expr.variable), tags=expr.tags)
 
         # FIXME
-        r = CUnaryOp('Reference', expr, variable=None)
+        r = CUnaryOp('Reference', expr, variable=None, tags=expr.tags)
         r.set_type(SimTypeLongLong())
         return r
 
