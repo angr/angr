@@ -17,7 +17,7 @@ class StateGraphRecoveryAnalysis(Analysis):
     """
     Traverses a function and derive a state graph with respect to given variables.
     """
-    def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: 'int', init_state: Optional['SimState']=None):
+    def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int, init_state: Optional['SimState']=None):
         self.func = func
         self.fields = fields
         self.init_state = init_state
