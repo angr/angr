@@ -17,12 +17,15 @@ class StateGraphRecoveryAnalysis(Analysis):
     """
     Traverses a function and derive a state graph with respect to given variables.
     """
-    def __init__(self, func: 'Function', fields: 'AbstractStateFields', init_state: Optional['SimState']=None):
+    def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int, init_state: Optional['SimState']=None):
         self.func = func
         self.fields = fields
         self.init_state = init_state
         self._ret_trap: int = 0x1f37ff4a
 
+        # self._iec_time = 0x425620       # Traffic_Light_short_ped
+        # self._iec_time = 0x448630       # Traffic_Light_both_green
+        self._iec_time = time_addr
         self._tv_sec_var = None
         self._tv_nsec_var = None
         self.state_graph = None
@@ -96,7 +99,7 @@ class StateGraphRecoveryAnalysis(Analysis):
 
     def _symbolize_timecounter(self, state: 'SimState') -> None:
         # TODO: Generalize it
-        tv_sec_addr = 0x425620
+        tv_sec_addr = self._iec_time
         tv_nsec_addr = tv_sec_addr + 8
 
         self._tv_sec_var = claripy.BVS('tv_sec', 64)
@@ -114,19 +117,20 @@ class StateGraphRecoveryAnalysis(Analysis):
         sec_delta = claripy.BVS("sec_delta", 64)
         state.preconstrainer.preconstrain(claripy.BVV(1, 64), sec_delta)
 
-        tv_sec = state.memory.load(0x425620, size=8, endness=self.project.arch.memory_endness)
-        state.memory.store(0x425620, tv_sec + sec_delta, endness=self.project.arch.memory_endness)
+        tv_sec = state.memory.load(self._iec_time, size=8, endness=self.project.arch.memory_endness)
+        state.memory.store(self._iec_time, tv_sec + sec_delta, endness=self.project.arch.memory_endness)
 
         return [sec_delta]
 
     def _advance_timecounter(self, state: 'SimState', delta: int) -> None:
         # TODO: Generalize it
-        tv_sec = state.memory.load(0x425620, size=8, endness=self.project.arch.memory_endness)
-        state.memory.store(0x425620, tv_sec + delta, endness=self.project.arch.memory_endness)
+        tv_sec = state.memory.load(self._iec_time, size=8, endness=self.project.arch.memory_endness)
+        state.memory.store(self._iec_time, tv_sec + delta, endness=self.project.arch.memory_endness)
 
         # hack
-        tv_nsec = state.memory.load(0x425620 + 8, size=8, endness=self.project.arch.memory_endness)
-        state.memory.store(0x425620 + 8, tv_nsec + 200, endness=self.project.arch.memory_endness)
+        tv_nsec = state.memory.load(self._iec_time + 8, size=8, endness=self.project.arch.memory_endness)
+        state.memory.store(self._iec_time + 8, tv_nsec + 200, endness=self.project.arch.memory_endness)
+
 
     def _traverse_one(self, state: 'SimState'):
 
@@ -136,6 +140,16 @@ class StateGraphRecoveryAnalysis(Analysis):
             # print(simgr.active)
             # import sys
             # sys.stdout.write('.')
+
+            # # debug Traffic_Light_both_green
+            # if simgr.active[0].addr == 0x42da2c or simgr.active[0].addr == 0x42da3d:
+            #     print("PEDESTRIAN GREEN EXECUTING!")
+            #
+            # if simgr.active[0].addr == 0x42db8b or simgr.active[0].addr == 0x42db9c:
+            #     print("PEDESTRIAN RED EXECUTING!")
+            #
+            # if simgr.active[0].addr == 0x42dc55:
+            #     print("STOP_PEDESTRIAN SET 1!")
 
             s = simgr.active[0]
 
