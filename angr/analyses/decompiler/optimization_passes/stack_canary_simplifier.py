@@ -18,7 +18,7 @@ def s2u(s, bits):
 
 class StackCanarySimplifier(OptimizationPass):
 
-    ARCHES = ["X86", "AMD64"]
+    ARCHES = ["X86", "AMD64", 'ARMEL', 'ARMCortexM']
     PLATFORMS = ["cgc", "linux"]
 
     def __init__(self, func, blocks, graph):
