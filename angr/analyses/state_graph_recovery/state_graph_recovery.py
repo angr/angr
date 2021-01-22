@@ -155,10 +155,6 @@ class StateGraphRecoveryAnalysis(Analysis):
 
             simgr.stash(lambda x: x.addr == self._ret_trap, from_stash='active', to_stash='finished')
 
-
-
-
-
             simgr.step()
 
         # import sys
