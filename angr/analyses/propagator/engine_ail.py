@@ -104,7 +104,7 @@ class SimEnginePropagatorAIL(
     # AIL expression handlers
     #
 
-    def _ail_handle_Tmp(self, expr):
+    def _ail_handle_Tmp(self, expr: Expr.Tmp):
         new_expr = self.state.get_variable(expr)
 
         if new_expr is not None:
@@ -116,6 +116,10 @@ class SimEnginePropagatorAIL(
             self.state.add_replacement(self._codeloc(), expr, new_expr)
             if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert, Expr.StackBaseOffset, Expr.BasePointerOffset]:
                 expr = new_expr
+
+        if not self._propagate_tmps:
+            # we should not propagate any tmps. as a result, we return None for reading attempts to a tmp.
+            return Top(expr.size)
 
         return expr
 
@@ -363,9 +367,9 @@ class SimEnginePropagatorAIL(
     # Util methods
     #
 
-    def is_using_outdated_def(self, expr: Expr.Expression):
+    def is_using_outdated_def(self, expr: Expr.Expression) -> bool:
 
-        from ..decompiler.ailblock_walker import AILBlockWalker  #pylint: disable = import-outside-toplevel
+        from ..decompiler.ailblock_walker import AILBlockWalker  # pylint:disable=import-outside-toplevel
 
         class OutdatedDefinitionWalker(AILBlockWalker):
             def __init__(self, state: 'PropagatorAILState'):
