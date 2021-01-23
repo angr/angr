@@ -235,6 +235,11 @@ class UnaryOp(Op):
         return UnaryOp(self.idx, self.op, self.operand, variable=self.variable, variable_offset=self.variable_offset,
                        **self.tags)
 
+    def has_atom(self, atom, identity=True):
+        if super().has_atom(atom, identity=identity):
+            return True
+        return self.operand.has_atom(atom, identity=identity)
+
 
 class Convert(UnaryOp):
 
@@ -351,6 +356,9 @@ class BinaryOp(Op):
         return hash((self.op, tuple(self.operands), self.bits, self.signed))
 
     def has_atom(self, atom, identity=True):
+        if super().has_atom(atom, identity=identity):
+            return True
+
         for op in self.operands:
             if identity and op == atom:
                 return True
@@ -422,6 +430,9 @@ class Load(Expression):
         return "Load(addr=%s, size=%d, endness=%s)" % (self.addr, self.size, self.endness)
 
     def has_atom(self, atom, identity=True):
+        if super().has_atom(atom, identity=identity):
+            return True
+
         if type(self.addr) is int:
             return False
         return self.addr.has_atom(atom, identity=identity)
@@ -478,6 +489,9 @@ class ITE(Expression):
         return hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
 
     def has_atom(self, atom, identity=True):
+        if super().has_atom(atom, identity=identity):
+            return True
+
         return self.cond.has_atom(atom, identity=identity) or \
                self.iftrue.has_atom(atom, identity=identity) or \
                self.iffalse.has_atom(atom, identity=identity)
