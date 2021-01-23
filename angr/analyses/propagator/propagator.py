@@ -366,7 +366,11 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self.equivalence: Set[Equivalence] = set()
 
         self._engine_vex = SimEnginePropagatorVEX(project=self.project)
-        self._engine_ail = SimEnginePropagatorAIL(stack_pointer_tracker=self._stack_pointer_tracker)
+        self._engine_ail = SimEnginePropagatorAIL(
+            stack_pointer_tracker=self._stack_pointer_tracker,
+            # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
+            propagate_tmps=block is not None,
+        )
 
         self._analyze()
 
