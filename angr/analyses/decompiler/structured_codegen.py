@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 from collections import defaultdict
 import logging
 
@@ -1265,7 +1265,7 @@ class StructuredCodeGenerator(Analysis):
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: Optional[Dict] = None
-        self._memo: Optional[Dict[Expr,CExpression]] = None
+        self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
 
         self.text = None
         self.posmap = None
@@ -1376,8 +1376,8 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle(self, node, is_expr: bool=True):
 
-        if node in self._memo:
-            return self._memo[node]
+        if (node, is_expr) in self._memo:
+            return self._memo[(node, is_expr)]
 
         handler = self._handlers.get(node.__class__, None)
         if handler is not None:
@@ -1386,7 +1386,7 @@ class StructuredCodeGenerator(Analysis):
                 converted = handler(node, is_expr=is_expr)
             else:
                 converted = handler(node)
-            self._memo[node] = converted
+            self._memo[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
