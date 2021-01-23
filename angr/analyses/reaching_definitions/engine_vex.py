@@ -119,7 +119,7 @@ class SimEngineRDVEX(
 
         if any(type(d) is Undefined for d in data):
             l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
-                   self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
+                   self.arch.translate_register_name(reg_offset, size=size), reg_offset, self.ins_addr)
 
         # special handling for references to heap or stack variables
         for d in data:
@@ -288,7 +288,7 @@ class SimEngineRDVEX(
                                                DataSet(data, bits))
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
-                   self.arch.register_names[reg_offset], reg_offset, self.ins_addr)
+                   self.arch.translate_register_name(reg_offset, size=size), reg_offset, self.ins_addr)
 
         self.state.add_use(Register(reg_offset, size), self._codeloc())
 
