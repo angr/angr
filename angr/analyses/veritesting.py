@@ -310,8 +310,6 @@ class Veritesting(Analysis):
             manager.step(successor_func=self._get_successors)
 
             if self._terminator is not None and self._terminator(manager):
-                for p in manager.unfuck:
-                    self._unfuck(p)
                 break
 
             # Stash all paths that we do not see in our CFG
