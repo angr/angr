@@ -28,6 +28,11 @@ class CallTracingFilter(object):
         SIM_PROCEDURES['cgc']['receive'],
         SIM_PROCEDURES['cgc']['transmit'],
         SIM_PROCEDURES['posix']['read'],
+        SIM_PROCEDURES['libc']['fgetc'],
+        SIM_PROCEDURES["glibc"]["__ctype_b_loc"],
+        SIM_PROCEDURES["libc"]["strlen"],
+        SIM_PROCEDURES["libc"]["strcmp"],
+        SIM_PROCEDURES["libc"]["atoi"],
     }
 
     cfg_cache = { }
