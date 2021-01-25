@@ -1351,7 +1351,6 @@ class StructuredCodeGenerator(Analysis):
         self.posmap = PositionMapping()
         self.stmt_posmap = PositionMapping()
         self.insmap = InstructionMapping()
-
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap, insmap=self.insmap)
 
         self.nodemap = defaultdict(set)
