@@ -85,6 +85,51 @@ class PositionMapping:
         return None
 
 
+class InstructionMappingElement:
+
+    __slots__ = ('ins_addr', 'posmap_pos')
+
+    def __init__(self, ins_addr, posmap_pos):
+        self.ins_addr = ins_addr
+        self.posmap_pos = posmap_pos
+
+    def __contains__(self, offset):
+        return self.ins_addr == offset
+
+    def __repr__(self):
+        return "<%d: %d>" % (self.ins_addr, self.posmap_pos)
+
+
+class InstructionMapping:
+
+    __slots__ = ('_insmap', )
+
+    def __init__(self):
+        self._insmap = SortedDict()
+
+    def items(self):
+        return self._insmap.items()
+
+    def add_mapping(self, ins_addr, posmap_pos):
+        self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
+
+    def get_posmap_pos(self, ins_addr):
+        element = self.get_element(ins_addr)
+        if element is None:
+            return None
+        return element.posmap_pos
+
+    def get_element(self, ins_addr):
+        try:
+            pre = next(self._insmap.irange(maximum=ins_addr, reverse=True))
+        except StopIteration:
+            return None
+
+        element = self._insmap[pre]
+        if ins_addr in element:
+            return element
+        return None
+
 class CConstruct:
     """
     Represents a program construct in C.
@@ -96,7 +141,7 @@ class CConstruct:
     def __init__(self):
         pass
 
-    def c_repr(self, indent=0, posmap=None, stmt_posmap=None):
+    def c_repr(self, indent=0, posmap=None, stmt_posmap=None, insmap=None):
         """
         Creates the C reperesentation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
@@ -109,7 +154,7 @@ class CConstruct:
         :return:
         """
 
-        def mapper(chunks, posmap, stmt_posmap):
+        def mapper(chunks, posmap, stmt_posmap, insmap):
             # start all positions at beginning of document
             pos = 0
 
@@ -120,8 +165,10 @@ class CConstruct:
             for s, obj in chunks:
                 if obj is not None:
                     # first, anything that is a compatible statement must be added
-                    if isinstance(obj, CStatement) and hasattr(obj, 'tags') and obj.tags is not None:
+                    if isinstance(obj, CStatement) and hasattr(obj, 'tags') and \
+                            obj.tags is not None and 'ins_addr' in obj.tags:
                         stmt_posmap.add_mapping(pos, len(s), obj)
+                        insmap.add_mapping(obj.tags['ins_addr'], pos)
 
                     # if not a statement, a nested expression works
                     elif isinstance(obj, CExpression) and hasattr(obj, 'tags') and \
@@ -132,10 +179,12 @@ class CConstruct:
                             if obj not in used_cvars:
                                 used_cvars.append(obj)
                                 stmt_posmap.add_mapping(pos, len(s), obj)
+                                insmap.add_mapping(obj.tags['ins_addr'], pos)
                             else:
                                 posmap.add_mapping(pos, len(s), obj)
                         else:
                             stmt_posmap.add_mapping(pos, len(s), obj)
+                            insmap.add_mapping(obj.tags['ins_addr'], pos)
 
                     # if we are not another type, just add to the default posmap
                     else:
@@ -147,7 +196,7 @@ class CConstruct:
         # Polymorphism allows that the c_repr_chunks() call will be called
         # by the CFunction class, which will then call each statement within it and construct
         # the chunks that get printed in qccode_edit in angr-management.
-        return ''.join(mapper(self.c_repr_chunks(indent), posmap, stmt_posmap))
+        return ''.join(mapper(self.c_repr_chunks(indent), posmap, stmt_posmap, insmap))
 
     def c_repr_chunks(self, indent=0):
         raise NotImplementedError()
@@ -1270,6 +1319,7 @@ class StructuredCodeGenerator(Analysis):
         self.text = None
         self.posmap = None
         self.stmt_posmap = None
+        self.insmap = None
         self.nodemap = None
         self._indent = indent
 
@@ -1297,7 +1347,8 @@ class StructuredCodeGenerator(Analysis):
 
         self.posmap = PositionMapping()
         self.stmt_posmap = PositionMapping()
-        self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap)
+        self.insmap = InstructionMapping()
+        self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap, insmap=self.insmap)
 
         self.nodemap = defaultdict(set)
         for elem, node in self.posmap.items():
