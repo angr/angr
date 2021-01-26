@@ -111,24 +111,27 @@ class InstructionMapping:
         return self._insmap.items()
 
     def add_mapping(self, ins_addr, posmap_pos):
-        self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
+        if ins_addr in self._insmap:
+            if posmap_pos <= self._insmap[ins_addr].posmap_pos:
+                self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
+        else:
+            self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
 
-    def get_posmap_pos(self, ins_addr):
-        element = self.get_element(ins_addr)
-        if element is None:
-            return None
-        return element.posmap_pos
-
-    def get_element(self, ins_addr):
+    def get_nearest_pos(self, ins_addr):
         try:
-            pre = next(self._insmap.irange(maximum=ins_addr, reverse=True))
+            pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
+            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
         except StopIteration:
             return None
 
-        element = self._insmap[pre]
-        if ins_addr in element:
-            return element
-        return None
+        e1: InstructionMappingElement = self._insmap[pre_max]
+        e2: InstructionMappingElement = self._insmap[pre_min]
+
+        if abs(ins_addr - e1.ins_addr) <= abs(ins_addr - e2.ins_addr):
+            return e1.posmap_pos
+        else:
+            return e2.posmap_pos
+
 
 class CConstruct:
     """
@@ -1348,6 +1351,7 @@ class StructuredCodeGenerator(Analysis):
         self.posmap = PositionMapping()
         self.stmt_posmap = PositionMapping()
         self.insmap = InstructionMapping()
+
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap, insmap=self.insmap)
 
         self.nodemap = defaultdict(set)
