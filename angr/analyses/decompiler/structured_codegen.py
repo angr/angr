@@ -404,17 +404,17 @@ class CWhileLoop(CLoop):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "while(", self
         if self.condition is None:
             yield "true", self
         else:
             yield from self.condition.c_repr_chunks()
         yield ")\n", self
-        yield indent_str, self
+        yield indent_str, None
         yield "{\n", self
         yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, self
+        yield indent_str, None
         yield "}\n", self
 
 
@@ -437,12 +437,12 @@ class CDoWhileLoop(CLoop):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "do\n", self
-        yield indent_str, self
+        yield indent_str, None
         yield "{\n", self
         yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, self
+        yield indent_str, None
         yield "} while(", self
         if self.condition is None:
             yield "true", self
@@ -474,25 +474,25 @@ class CIfElse(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "if (", self
         yield from self.condition.c_repr_chunks()
         yield ")\n", self
-        yield indent_str, self
+        yield indent_str, None
         yield "{\n", self
         yield from self.true_node.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, self
+        yield indent_str, None
         yield "}\n", self
 
 
         if self.false_node is not None:
 
-            yield indent_str, self
+            yield indent_str, None
             yield "else\n", self
-            yield indent_str, self
+            yield indent_str, None
             yield "{\n", self
             yield from self.false_node.c_repr_chunks(indent=indent + INDENT_DELTA)
-            yield indent_str, self
+            yield indent_str, None
             yield "}\n", self
 
 
@@ -514,15 +514,15 @@ class CIfBreak(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "if (", self
         yield from self.condition.c_repr_chunks()
         yield ")\n", self
-        yield indent_str, self
+        yield indent_str, None
         yield "{\n", self
         yield self.indent_str(indent=indent + INDENT_DELTA), self
         yield "break;\n", self
-        yield indent_str, self
+        yield indent_str, None
         yield "}\n", self
 
 
@@ -541,7 +541,7 @@ class CBreak(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "break;\n", self
 
 
@@ -560,7 +560,7 @@ class CContinue(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "continue;\n", self
 
 
@@ -583,25 +583,25 @@ class CSwitchCase(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "switch (", self
         yield from self.switch.c_repr_chunks()
         yield ")\n", self
-        yield indent_str, self
+        yield indent_str, None
         yield "{\n", self
 
         # cases
         for idx, case in self.cases:
-            yield indent_str, self
+            yield indent_str, None
             yield "case {}:\n".format(idx), self
             yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
 
         if self.default is not None:
-            yield indent_str, self
+            yield indent_str, None
             yield "default:\n", self
             yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "}\n", self
 
 
@@ -624,7 +624,7 @@ class CAssignment(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield from CExpression._try_c_repr_chunks(self.lhs)
         yield " = ", self
         yield from CExpression._try_c_repr_chunks(self.rhs)
@@ -663,7 +663,7 @@ class CFunctionCall(CStatement, CExpression):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
 
         if not self.is_expr and self.ret_expr is not None:
             yield from CExpression._try_c_repr_chunks(self.ret_expr)
@@ -709,10 +709,10 @@ class CReturn(CStatement):
         indent_str = self.indent_str(indent=indent)
 
         if not self.retval:
-            yield indent_str, self
+            yield indent_str, None
             yield "return;\n", self
         else:
-            yield indent_str, self
+            yield indent_str, None
             yield "return ", self
             yield from self.retval.c_repr_chunks()
             yield ";\n", self
@@ -732,7 +732,7 @@ class CGoto(CStatement):
 
         indent_str = self.indent_str(indent=indent)
 
-        yield indent_str, self
+        yield indent_str, None
         yield "goto ", self
         yield from self.target.c_repr_chunks()
         yield ";\n", self
