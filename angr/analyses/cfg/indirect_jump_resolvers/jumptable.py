@@ -236,14 +236,15 @@ class JumpTableProcessor(
             return
         cond_type_enum = expr.args[0].con.value
 
-        if self.arch.name in { 'X86', 'AMD64', 'AARCH64' }:
-            if cond_type_enum in EXPECTED_COND_TYPES[self.arch.name]:
+        native_arch = self.arch if self.arch.name != 'Soot' else self.project.simos.native_arch
+        if native_arch.name in { 'X86', 'AMD64', 'AARCH64' }:
+            if cond_type_enum in EXPECTED_COND_TYPES[native_arch.name]:
                 self._handle_Comparison(expr.args[2], expr.args[3])
-        elif is_arm_arch(self.arch):
+        elif is_arm_arch(native_arch):
             if cond_type_enum in EXPECTED_COND_TYPES['ARM']:
                 self._handle_Comparison(expr.args[2], expr.args[3])
         else:
-            raise ValueError("Unexpected ccall encountered in architecture %s." % self.arch.name)
+            raise ValueError("Unexpected ccall encountered in architecture %s." % native_arch.name)
 
     def _handle_Comparison(self, arg0, arg1):
         # found the comparison
