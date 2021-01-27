@@ -137,8 +137,8 @@ class SimJavaVM(SimOS):
 
         # init state register
         state.regs._ip = addr if addr else self.project.entry
-        state.regs._invoke_return_target = None
-        state.regs._invoke_return_variable = None
+        #state.regs._invoke_return_target = None
+        #state.regs._invoke_return_variable = None
 
         # add empty stack frame
         state.memory_soot.push_stack_frame()
