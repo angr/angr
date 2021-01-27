@@ -31,7 +31,7 @@ def condition_to_lambda(condition, default=False):
             if not isinstance(state.project.factory.default_engine, engines.vex.VEXLifter):
                 return False
 
-            if state.ip_is_soot_addr:
+            if state._is_java_project and state.ip_is_soot_addr:
                 return False
 
             try:
