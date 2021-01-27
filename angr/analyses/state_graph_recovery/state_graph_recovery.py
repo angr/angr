@@ -141,15 +141,11 @@ class StateGraphRecoveryAnalysis(Analysis):
             # import sys
             # sys.stdout.write('.')
 
-            # # debug Traffic_Light_both_green
-            # if simgr.active[0].addr == 0x42da2c or simgr.active[0].addr == 0x42da3d:
-            #     print("PEDESTRIAN GREEN EXECUTING!")
-            #
-            # if simgr.active[0].addr == 0x42db8b or simgr.active[0].addr == 0x42db9c:
-            #     print("PEDESTRIAN RED EXECUTING!")
-            #
-            # if simgr.active[0].addr == 0x42dc55:
-            #     print("STOP_PEDESTRIAN SET 1!")
+            # # debug arm32 short ped
+            # if simgr.active[0].addr == 0x42df18 or simgr.active[0].addr == 0x42df30 or simgr.active[0].addr == 0x42df48:
+            # print("ORANGE EXECUTING!")
+            # if simgr.active[0].addr == 0x42dfec:
+            # print("STOP CARS SET 1!")
 
             s = simgr.active[0]
 
@@ -175,8 +171,8 @@ class StateGraphRecoveryAnalysis(Analysis):
         if self.project.arch.call_pushes_ret:
             s.stack_push(claripy.BVV(self._ret_trap, self.project.arch.bits))
         else:
-            # TODO: set up the link register or the return address
-            pass
+            # set up the link register for the return address
+            s.regs.lr = self._ret_trap
 
         return s
 
