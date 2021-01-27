@@ -32,7 +32,7 @@ class SimJavaVmClassloader(SimStatePlugin):
                              the execution of the main <clinit> method
         """
         # try to get the soot class object from CLE
-        java_binary = self.state.javavm_registers.load('ip_binary')
+        java_binary = self.state.project.loader.main_object
         soot_class = java_binary.get_soot_class(class_name, none_if_missing=True)
         # create class descriptor
         class_descriptor = SootClassDescriptor(class_name, soot_class)

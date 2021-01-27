@@ -74,7 +74,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
                 self.process_procedure(state, successors, procedure)
                 return
 
-        binary = state.regs._ip_binary
+        binary = state.project.loader.main_object
         method = binary.get_soot_method(addr.method, none_if_missing=True)
 
         # TODO make the skipping of code in "android.*" classes optional
@@ -244,7 +244,7 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
     def _get_next_linear_instruction(state, stmt_idx):
         addr = state.addr.copy()
         addr.stmt_idx = stmt_idx
-        method = state.regs._ip_binary.get_soot_method(addr.method)
+        method = state.project.loader.main_object.get_soot_method(addr.method)
         current_bb = method.blocks[addr.block_idx]
         new_stmt_idx = addr.stmt_idx + 1
         if new_stmt_idx < len(current_bb.statements):
