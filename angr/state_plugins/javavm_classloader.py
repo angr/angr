@@ -103,8 +103,9 @@ class SimJavaVmClassloader(SimStatePlugin):
             # The only thing that can be updated during initialization are
             # static or rather global information, which are either stored on
             # the heap or in the vm_static_table
-            self.state.javavm_memory.vm_static_table = simgr.deadended[-1].memory.vm_static_table.copy()
-            self.state.javavm_memory.heap = simgr.deadended[-1].memory.heap.copy()
+            if simgr.deadended:
+                self.state.javavm_memory.vm_static_table = simgr.deadended[-1].memory.vm_static_table.copy()
+                self.state.javavm_memory.heap = simgr.deadended[-1].memory.heap.copy()
         else:
             l.debug("Class initializer <clinit> is not loaded in CLE. Skip initializiation.")
 
