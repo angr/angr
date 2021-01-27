@@ -141,7 +141,7 @@ class SimJavaVM(SimOS):
         state.regs._invoke_return_variable = None
 
         # add empty stack frame
-        state.memory.push_stack_frame()
+        state.memory_soot.push_stack_frame()
 
         # create bottom of callstack
         new_frame = state.callstack.copy()
