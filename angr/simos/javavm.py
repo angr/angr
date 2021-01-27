@@ -98,9 +98,17 @@ class SimJavaVM(SimOS):
         if not kwargs.get('mode', None): kwargs['mode'] = self.project._default_analysis_mode
         if not kwargs.get('arch', None):  kwargs['arch'] = self.arch
         if not kwargs.get('os_name', None): kwargs['os_name'] = self.name
+
+        if not self.project.entry and not addr:
+            raise ValueError("Failed to init blank state. Project entry is not set/invalid "
+                             "and no address was provided.")
+
+        start_addr = addr or self.project.entry
+
         # enable support for string analysis
         add_options = kwargs.get('add_options', set())
-        add_options.add(options.STRINGS_ANALYSIS)
+        if isinstance(start_addr, SootAddressDescriptor):
+            add_options.add(options.STRINGS_ANALYSIS)
         add_options.add(options.COMPOSITE_SOLVER)
         kwargs['add_options'] = add_options
 
@@ -131,12 +139,8 @@ class SimJavaVM(SimOS):
             # w/o JNI support, we can just use a blank state
             state = SimState(project=self.project, **kwargs)
 
-        if not self.project.entry and not addr:
-            raise ValueError("Failed to init blank state. Project entry is not set/invalid "
-                             "and no address was provided.")
-
         # init state register
-        state.regs._ip = addr if addr else self.project.entry
+        state.regs._ip = start_addr
         #state.regs._invoke_return_target = None
         #state.regs._invoke_return_variable = None
 
@@ -149,8 +153,9 @@ class SimJavaVM(SimOS):
         state.callstack.push(new_frame)
 
         # initialize class containing the current method
-        state.javavm_classloader.get_class(state.addr.method.class_name,
-                                           init_class=True, step_func=kwargs.get('step_function', None))
+        if isinstance(start_addr, SootAddressDescriptor):
+            state.javavm_classloader.get_class(state.addr.method.class_name,
+                                               init_class=True, step_func=kwargs.get('step_function', None))
 
         # initialize the Java environment
         # TODO move this to `state_full_init?
