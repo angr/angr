@@ -1,4 +1,4 @@
-from typing import Set, Dict, List
+from typing import Set, Dict, List, Tuple
 from collections import defaultdict
 
 from ailment.block import Block
@@ -36,20 +36,22 @@ class AILSimplifier(Analysis):
         self._calls_to_remove: Set[CodeLocation] = set()
         self.blocks = {}  # Mapping nodes to simplified blocks
 
+        self.simplified: bool = False
         self._simplify()
 
     def _simplify(self):
 
         if self._unify_vars:
-            self._unify_local_variables()
-            self._fold_call_exprs()
+            self.simplified |= self._unify_local_variables()
+            self.simplified |= self._fold_call_exprs()
 
         folded_exprs = self._fold_exprs()
+        self.simplified |= folded_exprs
         if folded_exprs:
             # reading definition analysis results are no longer reliable
             return
 
-        self._remove_dead_assignments()
+        self.simplified |= self._remove_dead_assignments()
 
     def _fold_exprs(self):
         """
@@ -61,30 +63,33 @@ class AILSimplifier(Analysis):
         replacements = list(propagator._states.values())[0]._replacements
 
         # take replacements and rebuild the corresponding blocks
-        replacements_by_block_addrs = defaultdict(dict)
+        replacements_by_block_addrs_and_idx = defaultdict(dict)
         for codeloc, reps in replacements.items():
             if reps:
-                replacements_by_block_addrs[codeloc.block_addr][codeloc] = reps
+                replacements_by_block_addrs_and_idx[(codeloc.block_addr, codeloc.block_idx)][codeloc] = reps
 
-        if not replacements_by_block_addrs:
+        if not replacements_by_block_addrs_and_idx:
             return False
 
-        blocks_by_addr = dict((node.addr, node) for node in self.func_graph.nodes())
+        blocks_by_addr_and_idx = dict(((node.addr, node.idx), node) for node in self.func_graph.nodes())
 
-        for block_addr, reps in replacements_by_block_addrs.items():
-            block = blocks_by_addr[block_addr]
+        for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
+            block = blocks_by_addr_and_idx[(block_addr, block_idx)]
             new_block = BlockSimplifier._replace_and_build(block, reps)
             self.blocks[block] = new_block
 
         return True
 
-    def _unify_local_variables(self):
+    def _unify_local_variables(self) -> bool:
         """
         Find variables that are definitely equivalent and then eliminate the unnecessary copies.
         """
+
+        simplified = False
+
         prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
         if not prop.equivalence:
-            return
+            return simplified
 
         addr2block: Dict[int, Block] = { }
         for block in self.func_graph.nodes():
@@ -162,9 +167,12 @@ class AILSimplifier(Analysis):
                 else:
                     raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
 
-                self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, eq.atom1, dst)
+                r = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, eq.atom1, dst)
+                simplified |= r
 
-    def _fold_call_exprs(self):
+        return simplified
+
+    def _fold_call_exprs(self) -> bool:
         """
         Fold a call expression (statement) into other statements if the return value of the call expression (statement)
         is only used once, and the use site and the call site belongs to the same supernode.
@@ -179,9 +187,11 @@ class AILSimplifier(Analysis):
             if (func()) ...
         """
 
+        simplified = False
+
         prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
         if not prop.equivalence:
-            return
+            return simplified
 
         addr2block: Dict[int, Block] = { }
         for block in self.func_graph.nodes():
@@ -240,6 +250,9 @@ class AILSimplifier(Analysis):
                 if replaced:
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
+                    simplified = True
+
+        return simplified
 
     def _get_super_node_blocks(self, start_node: Block) -> List[Block]:
 
@@ -276,9 +289,9 @@ class AILSimplifier(Analysis):
 
         return False
 
-    def _remove_dead_assignments(self):
+    def _remove_dead_assignments(self) -> bool:
 
-        stmts_to_remove_per_block = defaultdict(set)
+        stmts_to_remove_per_block: Dict[Tuple[int,int],Set[int]] = defaultdict(set)
 
         # Find all statements that should be removed
 
@@ -293,7 +306,9 @@ class AILSimplifier(Analysis):
             uses = self._reaching_definitions.all_uses.get_uses(def_)
 
             if not uses:
-                stmts_to_remove_per_block[def_.codeloc.block_addr].add(def_.codeloc.stmt_idx)
+                stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
+
+        simplified = False
 
         # Remove the statements
         for old_block in self.func_graph.nodes():
@@ -304,11 +319,14 @@ class AILSimplifier(Analysis):
             if not isinstance(block, Block):
                 continue
 
-            if block.addr not in stmts_to_remove_per_block:
+            if (block.addr, block.idx) not in stmts_to_remove_per_block:
                 continue
 
             new_statements = [ ]
-            stmts_to_remove = stmts_to_remove_per_block[block.addr]
+            stmts_to_remove = stmts_to_remove_per_block[(block.addr, block.idx)]
+
+            if not stmts_to_remove:
+                continue
 
             for idx, stmt in enumerate(block.statements):
                 if idx in stmts_to_remove:
@@ -316,15 +334,20 @@ class AILSimplifier(Analysis):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should not be removed
                         if not self._statement_has_call_exprs(stmt):
+                            simplified = True
                             continue
                     elif isinstance(stmt, Call):
                         codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
+                            simplified = True
                             continue
-                        # the return expr is not used. it should not have return expr
-                        stmt = stmt.copy()
-                        stmt.ret_expr = None
+
+                        if stmt.ret_expr is not None:
+                            # the return expr is not used. it should not have return expr
+                            stmt = stmt.copy()
+                            stmt.ret_expr = None
+                            simplified = True
                     else:
                         # Should not happen!
                         raise NotImplementedError()
@@ -334,6 +357,8 @@ class AILSimplifier(Analysis):
             new_block = block.copy()
             new_block.statements = new_statements
             self.blocks[old_block] = new_block
+
+        return simplified
 
     @staticmethod
     def _statement_has_call_exprs(stmt: Statement) -> bool:
