@@ -1,4 +1,4 @@
-from typing import Optional, Set, List, Tuple
+from typing import Optional, Set, List, Tuple, TYPE_CHECKING
 import logging
 
 from ...engines.light import SimEngineLight, SpOffset, ArithmeticExpression
@@ -6,6 +6,10 @@ from ...errors import SimEngineError
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...code_location import CodeLocation
 from ..typehoon import typevars, typeconsts
+
+if TYPE_CHECKING:
+    from .variable_recovery_base import VariableRecoveryStateBase
+    from angr.knowledge_plugins.variables.variable_manager import VariableManager
 
 #
 # The base engine used in VariableRecoveryFast
@@ -46,7 +50,7 @@ class SimEngineVRBase(SimEngineLight):
         self.project = project
         self.kb = kb
         self.processor_state = None
-        self.variable_manager = None
+        self.variable_manager: Optional['VariableManager'] = None
 
     @property
     def func_addr(self):
@@ -162,7 +166,7 @@ class SimEngineVRBase(SimEngineLight):
         # handle register writes
         existing_vars = self.variable_manager[self.func_addr].find_variables_by_atom(self.block.addr, self.stmt_idx,
                                                                                      dst)
-        existing_vars: Set[SimVariable,int]
+        existing_vars: Set[Tuple[SimVariable,int]]
         if not existing_vars:
             variable = SimRegisterVariable(offset, size,
                                            ident=self.variable_manager[self.func_addr].next_variable_ident(
@@ -336,7 +340,10 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
+        self.state: 'VariableRecoveryStateBase'
+
         addr = richr_addr.data
+        codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
         if type(addr) is SpOffset:
             # Loading data from stack
@@ -375,7 +382,6 @@ class SimEngineVRBase(SimEngineLight):
                 l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
 
             base_offset = self.state.stack_region.get_base_addr(concrete_offset)
-            codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
             all_vars = self.state.stack_region.get_variables_by_offset(base_offset)
             if len(all_vars) > 1:
@@ -421,6 +427,17 @@ class SimEngineVRBase(SimEngineLight):
             #)
 
             return RichR(data, variable=var, typevar=typevar)
+
+        elif isinstance(addr, int):
+            # Loading data from memory
+            global_variables = self.variable_manager['global']
+            variables = global_variables.get_global_variables(addr)
+            if not variables:
+                var = SimMemoryVariable(addr, size)
+                global_variables.add_variable('global', addr, var)
+                variables = [ var ]
+            for var in variables:
+                global_variables.read_from(var, 0, codeloc, atom=expr)
 
         # Loading data from a pointer
         if richr_addr.type_constraints:

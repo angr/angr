@@ -645,10 +645,15 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.Load:
-            # import ipdb; ipdb.set_trace()
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 0:
+                # this is a local variable
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
+                if 'reference_variable' in expr.addr.tags and expr.addr.reference_variable is not None:
+                    # copy over the variable to this expr since the variable on a constant is supposed to be a
+                    # reference variable.
+                    expr.variable = expr.addr.reference_variable
+                    expr.variable_offset = expr.addr.reference_variable_offset
             else:
                 if len(variables) > 1:
                     l.error("More than one variable are available for atom %s. Consider fixing it using phi nodes.",
@@ -692,8 +697,8 @@ class Clinic(Analysis):
             variables = global_variables.get_global_variables(expr.value)
             if variables:
                 var = next(iter(variables))
-                expr.variable = var
-                expr.variable_offset = 0
+                expr.tags['reference_variable'] = var
+                expr.tags['reference_variable_offset'] = None
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)

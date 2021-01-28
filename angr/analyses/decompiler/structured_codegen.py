@@ -858,7 +858,7 @@ class CVariable(CExpression):
                 yield str(self.variable), self
         else:  # self.offset is not None
             if isinstance(self.variable, SimVariable):
-                yield self.variable.name, self
+                yield self.variable.name if self.variable.name else "UNKNOWN", self
                 yield "[", self
                 yield from self._get_offset_string_chunks()
                 yield "]", self
@@ -1407,7 +1407,10 @@ class StructuredCodeGenerator(Analysis):
         elif isinstance(expr, CTypeCast):
             return self._parse_load_addr(expr.expr)
         elif isinstance(expr, CConstant):
-            return None, expr.value
+            if expr.variable is not None:
+                return expr.variable, 0
+            else:
+                return None, expr.value
         elif isinstance(expr, int):
             return None, expr
         elif isinstance(expr, Expr.DirtyExpression):
