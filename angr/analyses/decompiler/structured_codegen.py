@@ -167,30 +167,27 @@ class CConstruct:
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 if obj is not None:
-                    # first, anything that is a compatible statement must be added
-                    if isinstance(obj, CStatement) and hasattr(obj, 'tags') and \
-                            obj.tags is not None and 'ins_addr' in obj.tags:
-                        stmt_posmap.add_mapping(pos, len(s), obj)
-                        insmap.add_mapping(obj.tags['ins_addr'], pos)
+                    # filter out anything that is not a statement or expression
+                    if isinstance(obj, (CStatement, CExpression)):
 
-                    # if not a statement, a nested expression works
-                    elif isinstance(obj, CExpression) and hasattr(obj, 'tags') and \
-                            obj.tags is not None and 'ins_addr' in obj.tags:
+                        # only add statements/expressions that can be address tracked into stmt_posmap
+                        if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
 
-                        # assure that variables are only placed once in the GUI at the definition of each var
-                        if isinstance(obj, CVariable):
-                            posmap.add_mapping(pos, len(s), obj)
+                            # filter CVariables to make sure only first variable definitions are added to stmt_posmap
+                            if isinstance(obj, CVariable):
+                                if obj not in used_cvars:
+                                    used_cvars.append(obj)
+                                    stmt_posmap.add_mapping(pos, len(s), obj)
 
-                            if obj not in used_cvars:
-                                used_cvars.append(obj)
+                            # any other valid statement or expression should be added to stmt_posmap and
+                            # tracked for instruction mapping from disassembly
+                            else:
                                 stmt_posmap.add_mapping(pos, len(s), obj)
+                                insmap.add_mapping(obj.tags['ins_addr'], pos)
 
-                        else:
-                            stmt_posmap.add_mapping(pos, len(s), obj)
-
-                    # if we are a CVariable add to the mapping
-                    elif isinstance(obj, CVariable):
-                        posmap.add_mapping(pos, len(s), obj)
+                        # add all Variables and Functions to posmap for highlight tracking
+                        if isinstance(obj, (CFunctionCall, CVariable)):
+                            posmap.add_mapping(pos, len(s), obj)
 
                 pos += len(s)
                 yield s
