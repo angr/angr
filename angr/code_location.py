@@ -7,10 +7,10 @@ class CodeLocation:
     name (for SimProcedures).
     """
 
-    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', )
+    __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', 'block_idx', )
 
     def __init__(self, block_addr: int, stmt_idx: int, sim_procedure=None, ins_addr: Optional[int]=None,
-                 context: Optional[Tuple[int]]=None, **kwargs):
+                 context: Optional[Tuple[int]]=None, block_idx: int=None, **kwargs):
         """
         Constructor.
 
@@ -28,6 +28,7 @@ class CodeLocation:
         self.sim_procedure = sim_procedure
         self.ins_addr: Optional[int] = ins_addr
         self.context: Optional[Tuple[int]] = context
+        self.block_idx = block_idx
 
         self.info: Optional[Dict] = None
 
@@ -78,13 +79,14 @@ class CodeLocation:
         """
         return type(self) is type(other) and self.block_addr == other.block_addr and \
                 self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure and \
-                self.context == other.context
+                self.context == other.context and \
+                self.block_idx == other.block_idx
 
     def __hash__(self):
         """
         returns the hash value of self.
         """
-        return hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.context))
+        return hash((self.block_addr, self.stmt_idx, self.sim_procedure, self.context, self.block_idx))
 
     def _store_kwargs(self, **kwargs):
         if self.info is None:
