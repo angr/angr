@@ -1,6 +1,6 @@
 from collections import defaultdict
 import logging
-from typing import List, Optional, Iterable, Union, Type, TYPE_CHECKING
+from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, TYPE_CHECKING
 
 import networkx
 
@@ -19,7 +19,7 @@ from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
 from .ailgraph_walker import AILGraphWalker
 from .ailblock_walker import AILBlockWalker
-from .optimization_passes import get_default_optimization_passes
+from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -143,6 +143,10 @@ class Clinic(Analysis):
         # Simplify blocks
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
+        # Run simplification passes
+        ail_graph = self._run_simplification_passes(ail_graph,
+                                                    stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION)
+
         # Simplify the entire function for the first time
         self._simplify_function(ail_graph, unify_variables=False)
 
@@ -156,7 +160,6 @@ class Clinic(Analysis):
         # Simplify the entire function for the second time
         # TODO: Simplify until reaching a fixed point instead of calling _simplify_function() twice.
         self._simplify_function(ail_graph, unify_variables=True)
-        self._simplify_function(ail_graph, unify_variables=True)
 
         # Make function arguments
         arg_list = self._make_argument_list()
@@ -168,7 +171,7 @@ class Clinic(Analysis):
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
-        ail_graph = self._run_simplification_passes(ail_graph)
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         self.graph = ail_graph
         self.arg_list = arg_list
@@ -324,9 +327,20 @@ class Clinic(Analysis):
         return simp.result_block
 
     @timethis
-    def _simplify_function(self, ail_graph, unify_variables=False):
+    def _simplify_function(self, ail_graph, unify_variables=False, max_iterations: int=4) -> None:
         """
-        Simplify the entire function.
+        Simplify the entire function until it reaches a fixed point.
+        """
+
+        for _ in range(max_iterations):
+            simplified = self._simplify_function_once(ail_graph, unify_variables=unify_variables)
+            if not simplified:
+                break
+
+    @timethis
+    def _simplify_function_once(self, ail_graph, unify_variables=False):
+        """
+        Simplify the entire function once.
 
         :return:    None
         """
@@ -342,28 +356,38 @@ class Clinic(Analysis):
             reaching_definitions=rd,
             unify_variables=unify_variables,
         )
+        if not simp.simplified:
+            return False
 
         def _handler(node):
             return simp.blocks.get(node, None)
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
-    @timethis
-    def _run_simplification_passes(self, ail_graph):
+        return True
 
-        blocks_map = defaultdict(set)
+    @timethis
+    def _run_simplification_passes(self, ail_graph, stage:int=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
+
+        addr_and_idx_to_blocks: Dict[Tuple[int,Optional[int]],ailment.Block] = { }
+        addr_to_blocks: Dict[int,Set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
-            blocks_map[node.addr].add(node)
+            addr_and_idx_to_blocks[(node.addr, node.idx)] = node
+            addr_to_blocks[node.addr].add(node)
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
         # Run each pass
         for pass_ in self._optimization_passes:
 
+            if pass_.STAGE != stage:
+                continue
+
             analysis = getattr(self.project.analyses, pass_.__name__)
 
-            a = analysis(self.function, blocks=blocks_map, graph=ail_graph)
+            a = analysis(self.function, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
+                         graph=ail_graph)
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph
