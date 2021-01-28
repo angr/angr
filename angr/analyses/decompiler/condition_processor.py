@@ -473,8 +473,17 @@ class ConditionProcessor:
                                               )
             return r
 
+        def _unary_op_reduce(op, arg, annotations: Iterable[claripy.Annotation]):
+            r = self.convert_claripy_bool_ast(arg, memo=memo)
+            try:
+                tag_annotation = next(iter(anno for anno in annotations if isinstance(anno, TagsAnnotation)))
+                tags = tag_annotation.tags
+            except StopIteration:
+                tags = {}
+            return ailment.Expr.UnaryOp(None, op, r, **tags)
+
         _mapping = {
-            'Not': lambda cond_: _binary_op_reduce('Not', cond_.args, cond_.annotations),
+            'Not': lambda cond_: _unary_op_reduce('Not', cond_.args[0], cond_.annotations),
             'And': lambda cond_: _binary_op_reduce('LogicalAnd', cond_.args, cond_.annotations),
             'Or': lambda cond_: _binary_op_reduce('LogicalOr', cond_.args, cond_.annotations),
             '__le__': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, cond_.annotations, signed=True),
