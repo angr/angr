@@ -1,4 +1,4 @@
-from typing import Optional, Set, Tuple, Generator  # pylint:disable=unused-import
+from typing import Optional, Dict, Set, Tuple, Generator  # pylint:disable=unused-import
 
 import networkx  # pylint:disable=unused-import
 
@@ -89,7 +89,7 @@ class OptimizationPass(Analysis):
 
     def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block,None,None]:
         if not self._blocks_by_addr:
-            return None
+            return
         else:
             if idx is None:
                 blocks = self._blocks_by_addr.get(addr, None)
@@ -138,8 +138,10 @@ class OptimizationPass(Analysis):
             self._blocks_by_addr[block.addr].remove(block)
             del self._blocks_by_addr_and_idx[(block.addr, block.idx)]
 
-    def _is_add(self, expr):
+    @staticmethod
+    def _is_add(expr):
         return isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Add"
 
-    def _is_sub(self, expr):
+    @staticmethod
+    def _is_sub(expr):
         return isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Sub"

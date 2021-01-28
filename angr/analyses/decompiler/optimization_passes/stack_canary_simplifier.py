@@ -99,7 +99,7 @@ class StackCanarySimplifier(OptimizationPass):
         for stack_chk_fail_caller in stack_chk_fail_callers:
             preds = list(self._graph.predecessors(stack_chk_fail_caller))
             if len(preds) != 1:
-                _l.debug("Expect 1 predecessor. Found %d." % len(preds))
+                _l.debug("Expect 1 predecessor. Found %d.", len(preds))
                 return
             pred = preds[0]
 
@@ -121,7 +121,7 @@ class StackCanarySimplifier(OptimizationPass):
 
             succs = list(self._graph.successors(pred))
             if len(succs) != 2:
-                _l.debug("Expect 2 successors. Found %d." % len(succs))
+                _l.debug("Expect 2 successors. Found %d.", len(succs))
                 return
             if stack_chk_fail_caller is succs[0]:
                 ret_node = succs[1]
