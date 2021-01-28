@@ -1655,7 +1655,10 @@ class StructuredCodeGenerator(Analysis):
 
         ret_expr = None
         if stmt.ret_expr is not None:
-            ret_expr = self._handle(stmt.ret_expr)
+            if stmt.ret_expr.variable is not None:
+                ret_expr = self._cvariable(stmt.ret_expr.variable, offset=stmt.ret_expr.variable_offset)
+            else:
+                ret_expr = self._handle(stmt.ret_expr)
 
         return CFunctionCall(target, target_func, args,
                              returning=target_func.returning if target_func is not None else True,
