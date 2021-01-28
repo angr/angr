@@ -404,7 +404,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
         if isinstance(node, ailment.Block):
             block = node
-            block_key = node.addr
+            block_key = (node.addr, node.idx)
             engine = self._engine_ail
         else:
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
