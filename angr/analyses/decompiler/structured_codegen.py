@@ -167,7 +167,6 @@ class CConstruct:
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 if obj is not None:
-                    """"
                     # filter out anything that is not a statement or expression
                     if isinstance(obj, (CStatement, CExpression)):
 
@@ -180,7 +179,8 @@ class CConstruct:
                                     used_cvars.append(obj)
                                     stmt_posmap.add_mapping(pos, len(s), obj)
 
-                            # any other valid statement or expression should be added to stmt_posmap
+                            # any other valid statement or expression should be added to stmt_posmap and
+                            # tracked for instruction mapping from disassembly
                             else:
                                 stmt_posmap.add_mapping(pos, len(s), obj)
                                 insmap.add_mapping(obj.tags['ins_addr'], pos)
@@ -188,32 +188,6 @@ class CConstruct:
                         # add all Variables and Functions to posmap for highlight tracking
                         if isinstance(obj, (CFunctionCall, CVariable)):
                             posmap.add_mapping(pos, len(s), obj)
-
-                    """
-                    # first, anything that is a compatible statement must be added
-                    if isinstance(obj, CStatement) and hasattr(obj, 'tags') and \
-                            obj.tags is not None and 'ins_addr' in obj.tags:
-                        stmt_posmap.add_mapping(pos, len(s), obj)
-                        insmap.add_mapping(obj.tags['ins_addr'], pos)
-
-                    # if not a statement, a nested expression works
-                    elif isinstance(obj, CExpression) and hasattr(obj, 'tags') and \
-                            obj.tags is not None and 'ins_addr' in obj.tags:
-
-                        # assure that variables are only placed once in the GUI at the definition of each var
-                        if isinstance(obj, CVariable):
-                            posmap.add_mapping(pos, len(s), obj)
-
-                            if obj not in used_cvars:
-                                used_cvars.append(obj)
-                                stmt_posmap.add_mapping(pos, len(s), obj)
-
-                        else:
-                            stmt_posmap.add_mapping(pos, len(s), obj)
-
-                    # if we are a CVariable add to the mapping
-                    elif isinstance(obj, CVariable):
-                        posmap.add_mapping(pos, len(s), obj)
 
                 pos += len(s)
                 yield s
@@ -1376,9 +1350,6 @@ class StructuredCodeGenerator(Analysis):
         self.insmap = InstructionMapping()
 
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap, insmap=self.insmap)
-        import ipdb; ipdb.set_trace()
-        [print(i) for i in self.stmt_posmap.items()]
-        [print(i) for i in self.insmap.items()]
 
         self.nodemap = defaultdict(set)
         for elem, node in self.posmap.items():
