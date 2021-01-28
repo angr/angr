@@ -177,21 +177,21 @@ class CConstruct:
                     elif isinstance(obj, CExpression) and hasattr(obj, 'tags') and \
                             obj.tags is not None and 'ins_addr' in obj.tags:
 
-                        # assure that variables are only placed once in the GUI at the defenition of each var
+                        # assure that variables are only placed once in the GUI at the defn of each var
                         if isinstance(obj, CVariable):
+                            posmap.add_mapping(pos, len(s), obj)
+
                             if obj not in used_cvars:
                                 used_cvars.append(obj)
                                 stmt_posmap.add_mapping(pos, len(s), obj)
-                                insmap.add_mapping(obj.tags['ins_addr'], pos)
-                            else:
-                                posmap.add_mapping(pos, len(s), obj)
+
                         else:
                             stmt_posmap.add_mapping(pos, len(s), obj)
-                            insmap.add_mapping(obj.tags['ins_addr'], pos)
 
-                    # if we are not another type, just add to the default posmap
-                    else:
+                    # if we are a CVariable add to the mapping
+                    elif isinstance(obj, CVariable):
                         posmap.add_mapping(pos, len(s), obj)
+
                 pos += len(s)
                 yield s
 
