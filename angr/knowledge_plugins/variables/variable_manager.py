@@ -388,6 +388,8 @@ class VariableManagerInternal:
                     continue
                 if labels is not None and var.addr in labels:
                     var.name = labels[var.addr]
+                    if "@@" in var.name:
+                        var.name = var.name[:var.name.index("@@")]
                 else:
                     var.name = var.ident
 

@@ -298,7 +298,9 @@ def test_decompiling_1after909():
         code = dec.codegen.text
         print(code)
         # with EagerReturnSimplifier applied, there should be no goto!
-        assert "goto" not in code.lower()
+        assert "goto" not in code.lower(), "Found goto statements. EagerReturnSimplifier might have failed."
+        # with global variables discovered, there should not be any loads of constant addresses.
+        assert "fflush(stdout);" in code.lower()
     else:
         print("Failed to decompile function %r." % f)
         assert False
