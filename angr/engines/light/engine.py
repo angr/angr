@@ -642,7 +642,7 @@ class SimEngineLightAILMixin:
     def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
         self.tmps = {}
-        self.block = block
+        self.block: ailment.Block = block
         self.state = state
         self.arch = state.arch
 
@@ -693,7 +693,8 @@ class SimEngineLightAILMixin:
     #
 
     def _codeloc(self):
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context)
+        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context,
+                            block_idx=self.block.idx)
 
     #
     # Statement handlers
