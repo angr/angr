@@ -1283,11 +1283,9 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
                 state.regs.a3 = 0
             else:
                 expr_val = state.solver.eval(expr)
-                if state.arch.bits == 32 and expr_val >= -1133 & 0xffff_ffff:
-                    expr_val = -(-0x1_0000_0000 + expr_val)
-                    state.regs.a3 = 1
-                elif state.arch.bits == 64 and expr_val >= -1133 & 0xffff_ffff_ffff_ffff:
-                    expr_val = -(-0x1_0000_0000_0000_0000 + expr_val)
+                mask = 0xffff_ffff if state.arch.bits == 32 else 0xffff_ffff_ffff_ffff
+                if expr_val & mask >= -1133 & mask:
+                    expr_val = -(-(mask+1) + expr_val)
                     state.regs.a3 = 1
                 else:
                     state.regs.a3 = 0
