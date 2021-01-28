@@ -92,7 +92,7 @@ class Structurer(Analysis):
     """
     def __init__(self, region, parent_map=None, condition_processor=None):
 
-        self._region = region
+        self._region: GraphRegion = region
         self._parent_map = parent_map
 
         self.cond_proc = condition_processor if condition_processor is not None else ConditionProcessor()
