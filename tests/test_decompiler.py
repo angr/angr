@@ -288,8 +288,10 @@ def test_decompiling_1after909():
     f = cfg.functions['doit']
     optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
         p.arch, p.simos.name
-    ) + [
-        angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier,
+    )
+    if angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier not in optimization_passes:
+        optimization_passes += [
+            angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier,
     ]
     dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=optimization_passes)
     if dec.codegen is not None:
