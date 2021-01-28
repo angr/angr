@@ -4,7 +4,7 @@ from ailment import Expr
 
 from ... import AnalysesHub
 from .engine_base import SimplifierAILEngine, SimplifierAILState
-from .optimization_pass import OptimizationPass
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
 
@@ -48,10 +48,11 @@ class ModSimplifier(OptimizationPass):
 
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows"]
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
-    def __init__(self, func, blocks, graph):
+    def __init__(self, func, **kwargs):
 
-        super().__init__(func, blocks=blocks, graph=graph)
+        super().__init__(func, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
         self.engine = ModSimplifierAILEngine()

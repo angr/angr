@@ -3,7 +3,7 @@ import logging
 import ailment
 
 from ... import AnalysesHub
-from .optimization_pass import OptimizationPass
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
 
@@ -12,9 +12,10 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
     ARCHES = ['X86', 'AMD64', 'ARMEL', "ARMCortexM"]
     PLATFORMS = ["cgc", 'linux']
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
-    def __init__(self, func, blocks, graph):
-        super().__init__(func, blocks=blocks, graph=graph)
+    def __init__(self, func, **kwargs):
+        super().__init__(func, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -115,30 +116,23 @@ class BasePointerSaveSimplifier(OptimizationPass):
         baseptr_restore_stmts = [ ]
 
         for endpoint in endpoints:
-            endpoint_block = self._get_block(endpoint.addr)
-
-            if endpoint_block is None:
-                # the block is not found
-                _l.debug("Unexpected: Function endpoint %#x is not found. Maybe it has been removed by other "
-                         "optimization passes", endpoint.addr)
-                continue
-
-            for idx, stmt in enumerate(endpoint_block.statements):
-                if isinstance(stmt, ailment.Stmt.Assignment) \
-                        and isinstance(stmt.dst, ailment.Expr.Register) \
-                        and stmt.dst.reg_offset == self.project.arch.bp_offset \
-                        and isinstance(stmt.src, ailment.Expr.Load) \
-                        and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset):
-                    baseptr_restore_stmts.append((endpoint_block, idx, stmt.src.addr))
-                    break
-            else:
-                if endpoint.addr not in callouts_and_jumpouts:
-                    _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
-                    return None
+            for endpoint_block in self._get_blocks(endpoint.addr):
+                for idx, stmt in enumerate(endpoint_block.statements):
+                    if isinstance(stmt, ailment.Stmt.Assignment) \
+                            and isinstance(stmt.dst, ailment.Expr.Register) \
+                            and stmt.dst.reg_offset == self.project.arch.bp_offset \
+                            and isinstance(stmt.src, ailment.Expr.Load) \
+                            and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset):
+                        baseptr_restore_stmts.append((endpoint_block, idx, stmt.src.addr))
+                        break
                 else:
-                    _l.debug("No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
-                             endpoint.addr
-                             )
+                    if endpoint.addr not in callouts_and_jumpouts:
+                        _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
+                        return None
+                    else:
+                        _l.debug("No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                                 endpoint.addr
+                                 )
 
         return baseptr_restore_stmts
 

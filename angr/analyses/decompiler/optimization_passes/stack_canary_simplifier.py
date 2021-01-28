@@ -1,10 +1,10 @@
-
+from typing import Set
 import logging
 
 import ailment
 
 from ... import AnalysesHub
-from .optimization_pass import OptimizationPass
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
 _l = logging.getLogger(name=__name__)
@@ -20,10 +20,11 @@ class StackCanarySimplifier(OptimizationPass):
 
     ARCHES = ["X86", "AMD64", 'ARMEL', 'ARMCortexM']
     PLATFORMS = ["cgc", "linux"]
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
-    def __init__(self, func, blocks, graph):
+    def __init__(self, func, **kwargs):
 
-        super().__init__(func, blocks=blocks, graph=graph)
+        super().__init__(func, **kwargs)
 
         self.analyze()
 
@@ -60,64 +61,88 @@ class StackCanarySimplifier(OptimizationPass):
 
         # The function should end with an if-else statement
         # Find all nodes with 0 out-degrees
-        end_nodes = [ self._get_block(node.addr) for node in self._func.graph.nodes()
-                      if self._func.graph.out_degree(node) == 0 ]
-
-        if len(end_nodes) != 2:
+        endpoint_addrs = [ node.addr for node in self._func.graph.nodes() if self._func.graph.out_degree(node) == 0 ]
+        if len(endpoint_addrs) != 2:
             _l.debug("This function has more than two end nodes. Maybe we can add support to it in the future.")
             return
 
+        # All end nodes have one common predecessor (before node duplication)
+        pred_addrs: Set[int] = set()
+        for node_addr in endpoint_addrs:
+            pred_addrs |= set(pred.addr for pred in self._func.graph.predecessors(self._func.get_node(node_addr)))
+
+        # because other optimization passes may duplicate nodes, we may have more than one node for each function
+        # endpoint.
+        endnodes_0 = list(self._get_blocks(endpoint_addrs[0]))
+        endnodes_1 = list(self._get_blocks(endpoint_addrs[1]))
+
+        if not endnodes_0 or not endnodes_1:
+            _l.warning("Unexpected situation: endnodes_0 or endnodes_1 is empty.")
+            return
+
         # One of the end nodes calls __stack_chk_fail
-        stack_chk_fail_caller = None
-        for end_node in end_nodes:
-            if self._calls_stack_chk_fail(end_node):
-                stack_chk_fail_caller = end_node
+        stack_chk_fail_callers = None
+        for endnodes in [ endnodes_0, endnodes_1 ]:
+            if self._calls_stack_chk_fail(endnodes[0]):
+                stack_chk_fail_callers = endnodes
                 break
         else:
             _l.debug("Cannot find the node that calls __stack_chk_fail().")
             return
 
-        # All end nodes have one common predecessor
-        preds = set()
-        for node in end_nodes:
-            preds |= set(self._func.graph.predecessors(self._func.get_node(node.addr)))
-
-        if len(preds) != 1:
-            _l.debug("End nodes have %d predecessors. Expects 1.", len(preds))
+        if len(pred_addrs) != 1:
+            _l.debug("End nodes have %d predecessors. Expects 1.", len(pred_addrs))
             return
 
-        pred = self._get_block(next(iter(preds)).addr)
+        # Match stack_chk_fail_caller, ret_node, and predecessor
+        nodes_to_process = [ ]
+        for stack_chk_fail_caller in stack_chk_fail_callers:
+            preds = list(self._graph.predecessors(stack_chk_fail_caller))
+            if len(preds) != 1:
+                _l.debug("Expect 1 predecessor. Found %d." % len(preds))
+                return
+            pred = preds[0]
 
-        if len(pred.statements) < 1:
-            _l.debug("The predecessor node is empty.")
-            return
+            # More sanity checks
+            if len(pred.statements) < 1:
+                _l.debug("The predecessor node is empty.")
+                return
 
-        # Check the last statement
-        if not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-            _l.debug("The predecessor does not end with a conditional jump.")
-            return
+            # Check the last statement
+            if not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                _l.debug("The predecessor does not end with a conditional jump.")
+                return
 
-        # Find the statement that computes real canary value xor stored canary value
-        canary_check_stmt_idx = self._find_canary_xor_stmt(pred, store_offset)
-        if canary_check_stmt_idx is None:
-            _l.debug("Cannot find the canary check statement in the predecessor.")
-            return
+            # Find the statement that computes real canary value xor stored canary value
+            canary_check_stmt_idx = self._find_canary_xor_stmt(pred, store_offset)
+            if canary_check_stmt_idx is None:
+                _l.debug("Cannot find the canary check statement in the predecessor.")
+                return
+
+            succs = list(self._graph.successors(pred))
+            if len(succs) != 2:
+                _l.debug("Expect 2 successors. Found %d." % len(succs))
+                return
+            if stack_chk_fail_caller is succs[0]:
+                ret_node = succs[1]
+            else:
+                ret_node = succs[0]
+            nodes_to_process.append((pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node))
 
         # Awesome. Now patch this function.
+        for pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node in nodes_to_process:
+            # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
+            pred_copy = pred.copy()
+            pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
+                                                         ailment.Expr.Const(None, None, ret_node.addr,
+                                                                            self.project.arch.bits),
+                                                         ins_addr=pred_copy.statements[-1].ins_addr,
+                                                         )
 
-        # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
-        other_node = next(iter([ end_node for end_node in end_nodes if end_node is not stack_chk_fail_caller ]))
-        pred_copy = pred.copy()
-        pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
-                                                     ailment.Expr.Const(None, None, other_node.addr,
-                                                                        self.project.arch.bits),
-                                                     ins_addr=pred_copy.statements[-1].ins_addr,
-                                                     )
+            self._update_block(pred, pred_copy)
 
-        self._update_block(pred, pred_copy)
-
-        # Remove the block that calls stack_chk_fail_caller
-        self._remove_block(stack_chk_fail_caller)
+            # Remove the block that calls stack_chk_fail_caller
+            self._remove_block(stack_chk_fail_caller)
 
         # Remove the statement that loads the stack canary from fs
         first_block_copy = first_block.copy()

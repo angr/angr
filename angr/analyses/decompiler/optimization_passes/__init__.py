@@ -3,6 +3,7 @@ from typing import Optional, Union
 
 from archinfo import Arch
 
+from .optimization_pass import OptimizationPassStage
 from .stack_canary_simplifier import StackCanarySimplifier
 from .base_ptr_save_simplifier import BasePointerSaveSimplifier
 from .multi_simplifier import MultiSimplifier
