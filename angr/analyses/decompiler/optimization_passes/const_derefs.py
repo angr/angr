@@ -9,7 +9,7 @@ from ailment.statement import Statement, Assignment, Call, ConditionalJump
 from ... import AnalysesHub
 from ..ailgraph_walker import AILGraphWalker
 from ..ailblock_walker import AILBlockWalker
-from .optimization_pass import OptimizationPass
+from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
     from angr import Project
@@ -170,9 +170,10 @@ class ConstantDereferencesSimplifier(OptimizationPass):
     # TODO: This optimization pass may support more architectures and platforms
     ARCHES = ["X86", "AMD64", "ARM"]
     PLATFORMS = ["linux"]
+    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
-    def __init__(self, func, blocks, graph):
-        super().__init__(func, blocks=blocks, graph=graph)
+    def __init__(self, func, **kwargs):
+        super().__init__(func, **kwargs)
 
         self._block_walker = BlockWalker(self.project)
         self.analyze()

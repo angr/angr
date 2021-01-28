@@ -1,4 +1,4 @@
-from typing import Optional  # pylint:disable=unused-import
+from typing import Optional, Set, Tuple, Generator  # pylint:disable=unused-import
 
 import networkx  # pylint:disable=unused-import
 
@@ -11,24 +11,35 @@ class MultipleBlocksException(Exception):
     pass
 
 
+class OptimizationPassStage:
+    AFTER_SINGLE_BLOCK_SIMPLIFICATION = 0
+    AFTER_GLOBAL_SIMPLIFICATION = 1
+
+
 class OptimizationPass(Analysis):
 
     ARCHES = [ ]  # strings of supported architectures
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
+    STAGE: int = None  # Specifies when this optimization pass should be executed
 
-    def __init__(self, func, blocks=None, graph=None):
+    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None):
 
         self._func = func
         # self._blocks is just a cache
-        self._blocks = blocks  # type: defaultdict(set)
+        self._blocks_by_addr: Dict[Tuple[int,Optional[int]],Set[ailment.Block]] = blocks_by_addr
+        self._blocks_by_addr_and_idx: Dict[int,ailment.Block] = blocks_by_addr_and_idx
         self._graph = graph  # type: Optional[networkx.DiGraph]
 
         # output
         self.out_graph = None  # type: Optional[networkx.DiGraph]
 
     @property
-    def blocks(self):
-        return self._blocks
+    def blocks_by_addr(self):
+        return self._blocks_by_addr
+
+    @property
+    def blocks_by_addr_and_idx(self):
+        return self.blocks_by_addr_and_idx
 
     def analyze(self):
 
@@ -59,19 +70,35 @@ class OptimizationPass(Analysis):
     # Util methods
     #
 
-    def _get_block(self, addr):
+    def _get_block(self, addr, idx=None) -> Optional[ailment.Block]:
 
-        if not self._blocks:
+        if not self._blocks_by_addr:
             return None
         else:
-            blocks = self._blocks.get(addr, None)
+            if idx is None:
+                blocks = self._blocks_by_addr.get(addr, None)
+            else:
+                blocks = self._blocks_by_addr_and_idx.get((addr, idx), None)
             if not blocks:
                 return None
             if len(blocks) == 1:
                 return next(iter(blocks))
-            raise MultipleBlocksException("There are %d blocks at address %#x but only one is requested." % (
-                len(blocks), addr
+            raise MultipleBlocksException("There are %d blocks at address %#x.%s but only one is requested." % (
+                len(blocks), addr, idx
             ))
+
+    def _get_blocks(self, addr, idx=None) -> Generator[ailment.Block,None,None]:
+        if not self._blocks_by_addr:
+            return None
+        else:
+            if idx is None:
+                blocks = self._blocks_by_addr.get(addr, None)
+                if blocks is not None:
+                    yield from blocks
+            else:
+                block = self._blocks_by_addr_and_idx.get((addr, idx), None)
+                if block is not None:
+                    yield block
 
     def _update_block(self, old_block, new_block):
 
@@ -86,7 +113,8 @@ class OptimizationPass(Analysis):
 
         self._remove_block(old_block)
         self.out_graph.add_node(new_block)
-        self._blocks[new_block.addr].add(new_block)
+        self._blocks_by_addr[new_block.addr].add(new_block)
+        self._blocks_by_addr_and_idx[(new_block.addr, new_block.idx)] = new_block
 
         for src, _, data in in_edges:
             if src is old_block:
@@ -106,8 +134,9 @@ class OptimizationPass(Analysis):
         if block in self.out_graph:
             self.out_graph.remove_node(block)
 
-        if block.addr in self._blocks and block in self._blocks[block.addr]:
-            self._blocks[block.addr].remove(block)
+        if block.addr in self._blocks_by_addr and block in self._blocks_by_addr[block.addr]:
+            self._blocks_by_addr[block.addr].remove(block)
+            del self._blocks_by_addr_and_idx[(block.addr, block.idx)]
 
     def _is_add(self, expr):
         return isinstance(expr, ailment.Expr.BinaryOp) and expr.op == "Add"
