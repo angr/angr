@@ -168,7 +168,10 @@ class SimEngineRDVEX(
                 l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             else:
                 if any(type(d) is Undefined for d in data):
-                    l.info('Data to write at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
+                    l.info('Data to write at address %s undefined, ins_addr = %s.',
+                           "%#x" if isinstance(a, int) else a,
+                           "%#x" if isinstance(self.ins_addr, int) else self.ins_addr
+                           )
 
                 if (
                     isinstance(a, int) or
