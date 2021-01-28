@@ -28,6 +28,11 @@ class CallTracingFilter(object):
         SIM_PROCEDURES['cgc']['receive'],
         SIM_PROCEDURES['cgc']['transmit'],
         SIM_PROCEDURES['posix']['read'],
+        SIM_PROCEDURES['libc']['fgetc'],
+        SIM_PROCEDURES["glibc"]["__ctype_b_loc"],
+        SIM_PROCEDURES["libc"]["strlen"],
+        SIM_PROCEDURES["libc"]["strcmp"],
+        SIM_PROCEDURES["libc"]["atoi"],
     }
 
     cfg_cache = { }
@@ -310,8 +315,6 @@ class Veritesting(Analysis):
             manager.step(successor_func=self._get_successors)
 
             if self._terminator is not None and self._terminator(manager):
-                for p in manager.unfuck:
-                    self._unfuck(p)
                 break
 
             # Stash all paths that we do not see in our CFG
