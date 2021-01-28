@@ -41,15 +41,16 @@ class AILSimplifier(Analysis):
 
     def _simplify(self):
 
-        if self._unify_vars:
-            self.simplified |= self._unify_local_variables()
-            self.simplified |= self._fold_call_exprs()
-
         folded_exprs = self._fold_exprs()
         self.simplified |= folded_exprs
         if folded_exprs:
             # reading definition analysis results are no longer reliable
             return
+
+        if self._unify_vars:
+            self.simplified |= self._unify_local_variables()
+            # _fold_call_exprs() may set self._calls_to_remove, which will be honored in _remove_dead_assignments()
+            self.simplified |= self._fold_call_exprs()
 
         self.simplified |= self._remove_dead_assignments()
 
