@@ -167,6 +167,29 @@ class CConstruct:
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 if obj is not None:
+                    """"
+                    # filter out anything that is not a statement or expression
+                    if isinstance(obj, (CStatement, CExpression)):
+
+                        # only add statements/expressions that can be address tracked into stmt_posmap
+                        if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
+
+                            # filter CVariables to make sure only first variable definitions are added to stmt_posmap
+                            if isinstance(obj, CVariable):
+                                if obj not in used_cvars:
+                                    used_cvars.append(obj)
+                                    stmt_posmap.add_mapping(pos, len(s), obj)
+
+                            # any other valid statement or expression should be added to stmt_posmap
+                            else:
+                                stmt_posmap.add_mapping(pos, len(s), obj)
+                                insmap.add_mapping(obj.tags['ins_addr'], pos)
+
+                        # add all Variables and Functions to posmap for highlight tracking
+                        if isinstance(obj, (CFunctionCall, CVariable)):
+                            posmap.add_mapping(pos, len(s), obj)
+
+                    """
                     # first, anything that is a compatible statement must be added
                     if isinstance(obj, CStatement) and hasattr(obj, 'tags') and \
                             obj.tags is not None and 'ins_addr' in obj.tags:
@@ -1353,6 +1376,9 @@ class StructuredCodeGenerator(Analysis):
         self.insmap = InstructionMapping()
 
         self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap, insmap=self.insmap)
+        import ipdb; ipdb.set_trace()
+        [print(i) for i in self.stmt_posmap.items()]
+        [print(i) for i in self.insmap.items()]
 
         self.nodemap = defaultdict(set)
         for elem, node in self.posmap.items():
