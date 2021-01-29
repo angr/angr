@@ -161,32 +161,38 @@ class CConstruct:
             # start all positions at beginning of document
             pos = 0
 
-            # track all cvars to be used only once
+            # track all CVariables to assure they are only used in definitions for tabbing
             used_cvars = []
+
+            # track all Function Calls for highlighting
+            used_func_calls = []
 
             # get each string and object representation of the chunks
             for s, obj in chunks:
-                if obj is not None:
-                    # filter out anything that is not a statement or expression
-                    if isinstance(obj, (CStatement, CExpression)):
+                # filter out anything that is not a statement or expression object
+                if obj is not None and isinstance(obj, (CStatement, CExpression)):
 
-                        # only add statements/expressions that can be address tracked into stmt_posmap
-                        if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
+                    # only add statements/expressions that can be address tracked into stmt_posmap
+                    if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
 
-                            # filter CVariables to make sure only first variable definitions are added to stmt_posmap
-                            if isinstance(obj, CVariable):
-                                if obj not in used_cvars:
-                                    used_cvars.append(obj)
-                                    stmt_posmap.add_mapping(pos, len(s), obj)
-
-                            # any other valid statement or expression should be added to stmt_posmap and
-                            # tracked for instruction mapping from disassembly
-                            else:
+                        # filter CVariables to make sure only first variable definitions are added to stmt_posmap
+                        if isinstance(obj, CVariable):
+                            if obj not in used_cvars:
+                                used_cvars.append(obj)
                                 stmt_posmap.add_mapping(pos, len(s), obj)
-                                insmap.add_mapping(obj.tags['ins_addr'], pos)
 
-                        # add all Variables and Functions to posmap for highlight tracking
-                        if isinstance(obj, (CFunctionCall, CVariable)):
+                        # any other valid statement or expression should be added to stmt_posmap and
+                        # tracked for instruction mapping from disassembly
+                        else:
+                            stmt_posmap.add_mapping(pos, len(s), obj)
+                            insmap.add_mapping(obj.tags['ins_addr'], pos)
+
+                    # add all variables, constants, and function calls to posmap for highlighting
+                    if isinstance(obj, (CVariable, CConstant)):
+                        posmap.add_mapping(pos, len(s), obj)
+                    elif isinstance(obj, CFunctionCall):
+                        if obj not in used_func_calls:
+                            used_func_calls.append(obj)
                             posmap.add_mapping(pos, len(s), obj)
 
                 pos += len(s)
@@ -1648,7 +1654,7 @@ class StructuredCodeGenerator(Analysis):
                             reference_values[type_] = self._cfg.memory_data[arg.value]
                     new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
                                         variable=self._handle(arg.variable) if arg.variable is not None else None,
-                                        tags=stmt.tags) #XXX: used from stmt for locating it in the stmt_posmap
+                                        tags=arg.tags)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
