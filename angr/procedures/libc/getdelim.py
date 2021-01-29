@@ -1,9 +1,5 @@
 import angr
-from angr.storage.file import SimFile
-from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
-
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
-
 
 import logging
 
@@ -17,7 +13,7 @@ class __getdelim(angr.SimProcedure):
     # this code is modified from the 'fgets' implementation
     #   to take an arbitrary delimiter
     #   with no max size for concrete data
-    
+
     # pylint: disable=arguments-differ
     def run(self, line_ptrptr, len_ptr, delim, file_ptr):
         # let's get the memory back for the file we're interested in and find the delimiter
@@ -36,14 +32,14 @@ class __getdelim(angr.SimProcedure):
         # the newline and we don't have any notion of buffering in-memory
         if simfd.read_storage.concrete:
             realloc = angr.SIM_PROCEDURES['libc']['realloc']
-            
+
             # #dereference the destination buffer
             line_ptr = self.state.memory.load(line_ptrptr,8)
             size = 120
             # im just always going to realloc and restart at size = 120, regardless of if a proper size buffer exists.
             # this doesn't match the exact behavior of get delim, but is the easiest way to ignore symbolic sizes.
             dst = self.inline_call(realloc, line_ptr, size).ret_expr
-            
+
             count = 0
             while True:
                 data, real_size = simfd.read_data(1)
@@ -54,10 +50,9 @@ class __getdelim(angr.SimProcedure):
                 if count == size:
                     size = count + size + 1
                     dst = self.inline_call(realloc, dst, size).ret_expr
-                
                 if self.state.solver.is_true(data == delim):
                     break
-                
+
             self.state.memory.store(dst + count, b'\0')
             self.state.memory.store(len_ptr,count)
             self.state.memory.store(line_ptrptr,dst)
