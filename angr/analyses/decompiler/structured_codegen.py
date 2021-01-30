@@ -516,7 +516,7 @@ class CIfElse(CStatement):
         yield "\n", self
         yield from self.true_node.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
-        yield "}\n", brace
+        yield "}", brace
         yield "\n", self
 
 
