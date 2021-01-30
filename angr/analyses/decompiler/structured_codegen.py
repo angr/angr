@@ -717,7 +717,7 @@ class CFunctionCall(CStatement, CExpression):
 
         if not self.is_expr and self.ret_expr is not None:
             yield from CExpression._try_c_repr_chunks(self.ret_expr)
-            yield " = ", self
+            yield " = ", None
 
         if self.callee_func is not None:
             if self.callee_func.demangled_name:
