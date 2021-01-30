@@ -220,6 +220,7 @@ class CConstruct:
     def indent_str(indent=0):
         return " " * indent
 
+
 class CFunction(CConstruct):  # pylint:disable=abstract-method
     """
     Represents a function in C.
