@@ -158,7 +158,6 @@ class Clinic(Analysis):
         self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the second time
-        # TODO: Simplify until reaching a fixed point instead of calling _simplify_function() twice.
         self._simplify_function(ail_graph, unify_variables=True)
 
         # Make function arguments
