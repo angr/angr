@@ -22,6 +22,9 @@ l = logging.getLogger(name=__name__)
 
 INDENT_DELTA = 4
 
+#
+#   Position Mapping Classes
+#
 
 class PositionMappingElement:
 
@@ -132,6 +135,9 @@ class InstructionMapping:
         else:
             return e2.posmap_pos
 
+#
+#   C Representation Classes
+#
 
 class CConstruct:
     """
@@ -170,8 +176,7 @@ class CConstruct:
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 # filter out anything that is not a statement or expression object
-                if obj is not None and isinstance(obj, (CStatement, CExpression)):
-
+                if isinstance(obj, (CStatement, CExpression)):
                     # only add statements/expressions that can be address tracked into stmt_posmap
                     if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
 
@@ -194,6 +199,10 @@ class CConstruct:
                         if obj not in used_func_calls:
                             used_func_calls.append(obj)
                             posmap.add_mapping(pos, len(s), obj)
+
+                # add (), {}, and [] to mapping for highlighting
+                elif isinstance(obj, CClosingObject):
+                    posmap.add_mapping(pos, len(s), obj)
 
                 pos += len(s)
                 yield s
@@ -287,22 +296,27 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             normalized_name = self.name
         yield normalized_name, None
         # argument list
-        yield "(", None
+        paren = CClosingObject("(")
+        yield "(", paren
         for i, (arg_type, arg) in enumerate(zip(self.functy.args, self.arg_list)):
             yield arg_type.c_repr(), None
             yield " ", None
             yield from arg.c_repr_chunks()
             if i != len(self.arg_list) - 1:
                 yield ", ", None
-        yield ")\n", None
+        yield ")", paren
+        yield "\n", None
         # function body
         yield indent_str, None
-        yield "{\n", None
+        brace = CClosingObject("{")
+        yield "{", brace
+        yield "\n", None
         yield from self.variable_list_repr_chunks(indent=indent + INDENT_DELTA)
         yield "\n", None
         yield from self.statements.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
-        yield "}\n", None
+        yield "}", brace
+        yield "\n", None
 
 
 class CStatement(CConstruct):  # pylint:disable=abstract-method
@@ -408,17 +422,23 @@ class CWhileLoop(CLoop):
         indent_str = self.indent_str(indent=indent)
 
         yield indent_str, None
-        yield "while(", self
+        yield "while", None
+        paren = CClosingObject("(")
+        yield "(", paren
         if self.condition is None:
             yield "true", self
         else:
             yield from self.condition.c_repr_chunks()
-        yield ")\n", self
+        yield ")", paren
+        yield "\n", None
         yield indent_str, None
-        yield "{\n", self
+        brace = CClosingObject("{")
+        yield "{", brace
+        yield "\n", None
         yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
-        yield "}\n", self
+        yield "}", brace
+        yield "\n", None
 
 
 class CDoWhileLoop(CLoop):
@@ -443,15 +463,21 @@ class CDoWhileLoop(CLoop):
         yield indent_str, None
         yield "do\n", self
         yield indent_str, None
-        yield "{\n", self
+        brace = CClosingObject("{")
+        yield "{", brace
+        yield "\n", None
         yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
-        yield "} while(", self
+        yield "}", brace
+        yield " while", self
+        paren = CClosingObject("(")
+        yield "(", paren
         if self.condition is None:
             yield "true", self
         else:
             yield from self.condition.c_repr_chunks()
-        yield ");\n", self
+        yield ")", paren
+        yield ";\n", self
 
 
 class CIfElse(CStatement):
@@ -476,27 +502,36 @@ class CIfElse(CStatement):
     def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
+        paren = CClosingObject("(")
+        brace = CClosingObject("{")
 
         yield indent_str, None
-        yield "if (", self
+        yield "if ", self
+        yield "(", paren
         yield from self.condition.c_repr_chunks()
-        yield ")\n", self
+        yield ")", paren
+        yield "\n", self
         yield indent_str, None
-        yield "{\n", self
+        yield "{", brace
+        yield "\n", self
         yield from self.true_node.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
-        yield "}\n", self
+        yield "}\n", brace
+        yield "\n", self
 
 
         if self.false_node is not None:
+            brace = CClosingObject("{")
 
             yield indent_str, None
             yield "else\n", self
             yield indent_str, None
-            yield "{\n", self
+            yield "{", brace
+            yield "\n", self
             yield from self.false_node.c_repr_chunks(indent=indent + INDENT_DELTA)
             yield indent_str, None
-            yield "}\n", self
+            yield "}", brace
+            yield "\n", self
 
 
 class CIfBreak(CStatement):
@@ -516,17 +551,23 @@ class CIfBreak(CStatement):
     def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
+        paren = CClosingObject("(")
+        brace = CClosingObject("{")
 
         yield indent_str, None
-        yield "if (", self
+        yield "if ", self
+        yield "(", paren
         yield from self.condition.c_repr_chunks()
-        yield ")\n", self
+        yield ")", paren
+        yield "\n", self
         yield indent_str, None
-        yield "{\n", self
+        yield "{", brace
+        yield "\n", self
         yield self.indent_str(indent=indent + INDENT_DELTA), self
         yield "break;\n", self
         yield indent_str, None
-        yield "}\n", self
+        yield "}", brace
+        yield "\n", self
 
 
 class CBreak(CStatement):
@@ -585,13 +626,18 @@ class CSwitchCase(CStatement):
     def c_repr_chunks(self, indent=0):
 
         indent_str = self.indent_str(indent=indent)
+        paren = CClosingObject("(")
+        brace = CClosingObject("{")
 
         yield indent_str, None
-        yield "switch (", self
+        yield "switch ", self
+        yield "(", paren
         yield from self.switch.c_repr_chunks()
-        yield ")\n", self
+        yield ")", paren
+        yield "\n", self
         yield indent_str, None
-        yield "{\n", self
+        yield "{", brace
+        yield "\n", self
 
         # cases
         for idx, case in self.cases:
@@ -605,7 +651,8 @@ class CSwitchCase(CStatement):
             yield from self.default.c_repr_chunks(indent=indent + INDENT_DELTA)
 
         yield indent_str, None
-        yield "}\n", self
+        yield "}", brace
+        yield "\n", self
 
 
 class CAssignment(CStatement):
@@ -681,14 +728,15 @@ class CFunctionCall(CStatement, CExpression):
         else:
             yield from CExpression._try_c_repr_chunks(self.callee_target)
 
-        yield "(", self
+        paren = CClosingObject("(")
+        yield "(", paren
 
         for i, arg in enumerate(self.args):
             if i:
                 yield ", ", self
             yield from CExpression._try_c_repr_chunks(arg)
 
-        yield ")", self
+        yield ")", paren
 
         if not self.is_expr:
             yield ";", self
@@ -846,25 +894,29 @@ class CVariable(CExpression):
                             yield from c_field.c_repr_chunks()
                             return
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                            bracket = CClosingObject("[")
                             # is it pointing to an array? if so, we take the first element
                             yield from self.variable.c_repr_chunks()
-                            yield "[", self
+                            yield "[", bracket
                             yield "0", 0
-                            yield "]", self
+                            yield "]", bracket
                             return
 
                 # default output
-                yield "*(", self
+                paren = CClosingObject("(")
+                yield "*", self
+                yield "(", paren
                 yield from self.variable.c_repr_chunks()
-                yield ")", self
+                yield ")", paren
             else:
                 yield str(self.variable), self
         else:  # self.offset is not None
             if isinstance(self.variable, SimVariable):
+                bracket = CClosingObject("[")
                 yield self.variable.name if self.variable.name else "UNKNOWN", self
-                yield "[", self
+                yield "[", bracket
                 yield from self._get_offset_string_chunks()
-                yield "]", self
+                yield "]", bracket
 
             elif isinstance(self.variable, CExpression):
                 if isinstance(self.variable, CVariable) and self.variable.type is not None:
@@ -888,26 +940,30 @@ class CVariable(CExpression):
 
                         elif isinstance(self.variable.type.pts_to, SimTypeArray):
                             if isinstance(self.offset, int):
+                                bracket = CClosingObject("[")
                                 # it's pointing to an array! take the corresponding element
                                 yield from self.variable.c_repr_chunks()
-                                yield "[", self
+                                yield "[", bracket
                                 yield str(self.offset), self.offset
-                                yield "]", self
+                                yield "]", bracket
                                 return
 
                         # other cases
+                        bracket = CClosingObject("[")
                         yield from self.variable.c_repr_chunks()
-                        yield "[", self
+                        yield "[", bracket
                         yield from CExpression._try_c_repr_chunks(self.offset)
-                        yield "]", self
+                        yield "]", bracket
                         return
 
                 # default output
-                yield "*(", self
+                paren = CClosingObject("(")
+                yield "*", self
+                yield "(", paren
                 yield from self.variable.c_repr_chunks()
                 yield ":", self
                 yield from self._get_offset_string_chunks()
-                yield ")", self
+                yield ")", paren
 
             elif isinstance(self.variable, Expr.Register):
                 yield self.variable.reg_name if hasattr(self.variable, 'reg_name') else str(self.variable), self
@@ -915,11 +971,13 @@ class CVariable(CExpression):
                 yield from self._get_offset_string_chunks(in_hex=True)
 
             else:
-                yield "*(", self
+                paren = CClosingObject("(")
+                yield "*", self
+                yield "(", paren
                 yield str(self.variable), self
                 yield ":", self
                 yield from self._get_offset_string_chunks()
-                yield ")", self
+                yield ")", paren
 
 
 class CUnaryOp(CExpression):
@@ -969,9 +1027,11 @@ class CUnaryOp(CExpression):
     #
 
     def _c_repr_chunks_not(self):
-        yield "!(", self
+        paren = CClosingObject("(")
+        yield "!", self
+        yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
-        yield ")", self
+        yield ")", paren
 
     def _c_repr_chunks_reference(self):
         yield "&", self
@@ -1069,18 +1129,20 @@ class CBinaryOp(CExpression):
     def _c_repr_chunks(self, op):
         # lhs
         if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
-            yield "(", self
+            paren = CClosingObject("(")
+            yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
-            yield ")", self
+            yield ")", paren
         else:
             yield from self._try_c_repr_chunks(self.lhs)
         # operator
         yield op, self
         # rhs
         if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (1 if self.op in ['Sub', 'Div'] else 0):
-            yield "(", self
+            paren = CClosingObject("(")
+            yield "(", paren
             yield from self._try_c_repr_chunks(self.rhs)
-            yield ")", self
+            yield ")", paren
         else:
             yield from self._try_c_repr_chunks(self.rhs)
 
@@ -1162,7 +1224,10 @@ class CTypeCast(CExpression):
         return self._type
 
     def c_repr_chunks(self):
-        yield "({})".format(self.dst_type), self
+        paren = CClosingObject("(")
+        yield "(", paren
+        yield "{}".format(self.dst_type), self
+        yield ")", paren
         yield from CExpression._try_c_repr_chunks(self.expr)
 
 
@@ -1245,13 +1310,14 @@ class CITE(CExpression):
         return SimTypeInt()
 
     def c_repr_chunks(self):
-        yield "(", self
+        paren = CClosingObject("(")
+        yield "(", paren
         yield from self.cond.c_repr_chunks()
         yield "? ", self
         yield from self.iftrue.c_repr_chunks()
         yield " : ", self
         yield from self.iffalse.c_repr_chunks()
-        yield ")", self
+        yield ")", paren
 
 
 class CDirtyExpression(CExpression):
@@ -1272,6 +1338,17 @@ class CDirtyExpression(CExpression):
 
     def c_repr_chunks(self):
         yield str(self.dirty), None
+
+
+class CClosingObject:
+    """
+    A class to represent all objects that can be closed by it's correspodning character.
+    Examples: (), {}, []
+    """
+    __slots__ = ('opening_symbol',)
+
+    def __init__(self, opening_symbol):
+        self.opening_symbol = opening_symbol
 
 
 class StructuredCodeGenerator(Analysis):
