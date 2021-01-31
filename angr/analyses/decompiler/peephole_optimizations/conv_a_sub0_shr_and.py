@@ -46,7 +46,7 @@ class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
                             and real_expr.operands[1].value == 0:
                         real_expr = real_expr.operands[0]
 
-                    cvt = Convert(expr.idx, real_expr.bits, to_bits, True, real_expr, **expr.tags)
+                    cvt = Convert(expr.idx, real_expr.bits, to_bits, False, real_expr, **expr.tags)
                     cmp = BinaryOp(None, "CmpLT",
                                    (
                                        cvt,
