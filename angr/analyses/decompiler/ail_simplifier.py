@@ -92,9 +92,9 @@ class AILSimplifier(Analysis):
         if not prop.equivalence:
             return simplified
 
-        addr2block: Dict[int, Block] = { }
+        addr_and_idx_to_block: Dict[Tuple[int,int], Block] = { }
         for block in self.func_graph.nodes():
-            addr2block[block.addr] = block
+            addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         for eq in prop.equivalence:
             eq: Equivalence
@@ -141,7 +141,8 @@ class AILSimplifier(Analysis):
                 continue
 
             # find all uses of this definition
-            all_uses: Set[CodeLocation] = self._reaching_definitions.all_uses.get_uses(the_def)
+            # we make a copy of the set since we may touch the set (uses) when replacing expressions
+            all_uses: Set[CodeLocation] = set(self._reaching_definitions.all_uses.get_uses(the_def))
 
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
             # TODO: re-assigned of a new value. Perform this check.
@@ -151,7 +152,7 @@ class AILSimplifier(Analysis):
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
-                old_block = addr2block.get(u.block_addr, None)
+                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
                 if old_block is None:
                     continue
 
@@ -168,7 +169,10 @@ class AILSimplifier(Analysis):
                 else:
                     raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
 
-                r = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, eq.atom1, dst)
+                r, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, u, eq.atom1,
+                                                                   dst)
+                if r:
+                    self.blocks[old_block] = new_block
                 simplified |= r
 
         return simplified
@@ -194,9 +198,9 @@ class AILSimplifier(Analysis):
         if not prop.equivalence:
             return simplified
 
-        addr2block: Dict[int, Block] = { }
+        addr_and_idx_to_block: Dict[Tuple[int,int], Block] = { }
         for block in self.func_graph.nodes():
-            addr2block[block.addr] = block
+            addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         for eq in prop.equivalence:
             eq: Equivalence
@@ -220,19 +224,21 @@ class AILSimplifier(Analysis):
                 the_def: Definition = defs[0]
 
                 # find all uses of this definition
-                all_uses: Set[CodeLocation] = self._reaching_definitions.all_uses.get_uses(the_def)
+                all_uses: Set[CodeLocation] = set(self._reaching_definitions.all_uses.get_uses(the_def))
 
                 if len(all_uses) != 1:
                     continue
                 u = next(iter(all_uses))
 
                 # check if the use and the definition is within the same supernode
-                super_node_blocks = self._get_super_node_blocks(addr2block[the_def.codeloc.block_addr])
+                super_node_blocks = self._get_super_node_blocks(
+                    addr_and_idx_to_block[(the_def.codeloc.block_addr, the_def.codeloc.block_idx)]
+                )
                 if u.block_addr not in set(b.addr for b in super_node_blocks):
                     continue
 
                 # replace all uses
-                old_block = addr2block.get(u.block_addr, None)
+                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
                 if old_block is None:
                     continue
 
@@ -246,9 +252,11 @@ class AILSimplifier(Analysis):
                 else:
                     continue
 
-                replaced = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, src, dst)
+                replaced, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, u, src,
+                                                                          dst)
 
                 if replaced:
+                    self.blocks[old_block] = new_block
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
                     simplified = True
@@ -276,19 +284,19 @@ class AILSimplifier(Analysis):
                 break
         return lst
 
-    def _replace_expr_and_update_block(self, block, stmt_idx, stmt, the_def, src_expr, dst_expr) -> bool:
+    def _replace_expr_and_update_block(self, block, stmt_idx, stmt, the_def, codeloc, src_expr,
+                                       dst_expr) -> Tuple[bool,Block]:
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()
             new_block.statements = block.statements[::]
             new_block.statements[stmt_idx] = new_stmt
-            self.blocks[block] = new_block
 
             # update the uses
-            self._reaching_definitions.all_uses.remove_uses(the_def)
-            return True
+            self._reaching_definitions.all_uses.remove_use(the_def, codeloc)
+            return True, new_block
 
-        return False
+        return False, None
 
     def _remove_dead_assignments(self) -> bool:
 

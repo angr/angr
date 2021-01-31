@@ -33,6 +33,21 @@ class Uses:
         """
         return self._uses_by_definition.get(definition, set())
 
+    def remove_use(self, definition: 'Definition', codeloc: 'CodeLocation') -> None:
+        """
+        Remove one use of a given definition.
+
+        :param definition:  The definition of which to remove the uses.
+        :param codeloc:     The code location where the use is.
+        :return:            None
+        """
+        if definition in self._uses_by_definition:
+            if codeloc in self._uses_by_definition[definition]:
+                self._uses_by_definition[definition].remove(codeloc)
+
+        if codeloc in self._uses_by_location:
+            self._uses_by_location[codeloc].remove(definition)
+
     def remove_uses(self, definition: 'Definition'):
         """
         Remove all uses of a given definition.
