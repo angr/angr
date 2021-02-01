@@ -274,11 +274,7 @@ class CFGModel(Serializable):
                                          cfg_node.size is not None and
                                          cfg_node.addr <= addr < (cfg_node.addr + cfg_node.size)
                                          ):
-                if is_syscall and cfg_node.is_syscall:
-                    results.append(cfg_node)
-                elif is_syscall is False and not cfg_node.is_syscall:
-                    results.append(cfg_node)
-                else:
+                if is_syscall is None or is_syscall == cfg_node.is_syscall:
                     results.append(cfg_node)
 
         return results
