@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Set, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -17,6 +17,9 @@ from .region_identifier import MultiNode
 from .structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
                          SwitchCaseNode, ContinueNode)
 
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+
 
 l = logging.getLogger(name=__name__)
 
@@ -31,8 +34,8 @@ class PositionMappingElement:
     __slots__ = ('start', 'length', 'obj')
 
     def __init__(self, start, length, obj):
-        self.start = start
-        self.length = length
+        self.start: int = start
+        self.length: int = length
         self.obj = obj
 
     def __contains__(self, offset):
@@ -49,7 +52,7 @@ class PositionMapping:
     DUPLICATION_CHECK = True
 
     def __init__(self):
-        self._posmap = SortedDict()
+        self._posmap: Dict[int,PositionMappingElement] = SortedDict()
 
     def items(self):
         return self._posmap.items()
@@ -70,13 +73,13 @@ class PositionMapping:
 
         self._posmap[start_pos] = PositionMappingElement(start_pos, length, obj)
 
-    def get_node(self, pos):
+    def get_node(self, pos: int):
         element = self.get_element(pos)
         if element is None:
             return None
         return element.obj
 
-    def get_element(self, pos):
+    def get_element(self, pos: int) -> PositionMappingElement:
         try:
             pre = next(self._posmap.irange(maximum=pos, reverse=True))
         except StopIteration:
@@ -93,10 +96,10 @@ class InstructionMappingElement:
     __slots__ = ('ins_addr', 'posmap_pos')
 
     def __init__(self, ins_addr, posmap_pos):
-        self.ins_addr = ins_addr
-        self.posmap_pos = posmap_pos
+        self.ins_addr: int = ins_addr
+        self.posmap_pos: int = posmap_pos
 
-    def __contains__(self, offset):
+    def __contains__(self, offset: int):
         return self.ins_addr == offset
 
     def __repr__(self):
@@ -108,7 +111,7 @@ class InstructionMapping:
     __slots__ = ('_insmap', )
 
     def __init__(self):
-        self._insmap = SortedDict()
+        self._insmap: Dict[int,InstructionMappingElement] = SortedDict()
 
     def items(self):
         return self._insmap.items()
@@ -120,7 +123,7 @@ class InstructionMapping:
         else:
             self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
 
-    def get_nearest_pos(self, ins_addr):
+    def get_nearest_pos(self, ins_addr: int) -> int:
         try:
             pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
             pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
@@ -163,15 +166,15 @@ class CConstruct:
         :return:
         """
 
-        def mapper(chunks, posmap, stmt_posmap, insmap):
+        def mapper(chunks, posmap: PositionMapping, stmt_posmap, insmap):
             # start all positions at beginning of document
             pos = 0
 
             # track all CVariables to assure they are only used in definitions for tabbing
-            used_cvars = []
+            used_cvars = set()
 
             # track all Function Calls for highlighting
-            used_func_calls = []
+            used_func_calls = set()
 
             # get each string and object representation of the chunks
             for s, obj in chunks:
@@ -183,7 +186,7 @@ class CConstruct:
                         # filter CVariables to make sure only first variable definitions are added to stmt_posmap
                         if isinstance(obj, CVariable):
                             if obj not in used_cvars:
-                                used_cvars.append(obj)
+                                used_cvars.add(obj)
                                 stmt_posmap.add_mapping(pos, len(s), obj)
 
                         # any other valid statement or expression should be added to stmt_posmap and
@@ -197,7 +200,7 @@ class CConstruct:
                         posmap.add_mapping(pos, len(s), obj)
                     elif isinstance(obj, CFunctionCall):
                         if obj not in used_func_calls:
-                            used_func_calls.append(obj)
+                            used_func_calls.add(obj)
                             posmap.add_mapping(pos, len(s), obj)
 
                 # add (), {}, and [] to mapping for highlighting
@@ -238,32 +241,46 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.arg_list = arg_list
         self.statements = statements
         self.variables_in_use = variables_in_use
-        self.variable_manager = variable_manager
+        self.variable_manager: 'VariableManagerInternal' = variable_manager
         self.demangled_name = demangled_name
 
     def variable_list_repr_chunks(self, indent=0):
 
-        variable_to_types = defaultdict(set)
+        unified_to_var_and_types: Dict[SimVariable,Set[Tuple[CVariable,SimType]]] = defaultdict(set)
 
         # output each variable and its type
         for var, cvar in self.variables_in_use.items():
+            if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
+                # Skip all memory variables
+                continue
+
             if cvar in self.arg_list:
                 continue
 
-            var_type = self.variable_manager.get_variable_type(var)
+            unified_var = self.variable_manager.unified_variable(var)
+            if unified_var is not None:
+                key = unified_var
+                var_type = self.variable_manager.get_variable_type(var)  # FIXME
+            else:
+                key = var
+                var_type = self.variable_manager.get_variable_type(var)
 
             if var_type is None:
                 var_type = SimTypeBottom()
 
-            variable_to_types[(var, cvar)].add(var_type)
+            unified_to_var_and_types[key].add((cvar, var_type))
 
         indent_str = self.indent_str(indent)
 
-        for (variable, cvariable), vartypes in variable_to_types.items():
+        for variable, cvar_and_vartypes in unified_to_var_and_types.items():
 
             yield indent_str, None
 
-            for i, var_type in enumerate(vartypes):
+            # pick the first cvariable
+            # this is enough since highlighting works on the unified variable
+            cvariable = next(iter(cvar_and_vartypes))[0]
+
+            for i, var_type in enumerate(set(typ for _, typ in cvar_and_vartypes)):
                 if i:
                     yield "|", None
 
@@ -849,15 +866,16 @@ class CVariable(CExpression):
     Read value from a variable.
     """
 
-    __slots__ = ('variable', 'offset', 'variable_type', 'tags', )
+    __slots__ = ('variable', 'offset', 'variable_type', 'unified_variable', 'tags', )
 
-    def __init__(self, variable, offset=None, variable_type=None, tags=None):
+    def __init__(self, variable, unified_variable=None, offset=None, variable_type=None, tags=None):
 
         super().__init__()
 
-        self.variable = variable
-        self.offset = offset
-        self.variable_type = variable_type
+        self.variable: SimVariable = variable
+        self.unified_variable: Optional[SimVariable] = unified_variable
+        self.offset: Optional[int] = offset
+        self.variable_type: Optional[SimType] = variable_type
         self.tags = tags
 
     @property
@@ -1403,7 +1421,7 @@ class StructuredCodeGenerator(Analysis):
         self.posmap = None
         self.stmt_posmap = None
         self.insmap = None
-        self.nodemap = None
+        self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
         self._indent = indent
 
         self._analyze()
@@ -1439,7 +1457,10 @@ class StructuredCodeGenerator(Analysis):
             if isinstance(node.obj, CConstant):
                 self.nodemap[node.obj.value].add(elem)
             elif isinstance(node.obj, CVariable):
-                self.nodemap[node.obj.variable].add(elem)
+                if node.obj.unified_variable is not None:
+                    self.nodemap[node.obj.unified_variable].add(elem)
+                else:
+                    self.nodemap[node.obj.variable].add(elem)
             elif isinstance(node.obj, CFunctionCall):
                 if node.obj.callee_func is not None:
                     self.nodemap[node.obj.callee_func].add(elem)
@@ -1503,7 +1524,8 @@ class StructuredCodeGenerator(Analysis):
         return expr, None
 
     def _cvariable(self, variable, offset=None, variable_type=None, tags=None):
-        cvariable = CVariable(variable, offset=offset, variable_type=variable_type, tags=tags)
+        unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
+        cvariable = CVariable(variable, unified_variable=unified, offset=offset, variable_type=variable_type, tags=tags)
         if isinstance(variable, SimVariable):
             self._variables_in_use[variable] = cvariable
         return cvariable

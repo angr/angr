@@ -15,6 +15,9 @@ class SimVariable:
         self.region = region if region is not None else ""
         self.category = category
 
+    def copy(self):
+        raise NotImplementedError()
+
     #
     # Operations
     #
@@ -94,9 +97,9 @@ class SimRegisterVariable(SimVariable):
     def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category)
 
-        self.reg = reg_offset
-        self.size = size
-        self._hash = None
+        self.reg: int = reg_offset
+        self.size: int = size
+        self._hash: int = None
 
     @property
     def bits(self):
@@ -124,6 +127,12 @@ class SimRegisterVariable(SimVariable):
                    self.region == other.region
 
         return False
+
+    def copy(self) -> 'SimRegisterVariable':
+        s = SimRegisterVariable(self.reg, self.size, ident=self.ident, name=self.name, region=self.region,
+                                category=self.category)
+        s._hash = self._hash
+        return s
 
 
 class SimMemoryVariable(SimVariable):
@@ -190,7 +199,7 @@ class SimMemoryVariable(SimVariable):
 
 class SimStackVariable(SimMemoryVariable):
 
-    __slots__ = ['base', 'offset']
+    __slots__ = ('base', 'offset', 'base_addr',)
 
     def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
         if isinstance(offset, int) and offset > 0x1000000:
@@ -209,6 +218,7 @@ class SimStackVariable(SimMemoryVariable):
 
         self.base = base
         self.offset = offset
+        self.base_addr = base_addr
 
     def __repr__(self):
         if type(self.size) is int:
@@ -245,6 +255,12 @@ class SimStackVariable(SimMemoryVariable):
 
     def __hash__(self):
         return hash((self.ident, self.base, self.offset, self.size))
+
+    def copy(self) -> 'SimStackVariable':
+        s = SimStackVariable(self.offset, self.size, base=self.base, base_addr=self.base_addr,
+                             ident=self.ident, name=self.name, region=self.region, category=self.category)
+        s._hash = self._hash
+        return s
 
 
 class SimVariableSet(collections.abc.MutableSet):

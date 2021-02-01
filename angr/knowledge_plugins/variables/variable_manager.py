@@ -1,4 +1,4 @@
-from typing import Set, List, Tuple, Dict, Union, TYPE_CHECKING
+from typing import Set, List, Tuple, Dict, Union, Optional, TYPE_CHECKING
 import logging
 from collections import defaultdict
 from itertools import count
@@ -62,6 +62,9 @@ class VariableManagerInternal:
             'phi': count(),
             'global': count(),
         }
+
+        self._unified_variables: Set[SimVariable] = set()
+        self._variables_to_unified_variables: Dict[SimVariable, SimVariable] = { }
 
         self._phi_variables = { }
         self._phi_variables_by_block = defaultdict(set)
@@ -398,6 +401,50 @@ class VariableManagerInternal:
 
     def remove_types(self):
         self.types.clear()
+
+    def unify_variables(self) -> None:
+        """
+        Map SSA variables to a unified variable. Fill in self._unified_variables.
+        """
+
+        reg_vars: Dict[int,List[SimRegisterVariable]] = defaultdict(list)
+        stack_vars: Dict[int,List[SimStackVariable]] = defaultdict(list)
+
+        for v in self.get_variables():
+            if isinstance(v, SimStackVariable):
+                stack_vars[v.offset].append(v)
+            elif isinstance(v, SimRegisterVariable):
+                reg_vars[v.reg].append(v)
+
+        for _, vs in reg_vars.items():
+            unified = vs[0].copy()
+            for v in vs:
+                self.set_unified_variable(v, unified)
+        for _, vs in stack_vars.items():
+            unified = vs[0].copy()
+            for v in vs:
+                self.set_unified_variable(v, unified)
+
+    def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
+        """
+        Set the unified variable for a given SSA variable.
+
+        :param variable:    The SSA variable.
+        :param unified:     THe unified variable.
+        :return:            None
+        """
+        self._unified_variables.add(unified)
+        self._variables_to_unified_variables[variable] = unified
+
+    def unified_variable(self, variable: SimVariable) -> Optional[SimVariable]:
+        """
+        Return the unified variable for a given SSA variable,
+
+        :param variable:    The SSA variable.
+        :return:            The unified variable, or None if there is no such SSA variable.
+        """
+
+        return self._variables_to_unified_variables.get(variable, None)
 
 
 class VariableManager(KnowledgeBasePlugin):
