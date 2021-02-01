@@ -272,7 +272,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         indent_str = self.indent_str(indent)
 
-        for variable, cvar_and_vartypes in sorted(unified_to_var_and_types.items(), key=lambda x: x[0].name):
+        for variable, cvar_and_vartypes in sorted(unified_to_var_and_types.items(),
+                                                  key=lambda x: x[0].name if x[0].name else ""):
 
             yield indent_str, None
 
