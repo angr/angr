@@ -272,7 +272,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         indent_str = self.indent_str(indent)
 
-        for variable, cvar_and_vartypes in unified_to_var_and_types.items():
+        for variable, cvar_and_vartypes in sorted(unified_to_var_and_types.items(), key=lambda x: x[0].name):
 
             yield indent_str, None
 
@@ -892,29 +892,32 @@ class CVariable(CExpression):
             yield from self.offset.c_repr_chunks()
 
     def c_repr_chunks(self):
+
+        v = self.variable if self.unified_variable is None else self.unified_variable
+
         if self.offset is None:
-            if isinstance(self.variable, SimVariable):
-                if self.variable.name:
-                    yield self.variable.name, self
-                elif isinstance(self.variable, SimTemporaryVariable):
-                    yield "tmp_%d" % self.variable.tmp_id, self
+            if isinstance(v, SimVariable):
+                if v.name:
+                    yield v.name, self
+                elif isinstance(v, SimTemporaryVariable):
+                    yield "tmp_%d" % v.tmp_id, self
                 else:
-                    yield str(self.variable), self
-            elif isinstance(self.variable, CExpression):
-                if isinstance(self.variable, CVariable) and self.variable.type is not None:
-                    if isinstance(self.variable.type, SimTypePointer):
-                        if isinstance(self.variable.type.pts_to, SimStruct) and self.variable.type.pts_to.fields:
+                    yield str(v), self
+            elif isinstance(v, CExpression):
+                if isinstance(v, CVariable) and v.type is not None:
+                    if isinstance(v.type, SimTypePointer):
+                        if isinstance(v.type.pts_to, SimStruct) and v.type.pts_to.fields:
                             # is it pointing to a struct? if so, we take the first field
-                            first_field, *_ = self.variable.type.pts_to.fields
-                            c_field = CStructField(self.variable.type.pts_to, 0, first_field)
-                            yield from self.variable.c_repr_chunks()
+                            first_field, *_ = v.type.pts_to.fields
+                            c_field = CStructField(v.type.pts_to, 0, first_field)
+                            yield from v.c_repr_chunks()
                             yield "->", self
                             yield from c_field.c_repr_chunks()
                             return
-                        elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                        elif isinstance(v.type.pts_to, SimTypeArray):
                             bracket = CClosingObject("[")
                             # is it pointing to an array? if so, we take the first element
-                            yield from self.variable.c_repr_chunks()
+                            yield from v.c_repr_chunks()
                             yield "[", bracket
                             yield "0", 0
                             yield "]", bracket
@@ -924,43 +927,43 @@ class CVariable(CExpression):
                 paren = CClosingObject("(")
                 yield "*", self
                 yield "(", paren
-                yield from self.variable.c_repr_chunks()
+                yield from v.c_repr_chunks()
                 yield ")", paren
             else:
-                yield str(self.variable), self
+                yield str(v), self
         else:  # self.offset is not None
-            if isinstance(self.variable, SimVariable):
+            if isinstance(v, SimVariable):
                 bracket = CClosingObject("[")
-                yield self.variable.name if self.variable.name else "UNKNOWN", self
+                yield v.name if v.name else "UNKNOWN", self
                 yield "[", bracket
                 yield from self._get_offset_string_chunks()
                 yield "]", bracket
 
-            elif isinstance(self.variable, CExpression):
-                if isinstance(self.variable, CVariable) and self.variable.type is not None:
-                    if isinstance(self.variable.type, SimTypePointer):
-                        if isinstance(self.variable.type.pts_to, SimStruct):
+            elif isinstance(v, CExpression):
+                if isinstance(v, CVariable) and v.type is not None:
+                    if isinstance(v.type, SimTypePointer):
+                        if isinstance(v.type.pts_to, SimStruct):
                             if isinstance(self.offset, int):
                                 # which field is it pointing to?
-                                t = self.variable.type.pts_to
+                                t = v.type.pts_to
                                 offset_to_field = dict((v, k) for k, v in t.offsets.items())
                                 if self.offset in offset_to_field:
                                     field = offset_to_field[self.offset]
                                     c_field = CStructField(t, self.offset, field)
-                                    yield from self.variable.c_repr_chunks()
+                                    yield from v.c_repr_chunks()
                                     yield "->", self
                                     yield from c_field.c_repr_chunks()
                                     return
                                 else:
                                     # accessing beyond known offset - indicates a bug in type inference
                                     l.warning("Accessing non-existent offset %d in struct %s. This indicates a bug in "
-                                              "the type inference engine.", self.offset, self.variable.type.pts_to)
+                                              "the type inference engine.", self.offset, v.type.pts_to)
 
-                        elif isinstance(self.variable.type.pts_to, SimTypeArray):
+                        elif isinstance(v.type.pts_to, SimTypeArray):
                             if isinstance(self.offset, int):
                                 bracket = CClosingObject("[")
                                 # it's pointing to an array! take the corresponding element
-                                yield from self.variable.c_repr_chunks()
+                                yield from v.c_repr_chunks()
                                 yield "[", bracket
                                 yield str(self.offset), self.offset
                                 yield "]", bracket
@@ -968,7 +971,7 @@ class CVariable(CExpression):
 
                         # other cases
                         bracket = CClosingObject("[")
-                        yield from self.variable.c_repr_chunks()
+                        yield from v.c_repr_chunks()
                         yield "[", bracket
                         yield from CExpression._try_c_repr_chunks(self.offset)
                         yield "]", bracket
@@ -978,13 +981,13 @@ class CVariable(CExpression):
                 paren = CClosingObject("(")
                 yield "*", self
                 yield "(", paren
-                yield from self.variable.c_repr_chunks()
+                yield from v.c_repr_chunks()
                 yield ":", self
                 yield from self._get_offset_string_chunks()
                 yield ")", paren
 
-            elif isinstance(self.variable, Expr.Register):
-                yield self.variable.reg_name if hasattr(self.variable, 'reg_name') else str(self.variable), self
+            elif isinstance(v, Expr.Register):
+                yield v.reg_name if hasattr(v, 'reg_name') else str(v), self
                 yield ":", self
                 yield from self._get_offset_string_chunks(in_hex=True)
 
@@ -992,7 +995,7 @@ class CVariable(CExpression):
                 paren = CClosingObject("(")
                 yield "*", self
                 yield "(", paren
-                yield str(self.variable), self
+                yield str(v), self
                 yield ":", self
                 yield from self._get_offset_string_chunks()
                 yield ")", paren

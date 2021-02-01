@@ -556,6 +556,7 @@ class Clinic(Analysis):
 
         # Unify SSA variables
         tmp_kb.variables[self.function.addr].unify_variables()
+        tmp_kb.variables[self.function.addr].assign_unified_variable_names(labels=self.kb.labels, reset=True)
 
         # Link variables to each statement
         for block in ail_graph.nodes():

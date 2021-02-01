@@ -368,9 +368,10 @@ class VariableManagerInternal:
 
     def assign_variable_names(self, labels=None):
         """
-        Assign default names to all variables.
+        Assign default names to all SSA variables.
 
-        :return: None
+        :param labels:  Known labels in the binary.
+        :return:        None
         """
 
         for var in self._variables:
@@ -393,8 +394,57 @@ class VariableManagerInternal:
                     var.name = labels[var.addr]
                     if "@@" in var.name:
                         var.name = var.name[:var.name.index("@@")]
-                else:
+                elif var.ident is not None:
                     var.name = var.ident
+                else:
+                    var.name = "g_%x" % var.addr
+
+    def assign_unified_variable_names(self, labels=None, reset:bool=False):
+        """
+        Assign default names to all unified variables.
+
+        :param labels:  Known labels in the binary.
+        :param reset:   Reset all variable names or not.
+        :return:        None
+        """
+
+        if not self._unified_variables:
+            return
+
+        arg_ctr = count(0)
+        var_ctr = count(0)
+
+        for var in self._unified_variables:
+            if isinstance(var, SimStackVariable):
+                if not reset and var.name is not None:
+                    continue
+                if var.ident.startswith('iarg'):
+                    var.name = 'a%d' % next(arg_ctr)
+                else:
+                    var.name = 'v%d' % next(var_ctr)
+
+            elif isinstance(var, SimRegisterVariable):
+                if not reset and var.name is not None:
+                    continue
+                if var.ident.startswith('arg'):
+                    var.name = 'a%d' % next(arg_ctr)
+                else:
+                    var.name = "v%d" % next(var_ctr)
+
+            elif isinstance(var, SimMemoryVariable):
+                if not reset and var.name is not None:
+                    continue
+                if labels is not None and var.addr in labels:
+                    var.name = labels[var.addr]
+                    if "@@" in var.name:
+                        var.name = var.name[:var.name.index("@@")]
+                elif var.ident is not None:
+                    var.name = var.ident
+                else:
+                    var.name = "g_%x" % var.addr
+
+            # clear the hash cache
+            var._hash = None
 
     def get_variable_type(self, var):
         return self.types.get(var, None)
