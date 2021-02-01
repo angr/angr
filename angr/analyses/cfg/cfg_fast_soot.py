@@ -93,7 +93,8 @@ class CFGFastSoot(CFGFast):
         for cls in self.project.loader.main_object.classes.values():
             for method in cls.methods:
                 # Do not add classes containing android in its name
-                if self.skip_android_classes and method.class_name.startswith("android"):
+                if self.skip_android_classes and (method.class_name.startswith("android") or \
+                                                  method.class_name.startswith("com.google.android")):
                     continue
                 total_methods += 1
                 if method.blocks:
@@ -123,7 +124,8 @@ class CFGFastSoot(CFGFast):
     def _generate_cfgnode(self, cfg_job, current_function_addr):
         addr = cfg_job.addr
 
-        if self.skip_android_classes and addr.method.fullname.startswith("android"):
+        if self.skip_android_classes and (addr.method.class_name.startswith("android") or \
+                                          addr.method.class_name.startswith("com.google.android")):
             return None, None, None, None
 
         try:
