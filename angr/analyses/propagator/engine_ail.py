@@ -87,6 +87,7 @@ class SimEnginePropagatorAIL(
 
         if expr_stmt.ret_expr:
             # it has a return expression. awesome - treat it as an assignment
+            self.state.store_variable(expr_stmt.ret_expr, Top(expr_stmt.ret_expr.size), self._codeloc())
             # set equivalence
             self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
 
