@@ -7,18 +7,10 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 from .block import Block
 from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
 from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
+from .converter_common import SkipConversionNotice, Converter
+
 
 l = logging.getLogger(name=__name__)
-
-
-class SkipConversionNotice(Exception):
-    pass
-
-
-class Converter:
-    @staticmethod
-    def convert(thing):
-        raise NotImplementedError()
 
 
 class VEXExprConverter(Converter):
@@ -318,8 +310,7 @@ STATEMENT_MAPPINGS = {
     pyvex.IRStmt.LoadG: VEXStmtConverter.LoadG,
 }
 
-
-class IRSBConverter(Converter):
+class VEXIRSBConverter(Converter):
 
     @staticmethod
     def convert(irsb, manager):  # pylint:disable=arguments-differ
