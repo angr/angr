@@ -38,7 +38,7 @@ class SimConstantVariable(SimVariable):
     __slots__ = ['value', '_hash']
 
     def __init__(self, ident=None, value=None, region=None):
-        super(SimConstantVariable, self).__init__(ident=ident, region=region)
+        super().__init__(ident=ident, region=region)
         self.value = value
         self._hash = None
 
@@ -61,6 +61,11 @@ class SimConstantVariable(SimVariable):
         if self._hash is None:
             self._hash = hash(('const', self.value, self.ident, self.region, self.ident))
         return self._hash
+
+    def copy(self) -> 'SimConstantVariable':
+        r = SimConstantVariable(ident=self.ident, value=self.value, region=self.region)
+        r._hash = self._hash
+        return r
 
 
 class SimTemporaryVariable(SimVariable):
@@ -88,6 +93,11 @@ class SimTemporaryVariable(SimVariable):
             return hash(self) == hash(other)
 
         return False
+
+    def copy(self) -> 'SimTemporaryVariable':
+        r = SimTemporaryVariable(self.tmp_id)
+        r._hash = self._hash
+        return r
 
 
 class SimRegisterVariable(SimVariable):
@@ -196,6 +206,12 @@ class SimMemoryVariable(SimVariable):
     def bits(self):
         return self.size * 8
 
+    def copy(self) -> 'SimMemoryVariable':
+        r = SimMemoryVariable(self.addr, self.size, ident=self.ident, name=self.name, region=self.region,
+                              category=self.category)
+        r._hash = self._hash
+        return r
+
 
 class SimStackVariable(SimMemoryVariable):
 
@@ -214,7 +230,7 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, region=region, category=category)
+        super().__init__(addr, size, ident=ident, name=name, region=region, category=category)
 
         self.base = base
         self.offset = offset

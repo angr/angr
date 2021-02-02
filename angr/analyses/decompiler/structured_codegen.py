@@ -279,7 +279,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             # pick the first cvariable
             # this is enough since highlighting works on the unified variable
-            cvariable = next(iter(cvar_and_vartypes))[0]
+            try:
+                cvariable = next(iter(cvar_and_vartypes))[0]
+            except StopIteration:
+                # this should never happen, but pylint complains
+                continue
 
             for i, var_type in enumerate(set(typ for _, typ in cvar_and_vartypes)):
                 if i:
@@ -850,6 +854,7 @@ class CStructField(CExpression):
 
 
 class CPlaceholder(CExpression):
+    # pylint:disable=abstract-method
 
     __slots__ = ('placeholder', )
 
