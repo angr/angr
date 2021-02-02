@@ -27,7 +27,7 @@ class IRSBConverter(Converter):
         :return:        Returns the converted block
         """
 
-        if isinstance(irsb, pcode.lifter.IRSB):
+        if pcode and isinstance(irsb, pcode.lifter.IRSB):
             return PCodeIRSBConverter.convert(irsb, manager)
         else:
             return VEXIRSBConverter.convert(irsb, manager)
