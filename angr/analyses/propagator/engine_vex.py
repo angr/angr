@@ -93,7 +93,19 @@ class SimEnginePropagatorVEX(
                 #   ret
                 ebx_offset = self.arch.registers['ebx'][0]
                 self.state.store_register(ebx_offset, 4, self.block.addr + self.block.size)
-
+        elif self.arch.name == "ARMCortexM":
+                cc = None
+                if self._project.kb.functions.get(addr, None):
+                    cc = self._project.kb.functions[addr].calling_convention
+                if cc is None:
+                    cc = DEFAULT_CC.get(self.arch.name, None)(self.arch)
+                if cc.RETURN_VAL is not None:
+                    if isinstance(cc.RETURN_VAL, SimRegArg):
+                        r0_offset = self.arch.registers['r0'][0]
+                        self.state.store_register(r0_offset, 4, Top(1))
+        else:
+            _l.debug("Handling function not supported for arch {}, expect imprecisions".format(hex(self.arch.name)))
+            
     #
     # VEX statement handlers
     #
