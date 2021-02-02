@@ -90,21 +90,18 @@ class StateGraphRecoveryAnalysis(Analysis):
                     if constraint.op == "__eq__" and constraint.args[0] is delta:
                         continue
                     elif constraint.op == "__ne__":
-                        if constraint.args[0] is delta:
+                        if constraint.args[0] is delta:     # amd64
                             # found a potential step
                             if constraint.args[1].op == 'BVV':
                                 step = constraint.args[1].args[0]
                                 steps.append(step)
                                 continue
-                        try:
-                            cons = constraint.args[1].args[2]
-                        except IndexError:
-                            continue
-
-                        if cons is delta:
-                            if constraint.args[0].op == 'BVV':
-                                step = constraint.args[0].args[0]
-                                steps.append(step)
+                        if constraint.args[1].op == "Extract":      # arm32
+                            # access constraint.args[1].args[2]
+                            if constraint.args[1].args[2] is delta:
+                                if constraint.args[0].op == 'BVV':
+                                    step = constraint.args[0].args[0]
+                                    steps.append(step)
 
         return steps
 
@@ -151,16 +148,6 @@ class StateGraphRecoveryAnalysis(Analysis):
             # print(simgr.active)
             # import sys
             # sys.stdout.write('.')
-
-            # debug arm32 short ped
-            # if simgr.active[0].addr == 0x42df18 or simgr.active[0].addr == 0x42df30 or simgr.active[0].addr == 0x42df48:
-            #     print("ORANGE EXECUTING!")
-            # if simgr.active[0].addr == 0x42df60:
-            #     import ipdb; ipdb.set_trace()
-            # if simgr.active[0].addr == 0x42dfd8:
-            #     print("STOP CARS CHECKING!")
-            # if simgr.active[0].addr == 0x42dfec:
-            #     print("STOP CARS SET 1!")
 
             s = simgr.active[0]
 
