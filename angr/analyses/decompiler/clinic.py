@@ -23,6 +23,7 @@ from .optimization_passes import get_default_optimization_passes, OptimizationPa
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 
@@ -553,7 +554,9 @@ class Clinic(Analysis):
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
 
-        # TODO: The current mapping implementation is kinda hackish...
+        # Unify SSA variables
+        tmp_kb.variables[self.function.addr].unify_variables()
+        tmp_kb.variables[self.function.addr].assign_unified_variable_names(labels=self.kb.labels, reset=True)
 
         # Link variables to each statement
         for block in ail_graph.nodes():

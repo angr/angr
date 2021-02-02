@@ -15,6 +15,9 @@ class SimVariable:
         self.region = region if region is not None else ""
         self.category = category
 
+    def copy(self):
+        raise NotImplementedError()
+
     #
     # Operations
     #
@@ -35,7 +38,7 @@ class SimConstantVariable(SimVariable):
     __slots__ = ['value', '_hash']
 
     def __init__(self, ident=None, value=None, region=None):
-        super(SimConstantVariable, self).__init__(ident=ident, region=region)
+        super().__init__(ident=ident, region=region)
         self.value = value
         self._hash = None
 
@@ -58,6 +61,11 @@ class SimConstantVariable(SimVariable):
         if self._hash is None:
             self._hash = hash(('const', self.value, self.ident, self.region, self.ident))
         return self._hash
+
+    def copy(self) -> 'SimConstantVariable':
+        r = SimConstantVariable(ident=self.ident, value=self.value, region=self.region)
+        r._hash = self._hash
+        return r
 
 
 class SimTemporaryVariable(SimVariable):
@@ -86,6 +94,11 @@ class SimTemporaryVariable(SimVariable):
 
         return False
 
+    def copy(self) -> 'SimTemporaryVariable':
+        r = SimTemporaryVariable(self.tmp_id)
+        r._hash = self._hash
+        return r
+
 
 class SimRegisterVariable(SimVariable):
 
@@ -94,9 +107,9 @@ class SimRegisterVariable(SimVariable):
     def __init__(self, reg_offset, size, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category)
 
-        self.reg = reg_offset
-        self.size = size
-        self._hash = None
+        self.reg: int = reg_offset
+        self.size: int = size
+        self._hash: int = None
 
     @property
     def bits(self):
@@ -124,6 +137,12 @@ class SimRegisterVariable(SimVariable):
                    self.region == other.region
 
         return False
+
+    def copy(self) -> 'SimRegisterVariable':
+        s = SimRegisterVariable(self.reg, self.size, ident=self.ident, name=self.name, region=self.region,
+                                category=self.category)
+        s._hash = self._hash
+        return s
 
 
 class SimMemoryVariable(SimVariable):
@@ -187,10 +206,16 @@ class SimMemoryVariable(SimVariable):
     def bits(self):
         return self.size * 8
 
+    def copy(self) -> 'SimMemoryVariable':
+        r = SimMemoryVariable(self.addr, self.size, ident=self.ident, name=self.name, region=self.region,
+                              category=self.category)
+        r._hash = self._hash
+        return r
+
 
 class SimStackVariable(SimMemoryVariable):
 
-    __slots__ = ['base', 'offset']
+    __slots__ = ('base', 'offset', 'base_addr',)
 
     def __init__(self, offset, size, base='sp', base_addr=None, ident=None, name=None, region=None, category=None):
         if isinstance(offset, int) and offset > 0x1000000:
@@ -205,10 +230,11 @@ class SimStackVariable(SimMemoryVariable):
             # TODO: this is not optimal
             addr = offset
 
-        super(SimStackVariable, self).__init__(addr, size, ident=ident, name=name, region=region, category=category)
+        super().__init__(addr, size, ident=ident, name=name, region=region, category=category)
 
         self.base = base
         self.offset = offset
+        self.base_addr = base_addr
 
     def __repr__(self):
         if type(self.size) is int:
@@ -245,6 +271,12 @@ class SimStackVariable(SimMemoryVariable):
 
     def __hash__(self):
         return hash((self.ident, self.base, self.offset, self.size))
+
+    def copy(self) -> 'SimStackVariable':
+        s = SimStackVariable(self.offset, self.size, base=self.base, base_addr=self.base_addr,
+                             ident=self.ident, name=self.name, region=self.region, category=self.category)
+        s._hash = self._hash
+        return s
 
 
 class SimVariableSet(collections.abc.MutableSet):

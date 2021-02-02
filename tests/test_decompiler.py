@@ -1,4 +1,4 @@
-
+import re
 import os
 import angr
 
@@ -277,8 +277,8 @@ def test_decompiling_1after909():
     if dec.codegen is not None:
         code = dec.codegen.text
         assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(s_78, &s_58, 0x40)" in code
-        assert "strncmp(s_78, &s_58, 0x40);" not in code, "Call expressions folding failed for strncmp()"
+        assert "strncmp(v0, &v3, 0x40)" in code
+        assert "strncmp(v0, &v3, 0x40);" not in code, "Call expressions folding failed for strncmp()"
         print(code)
     else:
         print("Failed to decompile function %r." % f)
@@ -405,8 +405,10 @@ def test_decompilation_call_expr_folding():
     dec = p.analyses.Decompiler(func_0, cfg=cfg.model)
     code = dec.codegen.text
     print(code)
-    assert "s_428 = (int)strlen(&s_418);" in code, "The result of strlen() should be directly assigned to a stack " \
-                                                   "variable because of call-expression folding."
+    m = re.search(r"v(\d+) = \(int\)strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
+    assert m is not None, "The result of strlen() should be directly assigned to a stack " \
+                          "variable because of call-expression folding."
+    assert m.group(1) != m.group(2)
 
     func_1 = cfg.functions['strlen_should_not_fold']
     dec = p.analyses.Decompiler(func_1, cfg=cfg.model)
@@ -435,7 +437,7 @@ def test_decompilation_excessive_condition_removal():
 
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
-    assert "}s_1a=s_1a+1;}" in code
+    assert "}v2=v2+1;}" in code
 
 
 def test_decompiling_fauxware_mipsel():

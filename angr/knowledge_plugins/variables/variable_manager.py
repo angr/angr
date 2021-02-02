@@ -1,7 +1,7 @@
-from typing import Set, List, Tuple, Dict, Union, TYPE_CHECKING
+from typing import Set, List, Tuple, Dict, Union, Optional, TYPE_CHECKING
 import logging
 from collections import defaultdict
-from itertools import count
+from itertools import count, chain
 
 from claripy.utils.orderedset import OrderedSet
 
@@ -62,6 +62,9 @@ class VariableManagerInternal:
             'phi': count(),
             'global': count(),
         }
+
+        self._unified_variables: Set[SimVariable] = set()
+        self._variables_to_unified_variables: Dict[SimVariable, SimVariable] = { }
 
         self._phi_variables = { }
         self._phi_variables_by_block = defaultdict(set)
@@ -365,9 +368,10 @@ class VariableManagerInternal:
 
     def assign_variable_names(self, labels=None):
         """
-        Assign default names to all variables.
+        Assign default names to all SSA variables.
 
-        :return: None
+        :param labels:  Known labels in the binary.
+        :return:        None
         """
 
         for var in self._variables:
@@ -390,14 +394,127 @@ class VariableManagerInternal:
                     var.name = labels[var.addr]
                     if "@@" in var.name:
                         var.name = var.name[:var.name.index("@@")]
-                else:
+                elif var.ident is not None:
                     var.name = var.ident
+                else:
+                    var.name = "g_%x" % var.addr
+
+    def assign_unified_variable_names(self, labels=None, reset:bool=False):
+        """
+        Assign default names to all unified variables.
+
+        :param labels:  Known labels in the binary.
+        :param reset:   Reset all variable names or not.
+        :return:        None
+        """
+
+        if not self._unified_variables:
+            return
+
+        sorted_stack_variables = [ ]
+        sorted_reg_variables = [ ]
+        arg_vars = [ ]
+
+        for var in self._unified_variables:
+            if isinstance(var, SimStackVariable):
+                if not reset and var.name is not None:
+                    continue
+                if var.ident and var.ident.startswith('iarg_'):
+                    arg_vars.append(var)
+                else:
+                    sorted_stack_variables.append(var)
+
+            elif isinstance(var, SimRegisterVariable):
+                if not reset and var.name is not None:
+                    continue
+                if var.ident and var.ident.startswith('arg_'):
+                    arg_vars.append(var)
+                else:
+                    sorted_reg_variables.append(var)
+
+            elif isinstance(var, SimMemoryVariable):
+                if not reset and var.name is not None:
+                    continue
+                # assign names directly
+                if labels is not None and var.addr in labels:
+                    var.name = labels[var.addr]
+                    if "@@" in var.name:
+                        var.name = var.name[:var.name.index("@@")]
+                elif var.ident:
+                    var.name = var.ident
+                else:
+                    var.name = "g_%x" % var.addr
+
+        # rename variables in a fixed order
+        var_ctr = count(0)
+
+        sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: v.offset)
+        sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: v.reg)
+
+        for var in chain(sorted_stack_variables, sorted_reg_variables):
+            if isinstance(var, SimStackVariable):
+                var.name = 'v%d' % next(var_ctr)
+            elif isinstance(var, SimRegisterVariable):
+                var.name = "v%d" % next(var_ctr)
+            # clear the hash cache
+            var._hash = None
+
+        # rename arguments but keeping the original order
+        arg_ctr = count(0)
+        arg_vars = sorted(arg_vars, key=lambda v: int(v.ident[v.ident.index("_")+1:]) if v.ident else 0)
+        for var in arg_vars:
+            var.name = "a%d" % next(arg_ctr)
+            var._hash = None
 
     def get_variable_type(self, var):
         return self.types.get(var, None)
 
     def remove_types(self):
         self.types.clear()
+
+    def unify_variables(self) -> None:
+        """
+        Map SSA variables to a unified variable. Fill in self._unified_variables.
+        """
+
+        reg_vars: Dict[int,List[SimRegisterVariable]] = defaultdict(list)
+        stack_vars: Dict[int,List[SimStackVariable]] = defaultdict(list)
+
+        for v in self.get_variables():
+            if isinstance(v, SimStackVariable):
+                stack_vars[v.offset].append(v)
+            elif isinstance(v, SimRegisterVariable):
+                reg_vars[v.reg].append(v)
+
+        for _, vs in reg_vars.items():
+            unified = vs[0].copy()
+            for v in vs:
+                self.set_unified_variable(v, unified)
+        for _, vs in stack_vars.items():
+            unified = vs[0].copy()
+            for v in vs:
+                self.set_unified_variable(v, unified)
+
+    def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
+        """
+        Set the unified variable for a given SSA variable.
+
+        :param variable:    The SSA variable.
+        :param unified:     THe unified variable.
+        :return:            None
+        """
+        self._unified_variables.add(unified)
+        self._variables_to_unified_variables[variable] = unified
+
+    def unified_variable(self, variable: SimVariable) -> Optional[SimVariable]:
+        """
+        Return the unified variable for a given SSA variable,
+
+        :param variable:    The SSA variable.
+        :return:            The unified variable, or None if there is no such SSA variable.
+        """
+
+        return self._variables_to_unified_variables.get(variable, None)
 
 
 class VariableManager(KnowledgeBasePlugin):
