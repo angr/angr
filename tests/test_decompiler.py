@@ -437,7 +437,7 @@ def test_decompilation_excessive_condition_removal():
 
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
-    assert "}v0=v0+1;}" in code
+    assert "}v2=v2+1;}" in code
 
 
 def test_decompiling_fauxware_mipsel():
