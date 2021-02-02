@@ -418,7 +418,7 @@ class VariableManagerInternal:
             if isinstance(var, SimStackVariable):
                 if not reset and var.name is not None:
                     continue
-                if var.ident.startswith('iarg'):
+                if var.ident and var.ident.startswith('iarg'):
                     var.name = 'a%d' % next(arg_ctr)
                 else:
                     var.name = 'v%d' % next(var_ctr)
@@ -426,7 +426,7 @@ class VariableManagerInternal:
             elif isinstance(var, SimRegisterVariable):
                 if not reset and var.name is not None:
                     continue
-                if var.ident.startswith('arg'):
+                if var.ident and var.ident.startswith('arg'):
                     var.name = 'a%d' % next(arg_ctr)
                 else:
                     var.name = "v%d" % next(var_ctr)
@@ -438,7 +438,7 @@ class VariableManagerInternal:
                     var.name = labels[var.addr]
                     if "@@" in var.name:
                         var.name = var.name[:var.name.index("@@")]
-                elif var.ident is not None:
+                elif var.ident:
                     var.name = var.ident
                 else:
                     var.name = "g_%x" % var.addr
