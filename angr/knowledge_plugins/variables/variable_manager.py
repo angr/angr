@@ -1,7 +1,7 @@
 from typing import Set, List, Tuple, Dict, Union, Optional, TYPE_CHECKING
 import logging
 from collections import defaultdict
-from itertools import count
+from itertools import count, chain
 
 from claripy.utils.orderedset import OrderedSet
 
@@ -411,29 +411,31 @@ class VariableManagerInternal:
         if not self._unified_variables:
             return
 
-        arg_ctr = count(0)
-        var_ctr = count(0)
+        sorted_stack_variables = [ ]
+        sorted_reg_variables = [ ]
+        arg_vars = [ ]
 
         for var in self._unified_variables:
             if isinstance(var, SimStackVariable):
                 if not reset and var.name is not None:
                     continue
-                if var.ident and var.ident.startswith('iarg'):
-                    var.name = 'a%d' % next(arg_ctr)
+                if var.ident and var.ident.startswith('iarg_'):
+                    arg_vars.append(var)
                 else:
-                    var.name = 'v%d' % next(var_ctr)
+                    sorted_stack_variables.append(var)
 
             elif isinstance(var, SimRegisterVariable):
                 if not reset and var.name is not None:
                     continue
-                if var.ident and var.ident.startswith('arg'):
-                    var.name = 'a%d' % next(arg_ctr)
+                if var.ident and var.ident.startswith('arg_'):
+                    arg_vars.append(var)
                 else:
-                    var.name = "v%d" % next(var_ctr)
+                    sorted_reg_variables.append(var)
 
             elif isinstance(var, SimMemoryVariable):
                 if not reset and var.name is not None:
                     continue
+                # assign names directly
                 if labels is not None and var.addr in labels:
                     var.name = labels[var.addr]
                     if "@@" in var.name:
@@ -443,7 +445,25 @@ class VariableManagerInternal:
                 else:
                     var.name = "g_%x" % var.addr
 
+        # rename variables in a fixed order
+        var_ctr = count(0)
+
+        sorted_stack_variables = sorted(sorted_stack_variables, key=lambda v: v.offset)
+        sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: v.reg)
+
+        for var in chain(sorted_stack_variables, sorted_reg_variables):
+            if isinstance(var, SimStackVariable):
+                var.name = 'v%d' % next(var_ctr)
+            elif isinstance(var, SimRegisterVariable):
+                var.name = "v%d" % next(var_ctr)
             # clear the hash cache
+            var._hash = None
+
+        # rename arguments but keeping the original order
+        arg_ctr = count(0)
+        arg_vars = sorted(arg_vars, key=lambda v: int(v.ident[v.ident.index("_")+1:]) if v.ident else 0)
+        for var in arg_vars:
+            var.name = "a%d" % next(arg_ctr)
             var._hash = None
 
     def get_variable_type(self, var):
