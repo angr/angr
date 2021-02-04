@@ -511,6 +511,47 @@ def test_abort_and_resume():
 
     nose.tools.assert_equal(len(list(cfg.jobs)), 0)  # no left-over job
 
+def test_base_graph():
+    path = os.path.join(test_location, "x86_64", "test_cfgemulated_base_graph")
+    
+    func_addr = 0x401129
+    
+    edges = {
+        (0x401129, 0x401144),
+        (0x401129, 0x40114d),
+        (0x401144, 0x401154),
+        (0x40114d, 0x401154),
+    }
+    
+    final_states_info = {
+        0x401129: 2,
+        0x40114d: 1,
+        0x401144: 1,
+        0x401154: 1,
+    }
+    
+    proj = angr.Project(path, load_options={'auto_load_libs': False})
+    
+    cfg_fast = proj.analyses.CFGFast(normalize=True)
+    target_function = cfg_fast.kb.functions[func_addr]
+    target_function.normalize()
+    
+    target_function_cfg_emulated = proj.analyses.CFGEmulated(keep_state=True, 
+                                         state_add_options=angr.options.refs,
+                                         base_graph = target_function.graph, starts=(func_addr,),
+                                         normalize=True)
+    for src, dst in edges:
+        src_node = target_function_cfg_emulated.get_any_node(src)
+        dst_node = target_function_cfg_emulated.get_any_node(dst)
+        nose.tools.assert_in(dst_node, src_node.successors, 
+                             msg="CFG edge %s-%s is not found." % (src_node, dst_node)
+                             )
+    
+    for (node_addr,final_states_number) in final_states_info.items():
+        node = target_function_cfg_emulated.get_any_node(node_addr)
+        nose.tools.assert_equal(final_states_number, len(node.final_states),
+                                msg="CFG node 0x%x has incorrect final states." % node_addr
+                                )
 
 def run_all():
     functions = globals()
