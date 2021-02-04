@@ -1449,6 +1449,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :return: None
         """
 
+        # Generate a unique key for this job
+        block_id = job.block_id
+
         # Extract initial info the CFGJob
         job.call_stack_suffix = job.get_call_stack_suffix()
         job.current_function = self.kb.functions.function(job.func_addr, create=True,
@@ -1469,8 +1472,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # deregister this job
         self._deregister_analysis_job(job.func_addr, job)
 
-        # Generate a unique key for this job
-        block_id = job.block_id
+
 
         # SimInspect breakpoints support
         job.state._inspect('cfg_handle_job', BP_BEFORE)
