@@ -8,16 +8,19 @@ import copy
 import os
 from collections import defaultdict
 from angr.code_location import CodeLocation
+from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
-from .engines.engine_vex import SimplificationVEXMixin
 from ..reaching_definitions.dep_graph import DepGraph
 from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
 from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements
 from ... import BP, BP_BEFORE, BP_AFTER
+from ...knowledge_plugins.key_definitions import atoms
+from ...engines.light.data import SpOffset
+
 
 logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
@@ -77,9 +80,23 @@ class VMDeobfuscation(Analysis):
 
         start_addr = start_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
+
+        # all_functions = []
+        # for node in cfg.model.nodes():
+        #     if not node.is_simprocedure:
+        #         if node.irsb.jumpkind == "Ijk_Call":
+        #             succs = cfg.model.get_successors(node)
+        #             if len(succs) == 1:
+        #                 if not succs[0].is_simprocedure:
+        #                     all_functions.append(succs[0])
+        #             else:
+        #                 raise Exception("More than one successor for a call statement? hmmm.........")
+
+
+
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
 
-        functions = list(cfg.kb.functions.items())
+        original_functions = list(cfg.kb.functions.items())
 
         folder_name = os.path.dirname(self.project.filename)
 
@@ -98,18 +115,18 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         print("Doing constant propagation")
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-        import ipdb;
-        ipdb.set_trace()
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
         # DCE commented out temporarily to make testing faster for block simplifications
-        # for i in range(11):
-        #     new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
+        for i in range(11):
+            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
-        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, functions)
+        # Need to copy the arith simplifications back to the node.irsb, for below
+        #new_cfg = self.block_arithmetic_simplifications(new_cfg, proj)
+        new_cfg = self._eliminate_dead_assignments(new_cfg, proj)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -123,9 +140,6 @@ class VMDeobfuscation(Analysis):
         else:
             atom = None
         return atom
-
-    def ast_to_vex_expr(self):
-        return vex_expr
 
     def simplify_vex_expr_to_ast(self, expr, tyenv, byte_width, node, sub_graph, cur_stmt_node):
         ### This method assumes that expressions are in their most simplified form and don't contain expressions within expressions e.g. Add(Get(rsp), 0x8)
@@ -177,13 +191,99 @@ class VMDeobfuscation(Analysis):
         elif isinstance(expr, pyvex.expr.Const):
             return expr.con.value
 
-    def block_arithmetic_simplifications(self, cfg, proj, functions):
-        for tuple in functions:
-            print(tuple)
-            import ipdb;
-            ipdb.set_trace()
-            result = proj.analyses.ReachingDefinitions(tuple[1], track_tmps=True, observe_all=True,
-                                                       dep_graph=DepGraph())
+    def _eliminate_dead_assignments(self, cfg, proj, start_addr=None):
+
+        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dsa')
+        for node in dsa_new_model.nodes():
+            if node.addr == 0x400cf7:
+                start_node = node
+                break
+
+        new_statements = [ ]
+        #start_state = ReachingDefinitionsState()
+        rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
+                                                       track_tmps=True,
+                                                       )
+
+        # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
+        # live_defs = rd.one_result
+
+        # Find dead assignments
+        dead_defs_locs = set()
+        all_defs = rd.all_definitions
+        for d in all_defs:
+            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                continue
+
+            if not isinstance(d.atom, atoms.Tmp):
+                uses = rd.all_uses.get_uses(d)
+                if not uses:
+                    if isinstance(d.atom, atoms.MemoryLocation):
+                        print(d)
+                        print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
+                        # import ipdb;
+                        # ipdb.set_trace()
+                    # is entirely possible that at the end of the block, a register definition is not used.
+                    # however, it might be used in future blocks.
+                    # so we only remove a definition if the definition is not alive anymore at the end of the block
+                    # if isinstance(d.atom, atoms.Register):
+                    #     if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
+                    dead_defs_locs.add(d.codeloc)
+                    # if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                    #     if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.addr.offset):
+                            #dead_defs_locs.add(d.codeloc)
+
+
+        # Remove dead assignments
+        for node in dsa_new_model.nodes():
+            for idx, stmt in enumerate(node.irsb.statements):
+                if isinstance(stmt, pyvex.stmt.IMark):
+                    cur_ins_addr = stmt.addr
+
+                stmt_loc = CodeLocation(node.irsb.addr,
+                            idx,
+                            cur_ins_addr,
+                            context=tuple(),
+                            block_id=node.block_id)
+
+                # is it a dead virgin?
+                if stmt_loc in dead_defs_locs:
+                    continue
+
+                new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_statements,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind)
+
+        # Returning a new CFGVMDeobfuscation object with the updated graph
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        dsa_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=vm_vpc_addr)
+        return new_cfg
+
+    # def function_dead_assignment_elimination(self, cfg, proj, original_functions):
+    #     for node in cfg.model.nodes():
+    #         if node.addr == 0x40087f:
+    #             import ipdb;
+    #             ipdb.set_trace()
+    #             result = proj.analyses.ReachingDefinitions(Subject((cfg.model.graph, node)), track_tmps=True,
+    #                                                        dep_graph=DepGraph())
+
+    def block_arithmetic_simplifications(self, cfg, proj):
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
@@ -232,11 +332,7 @@ class VMDeobfuscation(Analysis):
                         if sub_graph.graph.out_degree(stmt_node) == 0:
                             stmt_node_queue.append(stmt_node)
                             print(stmt_node)
-                    engine = SimplificationVEXMixin(project=self.project)
-                    engine.state = proj.factory.blank_state()
-                    engine.state.regs.sp = claripy.BVS("sp", 64)
-                    engine.state.scratch.set_tyenv(node.irsb.tyenv)
-                    engine.state.scratch.irsb = node.irsb
+
                     simplified_statements = []
                     while len(stmt_node_queue) > 0:
                         cur_stmt_node = stmt_node_queue.pop(0)
@@ -311,13 +407,12 @@ class VMDeobfuscation(Analysis):
                             if cur_stmt.data.op in ["Iop_Sub32", "Iop_Sub64"]:
                                 const_0 = -const_0
                             successor = successors[0]
-                            import ipdb;
-                            ipdb.set_trace()
                             if isinstance(successor.codeloc, ExternalCodeLocation):
                                 continue
 
                             successors = list(sub_graph.graph.successors(successor))
-                            if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1:
+                            predecessors = list(sub_graph.graph.predecessors(successor))
+                            if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1 and len(predecessors) == 1:
                                 for arg in successor.stmt.data.args:
                                     if isinstance(arg, pyvex.expr.Const):
                                         const_1 = arg.con.value
@@ -329,55 +424,6 @@ class VMDeobfuscation(Analysis):
                                 ipdb.set_trace()
                                 for stmt in simplified_statements:
                                     print(stmt)
-
-                        # Using VEX Engine
-                        # if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
-                        #     continue
-                        # successors = list(sub_graph.graph.successors(cur_stmt_node))
-                        # for succ in successors:
-                        #     if succ not in sub_graph.simplified_asts and not isinstance(succ.codeloc, ExternalCodeLocation):
-                        #         all_children_simp = False
-                        #         break
-                        #
-                        # if all_children_simp:
-                        #     cur_stmt = cur_stmt_node.stmt
-                        #     ### The claripy ast for the stmt data will be in state.globals['cur_stmt_data_ast']
-                        #     print(str(cur_stmt))
-                        #     engine._handle_vex_stmt(cur_stmt)
-                        #     sub_graph.simplified_asts[cur_stmt_node] = engine.state.globals['cur_stmt_data_ast']
-                        #     print(engine.state.globals['cur_stmt_data_ast'])
-                        #     import ipdb;
-                        #     ipdb.set_trace()
-
-                        ################
-
-                        # if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
-                        #     continue
-                        # ## Make sure all the dependencies have been simplified first before simplifying the statements itself
-                        # successors = list(sub_graph.graph.successors(cur_stmt_node))
-                        # for succ in successors:
-                        #     if succ not in sub_graph.simplified_asts:
-                        #         continue
-                        #
-                        #     cur_stmt = cur_stmt_node.stmt
-                        #     if isinstance(cur_stmt, pyvex.stmt.WrTmp):
-                        #         sub_graph.simplified_asts[cur_stmt_node] = self.simplify_vex_expr_to_ast(cur_stmt.data,
-                        #                                                                         node.irsb.tyenv,
-                        #                                                                         node.irsb.arch.byte_width,
-                        #                                                                         node,
-                        #                                                                         sub_graph,
-                        #                                                                         cur_stmt_node)
-                        #     elif isinstance(cur_stmt, pyvex.stmt.Put):
-                        #         sub_graph.simplified_asts[cur_stmt_node] = self.simplify_vex_expr_to_ast(cur_stmt.data,
-                        #                                                                         node.irsb.tyenv,
-                        #                                                                         node.irsb.arch.byte_width,
-                        #                                                                         node,
-                        #                                                                         sub_graph,
-                        #                                                                         cur_stmt_node)
-
-
-
-
 
                 ## reconstrcut the statements from the simplififed graph
         return

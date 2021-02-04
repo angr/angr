@@ -300,6 +300,12 @@ class ReachingDefinitionsState:
             )
         elif subject.type == SubjectType.Block:
             pass
+        elif subject.type == SubjectType.Tuple:
+            self._initialize_function(
+                None,
+                subject.content[1].irsb.addr,
+                rtoc_value,
+            )
 
         return self
 
