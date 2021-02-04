@@ -236,6 +236,7 @@ class SimulationManager:
         tech = self.use_technique(Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find))
 
         # Modify first Veritesting so that they can work together.
+        deviation_filter_saved = None
         for t in self._techniques:
             if isinstance(t,Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter",None)
