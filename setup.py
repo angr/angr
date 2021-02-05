@@ -24,7 +24,7 @@ use our metadata to implicitly avoid them.
 
 For more information, see here: https://docs.angr.io/appendix/migration
 
-Good luck!
+Good luck!!
 """)
 
 try:
