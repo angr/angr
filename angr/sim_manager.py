@@ -235,10 +235,29 @@ class SimulationManager:
         num_find += len(self._stashes[find_stash]) if find_stash in self._stashes else 0
         tech = self.use_technique(Explorer(find, avoid, find_stash, avoid_stash, cfg, num_find))
 
+        # Modify first Veritesting so that they can work together.
+        deviation_filter_saved = None
+        for t in self._techniques:
+            if isinstance(t,Veritesting):
+                deviation_filter_saved = t.options.get("deviation_filter",None)
+                if deviation_filter_saved is not None:
+                    t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s) or deviation_filter_saved(s)
+                else:
+                    t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)
+                break
+
         try:
             self.run(stash=stash, n=n, **kwargs)
         finally:
             self.remove_technique(tech)
+
+        for t in self._techniques:
+            if isinstance(t,Veritesting):
+                if deviation_filter_saved is None:
+                    del t.options["deviation_filter"]
+                else:
+                    t.options["deviation_filter"] = deviation_filter_saved
+                break
 
         return self
 
