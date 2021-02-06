@@ -1,6 +1,8 @@
 import angr
 from angr.storage.file import SimFile
 from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
+from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
+
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
@@ -54,10 +56,11 @@ class fgets(angr.SimProcedure):
                         simfd.eof(),                 # - the file is at EOF, or
                         byte == b'\n'                # - it is a newline
                     )))
-
-            self.state.memory.store(dst, data, size=real_size)
-            self.state.memory.store(dst+real_size, b'\0')
-
+            self.state.memory.store(dst, data, size=real_size, multiwrite=True)
+            end_address = dst+real_size
+            end_address = end_address.annotate(MultiwriteAnnotation())
+            self.state.memory.store(end_address, b'\0', multiwrite=True)
+            
             return real_size
 
 fgets_unlocked = fgets
