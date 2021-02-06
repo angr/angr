@@ -328,14 +328,17 @@ class VEXIRSBConverter(Converter):
         manager.tyenv = irsb.tyenv
         manager.block_addr = irsb.addr
 
-        addr = None
+        addr = irsb.addr
+        first_imark = True
 
         conditional_jumps = [ ]
 
         for vex_stmt_idx, stmt in enumerate(irsb.statements):
             if type(stmt) is pyvex.IRStmt.IMark:
-                if addr is None:
+                if first_imark:
+                    # update block address
                     addr = stmt.addr + stmt.delta
+                    first_imark = False
                 manager.ins_addr = stmt.addr + stmt.delta
                 continue
             if type(stmt) is pyvex.IRStmt.AbiHint:
