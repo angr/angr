@@ -1127,9 +1127,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
              len(job.call_stack) > self._call_depth and \
              (self._call_tracing_filter is None or self._call_tracing_filter(job.state, job.jumpkind)):
             should_skip = True
-        # Skip this job if there is another job in the _job_info_queue sharing the same block id
-        elif self._base_graph is not None and next((en for en in self._job_info_queue[1:] if en.job.block_id == block_id), None):
-            should_skip = True
 
         # SimInspect breakpoints support
         job.state._inspect('cfg_handle_job', BP_BEFORE)
