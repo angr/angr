@@ -263,7 +263,7 @@ class Structurer(Analysis):
     @staticmethod
     def _refine_loop_while(loop_node):
 
-        if loop_node.sort == 'while' and loop_node.condition is None:
+        if loop_node.sort == 'while' and loop_node.condition is None and loop_node.sequence_node.nodes:
             # it's an endless loop
             first_node = loop_node.sequence_node.nodes[0]
             if type(first_node) is CodeNode:
@@ -281,7 +281,7 @@ class Structurer(Analysis):
     @staticmethod
     def _refine_loop_dowhile(loop_node):
 
-        if loop_node.sort == 'while' and loop_node.condition is None:
+        if loop_node.sort == 'while' and loop_node.condition is None and loop_node.sequence_node.nodes:
             # it's an endless loop
             last_node = loop_node.sequence_node.nodes[-1]
             if type(last_node) is ConditionalBreakNode:
