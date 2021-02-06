@@ -126,7 +126,7 @@ def test_smoketest():
     from networkx.drawing.nx_agraph import write_dot
     write_dot(sgr.state_graph, "state_graph.dot")           # dot -Tpng state_graph.dot > out.png
 
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
 
 if __name__ == "__main__":
