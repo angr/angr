@@ -1,6 +1,4 @@
 import angr
-from angr.storage.file import SimFile
-from angr.sim_type import SimTypeFd, SimTypeChar, SimTypeArray, SimTypeLength
 from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 
 
@@ -60,7 +58,7 @@ class fgets(angr.SimProcedure):
             end_address = dst + real_size
             end_address = end_address.annotate(MultiwriteAnnotation())
             self.state.memory.store(end_address, b'\0')
-            print(self.state.solver.constraints)
+
             return real_size
 
 fgets_unlocked = fgets
