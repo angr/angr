@@ -56,11 +56,11 @@ class fgets(angr.SimProcedure):
                         simfd.eof(),                 # - the file is at EOF, or
                         byte == b'\n'                # - it is a newline
                     )))
-            self.state.memory.store(dst, data, size=real_size, multiwrite=True)
+            self.state.memory.store(dst, data, size=real_size)
             end_address = dst+real_size
             end_address = end_address.annotate(MultiwriteAnnotation())
-            self.state.memory.store(end_address, b'\0', multiwrite=True)
-            
+            self.state.memory.store(end_address, b'\0')
+            print(self.state.solver.constraints)
             return real_size
 
 fgets_unlocked = fgets
