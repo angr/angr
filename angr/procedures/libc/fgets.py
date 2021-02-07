@@ -57,7 +57,7 @@ class fgets(angr.SimProcedure):
                         byte == b'\n'                # - it is a newline
                     )))
             self.state.memory.store(dst, data, size=real_size)
-            end_address = dst+real_size
+            end_address = dst + real_size
             end_address = end_address.annotate(MultiwriteAnnotation())
             self.state.memory.store(end_address, b'\0')
             print(self.state.solver.constraints)
