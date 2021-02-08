@@ -435,7 +435,11 @@ class SimPackets(SimFileBase):
         """
         lengths = [self.state.solver.eval(x[1], **kwargs) for x in self.content]
         kwargs['cast_to'] = bytes
-        return [b'' if i == 0 else self.state.solver.eval(x[0][i*self.state.arch.byte_width-1:], **kwargs) for i, x in zip(lengths, self.content)]
+        sizes = [x[0].size() for x in self.content]
+        return [b'' if i == 0
+                    else self.state.solver.eval(
+                            x[0][:size-i*self.state.arch.byte_width], **kwargs)
+                    for i, size, x in zip(lengths, sizes, self.content)]
 
     def read(self, pos, size, **kwargs):
         """
