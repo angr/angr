@@ -365,7 +365,7 @@ class CFBlanket(Analysis):
                 # impossible
                 raise Exception('Impossible')
 
-            if last_item.size == 0:
+            if last_item.size == 0 or last_item.size is None:
                 # Make sure everything has a non-zero size
                 last_item_size = 1
             else:
