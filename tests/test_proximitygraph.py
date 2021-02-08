@@ -14,8 +14,6 @@ def test_fauxware():
 
     prox = proj.analyses.Proximity(func, cfg.model, cfg.kb.xrefs)
 
-    import ipdb; ipdb.set_trace()
-
 
 if __name__ == "__main__":
     test_fauxware()
