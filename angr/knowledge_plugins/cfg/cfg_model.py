@@ -1,7 +1,7 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, TYPE_CHECKING
 from collections import defaultdict
 
 import networkx
@@ -43,9 +43,9 @@ class CFGModel(Serializable):
 
         # Memory references
         # A mapping between address and the actual data in memory
-        self.memory_data = { }
+        self.memory_data: Dict[int,MemoryData] = { }
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
-        self.insn_addr_to_memory_data = { }
+        self.insn_addr_to_memory_data: Dict[int,MemoryData] = { }
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
         self._nodes_by_addr = defaultdict(list)

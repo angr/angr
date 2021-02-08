@@ -4,7 +4,7 @@ import networkx
 import string
 import itertools
 from collections import defaultdict
-from typing import Union, Optional, Iterable, Set
+from typing import Union, Optional, Iterable, Set, Generator
 from typing import Type # For some reasons the linter doesn't recognize the use in apply_definition but PyCharm needs it imported to correctly recognize it # pylint: disable=unused-import
 
 from itanium_demangler import parse
@@ -283,7 +283,7 @@ class Function(Serializable):
     _get_block = get_block
 
     @property
-    def nodes(self):
+    def nodes(self) -> Generator[CodeNode,None,None]:
         return self.transition_graph.nodes()
 
     def get_node(self, addr):
