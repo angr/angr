@@ -373,7 +373,7 @@ class RegionIdentifier(Analysis):
                     replaced_any_stmt = True
                 if not replaced_any_stmt:
                     l.warning("No statement was replaced. Is there anything wrong?")
-                    raise Exception()
+                    # raise Exception()
 
                 # add src back
                 for src2src, _, data_ in removed_edges:
