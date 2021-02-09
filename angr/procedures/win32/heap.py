@@ -31,7 +31,7 @@ class HeapAlloc(angr.SimProcedure):
 
 class HeapReAlloc(angr.SimProcedure):
     def run(self, hHeap, dwFlags, lpMem, dwBytes): #pylint:disable=arguments-differ, unused-argument
-        return self.state.heap.realloc(lpMem, dwBytes)
+        return self.state.heap._realloc(lpMem, dwBytes)
 
 
 class GlobalAlloc(HeapAlloc):
