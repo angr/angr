@@ -92,6 +92,10 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
         while True:
             if irsb is None:
+                if 'opt_level' in kwargs:
+                    tmp_opt_level = kwargs['opt_level']
+                else:
+                    tmp_opt_level = None
                 irsb = self.lift_vex(
                     addr=addr,
                     state=self.state,
@@ -100,7 +104,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     size=size,
                     num_inst=num_inst,
                     extra_stop_points=extra_stop_points,
-                    opt_level=kwargs['opt_level'])
+                    opt_level=tmp_opt_level)
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode' and not self.state.project.is_hooked(irsb.addr):
