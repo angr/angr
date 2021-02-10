@@ -99,7 +99,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     thumb=thumb,
                     size=size,
                     num_inst=num_inst,
-                    extra_stop_points=extra_stop_points)
+                    extra_stop_points=extra_stop_points,
+                    opt_level=kwargs['opt_level'])
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode' and not self.state.project.is_hooked(irsb.addr):
