@@ -37,8 +37,7 @@ class SimCGC(SimUserland):
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
         # pre-grow the stack by 20 pages. unsure if this is strictly required or just a hack around a compiler bug
-        for i in range(20):
-            s.memory.load(kwargs['stack_end'] - 4 - i * 0x1000, size=4, endness='Iend_LE')
+        state.memory.allocate_stack_pages(state.solver.eval(state.regs.sp) - 1, 20 * 0x1000)
 
         # Map the flag page
         if o.ABSTRACT_MEMORY not in s.options:
