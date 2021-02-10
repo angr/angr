@@ -8,6 +8,7 @@ import copy
 import os
 from collections import defaultdict
 from angr.code_location import CodeLocation
+from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
@@ -30,6 +31,64 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+
+class CLibFunctionHandler(FunctionHandler):
+    def hook(self, analysis):
+        return self
+
+    def handle_local_function(self, state, function_address, call_stack,
+                              maximum_local_call_depth, visited_blocks, dep_graph,
+                              src_ins_addr=None,
+                              codeloc=None):
+        executed_rda = False
+        return executed_rda, state, visited_blocks, dep_graph
+
+    def handle_strcpy(self, state, codeloc):
+        # rsi
+        state.add_use(Register(64, 8), codeloc)
+        # rdi
+        state.add_use(Register(72, 8), codeloc)
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            print("Error!")
+            # sp_data = set()
+            # for d in defs_sp:
+            #     sp_data.update(d.data)
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+        executed_rda = True
+        return executed_rda, state
+
+    def handle_puts(self, state, codeloc):
+        # rdi
+        state.add_use(Register(72, 8), codeloc)
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            print("Error!")
+            # sp_data = set()
+            # for d in defs_sp:
+            #     sp_data.update(d.data)
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+        executed_rda = True
+        return executed_rda, state
+
 
 
 class StatementNode:
@@ -76,9 +135,11 @@ class StatementGraph:
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None):
-
-        start_addr = start_addr
+    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None):
+        # This is the address of the node where the virtual machine implementation starts
+        self.vm_start_addr = vm_start_addr
+        self.start_addr = start_addr
+        self.vm_vpc_addr = vm_vpc_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
 
         # all_functions = []
@@ -126,7 +187,11 @@ class VMDeobfuscation(Analysis):
         #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
         #new_cfg = self.block_arithmetic_simplifications(new_cfg, proj)
-        new_cfg = self._eliminate_dead_assignments(new_cfg, proj)
+        #new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        # DCE again to remove the temp variables remaining after dead assignment elimination, should I just do this along with DSA(being lazy is what it is)
+        # for i in range(11):
+        #     new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -191,18 +256,18 @@ class VMDeobfuscation(Analysis):
         elif isinstance(expr, pyvex.expr.Const):
             return expr.con.value
 
-    def _eliminate_dead_assignments(self, cfg, proj, start_addr=None):
+    def _eliminate_dead_assignments(self, cfg, proj, start_state=None):
 
         dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dsa')
         for node in dsa_new_model.nodes():
-            if node.addr == 0x400cf7:
+            if node.addr == self.vm_start_addr:
                 start_node = node
                 break
 
-        new_statements = [ ]
         #start_state = ReachingDefinitionsState()
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
+                                                       function_handler=CLibFunctionHandler()
                                                        )
 
         # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
@@ -215,64 +280,58 @@ class VMDeobfuscation(Analysis):
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
 
-            if not isinstance(d.atom, atoms.Tmp):
+            if isinstance(d.atom, atoms.MemoryLocation):
                 uses = rd.all_uses.get_uses(d)
                 if not uses:
-                    if isinstance(d.atom, atoms.MemoryLocation):
-                        print(d)
-                        print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
-                        # import ipdb;
-                        # ipdb.set_trace()
-                    # is entirely possible that at the end of the block, a register definition is not used.
-                    # however, it might be used in future blocks.
-                    # so we only remove a definition if the definition is not alive anymore at the end of the block
-                    # if isinstance(d.atom, atoms.Register):
-                    #     if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
+                    print(d)
+                    print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
                     dead_defs_locs.add(d.codeloc)
-                    # if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                    #     if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.addr.offset):
-                            #dead_defs_locs.add(d.codeloc)
-
 
         # Remove dead assignments
         for node in dsa_new_model.nodes():
-            for idx, stmt in enumerate(node.irsb.statements):
-                if isinstance(stmt, pyvex.stmt.IMark):
-                    cur_ins_addr = stmt.addr
+            new_statements = []
+            if not node.is_simprocedure:
+                print(node.irsb.pp())
+                for idx, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        cur_ins_addr = stmt.addr
 
-                stmt_loc = CodeLocation(node.irsb.addr,
-                            idx,
-                            cur_ins_addr,
-                            context=tuple(),
-                            block_id=node.block_id)
+                    stmt_loc = CodeLocation(node.irsb.addr,
+                                idx,
+                                block_id=node.block_id,
+                                ins_addr=cur_ins_addr,
+                                            )
 
-                # is it a dead virgin?
-                if stmt_loc in dead_defs_locs:
-                    continue
+                    # is it a dead virgin?
+                    if stmt_loc in dead_defs_locs:
+                        continue
 
-                new_statements.append(stmt)
-
-            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
-                                               node.irsb.addr,
-                                               statements=new_statements,
-                                               tyenv=node.irsb.tyenv,
-                                               nxt=node.irsb.next,
-                                               direct_next=node.irsb.direct_next,
-                                               jumpkind=node.irsb.jumpkind)
+                    new_statements.append(stmt)
+                for idx, stmt in enumerate(new_statements):
+                    print(f'{idx}, {stmt}')
+                if node.irsb.addr == 0x400bd2:
+                    import ipdb;ipdb.set_trace()
+                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                   node.irsb.addr,
+                                                   statements=new_statements,
+                                                   tyenv=node.irsb.tyenv,
+                                                   nxt=node.irsb.next,
+                                                   direct_next=node.irsb.direct_next,
+                                                   jumpkind=node.irsb.jumpkind)
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         if start_state:
             initial_input_state = start_state
         else:
-            initial_input_state = proj.factory.blank_state(addr=start_addr,
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
                                                            mode='fastpath',
                                                            add_options=angr.sim_options.refs | {
                                                                angr.sim_options.REPLACEMENT_SOLVER,
                                                                angr.sim_options.DO_CCALLS})
-        dsa_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
+        dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True, max_iterations=1,
-                                                   vm_vpc_addr=vm_vpc_addr)
+                                                   vm_vpc_addr=self.vm_vpc_addr)
         return new_cfg
 
     # def function_dead_assignment_elimination(self, cfg, proj, original_functions):
