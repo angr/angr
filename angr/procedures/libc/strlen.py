@@ -10,7 +10,7 @@ class strlen(angr.SimProcedure):
     #pylint:disable=arguments-differ
     max_null_index = None
 
-    def run(self, s, wchar=False):
+    def run(self, s, wchar=False, maxlen=None):
         if wchar:
             null_seq = self.state.solver.BVV(0, 16)
         else:
@@ -18,6 +18,8 @@ class strlen(angr.SimProcedure):
 
         max_symbolic_bytes = self.state.libc.buf_symbolic_bytes
         max_str_len = self.state.libc.max_str_len
+        if maxlen:
+            max_str_len = min(maxlen, max_str_len)
 
         chunk_size = None
         if MEMORY_CHUNK_INDIVIDUAL_READS in self.state.options:
