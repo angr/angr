@@ -178,7 +178,7 @@ class SimLinux(SimUserland):
         state = super().state_blank(thread_idx=thread_idx, **kwargs)
 
         # pre-grow the stack by 0x20 pages. unsure if this is strictly required or just a hack around a compiler bug
-        if hasattr(state.memory, 'allocate_stack_pages'):
+        if not self._is_core and hasattr(state.memory, 'allocate_stack_pages'):
             state.memory.allocate_stack_pages(state.solver.eval(state.regs.sp) - 1, 0x20 * 0x1000)
 
         tls_obj = self.project.loader.tls.threads[thread_idx if thread_idx is not None else 0]
