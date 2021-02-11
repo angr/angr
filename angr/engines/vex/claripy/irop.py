@@ -1053,7 +1053,7 @@ class SimIROp:
         ordered_0 = list(reversed(args[0].chop(self._vector_size)))
         ordered_1 = list(reversed(args[1].chop(self._vector_size)))
         res = []
-        nbits = int(math.log2(self._vector_size))
+        nbits = int(math.log2(self._vector_count))
         for pword in ordered_1:
             switch = pword[nbits-1:0]
             kill = pword[self._vector_size - 1]
