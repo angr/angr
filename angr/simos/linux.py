@@ -15,6 +15,7 @@ from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
 from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
+from .. import sim_options as o
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)
@@ -174,7 +175,11 @@ class SimLinux(SimUserland):
     # pylint: disable=arguments-differ
     def state_blank(self, fs=None, concrete_fs=False, chroot=None,
             cwd=None, pathsep=b'/', thread_idx=None, init_libc = False, **kwargs):
-        state = super(SimLinux, self).state_blank(thread_idx=thread_idx, **kwargs)
+        state = super().state_blank(thread_idx=thread_idx, **kwargs)
+
+        # pre-grow the stack by 0x20 pages. unsure if this is strictly required or just a hack around a compiler bug
+        if not self._is_core and hasattr(state.memory, 'allocate_stack_pages'):
+            state.memory.allocate_stack_pages(state.solver.eval(state.regs.sp) - 1, 0x20 * 0x1000)
 
         tls_obj = self.project.loader.tls.threads[thread_idx if thread_idx is not None else 0]
         if isinstance(state.arch, ArchAMD64):
