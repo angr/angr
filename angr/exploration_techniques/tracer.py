@@ -193,7 +193,13 @@ class Tracer(ExplorationTechnique):
         slide = self._trace[idx] - angr_addr
         block = self.project.factory.block(angr_addr)
         legal_next = block.vex.constant_jump_targets
-        return not legal_next or any(a + slide == self._trace[idx + 1] for a in legal_next)
+        if legal_next:
+            return any(a + slide == self._trace[idx + 1] for a in legal_next)
+        else:
+            # the intuition is that if the first block of an initializer does an indirect jump,
+            # it's probably a call out to another binary (notably __libc_start_main)
+            # this is an awful fucking heuristic but it's as good as we've got
+            return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
 
     def setup(self, simgr):
         simgr.populate('missed', [])
