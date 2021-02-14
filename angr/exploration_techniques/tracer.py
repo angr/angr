@@ -770,7 +770,7 @@ class Tracer(ExplorationTechnique):
         try:
             sync_idx = self._trace.index(addr_translated, idx)
         except ValueError:
-            l.error("Trying to synchronize at %#x (%#x) but it does not appear in the trace?")
+            l.error("Trying to synchronize at %#x (%#x) but it does not appear in the trace?", addr_translated, addr)
             return False
 
         state.globals['sync_idx'] = sync_idx
