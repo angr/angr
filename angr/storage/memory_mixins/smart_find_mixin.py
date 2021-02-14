@@ -20,8 +20,6 @@ class SmartFindMixin(MemoryMixin):
 
         char_num = self._calc_char_num(needle, char_size)
 
-        assert char_num <= max_search, "the number of characters should be smaller than max_search"
-
         # chunk_size is the number of bytes to cache in memory for comparison
         if chunk_size is None:
             chunk_size = min(max_search, max(0x80, char_num))
