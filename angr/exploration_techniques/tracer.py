@@ -507,9 +507,10 @@ class Tracer(ExplorationTechnique):
         elif state.history.jumpkind.startswith('Ijk_Exit'):
             # termination! will be handled by filter
             pass
-        elif self.project.is_hooked(state.addr):
-            # handle simprocedures in normal code
-            self._sync_return(state, idx)
+        # FIXME: support hooking functions in the tracer when they're in normal code, not just in PLT stubs or system calls
+        #elif self.project.is_hooked(state.addr):
+        #    # handle simprocedures in normal code
+        #    self._sync_return(state, idx)
         elif self._compare_addr(self._trace[idx + 1], state.addr):
             # normal case
             state.globals['trace_idx'] = idx + 1
