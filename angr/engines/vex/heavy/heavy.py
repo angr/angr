@@ -69,6 +69,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         size=None,
         num_inst=None,
         extra_stop_points=None,
+        opt_level=None,
         **kwargs):
         if not pyvex.lifting.lifters[self.state.arch.name] or type(successors.addr) is not int:
             return super().process_successors(successors, extra_stop_points=extra_stop_points, num_inst=num_inst, size=size, insn_text=insn_text, insn_bytes=insn_bytes, **kwargs)
@@ -100,7 +101,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                     size=size,
                     num_inst=num_inst,
                     extra_stop_points=extra_stop_points,
-                    opt_level=kwargs.get('opt_level', None))
+                    opt_level=opt_level)
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode' and not self.state.project.is_hooked(irsb.addr):
