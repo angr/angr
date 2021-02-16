@@ -1298,6 +1298,16 @@ class CConstant(CExpression):
             # Print pointers in hex
             yield hex(self.value), self
 
+        elif isinstance(self.value, int):
+            # before resorting to properly typed integers, let's use the following hack.
+            # print out integers as a negative number if they can be negative
+            if self.value <= 0xffffffff and self.value >= 0xf0000000:
+                yield str(0xffffffff + ~self.value), self
+            elif self.value <= 0xffff_ffff_ffff_ffff and self.value >= 0xf000_0000_0000_0000:
+                yield str(0xffff_ffff_ffff_ffff + ~self.value), self
+            else:
+                yield str(self.value), self
+
         else:
             yield str(self.value), self
 
