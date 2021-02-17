@@ -1433,7 +1433,7 @@ class StructuredCodeGenerator(Analysis):
         self.insmap = None
         self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
 
-        self._cfunc = self._analyze()
+        self.cfunc = self._analyze()
 
     def _analyze(self):
 
