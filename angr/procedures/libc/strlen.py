@@ -13,8 +13,10 @@ class strlen(angr.SimProcedure):
     def run(self, s, wchar=False, maxlen=None):
         if wchar:
             null_seq = self.state.solver.BVV(0, 16)
+            char_size = 2
         else:
             null_seq = self.state.solver.BVV(0, 8)
+            char_size = 1
 
         max_symbolic_bytes = self.state.libc.buf_symbolic_bytes
         max_str_len = self.state.libc.max_str_len
@@ -36,7 +38,7 @@ class strlen(angr.SimProcedure):
             for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
 
                 s_ptr = s_aw.to_valueset(self.state)
-                r, c, i = self.state.memory.find(s, null_seq, max_str_len, max_symbolic_bytes=max_symbolic_bytes, chunk_size=chunk_size)
+                r, c, i = self.state.memory.find(s, null_seq, max_str_len, max_symbolic_bytes=max_symbolic_bytes, chunk_size=chunk_size, char_size=char_size)
 
                 self.max_null_index = max([self.max_null_index] + i)
 
@@ -52,14 +54,14 @@ class strlen(angr.SimProcedure):
 
         else:
             search_len = max_str_len
-            r, c, i = self.state.memory.find(s, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, chunk_size=chunk_size)
+            r, c, i = self.state.memory.find(s, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, chunk_size=chunk_size, char_size=char_size)
 
             # try doubling the search len and searching again
             s_new = s
             while c and all(con.is_false() for con in c):
                 s_new += search_len
                 search_len *= 2
-                r, c, i = self.state.memory.find(s_new, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, chunk_size=chunk_size)
+                r, c, i = self.state.memory.find(s_new, null_seq, search_len, max_symbolic_bytes=max_symbolic_bytes, chunk_size=chunk_size, char_size=char_size)
                 # stop searching after some reasonable limit
                 if search_len > 0x10000:
                     raise angr.SimMemoryLimitError("strlen hit limit of 0x10000")
