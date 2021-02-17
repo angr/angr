@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple, Set, TYPE_CHECKING
+from typing import Optional, Dict, List, Tuple, Set, Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -1487,7 +1487,7 @@ class StructuredCodeGenerator(Analysis):
 
         text = cfunc.c_repr(indent=self._indent, posmap=posmap, stmt_posmap=stmt_posmap, insmap=insmap)
 
-        for elem, node in self.posmap.items():
+        for elem, node in posmap.items():
             if isinstance(node.obj, CConstant):
                 nodemap[node.obj.value].add(elem)
             elif isinstance(node.obj, CVariable):
