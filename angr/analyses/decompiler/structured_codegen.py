@@ -1425,15 +1425,15 @@ class StructuredCodeGenerator(Analysis):
 
         self._variables_in_use: Optional[Dict] = None
         self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
+        self._indent = indent
 
         self.text = None
         self.posmap = None
         self.stmt_posmap = None
         self.insmap = None
         self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
-        self._indent = indent
 
-        self._analyze()
+        self._cfunc = self._analyze()
 
     def _analyze(self):
 
@@ -1451,35 +1451,62 @@ class StructuredCodeGenerator(Analysis):
 
         self._memo = None  # clear the memo since it's useless now
 
-        func = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
-                         self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
+        cfunc = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
+                          self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name)
         self._variables_in_use = None
 
-        self.posmap = PositionMapping()
-        self.stmt_posmap = PositionMapping()
-        self.insmap = InstructionMapping()
+        self.regenerate_text(cfunc)
+        return cfunc
 
-        self.text = func.c_repr(indent=self._indent, posmap=self.posmap, stmt_posmap=self.stmt_posmap, insmap=self.insmap)
+    def cleanup(self):
+        """
+        Remove existing rendering results.
+        """
+        self.posmap = None
+        self.stmt_posmap = None
+        self.insmap = None
+        self.nodemap = None
+        self.text = None
 
-        self.nodemap = defaultdict(set)
+    def regenerate_text(self, cfunc: Optional[CFunction]=None) -> None:
+        """
+        Re-render text and re-generate all sorts of mapping information.
+        """
+        self.cleanup()
+        if cfunc is None:
+            cfunc = self._cfunc
+        if cfunc is not None:
+            self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(cfunc)
+
+    def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
+
+        posmap = PositionMapping()
+        stmt_posmap = PositionMapping()
+        insmap = InstructionMapping()
+        nodemap = defaultdict(set)
+
+        text = cfunc.c_repr(indent=self._indent, posmap=posmap, stmt_posmap=stmt_posmap, insmap=insmap)
+
         for elem, node in self.posmap.items():
             if isinstance(node.obj, CConstant):
-                self.nodemap[node.obj.value].add(elem)
+                nodemap[node.obj.value].add(elem)
             elif isinstance(node.obj, CVariable):
                 if node.obj.unified_variable is not None:
-                    self.nodemap[node.obj.unified_variable].add(elem)
+                    nodemap[node.obj.unified_variable].add(elem)
                 else:
-                    self.nodemap[node.obj.variable].add(elem)
+                    nodemap[node.obj.variable].add(elem)
             elif isinstance(node.obj, CFunctionCall):
                 if node.obj.callee_func is not None:
-                    self.nodemap[node.obj.callee_func].add(elem)
+                    nodemap[node.obj.callee_func].add(elem)
                 else:
-                    self.nodemap[node.obj.callee_target].add(elem)
+                    nodemap[node.obj.callee_target].add(elem)
             elif isinstance(node.obj, CStructField):
                 key = (node.obj.struct_type, node.obj.offset)
-                self.nodemap[key].add(elem)
+                nodemap[key].add(elem)
             else:
-                self.nodemap[node.obj].add(elem)
+                nodemap[node.obj].add(elem)
+
+        return text, posmap, stmt_posmap, insmap, nodemap
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
