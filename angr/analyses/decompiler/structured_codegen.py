@@ -1474,7 +1474,7 @@ class StructuredCodeGenerator(Analysis):
         """
         self.cleanup()
         if cfunc is None:
-            cfunc = self._cfunc
+            cfunc = self.cfunc
         if cfunc is not None:
             self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(cfunc)
 
