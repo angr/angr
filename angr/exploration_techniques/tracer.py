@@ -508,7 +508,7 @@ class Tracer(ExplorationTechnique):
             # termination! will be handled by filter
             pass
         # FIXME: support hooking functions in the tracer when they're in normal code, not just in PLT stubs or system calls
-        elif self.project.is_hooked(state.addr) and (self.project.loader._extern_object is None or not self.project.loader.extern_object.contains_addr(state.addr)):
+        elif self.project.is_hooked(state.addr) and not self.project.loader.extern_object.contains_addr(state.addr):
            # handle simprocedures in normal code
            self._sync_return(state, idx)
         elif self._compare_addr(self._trace[idx + 1], state.addr):
