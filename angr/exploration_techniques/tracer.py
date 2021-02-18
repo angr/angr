@@ -507,9 +507,8 @@ class Tracer(ExplorationTechnique):
         elif state.history.jumpkind.startswith('Ijk_Exit'):
             # termination! will be handled by filter
             pass
-        # FIXME: support hooking functions in the tracer when they're in normal code, not just in PLT stubs or system calls
         elif self.project.is_hooked(state.addr) and not self.project.loader.extern_object.contains_addr(state.addr):
-           # handle simprocedures in normal code
+           # handle simprocedures
            self._sync_return(state, idx)
         elif self._compare_addr(self._trace[idx + 1], state.addr):
             # normal case
@@ -544,9 +543,9 @@ class Tracer(ExplorationTechnique):
             # syscalls
             state.globals['sync_idx'] = idx + 1
             state.globals['sync_timer'] = 1
-        elif self.project.is_hooked(state.history.addr):
-            # simprocedures - is this safe..?
-            self._fast_forward(state)
+        #elif self.project.is_hooked(state.history.addr):
+        #    # simprocedures - is this safe..?
+        #    self._fast_forward(state)
         elif state.addr == self._trace[-1]:
             # we may have prematurely stopped because of setting stop points. try to resync.
             state.globals['sync_idx'] = idx + 1
