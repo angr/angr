@@ -543,9 +543,9 @@ class Tracer(ExplorationTechnique):
             # syscalls
             state.globals['sync_idx'] = idx + 1
             state.globals['sync_timer'] = 1
-        #elif self.project.is_hooked(state.history.addr):
-        #    # simprocedures - is this safe..?
-        #    self._fast_forward(state)
+        elif self.project.is_hooked(state.history.addr):
+            # simprocedures - is this safe..?
+            self._fast_forward(state)
         elif state.addr == self._trace[-1]:
             # we may have prematurely stopped because of setting stop points. try to resync.
             state.globals['sync_idx'] = idx + 1
