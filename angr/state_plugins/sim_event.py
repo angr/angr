@@ -11,6 +11,7 @@ class SimEvent(object):
         self.stmt_idx = state.scratch.stmt_idx
         self.sim_procedure = None if state.scratch.sim_procedure is None else state.scratch.sim_procedure.canonical
         self.objects = dict(kwargs)
+        self.arch = state.arch
 
     def __repr__(self):
         return "<SimEvent %s %d, with fields %s>" % (self.type, self.id, self.objects.keys())
