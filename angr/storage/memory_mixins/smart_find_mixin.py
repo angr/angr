@@ -107,7 +107,11 @@ class SmartFindMixin(MemoryMixin):
             yield subaddr, substr
 
     def _find_are_bytes_symbolic(self, b):
-        return b.symbolic and len(self.state.solver.eval_upto(b, 2)) > 1
+        if not b.symbolic:
+            return False
+        if b.uninitialized:
+            return True
+        return len(self.state.solver.eval_upto(b, 2)) > 1
 
     def _find_condition(self, target_addr, **kwargs):
         # TODO: fill this in in order to make each load have the correct condition associated with it
