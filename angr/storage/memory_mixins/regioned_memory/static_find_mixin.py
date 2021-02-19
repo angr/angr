@@ -3,7 +3,7 @@ import claripy
 from ..smart_find_mixin import SmartFindMixin
 
 
-class StaticFindMixin(SmartFindMixin):
+class StaticFindMixin(SmartFindMixin): #pylint:disable=abstract-method
     """
     Implements data finding for abstract memory.
     """
@@ -14,20 +14,23 @@ class StaticFindMixin(SmartFindMixin):
              chunk_size=None,
              max_symbolic_bytes=None,
              condition=None,
-             **kwargs):
+             char_size=1,
+             **kwargs): #pylint:disable=arguments-differ
+
         if endness is None:
             endness = self.endness
             if endness is None:
                 endness = 'Iend_BE'
 
-        stride = self._find_stride(data)
+        char_num = self._calc_char_num(data, char_size)
 
+        # chunk_size is the number of bytes to cache in memory for comparison
         if chunk_size is None:
-            chunk_size = min(max_search, 0x80)
+            chunk_size = min(max_search, max(0x80, char_num))
 
         match_indices = []
 
-        for i, (subaddr, element) in enumerate(self._find_iter_items(addr, stride, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs)):
+        for i, (_, element) in enumerate(self._find_iter_items(addr, char_num, char_size, chunk_size, max_search, endness, condition, max_symbolic_bytes, **kwargs)):
             comparison, concrete_comparison = self._find_compare(element, data, **kwargs)
 
             if comparison:

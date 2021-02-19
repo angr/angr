@@ -57,7 +57,7 @@ class TestReachingDefinitionsState(TestCase):
 
         self.assertTrue(isinstance(state.heap_allocator, HeapAllocator))
 
-    def test_get_sp_delegates_to_the_underlying_live_definitions(self):
+    def test_get_sp_delegates_to_the_underlying_live_definitions(self):# pylint:disable=no-self-use
         arch = archinfo.arch_arm.ArchARM()
         live_definitions = LiveDefinitions(arch)
 
