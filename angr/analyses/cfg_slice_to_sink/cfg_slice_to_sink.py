@@ -1,3 +1,4 @@
+from typing import Optional, Set, Any, List
 from functools import reduce
 
 from .transitions import merge_transitions
@@ -58,9 +59,9 @@ class CFGSliceToSink:
         ))
 
     @property
-    def nodes(self):
+    def nodes(self) -> List[int]:
         """
-        :return List[int]: The complete list of addresses present in the slice.
+        :return: The complete list of addresses present in the slice.
         """
         return list(self._origins | self._destinations)
 
@@ -93,30 +94,30 @@ class CFGSliceToSink:
         """
         return not bool(self._transitions)
 
-    def path_between(self, source, destination, visited=None):
+    def path_between(self, source: int, destination: int, visited: Optional[Set[Any]]=None) -> bool:
         """
         Check the existence of a path in the slice between two given node adresses.
 
-        :param int source: The source address.
-        :param int destination: The destination address.
-        :param List[int] visited: Used to avoid infinite recursion if loops are present in the slice.
+        :param source: The source address.
+        :param destination: The destination address.
+        :param visited: Used to avoid infinite recursion if loops are present in the slice.
 
-        :return bool:
+        :return:
             True if there is a path between the source and the destination in the CFG, False if not,
             or if we have been unable to decide (because of loops).
         """
-        _visited = visited or []
+        _visited = set() if visited is None else visited
 
-        if source not in self._transitions.keys() or source in _visited:
+        if source not in self._transitions or source in _visited:
             return False
-        _visited += [source]
+        _visited.add(source)
 
         direct_successors = self._transitions[source]
 
         if destination in direct_successors:
             return True
         else:
-            return any(list(map(
+            return any(map(
                 lambda s: self.path_between(s, destination, _visited),
                 direct_successors
-            )))
+            ))
