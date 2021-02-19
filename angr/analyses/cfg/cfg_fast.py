@@ -1026,10 +1026,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Sort it
         starting_points = sorted(list(starting_points), reverse=False)
 
-        if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry) and \
-                self.project.entry not in starting_points:
-            # make sure self.project.entry is inserted
-            starting_points = [ self.project.entry ] + starting_points
+        if self._start_at_entry and self.project.entry is not None and self._inside_regions(self.project.entry):
+            if self.project.entry not in starting_points:
+                # make sure self.project.entry is inserted
+                starting_points = [ self.project.entry ] + starting_points
+            else:
+                # make sure project.entry is the first item
+                starting_points.remove(self.project.entry)
+                starting_points = [ self.project.entry ] + starting_points
 
         # Create jobs for all starting points
         for sp in starting_points:
