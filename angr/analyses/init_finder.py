@@ -28,8 +28,18 @@ class SimEngineInitFinderVEX(
     # Utils
     #
 
+    def is_concrete(self, expr) -> bool:
+        if isinstance(expr, claripy.ast.Base) and expr.op == "BVV":
+            return True
+        if isinstance(expr, int):
+            return True
+        return False
+
     def _is_addr_uninitialized(self, addr):
         # is it writing to a global, uninitialized region?
+
+        if isinstance(addr, claripy.ast.Base):
+            addr = addr.args[0]
 
         obj = self.project.loader.find_object_containing(addr)
         if obj is not None:
@@ -49,6 +59,9 @@ class SimEngineInitFinderVEX(
         return False
 
     def _is_pointer(self, addr):
+        if isinstance(addr, claripy.ast.Base):
+            addr = addr.args[0]
+
         if isinstance(addr, int):
             if addr > 0x400:
                 return self.project.loader.find_object_containing(addr) is not None
@@ -76,14 +89,16 @@ class SimEngineInitFinderVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr_v = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr_v, int) and self._is_addr_uninitialized(addr_v):
+                if self.is_concrete(addr_v) and self._is_addr_uninitialized(addr_v):
                     # do we know what it is writing?
                     if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
                         data_v = self._expr(stmt.data)
-                        if isinstance(data_v, int):
-                            data_size = self.tyenv.sizeof(stmt.data.tmp)
+                        if self.is_concrete(data_v):
+                            if isinstance(data_v, int):
+                                data_size = self.tyenv.sizeof(stmt.data.tmp)
+                                data_v = claripy.BVV(data_v, data_size)
                             if not self.pointers_only or self._is_pointer(data_v):
-                                self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
+                                self.overlay.store(addr_v, data_v,
                                                    endness=self.project.arch.memory_endness
                                                    )
 
@@ -104,7 +119,7 @@ class SimEngineInitFinderVEX(
         else:
             return
 
-        if not (isinstance(addr_v, int) and self._is_addr_uninitialized(addr_v)):
+        if not (self.is_concrete(addr_v) and self._is_addr_uninitialized(addr_v)):
             return
 
         if type(stmt.data) is pyvex.IRExpr.RdTmp:
@@ -112,10 +127,14 @@ class SimEngineInitFinderVEX(
         else:
             return
 
-        if isinstance(data_v, int):
-            data_size = self.tyenv.sizeof(stmt.data.tmp)
+        if self.is_concrete(data_v):
+            import ipdb; ipdb.set_trace()
+            if isinstance(data_v, int):
+                data_size = self.tyenv.sizeof(stmt.data.tmp)
+                data_v = claripy.BVV(data_v, data_size)
+
             if not self.pointers_only or self._is_pointer(data_v):
-                self.overlay.store(addr_v, claripy.BVV(data_v, data_size),
+                self.overlay.store(addr_v, data_v,
                                    endness=self.project.arch.memory_endness
                                    )
 

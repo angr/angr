@@ -1,6 +1,7 @@
-
+from typing import Optional
 from collections import defaultdict
 
+import claripy
 import pyvex
 
 from ..knowledge_plugins.xrefs import XRef, XRefType
@@ -27,6 +28,19 @@ class SimEngineXRefsVEX(
                                         stmt_idx=from_loc.stmt_idx, dst=to_loc, xref_type=xref_type)
                                    )
 
+    @staticmethod
+    def extract_value_if_concrete(expr) -> Optional[int]:
+        """
+        Extract the concrete value from expr if it is a concrete claripy AST.
+
+        :param expr:    A claripy AST.
+        :return:        A concrete value or None if nothing concrete can be extracted.
+        """
+
+        if isinstance(expr, claripy.ast.Base) and expr.op == "BVV":
+            return expr.args[0]
+        return None
+
     #
     # Statement handlers
     #
@@ -47,8 +61,9 @@ class SimEngineXRefsVEX(
             blockloc = self._codeloc(block_only=True)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr, int):
-                    self.add_xref(XRefType.Write, self._codeloc(), addr)
+                addr_v = self.extract_value_if_concrete(addr)
+                if addr_v is not None:
+                    self.add_xref(XRefType.Write, self._codeloc(), addr_v)
         elif isinstance(stmt.addr, pyvex.IRExpr.Const):
             addr = stmt.addr.con.value
             self.add_xref(XRefType.Write, self._codeloc(), addr)
@@ -59,8 +74,9 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr, int):
-                    self.add_xref(XRefType.Write, self._codeloc(), addr)
+                addr_v = self.extract_value_if_concrete(addr)
+                if addr_v is not None:
+                    self.add_xref(XRefType.Write, self._codeloc(), addr_v)
 
     def _handle_LoadG(self, stmt):
         # What are we reading?
@@ -69,8 +85,9 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr, int):
-                    self.add_xref(XRefType.Read, self._codeloc(), addr)
+                addr_v = self.extract_value_if_concrete(addr)
+                if addr_v is not None:
+                    self.add_xref(XRefType.Read, self._codeloc(), addr_v)
         self._handle_data_offset_refs(stmt.dst)
 
     def _handle_LLSC(self, stmt: pyvex.IRStmt.LLSC):
@@ -79,13 +96,14 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(stmt.addr.tmp)
             if addr_tmp in self.replacements[blockloc]:
                 addr = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr, int):
+                addr_v = self.extract_value_if_concrete(addr)
+                if addr_v is not None:
                     if stmt.storedata is None:
                         # load-link
                         xref_type = XRefType.Read
                     else:
                         xref_type = XRefType.Write
-                    self.add_xref(xref_type, self._codeloc(), addr)
+                    self.add_xref(xref_type, self._codeloc(), addr_v)
 
     def _handle_data_offset_refs(self, data_tmp):
         # is this thing a pointer?
@@ -96,14 +114,15 @@ class SimEngineXRefsVEX(
             data = self.replacements[blockloc][tmp]
             # Is this thing not an integer? If so, get out of here
             # e.g., you can't find_object_containing on an SPOffset
-            if not isinstance(data, int):
+            data_v = self.extract_value_if_concrete(data)
+            if data_v is None:
                 return
-            if data is not None and self.project.loader.find_object_containing(data) is not None:
+            if self.project.loader.find_object_containing(data_v) is not None:
                 # HACK: Avoid spamming Xrefs if the binary is loaded at 0
                 # e.g., firmware!
                 # (magic value chosen due to length of CM EVT)
-                if data > 0x200:
-                    self.add_xref(XRefType.Offset, self._codeloc(), data)
+                if data_v > 0x200:
+                    self.add_xref(XRefType.Offset, self._codeloc(), data_v)
 
     #
     # Expression handlers
@@ -118,8 +137,9 @@ class SimEngineXRefsVEX(
             addr_tmp = VEXTmp(expr.addr.tmp)
             if addr_tmp in self.replacements[blockloc] and not isinstance(self.replacements[blockloc][addr_tmp], Top):
                 addr = self.replacements[blockloc][addr_tmp]
-                if isinstance(addr, int):
-                    self.add_xref(XRefType.Read, self._codeloc(), addr)
+                addr_v = self.extract_value_if_concrete(addr)
+                if addr_v is not None:
+                    self.add_xref(XRefType.Read, self._codeloc(), addr_v)
         elif type(expr.addr) is pyvex.IRExpr.Const:
             addr = expr.addr.con.value
             self.add_xref(XRefType.Read, self._codeloc(), addr)
@@ -130,6 +150,7 @@ class SimEngineXRefsVEX(
     def _handle_function(self, func):
         # pylint: disable=unused-argument,no-self-use
         return None # TODO: Maybe add an execute-type XRef?
+
 
 class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """

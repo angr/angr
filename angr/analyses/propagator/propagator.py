@@ -1,12 +1,14 @@
+import weakref
 from typing import Set, Optional, Any, Tuple
 from collections import defaultdict
 import logging
 
+import claripy
 import ailment
 
 from ... import sim_options
-from ...engines.light import SpOffset
-from ...keyed_region import KeyedRegion
+from ...storage.memory_mixins import LabeledMemory
+from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation  # pylint:disable=unused-import
 from .. import register_analysis
 from ..analysis import Analysis
@@ -21,7 +23,7 @@ _l = logging.getLogger(name=__name__)
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None, equivalence=None):
+    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -31,8 +33,44 @@ class PropagatorState:
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
 
+        self.project = project
+
     def __repr__(self):
         return "<PropagatorState>"
+
+    def _get_weakref(self):
+        return weakref.proxy(self)
+
+    def sp_offset(self, offset: int):
+        base = claripy.BVS("SpOffset", self.arch.bits, explicit_name=True)
+        if offset:
+            base += offset
+        return base
+
+    def top(self, size: int):
+        """
+        Get a TOP value.
+
+        :param size:    Width of the TOP value (in bits).
+        :return:        The TOP value.
+        """
+
+        r = claripy.BVS("TOP", size, explicit_name=True)
+        return r
+
+    def is_top(self, expr) -> bool:
+        """
+        Check if the given expression is a TOP value.
+
+        :param expr:    The given expression.
+        :return:        True if the expression is TOP, False otherwise.
+        """
+        if isinstance(expr, claripy.ast.Base):
+            if expr.op == "BVS" and expr.args[0] == "TOP":
+                return True
+            if "TOP" in expr.variables:
+                return True
+        return False
 
     def copy(self) -> 'PropagatorState':
         raise NotImplementedError()
@@ -51,7 +89,7 @@ class PropagatorState:
                             state._replacements[loc][var] = repl
                         else:
                             if state._replacements[loc][var] != repl:
-                                state._replacements[loc][var] = Top(1)
+                                state._replacements[loc][var] = Top(self.arch.byte_width)
             state._equivalence |= o._equivalence
 
         return state
@@ -66,6 +104,9 @@ class PropagatorState:
         :param new:                     The expression to replace with.
         :return:                        None
         """
+        if self.is_top(new):
+            return
+
         if self._only_consts:
             if isinstance(new, int) or type(new) is Top:
                 self._replacements[codeloc][old] = new
@@ -79,18 +120,22 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, replacements=None, only_consts=False,
+    def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
                  prop_count=None):
-        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
-        self.registers = {} if registers is None else registers  # offset to values
-        self.local_variables = {} if local_variables is None else local_variables  # offset to values
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
+        self.registers = LabeledMemory(memory_id='reg', top_func=self.top) if registers is None else registers
+        self.local_variables = LabeledMemory(memory_id='mem', top_func=self.top) if local_variables is None else local_variables
+
+        self.registers.set_state(self)
+        self.local_variables.set_state(self)
 
     def __repr__(self):
         return "<PropagatorVEXState>"
 
-    def copy(self):
+    def copy(self) -> 'PropagatorVEXState':
         cp = PropagatorVEXState(
             self.arch,
+            project=self.project,
             registers=self.registers.copy(),
             local_variables=self.local_variables.copy(),
             replacements=self._replacements.copy(),
@@ -100,52 +145,36 @@ class PropagatorVEXState(PropagatorState):
 
         return cp
 
-    def merge(self, *others):
+    def merge(self, *others: 'PropagatorVEXState') -> 'PropagatorVEXState':
         state = self.copy()
-        for other in others:  # type: PropagatorVEXState
-            for offset, value in other.registers.items():
-                if offset not in state.registers:
-                    state.registers[offset] = value
-                else:
-                    if state.registers[offset] != value:
-                        state.registers[offset] = Top(self.arch.bytes)
-
-            for offset, value in other.local_variables.items():
-                if offset not in state.local_variables:
-                    state.local_variables[offset] = value
-                else:
-                    if state.local_variables[offset] != value:
-                        state.local_variables[offset] = Top(self.arch.bytes)
-
+        state.registers.merge([o.registers for o in others], None)
+        state.local_variables.merge([o.local_variables for o in others], None)
         return state
 
-    def store_local_variable(self, offset, size, value):  # pylint:disable=unused-argument
+    def store_local_variable(self, offset, size, value, endness):  # pylint:disable=unused-argument
         # TODO: Handle size
-        self.local_variables[offset] = value
+        self.local_variables.store(offset, value, size=size, endness=endness)
 
-    def load_local_variable(self, offset, size):  # pylint:disable=unused-argument
+    def load_local_variable(self, offset, size, endness):  # pylint:disable=unused-argument
         # TODO: Handle size
         try:
-            return self.local_variables[offset]
-        except KeyError:
-            return Top(size)
+            return self.local_variables.load(offset, size=size, endness=endness)
+        except SimMemoryMissingError:
+            return self.top(size * self.arch.byte_width)
 
     def store_register(self, offset, size, value):
-        if size != self.gpr_size:
-            return
-
-        self.registers[offset] = value
+        self.registers.store(offset, value, size=size)
 
     def load_register(self, offset, size):
 
         # TODO: Fix me
         if size != self.gpr_size:
-            return Top(size)
+            return self.top(size * self.arch.byte_width)
 
         try:
-            return self.registers[offset]
-        except KeyError:
-            return Top(size)
+            return self.registers.load(offset, size=size)
+        except SimMemoryMissingError:
+            return self.top(size * self.arch.byte_width)
 
 
 # AIL state
@@ -173,12 +202,12 @@ class Equivalence:
 
 
 class PropagatorAILState(PropagatorState):
-    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None, equivalence=None):
-        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
+    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None):
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
                          equivalence=equivalence)
 
-        self._stack_variables = KeyedRegion()
-        self._registers = KeyedRegion()
+        self._stack_variables = LabeledMemory()
+        self._registers = LabeledMemory()
         self._tmps = {}
 
     def __repr__(self):
@@ -187,6 +216,7 @@ class PropagatorAILState(PropagatorState):
     def copy(self):
         rd = PropagatorAILState(
             self.arch,
+            project=self.project,
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
             only_consts=self._only_consts,
@@ -201,7 +231,7 @@ class PropagatorAILState(PropagatorState):
 
     def merge(self, *others) -> 'PropagatorAILState':
         # TODO:
-        state = super().merge(*others)
+        state: 'PropagatorAILState' = super().merge(*others)
 
         for o in others:
             state._stack_variables.merge_to_top(o._stack_variables, top=Top(1))
@@ -218,7 +248,7 @@ class PropagatorAILState(PropagatorState):
         if isinstance(old, ailment.Expr.Tmp):
             self._tmps[old.tmp_idx] = new
         elif isinstance(old, ailment.Expr.Register):
-            self._registers.set_object(old.reg_offset, (new, def_at), old.size)
+            self._registers.store(old.reg_offset, new, size=old.size, label=def_at)
         else:
             _l.warning("Unsupported old variable type %s.", type(old))
 
@@ -228,7 +258,7 @@ class PropagatorAILState(PropagatorState):
                 offset = 0
             else:
                 offset = addr.offset
-            self._stack_variables.set_object(offset, new, size)
+            self._stack_variables.store(offset, new, size=size)
         else:
             _l.warning("Unsupported addr type %s.", type(addr))
 
@@ -236,7 +266,7 @@ class PropagatorAILState(PropagatorState):
         if isinstance(variable, ailment.Expr.Tmp):
             return self._tmps.get(variable.tmp_idx, None)
         elif isinstance(variable, ailment.Expr.Register):
-            objs = self._registers.get_objects_by_offset(variable.reg_offset)
+            objs = self._registers.load(variable.reg_offset, size=variable.size)
             if not objs:
                 return None
             # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
@@ -267,7 +297,7 @@ class PropagatorAILState(PropagatorState):
 
     def get_stack_variable(self, addr, size, endness=None):  # pylint:disable=unused-argument
         if isinstance(addr, ailment.Expr.StackBaseOffset):
-            objs = self._stack_variables.get_objects_by_offset(addr.offset)
+            objs = self._stack_variables.load(addr.offset, size=size)
             if not objs:
                 return None
             return next(iter(objs))
@@ -387,13 +417,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(arch=self.project.arch, only_consts=self._only_consts)
+            state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts)
+            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            spoffset_var = state.sp_offset(0)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
-                                 SpOffset(self.project.arch.bits, 0)
+                                 spoffset_var,
                                  )
         return state
 
