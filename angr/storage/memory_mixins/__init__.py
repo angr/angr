@@ -150,6 +150,7 @@ from .simple_interface_mixin import SimpleInterfaceMixin
 from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
 from .smart_find_mixin import SmartFindMixin
 from .symbolic_merger_mixin import SymbolicMergerMixin
+from .top_merger_mixin import TopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
@@ -283,6 +284,29 @@ class RegionedMemory(
     PagedMemoryMixin,
 ):
     pass
+
+
+class LabeledMemory(
+    ListPagesMixin,
+    DefaultFillerMixin,
+    TopMergerMixin,
+    PagedMemoryMixin,
+):
+    """
+    LabeledMemory is used in static analysis. It allows storing objects with labels, such as `Definition`s.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _default_value(self, addr, size, **kwargs):
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self.state.top(size * self.state.arch.byte_width)
+
+        # we never fill default values for non-existent loads
+        kwargs['fill_missing'] = False
+        return super()._default_value(addr, size, **kwargs)
 
 
 class KeyValueMemory(
