@@ -186,8 +186,52 @@ class Tracer(ExplorationTechnique):
             indices = set(i for i in indices if self._filter_idx(angr_addr, i))
             threshold //= 2
 
-
         return indices
+
+    def _identify_aslr_slides(self):
+        """
+        libraries can be mapped differently in the original run(in the trace) and in angr
+        this function identifies the difference(called aslr slides) of each library to help angr translate
+        original address and address in angr back and forth
+        """
+        if self._aslr:
+            # if we don't know whether there is any slide, we need to identify the slides via heuristics
+            for obj in self.project.loader.all_elf_objects:
+                # heuristic 1: non-PIC  objects are loaded without aslr slides
+                if not obj.pic:
+                    self._aslr_slides[obj] = 0
+                    continue
+
+                # heuristic 2: library objects with custom_base_addr are loaded at the correct locations
+                if obj._custom_base_addr:
+                    l.info("%s is assumed to be loaded at the address matching the one in the trace", obj)
+                    self._aslr_slides[obj] = 0
+                    continue
+
+                # heuristic 3: entry point of an object should appear in the trace
+                possibilities = None
+                for entry in obj.initializers + ([obj.entry] if obj.is_main_bin else []):
+                    indices = self._locate_entry_point(entry)
+                    slides = {self._trace[idx] - entry for idx in indices}
+                    if possibilities is None:
+                        possibilities = slides
+                    else:
+                        possibilities.intersection_update(slides)
+
+                if possibilities is None:
+                    continue
+
+                if len(possibilities) == 0:
+                    raise AngrTracerError("Trace does not seem to contain object initializers for %s. Do you want to have a Tracer(aslr=False)?" % obj)
+                if len(possibilities) == 1:
+                    self._aslr_slides[obj] = next(iter(possibilities))
+                else:
+                    raise AngrTracerError("Trace seems ambiguous with respect to what the ASLR slides are for %s. This is surmountable, please open an issue." % obj)
+        else:
+            # if we know there is no slides, just trust the address in the loader
+            for obj in self.project.loader.all_elf_objects:
+                self._aslr_slides[obj] = 0
+            self._current_slide = 0
 
     def _filter_idx(self, angr_addr, idx):
         slide = self._trace[idx] - angr_addr
@@ -210,32 +254,7 @@ class Tracer(ExplorationTechnique):
         if len(simgr.active) != 1:
             raise AngrTracerError("Tracer is being invoked on a SimulationManager without exactly one active state")
 
-        # handle aslr slides
-        if self._aslr:
-            for obj in self.project.loader.all_elf_objects:
-                possibilities = None
-                for entry in obj.initializers + ([obj.entry] if obj.is_main_bin else []):
-                    indices = self._locate_entry_point(entry)
-                    slides = {self._trace[idx] - entry for idx in indices}
-                    if possibilities is None:
-                        possibilities = slides
-                    else:
-                        possibilities.intersection_update(slides)
-
-                if possibilities is None:
-                    continue
-
-                if len(possibilities) == 0:
-                    raise AngrTracerError("Trace does not seem to contain object initializers for %s. Do you want to have a Tracer(aslr=False)?" % obj)
-                if len(possibilities) == 1:
-                    self._aslr_slides[obj] = next(iter(possibilities))
-                else:
-                    raise AngrTracerError("Trace seems ambiguous with respect to what the ASLR slides are for %s. This is surmountable, please open an issue." % obj)
-
-        else:
-            for obj in self.project.loader.all_elf_objects:
-                self._aslr_slides[obj] = 0
-            self._current_slide = 0
+        self._identify_aslr_slides()
 
         if self._fast_forward_to_entry:
             idx = self._trace.index(self._translate_state_addr(self.project.entry))
@@ -488,6 +507,9 @@ class Tracer(ExplorationTechnique):
         elif state.history.jumpkind.startswith('Ijk_Exit'):
             # termination! will be handled by filter
             pass
+        elif self.project.is_hooked(state.addr) and not self.project.loader.extern_object.contains_addr(state.addr):
+           # handle simprocedures
+           self._sync_return(state, idx)
         elif self._compare_addr(self._trace[idx + 1], state.addr):
             # normal case
             state.globals['trace_idx'] = idx + 1
@@ -748,7 +770,7 @@ class Tracer(ExplorationTechnique):
         try:
             sync_idx = self._trace.index(addr_translated, idx)
         except ValueError:
-            l.error("Trying to synchronize at %#x (%#x) but it does not appear in the trace?")
+            l.error("Trying to synchronize at %#x (%#x) but it does not appear in the trace?", addr_translated, addr)
             return False
 
         state.globals['sync_idx'] = sync_idx

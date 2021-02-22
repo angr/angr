@@ -8,6 +8,7 @@ class strncmp(angr.SimProcedure):
 
     def run(self, a_addr, b_addr, limit, a_len=None, b_len=None, wchar=False, ignore_case=False): #pylint:disable=arguments-differ
         strlen = angr.SIM_PROCEDURES['libc']['strlen']
+        char_size = 1 if not wchar else 2
 
         a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr, wchar=wchar)
         b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr, wchar=wchar)
@@ -64,17 +65,18 @@ class strncmp(angr.SimProcedure):
                     return self.state.solver.BVV(1, self.state.arch.bits, variables=variables)
 
         # the bytes
-        a_bytes = self.state.memory.load(a_addr, maxlen, endness='Iend_BE')
-        b_bytes = self.state.memory.load(b_addr, maxlen, endness='Iend_BE')
+        max_byte_len = maxlen * char_size
+        a_bytes = self.state.memory.load(a_addr, max_byte_len, endness='Iend_BE')
+        b_bytes = self.state.memory.load(b_addr, max_byte_len, endness='Iend_BE')
 
         # TODO: deps
 
         # all possible return values in static mode
         return_values = [ ]
 
-        for i in range(maxlen):
+        for i in range(max_byte_len):
             l.debug("Processing byte %d", i)
-            maxbit = (maxlen-i)*8
+            maxbit = (max_byte_len-i)*8
             a_byte = a_bytes[maxbit-1:maxbit-8]
             b_byte = b_bytes[maxbit-1:maxbit-8]
 

@@ -415,7 +415,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int):
                 return DataSet(e0 != 1, expr.result_size(self.tyenv))
 
-        # l.warning('Comparison of multiple values / different types.')
+        l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_Not(self, expr):
@@ -427,7 +427,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int):
                 return DataSet(e0 == 0, expr.result_size(self.tyenv))
 
-        # l.warning('Comparison of multiple values / different types.')
+        l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     #
@@ -466,7 +466,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 == e1, expr.result_size(self.tyenv))
 
-        # l.warning('Comparison of multiple values / different types.')
+        l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CmpNE(self, expr):
@@ -480,7 +480,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 != e1, expr.result_size(self.tyenv))
 
-        # l.warning('Comparison of multiple values / different types.')
+        l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CmpLT(self, expr):
@@ -494,7 +494,7 @@ class SimEngineRDVEX(
             if isinstance(e0, int) and isinstance(e1, int):
                 return DataSet(e0 < e1, expr.result_size(self.tyenv))
 
-        # l.warning('Comparison of multiple values / different types.')
+        l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     # ppc only
@@ -514,7 +514,7 @@ class SimEngineRDVEX(
                 else:
                     return DataSet(0x02, expr.result_size(self.tyenv))
 
-        # l.warning('Comparison of multiple values / different types.')
+        l.warning('Comparison of multiple values / different types.')
         return DataSet({True, False}, expr.result_size(self.tyenv))
 
     def _handle_CCall(self, expr):
@@ -616,8 +616,7 @@ class SimEngineRDVEX(
                     self._visited_blocks = visited_blocks
                     self._dep_graph = dep_graph
             else:
-                # l.warning('Please implement the local function handler with your own logic.')
-                pass
+                l.warning('Please implement the local function handler with your own logic.')
         else:
             l.warning('Could not find function name for external function at address %#x.', func_addr_int)
             handler_name = 'handle_unknown_call'

@@ -1,4 +1,5 @@
 import nose
+import sys
 import random
 import angr
 
@@ -956,21 +957,21 @@ def test_string_without_null():
     s.memory.store(str_addr, str_)
     nose.tools.assert_equal(s.solver.eval(s.mem[str_addr].string.resolved, cast_to=bytes), b"abcd")
 
+def run_all():
+    def print_test_name(name):
+        print('#' * (len(name) + 8))
+        print('###', name, '###')
+        print('#' * (len(name) + 8))
+
+    functions = globals()
+    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        if hasattr(all_functions[f], '__call__'):
+            print_test_name(f)
+            all_functions[f]()
 
 if __name__ == '__main__':
-    test_inline_strlen()
-    test_inline_strcmp()
-    test_getc()
-    test_scanf()
-    test_getchar()
-    test_strcmp()
-    test_inline_strncmp()
-    test_memcmp()
-    test_memcpy()
-    test_memset()
-    test_strchr()
-    test_strcpy()
-    test_strncpy()
-    test_strstr_inconsistency()
-    test_string_without_null()
-    test_wcscmp()
+    if len(sys.argv) > 1:
+        globals()['test_' + sys.argv[1]]()
+    else:
+        run_all()
