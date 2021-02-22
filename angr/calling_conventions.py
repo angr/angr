@@ -176,7 +176,7 @@ class SimStackArg(SimFunctionArgument):
 
 class SimComboArg(SimFunctionArgument):
     def __init__(self, locations):
-        super(SimComboArg, self).__init__(sum(x.size for x in locations))
+        super().__init__(sum(x.size for x in locations))
         self.locations = locations
 
     def __repr__(self):
@@ -239,7 +239,7 @@ class ArgSession:
                 arg = next(self.real_args)
                 if is_fp and self.cc.is_fp_arg(arg) is False:
                     raise TypeError("Can't put a float here - concrete arg positions are specified")
-                elif not is_fp and self.cc.is_fp_arg(arg) is True:
+                if not is_fp and self.cc.is_fp_arg(arg) is True:
                     raise TypeError("Can't put an int here - concrete arg positions are specified")
             except StopIteration:
                 raise TypeError("Accessed too many arguments - concrete number are specified")
@@ -506,8 +506,7 @@ class SimCC:
                 args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
-            is_fp = [ True if isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) else False
-                      for arg in args ]
+            is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
             if sizes is None:
                 # initialize sizes from args
                 sizes = [ ]
@@ -569,8 +568,7 @@ class SimCC:
             if self.args is None:
                 if self.func_ty is None:
                     raise ValueError("You must either customize this CC or pass a value to is_fp!")
-                else:
-                    arg_locs = self.arg_locs([False]*len(self.func_ty.args))
+                arg_locs = self.arg_locs([False]*len(self.func_ty.args))
             else:
                 arg_locs = self.args
 
@@ -768,8 +766,8 @@ class SimCC:
         ty = self.func_ty.returnty if self.func_ty is not None else None
         try:
             betterval = self._standardize_value(val, ty, state, None)
-        except AttributeError:
-            raise ValueError("Can't fit value %s into a return value" % repr(val))
+        except AttributeError as ex:
+            raise ValueError("Can't fit value %s into a return value" % repr(val)) from ex
 
         if self.ret_val is not None:
             loc = self.ret_val
@@ -1026,7 +1024,7 @@ class SimLyingRegArg(SimRegArg):
     """
     def __init__(self, name):
         # TODO: This looks byte-related.  Make sure to use Arch.byte_width
-        super(SimLyingRegArg, self).__init__(name, 8)
+        super().__init__(name, 8)
 
     def get_value(self, state, size=None, endness=None, **kwargs):  # pylint:disable=arguments-differ
         #val = super(SimLyingRegArg, self).get_value(state, **kwargs)
@@ -1097,7 +1095,7 @@ class SimCCSyscall(SimCC):
             expr = claripy.BVV(expr, state.arch.bits)
         try:
             expr = expr.ast
-        except:
+        except AttributeError:
             pass
         nbits = self.ERROR_REG.size * state.arch.byte_width
         error_cond = claripy.UGE(expr, self.SYSCALL_ERRNO_START)
@@ -1170,7 +1168,7 @@ class SimCCSystemVAMD64(SimCC):
     STACK_ALIGNMENT = 16
 
     def __init__(self, arch, args=None, ret_val=None, sp_delta=None, func_ty=None):
-        super(SimCCSystemVAMD64, self).__init__(arch, args, ret_val, sp_delta, func_ty)
+        super().__init__(arch, args, ret_val, sp_delta, func_ty)
 
         # Remove the ret address on stack
         if self.args is not None:
