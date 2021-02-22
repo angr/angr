@@ -58,15 +58,10 @@ class SimEnginePropagatorVEX(
 
     def _load_data(self, addr, size, endness):
         if isinstance(addr, claripy.ast.Base):
-            if 'SpOffset' in addr.variables:
+            sp_offset = self.state.extract_offset_to_sp(addr)
+            if sp_offset is not None:
                 # Local variable
-                if addr.op == "BVS":
-                    offset = 0
-                elif addr.op == '__add__' and isinstance(addr.args[1], claripy.ast.Base) and addr.args[1].op == "BVV":
-                    offset = addr.args[1].args[0]
-                else:
-                    return None
-                v = self.state.load_local_variable(offset, size, endness)
+                v = self.state.load_local_variable(sp_offset, size, endness)
                 return v
             elif addr.op == "BVV":
                 addr = addr.args[0]
@@ -129,15 +124,10 @@ class SimEnginePropagatorVEX(
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
         if isinstance(addr, claripy.ast.Base):
-            if 'SpOffset' in addr.variables:
+            sp_offset = self.state.extract_offset_to_sp(addr)
+            if sp_offset is not None:
                 # Local variables
-                if addr.op == "BVS":
-                    offset = 0
-                elif addr.op == '__add__' and isinstance(addr.args[1], claripy.ast.Base) and addr.args[1].op == "BVV":
-                    offset = addr.args[1].args[0]
-                else:
-                    return
-                self.state.store_local_variable(offset, size, data, endness)
+                self.state.store_local_variable(sp_offset, size, data, endness)
             elif addr.op == "BVV":
                 # a memory address
                 addr = addr.args[0]
