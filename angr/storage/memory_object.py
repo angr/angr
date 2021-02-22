@@ -131,6 +131,15 @@ class SimMemoryObject:
         return "MO(%s)" % self.object
 
 
+class SimLabeledMemoryObject(SimMemoryObject):
+
+    __slots__ = ('label', )
+
+    def __init__(self, obj, base, endness, length=None, byte_width=8, label=None):
+        super().__init__(obj, base, endness, length=length, byte_width=byte_width)
+        self.label = label
+
+
 def bv_slice(value, offset, size, rev, bw):
     """
     Extremely cute utility to pretend you've serialized a value to stored bytes, sliced it a la python slicing, and then
