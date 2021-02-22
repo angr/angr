@@ -17,14 +17,14 @@ TESTS_LOCATION = os.path.join(
 )
 
 
-class _MockFunctionSubject:
-    class _MockFunction:
+class _MockFunctionSubject:  # pylint:disable=too-few-public-methods
+    class _MockFunction:  # pylint:disable=too-few-public-methods
         def __init__(self):
             self.addr = 0x42
 
     def __init__(self):
         self.type = SubjectType.Function
-        self.cc = None
+        self.cc = None  # pylint:disable=invalid-name
         self.content = self._MockFunction()
 
 class TestReachingDefinitionsState(TestCase):
@@ -57,7 +57,7 @@ class TestReachingDefinitionsState(TestCase):
 
         self.assertTrue(isinstance(state.heap_allocator, HeapAllocator))
 
-    def test_get_sp_delegates_to_the_underlying_live_definitions(self):# pylint:disable=no-self-use
+    def test_get_sp_delegates_to_the_underlying_live_definitions(self):  # pylint:disable=no-self-use
         arch = archinfo.arch_arm.ArchARM()
         live_definitions = LiveDefinitions(arch)
 

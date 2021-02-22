@@ -3,7 +3,7 @@ import claripy
 from ..smart_find_mixin import SmartFindMixin
 
 
-class StaticFindMixin(SmartFindMixin): #pylint:disable=abstract-method
+class StaticFindMixin(SmartFindMixin):  # pylint:disable=abstract-method
     """
     Implements data finding for abstract memory.
     """
@@ -45,8 +45,8 @@ class StaticFindMixin(SmartFindMixin): #pylint:disable=abstract-method
         return r_union, [ ], match_indices
 
     def _find_compare(self, element, target, **kwargs):
-        elem_si = element._model_vsa
-        target_si = target._model_vsa
+        elem_si = element._model_vsa  # pylint:disable=protected-access
+        target_si = target._model_vsa  # pylint:disable=protected-access
 
         comparison, concrete_comparison = False, False
 
@@ -59,4 +59,4 @@ class StaticFindMixin(SmartFindMixin): #pylint:disable=abstract-method
 
     def _find_are_bytes_symbolic(self, b):
         # we only support strided intervals
-        return not isinstance(b._model_vsa, claripy.vsa.StridedInterval)
+        return not isinstance(b._model_vsa, claripy.vsa.StridedInterval)  # pylint:disable=protected-access

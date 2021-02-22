@@ -262,7 +262,22 @@ class SimActionData(SimAction):
         return super(SimActionData, self).reg_deps | self._reg_dep
 
     def _desc(self):
-        return "%s/%s" % (self.type, self.action)
+        def _repr(o):
+            if type(o) in {bytes, str, int}:
+                return o
+            try:
+                o = o.ast
+            except AttributeError:
+                pass
+            return o.shallow_repr()
+        if self.type == 'reg':
+            _size = self.size.ast if isinstance(self.size, SimActionObject) else self.size
+            assert isinstance(_size, int)
+            storage = self.arch.register_size_names[(self.offset, _size // self.arch.byte_width)]
+        else:
+            storage = self.addr
+        direction = '<<----' if self.action == 'write' else '---->>'
+        return f"{self.type}/{self.action}: {_repr(storage)}  {direction}  {_repr(self.data)}"
 
     def _copy_objects(self, c):
         c.action = self.action
