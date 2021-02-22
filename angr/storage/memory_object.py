@@ -12,9 +12,12 @@ def obj_bit_size(o):
 
 class SimMemoryObject:
     """
-    A MemoryObjectRef instance is a reference to a byte or several bytes in
-    a specific object in memory. It should be used only by the bottom layer of memory.
+    A SimMemoryObject is a reference to a byte or several bytes in a specific object in memory. It should be used only
+    by the bottom layer of memory.
     """
+
+    __slots__ = ('is_bytes', '_byte_width', 'base', 'object', 'length', 'endness', )
+
     def __init__(self, obj, base, endness, length=None, byte_width=8):
         if type(obj) is bytes:
             assert byte_width == 8
@@ -22,7 +25,7 @@ class SimMemoryObject:
         elif not isinstance(obj, claripy.ast.Base):
             raise SimMemoryError('memory can only store claripy Expression')
 
-        self.is_bytes = type(obj) == bytes
+        self.is_bytes = type(obj) is bytes
         if self.is_bytes and endness != 'Iend_BE':
             raise SimMemoryError('bytes can only be stored big-endian')
         self._byte_width = byte_width
@@ -126,6 +129,7 @@ class SimMemoryObject:
 
     def __repr__(self):
         return "MO(%s)" % self.object
+
 
 def bv_slice(value, offset, size, rev, bw):
     """
