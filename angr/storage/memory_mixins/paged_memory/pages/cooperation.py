@@ -1,7 +1,7 @@
 import claripy
-import typing
+from typing import List, Tuple, Union
 
-from angr.storage.memory_object import SimMemoryObject
+from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 
 class CooperationBase:
     """
@@ -53,7 +53,7 @@ class MemoryObjectMixin(CooperationBase):
     With this, load will return a list of tuple (address, MO) and store will take a MO.
     """
     @classmethod
-    def _compose_objects(cls, objects: typing.List[typing.List[typing.Tuple[int, SimMemoryObject]]], size, endness=None,
+    def _compose_objects(cls, objects: List[List[Tuple[int, SimMemoryObject]]], size, endness=None,
                          memory=None, **kwargs):
         c_objects = []
         for objlist in objects:
@@ -79,11 +79,16 @@ class MemoryObjectMixin(CooperationBase):
         return elements[0].concat(*elements[1:])
 
     @classmethod
-    def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, **kwargs):
+    def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
         cur_addr = addr + page_addr
-        memory_object = SimMemoryObject(data, cur_addr, endness,
-                                        byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        if label is None:
+            memory_object = SimMemoryObject(data, cur_addr, endness,
+                                            byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        else:
+            memory_object = SimLabeledMemoryObject(data, cur_addr, endness,
+                                                   byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                                                   label=label)
         size = yield
         while True:
             cur_addr += size

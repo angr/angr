@@ -1,12 +1,12 @@
 import cffi
-from typing import Tuple, Type, Dict, Optional, Iterable, List, Any, Set
+from typing import Tuple, Type, Dict, Optional, Iterable, Set, Any
 import logging
 from collections import defaultdict
 
 import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage
+from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, ListPageWithLabels, UltraPage
 from ....errors import SimMemoryError
 
 # yeet
@@ -542,6 +542,45 @@ class PagedMemoryMixin(MemoryMixin):
 
 class ListPagesMixin(PagedMemoryMixin):
     PAGE_TYPE = ListPage
+
+
+class ListPagesWithLabelsMixin(PagedMemoryMixin):
+    PAGE_TYPE = ListPageWithLabels
+
+    def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Any]]:
+        if endness is None:
+            endness = self.endness
+
+        if type(size) is not int:
+            raise TypeError("Need size to be resolved to an int by this point")
+
+        if type(addr) is not int:
+            raise TypeError("Need addr to be resolved to an int by this point")
+
+        pageno, pageoff = self._divide_addr(addr)
+        vals = []
+
+        # fasttrack basic case
+        if pageoff + size <= self.page_size:
+            page = self._get_page(pageno, False, **kwargs)
+            vals.append(page.load(pageoff, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs))
+
+        else:
+            max_pageno = (1 << self.state.arch.bits) // self.page_size
+            bytes_done = 0
+            while bytes_done < size:
+                page = self._get_page(pageno, False, **kwargs)
+                sub_size = min(self.page_size-pageoff, size-bytes_done)
+                vals.append(page.load(pageoff, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs))
+
+                bytes_done += sub_size
+                pageno = (pageno + 1) % max_pageno
+                pageoff = 0
+
+        out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, **kwargs)
+        labels = tuple(v[0][1].label for v in vals)
+        l.debug("%s.load_with_labels(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
+        return out, labels
 
 
 class UltraPagesMixin(PagedMemoryMixin):

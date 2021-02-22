@@ -155,7 +155,7 @@ from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
-from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin
+from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin, ListPagesWithLabelsMixin
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
@@ -287,7 +287,7 @@ class RegionedMemory(
 
 
 class LabeledMemory(
-    ListPagesMixin,
+    ListPagesWithLabelsMixin,
     DefaultFillerMixin,
     TopMergerMixin,
     PagedMemoryMixin,
