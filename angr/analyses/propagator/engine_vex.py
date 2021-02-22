@@ -1,11 +1,13 @@
 
 import logging
 
+import claripy
 import pyvex
 
-from ...engines.light import SimEngineLightVEXMixin, SpOffset
+from ...engines.light import SimEngineLightVEXMixin
 from .values import Top, Bottom
 from .engine_base import SimEnginePropagatorBase
+from .top_checker_mixin import TopCheckerMixin
 from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 
 
@@ -13,8 +15,9 @@ _l = logging.getLogger(name=__name__)
 
 
 class SimEnginePropagatorVEX(
+    TopCheckerMixin,
     SimEngineLightVEXMixin,
-    SimEnginePropagatorBase
+    SimEnginePropagatorBase,
 ):
     #
     # Private methods
@@ -54,24 +57,32 @@ class SimEnginePropagatorVEX(
         return v
 
     def _load_data(self, addr, size, endness):
-        if isinstance(addr, SpOffset):
-            # Local variable
-            v = self.state.load_local_variable(addr.offset, size)
-            return v
-        elif isinstance(addr, int):
-            # Try loading from the state
-            if self._allow_loading(addr, size):
-                if self.base_state is not None:
-                    _l.debug("Loading %d bytes from %x.", size, addr)
-                    data = self.base_state.memory.load(addr, size, endness=endness)
-                    if not data.symbolic:
-                        return self.base_state.solver.eval(data)
+        if isinstance(addr, claripy.ast.Base):
+            if 'SpOffset' in addr.variables:
+                # Local variable
+                if addr.op == "BVS":
+                    offset = 0
+                elif addr.op == '__add__' and isinstance(addr.args[1], claripy.ast.Base) and addr.args[1].op == "BVV":
+                    offset = addr.args[1].args[0]
                 else:
-                    try:
-                        val = self.project.loader.memory.unpack_word(addr, size=size, endness=endness)
-                        return val
-                    except KeyError:
-                        return None
+                    return None
+                v = self.state.load_local_variable(offset, size, endness)
+                return v
+            elif addr.op == "BVV":
+                addr = addr.args[0]
+                # Try loading from the state
+                if self._allow_loading(addr, size):
+                    if self.base_state is not None:
+                        _l.debug("Loading %d bytes from %x.", size, addr)
+                        data = self.base_state.memory.load(addr, size, endness=endness)
+                        if not data.symbolic:
+                            return data
+                    else:
+                        try:
+                            val = self.project.loader.memory.unpack_word(addr, size=size, endness=endness)
+                            return claripy.BVV(val, size * self.arch.byte_width)
+                        except KeyError:
+                            return None
         return None
 
     #
@@ -80,19 +91,23 @@ class SimEnginePropagatorVEX(
 
     def _handle_function(self, addr):
         if self.arch.name == "X86":
-            try:
-                b = self._project.loader.memory.load(addr, 4)
-            except KeyError:
-                return
-            except TypeError:
-                return
+            if isinstance(addr, claripy.ast.Base) and addr.op == "BVV":
+                try:
+                    b = self._project.loader.memory.load(addr.args[0], 4)
+                except KeyError:
+                    return
+                except TypeError:
+                    return
 
-            if b == b"\x8b\x1c\x24\xc3":
-                # getpc:
-                #   mov ebx, [esp]
-                #   ret
-                ebx_offset = self.arch.registers['ebx'][0]
-                self.state.store_register(ebx_offset, 4, self.block.addr + self.block.size)
+                if b == b"\x8b\x1c\x24\xc3":
+                    # getpc:
+                    #   mov ebx, [esp]
+                    #   ret
+                    ebx_offset = self.arch.registers['ebx'][0]
+                    self.state.store_register(ebx_offset,
+                                              4,
+                                              claripy.BVV(self.block.addr + self.block.size, 32)
+                                              )
 
     #
     # VEX statement handlers
@@ -108,18 +123,26 @@ class SimEnginePropagatorVEX(
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
 
-        if type(data) is not Bottom:
+        if data is not None and type(data) is not Bottom:
             self.state.store_register(stmt.offset, size, data)
 
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
-        if isinstance(addr, SpOffset):
-            # Local variables
-            self.state.store_local_variable(addr.offset, size, data)
-        elif isinstance(addr, int):
-            # a memory address
-            variable = VEXMemVar(addr, size)
-            self.state.add_replacement(self._codeloc(block_only=True), variable, data)
+        if isinstance(addr, claripy.ast.Base):
+            if 'SpOffset' in addr.variables:
+                # Local variables
+                if addr.op == "BVS":
+                    offset = 0
+                elif addr.op == '__add__' and isinstance(addr.args[1], claripy.ast.Base) and addr.args[1].op == "BVV":
+                    offset = addr.args[1].args[0]
+                else:
+                    return
+                self.state.store_local_variable(offset, size, data, endness)
+            elif addr.op == "BVV":
+                # a memory address
+                addr = addr.args[0]
+                variable = VEXMemVar(addr, size)
+                self.state.add_replacement(self._codeloc(block_only=True), variable, data)
 
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
