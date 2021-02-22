@@ -9,7 +9,7 @@ class CodeLocation:
 
     __slots__ = ('block_addr', 'stmt_idx', 'sim_procedure', 'ins_addr', 'context', 'info', 'block_idx', )
 
-    def __init__(self, block_addr: int, stmt_idx: int, sim_procedure=None, ins_addr: Optional[int]=None,
+    def __init__(self, block_addr: int, stmt_idx: Optional[int], sim_procedure=None, ins_addr: Optional[int]=None,
                  context: Optional[Tuple[int]]=None, block_idx: int=None, **kwargs):
         """
         Constructor.
