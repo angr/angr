@@ -1095,6 +1095,10 @@ class SimCCSyscall(SimCC):
             return expr
         if type(expr) is int:
             expr = claripy.BVV(expr, state.arch.bits)
+        try:
+            expr = expr.ast
+        except:
+            pass
         nbits = self.ERROR_REG.size * state.arch.byte_width
         error_cond = claripy.UGE(expr, self.SYSCALL_ERRNO_START)
         if state.solver.is_false(error_cond):
