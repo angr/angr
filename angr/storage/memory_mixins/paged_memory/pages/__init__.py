@@ -25,5 +25,5 @@ class PageBase(RefcountMixin, CooperationBase, ISPOMixin, PermissionsMixin, Memo
 
 PageType = typing.TypeVar('PageType', bound=PageBase)
 
-from .list_page import ListPage
+from .list_page import ListPage, ListPageWithLabels
 from .ultra_page import UltraPage
