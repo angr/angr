@@ -1,7 +1,5 @@
 import logging
 
-import claripy
-
 from ...engines.light import SimEngineLight
 from ...errors import SimEngineError
 
