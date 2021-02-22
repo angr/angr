@@ -1,8 +1,6 @@
 import logging
 from typing import Optional, List, Set, Tuple
 
-import claripy
-
 from . import PageBase
 from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
