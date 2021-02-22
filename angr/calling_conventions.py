@@ -77,6 +77,7 @@ class SimFunctionArgument:
     def check_value(self, value):
         if not isinstance(value, claripy.ast.Base) and self.size is None:
             raise TypeError("Only claripy objects may be stored through SimFunctionArgument when size is not provided")
+        # TODO: this also looks byte related, change to ARCH.byte_width
         if self.size is not None and isinstance(value, claripy.ast.Base) and self.size*8 < value.length:
             raise TypeError("%s doesn't fit in an argument of size %d" % (value, self.size))
 
@@ -128,8 +129,8 @@ class SimRegArg(SimFunctionArgument):
     def set_value(self, state, value, endness=None, size=None, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         self.check_value(value)
         if endness is None: endness = state.arch.register_endness
-        if isinstance(value, int): value = claripy.BVV(value, self.size*8)
-        if size is None: size = min(self.size, value.length // 8)
+        if isinstance(value, int): value = claripy.BVV(value, self.size*state.arch.byte_width)
+        if size is None: size = min(self.size, value.length // state.arch.byte_width)
         offset = self._fix_offset(state, size)
         state.registers.store(offset, value, endness=endness, size=size)
 
@@ -164,8 +165,8 @@ class SimStackArg(SimFunctionArgument):
         self.check_value(value)
         if endness is None: endness = state.arch.memory_endness
         if stack_base is None: stack_base = state.regs.sp
-        if isinstance(value, int): value = claripy.BVV(value, self.size*8)
-        state.memory.store(stack_base + self.stack_offset, value, endness=endness, size=value.length//8)
+        if isinstance(value, int): value = claripy.BVV(value, self.size*state.arch.byte_width)
+        state.memory.store(stack_base + self.stack_offset, value, endness=endness, size=value.length//state.arch.byte_width)
 
     def get_value(self, state, endness=None, stack_base=None, size=None):  # pylint: disable=arguments-differ
         if endness is None: endness = state.arch.memory_endness
@@ -515,7 +516,7 @@ class SimCC:
                         if isinstance(a, SimTypeFixedSizeArray) or a.size is NotImplemented:
                             sizes.append(self.arch.bytes)
                         else:
-                            sizes.append(a.size // 8)  # SimType.size is in bits
+                            sizes.append(a.size // self.arch.byte_width)  # SimType.size is in bits
                     elif isinstance(a, SimFunctionArgument):
                         sizes.append(a.size)  # SimFunctionArgument.size is in bytes
                     else:
@@ -686,7 +687,7 @@ class SimCC:
         allocator.apply(state, alloc_base)
 
         for loc, val in zip(arg_locs, vals):
-            if val.length > loc.size * 8:
+            if val.length > loc.size * state.arch.byte_width:
                 raise ValueError("Can't fit value {} into location {}".format(repr(val), repr(loc)))
             loc.set_value(state, val, endness='Iend_BE', stack_base=stack_base)
         self.return_addr.set_value(state, ret_addr, stack_base=stack_base)
@@ -1080,9 +1081,41 @@ class SimCCSyscall(SimCC):
     The base class of all syscall CCs.
     """
 
+    ERROR_REG : SimRegArg = None
+    SYSCALL_ERRNO_START = None
+
     @staticmethod
     def syscall_num(state) -> int:
         raise NotImplementedError()
+
+    def linux_syscall_update_error_reg(self, state, expr):
+        # special handling for Linux syscalls: on some architectures (mips/a3, powerpc/cr0_0) a bool indicating success
+        # or failure of a system call is used as an error flag (0 for success, 1 for error). we have to set this
+        if state.project is None or state.project.simos is None or state.project.simos.name != 'Linux':
+            return expr
+        if type(expr) is int:
+            expr = claripy.BVV(expr, state.arch.bits)
+        nbits = self.ERROR_REG.size * state.arch.byte_width
+        error_cond = claripy.UGE(expr, self.SYSCALL_ERRNO_START)
+        if state.solver.is_false(error_cond):
+            # guaranteed no error
+            error_reg_val = claripy.BVV(0, nbits)
+        elif state.solver.is_true(error_cond):
+            # guaranteed error
+            error_reg_val = claripy.BVV(-1, nbits)
+            expr = -expr
+        else:
+            # both are satisfied, handle gracefully
+            error_reg_val = claripy.If(error_cond, claripy.BVV(-1, nbits), 0)
+            expr = claripy.If(error_cond, -expr, expr)
+
+        self.ERROR_REG.set_value(state, error_reg_val)
+        return expr
+
+    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
+        if self.ERROR_REG is not None:
+            val = self.linux_syscall_update_error_reg(state, val)
+        super().set_return_val(state, val, is_fp=is_fp, size=size, stack_base=stack_base)
 
 
 class SimCCX86LinuxSyscall(SimCCSyscall):
@@ -1266,6 +1299,9 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
     RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchMIPS32
 
+    ERROR_REG = SimRegArg('a3', 4)
+    SYSCALL_ERRNO_START = -1133
+
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
@@ -1274,27 +1310,6 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.v0
-
-    @staticmethod
-    def linux_syscall_update_a3(state, expr):
-        # special handling for Linux MIPS syscalls: $a3 is used as an error flag (0 for success, 1 for error)
-        if state.project is not None and state.project.simos is not None and state.project.simos.name == 'Linux':
-            if state.solver.symbolic(expr):
-                state.regs.a3 = 0
-            else:
-                expr_val = state.solver.eval(expr)
-                mask = 0xffff_ffff if state.arch.bits == 32 else 0xffff_ffff_ffff_ffff
-                if expr_val & mask >= -1133 & mask:
-                    expr_val = -(-(mask+1) + expr_val)
-                    state.regs.a3 = 1
-                else:
-                    state.regs.a3 = 0
-                expr = state.solver.BVV(expr_val, state.arch.bits)
-        return expr
-
-    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
-        new_val = SimCCO32LinuxSyscall.linux_syscall_update_a3(state, val)
-        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
 
 
 class SimCCO64(SimCC):      # TODO: add n32 and n64
@@ -1313,6 +1328,9 @@ class SimCCO64LinuxSyscall(SimCCSyscall):
     RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchMIPS64
 
+    ERROR_REG = SimRegArg('a3', 8)
+    SYSCALL_ERRNO_START = -1133
+
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
@@ -1321,10 +1339,6 @@ class SimCCO64LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.v0
-
-    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
-        new_val = SimCCO32LinuxSyscall.linux_syscall_update_a3(state, val)
-        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
 
 
 class SimCCPowerPC(SimCC):
@@ -1344,6 +1358,9 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
     RETURN_ADDR = SimRegArg('ip_at_syscall', 4)
     ARCH = archinfo.ArchPPC32
 
+    ERROR_REG = SimRegArg('cr0_0', 1)
+    SYSCALL_ERRNO_START = -515
+
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
@@ -1352,29 +1369,6 @@ class SimCCPowerPCLinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.r0
-
-    @staticmethod
-    def linux_syscall_update_cr0(state, expr):
-        # special handling for Linux MIPS syscalls: $cr0_0 is used as an error flag (0 for success, 1 for error)
-        if state.project is not None and state.project.simos is not None and state.project.simos.name == 'Linux':
-            if state.solver.symbolic(expr):
-                state.regs.cr0_0 = 0
-            else:
-                expr_val = state.solver.eval(expr)
-                if state.arch.bits == 32 and expr_val > -515 & 0xffff_ffff:
-                    expr_val = -(-0x1_0000_0000 + expr_val)
-                    state.regs.cr0_0 = 1
-                elif state.arch.bits == 64 and expr_val > -515 & 0xffff_ffff_ffff_ffff:
-                    expr_val = -(-0x1_0000_0000_0000_0000 + expr_val)
-                    state.regs.cr0_0 = 1
-                else:
-                    state.regs.cr0_0 = 0
-                expr = state.solver.BVV(expr_val, state.arch.bits)
-        return expr
-
-    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
-        new_val = SimCCPowerPCLinuxSyscall.linux_syscall_update_cr0(state, val)
-        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
 
 
 class SimCCPowerPC64(SimCC):
@@ -1394,6 +1388,9 @@ class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
     RETURN_ADDR = SimRegArg('ip_at_syscall', 8)
     ARCH = archinfo.ArchPPC64
 
+    ERROR_REG = SimRegArg('cr0_0', 1)
+    SYSCALL_ERRNO_START = -515
+
     @classmethod
     def _match(cls, arch, args, sp_delta):  # pylint: disable=unused-argument
         # never appears anywhere except syscalls
@@ -1402,10 +1399,6 @@ class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
     @staticmethod
     def syscall_num(state):
         return state.regs.r0
-
-    def set_return_val(self, state, val, is_fp=None, size=None, stack_base=None):
-        new_val = SimCCPowerPCLinuxSyscall.linux_syscall_update_cr0(state, val)
-        super().set_return_val(state, new_val, is_fp=is_fp, size=size, stack_base=stack_base)
 
 
 class SimCCSoot(SimCC):
