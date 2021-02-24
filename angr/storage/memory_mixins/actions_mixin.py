@@ -72,4 +72,3 @@ class ActionsMixinLow(MemoryMixin):
             action.actual_addrs.append(addr)
             action.actual_value = action._make_object(data)
         return super().store(addr, data, action=action, **kwargs)
-

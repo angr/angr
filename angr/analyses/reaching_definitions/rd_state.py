@@ -51,7 +51,8 @@ class ReachingDefinitionsState:
 
     def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False,
                  analysis: Optional['ReachingDefinitionsAnalysis']=None, rtoc_value=None,
-                 live_definitions=None, canonical_size: int=8, heap_allocator: HeapAllocator=None,
+                 live_definitions: Optional[LiveDefinitions]=None, canonical_size: int=8,
+                 heap_allocator: HeapAllocator=None,
                  environment: Environment=None):
 
         # handy short-hands
@@ -77,6 +78,10 @@ class ReachingDefinitionsState:
 
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
+
+    def top(self, *args): return self.live_definitions.top(*args)
+
+    def is_top(self, *args): return self.live_definitions.is_top(*args)
 
     @property
     def tmp_definitions(self): return self.live_definitions.tmp_definitions

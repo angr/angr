@@ -58,7 +58,7 @@ class SimEnginePropagatorVEX(
 
     def _load_data(self, addr, size, endness):
         if isinstance(addr, claripy.ast.Base):
-            sp_offset = self.state.extract_offset_to_sp(addr)
+            sp_offset = self.extract_offset_to_sp(addr)
             if sp_offset is not None:
                 # Local variable
                 v = self.state.load_local_variable(sp_offset, size, endness)
@@ -124,7 +124,7 @@ class SimEnginePropagatorVEX(
     def _store_data(self, addr, data, size, endness):
         # pylint: disable=unused-argument,no-self-use
         if isinstance(addr, claripy.ast.Base):
-            sp_offset = self.state.extract_offset_to_sp(addr)
+            sp_offset = self.extract_offset_to_sp(addr)
             if sp_offset is not None:
                 # Local variables
                 self.state.store_local_variable(sp_offset, size, data, endness)
