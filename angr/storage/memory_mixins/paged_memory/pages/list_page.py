@@ -1,10 +1,8 @@
 import logging
 from typing import Optional, List, Set, Tuple, Any
 
-import claripy
-
 from . import PageBase
-from angr.storage.memory_object import SimMemoryObject
+from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .cooperation import MemoryObjectMixin
 
 
@@ -256,10 +254,3 @@ class ListPage(MemoryObjectMixin, PageBase):
         if mo.includes(start + page_addr):
             return mo
         return None
-
-
-class ListPageWithLabels(
-    ListPage
-):
-    # TODO: Maybe this class is moot
-    pass

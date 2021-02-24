@@ -1587,8 +1587,8 @@ class StructuredCodeGenerator(Analysis):
 
         handler = self._handlers.get(node.__class__, None)
         if handler is not None:
-            # special case for Call
             if isinstance(node, Stmt.Call):
+                # special case for Call
                 converted = handler(node, is_expr=is_expr)
             else:
                 converted = handler(node)

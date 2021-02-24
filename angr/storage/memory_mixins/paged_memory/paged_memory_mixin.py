@@ -6,7 +6,8 @@ from collections import defaultdict
 import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, ListPageWithLabels, UltraPage
+from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
+from angr.storage.memory_object import SimLabeledMemoryObject
 from ....errors import SimMemoryError
 
 # yeet
@@ -540,13 +541,8 @@ class PagedMemoryMixin(MemoryMixin):
         self._pages = new_page_dict
         return flushed
 
-class ListPagesMixin(PagedMemoryMixin):
-    PAGE_TYPE = ListPage
 
-
-class ListPagesWithLabelsMixin(PagedMemoryMixin):
-    PAGE_TYPE = ListPageWithLabels
-
+class LabeledPagesMixin(PagedMemoryMixin):
     def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Any]]:
         if endness is None:
             endness = self.endness
@@ -578,9 +574,31 @@ class ListPagesWithLabelsMixin(PagedMemoryMixin):
                 pageoff = 0
 
         out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, **kwargs)
-        labels = tuple(v[0][1].label for v in vals)
+        labels = tuple(v[0][1].label for v in vals if isinstance(v[0][1], SimLabeledMemoryObject))
         l.debug("%s.load_with_labels(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
         return out, labels
+
+
+class ListPagesMixin(PagedMemoryMixin):
+    PAGE_TYPE = ListPage
+
+
+class MVListPagesMixin(PagedMemoryMixin):
+    PAGE_TYPE = MVListPage
+
+
+class ListPagesWithLabelsMixin(
+    LabeledPagesMixin,
+    ListPagesMixin,
+):
+    pass
+
+
+class MVListPagesWithLabelsMixin(
+    LabeledPagesMixin,
+    MVListPagesMixin,
+):
+    pass
 
 
 class UltraPagesMixin(PagedMemoryMixin):
