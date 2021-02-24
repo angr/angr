@@ -792,6 +792,7 @@ def test_multivalued_list_page():
 
 
 if __name__ == '__main__':
+    test_multivalued_list_page()
     test_address_wrap()
     test_concrete_load()
     test_crosspage_store()
