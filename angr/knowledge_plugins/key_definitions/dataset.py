@@ -138,9 +138,6 @@ class DataSet:
     def __mul__(self, other):
         return self._bin_op(other, operator.mul)
 
-    def __div__(self, other):
-        return self._bin_op(other, operator.floordiv)
-
     def __lshift__(self, other):
         return self._bin_op(other, operator.lshift)
 
