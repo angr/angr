@@ -155,7 +155,8 @@ from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
-from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin, ListPagesWithLabelsMixin
+from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin, \
+    ListPagesWithLabelsMixin, MVListPagesMixin, MVListPagesWithLabelsMixin
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
@@ -287,6 +288,7 @@ class RegionedMemory(
 
 
 class LabeledMemory(
+    SizeNormalizationMixin,
     ListPagesWithLabelsMixin,
     DefaultFillerMixin,
     TopMergerMixin,
@@ -295,10 +297,29 @@ class LabeledMemory(
     """
     LabeledMemory is used in static analysis. It allows storing objects with labels, such as `Definition`s.
     """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self.state.top(size * self.state.arch.byte_width)
+
+        # we never fill default values for non-existent loads
+        kwargs['fill_missing'] = False
+        return super()._default_value(addr, size, **kwargs)
+
+
+class LabeledMultiValuedMemory(
+    SizeNormalizationMixin,
+    MVListPagesWithLabelsMixin,
+    DefaultFillerMixin,
+    TopMergerMixin,
+    PagedMemoryMixin,
+):
+    def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+
         if kwargs.get("name", "").startswith("merge_uc_"):
             # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
             # create temporary values. we simply return a TOP value here.
