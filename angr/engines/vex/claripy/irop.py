@@ -134,7 +134,7 @@ arithmetic_operation_map = {
     'Add': '__add__',
     'Sub': '__sub__',
     'Mul': '__mul__',
-    'Div': '__div__',
+    'Div': '__truediv__',
     'Neg': 'Neg',
     'Abs': 'Abs',
     'Mod': '__mod__',
@@ -430,7 +430,7 @@ class SimIROp:
         else:
             raise SimOperationError("op_mapped called with invalid mapping, for %s" % self.name)
 
-        if o == '__div__' and self.is_signed:
+        if o == '__truediv__' and self.is_signed:
             # yikes!!!!!!!
             return claripy.SDiv(*sized_args)
 

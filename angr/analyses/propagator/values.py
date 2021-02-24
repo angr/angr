@@ -40,9 +40,6 @@ class Top:
     def __rmul__(self, other):
         return self
 
-    def __rdiv__(self, other):
-        return self
-
     def __floordiv__(self, other):
         return self
 
