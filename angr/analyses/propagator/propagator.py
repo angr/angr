@@ -41,30 +41,6 @@ class PropagatorState:
     def _get_weakref(self):
         return weakref.proxy(self)
 
-    def sp_offset(self, offset: int):
-        base = claripy.BVS("SpOffset", self.arch.bits, explicit_name=True)
-        if offset:
-            base += offset
-        return base
-
-    def extract_offset_to_sp(self, spoffset_expr: claripy.ast.Base) -> Optional[int]:
-        """
-        Extract the offset to the original stack pointer.
-
-        :param spoffset_expr:   The claripy AST to parse.
-        :return:                The offset to the original stack pointer, or None if `spoffset_expr` is not a supported
-                                type of SpOffset expression.
-        """
-
-        if 'SpOffset' in spoffset_expr.variables:
-            # Local variable
-            if spoffset_expr.op == "BVS":
-                return 0
-            elif spoffset_expr.op == '__add__' and \
-                    isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
-                return spoffset_expr.args[1].args[0]
-        return None
-
     def top(self, size: int):
         """
         Get a TOP value.
@@ -288,15 +264,11 @@ class PropagatorAILState(PropagatorState):
         else:
             _l.warning("Unsupported old variable type %s.", type(variable))
 
-    def store_stack_variable(self, addr, size, new, endness=None) -> None:  # pylint:disable=unused-argument
-        if isinstance(addr, ailment.Expr.StackBaseOffset):
-            if addr.offset is None:
-                offset = 0
-            else:
-                offset = addr.offset
-            self._stack_variables.store(offset, new, size=size)
-        else:
-            _l.warning("Unsupported addr type %s.", type(addr))
+    def store_stack_variable(self, sp_offset: int, size, new, endness=None) -> None:  # pylint:disable=unused-argument
+        # normalize sp_offset to handle negative offsets
+        sp_offset += 0x65536
+        sp_offset &= (1 << self.arch.bits) - 1
+        self._stack_variables.store(sp_offset, new, size=size, endness=endness)
 
     def get_variable(self, variable) -> Any:
         if isinstance(variable, ailment.Expr.Tmp):
@@ -339,13 +311,16 @@ class PropagatorAILState(PropagatorState):
 
         return None
 
-    def get_stack_variable(self, addr, size, endness=None):  # pylint:disable=unused-argument
-        if isinstance(addr, ailment.Expr.StackBaseOffset):
-            objs = self._stack_variables.load(addr.offset, size=size)
-            if not objs:
-                return None
-            return next(iter(objs))
-        return None
+    def get_stack_variable(self, sp_offset: int, size, endness=None) -> Optional[Any]:
+        # normalize sp_offset to handle negative offsets
+        sp_offset += 0x65536
+        sp_offset &= (1 << self.arch.bits) - 1
+        try:
+            obj = self._stack_variables.load(sp_offset, size=size, endness=endness)
+            return obj
+        except SimMemoryMissingError:
+            # the stack variable does not exist
+            return None
 
     def add_replacement(self, codeloc, old, new):
 
@@ -443,8 +418,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self.replacements: Optional[defaultdict] = None
         self.equivalence: Set[Equivalence] = set()
 
-        self._engine_vex = SimEnginePropagatorVEX(project=self.project)
+        self._engine_vex = SimEnginePropagatorVEX(project=self.project, arch=self.project.arch)
         self._engine_ail = SimEnginePropagatorAIL(
+            arch=self.project.arch,
             stack_pointer_tracker=self._stack_pointer_tracker,
             # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
             propagate_tmps=block is not None,
@@ -469,7 +445,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         else:
             # VEX
             state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts)
-            spoffset_var = state.sp_offset(0)
+            spoffset_var = self._engine_vex.sp_offset(0)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  spoffset_var,

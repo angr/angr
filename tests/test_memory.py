@@ -12,6 +12,9 @@ from angr.storage.memory_mixins import (
     ListPagesMixin,
     PagedMemoryMixin,
 )
+from angr.storage.memory_mixins import (
+    LabeledMultiValuedMemory,
+)
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o
 from angr.state_plugins import SimSystemPosix, SimLightRegisters
@@ -768,6 +771,25 @@ def test_concrete_load():
         data_bytes = bytes(d if b == 0 else 0 for d, b in zip(data, bitmap))
         assert data_bytes == b"b\x00\x00b"
         assert bitmap.tobytes() == b"\x00\x01\x01\x00"
+
+
+def test_multivalued_list_page():
+    state = SimState(arch='AMD64', mode='symbolic', plugins={'memory': LabeledMultiValuedMemory()})
+
+    # strong update
+    state.memory.store(0x100, claripy.BVV(0x40, 64))
+    state.memory.store(0x100, claripy.BVV(0x80818283, 64))
+    a = list(state.memory.load(0x100, size=8))
+    assert len(a) == 1
+    assert a[0] is claripy.BVV(0x80818283, 64)
+
+    # weak updates
+    state.memory.store(0x120, claripy.BVV(0x40, 64))
+    state.memory.store(0x120, claripy.BVV(0x85868788, 64), weak=True)
+    a = list(state.memory.load(0x120, size=8))
+    assert len(a) == 2
+    assert set(state.solver.eval_exact(item, 1) for item in a) == { 0x40, 0x85868788 }
+
 
 if __name__ == '__main__':
     test_address_wrap()

@@ -1,12 +1,14 @@
+import weakref
 from typing import Optional, Iterable, Dict, Set
 import logging
 
+import claripy
 import archinfo
 
 from collections import defaultdict
 
+from ...storage.memory_mixins import LabeledMemory
 from ...engines.light import SpOffset
-from ...keyed_region import KeyedRegion
 from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition, Tag
@@ -25,21 +27,37 @@ class LiveDefinitions:
     uncovered during the analysis.
     """
 
-    __slots__ = ('arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'heap_definitions',
+    __slots__ = ('project', 'arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'heap_definitions',
                  'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'heap_uses',
-                 'memory_uses', 'uses_by_codeloc', 'tmp_uses', '_canonical_size', )
+                 'memory_uses', 'uses_by_codeloc', 'tmp_uses', '_canonical_size', '__weakref__', )
 
-    def __init__(self, arch: archinfo.Arch, track_tmps: bool=False, canonical_size=8):
+    def __init__(self, arch: archinfo.Arch, track_tmps: bool=False, canonical_size=8,
+                 register_definitions=None,
+                 stack_definitions=None,
+                 memory_definitions=None,
+                 heap_definitions=None,
+                 ):
 
+        self.project = None
         self.arch = arch
         self.track_tmps = track_tmps
-        self._canonical_size: int = canonical_size
+        self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = KeyedRegion(canonical_size=self._canonical_size)
-        self.stack_definitions = KeyedRegion(canonical_size=self._canonical_size)
-        self.memory_definitions = KeyedRegion(canonical_size=self._canonical_size)
-        self.heap_definitions = KeyedRegion(canonical_size=self._canonical_size)
+        self.register_definitions = LabeledMemory(memory_id="reg", top_func=self.top) \
+            if register_definitions is None else register_definitions
+        self.stack_definitions = LabeledMemory(memory_id="mem", top_func=self.top) \
+            if stack_definitions is None else stack_definitions
+        self.memory_definitions = LabeledMemory(memory_id="mem", top_func=self.top) \
+            if memory_definitions is None else memory_definitions
+        self.heap_definitions = LabeledMemory(memory_id="mem", top_func=self.top) \
+            if heap_definitions is None else heap_definitions
         self.tmp_definitions: Dict[int,Set[Definition]] = {}
+
+        # set state
+        self.register_definitions.set_state(self)
+        self.stack_definitions.set_state(self)
+        self.memory_definitions.set_state(self)
+        self.heap_definitions.set_state(self)
 
         self.register_uses = Uses()
         self.stack_uses = Uses()
@@ -49,23 +67,19 @@ class LiveDefinitions:
         self.tmp_uses: Dict[int,Set[CodeLocation]] = defaultdict(set)
 
     def __repr__(self):
-        ctnt = "LiveDefs, %d regdefs, %d stackdefs, %d heapdefs, %d memdefs" % (
-                len(self.register_definitions),
-                len(self.stack_definitions),
-                len(self.heap_definitions),
-                len(self.memory_definitions),
-                )
+        ctnt = "LiveDefs"
         if self.tmp_definitions:
             ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
         return "<%s>" % ctnt
 
     def copy(self) -> 'LiveDefinitions':
-        rd = LiveDefinitions(self.arch, track_tmps=self.track_tmps, canonical_size=self._canonical_size)
+        rd = LiveDefinitions(self.arch, track_tmps=self.track_tmps, canonical_size=self._canonical_size,
+                             register_definitions=self.register_definitions.copy(),
+                             stack_definitions=self.stack_definitions.copy(),
+                             heap_definitions=self.heap_definitions.copy(),
+                             memory_definitions=self.memory_definitions.copy(),
+                             )
 
-        rd.register_definitions = self.register_definitions.copy()
-        rd.stack_definitions = self.stack_definitions.copy()
-        rd.heap_definitions = self.heap_definitions.copy()
-        rd.memory_definitions = self.memory_definitions.copy()
         rd.tmp_definitions = self.tmp_definitions.copy()
         rd.register_uses = self.register_uses.copy()
         rd.stack_uses = self.stack_uses.copy()
@@ -74,6 +88,34 @@ class LiveDefinitions:
         rd.tmp_uses = self.tmp_uses.copy()
 
         return rd
+
+    def _get_weakref(self):
+        return weakref.proxy(self)
+
+    def top(self, size: int):
+        """
+        Get a TOP value.
+
+        :param size:    Width of the TOP value (in bits).
+        :return:        The TOP value.
+        """
+
+        r = claripy.BVS("TOP", size, explicit_name=True)
+        return r
+
+    def is_top(self, expr) -> bool:
+        """
+        Check if the given expression is a TOP value.
+
+        :param expr:    The given expression.
+        :return:        True if the expression is TOP, False otherwise.
+        """
+        if isinstance(expr, claripy.ast.Base):
+            if expr.op == "BVS" and expr.args[0] == "TOP":
+                return True
+            if "TOP" in expr.variables:
+                return True
+        return False
 
     def get_sp(self) -> int:
         """
@@ -94,12 +136,13 @@ class LiveDefinitions:
 
         state = self.copy()
 
+        state.register_definitions.merge([ other.register_definitions for other in others ], None)
+        state.heap_definitions.merge([other.heap_definitions for other in others], None)
+        state.memory_definitions.merge([other.memory_definitions for other in others], None)
+        state.stack_definitions.merge([other.stack_definitions for other in others], None)
+
         for other in others:
             other: LiveDefinitions
-            state.register_definitions.merge(other.register_definitions)
-            state.stack_definitions.merge(other.stack_definitions)
-            state.heap_definitions.merge(other.heap_definitions)
-            state.memory_definitions.merge(other.memory_definitions)
 
             state.register_uses.merge(other.register_uses)
             state.stack_uses.merge(other.stack_uses)
@@ -122,13 +165,17 @@ class LiveDefinitions:
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
-                                dummy=False, tags: Set[Tag]=None) -> Optional[Definition]:
-        data = data or DataSet(UNDEFINED, atom.size)
-        definition: Definition = Definition(atom, code_loc, data, dummy=dummy, tags=tags)
+                                dummy=False, tags: Set[Tag]=None, endness=None) -> Optional[Definition]:
+        if data is None:
+            data = DataSet(UNDEFINED, atom.size)
+        definition: Definition = Definition(atom, code_loc, None, dummy=dummy, tags=tags)
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
-            self.register_definitions.set_object(atom.reg_offset, definition, atom.size)
+            label = {
+                'def': definition,
+            }
+            self.register_definitions.store(atom.reg_offset, data, size=atom.size, endness=endness, label=label)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 self.stack_definitions.set_object(atom.addr.offset, definition, atom.size)
@@ -185,9 +232,10 @@ class LiveDefinitions:
         else:
             raise TypeError()
 
-    def get_definitions(self, atom: Atom) -> Iterable[Definition]:
+    def get_definitions(self, atom: Atom, endness=None) -> Iterable[Definition]:
         if isinstance(atom, Register):
-            return self.register_definitions.get_objects_by_offset(atom.reg_offset)
+            _, labels = self.register_definitions.load_with_labels(atom.reg_offset, size=atom.size, endness=endness)
+            return [ label['def'] for label in labels ]
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 return self.stack_definitions.get_objects_by_offset(atom.addr.offset)
@@ -214,7 +262,8 @@ class LiveDefinitions:
 
     def _add_register_use(self, atom: Register, code_loc: CodeLocation) -> None:
         # get all current definitions
-        current_defs: Iterable[Definition] = self.register_definitions.get_objects_by_offset(atom.reg_offset)
+        _, labels = self.register_definitions.load_with_labels(atom.reg_offset, size=atom.size)
+        current_defs: Iterable[Definition] = iter(label['def'] for label in labels)
 
         for current_def in current_defs:
             self._add_register_use_by_def(current_def, code_loc)

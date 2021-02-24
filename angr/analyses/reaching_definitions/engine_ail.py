@@ -1,10 +1,11 @@
-from typing import Iterable, Union
+from typing import Iterable, Union, List
 import logging
 
+import claripy
 import ailment
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
-from ...errors import SimEngineError
+from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -276,6 +277,9 @@ class SimEngineRDAIL(
     # AIL expression handlers
     #
 
+    def _ail_handle_BV(self, expr: claripy.ast.Base):
+        return DataSet(expr, expr.size())
+
     def _ail_handle_Tmp(self, expr: ailment.Expr.Tmp):
 
         self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
@@ -288,15 +292,25 @@ class SimEngineRDAIL(
 
     def _ail_handle_Register(self, expr):
 
+        self.state: ReachingDefinitionsState
+
         reg_offset = expr.reg_offset
         size = expr.size
         bits = size * 8
 
         # first check if it is ever defined
-        defs: Iterable[Definition] = self.state.register_definitions.get_objects_by_offset(reg_offset)
+        try:
+            value, labels = self.state.register_definitions.load_with_labels(reg_offset, size=size)
+        except SimMemoryMissingError:
+            # the value does not exist
+            value = self.state.top(size * self.state.arch.byte_width)
+            labels = [ ]
+
+        # extract Definitions
+        defs: List[Definition] = [ label['def'] for label in labels ]
         if not defs:
             # define it right away as an external dependency
-            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), None)
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), value)
 
         self.state.add_use(Register(reg_offset, size), self._codeloc())
 
@@ -305,29 +319,11 @@ class SimEngineRDAIL(
         elif reg_offset == self.arch.bp_offset:
             return DataSet(SpOffset(bits, 0, is_base=True), bits)
 
-        try:
-            data = DataSet(set(), bits)
-            for def_ in defs:
-                if def_.data is not None:
-                    if def_.data.bits < data.bits:
-                        # zero-extend
-                        def_data = DataSet(def_.data.data, data.bits)
-                    elif def_.data.bits > data.bits:
-                        # truncate
-                        def_data = def_.data.truncate(data.bits)
-                    else:
-                        def_data = def_.data
-                    data.update(def_data)
-                else:
-                    l.warning('Data in register <%s> is undefined at %#x.',
-                              self.arch.register_names[reg_offset], self.ins_addr
-                              )
-            return data
-        except KeyError:
-            return DataSet(RegisterOffset(bits, reg_offset, 0), bits)
+        return DataSet(value, bits)
 
     def _ail_handle_Load(self, expr: ailment.Expr.Load):
         addrs = self._expr(expr.addr)
+
         size = expr.size
         bits = expr.bits
         if expr.guard is not None:
@@ -339,7 +335,11 @@ class SimEngineRDAIL(
 
         data = set()
         for addr in addrs:
-            if isinstance(addr, int):
+            if not isinstance(addr, claripy.ast.Base):
+                continue
+            if addr.op == "BVV":
+                # a concrete address
+                addr = addr.args[0]
                 current_defs = self.state.memory_definitions.get_objects_by_offset(addr)
                 if current_defs:
                     for current_def in current_defs:
@@ -355,18 +355,22 @@ class SimEngineRDAIL(
                 # FIXME: _add_memory_use() iterates over the same loop
                 memory_location = MemoryLocation(addr, size)
                 self.state.add_use(memory_location, self._codeloc())
-            elif isinstance(addr, SpOffset) and isinstance(addr.offset, int):
-                current_defs = self.state.stack_definitions.get_objects_by_offset(addr.offset)
-                if current_defs:
-                    for current_def in current_defs:
-                        # self.state.add_use(current_def, codeloc)
-                        if isinstance(current_def.data, DataSet):
-                            data.update(current_def.data)
-                        else:
-                            # dropped
-                            l.warning("Dropping data of type %s since it is not a DataSet.", type(current_def.data))
-                    if any(type(d) is Undefined for d in data):
-                        l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
+            elif 'SpOffset' in addr.variables:
+                sp_offset = self.extract_offset_to_sp(addr)
+                if sp_offset is not None:
+                    current_defs = self.state.stack_definitions.get_objects_by_offset(sp_offset)
+                    if current_defs:
+                        for current_def in current_defs:
+                            # self.state.add_use(current_def, codeloc)
+                            if isinstance(current_def.data, DataSet):
+                                data.update(current_def.data)
+                            else:
+                                # dropped
+                                l.warning("Dropping data of type %s since it is not a DataSet.", type(current_def.data))
+                        if any(type(d) is Undefined for d in data):
+                            l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
+                    else:
+                        data.add(UNDEFINED)
                 else:
                     data.add(UNDEFINED)
 

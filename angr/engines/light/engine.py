@@ -15,8 +15,9 @@ from ..engine import SimEngine
 
 class SimEngineLightMixin:
     def __init__(self, *args, logger=None, **kwargs):
-        super().__init__(*args, **kwargs)
+        self.arch: archinfo.Arch = None
         self.l = logger
+        super().__init__(*args, **kwargs)
 
     def _is_top(self, expr) -> bool:
         """
@@ -35,6 +36,30 @@ class SimEngineLightMixin:
         :return:        A TOP value.
         """
         raise NotImplementedError()
+
+    def sp_offset(self, offset: int):
+        base = claripy.BVS("SpOffset", self.arch.bits, explicit_name=True)
+        if offset:
+            base += offset
+        return base
+
+    def extract_offset_to_sp(self, spoffset_expr: claripy.ast.Base) -> Optional[int]:
+        """
+        Extract the offset to the original stack pointer.
+
+        :param spoffset_expr:   The claripy AST to parse.
+        :return:                The offset to the original stack pointer, or None if `spoffset_expr` is not a supported
+                                type of SpOffset expression.
+        """
+
+        if 'SpOffset' in spoffset_expr.variables:
+            # Local variable
+            if spoffset_expr.op == "BVS":
+                return 0
+            elif spoffset_expr.op == '__add__' and \
+                    isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
+                return spoffset_expr.args[1].args[0]
+        return None
 
 
 class SimEngineLight(
@@ -712,6 +737,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     # Expression handlers
     #
 
+    def _ail_handle_BV(self, expr: claripy.ast.Base):
+        return expr
+
     def _ail_handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.value
 
@@ -789,8 +817,14 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
         arg0, arg1 = expr.operands
 
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        if not isinstance(arg0, claripy.ast.Base):
+            expr_0 = self._expr(arg0)
+        else:
+            expr_0 = arg0
+        if not isinstance(arg1, claripy.ast.Base):
+            expr_1 = self._expr(arg1)
+        else:
+            expr_1 = self._expr(arg1)
 
         if expr_0 is None:
             expr_0 = arg0

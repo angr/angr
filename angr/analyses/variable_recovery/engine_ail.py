@@ -2,6 +2,7 @@
 from typing import Optional, TYPE_CHECKING
 import logging
 
+import claripy
 import ailment
 
 from ...calling_conventions import SimRegArg
@@ -53,7 +54,10 @@ class SimEngineVRAIL(
     def _ail_handle_Store(self, stmt):
         addr_r = self._expr(stmt.addr)
         data = self._expr(stmt.data)
-        size = stmt.data.bits // 8
+        if isinstance(stmt.data, claripy.ast.Base):
+            size = stmt.data.size() // self.arch.byte_width
+        else:
+            size = stmt.data.bits // self.arch.byte_width
 
         self._store(addr_r, data, size, stmt=stmt)
 
@@ -145,6 +149,9 @@ class SimEngineVRAIL(
         if expr is None:
             return RichR(None)
         return expr
+
+    def _ail_handle_BV(self, expr: claripy.ast.Base):
+        return RichR(expr)
 
     def _ail_handle_Register(self, expr):
         offset = expr.reg_offset
