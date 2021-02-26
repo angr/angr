@@ -11,7 +11,7 @@
 from typing import Optional, Iterable
 
 from patcherex.patches import AddCodePatch, InsertCodePatch, AddLabelPatch
-from patcherex.patchex import Patch
+from patcherex.patches import Patch
 
 from .abstract_state import AbstractState
 
@@ -38,3 +38,16 @@ class AddStatePatch(Patch):
 
     def __repr__(self):
         return "AddStatePatch"
+
+
+class EditDataPatch(Patch):
+    """
+    Edit an existing constant value in the binary. Note that this constant value to be edited may or may not be in a
+    data section. In other words, you may use
+    """
+
+
+class EditInstrPatch(Patch):
+    """
+    TODO
+    """
