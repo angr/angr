@@ -10,7 +10,7 @@ from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC
 from ...utils.constants import DEFAULT_STATEMENT
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
-from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Parameter, Tmp
+from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
@@ -393,13 +393,10 @@ class SimEngineRDVEX(
             elif isinstance(a, int):
                 mask = 2 ** bits - 1
                 a &= mask
-            elif type(a) is Parameter:
-                if type(a.value) is Register:
-                    a.value.size = bits // 8
-                elif type(a.value) is SpOffset:
-                    a.value.bits = bits
-                else:
-                    l.warning('Unsupported type Parameter->%s for conversion.', type(a.value).__name__)
+            elif isinstance(a, Register):
+                a.size = bits // 8
+            elif isinstance(a, SpOffset):
+                a.bits = bits
             else:
                 l.warning('Unsupported type %s for conversion.', type(a).__name__)
             data.add(a)
