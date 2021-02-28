@@ -148,7 +148,7 @@ class SimUserland(SimOS):
         else:
             proc = self.syscall_library.get(number, self.arch, abilist)
 
-        if proc.abi is not None:
+        if proc.abi is not None and proc.abi in self.syscall_abis:
             baseno, minno, _ = self.syscall_abis[proc.abi]
             mapno = number - minno + baseno
         else:
