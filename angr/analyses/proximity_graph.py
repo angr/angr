@@ -3,12 +3,17 @@ import logging
 
 import networkx
 
-from . import Analysis
+import ailment
+
 from ..knowledge_plugins.functions import Function
+from . import Analysis
+from .decompiler.ailgraph_walker import AILGraphWalker
+from .decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
     from angr.knowledge_plugins.xrefs import XRefManager
+    from angr.analyses.decompiler.decompiler import Decompiler
 
 
 _l = logging.getLogger(name=__name__)
@@ -18,6 +23,7 @@ class ProxiNodeTypes:
     String = 1
     Function = 2
     FunctionCall = 3
+    Integer = 4
 
 
 class BaseProxiNode:
@@ -47,9 +53,16 @@ class StringProxiNode(BaseProxiNode):
 
 class CallProxiNode(BaseProxiNode):
 
-    def __init__(self, callee, ref_at: Optional[Set[int]]=None):
+    def __init__(self, callee, ref_at: Optional[Set[int]]=None, args: Optional[List[BaseProxiNode]]=None):
         super().__init__(ProxiNodeTypes.FunctionCall, ref_at=ref_at)
         self.callee = callee
+        self.args = args
+
+
+class IntegerProxiNode(BaseProxiNode):
+    def __init__(self, value: int, ref_at: Optional[Set[int]]=None):
+        super().__init__(ProxiNodeTypes.Integer, ref_at=ref_at)
+        self.value = value
 
 
 class ProximityGraphAnalysis(Analysis):
@@ -57,11 +70,14 @@ class ProximityGraphAnalysis(Analysis):
     Generate a proximity graph.
     """
 
-    def __init__(self, func: 'Function', cfg_model: 'CFGModel', xrefs: 'XRefManager', pred_depth=1, succ_depth=1,
+    def __init__(self, func: 'Function', cfg_model: 'CFGModel', xrefs: 'XRefManager',
+                 decompilation: Optional['Decompiler']=None,
+                 pred_depth=1, succ_depth=1,
                  expand_funcs: Optional[Set[int]]=None):
         self._function = func
         self._cfg_model = cfg_model
         self._xrefs = xrefs
+        self._decompilation = decompilation
         self._pred_depth: int = pred_depth
         self._succ_depth: int = succ_depth
         self._expand_funcs = expand_funcs.copy() if expand_funcs else None
@@ -74,8 +90,14 @@ class ProximityGraphAnalysis(Analysis):
 
         self.graph = networkx.DiGraph()
 
+        # the function
+        func_proxi_node = FunctionProxiNode(self._function)
+
         # Process the function graph
-        to_expand = self._process_function(self._function, self.graph)
+        if not self._decompilation:
+            to_expand = self._process_function(self._function, self.graph, func_proxi_node=func_proxi_node)
+        else:
+            to_expand = self._process_decompilation(self._function, self.graph, func_proxi_node=func_proxi_node)
 
         for func_node in to_expand:
             if self._expand_funcs:
@@ -120,13 +142,74 @@ class ProximityGraphAnalysis(Analysis):
                     node = CallProxiNode(func_node, ref_at=ref_at)
                 proxi_nodes.append(node)
 
-        # the function
-        if func_proxi_node is None:
-            func_proxi_node = FunctionProxiNode(func)
+        # add it to the graph
+        graph.add_node(func_proxi_node)
+        for pn in proxi_nodes:
+            graph.add_edge(func_proxi_node, pn)
+
+        return to_expand
+
+    def _process_decompilation(self, func: 'Function', graph: networkx.DiGraph,
+                               func_proxi_node: Optional[FunctionProxiNode]=None) -> List[FunctionProxiNode]:
+        proxi_nodes: List[BaseProxiNode] = [ ]
+        to_expand: List[FunctionProxiNode] = [ ]
+
+        # Walk the clinic structure to dump string references and function calls
+        ail_graph = self._decompilation.clinic.graph
+
+        def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call, block: Optional[ailment.Block]):
+            func_node = self.kb.functions[stmt.target.value]
+            ref_at = { stmt.ins_addr }
+
+            # extract arguments
+            args = [ ]
+            if stmt.args:
+                for arg in stmt.args:
+                    if isinstance(arg, ailment.Expr.Const):
+                        # is it a reference to a string?
+                        if arg.value in self._cfg_model.memory_data:
+                            md = self._cfg_model.memory_data[arg.value]
+                            if md.sort == "string":
+                                # Yes!
+                                args.append(StringProxiNode(arg.value, md.content))
+                        else:
+                            # not a string. present it as a constant integer
+                            args.append(IntegerProxiNode(arg.value, None))
+
+            if self._expand_funcs and func_node.addr in self._expand_funcs:
+                node = FunctionProxiNode(func_node, ref_at=ref_at)
+                to_expand.append(node)
+            else:
+                node = CallProxiNode(func_node, ref_at=ref_at, args=args)
+            proxi_nodes.append(node)
+
+        def _handle_CallExpr(self, expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int, stmt: ailment.Stmt.Statement,
+                             block: Optional[ailment.Block]):
+            func_node = self.kb.functions[expr.target.value]
+            ref_at = { stmt.ins_addr }
+            if self._expand_funcs and func_node.addr in self._expand_funcs:
+                node = FunctionProxiNode(func_node, ref_at=ref_at)
+                to_expand.append(node)
+            else:
+                node = CallProxiNode(func_node, ref_at=ref_at)
+            proxi_nodes.append(node)
+
+        stmt_handlers = {
+            ailment.Stmt.Call: _handle_Call,
+        }
+        expr_handlers = {
+            ailment.Stmt.Call: _handle_CallExpr,
+        }
+
+        block_walker = AILBlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
+
+        def _graph_walker_handler(node):
+            block_walker.walk(node)
+
+        AILGraphWalker(ail_graph, _graph_walker_handler, replace_nodes=False).walk()
 
         # add it to the graph
         graph.add_node(func_proxi_node)
-
         for pn in proxi_nodes:
             graph.add_edge(func_proxi_node, pn)
 

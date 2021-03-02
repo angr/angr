@@ -23,7 +23,6 @@ from .optimization_passes import get_default_optimization_passes, OptimizationPa
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
-    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 
