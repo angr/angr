@@ -92,7 +92,8 @@ class CLibFunctionHandler(FunctionHandler):
 
 
 class StatementNode:
-    def __init__(self, stmt, codeloc, def_atom=None):
+    def __init__(self, stmt, codeloc=None, def_atom=None):
+        # codeloc can be none for new modified statements
         self.stmt = stmt
         self.codeloc = codeloc
 
@@ -184,14 +185,14 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
-        #elf.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
+        # self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
-        #new_cfg = self.block_arithmetic_simplifications(new_cfg, proj)
-        #new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
         # DCE again to remove the temp variables remaining after dead assignment elimination, should I just do this along with DSA(being lazy is what it is)
-        # for i in range(11):
-        #     new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-        #     self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
+        for i in range(11):
+            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
+        new_cfg = self.block_arithmetic_simplifications(new_cfg, proj)
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
@@ -276,13 +277,19 @@ class VMDeobfuscation(Analysis):
         # Find dead assignments
         dead_defs_locs = set()
         all_defs = rd.all_definitions
+        # import ipdb;ipdb.set_trace()
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
 
+            #### Looking for use-defs that look like => Stle(addr).... LDle(addr), removed use defs that involve Put() because it was causing some incomplete elimination in (discount VM)0x400587
             if isinstance(d.atom, atoms.MemoryLocation):
                 uses = rd.all_uses.get_uses(d)
-                if not uses:
+                no_uses = len(uses)
+                for use in uses:
+                    if not use.sim_procedure and isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.Put):
+                        no_uses = no_uses - 1
+                if no_uses == 0:
                     print(d)
                     print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
                     dead_defs_locs.add(d.codeloc)
@@ -309,8 +316,8 @@ class VMDeobfuscation(Analysis):
                     new_statements.append(stmt)
                 for idx, stmt in enumerate(new_statements):
                     print(f'{idx}, {stmt}')
-                if node.irsb.addr == 0x400bd2:
-                    import ipdb;ipdb.set_trace()
+                # if node.irsb.addr == 0x400857:
+                #     import ipdb;ipdb.set_trace()
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
                                                    statements=new_statements,
@@ -343,7 +350,10 @@ class VMDeobfuscation(Analysis):
     #                                                        dep_graph=DepGraph())
 
     def block_arithmetic_simplifications(self, cfg, proj):
-        for node in list(cfg.graph.nodes()):
+
+        new_model = self.new_model_graph(cfg.graph, proj, 'dsa')
+
+        for node in list(new_model.graph.nodes()):
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
                 result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph())
@@ -393,8 +403,26 @@ class VMDeobfuscation(Analysis):
                             print(stmt_node)
 
                     simplified_statements = []
+                    visited_stmt_nodes = {}
+                    simplified_statement_nodes = {}
+                    simp_flag = 0
+                    to_simplify_sub_graph = nx.DiGraph(copy.deepcopy(sub_graph.graph))
+                    import ipdb;ipdb.set_trace()
                     while len(stmt_node_queue) > 0:
                         cur_stmt_node = stmt_node_queue.pop(0)
+                        succs = list(sub_graph.graph.successors(cur_stmt_node))
+                        skip = False
+
+                        if cur_stmt_node in visited_stmt_nodes:
+                            skip = True
+                        for succ in succs:
+                            if succ not in visited_stmt_nodes:
+                                skip = True
+
+                        visited_stmt_nodes[cur_stmt_node] = True
+                        if skip:
+                            continue
+
                         preds = list(sub_graph.graph.predecessors(cur_stmt_node))
                         stmt_node_queue = stmt_node_queue + preds
 
@@ -433,6 +461,7 @@ class VMDeobfuscation(Analysis):
                                     successor = successors[0]
                                     successors = list(sub_graph.graph.successors(successor))
                                     if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op in ["Iop_Add32", "Iop_Sub32"] and len(successors) == 1:
+                                        import ipdb;ipdb.set_trace()
                                         for arg in successor.stmt.data.args:
                                             if isinstance(arg, pyvex.expr.Const):
                                                 const_1 = arg
@@ -460,6 +489,8 @@ class VMDeobfuscation(Analysis):
                         # t3 = Add32(t0, 0x00000002)
                         successors = list(sub_graph.graph.successors(cur_stmt_node))
                         if isinstance(cur_stmt.data, pyvex.expr.Binop) and cur_stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1:
+                            if cur_stmt_node in simplified_statement_nodes:
+                                continue
                             for arg in cur_stmt.data.args:
                                 if isinstance(arg, pyvex.expr.Const):
                                     const_0 = arg.con.value
@@ -468,21 +499,61 @@ class VMDeobfuscation(Analysis):
                             successor = successors[0]
                             if isinstance(successor.codeloc, ExternalCodeLocation):
                                 continue
+                            pred_nodes_to_join = list(sub_graph.graph.predecessors(cur_stmt_node))
 
                             successors = list(sub_graph.graph.successors(successor))
                             predecessors = list(sub_graph.graph.predecessors(successor))
                             if isinstance(successor.stmt.data, pyvex.expr.Binop) and successor.stmt.data.op in ["Iop_Add32", "Iop_Add64", "Iop_Sub32", "Iop_Sub64"] and len(successors) == 1 and len(predecessors) == 1:
+                                if successor in simplified_statement_nodes:
+                                    continue
+                                succ_nodes_to_join = successors # Since only one successor is there
+                                simplified_statement_nodes[successor] = True
+                                simplified_statement_nodes[cur_stmt_node] = True
+                                tmp_to_keep = successor.stmt.data.args[0].tmp
                                 for arg in successor.stmt.data.args:
                                     if isinstance(arg, pyvex.expr.Const):
                                         const_1 = arg.con.value
                                 if successor.stmt.data.op in ["Iop_Sub32", "Iop_Sub64"]:
                                     const_1 = -const_1
-                                simplified_statements[-1] = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop(cur_stmt.data.op, [pyvex.expr.RdTmp(simplified_statements[-3].tmp), pyvex.expr.Const(cur_stmt.data.args[1].__class__(const_0+const_1))]))
-                                simplified_statements.pop(-2)
-                                import ipdb;
-                                ipdb.set_trace()
-                                for stmt in simplified_statements:
-                                    print(stmt)
+                                #simplified_statements[-1] = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add"+cur_stmt.data.op[-2:], [pyvex.expr.RdTmp(tmp_to_keep), pyvex.expr.Const(cur_stmt.data.args[1].__class__(pyvex.expr.U64(const_0+const_1 if const_0 + const_1 >= 0 else (1<<64)+const_1+const_0)))]))
+                                new_simpl_stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add" + cur_stmt.data.op[-2:],
+                                                                                [pyvex.expr.RdTmp(tmp_to_keep),
+                                                                                 pyvex.expr.Const(
+                                                                                     cur_stmt.data.args[1].__class__(
+                                                                                         pyvex.expr.U64(
+                                                                                             const_0 + const_1 if const_0 + const_1 >= 0 else (
+                                                                                                                                                          1 << 64) + const_1 + const_0)))]))
+                                new_simpl_stmt_node = StatementNode(new_simpl_stmt, None)
+                                #successor.stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add"+cur_stmt.data.op[-2:], [pyvex.expr.RdTmp(tmp_to_keep), pyvex.expr.Const(cur_stmt.data.args[1].__class__(pyvex.expr.U64(const_0+const_1 if const_0 + const_1 >= 0 else (1<<64)+const_1+const_0)))]))
+                                for pred_node in pred_nodes_to_join:
+                                    sub_graph.add_edge(pred_node, new_simpl_stmt_node)
+                                for succ_node in succ_nodes_to_join:
+                                    sub_graph.add_edge(new_simpl_stmt_node, succ_node)
+                                sub_graph.remove_node(successor)
+                                sub_graph.remove_node(cur_stmt_node)
+                                #simplified_statements.pop(-2)
+                                simp_flag = 1
+                                import ipdb;ipdb.set_trace()
+
+                    ## reconstrcut the statements from the simplififed graph
+                    simplified_statements = []
+                    while len(stmt_node_queue) > 0:
+                        cur_stmt_node = stmt_node_queue.pop(0)
+                        preds = list(sub_graph.graph.predecessors(cur_stmt_node))
+                        stmt_node_queue = stmt_node_queue + preds
+                        simplified_statements.append(cur_stmt_node.stmt)
+
+                    node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                       node.irsb.addr,
+                                                       statements=simplified_statements,
+                                                       tyenv=node.irsb.tyenv,
+                                                       nxt=node.irsb.next,
+                                                       direct_next=node.irsb.direct_next,
+                                                       jumpkind=node.irsb.jumpkind)
+                    print(node.irsb.pp())
+                    if simp_flag == 1:
+                        import ipdb;ipdb.set_trace()
+
 
                 ## reconstrcut the statements from the simplififed graph
         return
@@ -1069,6 +1140,7 @@ class VMDeobfuscation(Analysis):
                             continue
 
                         x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ") + "</FONT>"
+
 
             graphviz_node = A.get_node(str(final_cfg_node))
             graphviz_node.attr["label"] = x86_stmt_str+">"
