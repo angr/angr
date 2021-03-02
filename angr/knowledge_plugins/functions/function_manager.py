@@ -249,7 +249,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         elif type(k) is str:
             f = self.function(name=k)
         else:
-            raise ValueError("FunctionManager.__getitem__ deos not support keys of type %s" % type(k))
+            raise ValueError("FunctionManager.__getitem__ does not support keys of type %s" % type(k))
 
         if f is None:
             raise KeyError(k)
