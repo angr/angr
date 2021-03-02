@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Dict, List, Union
 import logging
 
 import networkx
@@ -27,7 +28,7 @@ class AnnotatedCFG:
         self._cfg = None
         self._target = None
 
-        self._run_statement_whitelist = defaultdict(list)
+        self._run_statement_whitelist: Dict[int,Union[List[int],bool]] = defaultdict(list)
         self._exit_taken = defaultdict(list)
         self._addr_to_run = {}
         self._addr_to_last_stmt_id = {}
@@ -166,7 +167,10 @@ class AnnotatedCFG:
             return self._addr_to_last_stmt_id[addr]
         elif addr in self._run_statement_whitelist:
             # is the default exit there? it equals to a negative number (-2 by default) so `max()` won't work.
-            if DEFAULT_STATEMENT in self._run_statement_whitelist[addr]:
+            if self._run_statement_whitelist[addr] is True or \
+                    (isinstance(self._run_statement_whitelist[addr], list)
+                     and DEFAULT_STATEMENT in self._run_statement_whitelist[addr]
+                    ):
                 return DEFAULT_STATEMENT
             return max(self._run_statement_whitelist[addr], key=lambda v: v if type(v) is int else float('inf'))
         return None
