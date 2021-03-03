@@ -32,7 +32,6 @@ class SimUserland(SimOS):
         if abi_list is None:
             abi_list = list(self.syscall_library.syscall_number_mapping)
             assert len(abi_list) == 1, "More than one ABI is available for this target - you need to specify which ones are valid"
-        super(SimUserland, self).configure_project()
         self.kernel_base = self.project.loader.kernel_object.mapped_base
 
         base_no = 0
@@ -44,6 +43,10 @@ class SimUserland(SimOS):
             base_no += max_no - min_no + 1 # since max is the actual max and not the array length
 
         self.unknown_syscall_number = base_no
+
+        # configure_project() involves lightweight symbolic execution, which may ends up using syscall ABIs. hence, we
+        # need to fill in self.syscall_abis before calling configure_project().
+        super().configure_project()
 
     def syscall_cc(self, state) -> SimCCSyscall:
         if state.os_name in SYSCALL_CC[state.arch.name]:
