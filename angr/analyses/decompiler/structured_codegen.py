@@ -257,7 +257,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             if cvar in self.arg_list:
                 continue
 
-            unified_var = self.variable_manager.unify_variable(var)
+            unified_var = self.variable_manager.unified_variable(var)
             if unified_var is not None:
                 key = unified_var
                 var_type = self.variable_manager.get_variable_type(var)  # FIXME
@@ -1570,7 +1570,7 @@ class StructuredCodeGenerator(Analysis):
         return expr, None
 
     def _cvariable(self, variable, offset=None, variable_type=None, tags=None):
-        unified = self._variable_kb.variables[self._func.addr].unify_variable(variable)
+        unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
         cvariable = CVariable(variable, unified_variable=unified, offset=offset, variable_type=variable_type, tags=tags)
         if isinstance(variable, SimVariable):
             self._variables_in_use[variable] = cvariable
