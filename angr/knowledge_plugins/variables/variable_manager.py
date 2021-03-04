@@ -506,7 +506,7 @@ class VariableManagerInternal:
         self._unified_variables.add(unified)
         self._variables_to_unified_variables[variable] = unified
 
-    def unified_variable(self, variable: SimVariable) -> Optional[SimVariable]:
+    def unify_variable(self, variable: SimVariable) -> Optional[SimVariable]:
         """
         Return the unified variable for a given SSA variable,
 
@@ -515,6 +515,18 @@ class VariableManagerInternal:
         """
 
         return self._variables_to_unified_variables.get(variable, None)
+
+    @property
+    def unified_variables(self):
+        """
+        Returns a list of unified variables
+
+        :return:            A list of Unified variables, [] if none are found.
+        """
+        if self._unified_variables is None:
+            return list()
+
+        return list(self._unified_variables)
 
 
 class VariableManager(KnowledgeBasePlugin):
