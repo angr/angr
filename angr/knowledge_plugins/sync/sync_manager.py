@@ -229,8 +229,12 @@ class SynchronizationManager(KnowledgeBasePlugin):
         :param user:
         :return:
         """
+        try:
+            stack_vars = self._client.get_state(user=user).get_stack_variables(func_addr)
+        except:
+            stack_vars = {}
 
-        return self._client.get_state(user=user).get_stack_variables(func_addr)
+        return stack_vars
 
 
 
