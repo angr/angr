@@ -1,13 +1,17 @@
 
 from functools import wraps
+from typing import Set
 
 try:
     import binsync
+    from binsync.data.stack_variable import StackVariable, StackOffsetType
     binsync_available = True
 except ImportError:
     binsync_available = False
 
+from ...sim_variable import SimStackVariable
 from ..plugin import KnowledgeBasePlugin
+from ..variables.variable_manager import VariableManagerInternal
 
 
 def init_checker(f):
@@ -86,6 +90,8 @@ class SynchronizationManager(KnowledgeBasePlugin):
                 if _comment is not None:
                     self._kb.comments[ins_addr] = _comment
 
+        # stack vars done in angr-management
+
     #
     # Pushers
     #
@@ -127,6 +133,30 @@ class SynchronizationManager(KnowledgeBasePlugin):
         r = False
         for addr, comment in comments.items():
             r |= self._client.get_state().set_comment(addr, comment)
+        return r
+
+    @init_checker
+    def push_stack_variables(self, stack_variables: Set[SimStackVariable], var_manager: VariableManagerInternal):
+        """
+
+        :param stack_variables:
+        :param var_manager:
+        :return:
+        """
+        r = False
+        for var in stack_variables:
+            try:
+                var_type = str(var_manager.get_variable_type(var))
+            except:
+                var_type = "BOT"
+
+            # construct a StackVariable for each SimStackVariable
+            sync_stack_var = StackVariable(var.offset, StackOffsetType.ANGR, var.name,
+                                           var_type, var.size, var_manager.func_addr)
+
+            r |= self._client.get_state().set_stack_variable(var_manager.func_addr, var.offset, sync_stack_var)
+
+        # return true only if all pushed worked
         return r
 
     #
@@ -191,6 +221,17 @@ class SynchronizationManager(KnowledgeBasePlugin):
         """
 
         return self._client.get_state(user=user).get_patches()
+
+    def pull_stack_variables(self, func_addr, user=None):
+        """
+
+        :param func_addr:
+        :param user:
+        :return:
+        """
+
+        return self._client.get_state(user=user).get_stack_variables(func_addr)
+
 
 
 if binsync_available:
