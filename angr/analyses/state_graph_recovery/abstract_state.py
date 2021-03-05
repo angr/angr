@@ -9,7 +9,7 @@ class AbstractState:
     Defines an abstract state in a state graph. An abstract state is defined by a set of fields (AbstractStateFields)
     and the value of each field.
     """
-    def __init__(self, fields: AbstractStateFields, values: Dict[str,Any]):
+    def __init__(self, fields: 'AbstractStateFields', values: Dict[str,Any]):
         self.fields = fields
         self.values = values
 
