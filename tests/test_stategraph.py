@@ -46,7 +46,7 @@ def test_smoketest():
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
 
     func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, init_state=initial_state)
+    sgr = proj.analyses.StateGraphRecovery(func, fields, 0x425620, init_state=initial_state)
     state_graph = sgr.state_graph
 
     # state graph acquired. define a rule
