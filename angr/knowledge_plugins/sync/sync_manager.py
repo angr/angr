@@ -231,7 +231,7 @@ class SynchronizationManager(KnowledgeBasePlugin):
         """
         try:
             stack_vars = self._client.get_state(user=user).get_stack_variables(func_addr)
-        except:
+        except KeyError:
             stack_vars = {}
 
         return stack_vars
