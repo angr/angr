@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x15protos/function.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"\xaf\x02\n\x08\x46unction\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x15\n\ris_entrypoint\x18\x03 \x01(\x08\x12\"\n\x06\x62locks\x18\x02 \x03(\x0b\x32\x12.angr.protos.Block\x12\x0c\n\x04name\x18\x04 \x01(\t\x12\x0e\n\x06is_plt\x18\x07 \x01(\x08\x12\x12\n\nis_syscall\x18\x08 \x01(\x08\x12\x17\n\x0fis_simprocedure\x18\t \x01(\x08\x12\x11\n\treturning\x18\n \x01(\x08\x12\x13\n\x0b\x62inary_name\x18\x0b \x01(\t\x12&\n\x05graph\x18\x0c \x01(\x0b\x32\x17.angr.protos.BlockGraph\x12\x1a\n\x12\x65xternal_functions\x18\r \x03(\x03\x12\x11\n\talignment\x18\x0e \x01(\x08\x12\x12\n\nnormalized\x18\x0f \x01(\x08\x62\x06proto3'
+  serialized_pb=b'\n\x15protos/function.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"\xaf\x02\n\x08\x46unction\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x15\n\ris_entrypoint\x18\x03 \x01(\x08\x12\"\n\x06\x62locks\x18\x02 \x03(\x0b\x32\x12.angr.protos.Block\x12\x0c\n\x04name\x18\x04 \x01(\t\x12\x0e\n\x06is_plt\x18\x07 \x01(\x08\x12\x12\n\nis_syscall\x18\x08 \x01(\x08\x12\x17\n\x0fis_simprocedure\x18\t \x01(\x08\x12\x11\n\treturning\x18\n \x01(\x08\x12\x13\n\x0b\x62inary_name\x18\x0b \x01(\t\x12&\n\x05graph\x18\x0c \x01(\x0b\x32\x17.angr.protos.BlockGraph\x12\x1a\n\x12\x65xternal_functions\x18\r \x03(\x04\x12\x11\n\talignment\x18\x0e \x01(\x08\x12\x12\n\nnormalized\x18\x0f \x01(\x08\x62\x06proto3'
   ,
   dependencies=[protos_dot_primitives__pb2.DESCRIPTOR,])
 
@@ -35,7 +35,7 @@ _FUNCTION = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='ea', full_name='angr.protos.Function.ea', index=0,
-      number=1, type=3, cpp_type=2, label=1,
+      number=1, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -105,7 +105,7 @@ _FUNCTION = _descriptor.Descriptor(
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='external_functions', full_name='angr.protos.Function.external_functions', index=10,
-      number=13, type=3, cpp_type=2, label=3,
+      number=13, type=4, cpp_type=4, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,

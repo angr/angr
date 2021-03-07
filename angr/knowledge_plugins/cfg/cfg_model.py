@@ -109,7 +109,7 @@ class CFGModel(Serializable):
                 if k == 'jumpkind':
                     edge.jumpkind = cfg_jumpkind_to_pb(v)
                 elif k == 'ins_addr':
-                    edge.ins_addr = v if v is not None else -1
+                    edge.ins_addr = v if v is not None else 0xffff_ffff_ffff_ffff
                 elif k == 'stmt_idx':
                     edge.stmt_idx = v if v is not None else -1
                 else:
@@ -153,7 +153,7 @@ class CFGModel(Serializable):
             for k, v in edge_pb2.data.items():
                 data[k] = pickle.loads(v)
             data['jumpkind'] = cfg_jumpkind_from_pb(edge_pb2.jumpkind)
-            data['ins_addr'] = edge_pb2.ins_addr if edge_pb2.ins_addr != -1 else None
+            data['ins_addr'] = edge_pb2.ins_addr if edge_pb2.ins_addr != 0xffff_ffff_ffff_ffff else None
             data['stmt_idx'] = edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None
             model.graph.add_edge(src, dst, **data)
 
