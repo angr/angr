@@ -146,6 +146,31 @@ void State::stop(stop_t reason, bool do_commit) {
 		commit();
 	}
 	uc_emu_stop(uc);
+	// Prepare details of blocks with symbolic instructions to re-execute for returning to state plugin
+	for (auto &block: blocks_with_symbolic_instrs) {
+		sym_block_details_t sym_block;
+		sym_block.reset();
+		sym_block.block_addr = block.block_addr;
+		sym_block.block_size = block.block_size;
+		std::set<instr_details_t> sym_instrs;
+		std::unordered_set<register_value_t> reg_values;
+		for (auto &sym_instr: block.symbolic_instrs) {
+			auto sym_instr_list = get_list_of_dep_instrs(sym_instr);
+			sym_instrs.insert(sym_instr_list.begin(), sym_instr_list.end());
+			sym_instrs.insert(sym_instr);
+			reg_values.insert(sym_instr.reg_deps.begin(), sym_instr.reg_deps.end());
+		}
+		sym_block.register_values.insert(sym_block.register_values.end(), reg_values.begin(), reg_values.end());
+		for (auto &instr: sym_instrs) {
+			sym_instr_details_t sym_instr;
+			sym_instr.instr_addr = instr.instr_addr;
+			sym_instr.memory_values = instr.memory_values;
+			sym_instr.memory_values_count = instr.memory_values_count;
+			sym_instr.has_memory_dep = instr.has_concrete_memory_dep;
+			sym_block.symbolic_instrs.emplace_back(sym_instr);
+		}
+		block_details_to_return.emplace_back(sym_block);
+	}
 }
 
 void State::step(address_t current_address, int32_t size, bool check_stop_points) {
@@ -220,25 +245,11 @@ void State::commit() {
 		mark_register_concrete(reg_offset, false);
 	}
 	if (block_details.symbolic_instrs.size() > 0) {
-		for (auto &concrete_reg: block_concrete_dependencies) {
-			// Save values of all register dependencies of the block that were concrete at start of the block
-			block_details.register_values.emplace_back(block_start_reg_values.at(concrete_reg));
-		}
 		for (auto &symbolic_instr: block_details.symbolic_instrs) {
 			// Save all concrete memory dependencies of the block
-			if (symbolic_instr.has_concrete_memory_dep) {
-				archived_memory_values.emplace_back(mem_reads_map.at(symbolic_instr.instr_addr).memory_values);
-				symbolic_instr.memory_values = &(archived_memory_values.back()[0]);
-				symbolic_instr.memory_values_count = archived_memory_values.back().size();
-			}
-			if (symbolic_instr.has_symbolic_memory_dep) {
-				// Track all symbolic memory dependencies used by the block
-				for (auto &mem_value: mem_reads_map.at(symbolic_instr.instr_addr).memory_values) {
-					if (mem_value.is_value_symbolic) {
-						block_details.symbolic_mem_deps.push_back(std::make_pair(mem_value.address, mem_value.size));
-					}
-				}
-			}
+			save_concrete_memory_deps(symbolic_instr);
+			auto result = find_symbolic_mem_deps(symbolic_instr);
+			block_details.symbolic_mem_deps.insert(block_details.symbolic_mem_deps.end(), result.begin(), result.end());
 		}
 		blocks_with_symbolic_instrs.emplace_back(block_details);
 	}
@@ -246,7 +257,6 @@ void State::commit() {
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
 	block_details.reset();
-	block_concrete_dependencies.clear();
 	instr_slice_details_map.clear();
 	mem_reads_map.clear();
 	mem_writes_taint_map.clear();
@@ -934,6 +944,16 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 	return block_taint_entry;
 }
 
+std::set<instr_details_t> State::get_list_of_dep_instrs(const instr_details_t &instr) const {
+	std::set<instr_details_t> instrs;
+	for (auto &dep_instr: instr.instr_deps) {
+		auto result = get_list_of_dep_instrs(dep_instr);
+		instrs.insert(result.begin(), result.end());
+		instrs.insert(dep_instr);
+	}
+	return instrs;
+}
+
 void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const {
 	uint64_t reg_value;
 	if (cpu_flags_register != -1) {
@@ -1541,13 +1561,11 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 	}
 	if (is_instr_symbolic) {
-		auto& instr_slice_details = instr_slice_details_map.at(instr_addr);
-		block_concrete_dependencies.insert(instr_slice_details.concrete_registers.begin(), instr_slice_details.concrete_registers.end());
-
-		std::set<instr_details_t> symbolic_instrs_set(block_details.symbolic_instrs.begin(), block_details.symbolic_instrs.end());
-		block_details.symbolic_instrs.clear();
-		symbolic_instrs_set.insert(instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
-		block_details.symbolic_instrs.insert(block_details.symbolic_instrs.end(), symbolic_instrs_set.begin(), symbolic_instrs_set.end());
+		auto &instr_slice_details = instr_slice_details_map.at(instr_addr);
+		for (auto &reg: instr_slice_details.concrete_registers) {
+			instr_details.reg_deps.emplace(block_start_reg_values.at(reg));
+		}
+		instr_details.instr_deps.insert(instr_details.instr_deps.end(), instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
 		block_details.symbolic_instrs.emplace_back(instr_details);
 	}
 	return;
@@ -1668,6 +1686,34 @@ void State::continue_propagating_taint() {
 	}
 	else {
 		propagate_taints();
+	}
+	return;
+}
+
+std::vector<std::pair<address_t, uint64_t>> State::find_symbolic_mem_deps(instr_details_t &instr) const {
+	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
+	for (auto &dep_instr: instr.instr_deps) {
+		auto result = find_symbolic_mem_deps(dep_instr);
+		symbolic_mem_deps.insert(symbolic_mem_deps.end(), result.begin(), result.end());
+	}
+	if (instr.has_symbolic_memory_dep) {
+		for (auto &mem_value: mem_reads_map.at(instr.instr_addr).memory_values) {
+			if (mem_value.is_value_symbolic) {
+				symbolic_mem_deps.emplace_back(std::make_pair(mem_value.address, mem_value.size));
+			}
+		}
+	}
+	return symbolic_mem_deps;
+}
+
+void State::save_concrete_memory_deps(instr_details_t &instr) {
+	if (instr.has_concrete_memory_dep) {
+		archived_memory_values.emplace_back(mem_reads_map.at(instr.instr_addr).memory_values);
+		instr.memory_values = &(archived_memory_values.back()[0]);
+		instr.memory_values_count = archived_memory_values.back().size();
+	}
+	for (auto &dep_instr: instr.instr_deps) {
+		save_concrete_memory_deps(dep_instr);
 	}
 	return;
 }
@@ -2247,18 +2293,18 @@ void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_
 
 extern "C"
 uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
-	return state->blocks_with_symbolic_instrs.size();
+	return state->block_details_to_return.size();
 }
 
 extern "C"
-void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, block_details_ret_t *ret_block_details) {
-	for (auto i = 0; i < state->blocks_with_symbolic_instrs.size(); i++) {
-		ret_block_details[i].block_addr = state->blocks_with_symbolic_instrs[i].block_addr;
-		ret_block_details[i].block_size = state->blocks_with_symbolic_instrs[i].block_size;
-		ret_block_details[i].symbolic_instrs = &(state->blocks_with_symbolic_instrs[i].symbolic_instrs[0]);
-		ret_block_details[i].symbolic_instrs_count = state->blocks_with_symbolic_instrs[i].symbolic_instrs.size();
-		ret_block_details[i].register_values = &(state->blocks_with_symbolic_instrs[i].register_values[0]);
-		ret_block_details[i].register_values_count = state->blocks_with_symbolic_instrs[i].register_values.size();
+void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_block_details_ret_t *ret_block_details) {
+	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
+		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
+		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
+		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
+		ret_block_details[i].symbolic_instrs_count = state->block_details_to_return[i].symbolic_instrs.size();
+		ret_block_details[i].register_values = &(state->block_details_to_return[i].register_values[0]);
+		ret_block_details[i].register_values_count = state->block_details_to_return[i].register_values.size();
 	}
 	return;
 }
