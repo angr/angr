@@ -199,6 +199,13 @@ class SimStateLibc(SimStatePlugin):
         # helpful stuff
         self.strdup_stack = [ ]
 
+        # support for atexit
+        self._exit_handlers = [ ]
+
+        # constructor and destructor
+        self._init = None
+        self._finit = None
+
         # as per Audrey:
         # the idea is that there's two abi versions, and for one of them, the
         # address passed to libc_start_main isn't actually the address of the
@@ -235,6 +242,14 @@ class SimStateLibc(SimStatePlugin):
         c.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
         c.errno_location = self.errno_location
         #c.aa = self.aa
+
+        # atexit support
+        c._exit_handlers = self._exit_handlers[:]
+
+
+        # constructor and destructor
+        c._init = self._init
+        c._finit = self._finit
 
         return c
 

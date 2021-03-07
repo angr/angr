@@ -133,6 +133,9 @@ class __libc_start_main(angr.SimProcedure):
         self.main, self.argc, self.argv, self.init, self.fini = self._extract_args(self.state, main, argc, argv, init,
                                                                                    fini)
 
+        self.state.libc._init = self.init
+        self.state.libc._finit = self.fini
+
         # TODO: __cxa_atexit calls for various at-exit needs
 
         self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
@@ -140,8 +143,22 @@ class __libc_start_main(angr.SimProcedure):
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
 
+    def _run_exit_handler(self, exit_code):
+        if len(self.state.libc._exit_handlers) > 0:
+            addr = self.state.libc._exit_handlers[0]
+            addr = self.state.solver.eval(addr)
+            self.state.libc._exit_handlers = self.state.libc._exit_handlers[1:]
+            self.call(addr, (), '_run_exit_handler')
+        else:
+            if self.state.libc._finit != None:
+                self.call(self.state.libc._finit, (exit_code), '_finish')
+            self.exit(exit_code)
+
+    def _finish(self, exit_code):
+        self.exit(exit_code)
+
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
-        self.exit(0)
+        self._run_exit_handler(0)
 
     def static_exits(self, blocks):
         # Execute those blocks with a blank state, and then dump the arguments
