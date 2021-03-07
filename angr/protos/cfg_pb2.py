@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"H\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\"\x89\x01\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edge\x12,\n\x0bmemory_data\x18\x04 \x03(\x0b\x32\x17.angr.protos.MemoryData\"\x9b\x02\n\nMemoryData\x12\n\n\x02\x65\x61\x18\x01 \x01(\x03\x12\x0c\n\x04size\x18\x02 \x01(\x05\x12\x34\n\x04type\x18\x03 \x01(\x0e\x32&.angr.protos.MemoryData.MemoryDataType\"\xbc\x01\n\x0eMemoryDataType\x12\x13\n\x0fUnknownDataType\x10\x00\x12\x0f\n\x0bUnspecified\x10\x01\x12\x0b\n\x07Integer\x10\x02\x12\x10\n\x0cPointerArray\x10\x03\x12\n\n\x06String\x10\x04\x12\x11\n\rUnicodeString\x10\x05\x12\x13\n\x0fSegmentBoundary\x10\x06\x12\x11\n\rCodeReference\x10\x07\x12\x0f\n\x0bGOTPLTEntry\x10\x08\x12\r\n\tELFHeader\x10\tb\x06proto3'
+  serialized_pb=b'\n\x10protos/cfg.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"H\n\x07\x43\x46GNode\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x10\n\x08\x62lock_id\x18\x03 \x03(\x03\x12\x11\n\treturning\x18\x04 \x01(\x08\"\x89\x01\n\x03\x43\x46G\x12\r\n\x05ident\x18\x01 \x01(\t\x12#\n\x05nodes\x18\x02 \x03(\x0b\x32\x14.angr.protos.CFGNode\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.angr.protos.Edge\x12,\n\x0bmemory_data\x18\x04 \x03(\x0b\x32\x17.angr.protos.MemoryData\"\x9b\x02\n\nMemoryData\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\x34\n\x04type\x18\x03 \x01(\x0e\x32&.angr.protos.MemoryData.MemoryDataType\"\xbc\x01\n\x0eMemoryDataType\x12\x13\n\x0fUnknownDataType\x10\x00\x12\x0f\n\x0bUnspecified\x10\x01\x12\x0b\n\x07Integer\x10\x02\x12\x10\n\x0cPointerArray\x10\x03\x12\n\n\x06String\x10\x04\x12\x11\n\rUnicodeString\x10\x05\x12\x13\n\x0fSegmentBoundary\x10\x06\x12\x11\n\rCodeReference\x10\x07\x12\x0f\n\x0bGOTPLTEntry\x10\x08\x12\r\n\tELFHeader\x10\tb\x06proto3'
   ,
   dependencies=[protos_dot_primitives__pb2.DESCRIPTOR,])
 
@@ -89,14 +89,14 @@ _CFGNODE = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='ea', full_name='angr.protos.CFGNode.ea', index=0,
-      number=1, type=3, cpp_type=2, label=1,
+      number=1, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='size', full_name='angr.protos.CFGNode.size', index=1,
-      number=2, type=5, cpp_type=1, label=1,
+      number=2, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -193,14 +193,14 @@ _MEMORYDATA = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='ea', full_name='angr.protos.MemoryData.ea', index=0,
-      number=1, type=3, cpp_type=2, label=1,
+      number=1, type=4, cpp_type=4, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='size', full_name='angr.protos.MemoryData.size', index=1,
-      number=2, type=5, cpp_type=1, label=1,
+      number=2, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,

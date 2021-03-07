@@ -6,8 +6,8 @@ import "protos/primitives.proto";
 package angr.protos;
 
 message CFGNode {
-    int64           ea = 1; // Address of the node
-    int32           size = 2; // Size of the node
+    uint64          ea = 1; // Address of the node
+    uint32          size = 2; // Size of the node
     repeated int64  block_id = 3; // A unique identifier of the node
     bool            returning = 4; // If it is a call node, does it return?
 }
@@ -33,7 +33,7 @@ message MemoryData {
         ELFHeader = 9;
     }
 
-    int64           ea = 1; // Address of the data
-    int32           size = 2; // Size of the data
+    uint64          ea = 1; // Address of the data
+    uint32          size = 2; // Size of the data
     MemoryDataType  type = 3; // Type of the data (reference)
 }
