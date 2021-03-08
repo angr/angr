@@ -147,7 +147,7 @@ class SynchronizationManager(KnowledgeBasePlugin):
         for var in stack_variables:
             try:
                 var_type = str(var_manager.get_variable_type(var))
-            except:
+            except KeyError:
                 var_type = "BOT"
 
             # construct a StackVariable for each SimStackVariable
