@@ -432,7 +432,7 @@ class State {
 	std::unordered_map<address_t, instr_slice_details_t> instr_slice_details_map;
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
-	block_details_t block_details;
+	block_details_t curr_block_details;
 
 	// List of register values at start of block
 	std::unordered_map<vex_reg_offset_t, register_value_t> block_start_reg_values;
@@ -744,7 +744,7 @@ class State {
 		}
 
 		inline bool is_symbolic_taint_propagation_disabled() const {
-			return (is_symbolic_tracking_disabled() || block_details.vex_lift_failed);
+			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
 		}
 
 		inline address_t get_taint_engine_stop_mem_read_instr_addr() const {
