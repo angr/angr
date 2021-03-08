@@ -548,7 +548,7 @@ class State {
 		}
 	}
 
-	inline unsigned int arch_pc_reg() const {
+	inline int arch_pc_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
 				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
@@ -563,7 +563,7 @@ class State {
 		}
 	}
 
-	inline unsigned int arch_sp_reg() const {
+	inline int arch_sp_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
 				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
@@ -598,7 +598,7 @@ class State {
 		// register to determine if we are executing in ARM or THUMB mode.
 		uint32_t cpsr_reg_val;
 		uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr_reg_val);
-		return (cpsr_reg_val & 32 == 0);
+		return ((cpsr_reg_val & 32) == 0);
 	}
 
 	public:

@@ -409,7 +409,7 @@ mem_update_t *State::sync() {
 
 void State::set_stops(uint64_t count, address_t *stops) {
 	stop_points.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		stop_points.insert(stops[i]);
 	}
 }
@@ -581,7 +581,6 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
 	short clean;
-	address_t instr_addr;
 	bool is_dst_symbolic;
 
 	if (!bitmap) {
@@ -1246,7 +1245,7 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 				try {
 					mem_read_result = mem_reads_map.at(taint_source.instr_addr);
 				}
-				catch (std::out_of_range) {
+				catch (std::out_of_range const&) {
 					assert(false && "[sim_unicorn] Taint sink depends on a read not executed yet! This should not happen!");
 				}
 				is_symbolic = mem_read_result.is_mem_read_symbolic;
@@ -1281,7 +1280,7 @@ void State::mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_le
 			symbolic_registers.emplace(reg_offset);
 		}
 		else {
-			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 				symbolic_registers.emplace(reg_offset + i);
 			}
 		}
@@ -1309,7 +1308,7 @@ void State::mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_le
 			symbolic_registers.erase(reg_offset);
 		}
 		else {
-			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 				symbolic_registers.erase(reg_offset + i);
 			}
 		}
@@ -1337,14 +1336,14 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	reg_offset = get_full_register_offset(reg_offset);
 	// The register is not a CPU flag and so we check every byte of the register
-	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
 		if (block_symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
 	}
 	bool is_concrete = true;
-	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (block_concrete_registers.count(reg_offset) == 0) {
 			is_concrete = false;
 			break;
@@ -1356,7 +1355,7 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	// If we reach here, it means that the register is not marked symbolic or concrete in the block
 	// level taint status tracker. We check the state's symbolic register list.
-	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
@@ -1775,7 +1774,7 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 
 address_t State::get_instruction_pointer() const {
 	address_t out = 0;
-	unsigned int reg = arch_pc_reg();
+	int reg = arch_pc_reg();
 	if (reg == -1) {
 		out = 0;
 	} else {
@@ -1787,7 +1786,7 @@ address_t State::get_instruction_pointer() const {
 
 address_t State::get_stack_pointer() const {
 	address_t out = 0;
-	unsigned int reg = arch_sp_reg();
+	int reg = arch_sp_reg();
 	if (reg == -1) {
 		out = 0;
 	} else {
@@ -2118,7 +2117,7 @@ extern "C"
 void simunicorn_symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
 	state->symbolic_registers.clear();
-	for (int i = 0; i < count; i++)
+	for (uint64_t i = 0; i < count; i++)
 	{
 		state->symbolic_registers.insert(offsets[i]);
 	}
@@ -2225,7 +2224,7 @@ void simunicorn_set_map_callback(State *state, uc_cb_eventmem_t cb) {
 extern "C"
 void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64_t count) {
 	state->artificial_vex_registers.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->artificial_vex_registers.emplace(offsets[i]);
 	}
 	return;
@@ -2235,7 +2234,7 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 extern "C"
 void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *vex_offsets, uint64_t *reg_sizes, uint64_t count) {
 	state->reg_size_map.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->reg_size_map.emplace(vex_offsets[i], reg_sizes[i]);
 	}
 	return;
@@ -2245,7 +2244,7 @@ void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *
 extern "C"
 void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
 	state->vex_to_unicorn_map.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
 	}
 	return;
@@ -2255,7 +2254,7 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 extern "C"
 void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_reg_offsets, uint64_t *vex_reg_offsets, uint64_t count) {
 	state->vex_sub_reg_map.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->vex_sub_reg_map.emplace(vex_sub_reg_offsets[i], vex_reg_offsets[i]);
 	}
 	return;
@@ -2265,7 +2264,7 @@ void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_
 extern "C"
 void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
 	state->cpu_flags.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->cpu_flags.emplace(flag_vex_id[i], bitmasks[i]);
 	}
 	return;
@@ -2281,7 +2280,7 @@ void simunicorn_set_unicorn_flags_register_id(State *state, int64_t reg_id) {
 extern "C"
 void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_t count) {
 	state->blacklisted_registers.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->blacklisted_registers.emplace(reg_list[i]);
 	}
 	return;
@@ -2296,7 +2295,7 @@ uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
 
 extern "C"
 void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_block_details_ret_t *ret_block_details) {
-	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
+	for (size_t i = 0; i < state->block_details_to_return.size(); i++) {
 		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
 		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
 		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
