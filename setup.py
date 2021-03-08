@@ -130,7 +130,7 @@ if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
         # https://www.python.org/dev/peps/pep-0425/
         sys.argv.append(name.replace('.', '_').replace('-', '_'))
 
-_UNICORN = "unicorn==1.0.2rc4"
+_UNICORN = "unicorn==1.0.2"
 
 setup(
     name='angr',
