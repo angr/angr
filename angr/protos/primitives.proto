@@ -34,11 +34,11 @@ message CodeReference {
     TargetType  target_type = 1;
     OperandType operand_type = 2;
     Location    location = 3;
-    int64       ea = 4;
-    int64       mask = 5; // For AArch64
+    uint64      ea = 4;
+    uint64      mask = 5; // For AArch64
     string      name = 6;
-    int64       data_ea = 7; // Address of the referenced data item/block
-    int64       block_ea = 8; // Address of the basic block
+    uint64      data_ea = 7; // Address of the referenced data item/block
+    uint64      block_ea = 8; // Address of the basic block
     int32       stmt_idx = 9; // Index of the statement where this reference is.
     int32       operand_idx = 10; // The index of the operand in the instruction. -1 if unknown
     ReferenceType ref_type = 11; // Type of this cross reference.
@@ -46,7 +46,7 @@ message CodeReference {
 
 // Derived from McSema's CFG.proto
 message Instruction {
-    int64           ea = 1;
+    uint64          ea = 1;
     bytes           bytes = 2;
     CodeReference   xrefs = 3;
     bool            local_noreturn = 4;
@@ -54,9 +54,9 @@ message Instruction {
 
 // Derived from McSema's CFG.proto
 message Block {
-    int64   ea = 1; // Effective address of the block
+    uint64  ea = 1; // Effective address of the block
     Instruction instructions = 2;   // Instructions in this block
-    int32   size = 4; // Size of the block
+    uint32  size = 4; // Size of the block
     bytes   bytes = 5; // Bytes of this block
 }
 
@@ -69,7 +69,7 @@ message ExternalFunction {
     }
 
     string              name = 1;
-    int64               ea = 2;
+    uint64              ea = 2;
     CallingConvention   cc = 3;
     bool                has_return = 4;
     bool                no_return = 5;
@@ -81,8 +81,8 @@ message ExternalFunction {
 // Derived from McSema's CFG.proto
 message ExternalVariable {
     string  name = 1;
-    int64   ea = 2;
-    int32   size = 3;
+    uint64  ea = 2;
+    uint32  size = 3;
     bool    is_weak = 4;
     bool    is_thread_local = 5;
 }
@@ -110,11 +110,11 @@ message Edge {
         Exception = 16;
     }
 
-    int64               src_ea = 1; // Address of the source block
-    int64               dst_ea = 2; // Address of the destination block
+    uint64              src_ea = 1; // Address of the source block
+    uint64              dst_ea = 2; // Address of the destination block
     JumpKind            jumpkind = 3; // Jumpkind of the edge
     bool                is_outside = 4; // Is this an edge going outside of the current function?
-    int64               ins_addr = 5; // Address of the source instruction
+    uint64              ins_addr = 5; // Address of the source instruction
     int64               stmt_idx = 6; // ID of the source statement
     map<string, bytes>  data = 7; // A dict of data on this edge. For now, values are pickled from Python objects.
 }

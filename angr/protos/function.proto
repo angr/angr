@@ -6,7 +6,7 @@ import "protos/primitives.proto";
 package angr.protos;
 
 message Function {
-    int64           ea = 1; // Effective address
+    uint64          ea = 1; // Effective address
     bool            is_entrypoint = 3; // Is this function the entry point of the binary
     repeated Block  blocks = 2; // Blocks in this function
     string          name = 4; // Function name
@@ -16,7 +16,7 @@ message Function {
     bool            returning = 10; // If this function returns
     string          binary_name = 11; // Name of the binary where this function belongs to
     BlockGraph      graph = 12; // Graph of this function
-    repeated int64  external_functions = 13; // Address of referenced functions
+    repeated uint64 external_functions = 13; // Address of referenced functions
     bool            alignment = 14; // Whether this function is used as an alignment filling or not
     bool            normalized = 15; // Whether this function has been normalized or not
 }
