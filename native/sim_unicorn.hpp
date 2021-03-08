@@ -158,12 +158,14 @@ struct instr_details_t {
 	uint64_t memory_values_count;
 	std::vector<instr_details_t> instr_deps;
 	std::unordered_set<register_value_t> reg_deps;
+	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 
 	instr_details_t() {
 		has_concrete_memory_dep = false;
 		has_symbolic_memory_dep = false;
 		instr_deps.clear();
 		reg_deps.clear();
+		symbolic_mem_deps.clear();
 	}
 
 	bool operator==(const instr_details_t &other_instr) const {
@@ -184,14 +186,12 @@ struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
 	std::vector<instr_details_t> symbolic_instrs;
-	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 	bool vex_lift_failed;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
 		symbolic_instrs.clear();
-		symbolic_mem_deps.clear();
 		vex_lift_failed = false;
 	}
 };

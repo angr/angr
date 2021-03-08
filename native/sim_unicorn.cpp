@@ -249,7 +249,7 @@ void State::commit() {
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
 			auto result = find_symbolic_mem_deps(symbolic_instr);
-			block_details.symbolic_mem_deps.insert(block_details.symbolic_mem_deps.end(), result.begin(), result.end());
+			symbolic_instr.symbolic_mem_deps.insert(symbolic_instr.symbolic_mem_deps.end(), result.begin(), result.end());
 		}
 		blocks_with_symbolic_instrs.emplace_back(block_details);
 	}
@@ -621,14 +621,16 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		auto write_start_addr = address;
 		auto write_end_addr = address + size;
 		for (auto &block: blocks_with_symbolic_instrs) {
-			for (auto &symbolic_mem_dep: block.symbolic_mem_deps) {
-				auto symbolic_start_addr = symbolic_mem_dep.first;
-				auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
-				if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
-					// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
-					// will be lost. Stop execution.
-					stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
-					return;
+			for (auto &sym_instr: block.symbolic_instrs) {
+				for (auto &symbolic_mem_dep: sym_instr.symbolic_mem_deps) {
+					auto symbolic_start_addr = symbolic_mem_dep.first;
+					auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+					if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
+						// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
+						// will be lost. Stop execution.
+						stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+						return;
+					}
 				}
 			}
 		}
@@ -1758,16 +1760,12 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 		return true;
 	}
 	for (auto &block: blocks_with_symbolic_instrs) {
-		auto &block_symbolic_instrs = block_details.symbolic_instrs;
-		for (auto symbolic_instr = block_symbolic_instrs.rbegin(); symbolic_instr != block_symbolic_instrs.rend(); symbolic_instr++) {
-			if (symbolic_instr->has_symbolic_memory_dep) {
-				auto mem_read_entry = mem_reads_map.at(symbolic_instr->instr_addr);
-				for (auto &mem_value: mem_read_entry.memory_values) {
-					if ((curr_stack_top_addr > mem_value.address) && (mem_value.address > prev_stack_top_addr)) {
-						// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
-						// and could be overwritten by future code. We stop concrete execution here to avoid that.
-						return false;
-					}
+		for (auto &symbolic_instr: block.symbolic_instrs) {
+			for (auto &symbolic_mem_dep: symbolic_instr.symbolic_mem_deps) {
+				if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
+					// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
+					// and could be overwritten by future code. We stop concrete execution here to avoid that.
+					return false;
 				}
 			}
 		}
