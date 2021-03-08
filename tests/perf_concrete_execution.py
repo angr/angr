@@ -21,7 +21,7 @@ class SkinnyEngine(angr.engines.SimEngineFailure, angr.engines.SimEngineSyscall,
 def test_tight_loop(arch):
     b = angr.Project(os.path.join(test_location, arch, "perf_tight_loops"), auto_load_libs=False)
     state = b.factory.full_init_state(plugins={'registers': angr.state_plugins.SimLightRegisters()},
-                                      remove_options={angr.sim_options.COPY_STATES})
+            )#remove_options={angr.sim_options.COPY_STATES})
     simgr = b.factory.simgr(state)
     engine = SkinnyEngine(b)
 
@@ -33,7 +33,6 @@ def test_tight_loop(arch):
 
     print("Elapsed %f sec" % elapsed)
     #print(simgr)
-    b.loader.close()
 
 
 if __name__ == "__main__":

@@ -12,20 +12,35 @@ from .default_filler_mixin import MemoryMissingException
 l = logging.getLogger(name=__name__)
 
 
+class ChainMapCOW(collections.ChainMap):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dirty = False
+
+    def copy(self):
+        self.dirty = True
+        return self
+
+    def clean(self):
+        if self.dirty:
+            return self.new_child()
+        else:
+            return self
+
 class ConvenientMappingsMixin(MemoryMixin):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self._symbolic_addrs: Set = set()
-        self._name_mapping = collections.ChainMap()
-        self._hash_mapping = collections.ChainMap()
+        self._name_mapping = ChainMapCOW()
+        self._hash_mapping = ChainMapCOW()
         self._updated_mappings = set()
 
     def copy(self, memo):
         o = super().copy(memo)
         o._symbolic_addrs = set(self._symbolic_addrs)
-        o._name_mapping = self._name_mapping.new_child()
-        o._hash_mapping = self._hash_mapping.new_child()
+        o._name_mapping = self._name_mapping.copy()
+        o._hash_mapping = self._hash_mapping.copy()
         return o
 
     def store(self, addr, data, size=None, **kwargs):
@@ -97,6 +112,11 @@ class ConvenientMappingsMixin(MemoryMixin):
             return
         if options.REVERSE_MEMORY_NAME_MAP not in self.state.options and d is self._name_mapping:
             return
+
+        if d is self._hash_mapping:
+            d = self._hash_mapping = d.clean()
+        elif d is self._name_mapping:
+            d = self._name_mapping = d.clean()
 
         try:
             d[m] = set(d[m])
