@@ -18,6 +18,14 @@ class MemoryRegionMetaMixin(MemoryMixin):
 
         self._is_stack = None
 
+    @MemoryMixin.memo
+    def copy(self, memo):
+        r: 'MemoryRegionMetaMixin' = super().copy(memo)
+        r.alocs = copy.deepcopy(self.alocs)
+        r._related_function_addr = self._related_function_addr
+        r._is_stack = self._is_stack
+        return r
+
     @property
     def is_stack(self):
         if self.id is None:
@@ -50,13 +58,6 @@ class MemoryRegionMetaMixin(MemoryMixin):
                     break
 
         return ret
-
-    @MemoryMixin.memo
-    def copy(self, memo):
-        r: 'MemoryRegionMetaMixin' = super().copy(memo)
-        r._alocs = copy.deepcopy(self.alocs)
-        r._related_function_addr = self._related_function_addr
-        return r
 
     def store(self, addr, data, bbl_addr=None, stmt_id=None, ins_addr=None, endness=None, **kwargs):
         if ins_addr is not None:

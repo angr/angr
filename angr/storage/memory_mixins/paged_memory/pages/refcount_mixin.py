@@ -7,8 +7,16 @@ class RefcountMixin(MemoryMixin):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._init()
+
+    def _init(self):
         self.refcount = 1
         self.lock = PicklableLock()
+
+    def copy(self, memo):
+        o = super().copy(memo)
+        o._init()
+        return o
 
     def acquire_unique(self):
         """

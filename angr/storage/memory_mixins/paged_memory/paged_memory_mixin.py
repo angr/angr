@@ -32,27 +32,29 @@ class PagedMemoryMixin(MemoryMixin):
         self._default_permissions = default_permissions
         self._pages: Dict[int, Optional[PageType]] = {}
 
-    def __del__(self):
-        # a thought: we could support mapping pages in multiple places in memory if here we just kept a set of released
-        # page ids and never released any page more than once
-        for page in self._pages.values():
-            if page is not None:
-                page.release_shared()
-
     @MemoryMixin.memo
     def copy(self, memo):
         o = super().copy(memo)
 
         o.page_size = self.page_size
-        o._pages = dict(self._pages)
-        o._permissions_map = self._permissions_map
+        o._extra_page_kwargs = self._extra_page_kwargs
+
         o._default_permissions = self._default_permissions
+        o._permissions_map = self._permissions_map
+        o._pages = dict(self._pages)
 
         for page in o._pages.values():
             if page is not None:
                 page.acquire_shared()
 
         return o
+
+    def __del__(self):
+        # a thought: we could support mapping pages in multiple places in memory if here we just kept a set of released
+        # page ids and never released any page more than once
+        for page in self._pages.values():
+            if page is not None:
+                page.release_shared()
 
     def _get_page(self, pageno: int, writing: bool, **kwargs) -> PageType:
         force_default = True

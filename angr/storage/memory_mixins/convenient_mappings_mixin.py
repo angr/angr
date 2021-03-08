@@ -41,6 +41,7 @@ class ConvenientMappingsMixin(MemoryMixin):
         o._symbolic_addrs = set(self._symbolic_addrs)
         o._name_mapping = self._name_mapping.copy()
         o._hash_mapping = self._hash_mapping.copy()
+        o._updated_mappings = set()
         return o
 
     def store(self, addr, data, size=None, **kwargs):
