@@ -1,9 +1,9 @@
-
 # Performance tests on concrete code execution without invoking Unicorn engine
+# uses a stripped-down SimEngine to only test the essential pieces
+# TODO also use a stripped-down memory
 
 import os
 import time
-import logging
 
 import angr
 import claripy
@@ -21,10 +21,11 @@ class SkinnyEngine(angr.engines.SimEngineFailure, angr.engines.SimEngineSyscall,
 def test_tight_loop(arch):
     b = angr.Project(os.path.join(test_location, arch, "perf_tight_loops"), auto_load_libs=False)
     state = b.factory.full_init_state(plugins={'registers': angr.state_plugins.SimLightRegisters()},
-            )#remove_options={angr.sim_options.COPY_STATES})
+                                               remove_options={angr.sim_options.COPY_STATES})
     simgr = b.factory.simgr(state)
     engine = SkinnyEngine(b)
 
+    # import logging
     # logging.getLogger('angr.sim_manager').setLevel(logging.INFO)
 
     start = time.time()
