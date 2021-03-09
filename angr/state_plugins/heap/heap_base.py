@@ -24,11 +24,18 @@ class SimHeapBase(SimStatePlugin):
     """
 
     def __init__(self, heap_base=None, heap_size=None):
-        SimStatePlugin.__init__(self)
+        super().__init__()
 
         self.heap_base = heap_base if heap_base is not None else DEFAULT_HEAP_LOCATION
         self.heap_size = heap_size if heap_size is not None else DEFAULT_HEAP_SIZE
         self.mmap_base = self.heap_base + self.heap_size * 2
+
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.heap_base = self.heap_base
+        o.heap_size = self.heap_size
+        o.mmap_base = self.mmap_base
+        return o
 
     def _conc_alloc_size(self, sim_size):
         """

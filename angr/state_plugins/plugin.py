@@ -41,10 +41,15 @@ class SimStatePlugin:
         In order to simplify using the memo, you should annotate implementations of this function with
         ``SimStatePlugin.memo``
 
+        The base implementation of this function constructs a new instance of the plugin's class without calling its
+        initializer. If you super-call down to it, make sure you instanciate all the fields in your copy method!
+
         :param memo:    A dictionary mapping object identifiers (id(obj)) to their copied instance.  Use this to avoid
                         infinite recursion and diverged copies.
         """
-        raise NotImplementedError("copy() not implement for %s" % self.__class__.__name__)
+        o = type(self).__new__(type(self))
+        o.state = None
+        return o
 
     @staticmethod
     def memo(f):

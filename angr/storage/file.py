@@ -140,7 +140,7 @@ class SimFileBase(SimStatePlugin):
 
     @DefaultMemory.memo
     def copy(self, memo):
-        o = super().copy()
+        o = super().copy(memo)
         o.ident = self.ident
         o.name = self.name
         o.ident = self.ident

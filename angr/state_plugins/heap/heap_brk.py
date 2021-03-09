@@ -28,6 +28,12 @@ class SimHeapBrk(SimHeapBase):
         super(SimHeapBrk, self).__init__(heap_base, heap_size)
         self.heap_location = self.heap_base
 
+    @SimStatePlugin.memo
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.heap_location = self.heap_location
+        return o
+
     def allocate(self, sim_size):
         """
         The actual allocation primitive for this heap implementation. Increases the position of the break to allocate
@@ -106,13 +112,6 @@ class SimHeapBrk(SimHeapBase):
             self.state.memory.store(addr, v)
 
         return addr
-
-    @SimStatePlugin.memo
-    def copy(self, memo):# pylint: disable=unused-argument
-        c = SimHeapBrk(heap_base=self.heap_base, heap_size=self.heap_size)
-        c.heap_location = self.heap_location
-        c.mmap_base = self.mmap_base
-        return c
 
     def _combine(self, others):
         new_heap_location = max(o.heap_location for o in others)

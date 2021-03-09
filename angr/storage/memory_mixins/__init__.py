@@ -16,7 +16,7 @@ class MemoryMixin(SimStatePlugin):
         self.endness = endness
 
     def copy(self, memo):
-        o = type(self)()
+        o = type(self).__new__(type(self))
         o.id = self.id
         o.endness = self.endness
         return o

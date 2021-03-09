@@ -215,28 +215,27 @@ class SimStateLibc(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        c = SimStateLibc()
-        c.buf_symbolic_bytes = self.buf_symbolic_bytes
-        c.max_symbolic_strstr = self.max_symbolic_strstr
-        c.max_symbolic_strchr = self.max_symbolic_strchr
-        c.max_variable_size = self.max_variable_size
-        c.max_str_len = self.max_str_len
-        c.max_buffer_size = self.max_buffer_size
-        c.max_strtol_len = self.max_strtol_len
-        c.max_memcpy_size = self.max_memcpy_size
-        c.max_packet_size = self.max_packet_size
-        c.strtok_heap = self.strtok_heap[:]
-        c.simple_strtok = self.simple_strtok
-        c.strtok_token_size = self.strtok_token_size
-        c.strdup_stack = self.strdup_stack[:]
-        c.ppc64_abiv = self.ppc64_abiv
-        c.ctype_b_loc_table_ptr = self.ctype_b_loc_table_ptr
-        c.ctype_tolower_loc_table_ptr = self.ctype_tolower_loc_table_ptr
-        c.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
-        c.errno_location = self.errno_location
-        #c.aa = self.aa
+        o = super().copy(memo)
+        o.buf_symbolic_bytes = self.buf_symbolic_bytes
+        o.max_symbolic_strstr = self.max_symbolic_strstr
+        o.max_symbolic_strchr = self.max_symbolic_strchr
+        o.max_variable_size = self.max_variable_size
+        o.max_str_len = self.max_str_len
+        o.max_buffer_size = self.max_buffer_size
+        o.max_strtol_len = self.max_strtol_len
+        o.max_memcpy_size = self.max_memcpy_size
+        o.max_packet_size = self.max_packet_size
+        o.strtok_heap = self.strtok_heap[:]
+        o.simple_strtok = self.simple_strtok
+        o.strtok_token_size = self.strtok_token_size
+        o.strdup_stack = self.strdup_stack[:]
+        o.ppc64_abiv = self.ppc64_abiv
+        o.ctype_b_loc_table_ptr = self.ctype_b_loc_table_ptr
+        o.ctype_tolower_loc_table_ptr = self.ctype_tolower_loc_table_ptr
+        o.ctype_toupper_loc_table_ptr = self.ctype_toupper_loc_table_ptr
+        o.errno_location = self.errno_location
 
-        return c
+        return o
 
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=unused-argument
         return False

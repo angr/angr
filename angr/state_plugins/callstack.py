@@ -16,7 +16,7 @@ class CallStack(SimStatePlugin):
     """
     def __init__(self, call_site_addr=0, func_addr=0, stack_ptr=0, ret_addr=0, jumpkind='Ijk_Call', next_frame: Optional['CallStack'] = None,
                  invoke_return_variable=None):
-        super(CallStack, self).__init__()
+        super().__init__()
         self.state = None
         self.call_site_addr = call_site_addr
         self.func_addr = func_addr
@@ -30,40 +30,28 @@ class CallStack(SimStatePlugin):
         self.procedure_data = None
         self.locals = {}
 
-    # deprecated as SHIT
-    @property
-    def call_target(self):
-        raise Exception("FIX ME")
-
-    @property
-    def return_target(self):
-        raise Exception("FIX ME")
-
-    @property
-    def stack_pointer(self):
-        raise Exception("FIX ME")
-
     #
     # Public methods
     #
 
     @SimStatePlugin.memo
     def copy(self, memo, with_tail=True): # pylint: disable=unused-argument,arguments-differ
-        n = CallStack(
-                call_site_addr=self.call_site_addr,
-                func_addr=self.func_addr,
-                stack_ptr=self.stack_ptr,
-                ret_addr=self.ret_addr,
-                jumpkind=self.jumpkind,
-                next_frame=self.next if with_tail else None,
-                invoke_return_variable=self.invoke_return_variable)
-        n.block_counter = collections.Counter(self.block_counter)
-        n.procedure_data = self.procedure_data
-        n.locals = dict(self.locals)
-        return n
+        o = super().copy(memo)
+        o.call_site_addr = self.call_site_addr
+        o.func_addr = self.func_addr
+        o.stack_ptr = self.stack_ptr
+        o.ret_addr = self.ret_addr
+        o.jumpkind = self.jumpkind
+        o.next = self.next if with_tail else None
+        o.invoke_return_variable = self.invoke_return_variable
+
+        o.block_counter = collections.Counter(self.block_counter)
+        o.procedure_data = self.procedure_data
+        o.locals = dict(self.locals)
+        return o
 
     def set_state(self, state):
-        super(CallStack, self).set_state(state)
+        super().set_state(state)
         # make the stack pointer as large as possible as soon as we know how large that actually is
         if self.stack_ptr == 0:
             try:
@@ -218,8 +206,8 @@ class CallStack(SimStatePlugin):
         try:
             return dropwhile(lambda x: lst[x] != item,
                              next(reversed(range(len(lst)))))
-        except Exception:
-            raise ValueError("%s not in the list" % item)
+        except Exception as e:
+            raise ValueError("%s not in the list" % item) from e
 
     @property
     def top(self):
@@ -370,7 +358,7 @@ class CallStack(SimStatePlugin):
                 return i
         return None
 
-class CallStackAction(object):
+class CallStackAction:
     """
     Used in callstack backtrace, which is a history of callstacks along a path, to record individual actions occurred
     each time the callstack is changed.
@@ -389,7 +377,7 @@ class CallStackAction(object):
         if action == 'push' and self.callframe is None:
             raise AngrError('callframe must be specified when action is "push".')
 
-        elif action == 'pop' and self.callframe is not None:
+        if action == 'pop' and self.callframe is not None:
             raise AngrError('callframe must not be specified when action is "pop".')
 
     def __repr__(self):
