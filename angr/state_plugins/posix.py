@@ -190,6 +190,10 @@ class SimSystemPosix(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, memo):
         o = super().copy(memo)
+        
+        o.sigmask_bits = self.sigmask_bits
+        o.maximum_symbolic_syscalls = self.maximum_symbolic_syscalls
+        o.max_length = self.max_length
         o.stdin = self.stdin.copy(memo)
         o.stdout = self.stdout.copy(memo)
         o.stderr = self.stderr.copy(memo)
@@ -211,6 +215,7 @@ class SimSystemPosix(SimStatePlugin):
         o.dev_fs = self.dev_fs.copy(memo)
         o.proc_fs = self.proc_fs.copy(memo)
         o._closed_fds = list(self._closed_fds)
+
         return o
 
     @property
