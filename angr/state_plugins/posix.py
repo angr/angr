@@ -190,7 +190,7 @@ class SimSystemPosix(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, memo):
         o = super().copy(memo)
-        
+
         o.sigmask_bits = self.sigmask_bits
         o.maximum_symbolic_syscalls = self.maximum_symbolic_syscalls
         o.max_length = self.max_length

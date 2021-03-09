@@ -47,7 +47,9 @@ class SimStatePlugin:
         :param memo:    A dictionary mapping object identifiers (id(obj)) to their copied instance.  Use this to avoid
                         infinite recursion and diverged copies.
         """
-        return type(self).__new__(type(self))
+        o = type(self).__new__(type(self))
+        o.state = None
+        return o
 
     @staticmethod
     def memo(f):
