@@ -281,7 +281,9 @@ class SimInspector(SimStatePlugin):
                 self.action_attrs_set = True
             if bp.check(self.state, when):
                 # l.debug("... FIRE")
+                saved_set = self.action_attrs_set
                 bp.fire(self.state)
+                self.action_attrs_set = saved_set  # restore attrs-set status in case bp triggers more bps
 
     def make_breakpoint(self, event_type, *args, **kwargs):
         """
