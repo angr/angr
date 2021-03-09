@@ -11,7 +11,7 @@ from .sim_action_object import ast_stripping_decorator, SimActionObject
 
 l = logging.getLogger(name=__name__)
 
-#pylint:disable=unidiomatic-typecheck
+#pylint:disable=unidiomatic-typecheck,isinstance-second-argument-not-valid-type
 
 #
 # Timing stuff
@@ -252,6 +252,8 @@ class SimSolver(SimStatePlugin):
         """
         Given an AST, iterate over all the keys of all the BVS leaves in the tree which are registered.
         """
+        # pylint: disable=stop-iteration-return
+        # ??? wtf pylint
         reverse_mapping = {next(iter(var.variables)): k for k, var in self.eternal_tracked_variables.items()}
         reverse_mapping.update({next(iter(var.variables)): k for k, var in self.temporal_tracked_variables.items() if k[-1] is not None})
 
@@ -407,7 +409,7 @@ class SimSolver(SimStatePlugin):
             return f
 
     def __dir__(self):
-        return sorted(set(dir(super(SimSolver, self)) + dir(claripy._all_operations) + dir(self.__class__)))
+        return sorted(set(dir(super()) + dir(claripy._all_operations) + dir(self.__class__)))
 
     #
     # Branching stuff
@@ -415,14 +417,14 @@ class SimSolver(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        o = super().copy(memo)
+        c = super().copy(memo)
 
-        o._stored_solver = self._solver.branch()
-        o.all_variables = self.all_variables
-        o.temporal_tracked_variables = self.temporal_tracked_variables
-        o.eternal_tracked_variables = self.eternal_tracked_variables
+        c._stored_solver = self._solver.branch()
+        c.all_variables = self.all_variables
+        c.temporal_tracked_variables = self.temporal_tracked_variables
+        c.eternal_tracked_variables = self.eternal_tracked_variables
 
-        return o
+        return c
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613

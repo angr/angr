@@ -35,7 +35,7 @@ class PTChunk(Chunk):
     """
 
     def __init__(self, base, sim_state, heap=None):
-        super(PTChunk, self).__init__(base, sim_state)
+        super().__init__(base, sim_state)
 
         # This is necessary since the heap can't always be referenced through the state, e.g. during heap initialization
         self.heap = self.state.heap if heap is None else heap
@@ -116,7 +116,7 @@ class PTChunk(Chunk):
             return self.state.solver.min_int(flag)
 
         flag = concretize(flag, self.state.solver, sym_flag_handler)
-        return False if flag else True
+        return not flag
 
     def prev_size(self):
         """
@@ -142,7 +142,7 @@ class PTChunk(Chunk):
                 return self.state.solver.min_int(flag)
 
             flag = concretize(flag, self.state.solver, sym_flag_handler)
-            return False if flag else True
+            return not flag
 
     def data_ptr(self):
         return self.base + (2 * self._chunk_size_t_size)
@@ -228,9 +228,9 @@ class PTChunkIterator:
                 self.chunk = self.chunk.next_chunk()
             if self.chunk is None:
                 raise StopIteration
-            else:
-                ret = self.chunk
-                self.chunk = self.chunk.next_chunk()
+
+            ret = self.chunk
+            self.chunk = self.chunk.next_chunk()
 
         return ret
 
@@ -250,21 +250,21 @@ class SimHeapPTMalloc(SimHeapFreelist):
     """
 
     def __init__(self, heap_base=None, heap_size=None):
-        super(SimHeapPTMalloc, self).__init__(heap_base, heap_size)
+        super().__init__(heap_base, heap_size)
 
         # All of these depend on the state and so are initialized in init_state
         self._free_head_chunk_exists = True  # Only used during plugin copy due to the dependency on the memory plugin
         self._free_head_chunk_init_base = None  # Same as above
         self._chunk_size_t_size = None  # Size (bytes) of the type used to store a piece of metadata
         self._chunk_min_size = None  # Based on needed fields for any chunk
-        self._chunk_align_mask = None
+        self._chunk_align_mask = 0
         self.free_head_chunk = None
         self._initialized = False
 
     @SimStatePlugin.memo
     def copy(self, memo):# pylint: disable=unused-argument
         o = super().copy(memo)
-        o._free_head_chunk_exists = True if self.free_head_chunk is not None else False
+        o._free_head_chunk_exists = self.free_head_chunk is not None
         o._free_head_chunk_init_base = self.free_head_chunk.base if self.free_head_chunk is not None else None
         o._initialized = self._initialized
         return o
@@ -418,9 +418,9 @@ class SimHeapPTMalloc(SimHeapFreelist):
             return
         size = chunk.get_size()
 
-        p_in_use = False if chunk.is_prev_free() else True
+        p_in_use = not chunk.is_prev_free()
         n_ptr = chunk.next_chunk()
-        n_in_use = False if n_ptr is not None and n_ptr.is_free() else True  # Next is taken to be in use if it doesn't
+        n_in_use = n_ptr is None or not n_ptr.is_free()
         if p_in_use and n_in_use:                                            # exist
             # When both adjacent chunks are in use, no merging will be
             # necessary between the freed chunk and another free chunk
@@ -585,11 +585,11 @@ class SimHeapPTMalloc(SimHeapFreelist):
         return self._combine(others)
 
     def init_state(self):
-        super(SimHeapPTMalloc, self).init_state()
+        super().init_state()
 
-        self._chunk_size_t_size = self.state.arch.bits // 8
+        self._chunk_size_t_size = self.state.arch.bytes
         self._chunk_min_size = 4 * self._chunk_size_t_size
-        self._chunk_align_mask = 2 * self._chunk_size_t_size - 1  #pylint:disable=attribute-defined-outside-init
+        self._chunk_align_mask = 2 * self._chunk_size_t_size - 1
 
         # TODO: where are bin metadata stored in reality?
         if self._free_head_chunk_exists and self._free_head_chunk_init_base is None:
