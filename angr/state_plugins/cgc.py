@@ -6,6 +6,18 @@ class SimStateCGC(SimStatePlugin):
     This state plugin keeps track of CGC state.
     """
 
+    # CGC error codes
+    EBADF = 1
+    EFAULT = 2
+    EINVAL = 3
+    ENOMEM = 4
+    ENOSYS = 5
+    EPIPE = 6
+
+    # other CGC constants
+    FD_SETSIZE = 1024
+    max_allocation = 0x10000000
+
     #__slots__ = [ 'heap_location', 'max_str_symbolic_bytes' ]
 
     def __init__(self):
@@ -13,19 +25,6 @@ class SimStateCGC(SimStatePlugin):
 
         self.allocation_base = 0xb8000000
         self.time = 0
-
-        self.max_allocation = 0x10000000
-
-        # CGC error codes
-        self.EBADF = 1
-        self.EFAULT = 2
-        self.EINVAL = 3
-        self.ENOMEM = 4
-        self.ENOSYS = 5
-        self.EPIPE = 6
-
-        # other CGC constants
-        self.FD_SETSIZE = 1024
 
         self.input_size = 0
 
@@ -35,6 +34,20 @@ class SimStateCGC(SimStatePlugin):
         self.sinkholes = set()
 
         self.flag_bytes = None
+
+    @SimStatePlugin.memo
+    def copy(self, memo): # pylint: disable=unused-argument
+        c = super().copy(memo)
+
+        c.allocation_base = self.allocation_base
+        c.time = self.time
+        c.input_strings = list(self.input_strings)
+        c.output_strings = list(self.output_strings)
+        c.input_size = self.input_size
+        c.sinkholes = set(self.sinkholes)
+        c.flag_bytes = self.flag_bytes
+
+        return c
 
     def peek_input(self):
         if len(self.input_strings) == 0: return None
@@ -60,19 +73,6 @@ class SimStateCGC(SimStatePlugin):
 
     def addr_invalid(self, a):
         return not self.state.solver.solution(a != 0, True)
-
-    @SimStatePlugin.memo
-    def copy(self, memo): # pylint: disable=unused-argument
-        c = SimStateCGC()
-        c.allocation_base = self.allocation_base
-        c.time = self.time
-        c.input_strings = list(self.input_strings)
-        c.output_strings = list(self.output_strings)
-        c.input_size = self.input_size
-        c.sinkholes = set(self.sinkholes)
-        c.flag_bytes = self.flag_bytes
-
-        return c
 
     def _combine(self, others):
         merging_occured = False

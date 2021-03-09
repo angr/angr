@@ -30,37 +30,25 @@ class CallStack(SimStatePlugin):
         self.procedure_data = None
         self.locals = {}
 
-    # deprecated as SHIT
-    @property
-    def call_target(self):
-        raise Exception("FIX ME")
-
-    @property
-    def return_target(self):
-        raise Exception("FIX ME")
-
-    @property
-    def stack_pointer(self):
-        raise Exception("FIX ME")
-
     #
     # Public methods
     #
 
     @SimStatePlugin.memo
-    def copy(self, memo, with_tail=True): # pylint: disable=unused-argument,arguments-differ
-        n = CallStack(
-                call_site_addr=self.call_site_addr,
-                func_addr=self.func_addr,
-                stack_ptr=self.stack_ptr,
-                ret_addr=self.ret_addr,
-                jumpkind=self.jumpkind,
-                next_frame=self.next if with_tail else None,
-                invoke_return_variable=self.invoke_return_variable)
-        n.block_counter = collections.Counter(self.block_counter)
-        n.procedure_data = self.procedure_data
-        n.locals = dict(self.locals)
-        return n
+    def copy(self, memo, with_tail=True): # pylint: disable=unused-argument
+        o = super().copy(memo)
+        o.call_site_addr = self.call_site_addr
+        o.func_addr = self.func_addr
+        o.stack_ptr = self.stack_ptr
+        o.ret_addr = self.ret_addr
+        o.jumpkind = self.jumpkind
+        o.next = self.next if with_tail else None
+        o.invoke_return_variable = self.invoke_return_variable
+
+        o.block_counter = collections.Counter(self.block_counter)
+        o.procedure_data = self.procedure_data
+        o.locals = dict(self.locals)
+        return o
 
     def set_state(self, state):
         super(CallStack, self).set_state(state)

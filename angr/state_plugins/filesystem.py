@@ -48,6 +48,18 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
         for fname in files:
             self.insert(fname, files[fname])
 
+    @SimStatePlugin.memo
+    def copy(self, memo):
+        o = super().copy(memo)
+
+        o.pathsep=self.pathsep
+        o.cwd=self.cwd
+        o._unlinks = list(self._unlinks)
+        o._files={k: v.copy(memo) for k, v in self._files.items()}
+        o._mountpoints={k: v.copy(memo) for k, v in self._mountpoints.items()}
+
+        return o
+
     @property
     def unlinks(self):
         for _, f in self._unlinks:
@@ -60,17 +72,6 @@ class SimFilesystem(SimStatePlugin): # pretends links don't exist
             self._files[fname].set_state(state)
         for fname in self._mountpoints:
             self._mountpoints[fname].set_state(state)
-
-    @SimStatePlugin.memo
-    def copy(self, memo):
-        o = SimFilesystem(
-                files={k: v.copy(memo) for k, v in self._files.items()},
-                pathsep=self.pathsep,
-                cwd=self.cwd,
-                mountpoints={k: v.copy(memo) for k, v in self._mountpoints.items()}
-            )
-        o._unlinks = list(self._unlinks)
-        return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         for o in others:

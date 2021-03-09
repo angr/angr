@@ -181,8 +181,8 @@ class SimSolver(SimStatePlugin):
     Any top-level variable of the claripy module can be accessed as a property of this object.
     """
     def __init__(self, solver=None, all_variables=None, temporal_tracked_variables=None, eternal_tracked_variables=None): #pylint:disable=redefined-outer-name
-        l.debug("Creating SimSolverClaripy.")
-        SimStatePlugin.__init__(self)
+        super().__init__()
+
         self._stored_solver = solver
         self.all_variables = [] if all_variables is None else all_variables
         self.temporal_tracked_variables = {} if temporal_tracked_variables is None else temporal_tracked_variables
@@ -415,7 +415,14 @@ class SimSolver(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
-        return type(self)(solver=self._solver.branch(), all_variables=self.all_variables, temporal_tracked_variables=self.temporal_tracked_variables, eternal_tracked_variables=self.eternal_tracked_variables)
+        o = super().copy(memo)
+
+        o._stored_solver = self._solver.branch()
+        o.all_variables = self.all_variables
+        o.temporal_tracked_variables = self.temporal_tracked_variables
+        o.eternal_tracked_variables = self.eternal_tracked_variables
+
+        return o
 
     @error_converter
     def merge(self, others, merge_conditions, common_ancestor=None): # pylint: disable=W0613

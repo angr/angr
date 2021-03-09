@@ -7,7 +7,7 @@ from .plugin import SimStatePlugin
 
 class SimStateScratch(SimStatePlugin):
     def __init__(self, scratch=None):
-        SimStatePlugin.__init__(self)
+        super().__init__()
 
         # info on the current run
         self.irsb = None

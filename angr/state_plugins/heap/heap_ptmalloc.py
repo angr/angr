@@ -257,8 +257,17 @@ class SimHeapPTMalloc(SimHeapFreelist):
         self._free_head_chunk_init_base = None  # Same as above
         self._chunk_size_t_size = None  # Size (bytes) of the type used to store a piece of metadata
         self._chunk_min_size = None  # Based on needed fields for any chunk
+        self._chunk_align_mask = None
         self.free_head_chunk = None
         self._initialized = False
+
+    @SimStatePlugin.memo
+    def copy(self, memo):# pylint: disable=unused-argument
+        o = super().copy(memo)
+        o._free_head_chunk_exists = True if self.free_head_chunk is not None else False
+        o._free_head_chunk_init_base = self.free_head_chunk.base if self.free_head_chunk is not None else None
+        o._initialized = self._initialized
+        return o
 
     def chunks(self):
         return PTChunkIterator(PTChunk(self.heap_base, self.state))
@@ -547,15 +556,6 @@ class SimHeapPTMalloc(SimHeapFreelist):
 
     def _realloc(self, ptr, size):
         return self.realloc(ptr, size)
-
-    @SimStatePlugin.memo
-    def copy(self, memo):# pylint: disable=unused-argument
-        c = SimHeapPTMalloc(heap_base=self.heap_base, heap_size=self.heap_size)
-        c.mmap_base = self.mmap_base
-        c._free_head_chunk_exists = True if self.free_head_chunk is not None else False
-        c._free_head_chunk_init_base = self.free_head_chunk.base if self.free_head_chunk is not None else None
-        c._initialized = self._initialized
-        return c
 
     def _combine(self, others):
         if any(o.heap_base != self.heap_base for o in others):

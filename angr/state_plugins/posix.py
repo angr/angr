@@ -187,6 +187,32 @@ class SimSystemPosix(SimStatePlugin):
         self.stdout = stdout
         self.stderr = stderr
 
+    @SimStatePlugin.memo
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.stdin = self.stdin.copy(memo)
+        o.stdout = self.stdout.copy(memo)
+        o.stderr = self.stderr.copy(memo)
+        o.fd = {k: self.fd[k].copy(memo) for k in self.fd}
+        o.sockets = {ident: tuple(x.copy(memo) for x in self.sockets[ident]) for ident in self.sockets}
+        o.socket_queue = self.socket_queue # shouldn't need to copy this - should be copied before use.
+        o.argv = self.argv
+        o.argc = self.argc
+        o.environ = self.environ
+        o.auxv = self.auxv
+        o.tls_modules = self.tls_modules
+        o._sigmask = self._sigmask
+        o.pid = self.pid
+        o.ppid = self.ppid
+        o.uid = self.uid
+        o.gid = self.gid
+        o.brk = self.brk
+        o.autotmp_counter = self.autotmp_counter
+        o.dev_fs = self.dev_fs.copy(memo)
+        o.proc_fs = self.proc_fs.copy(memo)
+        o._closed_fds = list(self._closed_fds)
+        return o
+
     @property
     def closed_fds(self):
         for _, f in self._closed_fds:
@@ -488,33 +514,6 @@ class SimSystemPosix(SimStatePlugin):
             ),
             oldmask
         )
-
-    @SimStatePlugin.memo
-    def copy(self, memo):
-        o = SimSystemPosix(
-                stdin=self.stdin.copy(memo),
-                stdout=self.stdout.copy(memo),
-                stderr=self.stderr.copy(memo),
-                fd={k: self.fd[k].copy(memo) for k in self.fd},
-                sockets={ident: tuple(x.copy(memo) for x in self.sockets[ident]) for ident in self.sockets},
-                socket_queue=self.socket_queue, # shouldn't need to copy this - should be copied before use.
-                                                # as a result, we must update the state of each socket before making
-                                                # copies.
-                argv=self.argv,
-                argc=self.argc,
-                environ=self.environ,
-                auxv=self.auxv,
-                tls_modules=self.tls_modules,
-                sigmask=self._sigmask,
-                pid=self.pid,
-                ppid=self.ppid,
-                uid=self.uid,
-                gid=self.gid,
-                brk=self.brk)
-        o.dev_fs = self.dev_fs.copy(memo)
-        o.proc_fs = self.proc_fs.copy(memo)
-        o._closed_fds = list(self._closed_fds)
-        return o
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         for o in others:
