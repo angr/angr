@@ -152,6 +152,8 @@ struct std::hash<register_value_t> {
 
 struct instr_details_t {
 	address_t instr_addr;
+	int64_t mem_write_addr;
+	int64_t mem_write_size;
 	bool has_concrete_memory_dep;
 	bool has_symbolic_memory_dep;
 	memory_value_t *memory_values;
@@ -164,6 +166,8 @@ struct instr_details_t {
 		has_concrete_memory_dep = false;
 		has_symbolic_memory_dep = false;
 		instr_deps.clear();
+		mem_write_addr = -1;
+		mem_write_size = -1;
 		reg_deps.clear();
 		symbolic_mem_deps.clear();
 	}
