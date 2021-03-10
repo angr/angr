@@ -249,9 +249,31 @@ class AddressConcretizationMixin(MemoryMixin):
                 back -= 1
         return lst
 
+    def _load_one_addr(self, concrete_addr: int, trivial: bool, addr, condition, size, read_value=None, **kwargs):
+        if trivial:
+            sub_condition = condition
+        else:
+            sub_condition = addr == concrete_addr
+            if condition is not None:
+                sub_condition = condition & sub_condition
+
+        sub_value = super().load(concrete_addr, size=size, condition=sub_condition, **kwargs)
+
+        if read_value is None:
+            return sub_value
+        else:
+            return self.state.solver.If(addr == concrete_addr, sub_value, read_value)
+
     def load(self, addr, size=None, condition=None, **kwargs):
         if type(size) is not int:
             raise TypeError("Size must have been specified as an int before reaching address concretization")
+
+        # Fast path
+        if type(addr) is int:
+            return self._load_one_addr(addr, True, addr, condition, size, read_value=None, **kwargs)
+        elif not self.state.solver.symbolic(addr):
+            return self._load_one_addr(self.state.solver.eval(addr), True, addr, condition, size, read_value=None,
+                                       **kwargs)
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
             return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
@@ -265,36 +287,45 @@ class AddressConcretizationMixin(MemoryMixin):
                 raise
 
         # quick optimization so as to not involve the solver if not necessary
-        trivial = type(addr) is int or (len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true())
+        trivial = len(concrete_addrs) == 1 and (addr == concrete_addrs[0]).is_true()
         if not trivial:
             # apply the concretization results to the state
             constraint_options = [addr == concrete_addr for concrete_addr in concrete_addrs]
             conditional_constraint = self.state.solver.Or(*constraint_options)
             self._add_constraints(conditional_constraint, condition=condition, **kwargs)
 
-        read_value = DUMMY_SYMBOLIC_READ_VALUE  # this is a sentinel value and should never be touched
+        # quick optimization to not introduce the DUMMY value if there's only one loop
+        if len(concrete_addrs) == 1:
+            read_value = None
+        else:
+            read_value = DUMMY_SYMBOLIC_READ_VALUE  # this is a sentinel value and should never be touched
 
         for concrete_addr in concrete_addrs:
             # perform each of the loads
             # the implementation of the "fallback" value ought to be implemented above this in the stack!!
-            if trivial:
-                sub_condition = condition
-            else:
-                sub_condition = addr == concrete_addr
-                if condition is not None:
-                    sub_condition = condition & sub_condition
-
-            sub_value = super().load(concrete_addr, size=size, condition=sub_condition, **kwargs)
-
-            # quick optimization to not introduce the DUMMY value if there's only one loop
-            if len(concrete_addrs) == 1:
-                read_value = sub_value
-            else:
-                read_value = self.state.solver.If(addr == concrete_addr, sub_value, read_value)
+            read_value = self._load_one_addr(concrete_addr, trivial, addr, condition, size, read_value=read_value,
+                                             **kwargs)
 
         return read_value
 
+    def _store_one_addr(self, concrete_addr: int, data, trivial: bool, addr, condition, size, **kwargs):
+        if trivial:
+            sub_condition = condition
+        else:
+            sub_condition = addr == concrete_addr
+            if condition is not None:
+                sub_condition = condition & sub_condition
+        super().store(concrete_addr, data, size=size, condition=sub_condition, **kwargs)
+
     def store(self, addr, data, size=None, condition=None, **kwargs):
+
+        # Fast path
+        if type(addr) is int:
+            self._store_one_addr(addr, data, True, addr, condition, size, **kwargs)
+            return
+        elif not self.state.solver.symbolic(addr):
+            self._store_one_addr(self.state.solver.eval(addr), data, True, addr, condition, size, **kwargs)
+            return
 
         if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_WRITES in self.state.options:
             # not completed
@@ -324,13 +355,7 @@ class AddressConcretizationMixin(MemoryMixin):
         for concrete_addr in concrete_addrs:
             # perform each of the stores as conditional
             # the implementation of conditionality must be at the bottom of the stack
-            if trivial:
-                sub_condition = condition
-            else:
-                sub_condition = addr == concrete_addr
-                if condition is not None:
-                    sub_condition = condition & sub_condition
-            super().store(concrete_addr, data, size=size, condition=sub_condition, **kwargs)
+            self._store_one_addr(concrete_addr, data, trivial, addr, condition, size, **kwargs)
 
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is int:
