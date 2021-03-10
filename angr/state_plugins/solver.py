@@ -749,6 +749,10 @@ class SimSolver(SimStatePlugin):
         :return:
         """
         # eval_upto already throws the UnsatError, no reason for us to worry about it
+        concrete_val = _concrete_value(e)
+        if concrete_val is not None:
+            return self._cast_to(e, concrete_val, cast_to)
+
         return self.eval_upto(e, 1, cast_to = cast_to,  **kwargs)[0]
 
     def eval_one(self, e, **kwargs):
