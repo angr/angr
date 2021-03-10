@@ -1381,25 +1381,25 @@ class JumpTableResolver(IndirectJumpResolver):
             if sort == 'mem_write':
                 bp = BP(when=BP_BEFORE, enabled=True, action=StoreHook.hook,
                         condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                         )
                 state.inspect.add_breakpoint('mem_write', bp)
             elif sort == 'mem_read':
                 hook = LoadHook()
                 bp0 = BP(when=BP_BEFORE, enabled=True, action=hook.hook_before,
                          condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                          )
                 state.inspect.add_breakpoint('mem_read', bp0)
                 bp1 = BP(when=BP_AFTER, enabled=True, action=hook.hook_after,
                          condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                          )
                 state.inspect.add_breakpoint('mem_read', bp1)
             elif sort == 'reg_write':
                 bp = BP(when=BP_BEFORE, enabled=True, action=PutHook.hook,
                         condition=lambda _s, a=block_addr, idx=stmt_idx:
-                            _s.scratch.bbl_addr == a and _s.inspect.statement == idx
+                            _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
                         )
                 state.inspect.add_breakpoint('reg_write', bp)
             else:

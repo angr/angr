@@ -382,7 +382,7 @@ class SimState(PluginHub):
     T = TypeVar("T")
     def _inspect_getattr(self, attr: str, default_value: T):
         if self.supports_inspect:
-            if hasattr(self.inspect, attr):
+            if self.inspect.action_attrs_set and hasattr(self.inspect, attr):
                 return getattr(self.inspect, attr)
 
         return default_value
