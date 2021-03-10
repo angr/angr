@@ -16,6 +16,11 @@ from patcherex.patches import Patch
 from .abstract_state import AbstractState
 
 
+#
+# Patches
+#
+
+
 class AddStatePatch(Patch):
     """
     Add a new state and its corresponding logic (implemented as assembly code for now) to the state graph inside the
@@ -79,3 +84,70 @@ class EditInstrPatch(Patch):
         super().__init__(name)
         self.addr = addr
         self.new_instr = new_instr
+
+
+#
+# Root cause diagnosis
+#
+
+
+class CauseBase:
+    """
+    This is the base class for all possible root causes.
+    """
+    pass
+
+
+class DataItemCause(CauseBase):
+    """
+    Describes root causes that only involve a single data item in the original binary.
+
+    For example, in the following piece of program,
+
+    int a = 20000;  // line 1
+    sleep(a):  // line 2
+
+    The root cause of "sleeping for *20,000* seconds" is the integer 20,000 that is involved at line 1. For
+    architectures like ARM and MIPS, large integers are almost always directly loaded from memory. In these scenarios,
+    it can be captured by a DataItemCause instance.
+    """
+    def __init__(self, addr: int, data_type: str, data_size: int):
+        self.addr = addr
+        self.data_type = data_type
+        self.data_size = data_size
+
+
+class InstrOperandCause(CauseBase):
+    """
+    Describes root causes that only involve an instruction operand.
+
+    For example, in the following piece of program,
+
+    int a = 2; // line 1
+    sleep(a); // line 2
+
+    The root cause of "sleeping for *2* seconds" is the integer 2 that is involved at line 1. If this integer is
+    directly used in an instruction, the cause can be captured by an InstrOperandCause instance.
+    """
+    def __init__(self, addr: int, operand_idx: int, old_value: int):
+        self.addr = addr
+        self.operand_idx = operand_idx
+        self.old_value = old_value
+
+
+class InstrOpcodeCause(CauseBase):
+    """
+    Describes root causes that only involve an instruction opcode or operator.
+
+    For example, in the following piece of program,
+
+    int a = b + 2; // line 1
+    sleep(a); // line 2
+
+    The root cause of "sleeping for *b + 2* seconds" involves the add operator. If this addition operation is
+    implemented as an instruction, such as _add r0, r0, 2_, then InstrOpcodeCause will be able to capture it.
+    """
+    def __init__(self, addr: int, operator: str, old_value: str):
+        self.addr = addr
+        self.operator = operator
+        self.old_value = old_value
