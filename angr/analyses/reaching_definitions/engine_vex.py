@@ -182,7 +182,7 @@ class SimEngineRDVEX(
                     if isinstance(a, SpOffset):
                         function_address = (
                             self.project.kb
-                                .cfgs.get_most_accurate() 
+                                .cfgs.get_most_accurate()
                                 .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
                                 .function_address
                         )
