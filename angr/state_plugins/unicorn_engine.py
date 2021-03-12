@@ -1199,7 +1199,7 @@ class Unicorn(SimStatePlugin):
             self.countdown_nonunicorn_blocks = self.cooldown_nonunicorn_blocks
         else:
             l.info(
-                "Unicorn stepped %d block%s in %fsec (%f blocks/sec)",
+                "Unicorn stepped %d block%s in %f sec (%f blocks/sec)",
                 self.steps,
                 '' if self.steps == 1 else 's',
                 self.time,
