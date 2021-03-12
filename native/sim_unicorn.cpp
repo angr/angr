@@ -692,7 +692,7 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 					// instructions to the slice of this instruction and also any instructions
 					// they depend on
 					for (auto &dep_reg_slice_instr: dep_reg_slice_instrs) {
-						auto dep_instr_slice_details = instr_slice_details_map.at(dep_reg_slice_instr.instr_addr);
+						auto& dep_instr_slice_details = instr_slice_details_map.at(dep_reg_slice_instr.instr_addr);
 						instr_slice_details.concrete_registers.insert(dep_instr_slice_details.concrete_registers.begin(), dep_instr_slice_details.concrete_registers.end());
 						instr_slice_details.dependent_instrs.insert(dep_instr_slice_details.dependent_instrs.begin(), dep_instr_slice_details.dependent_instrs.end());
 						instr_slice_details.dependent_instrs.emplace(dep_reg_slice_instr);
@@ -1541,7 +1541,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 	}
 	if (is_instr_symbolic) {
-		auto instr_slice_details = instr_slice_details_map.at(instr_addr);
+		auto& instr_slice_details = instr_slice_details_map.at(instr_addr);
 		block_concrete_dependencies.insert(instr_slice_details.concrete_registers.begin(), instr_slice_details.concrete_registers.end());
 
 		std::set<instr_details_t> symbolic_instrs_set(block_details.symbolic_instrs.begin(), block_details.symbolic_instrs.end());
