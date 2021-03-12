@@ -3,6 +3,11 @@ from typing import List
 
 from pyvex import IRSB
 
+try:
+    from .engines import pcode
+except ImportError:
+    pcode = None
+
 l = logging.getLogger(name=__name__)
 
 import pyvex
@@ -106,8 +111,9 @@ class CapstoneInsn(DisassemblerInsn):
 class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
-                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
+    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_disassembly', '_capstone',
+                 'addr', 'size', 'arch', '_instructions', '_instruction_addrs',
+                 '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
                  '_cross_insn_opt',
                  ]
 
@@ -164,6 +170,7 @@ class Block(Serializable):
 
         self._vex = vex
         self._vex_nostmt = None
+        self._disassembly = None
         self._capstone = None
         self.size = size
         self._collect_data_refs = collect_data_refs
@@ -212,12 +219,13 @@ class Block(Serializable):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
     def __getstate__(self):
-        return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
+        return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', '_disassembly'))
 
     def __setstate__(self, data):
         for k, v in data.items():
             setattr(self, k, v)
         self._capstone = None
+        self._disassembly = None
 
     def __hash__(self):
         return hash((type(self), self.addr, self.bytes))
@@ -231,7 +239,7 @@ class Block(Serializable):
         return not self == other
 
     def pp(self):
-        return self.capstone.pp()
+        return self.disassembly.pp()
 
     @property
     def _vex_engine(self):
@@ -283,6 +291,22 @@ class Block(Serializable):
             cross_insn_opt=self._cross_insn_opt,
         )
         return self._vex_nostmt
+
+    @property
+    def _using_pcode_engine(self) -> bool:
+        return (pcode is not None) and isinstance(self._vex_engine, pcode.HeavyPcodeMixin)
+
+    @property
+    def disassembly(self) -> DisassemblerBlock:
+        """
+        Provide a disassebly object using whatever disassembler is available
+        """
+        if self._disassembly is None:
+            if self._using_pcode_engine:
+                self._disassembly = self.vex.disassembly
+            else:
+                self._disassembly = self.capstone
+        return self._disassembly
 
     @property
     def capstone(self):
