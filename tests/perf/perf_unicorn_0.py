@@ -13,6 +13,9 @@ def main():
     sm_unicorn.run()
 
 if __name__ == "__main__":
+    import logging
+    logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
+    logging.getLogger('angr.engines.unicorn').setLevel('DEBUG')
     tstart = time.time()
     main()
     tend = time.time()

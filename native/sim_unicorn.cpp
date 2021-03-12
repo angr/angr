@@ -1358,7 +1358,7 @@ void State::propagate_taints() {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
 	}
-	block_taint_entry_t block_taint_entry = this->block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = this->block_taint_cache.at(block_details.block_addr);
 	if (((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))
 		&& block_taint_entry.has_unsupported_stmt_or_expr_type) {
 		// There are symbolic registers and VEX statements in block for which taint propagation
@@ -1373,7 +1373,7 @@ void State::propagate_taints() {
 	// 3) a stop state for concrete execution
 	for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped; ++instr_taint_data_entries_it) {
 		address_t curr_instr_addr = instr_taint_data_entries_it->first;
-		instruction_taint_entry_t curr_instr_taint_entry = instr_taint_data_entries_it->second;
+		auto& curr_instr_taint_entry = instr_taint_data_entries_it->second;
 		if (curr_instr_taint_entry.has_memory_read) {
 			// Pause taint propagation to process the memory read and continue from instruction
 			// after the memory read.
@@ -1446,8 +1446,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 	// There are no more pending reads at this instruction. Now we can propagate taint.
 	// This allows us to also handle cases when only some of the memory reads are symbolic: we treat all as symbolic
 	// and overtaint.
-	auto block_taint_entry = block_taint_cache.at(block_details.block_addr);
-	auto instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
+	auto& block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto& instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 	if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
 			// There are symbolic registers and/or memory read was symbolic and there are VEX
@@ -1691,13 +1691,13 @@ void State::update_register_slice(address_t instr_addr, const instruction_taint_
 }
 
 bool State::is_block_exit_guard_symbolic() const {
-	block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = block_taint_cache.at(block_details.block_addr);
 	auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
 	return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
 }
 
 bool State::is_block_next_target_symbolic() const {
-	block_taint_entry_t block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = block_taint_cache.at(block_details.block_addr);
 	auto block_next_target_taint_status = get_final_taint_status(block_taint_entry.block_next_entities);
 	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
 }
