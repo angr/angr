@@ -602,7 +602,7 @@ class State {
 		// register to determine if we are executing in ARM or THUMB mode.
 		uint32_t cpsr_reg_val;
 		uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr_reg_val);
-		return ((cpsr_reg_val & 32) == 0);
+		return ((cpsr_reg_val & 32) == 1);
 	}
 
 	public:
