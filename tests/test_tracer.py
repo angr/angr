@@ -182,6 +182,34 @@ def test_fauxware():
     nose.tools.assert_true('traced' in simgr.stashes)
 
 
+def test_skip_some_symbolic_memory_writes():
+    # Test symbolic memory write skipping in SimEngineUnicorn during tracing
+    # This test doesn't actually check if instruction was skipped. It checks if tracing is successful
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00023")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "CROMU_00023_POV_00000.xml")
+    output_initial_bytes = [b"", b"C - Change Diver Info", b"L - Log a New Dive", b"D - Download Dive Data",
+                            b"E - Edit Dives", b"P - Print Dive Logs", b"R - Remove Dives", b"S - Diver Statistics",
+                            b"X - Exit Application", b":", b"", b"Dive Log is empty", b"", b"C - Change Diver Info",
+                            b"L - Log a New Dive", b"D - Download Dive Data", b"E - Edit Dives",
+                            b"P - Print Dive Logs", b"R - Remove Dives", b"S - Diver Statistics",
+                            b"X - Exit Application", b":", b"", b"Dive Log is empty", b"", b"C - Change Diver Info",
+                            b"L - Log a New Dive", b"D - Download Dive Data", b"E - Edit Dives", b"P - Print Dive Logs",
+                            b"R - Remove Dives", b"S - Diver Statistics", b"X - Exit Application", b":",
+                            (b"Dive Site: Date: Time: Location (area/city): Max Depth in ft: Avg Depth in ft: "
+                             b"Dive Duration (mins): O2 Percentage: Pressure In (psi): Pressure Out (psi): "),
+                            b"C - Change Diver Info", b"L - Log a New Dive", b"D - Download Dive Data", b"E - Edit Dives",
+                            b"P - Print Dive Logs", b"R - Remove Dives", b"S - Diver Statistics", b"X - Exit Application", b":",
+                            (b"Dive Site: Date: Time: Location (area/city): Max Depth in ft: Avg Depth in ft: "
+                             b"Dive Duration (mins): O2 Percentage: Pressure In (psi): Pressure Out (psi): "),
+                            b"C - Change Diver Info", b"L - Log a New Dive", b"D - Download Dive Data",
+                            b"E - Edit Dives", b"P - Print Dive Logs", b"R - Remove Dives", b"S - Diver Statistics",
+                            b"X - Exit Application", b":",
+                            (b"First Name: Last Name: Street: City: State: Zip Code: Phone Number: PADI Diver Number: "
+                             b"PADI Cert Date: "),
+                            b"     Name: "]
+    trace_cgc_with_pov_file(binary, "tracer_skip_some_symbolic_memory_writes", pov_file, b'\n'.join(output_initial_bytes))
+
+
 def test_symbolic_memory_dependencies_liveness():
     # Tests for liveness of symbolic memory dependencies when re-executing symbolic instructions in SimEngineUnicorn
     # NRFIN_00036
