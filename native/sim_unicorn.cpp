@@ -49,7 +49,7 @@ State::State(uc_engine *_uc, uint64_t cache_key):uc(_uc) {
 	}
 	arch = *((uc_arch*)uc); // unicorn hides all its internals...
 	mode = *((uc_mode*)((uc_arch*)uc + 1));
-	block_details.reset();
+	curr_block_details.reset();
 }
 
 /*
@@ -140,12 +140,37 @@ uc_err State::start(address_t pc, uint64_t step) {
 void State::stop(stop_t reason, bool do_commit) {
 	stopped = true;
 	stop_details.stop_reason = reason;
-	stop_details.block_addr = block_details.block_addr;
-	stop_details.block_size = block_details.block_size;
+	stop_details.block_addr = curr_block_details.block_addr;
+	stop_details.block_size = curr_block_details.block_size;
 	if ((reason == STOP_SYSCALL) || do_commit) {
 		commit();
 	}
 	uc_emu_stop(uc);
+	// Prepare details of blocks with symbolic instructions to re-execute for returning to state plugin
+	for (auto &block: blocks_with_symbolic_instrs) {
+		sym_block_details_t sym_block;
+		sym_block.reset();
+		sym_block.block_addr = block.block_addr;
+		sym_block.block_size = block.block_size;
+		std::set<instr_details_t> sym_instrs;
+		std::unordered_set<register_value_t> reg_values;
+		for (auto &sym_instr: block.symbolic_instrs) {
+			auto sym_instr_list = get_list_of_dep_instrs(sym_instr);
+			sym_instrs.insert(sym_instr_list.begin(), sym_instr_list.end());
+			sym_instrs.insert(sym_instr);
+			reg_values.insert(sym_instr.reg_deps.begin(), sym_instr.reg_deps.end());
+		}
+		sym_block.register_values.insert(sym_block.register_values.end(), reg_values.begin(), reg_values.end());
+		for (auto &instr: sym_instrs) {
+			sym_instr_details_t sym_instr;
+			sym_instr.instr_addr = instr.instr_addr;
+			sym_instr.memory_values = instr.memory_values;
+			sym_instr.memory_values_count = instr.memory_values_count;
+			sym_instr.has_memory_dep = instr.has_concrete_memory_dep;
+			sym_block.symbolic_instrs.emplace_back(sym_instr);
+		}
+		block_details_to_return.emplace_back(sym_block);
+	}
 }
 
 void State::step(address_t current_address, int32_t size, bool check_stop_points) {
@@ -219,34 +244,19 @@ void State::commit() {
 	for (auto &reg_offset: block_concrete_registers) {
 		mark_register_concrete(reg_offset, false);
 	}
-	if (block_details.symbolic_instrs.size() > 0) {
-		for (auto &concrete_reg: block_concrete_dependencies) {
-			// Save values of all register dependencies of the block that were concrete at start of the block
-			block_details.register_values.emplace_back(block_start_reg_values.at(concrete_reg));
-		}
-		for (auto &symbolic_instr: block_details.symbolic_instrs) {
+	if (curr_block_details.symbolic_instrs.size() > 0) {
+		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
 			// Save all concrete memory dependencies of the block
-			if (symbolic_instr.has_concrete_memory_dep) {
-				archived_memory_values.emplace_back(mem_reads_map.at(symbolic_instr.instr_addr).memory_values);
-				symbolic_instr.memory_values = &(archived_memory_values.back()[0]);
-				symbolic_instr.memory_values_count = archived_memory_values.back().size();
-			}
-			if (symbolic_instr.has_symbolic_memory_dep) {
-				// Track all symbolic memory dependencies used by the block
-				for (auto &mem_value: mem_reads_map.at(symbolic_instr.instr_addr).memory_values) {
-					if (mem_value.is_value_symbolic) {
-						block_details.symbolic_mem_deps.push_back(std::make_pair(mem_value.address, mem_value.size));
-					}
-				}
-			}
+			save_concrete_memory_deps(symbolic_instr);
+			auto result = find_symbolic_mem_deps(symbolic_instr);
+			symbolic_instr.symbolic_mem_deps.insert(symbolic_instr.symbolic_mem_deps.end(), result.begin(), result.end());
 		}
-		blocks_with_symbolic_instrs.emplace_back(block_details);
+		blocks_with_symbolic_instrs.emplace_back(curr_block_details);
 	}
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
-	block_details.reset();
-	block_concrete_dependencies.clear();
+	curr_block_details.reset();
 	instr_slice_details_map.clear();
 	mem_reads_map.clear();
 	mem_writes_taint_map.clear();
@@ -399,7 +409,7 @@ mem_update_t *State::sync() {
 
 void State::set_stops(uint64_t count, address_t *stops) {
 	stop_points.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		stop_points.insert(stops[i]);
 	}
 }
@@ -571,7 +581,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
 	short clean;
-	address_t instr_addr;
+	address_t curr_instr_addr;
 	bool is_dst_symbolic;
 
 	if (!bitmap) {
@@ -581,7 +591,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	}
 
 	clean = 0;
-	if (is_interrupt || is_symbolic_tracking_disabled() || block_details.vex_lift_failed) {
+	if (is_interrupt || is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed) {
 		// If symbolic tracking is disabled, all writes are concrete
 		// is_interrupt flag is a workaround for CGC transmit syscall, which never passes symbolic data
 		// If VEX lift failed, then write is definitely concrete since execution continues only
@@ -589,8 +599,8 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		is_dst_symbolic = false;
 	}
 	else {
-		address_t instr_addr = get_instruction_pointer();
-		auto mem_writes_taint_map_entry = mem_writes_taint_map.find(instr_addr);
+		curr_instr_addr = get_instruction_pointer();
+		auto mem_writes_taint_map_entry = mem_writes_taint_map.find(curr_instr_addr);
 		if (mem_writes_taint_map_entry != mem_writes_taint_map.end()) {
 			is_dst_symbolic = mem_writes_taint_map_entry->second;
 		}
@@ -605,20 +615,63 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 			return;
 		}
 	}
+	if (is_dst_symbolic) {
+		// Save the details of memory location written to in the instruction details
+		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
+			if (symbolic_instr.instr_addr == curr_instr_addr) {
+				symbolic_instr.mem_write_addr = address;
+				symbolic_instr.mem_write_size = size;
+				break;
+			}
+		}
+	}
 	if (find_tainted(address, size) != -1) {
 		// We are writing to a memory location that is currently symbolic. If the destination if a memory dependency
 		// of some instruction to be re-executed, we need to re-execute that instruction before continuing.
 		auto write_start_addr = address;
 		auto write_end_addr = address + size;
 		for (auto &block: blocks_with_symbolic_instrs) {
-			for (auto &symbolic_mem_dep: block.symbolic_mem_deps) {
-				auto symbolic_start_addr = symbolic_mem_dep.first;
-				auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
-				if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
-					// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
-					// will be lost. Stop execution.
-					stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
-					return;
+			for (auto &sym_instr: block.symbolic_instrs) {
+				for (auto &symbolic_mem_dep: sym_instr.symbolic_mem_deps) {
+					auto symbolic_start_addr = symbolic_mem_dep.first;
+					auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+					if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
+						// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
+						// will be lost. Stop execution.
+						stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+						return;
+					}
+				}
+			}
+		}
+		if (!is_dst_symbolic) {
+			// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
+			// instructions to be re-executed write to this same location. If there is one, they need not be re-executed
+			// since this concrete write nullifies their effects.
+			auto curr_write_start_addr = address;
+			auto curr_write_end_addr = address + size;
+			std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
+			for (auto &block: blocks_with_symbolic_instrs) {
+				instrs_to_erase_it.clear();
+				for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
+					int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
+					if (symbolic_write_start_addr == -1) {
+						// Instruction does not write a symbolic write to memory. No need to check this.
+						continue;
+					}
+					int64_t symbolic_write_end_addr = sym_instr_it->mem_write_addr + sym_instr_it->mem_write_size;
+					if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
+						// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
+						// instruction need not be re-executed
+						// TODO: How to handle partial overwrite?
+						// TODO: If this block is not fully executed in unicorn before control returns to python land,
+						// the state will be inconsistent until this concrete memory write is executed. If this happens,
+						// the symbolic memory write should be removed from list of instructions to re-execute in commit.
+						instrs_to_erase_it.emplace_back(sym_instr_it);
+					}
+				}
+				for (auto &instr_to_erase_it: instrs_to_erase_it) {
+					block.symbolic_instrs.erase(instr_to_erase_it);
 				}
 			}
 		}
@@ -934,6 +987,16 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 	return block_taint_entry;
 }
 
+std::set<instr_details_t> State::get_list_of_dep_instrs(const instr_details_t &instr) const {
+	std::set<instr_details_t> instrs;
+	for (auto &dep_instr: instr.instr_deps) {
+		auto result = get_list_of_dep_instrs(dep_instr);
+		instrs.insert(result.begin(), result.end());
+		instrs.insert(dep_instr);
+	}
+	return instrs;
+}
+
 void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const {
 	uint64_t reg_value;
 	if (cpu_flags_register != -1) {
@@ -1224,7 +1287,7 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 				try {
 					mem_read_result = mem_reads_map.at(taint_source.instr_addr);
 				}
-				catch (std::out_of_range) {
+				catch (std::out_of_range const&) {
 					assert(false && "[sim_unicorn] Taint sink depends on a read not executed yet! This should not happen!");
 				}
 				is_symbolic = mem_read_result.is_mem_read_symbolic;
@@ -1259,7 +1322,7 @@ void State::mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_le
 			symbolic_registers.emplace(reg_offset);
 		}
 		else {
-			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 				symbolic_registers.emplace(reg_offset + i);
 			}
 		}
@@ -1287,7 +1350,7 @@ void State::mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_le
 			symbolic_registers.erase(reg_offset);
 		}
 		else {
-			for (int i = 0; i < reg_size_map.at(reg_offset); i++) {
+			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 				symbolic_registers.erase(reg_offset + i);
 			}
 		}
@@ -1315,14 +1378,14 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	reg_offset = get_full_register_offset(reg_offset);
 	// The register is not a CPU flag and so we check every byte of the register
-	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
 		if (block_symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
 	}
 	bool is_concrete = true;
-	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (block_concrete_registers.count(reg_offset) == 0) {
 			is_concrete = false;
 			break;
@@ -1334,7 +1397,7 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	// If we reach here, it means that the register is not marked symbolic or concrete in the block
 	// level taint status tracker. We check the state's symbolic register list.
-	for (auto i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
@@ -1358,7 +1421,7 @@ void State::propagate_taints() {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
 	}
-	auto& block_taint_entry = this->block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = this->block_taint_cache.at(curr_block_details.block_addr);
 	if (((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))
 		&& block_taint_entry.has_unsupported_stmt_or_expr_type) {
 		// There are symbolic registers and VEX statements in block for which taint propagation
@@ -1398,7 +1461,7 @@ void State::propagate_taints() {
 	}
 	// If we reached here, execution has reached the end of the block
 	if (!stopped) {
-		if (block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
+		if (curr_block_details.vex_lift_failed && ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0))) {
 			// There are symbolic registers but VEX lift failed so we can't determine
 			// status of guard condition
 			stop(STOP_VEX_LIFT_FAILED);
@@ -1420,7 +1483,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 		return;
 	}
 	auto mem_read_result = mem_reads_map.at(instr_addr);
-	if (block_details.vex_lift_failed) {
+	if (curr_block_details.vex_lift_failed) {
 		if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
 			// Either the memory value is symbolic or there are symbolic registers: thus, taint
 			// status of registers could change. But since VEX lift failed, the taint relations
@@ -1446,7 +1509,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 	// There are no more pending reads at this instruction. Now we can propagate taint.
 	// This allows us to also handle cases when only some of the memory reads are symbolic: we treat all as symbolic
 	// and overtaint.
-	auto& block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	auto& instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
 	if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
@@ -1541,14 +1604,12 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 	}
 	if (is_instr_symbolic) {
-		auto& instr_slice_details = instr_slice_details_map.at(instr_addr);
-		block_concrete_dependencies.insert(instr_slice_details.concrete_registers.begin(), instr_slice_details.concrete_registers.end());
-
-		std::set<instr_details_t> symbolic_instrs_set(block_details.symbolic_instrs.begin(), block_details.symbolic_instrs.end());
-		block_details.symbolic_instrs.clear();
-		symbolic_instrs_set.insert(instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
-		block_details.symbolic_instrs.insert(block_details.symbolic_instrs.end(), symbolic_instrs_set.begin(), symbolic_instrs_set.end());
-		block_details.symbolic_instrs.emplace_back(instr_details);
+		auto &instr_slice_details = instr_slice_details_map.at(instr_addr);
+		for (auto &reg: instr_slice_details.concrete_registers) {
+			instr_details.reg_deps.emplace(block_start_reg_values.at(reg));
+		}
+		instr_details.instr_deps.insert(instr_details.instr_deps.end(), instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
+		curr_block_details.symbolic_instrs.emplace_back(instr_details);
 	}
 	return;
 }
@@ -1581,8 +1642,8 @@ void State::read_memory_value(address_t address, uint64_t size, uint8_t *result,
 }
 
 void State::start_propagating_taint(address_t block_address, int32_t block_size) {
-	block_details.block_addr = block_address;
-	block_details.block_size = block_size;
+	curr_block_details.block_addr = block_address;
+	curr_block_details.block_size = block_size;
 	if (is_symbolic_tracking_disabled()) {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
@@ -1615,7 +1676,7 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 			}
 			else {
 				// There are no symbolic registers so attempt to execute block. Mark block as VEX lift failed.
-				block_details.vex_lift_failed = true;
+				curr_block_details.vex_lift_failed = true;
 			}
 			return;
 		}
@@ -1659,7 +1720,7 @@ void State::continue_propagating_taint() {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
 	}
-	if (block_details.vex_lift_failed) {
+	if (curr_block_details.vex_lift_failed) {
 		if ((symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
 			// There are symbolic registers but VEX lift failed so we can't propagate taint
 			stop(STOP_VEX_LIFT_FAILED);
@@ -1668,6 +1729,34 @@ void State::continue_propagating_taint() {
 	}
 	else {
 		propagate_taints();
+	}
+	return;
+}
+
+std::vector<std::pair<address_t, uint64_t>> State::find_symbolic_mem_deps(instr_details_t &instr) const {
+	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
+	for (auto &dep_instr: instr.instr_deps) {
+		auto result = find_symbolic_mem_deps(dep_instr);
+		symbolic_mem_deps.insert(symbolic_mem_deps.end(), result.begin(), result.end());
+	}
+	if (instr.has_symbolic_memory_dep) {
+		for (auto &mem_value: mem_reads_map.at(instr.instr_addr).memory_values) {
+			if (mem_value.is_value_symbolic) {
+				symbolic_mem_deps.emplace_back(std::make_pair(mem_value.address, mem_value.size));
+			}
+		}
+	}
+	return symbolic_mem_deps;
+}
+
+void State::save_concrete_memory_deps(instr_details_t &instr) {
+	if (instr.has_concrete_memory_dep) {
+		archived_memory_values.emplace_back(mem_reads_map.at(instr.instr_addr).memory_values);
+		instr.memory_values = &(archived_memory_values.back()[0]);
+		instr.memory_values_count = archived_memory_values.back().size();
+	}
+	for (auto &dep_instr: instr.instr_deps) {
+		save_concrete_memory_deps(dep_instr);
 	}
 	return;
 }
@@ -1691,13 +1780,13 @@ void State::update_register_slice(address_t instr_addr, const instruction_taint_
 }
 
 bool State::is_block_exit_guard_symbolic() const {
-	auto& block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	auto block_exit_guard_taint_status = get_final_taint_status(block_taint_entry.exit_stmt_guard_expr_deps);
 	return (block_exit_guard_taint_status != TAINT_STATUS_CONCRETE);
 }
 
 bool State::is_block_next_target_symbolic() const {
-	auto& block_taint_entry = block_taint_cache.at(block_details.block_addr);
+	auto& block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	auto block_next_target_taint_status = get_final_taint_status(block_taint_entry.block_next_entities);
 	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
 }
@@ -1712,16 +1801,12 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 		return true;
 	}
 	for (auto &block: blocks_with_symbolic_instrs) {
-		auto &block_symbolic_instrs = block_details.symbolic_instrs;
-		for (auto symbolic_instr = block_symbolic_instrs.rbegin(); symbolic_instr != block_symbolic_instrs.rend(); symbolic_instr++) {
-			if (symbolic_instr->has_symbolic_memory_dep) {
-				auto mem_read_entry = mem_reads_map.at(symbolic_instr->instr_addr);
-				for (auto &mem_value: mem_read_entry.memory_values) {
-					if ((curr_stack_top_addr > mem_value.address) && (mem_value.address > prev_stack_top_addr)) {
-						// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
-						// and could be overwritten by future code. We stop concrete execution here to avoid that.
-						return false;
-					}
+		for (auto &symbolic_instr: block.symbolic_instrs) {
+			for (auto &symbolic_mem_dep: symbolic_instr.symbolic_mem_deps) {
+				if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
+					// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
+					// and could be overwritten by future code. We stop concrete execution here to avoid that.
+					return false;
 				}
 			}
 		}
@@ -1731,7 +1816,7 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 
 address_t State::get_instruction_pointer() const {
 	address_t out = 0;
-	unsigned int reg = arch_pc_reg();
+	int reg = arch_pc_reg();
 	if (reg == -1) {
 		out = 0;
 	} else {
@@ -1743,7 +1828,7 @@ address_t State::get_instruction_pointer() const {
 
 address_t State::get_stack_pointer() const {
 	address_t out = 0;
-	unsigned int reg = arch_sp_reg();
+	int reg = arch_sp_reg();
 	if (reg == -1) {
 		out = 0;
 	} else {
@@ -2074,7 +2159,7 @@ extern "C"
 void simunicorn_symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
 	state->symbolic_registers.clear();
-	for (int i = 0; i < count; i++)
+	for (uint64_t i = 0; i < count; i++)
 	{
 		state->symbolic_registers.insert(offsets[i]);
 	}
@@ -2181,7 +2266,7 @@ void simunicorn_set_map_callback(State *state, uc_cb_eventmem_t cb) {
 extern "C"
 void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64_t count) {
 	state->artificial_vex_registers.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->artificial_vex_registers.emplace(offsets[i]);
 	}
 	return;
@@ -2191,7 +2276,7 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 extern "C"
 void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *vex_offsets, uint64_t *reg_sizes, uint64_t count) {
 	state->reg_size_map.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->reg_size_map.emplace(vex_offsets[i], reg_sizes[i]);
 	}
 	return;
@@ -2201,7 +2286,7 @@ void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *
 extern "C"
 void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
 	state->vex_to_unicorn_map.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
 	}
 	return;
@@ -2211,7 +2296,7 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 extern "C"
 void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_reg_offsets, uint64_t *vex_reg_offsets, uint64_t count) {
 	state->vex_sub_reg_map.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->vex_sub_reg_map.emplace(vex_sub_reg_offsets[i], vex_reg_offsets[i]);
 	}
 	return;
@@ -2221,7 +2306,7 @@ void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_
 extern "C"
 void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
 	state->cpu_flags.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->cpu_flags.emplace(flag_vex_id[i], bitmasks[i]);
 	}
 	return;
@@ -2237,7 +2322,7 @@ void simunicorn_set_unicorn_flags_register_id(State *state, int64_t reg_id) {
 extern "C"
 void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_t count) {
 	state->blacklisted_registers.clear();
-	for (int i = 0; i < count; i++) {
+	for (uint64_t i = 0; i < count; i++) {
 		state->blacklisted_registers.emplace(reg_list[i]);
 	}
 	return;
@@ -2247,18 +2332,18 @@ void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_
 
 extern "C"
 uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
-	return state->blocks_with_symbolic_instrs.size();
+	return state->block_details_to_return.size();
 }
 
 extern "C"
-void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, block_details_ret_t *ret_block_details) {
-	for (auto i = 0; i < state->blocks_with_symbolic_instrs.size(); i++) {
-		ret_block_details[i].block_addr = state->blocks_with_symbolic_instrs[i].block_addr;
-		ret_block_details[i].block_size = state->blocks_with_symbolic_instrs[i].block_size;
-		ret_block_details[i].symbolic_instrs = &(state->blocks_with_symbolic_instrs[i].symbolic_instrs[0]);
-		ret_block_details[i].symbolic_instrs_count = state->blocks_with_symbolic_instrs[i].symbolic_instrs.size();
-		ret_block_details[i].register_values = &(state->blocks_with_symbolic_instrs[i].register_values[0]);
-		ret_block_details[i].register_values_count = state->blocks_with_symbolic_instrs[i].register_values.size();
+void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_block_details_ret_t *ret_block_details) {
+	for (size_t i = 0; i < state->block_details_to_return.size(); i++) {
+		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
+		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
+		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
+		ret_block_details[i].symbolic_instrs_count = state->block_details_to_return[i].symbolic_instrs.size();
+		ret_block_details[i].register_values = &(state->block_details_to_return[i].register_values[0]);
+		ret_block_details[i].register_values_count = state->block_details_to_return[i].register_values.size();
 	}
 	return;
 }

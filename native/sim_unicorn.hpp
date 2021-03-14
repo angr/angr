@@ -130,25 +130,53 @@ struct mem_read_result_t {
 struct register_value_t {
 	uint64_t offset;
 	uint8_t value[MAX_REGISTER_BYTE_SIZE];
+
+	bool operator==(const register_value_t &reg_value) const {
+		if (offset != reg_value.offset) {
+			return false;
+		}
+		return (memcmp(value, reg_value.value, MAX_REGISTER_BYTE_SIZE) == 0);
+	}
+
+	std::size_t operator()(const register_value_t &reg_value) const {
+		return std::hash<uint64_t>()(reg_value.offset);
+	}
+};
+
+template <>
+struct std::hash<register_value_t> {
+	std::size_t operator()(const register_value_t &value) const {
+		return value.operator()(value);
+	}
 };
 
 struct instr_details_t {
 	address_t instr_addr;
+	int64_t mem_write_addr;
+	int64_t mem_write_size;
 	bool has_concrete_memory_dep;
 	bool has_symbolic_memory_dep;
 	memory_value_t *memory_values;
 	uint64_t memory_values_count;
+	std::vector<instr_details_t> instr_deps;
+	std::unordered_set<register_value_t> reg_deps;
+	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
+
+	instr_details_t() {
+		has_concrete_memory_dep = false;
+		has_symbolic_memory_dep = false;
+		instr_deps.clear();
+		mem_write_addr = -1;
+		mem_write_size = -1;
+		reg_deps.clear();
+		symbolic_mem_deps.clear();
+	}
 
 	bool operator==(const instr_details_t &other_instr) const {
 		if ((instr_addr != other_instr.instr_addr) || (has_concrete_memory_dep != other_instr.has_concrete_memory_dep) ||
-			(has_symbolic_memory_dep != other_instr.has_symbolic_memory_dep) ||
-			(memory_values_count != other_instr.memory_values_count)) {
+			(has_symbolic_memory_dep != other_instr.has_symbolic_memory_dep) || (instr_deps != other_instr.instr_deps) ||
+			(reg_deps != other_instr.reg_deps)) {
 				return false;
-		}
-		for (uint64_t counter = 0; counter < memory_values_count; counter++) {
-			if (!(memory_values[counter] == other_instr.memory_values[counter])) {
-				return false;
-			}
 		}
 		return true;
 	}
@@ -162,14 +190,50 @@ struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
 	std::vector<instr_details_t> symbolic_instrs;
-	std::vector<register_value_t> register_values;
-	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 	bool vex_lift_failed;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		symbolic_instrs.clear();
 		vex_lift_failed = false;
+	}
+};
+
+// sym_block_details_t and sym_instr_details_t are used to store data, references to which are returned to state plugin
+struct sym_instr_details_t {
+	address_t instr_addr;
+	bool has_memory_dep;
+	memory_value_t *memory_values;
+	uint64_t memory_values_count;
+
+	bool operator==(const sym_instr_details_t &other_instr) const {
+		if ((instr_addr != other_instr.instr_addr) || (has_memory_dep != other_instr.has_memory_dep) ||
+			(memory_values_count != other_instr.memory_values_count)) {
+				return false;
+		}
+		for (uint64_t counter = 0; counter < memory_values_count; counter++) {
+			if (!(memory_values[counter] == other_instr.memory_values[counter])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	bool operator<(const sym_instr_details_t &other_instr) const {
+		return (instr_addr < other_instr.instr_addr);
+	}
+};
+
+struct sym_block_details_t {
+	address_t block_addr;
+	uint64_t block_size;
+	std::vector<sym_instr_details_t> symbolic_instrs;
+	std::vector<register_value_t> register_values;
+
+	void reset() {
+		block_addr = 0;
+		block_size = 0;
 		symbolic_instrs.clear();
 		register_values.clear();
 	}
@@ -177,10 +241,10 @@ struct block_details_t {
 
 // This struct is used only to return data to the state plugin since ctypes doesn't natively handle
 // C++ STL containers
-struct block_details_ret_t {
+struct sym_block_details_ret_t {
 	uint64_t block_addr;
     uint64_t block_size;
-    instr_details_t *symbolic_instrs;
+    sym_instr_details_t *symbolic_instrs;
     uint64_t symbolic_instrs_count;
     register_value_t *register_values;
     uint64_t register_values_count;
@@ -372,10 +436,7 @@ class State {
 	std::unordered_map<address_t, instr_slice_details_t> instr_slice_details_map;
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
-	block_details_t block_details;
-
-	// List of registers which are concrete dependencies of a block's instructions executed symbolically
-	std::unordered_set<vex_reg_offset_t> block_concrete_dependencies;
+	block_details_t curr_block_details;
 
 	// List of register values at start of block
 	std::unordered_map<vex_reg_offset_t, register_value_t> block_start_reg_values;
@@ -385,6 +446,9 @@ class State {
 	// a symbolic address
 	RegisterSet block_symbolic_registers, block_concrete_registers;
 	TempSet block_symbolic_temps;
+
+	// List of instructions that should be executed symbolically
+	std::vector<block_details_t> blocks_with_symbolic_instrs;
 
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
 	std::map<address_t, std::pair<taint_t *, uint8_t *>> active_pages;
@@ -412,6 +476,8 @@ class State {
 	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
+	// Return list of all dependent instructions including dependencies of those dependent instructions
+	std::set<instr_details_t> get_list_of_dep_instrs(const instr_details_t &instr) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
 	processed_vex_expr_t process_vex_expr(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
@@ -439,6 +505,10 @@ class State {
 	void propagate_taints();
 	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 
+	// Save values of concrete memory reads performed by an instruction and it's dependencies
+	void save_concrete_memory_deps(instr_details_t &instr);
+	// Find address and size of all symbolic memory reads performed by an instruction and it's dependencies
+	std::vector<std::pair<address_t, uint64_t>> find_symbolic_mem_deps(instr_details_t &instr) const;
 	void update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry);
 
 	// Inline functions
@@ -482,7 +552,7 @@ class State {
 		}
 	}
 
-	inline unsigned int arch_pc_reg() const {
+	inline int arch_pc_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
 				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
@@ -497,7 +567,7 @@ class State {
 		}
 	}
 
-	inline unsigned int arch_sp_reg() const {
+	inline int arch_sp_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
 				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
@@ -532,7 +602,7 @@ class State {
 		// register to determine if we are executing in ARM or THUMB mode.
 		uint32_t cpsr_reg_val;
 		uc_reg_read(uc, UC_ARM_REG_CPSR, &cpsr_reg_val);
-		return (cpsr_reg_val & 32 == 0);
+		return ((cpsr_reg_val & 32) == 1);
 	}
 
 	public:
@@ -572,8 +642,8 @@ class State {
 		// Result of all memory reads executed. Instruction address -> memory read result
 		std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
 
-		// List of instructions that should be executed symbolically
-		std::vector<block_details_t> blocks_with_symbolic_instrs;
+		// List of instructions that should be executed symbolically; used to store data to return
+		std::vector<sym_block_details_t> block_details_to_return;
 
 		bool track_bbls;
 		bool track_stack;
@@ -678,7 +748,7 @@ class State {
 		}
 
 		inline bool is_symbolic_taint_propagation_disabled() const {
-			return (is_symbolic_tracking_disabled() || block_details.vex_lift_failed);
+			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
 		}
 
 		inline address_t get_taint_engine_stop_mem_read_instr_addr() const {

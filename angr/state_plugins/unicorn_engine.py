@@ -66,7 +66,7 @@ class RegisterValue(ctypes.Structure): # register_value_t
         ('offset', ctypes.c_uint64),
         ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE)
     ]
-class InstrDetails(ctypes.Structure): # instr_details_t
+class InstrDetails(ctypes.Structure): # sym_instr_details_t
     _fields_ = [
         ('instr_addr', ctypes.c_uint64),
         ('has_memory_dep', ctypes.c_bool),
@@ -74,7 +74,7 @@ class InstrDetails(ctypes.Structure): # instr_details_t
         ('memory_values_count', ctypes.c_uint64),
     ]
 
-class BlockDetails(ctypes.Structure): # block_details_ret_t
+class BlockDetails(ctypes.Structure): # sym_block_details_ret_t
     _fields_ = [
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64),

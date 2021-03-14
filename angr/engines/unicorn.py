@@ -76,8 +76,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     @staticmethod
     def __reset_countdowns(state, next_state):
-        next_state.unicorn.countdown_symbolic_stop = state.unicorn.countdown_symbolic_stop
-        next_state.unicorn.countdown_unsupported_stop = state.unicorn.countdown_unsupported_stop
+        next_state.unicorn.countdown_symbolic_stop = 0
+        next_state.unicorn.countdown_unsupported_stop = 0
         next_state.unicorn.countdown_nonunicorn_blocks = state.unicorn.countdown_nonunicorn_blocks
         next_state.unicorn.countdown_stop_point = state.unicorn.countdown_stop_point
 
