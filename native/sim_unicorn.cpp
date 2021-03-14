@@ -664,6 +664,9 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 						// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
 						// instruction need not be re-executed
 						// TODO: How to handle partial overwrite?
+						// TODO: If this block is not fully executed in unicorn before control returns to python land,
+						// the state will be inconsistent until this concrete memory write is executed. If this happens,
+						// the symbolic memory write should be removed from list of instructions to re-execute in commit.
 						instrs_to_erase_it.emplace_back(sym_instr_it);
 					}
 				}
