@@ -27,6 +27,7 @@ from ...sim_state import SimState
 from ...misc.ux import once
 from ...errors import SimEngineError, SimTranslationError, SimError
 from ... import sim_options as o
+from ...block import DisassemblerBlock, DisassemblerInsn
 
 l = logging.getLogger(__name__)
 
@@ -50,28 +51,66 @@ class ExitStatement:
         self.dst = dst
         self.jumpkind = jumpkind
 
+class PcodeDisassemblerBlock(DisassemblerBlock):
+    """
+    Helper class to represent a block of dissassembled target architecture
+    instructions
+    """
+
+class PcodeDisassemblerInsn(DisassemblerInsn):
+    """
+    Helper class to represent a disassembled target architecture instruction
+    """
+
+    def __init__(self, pcode_insn):
+        self.insn = pcode_insn
+
+    @property
+    def size(self) -> int:
+        return self.insn.length
+
+    @property
+    def address(self) -> int:
+        return self.insn.addr.getOffset()
+
+    @property
+    def mnemonic(self) -> str:
+        return self.insn.asm_mnemonic
+
+    @property
+    def op_str(self) -> str:
+        return self.insn.asm_op_str
+
+
 class PcodeInstruction:
     __slots__ = (
         "addr",
         "length",
         "pcode",
-        "trans"
+        "trans",
+        "asm_mnemonic",
+        "asm_op_str"
     )
 
     addr: pypcode.Address
     length: int
     pcode: pypcode.PcodeRawOutHelper
     trans: pypcode.Sleigh
+    asm_mnemonic: str
+    asm_op_str: str
 
     def __init__(self,
                  addr: pypcode.Address,
                  length: int,
                  pcode: pypcode.PcodeRawOutHelper,
-                 trans: pypcode.Sleigh) -> None:
+                 trans: pypcode.Sleigh,
+                 asm: pypcode.AssemblyEmitCacher) -> None:
         self.addr = addr
         self.length = length
         self.pcode = pcode
         self.trans = trans
+        self.asm_mnemonic = asm.mnem
+        self.asm_op_str = asm.body
 
     @property
     def ops(self) -> pypcode.PcodeRawOutHelper:
@@ -154,6 +193,7 @@ class IRSB:
         "_instructions",
         "_size",
         "_statements",
+        "_disassembly",
         "addr",
         "arch",
         "behaviors",
@@ -169,6 +209,7 @@ class IRSB:
     _instructions: Sequence[PcodeInstruction]
     _size: Optional[int]
     _statements: Iterable # Note: currently unused
+    _disassembly: Optional[PcodeDisassemblerBlock]
     addr: int
     arch: archinfo.Arch
     behaviors: Optional[BehaviorFactory]
@@ -240,6 +281,7 @@ class IRSB:
         self.default_exit_target = None
         self.jumpkind = None
         self.next = None
+        self._disassembly = None
 
         if data is not None:
             # This is the slower path (because we need to call _from_py() to copy the content in the returned IRSB to
@@ -484,6 +526,13 @@ class IRSB:
         return []
         # return self._statements
 
+    @property
+    def disassembly(self) -> PcodeDisassemblerBlock:
+        if self._disassembly is None:
+            insns = [PcodeDisassemblerInsn(ins) for ins in self._instructions]
+            thumb = False # FIXME
+            self._disassembly = PcodeDisassemblerBlock(self.addr, insns, thumb, self.arch)
+        return self._disassembly
 
 class Lifter:
     """
@@ -976,11 +1025,14 @@ class PcodeBasicBlockLifter:
         irsb.next = addr.getOffset()
         irsb.jumpkind = "Ijk_Boring"
 
+        asm = pypcode.AssemblyEmitCacher()
+
         while (not end_basic_block) and (addr < lastaddr) and (len(irsb._instructions) < max_inst):
             has_internal_branch = False
             has_external_branch = False
             emit = pypcode.PcodeRawOutHelper(self.trans)
             try:
+                self.trans.printAssembly(asm, addr)
                 length = self.trans.oneInstruction(emit, addr)
             except: # pylint:disable=bare-except
                 # FIXME: Add nicer exception handling for failed translation
@@ -992,7 +1044,7 @@ class PcodeBasicBlockLifter:
                 # Decoded past the acceptable limit. Stop here.
                 break
 
-            ins = PcodeInstruction(addr, length, emit, self.trans)
+            ins = PcodeInstruction(addr, length, emit, self.trans, asm)
             irsb._instructions.append(ins)
             irsb.next = addr.getOffset() + length
 

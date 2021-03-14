@@ -5,8 +5,14 @@ from collections import defaultdict
 from . import Analysis
 
 from ..utils.library import get_cpp_function_name
-from ..block import CapstoneInsn, SootBlockNode
+from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
+from ..codenode import BlockNode
 from .disassembly_utils import decode_instruction
+
+try:
+    from ..engines import pcode
+except ImportError:
+    pcode = None
 
 l = logging.getLogger(name=__name__)
 
@@ -140,7 +146,8 @@ class Instruction(DisassemblyPiece):
 
         self.disect_instruction()
 
-        decode_instruction(self.arch, self)
+        if isinstance(insn, CapstoneInsn):
+            decode_instruction(self.arch, self)
 
     @property
     def mnemonic(self):
@@ -234,6 +241,13 @@ class Instruction(DisassemblyPiece):
 
         self.opcode = Opcode(self)
         self.operands.reverse()
+
+        if not hasattr(self.insn, 'operands'):
+            # Not all disassemblers provide operands. Just use our smart split
+            for i, o in enumerate(self.operands):
+                o.reverse()
+                self.operands[i] = Operand.build(1, i, o, self)
+            return
 
         if len(self.operands) != len(self.insn.operands):
             l.error("Operand parsing failed for instruction %s. %d operands are parsed, while %d are expected.",
@@ -786,7 +800,27 @@ class Disassembly(Analysis):
             self._func_cache[f.addr] = f
             return f
 
-    def parse_block(self, block):
+    def _add_instruction_to_results(self, block: BlockNode, insn: DisassemblerInsn, bs: BlockStart) -> None:
+        """
+        Add instruction to analysis results with associated labels and comments
+        """
+        if insn.address in self.kb.labels:
+            label = Label(insn.address, self.kb.labels[insn.address])
+            self.raw_result.append(label)
+            self.raw_result_map['labels'][label.addr] = label
+        if insn.address in self.kb.comments:
+            comment = Comment(insn.address, self.kb.comments[insn.address])
+            self.raw_result.append(comment)
+            self.raw_result_map['comments'][comment.addr] = comment
+        instruction = Instruction(insn, bs)
+        self.raw_result.append(instruction)
+        self.raw_result_map['instructions'][instruction.addr] = instruction
+        self.block_to_insn_addrs[block.addr].append(insn.address)
+
+    def parse_block(self, block: BlockNode) -> None:
+        """
+        Parse instructions for a given block node
+        """
         func = self.func_lookup(block)
         if func and func.addr == block.addr:
             self.raw_result.append(FuncComment(block.function))
@@ -798,8 +832,9 @@ class Disassembly(Analysis):
             hook = Hook(block.addr, bs)
             self.raw_result.append(hook)
             self.raw_result_map['hooks'][block.addr] = hook
-
         elif self.project.arch.capstone_support:
+            # Prefer Capstone first, where we are able to extract a bit more
+            # about the operands
             if block.thumb:
                 aligned_block_addr = (block.addr >> 1) << 1
                 cs = self.project.arch.capstone_thumb
@@ -812,18 +847,14 @@ class Disassembly(Analysis):
                 bytestr = block.bytestr
             self.block_to_insn_addrs[block.addr] = []
             for cs_insn in cs.disasm(bytestr, block.addr):
-                if cs_insn.address in self.kb.labels:
-                    label = Label(cs_insn.address, self.kb.labels[cs_insn.address])
-                    self.raw_result.append(label)
-                    self.raw_result_map['labels'][label.addr] = label
-                if cs_insn.address in self.kb.comments:
-                    comment = Comment(cs_insn.address, self.kb.comments[cs_insn.address])
-                    self.raw_result.append(comment)
-                    self.raw_result_map['comments'][comment.addr] = comment
-                instruction = Instruction(CapstoneInsn(cs_insn), bs)
-                self.raw_result.append(instruction)
-                self.raw_result_map['instructions'][instruction.addr] = instruction
-                self.block_to_insn_addrs[block.addr].append(cs_insn.address)
+                self._add_instruction_to_results(block, CapstoneInsn(cs_insn), bs)
+        elif pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
+            # When using the P-code engine, we can fall back on its disassembly
+            # in the event that Capstone does not support it
+            self.block_to_insn_addrs[block.addr] = []
+            b = self.project.factory.block(block.addr, size=block.size)
+            for insn in b.disassembly.insns:
+                self._add_instruction_to_results(block, insn, bs)
         elif type(block) is SootBlockNode:
             for raw_stmt in block.stmts:
                 stmt = SootStatement(block.addr, raw_stmt)

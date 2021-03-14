@@ -3,6 +3,11 @@ from typing import List
 
 from pyvex import IRSB
 
+try:
+    from .engines import pcode
+except ImportError:
+    pcode = None
+
 l = logging.getLogger(name=__name__)
 
 import pyvex
@@ -15,11 +20,100 @@ from .engines.vex import VEXLifter
 DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
 
+class DisassemblerBlock:
+    """
+    Helper class to represent a block of dissassembled target architecture
+    instructions
+    """
+
+    __slots__ = [ 'addr', 'insns', 'thumb', 'arch' ]
+
+    def __init__(self, addr, insns, thumb, arch):
+        self.addr = addr
+        self.insns = insns
+        self.thumb = thumb
+        self.arch = arch
+
+    def pp(self):
+        print(str(self))
+
+    def __str__(self):
+        return '\n'.join(map(str, self.insns))
+
+    def __repr__(self):
+        return '<DisassemblerBlock for %#x>' % self.addr
+
+
+class DisassemblerInsn:
+    """
+    Helper class to represent a disassembled target architecture instruction
+    """
+
+    @property
+    def size(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def address(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def mnemonic(self) -> str:
+        raise NotImplementedError()
+
+    @property
+    def op_str(self) -> str:
+        raise NotImplementedError()
+
+    def __str__(self):
+        return "%#x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
+
+    def __repr__(self):
+        return '<DisassemblerInsn "%s" for %#x>' % (self.mnemonic, self.address)
+
+
+class CapstoneBlock(DisassemblerBlock):
+    """
+    Deep copy of the capstone blocks, which have serious issues with having extended lifespans
+    outside of capstone itself
+    """
+
+
+class CapstoneInsn(DisassemblerInsn):
+
+    def __init__(self, capstone_insn):
+        self.insn = capstone_insn
+
+    @property
+    def size(self) -> int:
+        return self.insn.size
+
+    @property
+    def address(self) -> int:
+        return self.insn.address
+
+    @property
+    def mnemonic(self) -> str:
+        return self.insn.mnemonic
+
+    @property
+    def op_str(self) -> str:
+        return self.insn.op_str
+
+    def __getattr__(self, item):
+        if item in ('__str__', '__repr__'):
+            return self.__getattribute__(item)
+        if hasattr(self.insn, item):
+            return getattr(self.insn, item)
+        raise AttributeError()
+
+
 class Block(Serializable):
     BLOCK_MAX_SIZE = 4096
 
-    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_capstone', 'addr', 'size', 'arch', '_instructions',
-                 '_instruction_addrs', '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
+    __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_disassembly', '_capstone',
+                 'addr', 'size', 'arch', '_instructions', '_instruction_addrs',
+                 '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
                  '_cross_insn_opt',
                  ]
 
@@ -76,6 +170,7 @@ class Block(Serializable):
 
         self._vex = vex
         self._vex_nostmt = None
+        self._disassembly = None
         self._capstone = None
         self.size = size
         self._collect_data_refs = collect_data_refs
@@ -124,12 +219,13 @@ class Block(Serializable):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
     def __getstate__(self):
-        return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', ))
+        return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', '_disassembly'))
 
     def __setstate__(self, data):
         for k, v in data.items():
             setattr(self, k, v)
         self._capstone = None
+        self._disassembly = None
 
     def __hash__(self):
         return hash((type(self), self.addr, self.bytes))
@@ -143,7 +239,7 @@ class Block(Serializable):
         return not self == other
 
     def pp(self):
-        return self.capstone.pp()
+        return self.disassembly.pp()
 
     @property
     def _vex_engine(self):
@@ -195,6 +291,22 @@ class Block(Serializable):
             cross_insn_opt=self._cross_insn_opt,
         )
         return self._vex_nostmt
+
+    @property
+    def _using_pcode_engine(self) -> bool:
+        return (pcode is not None) and isinstance(self._vex_engine, pcode.HeavyPcodeMixin)
+
+    @property
+    def disassembly(self) -> DisassemblerBlock:
+        """
+        Provide a disassebly object using whatever disassembler is available
+        """
+        if self._disassembly is None:
+            if self._using_pcode_engine:
+                self._disassembly = self.vex.disassembly
+            else:
+                self._disassembly = self.capstone
+        return self._disassembly
 
     @property
     def capstone(self):
@@ -291,47 +403,5 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
-
-
-class CapstoneBlock:
-    """
-    Deep copy of the capstone blocks, which have serious issues with having extended lifespans
-    outside of capstone itself
-    """
-    __slots__ = [ 'addr', 'insns', 'thumb', 'arch' ]
-
-    def __init__(self, addr, insns, thumb, arch):
-        self.addr = addr
-        self.insns = insns
-        self.thumb = thumb
-        self.arch = arch
-
-    def pp(self):
-        print(str(self))
-
-    def __str__(self):
-        return '\n'.join(map(str, self.insns))
-
-    def __repr__(self):
-        return '<CapstoneBlock for %#x>' % self.addr
-
-
-class CapstoneInsn:
-    def __init__(self, capstone_insn):
-        self.insn = capstone_insn
-
-    def __getattr__(self, item):
-        if item in ('__str__', '__repr__'):
-            return self.__getattribute__(item)
-        if hasattr(self.insn, item):
-            return getattr(self.insn, item)
-        raise AttributeError()
-
-    def __str__(self):
-        return "%#x:\t%s\t%s" % (self.address, self.mnemonic, self.op_str)
-
-    def __repr__(self):
-        return '<CapstoneInsn "%s" for %#x>' % (self.mnemonic, self.address)
-
 
 from .codenode import BlockNode, SootBlockNode
