@@ -498,8 +498,8 @@ class State {
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 	bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;
 
-	void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level);
-	void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level);
+	void mark_register_symbolic(vex_reg_offset_t reg_offset);
+	void mark_register_concrete(vex_reg_offset_t reg_offset);
 	void mark_temp_symbolic(vex_tmp_id_t temp_id);
 
 	block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address);

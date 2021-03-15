@@ -239,10 +239,10 @@ void State::commit() {
 	// Sync all block level taint statuses reads with state's taint statuses and block level
 	// symbolic instruction list with state's symbolic instruction list
 	for (auto &reg_offset: block_symbolic_registers) {
-		mark_register_symbolic(reg_offset, false);
+		symbolic_registers.emplace(reg_offset);
 	}
 	for (auto &reg_offset: block_concrete_registers) {
-		mark_register_concrete(reg_offset, false);
+		symbolic_registers.erase(reg_offset);
 	}
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
@@ -1307,24 +1307,19 @@ taint_status_result_t State::get_final_taint_status(const std::vector<taint_enti
 	return get_final_taint_status(taint_sources_set);
 }
 
-void State::mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level) {
+void State::mark_register_symbolic(vex_reg_offset_t reg_offset) {
+	// Mark register as symbolic in the state in current block
 	if (is_blacklisted_register(reg_offset)) {
 		return;
 	}
-	if (do_block_level) {
-		// Mark register as symbolic in current block
+	else if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
 		block_symbolic_registers.emplace(reg_offset);
 		block_concrete_registers.erase(reg_offset);
 	}
 	else {
-		// Mark register as symbolic in the state
-		if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
-			symbolic_registers.emplace(reg_offset);
-		}
-		else {
-			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
-				symbolic_registers.emplace(reg_offset + i);
-			}
+		for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+			block_symbolic_registers.emplace(reg_offset + i);
+			block_concrete_registers.erase(reg_offset + i);
 		}
 	}
 	return;
@@ -1336,23 +1331,19 @@ void State::mark_temp_symbolic(vex_tmp_id_t temp_id) {
 	return;
 }
 
-void State::mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level) {
+void State::mark_register_concrete(vex_reg_offset_t reg_offset) {
+	// Mark register as concrete in the current block
 	if (is_blacklisted_register(reg_offset)) {
 		return;
 	}
-	if (do_block_level) {
-		// Mark this register as concrete in the current block
-		block_concrete_registers.emplace(reg_offset);
+	else if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
 		block_symbolic_registers.erase(reg_offset);
+		block_concrete_registers.emplace(reg_offset);
 	}
 	else {
-		if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
-			symbolic_registers.erase(reg_offset);
-		}
-		else {
-			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
-				symbolic_registers.erase(reg_offset + i);
-			}
+		for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+			block_symbolic_registers.erase(reg_offset + i);
+			block_concrete_registers.emplace(reg_offset + i);
 		}
 	}
 	return;
@@ -1585,7 +1576,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 
 				// Mark sink as symbolic
 				if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-					mark_register_symbolic(get_full_register_offset(taint_sink.reg_offset), true);
+					mark_register_symbolic(get_full_register_offset(taint_sink.reg_offset));
 				}
 				else {
 					mark_temp_symbolic(taint_sink.tmp_id);
@@ -1594,7 +1585,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			else if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset != arch_pc_reg_vex_offset())) {
 				// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
 				vex_reg_offset_t taint_sink_full_register_offset = get_full_register_offset(taint_sink.reg_offset);
-				mark_register_concrete(taint_sink_full_register_offset, true);
+				mark_register_concrete(taint_sink_full_register_offset);
 			}
 		}
 		auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
