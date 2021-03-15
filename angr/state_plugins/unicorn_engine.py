@@ -1013,13 +1013,13 @@ class Unicorn(SimStatePlugin):
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:
-            archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
-            archinfo['hwcache_info']['caches'] = 0
-            archinfo['hwcache_info'] = _VexCacheInfo(**archinfo['hwcache_info'])
+            vex_archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
+            vex_archinfo['hwcache_info']['caches'] = 0
+            vex_archinfo['hwcache_info'] = _VexCacheInfo(**vex_archinfo['hwcache_info'])
             _UC_NATIVE.enable_symbolic_reg_tracking(
                 self._uc_state,
                 getattr(pyvex.pvc, self.state.arch.vex_arch),
-                _VexArchInfo(**archinfo),
+                _VexArchInfo(**vex_archinfo),
             )
 
             if self._symbolic_offsets:
