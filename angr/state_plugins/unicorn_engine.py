@@ -357,7 +357,6 @@ def _load_native():
         _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, 'set_vex_sub_reg_to_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_vex_offset_to_register_size_mapping', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
@@ -1059,16 +1058,6 @@ class Unicorn(SimStatePlugin):
         vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
         unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
         _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
-
-        vex_reg_offsets = []
-        vex_sub_reg_offsets = []
-        for vex_sub_reg_offset, vex_reg_offset in self.state.arch.vex_sub_reg_to_reg_map.items():
-            vex_reg_offsets.append(vex_reg_offset)
-            vex_sub_reg_offsets.append(vex_sub_reg_offset)
-
-        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
-        vex_sub_reg_offsets_array = (ctypes.c_uint64 * len(vex_sub_reg_offsets))(*map(ctypes.c_uint64, vex_sub_reg_offsets))
-        _UC_NATIVE.set_vex_sub_reg_to_reg_mappings(self._uc_state, vex_sub_reg_offsets_array, vex_reg_offsets_array, len(vex_sub_reg_offsets_array))
 
         vex_reg_offsets = []
         vex_reg_sizes = []

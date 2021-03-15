@@ -2292,16 +2292,6 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 	return;
 }
 
-// VEX sub-registers to full register mapping
-extern "C"
-void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_reg_offsets, uint64_t *vex_reg_offsets, uint64_t count) {
-	state->vex_sub_reg_map.clear();
-	for (uint64_t i = 0; i < count; i++) {
-		state->vex_sub_reg_map.emplace(vex_sub_reg_offsets[i], vex_reg_offsets[i]);
-	}
-	return;
-}
-
 // Mapping details for flags registers
 extern "C"
 void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {

@@ -524,10 +524,6 @@ class State {
 	}
 
 	inline vex_reg_offset_t get_full_register_offset(vex_reg_offset_t reg_offset) const {
-		auto vex_sub_reg_mapping_entry = vex_sub_reg_map.find(reg_offset);
-		if (vex_sub_reg_mapping_entry != vex_sub_reg_map.end()) {
-			return vex_sub_reg_mapping_entry->second;
-		}
 		if (reg_size_map.find(reg_offset) != reg_size_map.end()) {
 			return reg_offset;
 		}
@@ -634,7 +630,6 @@ class State {
 		RegisterSet symbolic_registers; // tracking of symbolic registers
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 		RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
-		RegisterMap vex_sub_reg_map; // Mapping of VEX sub-registers to their main register
 		std::unordered_map<vex_reg_offset_t, uint64_t> reg_size_map;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
 		std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
