@@ -3,7 +3,7 @@ import claripy
 
 class SimVariable:
 
-    __slots__ = ['ident', 'name', 'region', 'category']
+    __slots__ = ['ident', 'name', 'region', 'category', 'renamed', 'candidate_names']
 
     def __init__(self, ident=None, name=None, region=None, category=None):
         """
@@ -14,6 +14,8 @@ class SimVariable:
         self.name = name
         self.region = region if region is not None else ""
         self.category = category
+        self.renamed = False
+        self.candidate_names = None
 
     def copy(self):
         raise NotImplementedError()
