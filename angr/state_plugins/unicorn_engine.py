@@ -64,7 +64,8 @@ class RegisterValue(ctypes.Structure): # register_value_t
 
     _fields_ = [
         ('offset', ctypes.c_uint64),
-        ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE)
+        ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE),
+        ('size', ctypes.c_int64)
     ]
 class InstrDetails(ctypes.Structure): # sym_instr_details_t
     _fields_ = [
@@ -934,13 +935,13 @@ class Unicorn(SimStatePlugin):
         def _get_register_values(register_values):
             for register_value in register_values:
                 # Convert the register value in bytes to number of appropriate size and endianness
-                reg_name, reg_size = self.state.arch.vex_reg_offset_to_name[register_value.offset]
+                reg_name = self.state.arch.register_size_names[(register_value.offset, register_value.size)]
                 if self.state.arch.register_endness == archinfo.Endness.LE:
                     reg_value = int.from_bytes(register_value.value, "little")
                 else:
                     reg_value = int.from_bytes(register_value.value, "big")
 
-                reg_value = reg_value & (pow(2, reg_size * 8) - 1)
+                reg_value = reg_value & (pow(2, register_value.size * 8) - 1)
                 yield (reg_name, reg_value)
 
         def _get_memory_values(memory_values):

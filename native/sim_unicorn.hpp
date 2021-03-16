@@ -55,6 +55,7 @@ struct taint_entity_t {
 	std::vector<taint_entity_t> mem_ref_entity_list;
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
 	address_t instr_addr;
+	int64_t value_size;
 
 	bool operator==(const taint_entity_t &other_entity) const {
 		if (entity_type != other_entity.entity_type) {
@@ -132,6 +133,7 @@ struct mem_read_result_t {
 struct register_value_t {
 	uint64_t offset;
 	uint8_t value[MAX_REGISTER_BYTE_SIZE];
+	int64_t size;
 
 	bool operator==(const register_value_t &reg_value) const {
 		if (offset != reg_value.offset) {
@@ -354,18 +356,20 @@ struct processed_vex_expr_t {
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_count;
+	int64_t value_size;
 
 	void reset() {
 		taint_sources.clear();
 		ite_cond_entities.clear();
 		has_unsupported_expr = false;
 		mem_read_count = 0;
+		value_size = -1;
 	}
 };
 
 struct instr_slice_details_t {
 	std::set<instr_details_t> dependent_instrs;
-	std::unordered_set<vex_reg_offset_t> concrete_registers;
+	std::unordered_map<vex_reg_offset_t, int64_t> concrete_registers;
 };
 
 struct CachedPage {
@@ -482,7 +486,7 @@ class State {
 	std::set<instr_details_t> get_list_of_dep_instrs(const instr_details_t &instr) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	processed_vex_expr_t process_vex_expr(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
+	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRSB *vex_block, address_t instr_addr, bool is_exit_stmt);
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
