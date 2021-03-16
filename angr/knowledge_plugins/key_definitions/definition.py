@@ -21,12 +21,11 @@ class Definition:
 
     __slots__ = ('atom', 'codeloc', 'data', 'dummy', 'tags')
 
-    def __init__(self, atom: Atom, codeloc: CodeLocation, data: DataSet, dummy: bool=False, tags: Set[Tag]=None):
+    def __init__(self, atom: Atom, codeloc: CodeLocation, dummy: bool=False, tags: Set[Tag]=None):
 
         self.atom: Atom = atom
         self.codeloc: CodeLocation = codeloc
         self.dummy: bool = dummy
-        self.data: DataSet = data
         self.tags = tags or set()
 
     def __eq__(self, other):
@@ -34,11 +33,10 @@ class Definition:
 
     def __repr__(self):
         if not self.tags:
-            return '<Definition {Atom:%s, Codeloc:%s, Data:%s%s}>' % (self.atom, self.codeloc, self.data,
-                                                                  "" if not self.dummy else "dummy")
+            return '<Definition {Atom:%s, Codeloc:%s}%s>' % (self.atom, self.codeloc, "" if not self.dummy else "dummy")
         else:
-            return '<Definition {Tags:%s, Atom:%s, Codeloc:%s, Data:%s%s}>' % (repr(self.tags), self.atom, self.codeloc, self.data,
-                                                                  "" if not self.dummy else " dummy")
+            return '<Definition {Tags:%s, Atom:%s, Codeloc:%s}%s>' % (repr(self.tags), self.atom, self.codeloc,
+                                                                    "" if not self.dummy else " dummy")
     def __hash__(self):
         return hash((self.atom, self.codeloc))
 

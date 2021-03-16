@@ -1,7 +1,9 @@
-from typing import Optional, Iterable, Set, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Generator, TYPE_CHECKING
 import logging
 
 import archinfo
+import claripy
+from claripy.annotation import Annotation
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
@@ -23,6 +25,26 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+#
+# Annotations
+#
+
+
+class DefinitionAnnotation(Annotation):
+    def __init__(self, definition):
+        super().__init__()
+        self.definition = definition
+
+    def relocatable(self):
+        return False
+
+    def eliminatable(self):
+        return False
+
+
+#
+# Reaching definitions state
+#
 
 class ReachingDefinitionsState:
     """
@@ -45,6 +67,9 @@ class ReachingDefinitionsState:
     :param heap_allocator: Mechanism to model the management of heap memory.
     :param environment: Representation of the environment of the analysed program.
     """
+
+    INITIAL_SP_32BIT = 0x7fff0000
+    INITIAL_SP_64BIT = 0x7fffffff0000
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
                  'all_definitions', '_canonical_size', 'heap_allocator', '_environment', )
@@ -79,9 +104,40 @@ class ReachingDefinitionsState:
         self.current_codeloc: Optional[CodeLocation] = None
         self.codeloc_uses: Set[Definition] = set()
 
-    def top(self, *args): return self.live_definitions.top(*args)
+    #
+    # Util methods for working with the memory model
+    #
+
+    def top(self, size: int):
+        return self.live_definitions.top(size * self.arch.byte_width)
 
     def is_top(self, *args): return self.live_definitions.is_top(*args)
+
+    def _initial_stack_pointer(self):
+        if self.arch.bits == 32:
+            return claripy.BVV(self.INITIAL_SP_32BIT, 32)
+        elif self.arch.bits == 64:
+            return claripy.BVV(self.INITIAL_SP_64BIT, 32)
+        else:
+            raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+
+    def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition):
+        """
+
+        :param symvar:
+        :param definition:
+        :return:
+        """
+        return symvar.annotate(DefinitionAnnotation(definition))
+
+    def extract_defs(self, symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
+        for anno in symvar.annotations:
+            if isinstance(anno, DefinitionAnnotation):
+                yield anno.definition
+
+    #
+    # Other methods
+    #
 
     @property
     def tmp_definitions(self): return self.live_definitions.tmp_definitions
@@ -155,15 +211,20 @@ class ReachingDefinitionsState:
 
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
-        sp = Register(self.arch.sp_offset, self.arch.bytes)
-        sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits), tags={InitialValueTag()})
-        self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+
+        sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
+        sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+        sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
+        self.register_definitions.store(self.arch.sp_offset, sp, endness=self.arch.register_endness)
+
         if self.arch.name.startswith('MIPS'):
             if func_addr is None:
                 l.warning("func_addr must not be None to initialize a function in mips")
-            t9 = Register(self.arch.registers['t9'][0], self.arch.bytes)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet(func_addr, self.arch.bits), tags={InitialValueTag()})
-            self.register_definitions.set_object(t9_def.offset,t9_def,t9_def.size)
+            t9_offset = self.arch.registers['t9'][0]
+            t9_atom = Register(t9_offset, self.arch.bytes)
+            t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
+            self.register_definitions.store(t9_offset, t9, endness=self.arch.register_endness)
 
         if cc is not None and cc.args is not None:
             for arg in cc.args:
@@ -171,31 +232,37 @@ class ReachingDefinitionsState:
                 if isinstance(arg, SimRegArg):
                     # FIXME: implement reg_offset handling in SimRegArg
                     reg_offset = self.arch.registers[arg.reg_name][0]
-                    reg = Register(reg_offset, self.arch.bytes)
-                    reg_def = Definition(reg, ExternalCodeLocation(), DataSet(UNDEFINED, self.arch.bits), tags={ParameterTag()})
-                    self.register_definitions.set_object(reg.reg_offset, reg_def, reg.size)
+                    reg_atom = Register(reg_offset, self.arch.bytes)
+                    reg_def = Definition(reg_atom, ExternalCodeLocation(), tags={ParameterTag()})
+                    reg = self.annotate_with_def(self.top(self.arch.bytes), reg_def)
+                    self.register_definitions.store(reg_offset, reg, endness=self.arch.register_endness)
+
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
-                    sp_offset = SpOffset(self.arch.bits, arg.stack_offset)
-                    ml = MemoryLocation(sp_offset, arg.size)
-                    ml_def = Definition(ml, ExternalCodeLocation(), DataSet(UNDEFINED, arg.size * 8), tags={ParameterTag()})
-                    self.stack_definitions.set_object(arg.stack_offset, ml_def, ml.size)
+                    ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
+                    ml_def = Definition(ml_atom, ExternalCodeLocation(), tags={ParameterTag()})
+                    ml = self.annotate_with_def(self.top(self.arch.bytes), ml_def)
+                    self.stack_definitions.store(self._initial_stack_pointer() + arg.stack_offset, ml,
+                                                 endness=self.arch.memory_endness)
+
                 else:
                     raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
 
         # architecture dependent initialization
-        if self.arch.name.lower().find('ppc64') > -1:
+        if self.arch.name.startswith("PPC64"):
             if rtoc_value is None:
                 raise TypeError("rtoc_value must be provided on PPC64.")
             offset, size = self.arch.registers['rtoc']
-            rtoc = Register(offset, size)
-            rtoc_def = Definition(rtoc, ExternalCodeLocation(), DataSet(rtoc_value, self.arch.bits), tags=InitialValueTag())
-            self.register_definitions.set_object(rtoc.reg_offset, rtoc_def, rtoc.size)
-        elif self.arch.name.lower().find('mips64') > -1:
+            rtoc_atom = Register(offset, size)
+            rtoc_def = Definition(rtoc_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
+            self.register_definitions.store(offset, rtoc, endness=self.arch.register_endness)
+        elif self.arch.name.startswith('MIPS64'):
             offset, size = self.arch.registers['t9']
-            t9 = Register(offset, size)
-            t9_def = Definition(t9, ExternalCodeLocation(), DataSet({func_addr}, self.arch.bits), tags=InitialValueTag())
-            self.register_definitions.set_object(t9.reg_offset, t9_def, t9.size)
+            t9_atom = Register(offset, size)
+            t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
+            self.register_definitions.store(offset, t9)
 
     def copy(self) -> 'ReachingDefinitionsState':
         rd = ReachingDefinitionsState(

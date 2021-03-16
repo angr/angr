@@ -7,7 +7,7 @@ import archinfo
 
 from collections import defaultdict
 
-from ...storage.memory_mixins import LabeledMemory
+from ...storage.memory_mixins import MultiValuedMemory
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
@@ -43,13 +43,13 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = LabeledMemory(memory_id="reg", top_func=self.top) \
+        self.register_definitions = MultiValuedMemory(memory_id="reg", top_func=self.top) \
             if register_definitions is None else register_definitions
-        self.stack_definitions = LabeledMemory(memory_id="mem", top_func=self.top) \
+        self.stack_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
             if stack_definitions is None else stack_definitions
-        self.memory_definitions = LabeledMemory(memory_id="mem", top_func=self.top) \
+        self.memory_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
             if memory_definitions is None else memory_definitions
-        self.heap_definitions = LabeledMemory(memory_id="mem", top_func=self.top) \
+        self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
             if heap_definitions is None else heap_definitions
         self.tmp_definitions: Dict[int,Set[Definition]] = {}
 
@@ -92,15 +92,15 @@ class LiveDefinitions:
     def _get_weakref(self):
         return weakref.proxy(self)
 
-    def top(self, size: int):
+    def top(self, bits: int):
         """
         Get a TOP value.
 
-        :param size:    Width of the TOP value (in bits).
+        :param bits:    Width of the TOP value (in bits).
         :return:        The TOP value.
         """
 
-        r = claripy.BVS("TOP", size, explicit_name=True)
+        r = claripy.BVS("TOP", bits, explicit_name=True)
         return r
 
     def is_top(self, expr) -> bool:
@@ -122,11 +122,11 @@ class LiveDefinitions:
         Return the concrete value contained by the stack pointer.
         """
         sp_definitions = self.register_definitions.get_objects_by_offset(self.arch.sp_offset)
-        [first_value, *other_values] = [ d.data.get_first_element() for d in sp_definitions ]
+        first_value, *other_values = [ d.data.get_first_element() for d in sp_definitions ]
 
         # If there are several definitions for SP, all values must be the same.
         if len(sp_definitions) > 1:
-            [first_value, *other_values] = [ d.data.get_first_element() for d in sp_definitions ]
+            first_value, *other_values = [ d.data.get_first_element() for d in sp_definitions ]
             all_have_same_value = all(map(lambda v: v == first_value, other_values))
             assert all_have_same_value
 

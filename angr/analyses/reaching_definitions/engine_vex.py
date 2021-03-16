@@ -5,7 +5,7 @@ import pyvex
 
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
-from ...errors import SimEngineError
+from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC
 from ...utils.constants import DEFAULT_STATEMENT
 from ...knowledge_plugins.key_definitions.definition import Definition
@@ -279,16 +279,20 @@ class SimEngineRDVEX(
         bits: int = expr.result_size(self.tyenv)
         size: int = bits // self.arch.byte_width
 
-        # FIXME: size, overlapping
         data: Set[Union[Undefined,RegisterOffset,int]] = set()
-        current_defs: Iterable[Definition] = self.state.register_definitions.get_objects_by_offset(reg_offset)
-        for current_def in current_defs:
-            data.update(current_def.data)
+        try:
+            values = self.state.register_definitions.load(reg_offset, size=size, endness=self.arch.register_endness)
+        except SimMemoryMissingError:
+            values = self.state.top(size)
+
+        raise RuntimeError("This is where I left off")
+
+        current_defs: Iterable[Definition] = self.state.extract_defs()
         if len(data) == 0:
             # no defs can be found. add a fake definition
             data.add(UNDEFINED)
             self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
-                                               DataSet(data, bits))
+                                               values)
         if any(type(d) is Undefined for d in data):
             l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
                    self.arch.translate_register_name(reg_offset, size=size), reg_offset, self.ins_addr)
