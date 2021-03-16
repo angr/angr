@@ -310,9 +310,9 @@ class LabeledMemory(
         return super()._default_value(addr, size, **kwargs)
 
 
-class LabeledMultiValuedMemory(
+class MultiValuedMemory(
     SizeNormalizationMixin,
-    MVListPagesWithLabelsMixin,
+    MVListPagesMixin,
     DefaultFillerMixin,
     TopMergerMixin,
     PagedMemoryMixin,

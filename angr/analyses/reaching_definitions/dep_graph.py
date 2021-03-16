@@ -123,12 +123,13 @@ class DepGraph:
 
     def add_dependencies_for_concrete_pointers_of(self, definition: Definition, cfg: CFGBase, loader: Loader):
         """
-        When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in the
-        dependency graph; Adds them if necessary.
+        When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in
+        the dependency graph; Adds them if necessary.
 
         :param definition: The definition which has data that can contain concrete pointers.
-        :param cfg: The CFG, containing informations about memory data.
+        :param cfg: The CFG, containing information about memory data.
         """
+        raise RuntimeError("This function should be replaced elsewhere.")
         assert definition in self.nodes(), 'The given Definition must be present in the given graph.'
 
         known_predecessor_addresses = list(map(
@@ -139,10 +140,10 @@ class DepGraph:
             )
         ))
 
-        unknown_concrete_addresses = list(filter(
+        unknown_concrete_addresses = filter(
             lambda address: isinstance(address, int) and address not in known_predecessor_addresses,
             definition.data
-        ))
+        )
 
         for address in unknown_concrete_addresses:
             data_at_address = cfg.memory_data.get(address, None)

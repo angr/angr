@@ -1,7 +1,9 @@
 import claripy
-from typing import List, Tuple, Union
+from typing import List, Tuple, Set
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
+from .multi_values import MultiValues
+
 
 class CooperationBase:
     """
@@ -77,6 +79,91 @@ class MemoryObjectMixin(CooperationBase):
             elements = list(reversed(elements))
 
         return elements[0].concat(*elements[1:])
+
+    @classmethod
+    def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
+        # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
+        cur_addr = addr + page_addr
+        if label is None:
+            memory_object = SimMemoryObject(data, cur_addr, endness,
+                                            byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        else:
+            memory_object = SimLabeledMemoryObject(data, cur_addr, endness,
+                                                   byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                                                   label=label)
+        size = yield
+        while True:
+            cur_addr += size
+            size = yield memory_object
+
+    @classmethod
+    def _zero_objects(cls, addr, size, memory=None, **kwargs):
+        data = claripy.BVV(0, size*memory.state.arch.byte_width if memory is not None else 8)
+        return cls._decompose_objects(addr, data, 'Iend_BE', memory=memory, **kwargs)
+
+
+class MemoryObjectSetMixin(CooperationBase):
+    """
+    Uses sets of SimMemoryObjects in region storage.
+    """
+    @classmethod
+    def _compose_objects(cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None,
+                         memory=None, **kwargs):
+        c_objects: List[Tuple[int, Set[SimMemoryObject]]] = [ ]
+        for objlist in objects:
+            for element in objlist:
+                if not c_objects or element[1] is not c_objects[-1][1]:
+                    c_objects.append(element)
+
+        mask = (1 << memory.state.arch.bits) - 1
+        elements: List[Set[claripy.ast.Base]] = [ ]
+        for i, (a, objs) in enumerate(c_objects):
+            chopped_set = set()
+            for o in objs:
+                chopped = o.bytes_at(
+                    a,
+                    ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
+                    endness=endness
+                )
+                chopped_set.add(chopped)
+            elements.append(chopped_set)
+
+        if len(elements) == 0:
+            # nothing is read out
+            return MultiValues({0: claripy.BVV(0, 0)})
+
+        if len(elements) == 1:
+            return MultiValues({0: elements[0]})
+
+        if endness == 'Iend_LE':
+            elements = list(reversed(elements))
+
+        mv = MultiValues()
+        offset = 0
+        start_offset = 0
+        prev_value = ...
+        for i, value_set in enumerate(elements):
+            if len(value_set) == 1:
+                if prev_value is ...:
+                    prev_value = next(iter(value_set))
+                    start_offset = offset
+                else:
+                    prev_value = prev_value.concat(next(iter(value_set)))
+            else:
+                if prev_value is not ...:
+                    mv.add_value(start_offset, prev_value)
+                    prev_value = ...
+
+                for value in value_set:
+                    mv.add_value(offset, value)
+
+            offset += next(iter(value_set)).size() // memory.state.arch.byte_width
+
+        if prev_value is not ...:
+            mv.add_value(start_offset, prev_value)
+            prev_value = ...
+
+        return mv
 
     @classmethod
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
