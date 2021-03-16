@@ -94,12 +94,14 @@ struct taint_entity_t {
 };
 
 // Hash function for unordered_map. Needs to be defined this way in C++.
-template <>
-struct std::hash<taint_entity_t> {
-	std::size_t operator()(const taint_entity_t &entity) const {
-		return entity.operator()(entity);
-	}
-};
+namespace std {
+	template <>
+	struct hash<taint_entity_t> {
+		std::size_t operator()(const taint_entity_t &entity) const {
+			return entity.operator()(entity);
+		}
+	};
+}
 
 struct memory_value_t {
 	uint64_t address;
