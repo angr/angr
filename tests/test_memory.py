@@ -13,7 +13,7 @@ from angr.storage.memory_mixins import (
     PagedMemoryMixin,
 )
 from angr.storage.memory_mixins import (
-    LabeledMultiValuedMemory,
+    MultiValuedMemory,
 )
 from angr import SimState, SIM_PROCEDURES
 from angr import options as o

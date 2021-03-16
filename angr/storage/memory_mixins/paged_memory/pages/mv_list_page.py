@@ -1,9 +1,11 @@
 import logging
-from typing import Optional, List, Set, Tuple, Union, Generator, Any
+from typing import Optional, List, Set, Tuple, Union, Dict
+
+import claripy
 
 from . import PageBase
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
-from .cooperation import MemoryObjectMixin
+from .cooperation import MemoryObjectSetMixin
 
 
 l = logging.getLogger(name=__name__)
@@ -12,7 +14,7 @@ _MOTYPE = Union[SimMemoryObject, SimLabeledMemoryObject]
 
 
 class MVListPage(
-    MemoryObjectMixin,
+    MemoryObjectSetMixin,
     PageBase,
 ):
     """
@@ -39,7 +41,7 @@ class MVListPage(
         return o
 
     def load(self, addr, size=None, endness=None, page_addr=None, memory=None, cooperate=False,
-             **kwargs) -> Generator[List[Tuple[int,_MOTYPE]],None,None]:
+             **kwargs) -> List[Tuple[int,_MOTYPE]]:
         result = [ ]
         last_seen = ...  # ;)
 
@@ -48,12 +50,11 @@ class MVListPage(
         for subaddr in range(addr, addr + size):
             items = self.content[subaddr]
             if items is None:
-                items = self.sinkhole
-            if items is not last_seen:
+                items = { self.sinkhole } if self.sinkhole is not None else None
+            if items != last_seen:
                 if last_seen is None:
                     self._fill(result, subaddr, page_addr, endness, memory, **kwargs)
-                for item in items:
-                    result.append((subaddr + page_addr, item))
+                result.append((subaddr + page_addr, items))
                 last_seen = items
 
         if last_seen is None:
@@ -61,7 +62,7 @@ class MVListPage(
 
         if not cooperate:
             result = self._force_load_cooperation(result, size, endness, memory=memory, **kwargs)
-        yield from result
+        return result
 
     def _fill(self, result, addr, page_addr, endness, memory, **kwargs):
         """
@@ -91,9 +92,15 @@ class MVListPage(
             self.sinkhole = data
             self.content = [None] * len(self.content)
         else:
-            s = { data }
-            for subaddr in range(addr, addr + size):
-                self.content[subaddr] = s
+            if not weak:
+                for subaddr in range(addr, addr + size):
+                    self.content[subaddr] = {data}
+            else:
+                for subaddr in range(addr, addr + size):
+                    if self.content[subaddr] is None:
+                        self.content[subaddr] = { data }
+                    else:
+                        self.content[subaddr].add(data)
 
     def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
               memory=None):
