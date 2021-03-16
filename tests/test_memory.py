@@ -774,21 +774,42 @@ def test_concrete_load():
 
 
 def test_multivalued_list_page():
-    state = SimState(arch='AMD64', mode='symbolic', plugins={'memory': LabeledMultiValuedMemory()})
+    state = SimState(arch='AMD64', mode='symbolic', plugins={'memory': MultiValuedMemory()})
 
     # strong update
     state.memory.store(0x100, claripy.BVV(0x40, 64))
     state.memory.store(0x100, claripy.BVV(0x80818283, 64))
-    a = list(state.memory.load(0x100, size=8))
-    assert len(a) == 1
-    assert a[0] is claripy.BVV(0x80818283, 64)
+    a = state.memory.load(0x100, size=8).one_value()
+    assert a is not None
+    assert a is claripy.BVV(0x80818283, 64)
+
+    # strong update with partial overwrites
+    state.memory.store(0x100, claripy.BVV(0x0, 64))
+    state.memory.store(0x104, claripy.BVV(0x1337, 32))
+    a = state.memory.load(0x100, size=8).one_value()
+    assert a is not None
+    assert a is claripy.BVV(0x1337, 64)
 
     # weak updates
     state.memory.store(0x120, claripy.BVV(0x40, 64))
     state.memory.store(0x120, claripy.BVV(0x85868788, 64), weak=True)
-    a = list(state.memory.load(0x120, size=8))
-    assert len(a) == 2
-    assert set(state.solver.eval_exact(item, 1) for item in a) == { 0x40, 0x85868788 }
+    a = state.memory.load(0x120, size=8)
+    assert len(a.values) == 1
+    assert 0 in a.values
+    assert len(a.values[0]) == 2
+    assert set(state.solver.eval_exact(item, 1)[0] for item in a.values[0]) == { 0x40, 0x85868788 }
+
+    # weak updates with symbolic values
+    A = claripy.BVS("a", 64)
+    state.memory.store(0x140, A, endness=state.arch.memory_endness)
+    state.memory.store(0x141, claripy.BVS("b", 64), endness=state.arch.memory_endness, weak=True)
+    a = state.memory.load(0x140, size=8)
+    assert len(a.values) == 2
+    assert 0 in a.values
+    assert 1 in a.values
+    assert len(a.values[0]) == 1
+    assert next(iter(a.values[0])) is A[7:0]
+    assert len(a.values[1]) == 2
 
 
 if __name__ == '__main__':
