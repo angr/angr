@@ -1,7 +1,9 @@
-from typing import Generator, Any, Iterable, Tuple
+from typing import Generator, Any, Iterable, Tuple, List
 import logging
 
 import networkx
+
+from .apis import CauseBase, InstrOpcodeCause
 
 _l = logging.getLogger(name=__name__)
 
@@ -9,6 +11,9 @@ _l = logging.getLogger(name=__name__)
 class BaseRule:
     def eval(self, graph: 'networkx.DiGraph') -> Tuple[bool,Any,Any]:
         raise NotImplementedError()
+
+    def filter_root_causes(self, causes: List[CauseBase]) -> List[CauseBase]:
+        return causes
 
 
 class IllegalNodeBaseRule(BaseRule):
@@ -60,6 +65,10 @@ class MinDelayBaseRule(BaseRule):
 
         return True, None, None
 
+    def filter_root_causes(self, causes: List[CauseBase]) -> List[CauseBase]:
+        # we really do not care about InstrOpcodeCause...
+        return [ cause for cause in causes if not isinstance(cause, InstrOpcodeCause)]
+
 
 class RuleVerifier:
     """
@@ -73,5 +82,5 @@ class RuleVerifier:
 
         _l.warning("Checked against %s: %s, %s, %s", rule, safe, src_node, dst_node)
 
-        return safe
+        return safe, src_node, dst_node
 

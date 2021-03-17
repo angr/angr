@@ -1,17 +1,58 @@
-import sys
 import os
-import json
+from typing import Dict, Tuple,TYPE_CHECKING
+
+import networkx
+
 import claripy
 import angr
 from angr.analyses.state_graph_recovery import MinDelayBaseRule, RuleVerifier, IllegalNodeBaseRule
+
+if TYPE_CHECKING:
+    import networkx
 
 
 binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
 
 
-def test_smoketest():
-    # path = r"C:\Users\Fish\Desktop\temp\mitre\Traffic_Light_Short_Ped\build\Traffic_Light_Short_Ped.so"
+# state graph acquired. define a rule
+class MinDelayRule_PedGreen(MinDelayBaseRule):
+    def node_a(self, graph: 'networkx.DiGraph'):
+        # ped light is green
+        for node in graph.nodes():
+            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 0:
+                yield node
 
+    def node_b(self, graph: 'networkx.DiGraph'):
+        # ped light is red
+        for node in graph.nodes():
+            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 0 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 1:
+                yield node
+
+
+class MinDelayRule_Orange(MinDelayBaseRule):
+    def node_a(self, graph: 'networkx.DiGraph'):
+        # ped light is orange
+        for node in graph.nodes():
+            if dict(node)['ORANGE_LIGHT'] == 1 and dict(node)['RED_LIGHT'] == 0:
+                yield node
+
+    def node_b(self, graph: 'networkx.DiGraph'):
+        # ped light is red
+        for node in graph.nodes():
+            if dict(node)['ORANGE_LIGHT'] == 0 and dict(node)['RED_LIGHT'] == 1:
+                yield node
+
+
+class NoPedGreenCarGreen(IllegalNodeBaseRule):
+    def verify_node(self, graph: 'networkx.DiGraph', node) -> bool:
+        if dict(node)['GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1:
+            # both car green light and the pedestrian green light are on at the same time
+            # this is bad!
+            return False
+        return True
+
+
+def test_smoketest():
     # binary_path = '/home/bonnie/PLCRCA/test/Traffic_Light_Short_Ped.so'
     # variable_path = '/home/bonnie/PLCRCA/test/Traffic_Light_Short_Ped.json'
 
@@ -38,7 +79,6 @@ def test_smoketest():
     proj.hook(cfg.kb.functions['PYTHON_POLL_body__'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
     proj.hook(cfg.kb.functions['__publish_debug'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
     proj.hook(cfg.kb.functions['__publish_py_ext'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
-
 
     # run the state initializer
     init = cfg.kb.functions['config_init__']
@@ -79,48 +119,36 @@ def test_smoketest():
     sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state)
     state_graph = sgr.state_graph
 
-    # state graph acquired. define a rule
-    class MinDelayRule_pedgreen(MinDelayBaseRule):
-        def node_a(self, graph: 'networkx.DiGraph'):
-            # ped light is green
-            for node in graph.nodes():
-                if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 0:
-                    yield node
-
-        def node_b(self, graph: 'networkx.DiGraph'):
-            # ped light is red
-            for node in graph.nodes():
-                if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 0 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 1:
-                    yield node
-
-    class MinDelayRule_orange(MinDelayBaseRule):
-        def node_a(self, graph: 'networkx.DiGraph'):
-            # ped light is green
-            for node in graph.nodes():
-                if dict(node)['ORANGE_LIGHT'] == 1 and dict(node)['RED_LIGHT'] == 0:
-                    yield node
-
-        def node_b(self, graph: 'networkx.DiGraph'):
-            # ped light is red
-            for node in graph.nodes():
-                if dict(node)['ORANGE_LIGHT'] == 0 and dict(node)['RED_LIGHT'] == 1:
-                    yield node
-
-    class NoPedGreenCarGreen(IllegalNodeBaseRule):
-        def verify_node(self, graph: 'networkx.DiGraph', node) -> bool:
-            if dict(node)['GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1:
-                # both car green light and the pedestrian green light are on at the same time
-                # this is bad!
-                return False
-            return True
-
     finder = RuleVerifier(state_graph)
-    rule = MinDelayRule_orange(2.0)
-    finder.verify(rule)
-    rule = MinDelayRule_pedgreen(10.0)
-    finder.verify(rule)
+    rule = MinDelayRule_Orange(2.0)
+    r, src, dst = finder.verify(rule)
+    assert r is True
+
+    rule = MinDelayRule_PedGreen(10.0)
+    r, src, dst = finder.verify(rule)
+
+    assert r is False
+    # find the constraint and the source of the timing interval from the state graph
+    for path in networkx.all_simple_paths(state_graph, src, dst):
+        for a, b in zip(path, path[1:]):
+            data = state_graph[a][b]
+            constraint = data['time_delta_constraint']
+            block_addr, stmt_idx = data['time_delta_src']
+
+            if constraint is not None and block_addr is not None and stmt_idx is not None:
+                print(f"[.] Found a time delta source: {constraint}@{block_addr:#x}:{stmt_idx}")
+
+                # root cause it
+                rc = proj.analyses.RootCause(block_addr, stmt_idx, constraint=constraint)
+                print("[.] Full root causes:", rc.causes)
+                # filter them
+                print("[.] Filtering root causes...")
+                causes = rule.filter_root_causes(rc.causes)
+                print("[+] Filtered root causes:", causes)
+
     rule = NoPedGreenCarGreen()
-    finder.verify(rule)
+    r, src, dst = finder.verify(rule)
+    assert r is True
 
     # output the graph to a dot file
     from networkx.drawing.nx_agraph import write_dot
