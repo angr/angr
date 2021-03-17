@@ -9,9 +9,19 @@
 #
 
 from typing import Optional, Iterable
+import logging
 
-from patcherex.patches import AddCodePatch, InsertCodePatch, AddLabelPatch
-from patcherex.patches import Patch
+_l = logging.getLogger(name=__name__)
+
+try:
+    from patcherex.patches import AddCodePatch, InsertCodePatch, AddLabelPatch
+    from patcherex.patches import Patch
+except ImportError:
+    _l.warning("Cannot import Patcherex. You will not be able to apply patches.")
+
+    # dummy patch base class
+    class Patch:
+        pass
 
 from .abstract_state import AbstractState
 
@@ -147,7 +157,6 @@ class InstrOpcodeCause(CauseBase):
     The root cause of "sleeping for *b + 2* seconds" involves the add operator. If this addition operation is
     implemented as an instruction, such as _add r0, r0, 2_, then InstrOpcodeCause will be able to capture it.
     """
-    def __init__(self, addr: int, operator: str, old_value: str):
+    def __init__(self, addr: int, operator):
         self.addr = addr
         self.operator = operator
-        self.old_value = old_value
