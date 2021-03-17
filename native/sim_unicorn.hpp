@@ -527,18 +527,6 @@ class State {
 		return (blacklisted_registers.count(reg_offset) > 0);
 	}
 
-	inline vex_reg_offset_t get_full_register_offset(vex_reg_offset_t reg_offset) const {
-		if (reg_size_map.find(reg_offset) != reg_size_map.end()) {
-			return reg_offset;
-		}
-		for (auto &entry: reg_size_map) {
-			if ((entry.first <= reg_offset) && (reg_offset <= entry.first + entry.second)) {
-				return entry.first;
-			}
-		}
-		return reg_offset;
-	}
-
 	inline unsigned int arch_pc_reg_vex_offset() const {
 		switch (arch) {
 			case UC_ARCH_X86:

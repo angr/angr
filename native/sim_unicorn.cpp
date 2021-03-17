@@ -727,18 +727,17 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 	instr_slice_details_t instr_slice_details;
 	for (auto &dependency: instr_taint_entry.dependencies_to_save) {
 		if (dependency.entity_type == TAINT_ENTITY_REG) {
-			vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
-			auto dep_reg_slice_entry = reg_instr_slice.find(dependency_full_register_offset);
+			auto dep_reg_slice_entry = reg_instr_slice.find(dependency.reg_offset);
 			if (dep_reg_slice_entry == reg_instr_slice.end()) {
 				// We don't care about slice of this register because it's artificial, blacklisted or something else.
 				continue;
 			}
-			if (!is_symbolic_register(dependency_full_register_offset)) {
+			if (!is_symbolic_register(dependency.reg_offset)) {
 				auto dep_reg_slice_instrs = dep_reg_slice_entry->second;
 				if (dep_reg_slice_instrs.size() == 0) {
 					// The register was not modified in this block by any preceding instruction
 					// and so it's value at start of block is a dependency of the block
-					instr_slice_details.concrete_registers.emplace(dependency_full_register_offset, dependency.value_size);
+					instr_slice_details.concrete_registers.emplace(dependency.reg_offset, dependency.value_size);
 				}
 				else {
 					// The register was modified by some instructions in the block. We add those
@@ -1416,7 +1415,6 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		}
 		return false;
 	}
-	reg_offset = get_full_register_offset(reg_offset);
 	// The register is not a CPU flag and so we check every byte of the register
 	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
@@ -1625,7 +1623,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 
 				// Mark sink as symbolic
 				if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-					mark_register_symbolic(get_full_register_offset(taint_sink.reg_offset));
+					mark_register_symbolic(taint_sink.reg_offset);
 				}
 				else {
 					mark_temp_symbolic(taint_sink.tmp_id);
@@ -1633,8 +1631,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			}
 			else if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset != arch_pc_reg_vex_offset())) {
 				// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
-				vex_reg_offset_t taint_sink_full_register_offset = get_full_register_offset(taint_sink.reg_offset);
-				mark_register_concrete(taint_sink_full_register_offset);
+				mark_register_concrete(taint_sink.reg_offset);
 			}
 		}
 		auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
@@ -1808,17 +1805,17 @@ void State::save_concrete_memory_deps(instr_details_t &instr) {
 void State::update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry) {
 	instr_details_t instr_details = compute_instr_details(instr_addr, curr_instr_taint_entry);
 	for (auto &reg_entry: curr_instr_taint_entry.modified_regs) {
-		vex_reg_offset_t full_register_offset = get_full_register_offset(reg_entry.first);
-		if ((full_register_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(full_register_offset)) {
+		vex_reg_offset_t reg_offset = reg_entry.first;
+		if ((reg_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(reg_offset)) {
 			continue;
 		}
-		if (reg_instr_slice.find(full_register_offset) == reg_instr_slice.end()) {
+		if (reg_instr_slice.find(reg_offset) == reg_instr_slice.end()) {
 			continue;
 		}
 		if (!reg_entry.second) {
-			reg_instr_slice.at(full_register_offset).clear();
+			reg_instr_slice.at(reg_offset).clear();
 		}
-		reg_instr_slice.at(full_register_offset).emplace_back(instr_details);
+		reg_instr_slice.at(reg_offset).emplace_back(instr_details);
 	}
 	return;
 }
