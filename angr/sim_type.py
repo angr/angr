@@ -832,7 +832,8 @@ class SimTypeFunction(SimType):
         return 4096     # ???????????
 
     def _with_arch(self, arch):
-        out = SimTypeFunction([a.with_arch(arch) for a in self.args], self.returnty.with_arch(arch),
+        out = SimTypeFunction([a.with_arch(arch) for a in self.args],
+                              self.returnty.with_arch(arch) if self.returnty is not None else None,
                               label=self.label,
                               arg_names=self.arg_names,
                               variadic=self.variadic
