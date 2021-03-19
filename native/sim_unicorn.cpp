@@ -732,7 +732,7 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 				// We don't care about slice of this register because it's artificial, blacklisted or something else.
 				continue;
 			}
-			if (!is_symbolic_register(dependency.reg_offset)) {
+			if (!is_symbolic_register(dependency.reg_offset, dependency.value_size)) {
 				auto dep_reg_slice_instrs = dep_reg_slice_entry->second;
 				if (dep_reg_slice_instrs.size() == 0) {
 					// The register was not modified in this block by any preceding instruction
@@ -772,13 +772,13 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 			{
 				taint_entity_t sink;
 				std::unordered_set<taint_entity_t> srcs, ite_cond_entity_list;
-				std::pair<vex_reg_offset_t, bool> modified_reg_data;
+				std::pair<vex_reg_offset_t, std::pair<int64_t, bool>> modified_reg_data;
 
 				sink.entity_type = TAINT_ENTITY_REG;
 				sink.instr_addr = curr_instr_addr;
 				sink.reg_offset = stmt->Ist.Put.offset;
 				modified_reg_data.first = stmt->Ist.Put.offset;
-				modified_reg_data.second = false;
+				modified_reg_data.second.second = false;
 				auto result = process_vex_expr(stmt->Ist.Put.data, vex_block, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
@@ -786,6 +786,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 					break;
 				}
 				sink.value_size = result.value_size;
+				modified_reg_data.second.first = sink.value_size;
 				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
 				instruction_taint_entry.mem_read_count += result.mem_read_count;
@@ -798,7 +799,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				// Check if sink is also source of taint
 				if (dependencies_to_save.count(sink)) {
-					modified_reg_data.second = true;
+					modified_reg_data.second.second = true;
 				}
 
 				// Store ITE condition entities and compute dependencies to save
@@ -806,7 +807,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
 				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				if (dependencies_to_save.count(sink)) {
-					modified_reg_data.second = true;
+					modified_reg_data.second.second = true;
 				}
 				if ((modified_reg_data.first != arch_pc_reg_vex_offset()) && reg_instr_slice.count(modified_reg_data.first) != 0) {
 					instruction_taint_entry.modified_regs.emplace_back(modified_reg_data);
@@ -1315,12 +1316,14 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 		if (taint_source.entity_type == TAINT_ENTITY_NONE) {
 			continue;
 		}
-		else if ((taint_source.entity_type == TAINT_ENTITY_REG) || (taint_source.entity_type == TAINT_ENTITY_TMP)) {
-			if (is_symbolic_register_or_temp(taint_source)) {
-				// Taint sink is symbolic. We don't stop here since we need to check for read
-				// from a symbolic address
-				is_symbolic = true;
-			}
+		else if ((taint_source.entity_type == TAINT_ENTITY_REG) &&
+		  (is_symbolic_register(taint_source.reg_offset, taint_source.value_size))) {
+			  // Register is symbolic. Continue checking for read from symbolic address
+			  is_symbolic = true;
+		}
+		else if ((taint_source.entity_type == TAINT_ENTITY_TMP) && (is_symbolic_temp(taint_source.tmp_id))) {
+			// Temp is symbolic. Continue checking for read from a symbolic address
+			is_symbolic = true;
 		}
 		else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
 			// Check if the memory address being read from is symbolic
@@ -1355,7 +1358,7 @@ taint_status_result_t State::get_final_taint_status(const std::vector<taint_enti
 	return get_final_taint_status(taint_sources_set);
 }
 
-void State::mark_register_symbolic(vex_reg_offset_t reg_offset) {
+void State::mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size) {
 	// Mark register as symbolic in the state in current block
 	if (is_blacklisted_register(reg_offset)) {
 		return;
@@ -1365,7 +1368,7 @@ void State::mark_register_symbolic(vex_reg_offset_t reg_offset) {
 		block_concrete_registers.erase(reg_offset);
 	}
 	else {
-		for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+		for (auto i = 0; i < reg_size; i++) {
 			block_symbolic_registers.emplace(reg_offset + i);
 			block_concrete_registers.erase(reg_offset + i);
 		}
@@ -1379,7 +1382,7 @@ void State::mark_temp_symbolic(vex_tmp_id_t temp_id) {
 	return;
 }
 
-void State::mark_register_concrete(vex_reg_offset_t reg_offset) {
+void State::mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size) {
 	// Mark register as concrete in the current block
 	if (is_blacklisted_register(reg_offset)) {
 		return;
@@ -1389,7 +1392,7 @@ void State::mark_register_concrete(vex_reg_offset_t reg_offset) {
 		block_concrete_registers.emplace(reg_offset);
 	}
 	else {
-		for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+		for (auto i = 0; i < reg_size; i++) {
 			block_symbolic_registers.erase(reg_offset + i);
 			block_concrete_registers.emplace(reg_offset + i);
 		}
@@ -1397,7 +1400,7 @@ void State::mark_register_concrete(vex_reg_offset_t reg_offset) {
 	return;
 }
 
-bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
+bool State::is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const {
 	// We check if this register is symbolic or concrete in the block level taint statuses since
 	// those are more recent. If not found in either, check the state's symbolic register list.
 	// TODO: Is checking only first byte of artificial and blacklisted registers to determine if they are symbolic fine
@@ -1416,14 +1419,14 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		return false;
 	}
 	// The register is not a CPU flag and so we check every byte of the register
-	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size; i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
 		if (block_symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
 	}
 	bool is_concrete = true;
-	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size; i++) {
 		if (block_concrete_registers.count(reg_offset) == 0) {
 			is_concrete = false;
 			break;
@@ -1435,7 +1438,7 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	// If we reach here, it means that the register is not marked symbolic or concrete in the block
 	// level taint status tracker. We check the state's symbolic register list.
-	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size; i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
@@ -1445,13 +1448,6 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 
 bool State::is_symbolic_temp(vex_tmp_id_t temp_id) const {
 	return (block_symbolic_temps.count(temp_id) > 0);
-}
-
-bool State::is_symbolic_register_or_temp(const taint_entity_t &entity) const {
-	if (entity.entity_type == TAINT_ENTITY_REG) {
-		return is_symbolic_register(entity.reg_offset);
-	}
-	return is_symbolic_temp(entity.tmp_id);
 }
 
 void State::propagate_taints() {
@@ -1623,7 +1619,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 
 				// Mark sink as symbolic
 				if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-					mark_register_symbolic(taint_sink.reg_offset);
+					mark_register_symbolic(taint_sink.reg_offset, taint_sink.value_size);
 				}
 				else {
 					mark_temp_symbolic(taint_sink.tmp_id);
@@ -1631,7 +1627,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			}
 			else if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset != arch_pc_reg_vex_offset())) {
 				// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
-				mark_register_concrete(taint_sink.reg_offset);
+				mark_register_concrete(taint_sink.reg_offset, taint_sink.value_size);
 			}
 		}
 		auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
@@ -1806,13 +1802,15 @@ void State::update_register_slice(address_t instr_addr, const instruction_taint_
 	instr_details_t instr_details = compute_instr_details(instr_addr, curr_instr_taint_entry);
 	for (auto &reg_entry: curr_instr_taint_entry.modified_regs) {
 		vex_reg_offset_t reg_offset = reg_entry.first;
-		if ((reg_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(reg_offset)) {
+		auto reg_size = reg_entry.second.first;
+		if ((reg_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(reg_offset, reg_size)) {
 			continue;
 		}
 		if (reg_instr_slice.find(reg_offset) == reg_instr_slice.end()) {
 			continue;
 		}
-		if (!reg_entry.second) {
+		// Check if register's new value depends on it's previous value
+		if (!reg_entry.second.second) {
 			reg_instr_slice.at(reg_offset).clear();
 		}
 		reg_instr_slice.at(reg_offset).emplace_back(instr_details);

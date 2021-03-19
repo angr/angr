@@ -19,8 +19,8 @@ static const uint8_t PAGE_SHIFT = 12;
 
 typedef uint64_t address_t;
 typedef uint64_t unicorn_reg_id_t;
-typedef uint64_t vex_reg_offset_t;
-typedef uint64_t vex_tmp_id_t;
+typedef int64_t vex_reg_offset_t;
+typedef int64_t vex_tmp_id_t;
 
 enum taint_t: uint8_t {
 	TAINT_NONE = 0,
@@ -56,6 +56,14 @@ struct taint_entity_t {
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
 	address_t instr_addr;
 	int64_t value_size;
+
+	taint_entity_t() {
+		reg_offset = -1;
+		tmp_id = -1;
+		mem_ref_entity_list.clear();
+		instr_addr = 0;
+		value_size = -1;
+	}
 
 	bool operator==(const taint_entity_t &other_entity) const {
 		if (entity_type != other_entity.entity_type) {
@@ -300,9 +308,9 @@ struct instruction_taint_entry_t {
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
 
-	// List of registers modified by instruction and whether register's final value depends on
+	// List of registers modified by instruction, their size and whether register's final value depends on
 	// it's previous value
-	std::vector<std::pair<vex_reg_offset_t, bool>> modified_regs;
+	std::vector<std::pair<vex_reg_offset_t, std::pair<int64_t, bool>>> modified_regs;
 
 	// Count of memory reads in the instruction
 	uint32_t mem_read_count;
@@ -498,12 +506,11 @@ class State {
 
 	bool is_block_exit_guard_symbolic() const;
 	bool is_block_next_target_symbolic() const;
-	bool is_symbolic_register(vex_reg_offset_t reg_offset) const;
+	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
-	bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;
 
-	void mark_register_symbolic(vex_reg_offset_t reg_offset);
-	void mark_register_concrete(vex_reg_offset_t reg_offset);
+	void mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size);
+	void mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size);
 	void mark_temp_symbolic(vex_tmp_id_t temp_id);
 
 	block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address);
