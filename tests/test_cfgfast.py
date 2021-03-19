@@ -920,6 +920,32 @@ def test_load_from_shellcode():
 
     nose.tools.assert_equal(len(cfg.model.nodes()), 2)
 
+def test_starting_point_ordering():
+
+    # project entry should always be first
+    # so edge/path to unlabeled main function from _start
+    # is correctly generated
+
+    path = os.path.join(test_location, "armel", "start_ordering")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast()
+
+    # if ordering is incorrect, edge to function 0x103D4 will not exist
+    n = cfg.model.get_any_node(proj.entry)
+    nose.tools.assert_is_not_none(n)
+    nose.tools.assert_true(len(n.successors) > 0)
+    nose.tools.assert_true(len(n.successors[0].successors) > 0)
+    nose.tools.assert_equal(len(n.successors[0].successors[0].successors), 3)
+
+    # now checking if path to the "real main" exists
+    nose.tools.assert_true(len(n.successors[0].successors[0].successors[1].successors) > 0)
+    n = n.successors[0].successors[0].successors[1].successors[0]
+
+    nose.tools.assert_true(len(n.successors) > 0)
+    nose.tools.assert_true(len(n.successors[0].successors) > 0)
+    nose.tools.assert_true(len(n.successors[0].successors[0].successors) > 0)
+    nose.tools.assert_equal(n.successors[0].successors[0].successors[0].addr, 0x103D4)
+
 
 def run_all():
 
@@ -965,6 +991,7 @@ def run_all():
     test_generate_special_info()
     test_plt_stub_has_one_jumpout_site()
     test_load_from_shellcode()
+    test_starting_point_ordering()
 
 
 def main():
