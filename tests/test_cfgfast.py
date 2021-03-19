@@ -932,7 +932,7 @@ def test_starting_point_ordering():
 
     # if ordering is incorrect, edge to function 0x103D4 will not exist
     n = cfg.model.get_any_node(proj.entry)
-    nose.tools.assert_true(n != None)
+    nose.tools.assert_is_not_none(n)
     nose.tools.assert_true(len(n.successors) > 0)
     nose.tools.assert_true(len(n.successors[0].successors) > 0)
     nose.tools.assert_equal(len(n.successors[0].successors[0].successors), 3)
@@ -944,7 +944,6 @@ def test_starting_point_ordering():
     nose.tools.assert_true(len(n.successors) > 0)
     nose.tools.assert_true(len(n.successors[0].successors) > 0)
     nose.tools.assert_true(len(n.successors[0].successors[0].successors) > 0)
-    nose.tools.assert_equal(len(n.successors[0].successors[0].successors[0].addr) > 0x103D4)
     nose.tools.assert_equal(n.successors[0].successors[0].successors[0].addr, 0x103D4)
 
 
