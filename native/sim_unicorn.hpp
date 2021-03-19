@@ -224,7 +224,7 @@ struct sym_instr_details_t {
 			(memory_values_count != other_instr.memory_values_count)) {
 				return false;
 		}
-		for (uint64_t counter = 0; counter < memory_values_count; counter++) {
+		for (auto counter = 0; counter < memory_values_count; counter++) {
 			if (!(memory_values[counter] == other_instr.memory_values[counter])) {
 				return false;
 			}

@@ -281,7 +281,7 @@ void State::rollback() {
 				address_t start = rit->address & 0xFFF;
 				int size = rit->size;
 				int clean = rit->clean;
-				for (int i = 0; i < size; i++) {
+				for (auto i = 0; i < size; i++) {
 					if ((clean >> i) & 1) {
 						// this byte is untouched before this memory action
 						// in the rollback, we already failed to execute, so
@@ -295,7 +295,7 @@ void State::rollback() {
 			uint64_t start = rit->address & 0xFFF;
 			int size = rit->size;
 			int clean = rit->clean;
-			for (int i = 0; i < size; i++) {
+			for (auto i = 0; i < size; i++) {
 				bitmap[start + i] = (clean & (1 << i)) != 0 ? TAINT_NONE : TAINT_SYMBOLIC;
 			}
 		}
@@ -409,7 +409,7 @@ mem_update_t *State::sync() {
 
 void State::set_stops(uint64_t count, address_t *stops) {
 	stop_points.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		stop_points.insert(stops[i]);
 	}
 }
@@ -418,7 +418,7 @@ std::pair<address_t, size_t> State::cache_page(address_t address, size_t size, c
 	assert(address % 0x1000 == 0);
 	assert(size % 0x1000 == 0);
 
-	for (uint64_t offset = 0; offset < size; offset += 0x1000) {
+	for (auto offset = 0; offset < size; offset += 0x1000) {
 		auto page = page_cache->find(address+offset);
 		if (page != page_cache->end()) {
 			fprintf(stderr, "[%#" PRIx64 ", %#" PRIx64 "](%#zx) already in cache.\n", address+offset, address+offset + 0x1000, 0x1000lu);
@@ -459,7 +459,7 @@ void State::wipe_page_from_cache(address_t address) {
 
 void State::uncache_pages_touching_region(address_t address, uint64_t length) {
 	address &= ~(0x1000-1);
-	for (uint64_t offset = 0; offset < length; offset += 0x1000) {
+	for (auto offset = 0; offset < length; offset += 0x1000) {
 				wipe_page_from_cache(address + offset);
 	}
 
@@ -477,8 +477,7 @@ bool State::map_cache(address_t address, size_t size) {
 
 	bool success = true;
 
-	for (uint64_t offset = 0; offset < size; offset += 0x1000)
-	{
+	for (auto offset = 0; offset < size; offset += 0x1000) {
 		auto page = page_cache->find(address+offset);
 		if (page == page_cache->end())
 		{
@@ -518,7 +517,7 @@ int64_t State::find_tainted(address_t address, int size) {
 
 	if (end >= start) {
 		if (bitmap) {
-			for (int i = start; i <= end; i++) {
+			for (auto i = start; i <= end; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
 					return (address & ~0xFFF) + i;
 				}
@@ -528,7 +527,7 @@ int64_t State::find_tainted(address_t address, int size) {
 	else {
 		// cross page boundary
 		if (bitmap) {
-			for (int i = start; i <= 0xFFF; i++) {
+			for (auto i = start; i <= 0xFFF; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
 					return (address & ~0xFFF) + i;
 				}
@@ -537,7 +536,7 @@ int64_t State::find_tainted(address_t address, int size) {
 
 		bitmap = page_lookup(address + size - 1).first;
 		if (bitmap) {
-			for (int i = 0; i <= end; i++) {
+			for (auto i = 0; i <= end; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
 					return ((address + size - 1) & ~0xFFF) + i;
 				}
@@ -677,7 +676,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		}
 	}
 	if (data == NULL) {
-		for (int i = start; i <= end; i++) {
+		for (auto i = start; i <= end; i++) {
 			if (is_dst_symbolic) {
 				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
 				// Also, no need to set clean: rollback will set it to TAINT_NONE which
@@ -692,7 +691,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		}
 	}
 	else {
-		for (int i = start; i <= end; i++) {
+		for (auto i = start; i <= end; i++) {
 			if (is_dst_symbolic) {
 				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
 				// Also, no need to set clean: rollback will set it to TAINT_NONE which
@@ -765,7 +764,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 
 	started_processing_instructions = false;
 	block_taint_entry.has_unsupported_stmt_or_expr_type = false;
-	for (int i = 0; i < vex_block->stmts_used; i++) {
+	for (auto i = 0; i < vex_block->stmts_used; i++) {
 		auto stmt = vex_block->stmts[i];
 		switch (stmt->tag) {
 			case Ist_Put:
@@ -1244,7 +1243,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 		case Iex_CCall:
 		{
 			IRExpr **ccall_args = expr->Iex.CCall.args;
-			for (uint64_t i = 0; ccall_args[i]; i++) {
+			for (auto i = 0; ccall_args[i]; i++) {
 				auto temp = process_vex_expr(ccall_args[i], vex_block, instr_addr, false);
 				if (temp.has_unsupported_expr) {
 					result.has_unsupported_expr = true;
@@ -1989,8 +1988,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 		// this is the ultimate hack for cgc -- it must be enabled by explitly setting the transmit sysno from python
 		// basically an implementation of the cgc transmit syscall
 
-		for (auto sr : state->symbolic_registers)
-		{
+		for (auto sr : state->symbolic_registers) {
 			// eax,ecx,edx,ebx,esi
 			if ((sr >= 8 && sr <= 23) || (sr >= 32 && sr <= 35)) return;
 		}
@@ -2198,8 +2196,7 @@ extern "C"
 void simunicorn_symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
 	state->symbolic_registers.clear();
-	for (uint64_t i = 0; i < count; i++)
-	{
+	for (auto i = 0; i < count; i++) {
 		state->symbolic_registers.insert(offsets[i]);
 	}
 }
@@ -2208,8 +2205,7 @@ extern "C"
 uint64_t simunicorn_get_symbolic_registers(State *state, uint64_t *output)
 {
 	int i = 0;
-	for (auto r : state->symbolic_registers)
-	{
+	for (auto r : state->symbolic_registers) {
 		output[i] = r;
 		i++;
 	}
@@ -2305,7 +2301,7 @@ void simunicorn_set_map_callback(State *state, uc_cb_eventmem_t cb) {
 extern "C"
 void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64_t count) {
 	state->artificial_vex_registers.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->artificial_vex_registers.emplace(offsets[i]);
 	}
 	return;
@@ -2315,7 +2311,7 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 extern "C"
 void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
 	state->vex_to_unicorn_map.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
 	}
 	return;
@@ -2325,7 +2321,7 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 extern "C"
 void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
 	state->cpu_flags.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->cpu_flags.emplace(flag_vex_id[i], bitmasks[i]);
 	}
 	return;
@@ -2341,7 +2337,7 @@ void simunicorn_set_unicorn_flags_register_id(State *state, int64_t reg_id) {
 extern "C"
 void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_t count) {
 	state->blacklisted_registers.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->blacklisted_registers.emplace(reg_list[i]);
 	}
 	return;
@@ -2356,7 +2352,7 @@ uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
 
 extern "C"
 void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_block_details_ret_t *ret_block_details) {
-	for (size_t i = 0; i < state->block_details_to_return.size(); i++) {
+	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
 		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
 		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
 		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
