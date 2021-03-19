@@ -629,7 +629,6 @@ class State {
 		RegisterSet symbolic_registers; // tracking of symbolic registers
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 		RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
-		std::unordered_map<vex_reg_offset_t, uint64_t> reg_size_map;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
 		std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
 		int64_t cpu_flags_register;

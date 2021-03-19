@@ -2311,16 +2311,6 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 	return;
 }
 
-// Register sizes mapping
-extern "C"
-void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *vex_offsets, uint64_t *reg_sizes, uint64_t count) {
-	state->reg_size_map.clear();
-	for (uint64_t i = 0; i < count; i++) {
-		state->reg_size_map.emplace(vex_offsets[i], reg_sizes[i]);
-	}
-	return;
-}
-
 // VEX register offsets to unicorn register ID mappings
 extern "C"
 void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
