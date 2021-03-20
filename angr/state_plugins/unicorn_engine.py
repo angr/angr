@@ -14,7 +14,7 @@ import binascii
 import archinfo
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 
@@ -915,21 +915,6 @@ class Unicorn(SimStatePlugin):
         return
 
 
-        # do the mapping
-        if not taint and not perm & 2:
-            # page is non-writable, handle it with native code
-            l.debug('caching non-writable page')
-            out = _UC_NATIVE.cache_page(self._uc_state, start, length, bytes(data), perm)
-            return out
-        else:
-            # if the memory range has already been mapped, or it somehow fails sanity checks, mem_map() may fail with
-            # a unicorn.UcError raised. THe exception will be caught outside.
-            uc.mem_map(start, length, perm)
-            uc.mem_write(start, bytes(data))
-            self._mapped += 1
-            _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
-            return True
-
     def _get_details_of_blocks_with_symbolic_instrs(self):
         def _get_register_values(register_values):
             for register_value in register_values:
@@ -1073,7 +1058,7 @@ class Unicorn(SimStatePlugin):
                 cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
                 _UC_NATIVE.set_cpu_flags_details(self._uc_state, cpu_flag_vex_offsets_array, cpu_flag_bitmasks_array,len(cpu_flag_vex_offsets))
         elif self.state.arch.name.startswith("ARM"):
-            l.warning(f"Flag registers for {self.state.arch.name} not set in native unicorn interface.")
+            l.warning("Flag registers for %s not set in native unicorn interface.", self.state.arch.name)
 
         # Initialize list of blacklisted registers
         blacklist_regs_offsets = self.state.arch.reg_blacklist_offsets
@@ -1128,7 +1113,7 @@ class Unicorn(SimStatePlugin):
             update = p_update.contents
             address, length = update.address, update.length
             if self.gdt is not None and self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
-                l.warning("Emulation touched fake GDT at %#x, discarding changes" % self.gdt.addr)
+                l.warning("Emulation touched fake GDT at %#x, discarding changes", self.gdt.addr)
             else:
                 s = bytes(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, binascii.hexlify(s))
