@@ -1036,7 +1036,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			taint_entity.entity_type = TAINT_ENTITY_TMP;
 			taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
 			taint_entity.instr_addr = instr_addr;
-			auto entity_type = vex_block->tyenv->types[taint_entity.tmp_id];
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
 			if (entity_type == Ity_I1) {
 				taint_entity.value_size = 0;
 			}
@@ -1053,8 +1053,13 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			taint_entity.entity_type = TAINT_ENTITY_REG;
 			taint_entity.reg_offset = expr->Iex.Get.offset;
 			taint_entity.instr_addr = instr_addr;
-			// TODO: Will there be a 1 bit read from a register?
-			taint_entity.value_size = sizeofIRType(expr->Iex.Get.ty);
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				taint_entity.value_size = 0;
+			}
+			else {
+				taint_entity.value_size = sizeofIRType(entity_type);
+			}
 			result.taint_sources.emplace(taint_entity);
 			result.value_size = taint_entity.value_size;
 			break;
@@ -1070,7 +1075,13 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			result.value_size = temp.value_size;
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
+			}
 			break;
 		}
 		case Iex_Binop:
@@ -1084,7 +1095,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			result.value_size = temp.value_size;
 
 			temp = process_vex_expr(expr->Iex.Binop.arg2, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1095,8 +1105,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
 			}
 			break;
 		}
@@ -1111,7 +1125,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			result.value_size = temp.value_size;
 
 			temp = process_vex_expr(expr->Iex.Triop.details->arg2, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1122,9 +1135,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
-			}
 
 			temp = process_vex_expr(expr->Iex.Triop.details->arg3, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1135,8 +1145,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
 			}
 			break;
 		}
@@ -1151,7 +1165,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			result.value_size = temp.value_size;
 
 			temp = process_vex_expr(expr->Iex.Qop.details->arg2, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1162,9 +1175,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
-			}
 
 			temp = process_vex_expr(expr->Iex.Qop.details->arg3, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1175,9 +1185,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
-			}
 
 			temp = process_vex_expr(expr->Iex.Qop.details->arg4, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1188,8 +1195,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
 			}
 			break;
 		}
@@ -1224,7 +1235,6 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			result.value_size = temp.value_size;
 
 			temp = process_vex_expr(expr->Iex.ITE.iftrue, vex_block, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1235,8 +1245,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
-			if (result.value_size < temp.value_size) {
-				result.value_size = temp.value_size;
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
 			}
 			break;
 		}
@@ -1253,7 +1267,13 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 				result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				result.mem_read_count += temp.mem_read_count;
-				// TODO: How to compute size of result of ccall?
+			}
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
 			}
 			break;
 		}
@@ -1281,7 +1301,13 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			if ((load_size % arch_width) != 0) {
 				result.mem_read_count += 1;
 			}
-			result.value_size = load_size;
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
+			}
 			break;
 		}
 		case Iex_GetI:
@@ -1292,6 +1318,16 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRSB *vex_block, addr
 			break;
 		}
 		case Iex_Const:
+		{
+			auto entity_type = typeOfIRExpr(vex_block->tyenv, expr);
+			if (entity_type == Ity_I1) {
+				result.value_size = 0;
+			}
+			else {
+				result.value_size = sizeofIRType(entity_type);
+			}
+			break;
+		}
 		case Iex_VECRET:
 		case Iex_GSPTR:
 		case Iex_Binder:
