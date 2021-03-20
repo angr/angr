@@ -494,7 +494,7 @@ class State {
 	std::set<instr_details_t> get_list_of_dep_instrs(const instr_details_t &instr) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRSB *vex_block, address_t instr_addr, bool is_exit_stmt);
+	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr, bool is_exit_stmt);
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
@@ -503,6 +503,8 @@ class State {
 	// A vector version of get_final_taint_status for checking mem_ref_entity_list which can't be an
 	// unordered_set
 	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) const;
+
+	int32_t get_vex_expr_result_size(IRExpr *expr, IRTypeEnv* tyenv) const;
 
 	bool is_block_exit_guard_symbolic() const;
 	bool is_block_next_target_symbolic() const;
