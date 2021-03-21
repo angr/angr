@@ -210,6 +210,14 @@ def test_skip_some_symbolic_memory_writes():
     trace_cgc_with_pov_file(binary, "tracer_skip_some_symbolic_memory_writes", pov_file, b'\n'.join(output_initial_bytes))
 
 
+def test_subregister_tainting():
+    # Tests for subregister tainting: taint only bytes of subregister and not entire register
+    binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00028")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "KPRCA_00028_POV_00000.xml")
+    output_initial_bytes = b"Welcome to the SLUR REPL. Type an expression to evaluate it.\n> "
+    trace_cgc_with_pov_file(binary, "tracer_subregister_tainting", pov_file, output_initial_bytes)
+
+
 def test_symbolic_memory_dependencies_liveness():
     # Tests for liveness of symbolic memory dependencies when re-executing symbolic instructions in SimEngineUnicorn
     # NRFIN_00036

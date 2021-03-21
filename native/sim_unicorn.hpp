@@ -19,8 +19,8 @@ static const uint8_t PAGE_SHIFT = 12;
 
 typedef uint64_t address_t;
 typedef uint64_t unicorn_reg_id_t;
-typedef uint64_t vex_reg_offset_t;
-typedef uint64_t vex_tmp_id_t;
+typedef int64_t vex_reg_offset_t;
+typedef int64_t vex_tmp_id_t;
 
 enum taint_t: uint8_t {
 	TAINT_NONE = 0,
@@ -55,6 +55,15 @@ struct taint_entity_t {
 	std::vector<taint_entity_t> mem_ref_entity_list;
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
 	address_t instr_addr;
+	int64_t value_size;
+
+	taint_entity_t() {
+		reg_offset = -1;
+		tmp_id = -1;
+		mem_ref_entity_list.clear();
+		instr_addr = 0;
+		value_size = -1;
+	}
 
 	bool operator==(const taint_entity_t &other_entity) const {
 		if (entity_type != other_entity.entity_type) {
@@ -132,6 +141,7 @@ struct mem_read_result_t {
 struct register_value_t {
 	uint64_t offset;
 	uint8_t value[MAX_REGISTER_BYTE_SIZE];
+	int64_t size;
 
 	bool operator==(const register_value_t &reg_value) const {
 		if (offset != reg_value.offset) {
@@ -214,7 +224,7 @@ struct sym_instr_details_t {
 			(memory_values_count != other_instr.memory_values_count)) {
 				return false;
 		}
-		for (uint64_t counter = 0; counter < memory_values_count; counter++) {
+		for (auto counter = 0; counter < memory_values_count; counter++) {
 			if (!(memory_values[counter] == other_instr.memory_values[counter])) {
 				return false;
 			}
@@ -298,9 +308,9 @@ struct instruction_taint_entry_t {
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
 
-	// List of registers modified by instruction and whether register's final value depends on
+	// List of registers modified by instruction, their size and whether register's final value depends on
 	// it's previous value
-	std::vector<std::pair<vex_reg_offset_t, bool>> modified_regs;
+	std::vector<std::pair<vex_reg_offset_t, std::pair<int64_t, bool>>> modified_regs;
 
 	// Count of memory reads in the instruction
 	uint32_t mem_read_count;
@@ -354,18 +364,20 @@ struct processed_vex_expr_t {
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_count;
+	int64_t value_size;
 
 	void reset() {
 		taint_sources.clear();
 		ite_cond_entities.clear();
 		has_unsupported_expr = false;
 		mem_read_count = 0;
+		value_size = -1;
 	}
 };
 
 struct instr_slice_details_t {
 	std::set<instr_details_t> dependent_instrs;
-	std::unordered_set<vex_reg_offset_t> concrete_registers;
+	std::unordered_map<vex_reg_offset_t, int64_t> concrete_registers;
 };
 
 struct CachedPage {
@@ -482,7 +494,7 @@ class State {
 	std::set<instr_details_t> get_list_of_dep_instrs(const instr_details_t &instr) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	processed_vex_expr_t process_vex_expr(IRExpr *expr, address_t instr_addr, bool is_exit_stmt);
+	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr, bool is_exit_stmt);
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
@@ -492,14 +504,15 @@ class State {
 	// unordered_set
 	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) const;
 
+	int32_t get_vex_expr_result_size(IRExpr *expr, IRTypeEnv* tyenv) const;
+
 	bool is_block_exit_guard_symbolic() const;
 	bool is_block_next_target_symbolic() const;
-	bool is_symbolic_register(vex_reg_offset_t reg_offset) const;
+	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
-	bool is_symbolic_register_or_temp(const taint_entity_t &entity) const;
 
-	void mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level);
-	void mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level);
+	void mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size);
+	void mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size);
 	void mark_temp_symbolic(vex_tmp_id_t temp_id);
 
 	block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address);
@@ -521,22 +534,6 @@ class State {
 
 	inline bool is_blacklisted_register(vex_reg_offset_t reg_offset) const {
 		return (blacklisted_registers.count(reg_offset) > 0);
-	}
-
-	inline vex_reg_offset_t get_full_register_offset(vex_reg_offset_t reg_offset) const {
-		auto vex_sub_reg_mapping_entry = vex_sub_reg_map.find(reg_offset);
-		if (vex_sub_reg_mapping_entry != vex_sub_reg_map.end()) {
-			return vex_sub_reg_mapping_entry->second;
-		}
-		if (reg_size_map.find(reg_offset) != reg_size_map.end()) {
-			return reg_offset;
-		}
-		for (auto &entry: reg_size_map) {
-			if ((entry.first <= reg_offset) && (reg_offset <= entry.first + entry.second)) {
-				return entry.first;
-			}
-		}
-		return reg_offset;
 	}
 
 	inline unsigned int arch_pc_reg_vex_offset() const {
@@ -634,8 +631,6 @@ class State {
 		RegisterSet symbolic_registers; // tracking of symbolic registers
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 		RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
-		RegisterMap vex_sub_reg_map; // Mapping of VEX sub-registers to their main register
-		std::unordered_map<vex_reg_offset_t, uint64_t> reg_size_map;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
 		std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
 		int64_t cpu_flags_register;

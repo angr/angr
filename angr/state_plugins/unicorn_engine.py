@@ -14,7 +14,7 @@ import binascii
 import archinfo
 
 from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimMemoryMissingError, SimUnicornError
+from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
 
@@ -64,7 +64,8 @@ class RegisterValue(ctypes.Structure): # register_value_t
 
     _fields_ = [
         ('offset', ctypes.c_uint64),
-        ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE)
+        ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE),
+        ('size', ctypes.c_int64)
     ]
 class InstrDetails(ctypes.Structure): # sym_instr_details_t
     _fields_ = [
@@ -357,8 +358,6 @@ def _load_native():
         _setup_prototype(h, 'in_cache', ctypes.c_bool, state_t, ctypes.c_uint64)
         _setup_prototype(h, 'set_map_callback', None, state_t, unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, 'set_vex_sub_reg_to_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, 'set_vex_offset_to_register_size_mapping', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'get_details_of_blocks_with_symbolic_instrs', None, state_t, ctypes.POINTER(BlockDetails))
@@ -916,32 +915,17 @@ class Unicorn(SimStatePlugin):
         return
 
 
-        # do the mapping
-        if not taint and not perm & 2:
-            # page is non-writable, handle it with native code
-            l.debug('caching non-writable page')
-            out = _UC_NATIVE.cache_page(self._uc_state, start, length, bytes(data), perm)
-            return out
-        else:
-            # if the memory range has already been mapped, or it somehow fails sanity checks, mem_map() may fail with
-            # a unicorn.UcError raised. THe exception will be caught outside.
-            uc.mem_map(start, length, perm)
-            uc.mem_write(start, bytes(data))
-            self._mapped += 1
-            _UC_NATIVE.activate(self._uc_state, start, length, taint[0] if taint else None)
-            return True
-
     def _get_details_of_blocks_with_symbolic_instrs(self):
         def _get_register_values(register_values):
             for register_value in register_values:
                 # Convert the register value in bytes to number of appropriate size and endianness
-                reg_name, reg_size = self.state.arch.vex_reg_offset_to_name[register_value.offset]
+                reg_name = self.state.arch.register_size_names[(register_value.offset, register_value.size)]
                 if self.state.arch.register_endness == archinfo.Endness.LE:
                     reg_value = int.from_bytes(register_value.value, "little")
                 else:
                     reg_value = int.from_bytes(register_value.value, "big")
 
-                reg_value = reg_value & (pow(2, reg_size * 8) - 1)
+                reg_value = reg_value & (pow(2, register_value.size * 8) - 1)
                 yield (reg_name, reg_value)
 
         def _get_memory_values(memory_values):
@@ -1014,13 +998,13 @@ class Unicorn(SimStatePlugin):
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:
-            archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
-            archinfo['hwcache_info']['caches'] = 0
-            archinfo['hwcache_info'] = _VexCacheInfo(**archinfo['hwcache_info'])
+            vex_archinfo = copy.deepcopy(self.state.arch.vex_archinfo)
+            vex_archinfo['hwcache_info']['caches'] = 0
+            vex_archinfo['hwcache_info'] = _VexCacheInfo(**vex_archinfo['hwcache_info'])
             _UC_NATIVE.enable_symbolic_reg_tracking(
                 self._uc_state,
                 getattr(pyvex.pvc, self.state.arch.vex_arch),
-                _VexArchInfo(**archinfo),
+                _VexArchInfo(**vex_archinfo),
             )
 
             if self._symbolic_offsets:
@@ -1060,26 +1044,6 @@ class Unicorn(SimStatePlugin):
         unicorn_reg_ids_array = (ctypes.c_uint64 * len(unicorn_reg_ids))(*map(ctypes.c_uint64, unicorn_reg_ids))
         _UC_NATIVE.set_vex_to_unicorn_reg_mappings(self._uc_state, vex_reg_offsets_array, unicorn_reg_ids_array, len(vex_reg_offsets))
 
-        vex_reg_offsets = []
-        vex_sub_reg_offsets = []
-        for vex_sub_reg_offset, vex_reg_offset in self.state.arch.vex_sub_reg_to_reg_map.items():
-            vex_reg_offsets.append(vex_reg_offset)
-            vex_sub_reg_offsets.append(vex_sub_reg_offset)
-
-        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
-        vex_sub_reg_offsets_array = (ctypes.c_uint64 * len(vex_sub_reg_offsets))(*map(ctypes.c_uint64, vex_sub_reg_offsets))
-        _UC_NATIVE.set_vex_sub_reg_to_reg_mappings(self._uc_state, vex_sub_reg_offsets_array, vex_reg_offsets_array, len(vex_sub_reg_offsets_array))
-
-        vex_reg_offsets = []
-        vex_reg_sizes = []
-        for vex_reg_offset, vex_reg_size in self.state.arch.vex_reg_to_size_map.items():
-            vex_reg_offsets.append(vex_reg_offset)
-            vex_reg_sizes.append(vex_reg_size)
-
-        vex_reg_offsets_array = (ctypes.c_uint64 * len(vex_reg_offsets))(*map(ctypes.c_uint64, vex_reg_offsets))
-        vex_reg_sizes_array = (ctypes.c_uint64 * len(vex_reg_sizes))(*map(ctypes.c_uint64, vex_reg_sizes))
-        _UC_NATIVE.set_vex_offset_to_register_size_mapping(self._uc_state, vex_reg_offsets_array, vex_reg_sizes_array, len(vex_reg_offsets_array))
-
         # Initial VEX to unicorn mappings for flag register
         if self.state.arch.unicorn_flag_register:
             _UC_NATIVE.set_unicorn_flags_register_id(self._uc_state, self.state.arch.unicorn_flag_register)
@@ -1094,7 +1058,7 @@ class Unicorn(SimStatePlugin):
                 cpu_flag_bitmasks_array = (ctypes.c_uint64 * len(cpu_flag_bitmasks))(*map(ctypes.c_uint64, cpu_flag_bitmasks))
                 _UC_NATIVE.set_cpu_flags_details(self._uc_state, cpu_flag_vex_offsets_array, cpu_flag_bitmasks_array,len(cpu_flag_vex_offsets))
         elif self.state.arch.name.startswith("ARM"):
-            l.warning(f"Flag registers for {self.state.arch.name} not set in native unicorn interface.")
+            l.warning("Flag registers for %s not set in native unicorn interface.", self.state.arch.name)
 
         # Initialize list of blacklisted registers
         blacklist_regs_offsets = self.state.arch.reg_blacklist_offsets
@@ -1149,7 +1113,7 @@ class Unicorn(SimStatePlugin):
             update = p_update.contents
             address, length = update.address, update.length
             if self.gdt is not None and self.gdt.addr <= address < self.gdt.addr + self.gdt.limit:
-                l.warning("Emulation touched fake GDT at %#x, discarding changes" % self.gdt.addr)
+                l.warning("Emulation touched fake GDT at %#x, discarding changes", self.gdt.addr)
             else:
                 s = bytes(self.uc.mem_read(address, int(length)))
                 l.debug('...changed memory: [%#x, %#x] = %s', address, address + length, binascii.hexlify(s))

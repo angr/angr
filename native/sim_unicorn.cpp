@@ -239,10 +239,10 @@ void State::commit() {
 	// Sync all block level taint statuses reads with state's taint statuses and block level
 	// symbolic instruction list with state's symbolic instruction list
 	for (auto &reg_offset: block_symbolic_registers) {
-		mark_register_symbolic(reg_offset, false);
+		symbolic_registers.emplace(reg_offset);
 	}
 	for (auto &reg_offset: block_concrete_registers) {
-		mark_register_concrete(reg_offset, false);
+		symbolic_registers.erase(reg_offset);
 	}
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
@@ -281,7 +281,7 @@ void State::rollback() {
 				address_t start = rit->address & 0xFFF;
 				int size = rit->size;
 				int clean = rit->clean;
-				for (int i = 0; i < size; i++) {
+				for (auto i = 0; i < size; i++) {
 					if ((clean >> i) & 1) {
 						// this byte is untouched before this memory action
 						// in the rollback, we already failed to execute, so
@@ -295,7 +295,7 @@ void State::rollback() {
 			uint64_t start = rit->address & 0xFFF;
 			int size = rit->size;
 			int clean = rit->clean;
-			for (int i = 0; i < size; i++) {
+			for (auto i = 0; i < size; i++) {
 				bitmap[start + i] = (clean & (1 << i)) != 0 ? TAINT_NONE : TAINT_SYMBOLIC;
 			}
 		}
@@ -409,7 +409,7 @@ mem_update_t *State::sync() {
 
 void State::set_stops(uint64_t count, address_t *stops) {
 	stop_points.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		stop_points.insert(stops[i]);
 	}
 }
@@ -418,7 +418,7 @@ std::pair<address_t, size_t> State::cache_page(address_t address, size_t size, c
 	assert(address % 0x1000 == 0);
 	assert(size % 0x1000 == 0);
 
-	for (uint64_t offset = 0; offset < size; offset += 0x1000) {
+	for (auto offset = 0; offset < size; offset += 0x1000) {
 		auto page = page_cache->find(address+offset);
 		if (page != page_cache->end()) {
 			fprintf(stderr, "[%#" PRIx64 ", %#" PRIx64 "](%#zx) already in cache.\n", address+offset, address+offset + 0x1000, 0x1000lu);
@@ -459,7 +459,7 @@ void State::wipe_page_from_cache(address_t address) {
 
 void State::uncache_pages_touching_region(address_t address, uint64_t length) {
 	address &= ~(0x1000-1);
-	for (uint64_t offset = 0; offset < length; offset += 0x1000) {
+	for (auto offset = 0; offset < length; offset += 0x1000) {
 				wipe_page_from_cache(address + offset);
 	}
 
@@ -477,8 +477,7 @@ bool State::map_cache(address_t address, size_t size) {
 
 	bool success = true;
 
-	for (uint64_t offset = 0; offset < size; offset += 0x1000)
-	{
+	for (auto offset = 0; offset < size; offset += 0x1000) {
 		auto page = page_cache->find(address+offset);
 		if (page == page_cache->end())
 		{
@@ -518,7 +517,7 @@ int64_t State::find_tainted(address_t address, int size) {
 
 	if (end >= start) {
 		if (bitmap) {
-			for (int i = start; i <= end; i++) {
+			for (auto i = start; i <= end; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
 					return (address & ~0xFFF) + i;
 				}
@@ -528,7 +527,7 @@ int64_t State::find_tainted(address_t address, int size) {
 	else {
 		// cross page boundary
 		if (bitmap) {
-			for (int i = start; i <= 0xFFF; i++) {
+			for (auto i = start; i <= 0xFFF; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
 					return (address & ~0xFFF) + i;
 				}
@@ -537,7 +536,7 @@ int64_t State::find_tainted(address_t address, int size) {
 
 		bitmap = page_lookup(address + size - 1).first;
 		if (bitmap) {
-			for (int i = 0; i <= end; i++) {
+			for (auto i = 0; i <= end; i++) {
 				if (bitmap[i] & TAINT_SYMBOLIC) {
 					return ((address + size - 1) & ~0xFFF) + i;
 				}
@@ -677,7 +676,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		}
 	}
 	if (data == NULL) {
-		for (int i = start; i <= end; i++) {
+		for (auto i = start; i <= end; i++) {
 			if (is_dst_symbolic) {
 				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
 				// Also, no need to set clean: rollback will set it to TAINT_NONE which
@@ -692,7 +691,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		}
 	}
 	else {
-		for (int i = start; i <= end; i++) {
+		for (auto i = start; i <= end; i++) {
 			if (is_dst_symbolic) {
 				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
 				// Also, no need to set clean: rollback will set it to TAINT_NONE which
@@ -727,18 +726,17 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 	instr_slice_details_t instr_slice_details;
 	for (auto &dependency: instr_taint_entry.dependencies_to_save) {
 		if (dependency.entity_type == TAINT_ENTITY_REG) {
-			vex_reg_offset_t dependency_full_register_offset = get_full_register_offset(dependency.reg_offset);
-			auto dep_reg_slice_entry = reg_instr_slice.find(dependency_full_register_offset);
+			auto dep_reg_slice_entry = reg_instr_slice.find(dependency.reg_offset);
 			if (dep_reg_slice_entry == reg_instr_slice.end()) {
 				// We don't care about slice of this register because it's artificial, blacklisted or something else.
 				continue;
 			}
-			if (!is_symbolic_register(dependency_full_register_offset)) {
+			if (!is_symbolic_register(dependency.reg_offset, dependency.value_size)) {
 				auto dep_reg_slice_instrs = dep_reg_slice_entry->second;
 				if (dep_reg_slice_instrs.size() == 0) {
 					// The register was not modified in this block by any preceding instruction
 					// and so it's value at start of block is a dependency of the block
-					instr_slice_details.concrete_registers.emplace(dependency_full_register_offset);
+					instr_slice_details.concrete_registers.emplace(dependency.reg_offset, dependency.value_size);
 				}
 				else {
 					// The register was modified by some instructions in the block. We add those
@@ -766,26 +764,28 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 
 	started_processing_instructions = false;
 	block_taint_entry.has_unsupported_stmt_or_expr_type = false;
-	for (int i = 0; i < vex_block->stmts_used; i++) {
+	for (auto i = 0; i < vex_block->stmts_used; i++) {
 		auto stmt = vex_block->stmts[i];
 		switch (stmt->tag) {
 			case Ist_Put:
 			{
 				taint_entity_t sink;
 				std::unordered_set<taint_entity_t> srcs, ite_cond_entity_list;
-				std::pair<vex_reg_offset_t, bool> modified_reg_data;
+				std::pair<vex_reg_offset_t, std::pair<int64_t, bool>> modified_reg_data;
 
 				sink.entity_type = TAINT_ENTITY_REG;
 				sink.instr_addr = curr_instr_addr;
 				sink.reg_offset = stmt->Ist.Put.offset;
 				modified_reg_data.first = stmt->Ist.Put.offset;
-				modified_reg_data.second = false;
-				auto result = process_vex_expr(stmt->Ist.Put.data, curr_instr_addr, false);
+				modified_reg_data.second.second = false;
+				auto result = process_vex_expr(stmt->Ist.Put.data, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
+				sink.value_size = result.value_size;
+				modified_reg_data.second.first = sink.value_size;
 				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
 				instruction_taint_entry.mem_read_count += result.mem_read_count;
@@ -798,7 +798,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				// Check if sink is also source of taint
 				if (dependencies_to_save.count(sink)) {
-					modified_reg_data.second = true;
+					modified_reg_data.second.second = true;
 				}
 
 				// Store ITE condition entities and compute dependencies to save
@@ -806,7 +806,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				dependencies_to_save = compute_dependencies_to_save(ite_cond_entity_list);
 				instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 				if (dependencies_to_save.count(sink)) {
-					modified_reg_data.second = true;
+					modified_reg_data.second.second = true;
 				}
 				if ((modified_reg_data.first != arch_pc_reg_vex_offset()) && reg_instr_slice.count(modified_reg_data.first) != 0) {
 					instruction_taint_entry.modified_regs.emplace_back(modified_reg_data);
@@ -821,7 +821,14 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				sink.entity_type = TAINT_ENTITY_TMP;
 				sink.instr_addr = curr_instr_addr;
 				sink.tmp_id = stmt->Ist.WrTmp.tmp;
-				auto result = process_vex_expr(stmt->Ist.WrTmp.data, curr_instr_addr, false);
+				auto sink_type = vex_block->tyenv->types[sink.tmp_id];
+				if (sink_type == Ity_I1) {
+					sink.value_size = 0;
+				}
+				else {
+					sink.value_size = sizeofIRType(sink_type);
+				}
+				auto result = process_vex_expr(stmt->Ist.WrTmp.data, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
@@ -851,7 +858,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				sink.entity_type = TAINT_ENTITY_MEM;
 				sink.instr_addr = curr_instr_addr;
 				instruction_taint_entry.has_memory_write = true;
-				auto result = process_vex_expr(stmt->Ist.Store.addr, curr_instr_addr, false);
+				auto result = process_vex_expr(stmt->Ist.Store.addr, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
@@ -862,12 +869,13 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				instruction_taint_entry.mem_read_count += result.mem_read_count;
 				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
 
-				result = process_vex_expr(stmt->Ist.Store.data, curr_instr_addr, false);
+				result = process_vex_expr(stmt->Ist.Store.data, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
+				sink.value_size = result.value_size;
 				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
 				instruction_taint_entry.mem_read_count += result.mem_read_count;
@@ -886,7 +894,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 			}
 			case Ist_Exit:
 			{
-				auto result = process_vex_expr(stmt->Ist.Exit.guard, curr_instr_addr, true);
+				auto result = process_vex_expr(stmt->Ist.Exit.guard, vex_block->tyenv, curr_instr_addr, true);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
@@ -970,7 +978,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 		}
 	}
 	// Process block default exit target
-	auto block_next_taint_sources = process_vex_expr(vex_block->next, curr_instr_addr, false);
+	auto block_next_taint_sources = process_vex_expr(vex_block->next, vex_block->tyenv, curr_instr_addr, false);
 	if (block_next_taint_sources.has_unsupported_expr) {
 		block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 		block_taint_entry.unsupported_stmt_stop_reason = block_next_taint_sources.unsupported_expr_stop_reason;
@@ -1018,7 +1026,7 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 }
 
 // Returns a pair (taint sources, list of taint entities in ITE condition expression)
-processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr, bool is_exit_stmt) {
+processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr, bool is_exit_stmt) {
 	processed_vex_expr_t result;
 	result.reset();
 	switch (expr->tag) {
@@ -1028,7 +1036,9 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			taint_entity.entity_type = TAINT_ENTITY_TMP;
 			taint_entity.tmp_id = expr->Iex.RdTmp.tmp;
 			taint_entity.instr_addr = instr_addr;
+			taint_entity.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			result.taint_sources.emplace(taint_entity);
+			result.value_size = taint_entity.value_size;
 			break;
 		}
 		case Iex_Get:
@@ -1037,12 +1047,14 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			taint_entity.entity_type = TAINT_ENTITY_REG;
 			taint_entity.reg_offset = expr->Iex.Get.offset;
 			taint_entity.instr_addr = instr_addr;
+			taint_entity.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			result.taint_sources.emplace(taint_entity);
+			result.value_size = taint_entity.value_size;
 			break;
 		}
 		case Iex_Unop:
 		{
-			auto temp = process_vex_expr(expr->Iex.Unop.arg, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Unop.arg, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1051,11 +1063,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);;
 			break;
 		}
 		case Iex_Binop:
 		{
-			auto temp = process_vex_expr(expr->Iex.Binop.arg1, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Binop.arg1, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1065,7 +1078,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.Binop.arg2, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Binop.arg2, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1074,11 +1087,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);;
 			break;
 		}
 		case Iex_Triop:
 		{
-			auto temp = process_vex_expr(expr->Iex.Triop.details->arg1, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Triop.details->arg1, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1088,7 +1102,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.Triop.details->arg2, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Triop.details->arg2, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1098,7 +1112,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.Triop.details->arg3, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Triop.details->arg3, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1107,11 +1121,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
 		case Iex_Qop:
 		{
-			auto temp = process_vex_expr(expr->Iex.Qop.details->arg1, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Qop.details->arg1, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1121,7 +1136,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.Qop.details->arg2, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Qop.details->arg2, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1131,7 +1146,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.Qop.details->arg3, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Qop.details->arg3, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1141,7 +1156,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.Qop.details->arg4, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.Qop.details->arg4, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1150,6 +1165,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
 		case Iex_ITE:
@@ -1158,7 +1174,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			// if condition is symbolic and stop concrete execution if it is. However for VEX
 			// exit statement, we don't need to store it separately since we process only the
 			// guard condition for Exit statements
-			auto temp = process_vex_expr(expr->Iex.ITE.cond, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.ITE.cond, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1174,7 +1190,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			}
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.ITE.iffalse, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.ITE.iffalse, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1184,7 +1200,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
 
-			temp = process_vex_expr(expr->Iex.ITE.iftrue, instr_addr, false);
+			temp = process_vex_expr(expr->Iex.ITE.iftrue, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1193,13 +1209,14 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			result.mem_read_count += temp.mem_read_count;
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
 		case Iex_CCall:
 		{
 			IRExpr **ccall_args = expr->Iex.CCall.args;
-			for (uint64_t i = 0; ccall_args[i]; i++) {
-				auto temp = process_vex_expr(ccall_args[i], instr_addr, false);
+			for (auto i = 0; ccall_args[i]; i++) {
+				auto temp = process_vex_expr(ccall_args[i], vex_block_tyenv, instr_addr, false);
 				if (temp.has_unsupported_expr) {
 					result.has_unsupported_expr = true;
 					result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1209,11 +1226,12 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 				result.mem_read_count += temp.mem_read_count;
 			}
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
 		case Iex_Load:
 		{
-			auto temp = process_vex_expr(expr->Iex.Load.addr, instr_addr, false);
+			auto temp = process_vex_expr(expr->Iex.Load.addr, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
 				result.has_unsupported_expr = true;
 				result.unsupported_expr_stop_reason = temp.unsupported_expr_stop_reason;
@@ -1228,12 +1246,14 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			// Calculate number of times read hook would be triggered. unicorn triggers a memory read hook for each
 			// arch_width bytes
 			result.mem_read_count += temp.mem_read_count;
+			// TODO: Will there be a 1 bit read from memory?
 			auto load_size = sizeofIRType(expr->Iex.Load.ty);
 			auto arch_width = arch_byte_width();
 			result.mem_read_count += load_size / arch_width;
 			if ((load_size % arch_width) != 0) {
 				result.mem_read_count += 1;
 			}
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
 		case Iex_GetI:
@@ -1244,6 +1264,10 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, address_t instr_addr,
 			break;
 		}
 		case Iex_Const:
+		{
+			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
+			break;
+		}
 		case Iex_VECRET:
 		case Iex_GSPTR:
 		case Iex_Binder:
@@ -1267,12 +1291,14 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 		if (taint_source.entity_type == TAINT_ENTITY_NONE) {
 			continue;
 		}
-		else if ((taint_source.entity_type == TAINT_ENTITY_REG) || (taint_source.entity_type == TAINT_ENTITY_TMP)) {
-			if (is_symbolic_register_or_temp(taint_source)) {
-				// Taint sink is symbolic. We don't stop here since we need to check for read
-				// from a symbolic address
-				is_symbolic = true;
-			}
+		else if ((taint_source.entity_type == TAINT_ENTITY_REG) &&
+		  (is_symbolic_register(taint_source.reg_offset, taint_source.value_size))) {
+			  // Register is symbolic. Continue checking for read from symbolic address
+			  is_symbolic = true;
+		}
+		else if ((taint_source.entity_type == TAINT_ENTITY_TMP) && (is_symbolic_temp(taint_source.tmp_id))) {
+			// Temp is symbolic. Continue checking for read from a symbolic address
+			is_symbolic = true;
 		}
 		else if (taint_source.entity_type == TAINT_ENTITY_MEM) {
 			// Check if the memory address being read from is symbolic
@@ -1307,24 +1333,27 @@ taint_status_result_t State::get_final_taint_status(const std::vector<taint_enti
 	return get_final_taint_status(taint_sources_set);
 }
 
-void State::mark_register_symbolic(vex_reg_offset_t reg_offset, bool do_block_level) {
+int32_t State::get_vex_expr_result_size(IRExpr *expr, IRTypeEnv* tyenv) const {
+	auto expr_type = typeOfIRExpr(tyenv, expr);
+	if (expr_type == Ity_I1) {
+		return 0;
+	}
+	return sizeofIRType(expr_type);
+}
+
+void State::mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size) {
+	// Mark register as symbolic in the state in current block
 	if (is_blacklisted_register(reg_offset)) {
 		return;
 	}
-	if (do_block_level) {
-		// Mark register as symbolic in current block
+	else if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
 		block_symbolic_registers.emplace(reg_offset);
 		block_concrete_registers.erase(reg_offset);
 	}
 	else {
-		// Mark register as symbolic in the state
-		if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
-			symbolic_registers.emplace(reg_offset);
-		}
-		else {
-			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
-				symbolic_registers.emplace(reg_offset + i);
-			}
+		for (auto i = 0; i < reg_size; i++) {
+			block_symbolic_registers.emplace(reg_offset + i);
+			block_concrete_registers.erase(reg_offset + i);
 		}
 	}
 	return;
@@ -1336,29 +1365,25 @@ void State::mark_temp_symbolic(vex_tmp_id_t temp_id) {
 	return;
 }
 
-void State::mark_register_concrete(vex_reg_offset_t reg_offset, bool do_block_level) {
+void State::mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size) {
+	// Mark register as concrete in the current block
 	if (is_blacklisted_register(reg_offset)) {
 		return;
 	}
-	if (do_block_level) {
-		// Mark this register as concrete in the current block
-		block_concrete_registers.emplace(reg_offset);
+	else if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
 		block_symbolic_registers.erase(reg_offset);
+		block_concrete_registers.emplace(reg_offset);
 	}
 	else {
-		if (cpu_flags.find(reg_offset) != cpu_flags.end()) {
-			symbolic_registers.erase(reg_offset);
-		}
-		else {
-			for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
-				symbolic_registers.erase(reg_offset + i);
-			}
+		for (auto i = 0; i < reg_size; i++) {
+			block_symbolic_registers.erase(reg_offset + i);
+			block_concrete_registers.emplace(reg_offset + i);
 		}
 	}
 	return;
 }
 
-bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
+bool State::is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const {
 	// We check if this register is symbolic or concrete in the block level taint statuses since
 	// those are more recent. If not found in either, check the state's symbolic register list.
 	// TODO: Is checking only first byte of artificial and blacklisted registers to determine if they are symbolic fine
@@ -1376,16 +1401,15 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 		}
 		return false;
 	}
-	reg_offset = get_full_register_offset(reg_offset);
 	// The register is not a CPU flag and so we check every byte of the register
-	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size; i++) {
 		// If any of the register's bytes are symbolic, we deem the register to be symbolic
 		if (block_symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
 	}
 	bool is_concrete = true;
-	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size; i++) {
 		if (block_concrete_registers.count(reg_offset) == 0) {
 			is_concrete = false;
 			break;
@@ -1397,7 +1421,7 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 	}
 	// If we reach here, it means that the register is not marked symbolic or concrete in the block
 	// level taint status tracker. We check the state's symbolic register list.
-	for (uint64_t i = 0; i < reg_size_map.at(reg_offset); i++) {
+	for (auto i = 0; i < reg_size; i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;
 		}
@@ -1407,13 +1431,6 @@ bool State::is_symbolic_register(vex_reg_offset_t reg_offset) const {
 
 bool State::is_symbolic_temp(vex_tmp_id_t temp_id) const {
 	return (block_symbolic_temps.count(temp_id) > 0);
-}
-
-bool State::is_symbolic_register_or_temp(const taint_entity_t &entity) const {
-	if (entity.entity_type == TAINT_ENTITY_REG) {
-		return is_symbolic_register(entity.reg_offset);
-	}
-	return is_symbolic_temp(entity.tmp_id);
 }
 
 void State::propagate_taints() {
@@ -1585,7 +1602,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 
 				// Mark sink as symbolic
 				if (taint_sink.entity_type == TAINT_ENTITY_REG) {
-					mark_register_symbolic(get_full_register_offset(taint_sink.reg_offset), true);
+					mark_register_symbolic(taint_sink.reg_offset, taint_sink.value_size);
 				}
 				else {
 					mark_temp_symbolic(taint_sink.tmp_id);
@@ -1593,8 +1610,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			}
 			else if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset != arch_pc_reg_vex_offset())) {
 				// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
-				vex_reg_offset_t taint_sink_full_register_offset = get_full_register_offset(taint_sink.reg_offset);
-				mark_register_concrete(taint_sink_full_register_offset, true);
+				mark_register_concrete(taint_sink.reg_offset, taint_sink.value_size);
 			}
 		}
 		auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
@@ -1606,7 +1622,11 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 	if (is_instr_symbolic) {
 		auto &instr_slice_details = instr_slice_details_map.at(instr_addr);
 		for (auto &reg: instr_slice_details.concrete_registers) {
-			instr_details.reg_deps.emplace(block_start_reg_values.at(reg));
+			auto reg_offset = reg.first;
+			auto reg_size = reg.second;
+			auto reg_val = block_start_reg_values.at(reg_offset);
+			reg_val.size = reg_size;
+			instr_details.reg_deps.insert(reg_val);
 		}
 		instr_details.instr_deps.insert(instr_details.instr_deps.end(), instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
 		curr_block_details.symbolic_instrs.emplace_back(instr_details);
@@ -1764,17 +1784,19 @@ void State::save_concrete_memory_deps(instr_details_t &instr) {
 void State::update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry) {
 	instr_details_t instr_details = compute_instr_details(instr_addr, curr_instr_taint_entry);
 	for (auto &reg_entry: curr_instr_taint_entry.modified_regs) {
-		vex_reg_offset_t full_register_offset = get_full_register_offset(reg_entry.first);
-		if ((full_register_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(full_register_offset)) {
+		vex_reg_offset_t reg_offset = reg_entry.first;
+		auto reg_size = reg_entry.second.first;
+		if ((reg_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(reg_offset, reg_size)) {
 			continue;
 		}
-		if (reg_instr_slice.find(full_register_offset) == reg_instr_slice.end()) {
+		if (reg_instr_slice.find(reg_offset) == reg_instr_slice.end()) {
 			continue;
 		}
-		if (!reg_entry.second) {
-			reg_instr_slice.at(full_register_offset).clear();
+		// Check if register's new value depends on it's previous value
+		if (!reg_entry.second.second) {
+			reg_instr_slice.at(reg_offset).clear();
 		}
-		reg_instr_slice.at(full_register_offset).emplace_back(instr_details);
+		reg_instr_slice.at(reg_offset).emplace_back(instr_details);
 	}
 	return;
 }
@@ -1950,8 +1972,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 		// this is the ultimate hack for cgc -- it must be enabled by explitly setting the transmit sysno from python
 		// basically an implementation of the cgc transmit syscall
 
-		for (auto sr : state->symbolic_registers)
-		{
+		for (auto sr : state->symbolic_registers) {
 			// eax,ecx,edx,ebx,esi
 			if ((sr >= 8 && sr <= 23) || (sr >= 32 && sr <= 35)) return;
 		}
@@ -2159,8 +2180,7 @@ extern "C"
 void simunicorn_symbolic_register_data(State *state, uint64_t count, uint64_t *offsets)
 {
 	state->symbolic_registers.clear();
-	for (uint64_t i = 0; i < count; i++)
-	{
+	for (auto i = 0; i < count; i++) {
 		state->symbolic_registers.insert(offsets[i]);
 	}
 }
@@ -2169,8 +2189,7 @@ extern "C"
 uint64_t simunicorn_get_symbolic_registers(State *state, uint64_t *output)
 {
 	int i = 0;
-	for (auto r : state->symbolic_registers)
-	{
+	for (auto r : state->symbolic_registers) {
 		output[i] = r;
 		i++;
 	}
@@ -2266,18 +2285,8 @@ void simunicorn_set_map_callback(State *state, uc_cb_eventmem_t cb) {
 extern "C"
 void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64_t count) {
 	state->artificial_vex_registers.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->artificial_vex_registers.emplace(offsets[i]);
-	}
-	return;
-}
-
-// Register sizes mapping
-extern "C"
-void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *vex_offsets, uint64_t *reg_sizes, uint64_t count) {
-	state->reg_size_map.clear();
-	for (uint64_t i = 0; i < count; i++) {
-		state->reg_size_map.emplace(vex_offsets[i], reg_sizes[i]);
 	}
 	return;
 }
@@ -2286,18 +2295,8 @@ void simunicorn_set_vex_offset_to_register_size_mapping(State *state, uint64_t *
 extern "C"
 void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
 	state->vex_to_unicorn_map.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
-	}
-	return;
-}
-
-// VEX sub-registers to full register mapping
-extern "C"
-void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_reg_offsets, uint64_t *vex_reg_offsets, uint64_t count) {
-	state->vex_sub_reg_map.clear();
-	for (uint64_t i = 0; i < count; i++) {
-		state->vex_sub_reg_map.emplace(vex_sub_reg_offsets[i], vex_reg_offsets[i]);
 	}
 	return;
 }
@@ -2306,7 +2305,7 @@ void simunicorn_set_vex_sub_reg_to_reg_mappings(State *state, uint64_t *vex_sub_
 extern "C"
 void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
 	state->cpu_flags.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->cpu_flags.emplace(flag_vex_id[i], bitmasks[i]);
 	}
 	return;
@@ -2322,7 +2321,7 @@ void simunicorn_set_unicorn_flags_register_id(State *state, int64_t reg_id) {
 extern "C"
 void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_t count) {
 	state->blacklisted_registers.clear();
-	for (uint64_t i = 0; i < count; i++) {
+	for (auto i = 0; i < count; i++) {
 		state->blacklisted_registers.emplace(reg_list[i]);
 	}
 	return;
@@ -2337,7 +2336,7 @@ uint64_t simunicorn_get_count_of_blocks_with_symbolic_instrs(State *state) {
 
 extern "C"
 void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_block_details_ret_t *ret_block_details) {
-	for (size_t i = 0; i < state->block_details_to_return.size(); i++) {
+	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
 		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
 		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
 		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
