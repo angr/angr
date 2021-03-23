@@ -1042,7 +1042,7 @@ class SimPacketsSlots(SimFileBase):
 
     def read(self, pos, size, **kwargs):
         if not self.read_sizes:
-            return self.state.BVV(0, 0), 0, None
+            return self.state.solver.BVV(0, 0), 0, None
 
         try:
             req_size = self.state.solver.eval_one(size)
