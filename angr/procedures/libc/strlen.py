@@ -70,7 +70,7 @@ class strlen(angr.SimProcedure):
             self.state.add_constraints(*c)
             result = r - s
             if result.depth > 3:
-                rresult = claripy.BVS('strlen', len(result))
+                rresult = self.state.solver.BVS('strlen', len(result), key=('api', 'strlen'))
                 self.state.solver.add(result == rresult)
                 result = rresult
             return result
