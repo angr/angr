@@ -140,7 +140,9 @@ class SimEngineRDVEX(
         size = stmt.data.result_size(self.tyenv) // 8
         data = self._expr(stmt.data)
 
-        self._store_core(addr, size, data)
+        if len(addr.values) == 1:
+            addrs = next(iter(addr.values.values()))
+            self._store_core(addrs, size, data)
 
     def _handle_StoreG(self, stmt: pyvex.IRStmt.StoreG):
         guard = self._expr(stmt.guard)
@@ -167,8 +169,8 @@ class SimEngineRDVEX(
             data.update(data_old)
 
         for a in addr:
-            if type(a) is Undefined:
-                l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+            if self.state.is_top(a):
+                l.debug('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             else:
                 if any(type(d) is Undefined for d in data):
                     l.info('Data to write at address %s undefined, ins_addr = %s.',
@@ -263,7 +265,7 @@ class SimEngineRDVEX(
         data = super()._expr(expr)
         if data is None:
             bits = expr.result_size(self.tyenv)
-            data = self.state.top(bits // self.arch.byte_width)
+            data = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         return data
 
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[DataSet]:
@@ -286,7 +288,7 @@ class SimEngineRDVEX(
             values: MultiValues = self.state.register_definitions.load(reg_offset, size=size,
                                                                        endness=self.arch.register_endness)
         except SimMemoryMissingError:
-            values = MultiValues({0: {self.state.top(size)}})
+            values = MultiValues({0: {self.state.top(size * self.arch.byte_width)}})
 
         current_defs: Optional[Iterable[Definition]] = None
         for vs in values.values.values():
@@ -311,58 +313,62 @@ class SimEngineRDVEX(
         bits = expr.result_size(self.tyenv)
         size = bits // self.arch.byte_width
 
-        return self._load_core(addr, size, expr.endness)
+        # convert addr from MultiValues to a list of valid addresses
+        if len(addr.values) == 1:
+            addrs = next(iter(addr.values.values()))
+            return self._load_core(addrs, size, expr.endness)
 
-    def _load_core(self, addr: Iterable[Union[int,HeapAddress,SpOffset]], size: int, endness: str):  # pylint:disable=unused-argument
+    def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
 
-        current_defs: Iterable[Definition]
+        result: Optional[MultiValues] = None
+        for addr in addrs:
+            if self.state.is_top(addr):
+                l.debug('Memory address undefined, ins_addr = %#x.', self.ins_addr)
+            elif self.state.is_stack_address(addr):
+                # Load data from a local variable
+                stack_offset = self.state.get_stack_offset(addr)
+                vs: MultiValues = self.state.stack_definitions.load(stack_offset, size=size, endness=endness)
+                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size)
+                self.state.add_use(memory_location, self._codeloc())
+                result = result.merge(vs) if result is not None else vs
 
-        data = set()
-        for a in addr:
-            if isinstance(a, int):
+            elif self.state.is_heap_address(addr):
+                # Load data from the heap
+                heap_offset = self.state.get_heap_offset(addr)
+                vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
+                memory_location = MemoryLocation(HeapAddress(heap_offset), size)
+                self.state.add_use(memory_location, self._codeloc())
+                result = result.merge(vs) if result is not None else vs
+
+            else:
+
+                addr_v = addr._model_concrete.value
+
                 # Load data from a global region
-                current_defs = self.state.memory_definitions.get_objects_by_offset(a)
-                if current_defs:
-                    for current_def in current_defs:
-                        data.update(current_def.data)
-                    if any(type(d) is Undefined for d in data):
-                        l.info('Memory at address %#x undefined, ins_addr = %#x.', a, self.ins_addr)
-                else:
+                try:
+                    vs: MultiValues = self.state.memory_definitions.load(addr_v, size=size, endness=endness)
+                except SimMemoryMissingError:
+                    # try to load it from the static memory backer
+                    # TODO: Is this still required?
                     try:
-                        data.add(self.project.loader.memory.unpack_word(a, size=size))
+                        vs = MultiValues(offset_to_values={0: {
+                            claripy.BVV(
+                                self.project.loader.memory.unpack_word(addr_v, size=size),
+                                size * self.arch.byte_width
+                            )}})
                     except KeyError:
-                        pass
+                        continue
+
+                result = result.merge(vs) if result is not None else vs
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                memory_location = MemoryLocation(a, size)
+                memory_location = MemoryLocation(addr_v, size)
                 self.state.add_use(memory_location, self._codeloc())
-            elif isinstance(a, SpOffset) and isinstance(a.offset, int):
-                # Load data from a local variable
-                current_defs = self.state.stack_definitions.get_objects_by_offset(a.offset)
-                if current_defs:
-                    for def_ in current_defs:
-                        data.update(def_.data.truncate(self.arch.bits))
-                else:
-                    data.add(UNDEFINED)
-                memory_location = MemoryLocation(a, size)
-                self.state.add_use(memory_location, self._codeloc())
-            elif isinstance(a, HeapAddress) and isinstance(a.value, int):
-                # Load data from the heap
-                current_defs = self.state.heap_definitions.get_objects_by_offset(a.value)
-                if current_defs:
-                    for def_ in current_defs:
-                        data.update(def_.data.truncate(self.arch.bits))
-                else:
-                    data.add(UNDEFINED)
-                memory_location = MemoryLocation(a, size)
-                self.state.add_use(memory_location, self._codeloc())
-            else:
-                l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
 
-        if len(data) == 0:
-            data.add(UNDEFINED)
+        if result is None:
+            result = MultiValues(offset_to_values={0: {self.state.top(size * self.arch.byte_width)}})
 
-        return DataSet(data, size * self.arch.byte_width)
+        return result
 
     # CAUTION: experimental
     def _handle_ITE(self, expr):
@@ -406,7 +412,7 @@ class SimEngineRDVEX(
             r = MultiValues(offset_to_values={next(iter(arg_0.values.keys())): data})
 
         else:
-            r = MultiValues(offset_to_values={0: self.state.top(bits // self.arch.byte_width)})
+            r = MultiValues(offset_to_values={0: self.state.top(bits)})
 
         return r
 
@@ -464,14 +470,18 @@ class SimEngineRDVEX(
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
 
-        if len(expr_0) == 1 and len(expr_1) == 1:
-            e0 = expr_0.get_first_element()
-            e1 = expr_1.get_first_element()
-            if isinstance(e0, int) and isinstance(e1, int):
-                return DataSet(e0 == e1, expr.result_size(self.tyenv))
+        if len(expr_0.values) == 1 and len(expr_1.values) == 1:
+            e0 = expr_0.one_value()
+            e1 = expr_1.one_value()
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(offset_to_values={0: {
+                    claripy.BVV(1, 1) if e0._model_concrete.value == e1._model_concrete.value else claripy.BVV(0, 1)
+                }})
+            elif e0 is e1:
+                return MultiValues(offset_to_values={0: {claripy.BVV(1, 1)}})
+            return MultiValues(offset_to_values={0: { self.state.top(1) }})
 
-        l.warning('Comparison of multiple values / different types.')
-        return DataSet({True, False}, expr.result_size(self.tyenv))
+        return MultiValues(offset_to_values={0: { self.state.top(1) }})
 
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
@@ -668,44 +678,39 @@ class SimEngineRDVEX(
                     function = func_addr_int if isinstance(func_addr_int, int) else None,
                     metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
                 )
-                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({UNDEFINED}, reg_size * 8), tags={tag})
+                self.state.kill_and_add_definition(atom,
+                                                   self._codeloc(),
+                                                   MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                                                   tags={tag}
+                                                   )
 
         if cc.CALLER_SAVED_REGS is not None:
             for reg in cc.CALLER_SAVED_REGS:
                 reg_offset, reg_size = self.arch.registers[reg]
                 atom = Register(reg_offset, reg_size)
-                self.state.kill_and_add_definition(atom, self._codeloc(), DataSet({UNDEFINED}, reg_size * 8))
+                self.state.kill_and_add_definition(atom,
+                                                   self._codeloc(),
+                                                   MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                                                   )
 
         if self.arch.call_pushes_ret is True:
             # pop return address if necessary
-            defs_sp = self.state.register_definitions.get_objects_by_offset(self.arch.sp_offset)
-            if len(defs_sp) == 0:
-                raise ValueError('No definition for SP found')
-            if len(defs_sp) == 1:
-                sp_data = next(iter(defs_sp)).data.data
-            else:  # len(defs_sp) > 1
-                sp_data = set()
-                for d in defs_sp:
-                    sp_data.update(d.data)
-
-            if len(sp_data) != 1:
-                l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
-                           'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
-
-            sp_addr = next(iter(sp_data))
-            if isinstance(sp_addr, (int, SpOffset)):
+            sp: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes,
+                                                                   endness=self.arch.register_endness)
+            sp_v = sp.one_value()
+            if sp_v is not None and not self.state.is_top(sp_v):
+                sp_addr = sp_v._model_concrete.value
                 sp_addr -= self.arch.stack_change
-            elif isinstance(sp_addr, Undefined):
-                pass
-            else:
-                raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
 
-            atom = Register(self.arch.sp_offset, self.arch.bytes)
-            tag = ReturnValueTag(
-                function = func_addr_int,
-                metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
-            )
-            self.state.kill_and_add_definition(atom, self._codeloc(), DataSet(sp_addr, self.arch.bits), tags={tag})
+                atom = Register(self.arch.sp_offset, self.arch.bytes)
+                tag = ReturnValueTag(
+                    function = func_addr_int,
+                    metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
+                )
+                self.state.kill_and_add_definition(atom, self._codeloc(),
+                                                   MultiValues(offset_to_values={0: {claripy.BVV(sp_addr, self.arch.bits)}}),
+                                                   tags={tag},
+                                                   )
 
     def _tag_definitions_of_atom(self, atom: Atom, func_addr: int):
         definitions = self.state.get_definitions(atom)

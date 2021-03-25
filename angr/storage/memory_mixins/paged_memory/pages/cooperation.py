@@ -1,5 +1,5 @@
 import claripy
-from typing import List, Tuple, Set
+from typing import List, Tuple, Set, Dict
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
@@ -169,17 +169,41 @@ class MemoryObjectSetMixin(CooperationBase):
     def _decompose_objects(cls, addr, data, endness, memory=None, page_addr=0, label=None, **kwargs):
         # the generator model is definitely overengineered here but wouldn't be if we were working with raw BVs
         cur_addr = addr + page_addr
-        if label is None:
-            memory_object = SimMemoryObject(data, cur_addr, endness,
-                                            byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        if isinstance(data, MultiValues):
+            # for MultiValues, we return sets of SimMemoryObjects
+            assert label is None  # TODO: Support labels
+
+            size = yield
+            offset_to_mos: Dict[int,Set[SimMemoryObject]] = {}
+            for offset, vs in data.values.items():
+                offset_to_mos[offset] = set()
+                for v in vs:
+                    offset_to_mos[offset].add(SimMemoryObject(
+                        v, cur_addr + offset, endness,
+                        byte_width=memory.state.arch.byte_width if memory is not None else 0)
+                    )
+
+            sorted_offsets = list(sorted(offset_to_mos.keys()))
+            pos = 0
+            while pos < len(sorted_offsets):
+                cur_addr += size
+                mos = set(offset_to_mos[sorted_offsets[pos]])
+                size = yield mos
+                if sorted_offsets[pos] < cur_addr - addr - page_addr:
+                    pos += 1
+
         else:
-            memory_object = SimLabeledMemoryObject(data, cur_addr, endness,
-                                                   byte_width=memory.state.arch.byte_width if memory is not None else 8,
-                                                   label=label)
-        size = yield
-        while True:
-            cur_addr += size
-            size = yield memory_object
+            if label is None:
+                obj = SimMemoryObject(data, cur_addr, endness,
+                                                byte_width=memory.state.arch.byte_width if memory is not None else 8)
+            else:
+                obj = SimLabeledMemoryObject(data, cur_addr, endness,
+                                                       byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                                                       label=label)
+            size = yield
+            while True:
+                cur_addr += size
+                size = yield { obj }
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):

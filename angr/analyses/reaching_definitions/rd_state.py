@@ -91,8 +91,8 @@ class ReachingDefinitionsState:
     # Util methods for working with the memory model
     #
 
-    def top(self, size: int):
-        return self.live_definitions.top(size * self.arch.byte_width)
+    def top(self, bits: int):
+        return self.live_definitions.top(bits)
 
     def is_top(self, *args): return self.live_definitions.is_top(*args)
 
@@ -249,14 +249,14 @@ class ReachingDefinitionsState:
                     reg_offset = self.arch.registers[arg.reg_name][0]
                     reg_atom = Register(reg_offset, self.arch.bytes)
                     reg_def = Definition(reg_atom, ExternalCodeLocation(), tags={ParameterTag()})
-                    reg = self.annotate_with_def(self.top(self.arch.bytes), reg_def)
+                    reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
                     self.register_definitions.store(reg_offset, reg, endness=self.arch.register_endness)
 
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
                     ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
                     ml_def = Definition(ml_atom, ExternalCodeLocation(), tags={ParameterTag()})
-                    ml = self.annotate_with_def(self.top(self.arch.bytes), ml_def)
+                    ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
                     self.stack_definitions.store(self._initial_stack_pointer() + arg.stack_offset, ml,
                                                  endness=self.arch.memory_endness)
 
