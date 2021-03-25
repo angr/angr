@@ -3,8 +3,8 @@ import logging
 
 import archinfo
 import claripy
-from claripy.annotation import Annotation
 
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
@@ -24,23 +24,6 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-
-#
-# Annotations
-#
-
-
-class DefinitionAnnotation(Annotation):
-    def __init__(self, definition):
-        super().__init__()
-        self.definition = definition
-
-    def relocatable(self):
-        return False
-
-    def eliminatable(self):
-        return False
-
 
 #
 # Reaching definitions state
@@ -113,6 +96,40 @@ class ReachingDefinitionsState:
 
     def is_top(self, *args): return self.live_definitions.is_top(*args)
 
+    def heap_address(self, offset: int) -> claripy.ast.Base:
+        base = claripy.BVS("heap_base", self.arch.bits, explicit_name=True)
+        if offset:
+            return base + offset
+        return base
+
+    def is_heap_address(self, addr: claripy.ast.Base) -> bool:
+        return "heap_base" in addr.variables
+
+    def get_heap_offset(self, addr: claripy.ast.Base) -> Optional[int]:
+        if "heap_base" in addr.variables:
+            if addr.op == "BVS":
+                return 0
+            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return addr.args[1]._model_concrete.value
+        return None
+
+    def stack_address(self, offset: int) -> claripy.ast.Base:
+        base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
+        if offset:
+            return base + offset
+        return base
+
+    def is_stack_address(self, addr: claripy.ast.Base) -> bool:
+        return "stack_base" in addr.variables
+
+    def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
+        if "stack_base" in addr.variables:
+            if addr.op == "BVS":
+                return 0
+            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return addr.args[1]._model_concrete.value
+        return None
+
     def _initial_stack_pointer(self):
         if self.arch.bits == 32:
             return claripy.BVV(self.INITIAL_SP_32BIT, 32)
@@ -128,19 +145,17 @@ class ReachingDefinitionsState:
         :param definition:
         :return:
         """
-        return symvar.annotate(DefinitionAnnotation(definition))
+        return self.live_definitions.annotate_with_def(symvar, definition)
 
     def extract_defs(self, symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
-        for anno in symvar.annotations:
-            if isinstance(anno, DefinitionAnnotation):
-                yield anno.definition
+        yield from self.live_definitions.extract_defs(symvar)
 
     #
     # Other methods
     #
 
     @property
-    def tmp_definitions(self): return self.live_definitions.tmp_definitions
+    def tmp_definitions(self): return self.live_definitions.tmps
 
     @property
     def tmp_uses(self): return self.live_definitions.tmp_uses
@@ -294,7 +309,8 @@ class ReachingDefinitionsState:
             self.current_codeloc = code_loc
             self.codeloc_uses = set()
 
-    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True, tags: Set[Tag]=None) -> None:
+    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[MultiValues]=None, dummy=True,
+                         tags: Set[Tag]=None) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
@@ -310,7 +326,7 @@ class ReachingDefinitionsState:
 
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
-    def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
+    def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
                                 dummy=False, tags: Set[Tag]=None) -> Optional[Definition]:
         self._cycle(code_loc)
 
