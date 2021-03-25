@@ -1,8 +1,11 @@
+from itertools import chain
 from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
 import logging
 
 import pyvex
+import claripy
 
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
@@ -117,17 +120,17 @@ class SimEngineRDVEX(
         reg = Register(reg_offset, size)
         data = self._expr(stmt.data)
 
-        if any(type(d) is Undefined for d in data):
-            l.info('Data to write into register <%s> with offset %d undefined, ins_addr = %#x.',
-                   self.arch.translate_register_name(reg_offset, size=size), reg_offset, self.ins_addr)
-
         # special handling for references to heap or stack variables
-        for d in data:
-            if (
-                (isinstance(d, HeapAddress) and isinstance(d.value, int)) or
-                (isinstance(d, SpOffset) and isinstance(d.offset, int))
-            ):
-                self.state.add_use(MemoryLocation(d, 1), self._codeloc())
+        if len(data.values) == 1:
+            for d in next(iter(data.values.values())):
+                if self.state.is_heap_address(d):
+                    heap_offset = self.state.get_heap_offset(d)
+                    if heap_offset is not None:
+                        self.state.add_use(MemoryLocation(HeapAddress(heap_offset), 1), self._codeloc())
+                elif self.state.is_stack_address(d):
+                    stack_offset = self.state.get_stack_offset(d)
+                    if stack_offset is not None:
+                        self.state.add_use(MemoryLocation(SpOffset(self.arch.bits, stack_offset), 1), self._codeloc())
 
         self.state.kill_and_add_definition(reg, self._codeloc(), data)
 
@@ -256,11 +259,11 @@ class SimEngineRDVEX(
     # VEX expression handlers
     #
 
-    def _expr(self, expr) -> DataSet:
+    def _expr(self, expr) -> MultiValues:
         data = super()._expr(expr)
         if data is None:
             bits = expr.result_size(self.tyenv)
-            data = DataSet(UNDEFINED, bits)
+            data = self.state.top(bits // self.arch.byte_width)
         return data
 
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[DataSet]:
@@ -273,33 +276,33 @@ class SimEngineRDVEX(
         return None
 
     # e.g. t0 = GET:I64(rsp), rsp might be defined multiple times
-    def _handle_Get(self, expr: pyvex.IRExpr.Get) -> Optional[DataSet]:
+    def _handle_Get(self, expr: pyvex.IRExpr.Get) -> MultiValues:
 
         reg_offset: int = expr.offset
         bits: int = expr.result_size(self.tyenv)
         size: int = bits // self.arch.byte_width
 
-        data: Set[Union[Undefined,RegisterOffset,int]] = set()
         try:
-            values = self.state.register_definitions.load(reg_offset, size=size, endness=self.arch.register_endness)
+            values: MultiValues = self.state.register_definitions.load(reg_offset, size=size,
+                                                                       endness=self.arch.register_endness)
         except SimMemoryMissingError:
-            values = self.state.top(size)
+            values = MultiValues({0: {self.state.top(size)}})
 
-        raise RuntimeError("This is where I left off")
+        current_defs: Optional[Iterable[Definition]] = None
+        for vs in values.values.values():
+            for v in vs:
+                if current_defs is None:
+                    current_defs = self.state.extract_defs(v)
+                else:
+                    current_defs = chain(current_defs, self.state.extract_defs(v))
 
-        current_defs: Iterable[Definition] = self.state.extract_defs()
-        if len(data) == 0:
+        if current_defs is None:
             # no defs can be found. add a fake definition
-            data.add(UNDEFINED)
-            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(),
-                                               values)
-        if any(type(d) is Undefined for d in data):
-            l.info('Data in register <%s> with offset %d undefined, ins_addr = %#x.',
-                   self.arch.translate_register_name(reg_offset, size=size), reg_offset, self.ins_addr)
+            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), values)
 
         self.state.add_use(Register(reg_offset, size), self._codeloc())
 
-        return DataSet(data, expr.result_size(self.tyenv))
+        return values
 
     # e.g. t27 = LDle:I64(t9), t9 might include multiple values
     # caution: Is also called from StoreG
@@ -381,34 +384,31 @@ class SimEngineRDVEX(
     # Unary operation handlers
     #
 
-    def _handle_Const(self, expr):
-        return DataSet(expr.con.value, expr.result_size(self.tyenv))
+    def _handle_Const(self, expr) -> MultiValues:
+        return MultiValues(offset_to_values={0: { claripy.BVV(expr.con.value, expr.result_size(self.tyenv)) }})
 
     def _handle_Conversion(self, expr):
         simop = vex_operations[expr.op]
+        bits = int(simop.op_attrs['to_size'])
         arg_0 = self._expr(expr.args[0])
 
-        bits = int(simop.op_attrs['to_size'])
-        data = set()
-        # convert operand if possible otherwise keep it unchanged
-        for a in arg_0:
-            if type(a) is Undefined:
-                pass
-            elif isinstance(a, int):
-                mask = 2 ** bits - 1
-                a &= mask
-            elif type(a) is Parameter:
-                if type(a.value) is Register:
-                    a.value.size = bits // 8
-                elif type(a.value) is SpOffset:
-                    a.value.bits = bits
-                else:
-                    l.warning('Unsupported type Parameter->%s for conversion.', type(a.value).__name__)
-            else:
-                l.warning('Unsupported type %s for conversion.', type(a).__name__)
-            data.add(a)
+        # if there are multiple values with only one offset, we apply conversion to each one of them
+        # otherwise, we return a TOP
 
-        return DataSet(data, expr.result_size(self.tyenv))
+        if len(arg_0.values) == 1:
+            # extension, extract, or doing nothing
+            data = set()
+            for v in next(iter(arg_0.values.values())):
+                if bits > v.size():
+                    data.add(v.zero_extend(bits - v.size()))
+                else:
+                    data.add(v[bits - 1:0])
+            r = MultiValues(offset_to_values={next(iter(arg_0.values.keys())): data})
+
+        else:
+            r = MultiValues(offset_to_values={0: self.state.top(bits // self.arch.byte_width)})
+
+        return r
 
     def _handle_Not1(self, expr):
         arg0 = expr.args[0]

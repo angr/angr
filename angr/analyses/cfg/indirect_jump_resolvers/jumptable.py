@@ -159,6 +159,12 @@ class JumpTableProcessor(
         self._bp_sp_diff = bp_sp_diff  # bp - sp
         self._tsrc = set()  # a scratch variable to store source information for values
 
+    def _top(self, size: int):
+        return None
+
+    def _is_top(self, expr) -> bool:
+        return expr is None
+
     def _handle_WrTmp(self, stmt):
         self._tsrc = set()
         super()._handle_WrTmp(stmt)

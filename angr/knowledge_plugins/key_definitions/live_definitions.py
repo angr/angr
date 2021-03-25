@@ -1,13 +1,17 @@
+from itertools import chain
 import weakref
-from typing import Optional, Iterable, Dict, Set
+from typing import Optional, Iterable, Dict, Set, Generator
 import logging
 
 import claripy
+from claripy.annotation import Annotation
 import archinfo
 
 from collections import defaultdict
 
+from ...errors import SimMemoryMissingError
 from ...storage.memory_mixins import MultiValuedMemory
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
@@ -21,6 +25,23 @@ from .dataset import DataSet
 l = logging.getLogger(name=__name__)
 
 
+#
+# Annotations
+#
+
+
+class DefinitionAnnotation(Annotation):
+    def __init__(self, definition):
+        super().__init__()
+        self.definition = definition
+
+    def relocatable(self):
+        return False
+
+    def eliminatable(self):
+        return False
+
+
 class LiveDefinitions:
     """
     A LiveDefinitions instance contains definitions and uses for register, stack, memory, and temporary variables,
@@ -28,7 +49,7 @@ class LiveDefinitions:
     """
 
     __slots__ = ('project', 'arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'heap_definitions',
-                 'memory_definitions', 'tmp_definitions', 'register_uses', 'stack_uses', 'heap_uses',
+                 'memory_definitions', 'tmps', 'register_uses', 'stack_uses', 'heap_uses',
                  'memory_uses', 'uses_by_codeloc', 'tmp_uses', '_canonical_size', '__weakref__', )
 
     def __init__(self, arch: archinfo.Arch, track_tmps: bool=False, canonical_size=8,
@@ -51,7 +72,7 @@ class LiveDefinitions:
             if memory_definitions is None else memory_definitions
         self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
             if heap_definitions is None else heap_definitions
-        self.tmp_definitions: Dict[int,Set[Definition]] = {}
+        self.tmps: Dict[int, Set[Definition]] = {}
 
         # set state
         self.register_definitions.set_state(self)
@@ -68,8 +89,8 @@ class LiveDefinitions:
 
     def __repr__(self):
         ctnt = "LiveDefs"
-        if self.tmp_definitions:
-            ctnt += ", %d tmpdefs" % len(self.tmp_definitions)
+        if self.tmps:
+            ctnt += ", %d tmpdefs" % len(self.tmps)
         return "<%s>" % ctnt
 
     def copy(self) -> 'LiveDefinitions':
@@ -80,7 +101,7 @@ class LiveDefinitions:
                              memory_definitions=self.memory_definitions.copy(),
                              )
 
-        rd.tmp_definitions = self.tmp_definitions.copy()
+        rd.tmps = self.tmps.copy()
         rd.register_uses = self.register_uses.copy()
         rd.stack_uses = self.stack_uses.copy()
         rd.heap_uses = self.heap_uses.copy()
@@ -117,6 +138,30 @@ class LiveDefinitions:
                 return True
         return False
 
+    def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition):
+        """
+
+        :param symvar:
+        :param definition:
+        :return:
+        """
+
+        # strip existing definition annotations
+        annotations_to_remove = [ ]
+        for anno in symvar.annotations:
+            if isinstance(anno, DefinitionAnnotation):
+                annotations_to_remove.append(anno)
+        if annotations_to_remove:
+            symvar = symvar.remove_annotations(annotations_to_remove)
+
+        # annotate with the new definition annotation
+        return symvar.annotate(DefinitionAnnotation(definition))
+
+    def extract_defs(self, symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
+        for anno in symvar.annotations:
+            if isinstance(anno, DefinitionAnnotation):
+                yield anno.definition
+
     def get_sp(self) -> int:
         """
         Return the concrete value contained by the stack pointer.
@@ -151,7 +196,8 @@ class LiveDefinitions:
 
         return state
 
-    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet]=None, dummy=True, tags: Set[Tag]=None) -> None:
+    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[MultiValues]=None, dummy=True,
+                         tags: Set[Tag]=None) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
@@ -164,37 +210,39 @@ class LiveDefinitions:
         data = DataSet(UNDEFINED, atom.size)
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
-    def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: Optional[DataSet],
-                                dummy=False, tags: Set[Tag]=None, endness=None) -> Optional[Definition]:
+    def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
+                                dummy=False, tags: Set[Tag]=None, endness=None) -> Optional[MultiValues]:
         if data is None:
-            data = DataSet(UNDEFINED, atom.size)
-        definition: Definition = Definition(atom, code_loc, None, dummy=dummy, tags=tags)
+            raise TypeError("kill_and_add_definition() does not take None as data.")
+
+        definition: Definition = Definition(atom, code_loc, dummy=dummy, tags=tags)
+        d = MultiValues()
+        for offset, vs in data.values.items():
+            for v in vs:
+                d.add_value(offset, self.annotate_with_def(v, definition))
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
-            label = {
-                'def': definition,
-            }
-            self.register_definitions.store(atom.reg_offset, data, size=atom.size, endness=endness, label=label)
+            self.register_definitions.store(atom.reg_offset, d, size=atom.size, endness=endness)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
-                self.stack_definitions.set_object(atom.addr.offset, definition, atom.size)
+                self.stack_definitions.store(atom.addr.offset, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, HeapAddress):
-                self.heap_definitions.set_object(atom.addr.value, definition, atom.size)
+                self.heap_definitions.store(atom.addr.value, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, int):
-                self.memory_definitions.set_object(atom.addr, definition, atom.size)
+                self.memory_definitions.store(atom.addr, d, size=atom.size, endness=endness)
             else:
                 return None
         elif isinstance(atom, Tmp):
             if self.track_tmps:
-                self.tmp_definitions[atom.tmp_idx] = { definition }
+                self.tmps[atom.tmp_idx] = d
             else:
-                self.tmp_definitions[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
+                self.tmps[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
                 return None
         else:
             raise NotImplementedError()
 
-        return definition
+        return d
 
     def add_use(self, atom: Atom, code_loc: CodeLocation) -> None:
         if isinstance(atom, Register):
@@ -234,8 +282,13 @@ class LiveDefinitions:
 
     def get_definitions(self, atom: Atom, endness=None) -> Iterable[Definition]:
         if isinstance(atom, Register):
-            _, labels = self.register_definitions.load_with_labels(atom.reg_offset, size=atom.size, endness=endness)
-            return [ label['def'] for label in labels ]
+            try:
+                values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size, endness=endness)
+            except SimMemoryMissingError:
+                return
+            for vs in values.values.values():
+                for v in vs:
+                    yield self.extract_defs(v)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 return self.stack_definitions.get_objects_by_offset(atom.addr.offset)
@@ -246,7 +299,7 @@ class LiveDefinitions:
             else:
                 return [ ]
         elif type(atom) is Tmp:
-            return self.tmp_definitions[atom.tmp_idx]
+            return self.tmps[atom.tmp_idx]
         else:
             raise TypeError()
 
@@ -262,11 +315,16 @@ class LiveDefinitions:
 
     def _add_register_use(self, atom: Register, code_loc: CodeLocation) -> None:
         # get all current definitions
-        _, labels = self.register_definitions.load_with_labels(atom.reg_offset, size=atom.size)
-        current_defs: Iterable[Definition] = iter(label['def'] for label in labels)
+        try:
+            values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size,
+                                                                 endness=self.arch.register_endness)
+        except SimMemoryMissingError:
+            return
 
-        for current_def in current_defs:
-            self._add_register_use_by_def(current_def, code_loc)
+        for vs in values.values.values():
+            for v in vs:
+                for def_ in self.extract_defs(v):
+                    self._add_register_use_by_def(def_, code_loc)
 
     def _add_register_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
         self.register_uses.add_use(def_, code_loc)
@@ -315,11 +373,11 @@ class LiveDefinitions:
     def _add_tmp_use(self, atom: Tmp, code_loc: CodeLocation) -> None:
 
         if self.track_tmps:
-            defs = self.tmp_definitions[atom.tmp_idx]
+            defs = self.tmps[atom.tmp_idx]
             for def_ in defs:
                 self._add_tmp_use_by_def(def_, code_loc)
         else:
-            defs = self.tmp_definitions[atom.tmp_idx]
+            defs = self.tmps[atom.tmp_idx]
             for d in defs:
                 assert not type(d.atom) is Tmp
                 self.add_use_by_def(d, code_loc)
