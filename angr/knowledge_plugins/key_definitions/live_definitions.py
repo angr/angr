@@ -295,7 +295,13 @@ class LiveDefinitions:
             elif isinstance(atom.addr, HeapAddress):
                 return self.heap_definitions.get_objects_by_offset(atom.addr.value)
             elif isinstance(atom.addr, int):
-                return self.memory_definitions.get_objects_by_offset(atom.addr)
+                try:
+                    values = self.memory_definitions.load(atom.addr, size=atom.size, endness=self.arch.memory_endness)
+                except SimMemoryMissingError:
+                    return
+                for vs in values.values.values():
+                    for v in vs:
+                        yield self.extract_defs(v)
             else:
                 return [ ]
         elif type(atom) is Tmp:
@@ -361,7 +367,7 @@ class LiveDefinitions:
     def _add_memory_use(self, atom: MemoryLocation, code_loc: CodeLocation) -> None:
 
         # get all current definitions
-        current_defs: Iterable[Definition] = self.memory_definitions.get_objects_by_offset(atom.addr)
+        current_defs: Iterable[Definition] = self.get_definitions(atom)
 
         for current_def in current_defs:
             self._add_memory_use_by_def(current_def, code_loc)

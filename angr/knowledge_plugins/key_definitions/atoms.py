@@ -2,6 +2,7 @@ from typing import Dict, Tuple, Union
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg
 from ...engines.light import SpOffset
+from .heap_address import HeapAddress
 
 
 class Atom:
@@ -116,7 +117,7 @@ class MemoryLocation(Atom):
 
     __slots__ = ('addr', '_size')
 
-    def __init__(self, addr: Union[SpOffset,int], size: int):
+    def __init__(self, addr: Union[SpOffset,HeapAddress,int], size: int):
         """
         :param int addr: The address of the beginning memory location slice.
         :param int size: The size of the represented memory location, in bytes.

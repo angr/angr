@@ -86,7 +86,7 @@ class MVListPage(
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
 
-        data: _MOTYPE
+        data: Set[_MOTYPE]
 
         if size == len(self.content) and addr == 0:
             self.sinkhole = data
@@ -94,13 +94,13 @@ class MVListPage(
         else:
             if not weak:
                 for subaddr in range(addr, addr + size):
-                    self.content[subaddr] = {data}
+                    self.content[subaddr] = data
             else:
                 for subaddr in range(addr, addr + size):
                     if self.content[subaddr] is None:
-                        self.content[subaddr] = { data }
+                        self.content[subaddr] = data
                     else:
-                        self.content[subaddr].add(data)
+                        self.content[subaddr] |= data
 
     def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
               memory=None):
