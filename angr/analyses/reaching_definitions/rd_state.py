@@ -289,7 +289,7 @@ class ReachingDefinitionsState:
                         self.dep_graph.add_edge(used, definition)
                         self.dep_graph.add_dependencies_for_concrete_pointers_of(
                             used,
-                            self.analysis.project.kb.cfgs['CFGFast'],
+                            self.analysis.project.kb.cfgs.get_most_accurate(),
                             self.analysis.project.loader
                         )
 
