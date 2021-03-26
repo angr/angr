@@ -175,7 +175,7 @@ class LiveDefinitions:
                 self._add_stack_use_by_def(definition, code_loc)
             elif isinstance(definition.atom.addr, HeapAddress):
                 self._add_heap_use_by_def(definition, code_loc)
-            elif isinstance(definition.atom.addr, MemoryLocation):
+            elif isinstance(definition.atom.addr, int):
                 self._add_memory_use_by_def(definition, code_loc)
             else:
                 # ignore RegisterOffset
