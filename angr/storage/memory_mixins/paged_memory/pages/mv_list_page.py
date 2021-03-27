@@ -102,16 +102,14 @@ class MVListPage(
                     else:
                         self.content[subaddr] |= data
 
-    def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
+    def merge(self, others: List['MVListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
               memory=None):
-
-        raise NotImplementedError()
 
         changed_offsets = set()
         for other in others:
             changed_offsets |= self.changed_bytes(other, page_addr)
 
-        all_pages: List['ListPage'] = [self] + others
+        all_pages: List['MVListPage'] = [self] + others
         if merge_conditions is None:
             merge_conditions = [None] * len(all_pages)
 
@@ -132,7 +130,8 @@ class MVListPage(
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
                     l.info("... present in %s", fv)
-                    memory_objects.append((sm.content[b], fv))
+                    for mo in sm.content[b]:
+                        memory_objects.append((mo, fv))
                 else:
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
@@ -146,7 +145,6 @@ class MVListPage(
 
             # first, optimize the case where we are dealing with the same-sized memory objects
             if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in:
-                our_mo = self.content[b]
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
@@ -164,13 +162,16 @@ class MVListPage(
                 # TODO: Implement in-place replacement instead of calling store()
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
-                self.store(b,
-                           SimMemoryObject(merged_val, mo_base, endness='Iend_BE'),
-                           size=size,
-                           cooperate=True
-                           )
-                # merged_objects.add(new_object)
-                # merged_objects.update(mos)
+                first_value = True
+                for v in merged_val:
+                    self.store(b,
+                               { SimMemoryObject(v, mo_base, endness='Iend_BE') },
+                               size=size,
+                               cooperate=True,
+                               weak=not first_value,
+                               )
+                    first_value = False
+
                 merged_offsets.add(b)
 
             else:
@@ -200,20 +201,21 @@ class MVListPage(
                 if merged_val is None:
                     continue
 
-                self.store(b,
-                           SimMemoryObject(merged_val, page_addr + b, endness='Iend_BE'),
-                           size=min_size,
-                           endness='Iend_BE',
-                           cooperate=True,
-                           weak=False,
-                           )  # do not convert endianness again
+                first_value = True
+                for v in merged_val:
+                    self.store(b,
+                               { SimMemoryObject(v, page_addr + b, endness='Iend_BE') },
+                               size=min_size,
+                               endness='Iend_BE',
+                               cooperate=True,
+                               weak=not first_value,
+                               )  # do not convert endianness again
+                    first_value = False
                 merged_offsets.add(b)
 
         return merged_offsets
 
-    def changed_bytes(self, other: 'ListPage', page_addr: int = None):
-
-        raise NotImplementedError("oops")
+    def changed_bytes(self, other: 'MVListPage', page_addr: int = None):
 
         candidates: Set[int] = set()
         for i in range(len(self.content)):
@@ -239,9 +241,9 @@ class MVListPage(
                                                        byte_width=byte_width, endness='Iend_BE') }
                 if self._contains(c, page_addr) and self.content[c] != other.content[c]:
                     # Try to see if the bytes are equal
-                    self_byte = self.content[c].bytes_at(page_addr + c, 1)
-                    other_byte = other.content[c].bytes_at(page_addr + c, 1)
-                    if self_byte is not other_byte:
+                    self_bytes = { mo.bytes_at(page_addr + c, 1) for mo in self.content[c] }
+                    other_bytes = { mo.bytes_at(page_addr + c, 1) for mo in other.content[c] }
+                    if self_bytes != other_bytes:
                         # l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
                         #        self_byte, other_byte,
                         #        self[c].object.model, other[c].object.model)
