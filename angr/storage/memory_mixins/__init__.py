@@ -144,6 +144,7 @@ from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
 from .hex_dumper_mixin import HexDumperMixin
+from .multi_value_merger_mixin import MultiValueMergerMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
 from .simple_interface_mixin import SimpleInterfaceMixin
@@ -314,7 +315,7 @@ class MultiValuedMemory(
     SizeNormalizationMixin,
     MVListPagesMixin,
     DefaultFillerMixin,
-    TopMergerMixin,
+    MultiValueMergerMixin,
     PagedMemoryMixin,
 ):
     def _default_value(self, addr, size, **kwargs):
