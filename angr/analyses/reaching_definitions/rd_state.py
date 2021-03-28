@@ -396,7 +396,7 @@ class ReachingDefinitionsState:
         self.live_definitions.add_use_by_def(definition, code_loc)
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
-        return self.live_definitions.get_definitions(atom)
+        yield from self.live_definitions.get_definitions(atom)
 
     def mark_guard(self, code_loc: CodeLocation, data: DataSet, target):
         self._cycle(code_loc)
