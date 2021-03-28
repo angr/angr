@@ -183,6 +183,22 @@ def test_fauxware():
     nose.tools.assert_true('traced' in simgr.stashes)
 
 
+def test_rollback_on_symbolic_conditional_exit():
+    # Test if state is correctly rolled back to before start of block in case block cannot be executed in unicorn engine
+    # because exit condition is symbolic
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00043")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "CROMU_00043_POV_00000.xml")
+    output_initial_bytes = [b"Network type: Broadcast", b"Source Address: 0x962B175B", b"Network type: Endpoint",
+                            b"Source Address: 0x321B00B0", b"Destination Address: 0xACF70019", b"Final Statistics:",
+                            b"\tTotal Packets: 6", b"\tStart Time: 0x5552C470", b"\tEnd Time: 0x54CAF0B0",
+                            b"\tLargest Packet: 0", b"\tSmallest Packet: 0", b"\tNumber of malformed packets: 0",
+                            b"\tNumber of packets shown 6", b"Option Headers:",
+                            b"This content has not been modified from the original",
+                            b"Capturing Authority: Network Provider", b"Capture Date: bKQcAXJJEqCSPmrIlRy",
+                            b"Capturing Authority: Employer\n"]
+    trace_cgc_with_pov_file(binary, "tracer_rollback_on_symbolic_conditional_exit", pov_file, b'\n'.join(output_initial_bytes))
+
+
 def test_skip_some_symbolic_memory_writes():
     # Test symbolic memory write skipping in SimEngineUnicorn during tracing
     # This test doesn't actually check if instruction was skipped. It checks if tracing is successful
