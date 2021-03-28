@@ -145,6 +145,11 @@ void State::stop(stop_t reason, bool do_commit) {
 	if ((reason == STOP_SYSCALL) || do_commit) {
 		commit();
 	}
+	else if ((reason != STOP_NORMAL) && (reason != STOP_STOPPOINT)) {
+		// Stop reason is not NORMAL, STOPPOINT or SYSCALL. Rollback.
+		// EXECNONE, ZEROPAGE, NOSTART, ZERO_DIV, NODECODE and HLT are never passed to this function.
+		rollback();
+	}
 	uc_emu_stop(uc);
 	// Prepare details of blocks with symbolic instructions to re-execute for returning to state plugin
 	for (auto &block: blocks_with_symbolic_instrs) {
