@@ -72,7 +72,7 @@ class LiveDefinitions:
             if memory_definitions is None else memory_definitions
         self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
             if heap_definitions is None else heap_definitions
-        self.tmps: Dict[int, Set[Definition]] = {}
+        self.tmps: Dict[int, Set[claripy.ast.Base]] = {}
 
         # set state
         self.register_definitions.set_state(self)
@@ -288,7 +288,7 @@ class LiveDefinitions:
                 return
             for vs in values.values.values():
                 for v in vs:
-                    yield self.extract_defs(v)
+                    yield from self.extract_defs(v)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 return self.stack_definitions.get_objects_by_offset(atom.addr.offset)
@@ -301,11 +301,12 @@ class LiveDefinitions:
                     return
                 for vs in values.values.values():
                     for v in vs:
-                        yield self.extract_defs(v)
+                        yield from self.extract_defs(v)
             else:
-                return [ ]
-        elif type(atom) is Tmp:
-            return self.tmps[atom.tmp_idx]
+                return
+        elif isinstance(atom, Tmp):
+            for tmp in self.tmps[atom.tmp_idx]:
+                yield from self.extract_defs(tmp)
         else:
             raise TypeError()
 
