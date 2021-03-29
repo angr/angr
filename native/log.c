@@ -112,6 +112,8 @@ void logLog(enum llevel_t ll, const char *fn, int ln, bool perr, const char *fmt
     if (logLevels[ll].print_funcline) {
 #ifdef __FreeBSD__
         dprintf(log_fd, "[%s][%s][%d] %s():%d ", timestr, logLevels[ll].descr, (pid_t)pthread_getthreadid_np, fn, ln);
+#elif __OpenBSD__
+        dprintf(log_fd, "[%s][%s][%d] %s():%d ", timestr, logLevels[ll].descr, getpid(), fn, ln);
 #else
         dprintf(log_fd, "[%s][%s][%d] %s():%d ", timestr, logLevels[ll].descr, (pid_t)syscall(__NR_gettid), fn, ln);
 #endif

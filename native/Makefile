@@ -8,6 +8,9 @@ endif
 ifeq ($(UNAME), Linux)
 	LIB_ANGR_NATIVE=angr_native.so
 endif
+ifeq ($(UNAME), OpenBSD)
+	LIB_ANGR_NATIVE=angr_native.so
+endif
 
 CC ?= gcc
 CXX ?= g++
