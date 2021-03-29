@@ -48,6 +48,9 @@ class LiveDefinitions:
     uncovered during the analysis.
     """
 
+    INITIAL_SP_32BIT = 0x7fff0000
+    INITIAL_SP_64BIT = 0x7fffffff0000
+
     __slots__ = ('project', 'arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'heap_definitions',
                  'memory_definitions', 'tmps', 'register_uses', 'stack_uses', 'heap_uses',
                  'memory_uses', 'uses_by_codeloc', 'tmp_uses', '_canonical_size', '__weakref__', )
@@ -138,6 +141,27 @@ class LiveDefinitions:
                 return True
         return False
 
+    def stack_address(self, offset: int) -> claripy.ast.Base:
+        base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
+        if offset:
+            return base + offset
+        return base
+
+    @staticmethod
+    def is_stack_address(addr: claripy.ast.Base) -> bool:
+        return "stack_base" in addr.variables
+
+    @staticmethod
+    def get_stack_offset(addr: claripy.ast.Base) -> Optional[int]:
+        if "stack_base" in addr.variables:
+            if addr.op == "BVS":
+                return 0
+            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return addr.args[1]._model_concrete.value
+            elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return -addr.args[1]._model_concrete.value
+        return None
+
     def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition):
         """
 
@@ -157,7 +181,8 @@ class LiveDefinitions:
         # annotate with the new definition annotation
         return symvar.annotate(DefinitionAnnotation(definition))
 
-    def extract_defs(self, symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
+    @staticmethod
+    def extract_defs(symvar: claripy.ast.Base) -> Generator[Definition,None,None]:
         for anno in symvar.annotations:
             if isinstance(anno, DefinitionAnnotation):
                 yield anno.definition
@@ -166,16 +191,22 @@ class LiveDefinitions:
         """
         Return the concrete value contained by the stack pointer.
         """
-        sp_definitions = self.register_definitions.get_objects_by_offset(self.arch.sp_offset)
-        first_value, *other_values = [ d.data.get_first_element() for d in sp_definitions ]
+        sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
+        sp_v = sp_values.one_value()
+        if sp_v is None:
+            # multiple values of sp exists. not supported.
+            assert False
 
-        # If there are several definitions for SP, all values must be the same.
-        if len(sp_definitions) > 1:
-            first_value, *other_values = [ d.data.get_first_element() for d in sp_definitions ]
-            all_have_same_value = all(map(lambda v: v == first_value, other_values))
-            assert all_have_same_value
+        return self.stack_offset_to_stack_addr(self.get_stack_offset(sp_v))
 
-        return first_value
+    def stack_offset_to_stack_addr(self, offset) -> int:
+        if self.arch.bits == 32:
+            base_v = self.INITIAL_SP_32BIT
+        elif self.arch.bits == 64:
+            base_v = self.INITIAL_SP_64BIT
+        else:
+            raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
+        return base_v + offset
 
     def merge(self, *others):
 
@@ -226,7 +257,8 @@ class LiveDefinitions:
             self.register_definitions.store(atom.reg_offset, d, size=atom.size, endness=endness)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
-                self.stack_definitions.store(atom.addr.offset, d, size=atom.size, endness=endness)
+                stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, HeapAddress):
                 self.heap_definitions.store(atom.addr.value, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, int):
@@ -280,10 +312,10 @@ class LiveDefinitions:
         else:
             raise TypeError()
 
-    def get_definitions(self, atom: Atom, endness=None) -> Iterable[Definition]:
+    def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         if isinstance(atom, Register):
             try:
-                values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size, endness=endness)
+                values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size)
             except SimMemoryMissingError:
                 return
             for vs in values.values.values():
@@ -291,12 +323,19 @@ class LiveDefinitions:
                     yield from self.extract_defs(v)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
-                return self.stack_definitions.get_objects_by_offset(atom.addr.offset)
+                stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                try:
+                    mv: MultiValues = self.stack_definitions.load(stack_addr, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return
+                for vs in mv.values.values():
+                    for v in vs:
+                        yield from self.extract_defs(v)
             elif isinstance(atom.addr, HeapAddress):
                 return self.heap_definitions.get_objects_by_offset(atom.addr.value)
             elif isinstance(atom.addr, int):
                 try:
-                    values = self.memory_definitions.load(atom.addr, size=atom.size, endness=self.arch.memory_endness)
+                    values = self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
                 except SimMemoryMissingError:
                     return
                 for vs in values.values.values():
@@ -341,9 +380,7 @@ class LiveDefinitions:
         if not isinstance(atom.addr, SpOffset):
             raise TypeError("Atom %r is not a stack location atom." % atom)
 
-        current_defs = self.stack_definitions.get_objects_by_offset(atom.addr.offset)
-
-        for current_def in current_defs:
+        for current_def in self.get_definitions(atom):
             self._add_stack_use_by_def(current_def, code_loc)
 
     def _add_stack_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
