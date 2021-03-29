@@ -72,7 +72,7 @@ class LiveDefinitions:
             if memory_definitions is None else memory_definitions
         self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
             if heap_definitions is None else heap_definitions
-        self.tmps: Dict[int, Set[claripy.ast.Base]] = {}
+        self.tmps: Dict[int, Set[Definition]] = {}
 
         # set state
         self.register_definitions.set_state(self)
@@ -207,7 +207,7 @@ class LiveDefinitions:
         :return: None
         """
 
-        data = DataSet(UNDEFINED, atom.size)
+        data = MultiValues(offset_to_values={0: {self.top(atom.size * self.arch.byte_width)}})
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
@@ -235,7 +235,7 @@ class LiveDefinitions:
                 return None
         elif isinstance(atom, Tmp):
             if self.track_tmps:
-                self.tmps[atom.tmp_idx] = d
+                self.tmps[atom.tmp_idx] = { definition }
             else:
                 self.tmps[atom.tmp_idx] = self.uses_by_codeloc[code_loc]
                 return None
@@ -306,7 +306,7 @@ class LiveDefinitions:
                 return
         elif isinstance(atom, Tmp):
             for tmp in self.tmps[atom.tmp_idx]:
-                yield from self.extract_defs(tmp)
+                yield tmp
         else:
             raise TypeError()
 
@@ -323,8 +323,7 @@ class LiveDefinitions:
     def _add_register_use(self, atom: Register, code_loc: CodeLocation) -> None:
         # get all current definitions
         try:
-            values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size,
-                                                                 endness=self.arch.register_endness)
+            values: MultiValues = self.register_definitions.load(atom.reg_offset, size=atom.size)
         except SimMemoryMissingError:
             return
 
