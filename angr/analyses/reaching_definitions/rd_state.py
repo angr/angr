@@ -51,9 +51,6 @@ class ReachingDefinitionsState:
     :param environment: Representation of the environment of the analysed program.
     """
 
-    INITIAL_SP_32BIT = 0x7fff0000
-    INITIAL_SP_64BIT = 0x7fffffff0000
-
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
                  'all_definitions', '_canonical_size', 'heap_allocator', '_environment', )
 
@@ -114,27 +111,19 @@ class ReachingDefinitionsState:
         return None
 
     def stack_address(self, offset: int) -> claripy.ast.Base:
-        base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
-        if offset:
-            return base + offset
-        return base
+        return self.live_definitions.stack_address(offset)
 
     def is_stack_address(self, addr: claripy.ast.Base) -> bool:
-        return "stack_base" in addr.variables
+        return self.live_definitions.is_stack_address(addr)
 
     def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
-        if "stack_base" in addr.variables:
-            if addr.op == "BVS":
-                return 0
-            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return addr.args[1]._model_concrete.value
-        return None
+        return self.live_definitions.get_stack_offset(addr)
 
     def _initial_stack_pointer(self):
         if self.arch.bits == 32:
-            return claripy.BVV(self.INITIAL_SP_32BIT, 32)
+            return claripy.BVS("stack_base", 32, explicit_name=True)
         elif self.arch.bits == 64:
-            return claripy.BVV(self.INITIAL_SP_64BIT, 32)
+            return claripy.BVS("stack_base", 64, explicit_name=True)
         else:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
 
@@ -226,7 +215,6 @@ class ReachingDefinitionsState:
 
     def _initialize_function(self, cc: SimCC, func_addr: int, rtoc_value: Optional[int]=None):
         # initialize stack pointer
-
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
         sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
@@ -327,10 +315,11 @@ class ReachingDefinitionsState:
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
-                                dummy=False, tags: Set[Tag]=None) -> Optional[MultiValues]:
+                                dummy=False, tags: Set[Tag]=None, endness=None) -> Optional[MultiValues]:
         self._cycle(code_loc)
 
-        mv = self.live_definitions.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
+        mv = self.live_definitions.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags,
+                                                           endness=endness)
 
         if mv is not None:
             defs = set()

@@ -106,14 +106,14 @@ class SimEngineRDVEX(
         data: MultiValues = self._expr(stmt.data)
 
         tmp_atom = Tmp(stmt.tmp, self.tyenv.sizeof(stmt.tmp) // self.arch.byte_width)
-        if len(data.values) == 1 and 0 in data.values:
-            data_v = data.one_value()
-            if data_v is not None:
-                # annotate data with its definition
-                data = MultiValues(offset_to_values={
-                    0: {self.state.annotate_with_def(data_v, Definition(tmp_atom, self._codeloc()))
-                        }
-                })
+        # if len(data.values) == 1 and 0 in data.values:
+        #     data_v = data.one_value()
+        #     if data_v is not None:
+        #         # annotate data with its definition
+        #         data = MultiValues(offset_to_values={
+        #             0: {self.state.annotate_with_def(data_v, Definition(tmp_atom, self._codeloc()))
+        #                 }
+        #         })
         self.tmps[stmt.tmp] = data
 
         self.state.kill_and_add_definition(tmp_atom,
@@ -156,7 +156,7 @@ class SimEngineRDVEX(
 
         if len(addr.values) == 1:
             addrs = next(iter(addr.values.values()))
-            self._store_core(addrs, size, data)
+            self._store_core(addrs, size, data, endness=stmt.endness)
 
     def _handle_StoreG(self, stmt: pyvex.IRStmt.StoreG):
         guard = self._expr(stmt.guard)
@@ -178,7 +178,8 @@ class SimEngineRDVEX(
 
             self._store_core(addr, size, data, data_old=data_old)
 
-    def _store_core(self, addr: Iterable[Union[int,HeapAddress,SpOffset,Undefined]], size: int, data, data_old=None):
+    def _store_core(self, addr: Iterable[Union[int,HeapAddress,SpOffset]], size: int, data: MultiValues,
+                    data_old=None, endness=None):
         if data_old:
             data.update(data_old)
 
@@ -186,36 +187,33 @@ class SimEngineRDVEX(
             if self.state.is_top(a):
                 l.debug('Memory address undefined, ins_addr = %#x.', self.ins_addr)
             else:
-                if any(type(d) is Undefined for d in data):
-                    l.info('Data to write at address %s undefined, ins_addr = %s.',
-                           "%#x" if isinstance(a, int) else a,
-                           "%#x" if isinstance(self.ins_addr, int) else self.ins_addr
-                           )
+                tags: Optional[Set[Tag]]
+                if isinstance(a, int):
+                    atom = MemoryLocation(a, size)
+                    tags = None
+                elif self.state.is_stack_address(a):
+                    atom = MemoryLocation(SpOffset(self.arch.bits, self.state.get_stack_offset(a)), size)
+                    function_address = (
+                        self.project.kb
+                            .cfgs.get_most_accurate()
+                            .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
+                            .function_address
+                    )
+                    tags = {LocalVariableTag(
+                        function=function_address,
+                        metadata={'tagged_by': 'SimEngineRDVEX._store_core'}
+                    )}
 
-                if (
-                    isinstance(a, int) or
-                    (isinstance(a, SpOffset) and isinstance(a.offset, int)) or
-                    (isinstance(a, HeapAddress) and isinstance(a.value, int))
-                ):
-                    tags: Optional[Set[Tag]]
-                    if isinstance(a, SpOffset):
-                        function_address = (
-                            self.project.kb
-                                .cfgs.get_most_accurate()
-                                .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
-                                .function_address
-                        )
-                        tags = {LocalVariableTag(
-                            function = function_address,
-                            metadata = {'tagged_by': 'SimEngineRDVEX._store_core'}
-                        )}
-                    else:
-                        tags = None
+                elif self.state.is_heap_address(a):
+                    atom = MemoryLocation(HeapAddress(self.state.get_heap_offset(a)), size)
+                    tags = None
 
-                    memloc = MemoryLocation(a, size)
-                    # different addresses are not killed by a subsequent iteration, because kill only removes entries
-                    # with same index and same size
-                    self.state.kill_and_add_definition(memloc, self._codeloc(), data, tags=tags)
+                else:
+                    continue
+
+                # different addresses are not killed by a subsequent iteration, because kill only removes entries
+                # with same index and same size
+                self.state.kill_and_add_definition(atom, self._codeloc(), data, tags=tags, endness=endness)
 
     def _handle_LoadG(self, stmt):
         guard: DataSet = self._expr(stmt.guard)
@@ -347,8 +345,13 @@ class SimEngineRDVEX(
             elif self.state.is_stack_address(addr):
                 # Load data from a local variable
                 stack_offset = self.state.get_stack_offset(addr)
-                vs: MultiValues = self.state.stack_definitions.load(stack_offset, size=size, endness=endness)
-                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size)
+                stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
+                try:
+                    vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
+                except SimMemoryMissingError:
+                    continue
+
+                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=endness)
                 self.state.add_use(memory_location, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
 
@@ -356,7 +359,7 @@ class SimEngineRDVEX(
                 # Load data from the heap
                 heap_offset = self.state.get_heap_offset(addr)
                 vs: MultiValues = self.state.heap_definitions.load(heap_offset, size=size, endness=endness)
-                memory_location = MemoryLocation(HeapAddress(heap_offset), size)
+                memory_location = MemoryLocation(HeapAddress(heap_offset), size, endness=endness)
                 self.state.add_use(memory_location, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
 
@@ -382,7 +385,7 @@ class SimEngineRDVEX(
                 result = result.merge(vs) if result is not None else vs
 
                 # FIXME: _add_memory_use() iterates over the same loop
-                memory_location = MemoryLocation(addr_v, size)
+                memory_location = MemoryLocation(addr_v, size, endness=endness)
                 self.state.add_use(memory_location, self._codeloc())
 
         if result is None:
@@ -778,8 +781,7 @@ class SimEngineRDVEX(
             sp: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
             sp_v = sp.one_value()
             if sp_v is not None and not self.state.is_top(sp_v):
-                sp_addr = sp_v._model_concrete.value
-                sp_addr -= self.arch.stack_change
+                sp_addr = sp_v - self.arch.stack_change
 
                 atom = Register(self.arch.sp_offset, self.arch.bytes)
                 tag = ReturnValueTag(
@@ -787,7 +789,7 @@ class SimEngineRDVEX(
                     metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
                 )
                 self.state.kill_and_add_definition(atom, self._codeloc(),
-                                                   MultiValues(offset_to_values={0: {claripy.BVV(sp_addr, self.arch.bits)}}),
+                                                   MultiValues(offset_to_values={0: {sp_addr}}),
                                                    tags={tag},
                                                    )
 
