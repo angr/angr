@@ -28,7 +28,7 @@ def _a_mock_definition(atom: Atom=None):
     # Randomise code locations to forcefully produce "different" <Definition>s.
     statement_index = unique_randrange(1000)
     code_location = CodeLocation(0x42, statement_index)
-    return Definition(atom, code_location, DataSet(set(), 8), None)
+    return Definition(atom, code_location)
 
 
 class TestDepGraph(TestCase):

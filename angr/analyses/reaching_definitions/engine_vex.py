@@ -102,10 +102,24 @@ class SimEngineRDVEX(
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
     def _handle_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
-        super()._handle_WrTmp(stmt)
-        self.state.kill_and_add_definition(Tmp(stmt.tmp, self.tyenv.sizeof(stmt.tmp) // 8),
+
+        data: MultiValues = self._expr(stmt.data)
+
+        tmp_atom = Tmp(stmt.tmp, self.tyenv.sizeof(stmt.tmp) // self.arch.byte_width)
+        if len(data.values) == 1 and 0 in data.values:
+            data_v = data.one_value()
+            if data_v is not None:
+                # annotate data with its definition
+                data = MultiValues(offset_to_values={
+                    0: {self.state.annotate_with_def(data_v, Definition(tmp_atom, self._codeloc()))
+                        }
+                })
+        self.tmps[stmt.tmp] = data
+
+        self.state.kill_and_add_definition(tmp_atom,
                                            self._codeloc(),
-                                           self.tmps[stmt.tmp])
+                                           data,
+                                           )
 
     def _handle_WrTmpData(self, tmp: int, data):
         super()._handle_WrTmpData(tmp, data)
@@ -265,7 +279,8 @@ class SimEngineRDVEX(
         data = super()._expr(expr)
         if data is None:
             bits = expr.result_size(self.tyenv)
-            data = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            top = self.state.top(bits)
+            data = MultiValues(offset_to_values={0: {top}})
         return data
 
     def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[DataSet]:
@@ -284,11 +299,16 @@ class SimEngineRDVEX(
         bits: int = expr.result_size(self.tyenv)
         size: int = bits // self.arch.byte_width
 
+        reg_atom = Register(reg_offset, size)
         try:
-            values: MultiValues = self.state.register_definitions.load(reg_offset, size=size,
-                                                                       endness=self.arch.register_endness)
+            values: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
         except SimMemoryMissingError:
-            values = MultiValues({0: {self.state.top(size * self.arch.byte_width)}})
+            top = self.state.top(size * self.arch.byte_width)
+            # annotate it
+            top = self.state.annotate_with_def(top, Definition(reg_atom, ExternalCodeLocation()))
+            values = MultiValues({0: {top}})
+            # write it to registers
+            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
 
         current_defs: Optional[Iterable[Definition]] = None
         for vs in values.values.values():
@@ -300,9 +320,9 @@ class SimEngineRDVEX(
 
         if current_defs is None:
             # no defs can be found. add a fake definition
-            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), values)
+            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), values)
 
-        self.state.add_use(Register(reg_offset, size), self._codeloc())
+        self.state.add_use(reg_atom, self._codeloc())
 
         return values
 
@@ -755,8 +775,7 @@ class SimEngineRDVEX(
 
         if self.arch.call_pushes_ret is True:
             # pop return address if necessary
-            sp: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes,
-                                                                   endness=self.arch.register_endness)
+            sp: MultiValues = self.state.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
             sp_v = sp.one_value()
             if sp_v is not None and not self.state.is_top(sp_v):
                 sp_addr = sp_v._model_concrete.value
