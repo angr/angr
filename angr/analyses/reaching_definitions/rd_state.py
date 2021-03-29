@@ -230,7 +230,7 @@ class ReachingDefinitionsState:
         sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
         sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
         sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
-        self.register_definitions.store(self.arch.sp_offset, sp, endness=self.arch.register_endness)
+        self.register_definitions.store(self.arch.sp_offset, sp)
 
         if self.arch.name.startswith('MIPS'):
             if func_addr is None:
@@ -239,7 +239,7 @@ class ReachingDefinitionsState:
             t9_atom = Register(t9_offset, self.arch.bytes)
             t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
-            self.register_definitions.store(t9_offset, t9, endness=self.arch.register_endness)
+            self.register_definitions.store(t9_offset, t9)
 
         if cc is not None and cc.args is not None:
             for arg in cc.args:
@@ -250,7 +250,7 @@ class ReachingDefinitionsState:
                     reg_atom = Register(reg_offset, self.arch.bytes)
                     reg_def = Definition(reg_atom, ExternalCodeLocation(), tags={ParameterTag()})
                     reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
-                    self.register_definitions.store(reg_offset, reg, endness=self.arch.register_endness)
+                    self.register_definitions.store(reg_offset, reg)
 
                 # initialize stack parameters
                 elif isinstance(arg, SimStackArg):
@@ -271,7 +271,7 @@ class ReachingDefinitionsState:
             rtoc_atom = Register(offset, size)
             rtoc_def = Definition(rtoc_atom, ExternalCodeLocation(), tags={InitialValueTag()})
             rtoc = self.annotate_with_def(claripy.BVV(rtoc_value, self.arch.bits), rtoc_def)
-            self.register_definitions.store(offset, rtoc, endness=self.arch.register_endness)
+            self.register_definitions.store(offset, rtoc)
         elif self.arch.name.startswith('MIPS64'):
             offset, size = self.arch.registers['t9']
             t9_atom = Register(offset, size)
@@ -327,14 +327,17 @@ class ReachingDefinitionsState:
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
-                                dummy=False, tags: Set[Tag]=None) -> Optional[Definition]:
+                                dummy=False, tags: Set[Tag]=None) -> Optional[MultiValues]:
         self._cycle(code_loc)
 
-        definition: Optional[Definition]
-        definition = self.live_definitions.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
+        mv = self.live_definitions.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
-        if definition is not None:
-            self.all_definitions.add(definition)
+        if mv is not None:
+            defs = set()
+            for vs in mv.values.values():
+                for v in vs:
+                    defs |= set(self.extract_defs(v))
+            self.all_definitions |= defs
 
             if self.dep_graph is not None:
                 stack_use = set(filter(
@@ -360,8 +363,8 @@ class ReachingDefinitionsState:
                         len(stack_use) > 0
                     )
                     is_using_spbp_to_define_memory_location_on_stack = (
-                        isinstance(definition.atom, MemoryLocation) and
-                        definition.atom.is_on_stack and
+                        isinstance(atom, MemoryLocation) and
+                        atom.is_on_stack and
                         isinstance(used.atom, Register) and
                         used.atom.reg_offset in (sp_offset, bp_offset)
                     )
@@ -374,14 +377,15 @@ class ReachingDefinitionsState:
                         # "uses" are actually the definitions that we're using and the "definition" is the
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
-                        self.dep_graph.add_edge(used, definition)
+                        for def_ in defs:
+                            self.dep_graph.add_edge(used, def_)
                         self.dep_graph.add_dependencies_for_concrete_pointers_of(
                             used,
                             self.analysis.project.kb.cfgs.get_most_accurate(),
                             self.analysis.project.loader
                         )
 
-        return definition
+        return mv
 
     def add_use(self, atom: Atom, code_loc) -> None:
         self._cycle(code_loc)
