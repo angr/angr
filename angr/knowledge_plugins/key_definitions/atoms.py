@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, Optional
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg
 from ...engines.light import SpOffset
@@ -115,9 +115,9 @@ class MemoryLocation(Atom):
     It is characterized by its address and its size.
     """
 
-    __slots__ = ('addr', '_size')
+    __slots__ = ('addr', '_size', 'endness', )
 
-    def __init__(self, addr: Union[SpOffset,HeapAddress,int], size: int):
+    def __init__(self, addr: Union[SpOffset,HeapAddress,int], size: int, endness: Optional[str]=None):
         """
         :param int addr: The address of the beginning memory location slice.
         :param int size: The size of the represented memory location, in bytes.
@@ -126,6 +126,7 @@ class MemoryLocation(Atom):
 
         self.addr: Union[SpOffset,int] = addr
         self._size: int = size
+        self.endness = endness
 
     def __repr__(self):
         address_format = hex(self.addr) if type(self.addr) is int else self.addr
@@ -160,7 +161,8 @@ class MemoryLocation(Atom):
     def __eq__(self, other):
         return type(other) is MemoryLocation and \
                self.addr == other.addr and \
-               self.size == other.size
+               self.size == other.size and \
+               self.endness == other.endness
 
     def __hash__(self):
-        return hash(('mem', self.addr, self.size))
+        return hash(('mem', self.addr, self.size, self.endness))
