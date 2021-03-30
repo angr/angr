@@ -194,7 +194,7 @@ class ProximityGraphAnalysis(Analysis):
                 for _, _, data in func.transition_graph.in_edges(func_node, data=True):
                     if 'ins_addr' in data:
                         ref_at.add(data['ins_addr'])
-                if self._expand_funcs and func_node.addr in self._expand_funcs:
+                if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                     node = FunctionProxiNode(func_node, ref_at=ref_at)
                     to_expand.append(node)
                 else:
@@ -220,7 +220,7 @@ class ProximityGraphAnalysis(Analysis):
         # Walk the clinic structure to dump string references and function calls
         ail_graph = self._decompilation.clinic.graph
 
-        def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call, block: Optional[ailment.Block]):
+        def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call, block: Optional[ailment.Block]):  # pylint:disable=unused-argument
             func_node = self.kb.functions[stmt.target.value]
             ref_at = { stmt.ins_addr }
 
@@ -242,7 +242,7 @@ class ProximityGraphAnalysis(Analysis):
                     else:
                         args.append(UnknownProxiNode("_"))
 
-            if self._expand_funcs and func_node.addr in self._expand_funcs:
+            if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                 node = FunctionProxiNode(func_node, ref_at=ref_at)
                 to_expand.append(node)
             else:
@@ -253,8 +253,7 @@ class ProximityGraphAnalysis(Analysis):
             func_calls.add(node)
             proxi_nodes.append(node)
 
-        def _handle_CallExpr(self, expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int, stmt: ailment.Stmt.Statement,
-                             block: Optional[ailment.Block]):
+        def _handle_CallExpr(self, expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int, stmt: ailment.Stmt.Statement, block: Optional[ailment.Block]):  # pylint:disable=unused-argument
             func_node = self.kb.functions[expr.target.value]
             ref_at = { stmt.ins_addr }
             if self._expand_funcs and func_node.addr in self._expand_funcs:
