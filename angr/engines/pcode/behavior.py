@@ -53,7 +53,7 @@ class OpBehaviorCopy(OpBehavior):
     """
     Behavior for the COPY operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.COPY, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
@@ -64,7 +64,7 @@ class OpBehaviorEqual(OpBehavior):
     """
     Behavior for the INT_EQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_EQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -75,7 +75,7 @@ class OpBehaviorNotEqual(OpBehavior):
     """
     Behavior for the INT_NOTEQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_NOTEQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -86,7 +86,7 @@ class OpBehaviorIntSless(OpBehavior):
     """
     Behavior for the INT_SLESS operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SLESS, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -97,7 +97,7 @@ class OpBehaviorIntSlessEqual(OpBehavior):
     """
     Behavior for the INT_SLESSEQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SLESSEQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -108,7 +108,7 @@ class OpBehaviorIntLess(OpBehavior):
     """
     Behavior for the INT_LESS operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_LESS, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -119,7 +119,7 @@ class OpBehaviorIntLessEqual(OpBehavior):
     """
     Behavior for the INT_LESSEQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_LESSEQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -130,7 +130,7 @@ class OpBehaviorIntZext(OpBehavior):
     """
     Behavior for the INT_ZEXT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_ZEXT, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
@@ -141,7 +141,7 @@ class OpBehaviorIntSext(OpBehavior):
     """
     Behavior for the INT_SEXT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SEXT, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
@@ -152,7 +152,7 @@ class OpBehaviorIntAdd(OpBehavior):
     """
     Behavior for the INT_ADD operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_ADD, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -163,7 +163,7 @@ class OpBehaviorIntSub(OpBehavior):
     """
     Behavior for the INT_SUB operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SUB, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -174,7 +174,7 @@ class OpBehaviorIntCarry(OpBehavior):
     """
     Behavior for the INT_CARRY operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_CARRY, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -187,7 +187,7 @@ class OpBehaviorIntScarry(OpBehavior):
     """
     Behavior for the INT_SCARRY operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SCARRY, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -209,7 +209,7 @@ class OpBehaviorIntSborrow(OpBehavior):
     """
     Behavior for the INT_SBORROW operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SBORROW, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -230,7 +230,7 @@ class OpBehaviorInt2Comp(OpBehavior):
     """
     Behavior for the INT_2COMP operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_2COMP, True)
 
     # uintb OpBehaviorInt2Comp::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -245,7 +245,7 @@ class OpBehaviorIntNegate(OpBehavior):
     """
     Behavior for the INT_NEGATE operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_NEGATE, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
@@ -256,7 +256,7 @@ class OpBehaviorIntXor(OpBehavior):
     """
     Behavior for the INT_XOR operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_XOR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -267,7 +267,7 @@ class OpBehaviorIntAnd(OpBehavior):
     """
     Behavior for the INT_AND operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_AND, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -278,7 +278,7 @@ class OpBehaviorIntOr(OpBehavior):
     """
     Behavior for the INT_OR operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_OR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -289,7 +289,7 @@ class OpBehaviorIntLeft(OpBehavior):
     """
     Behavior for the INT_LEFT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_LEFT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -301,7 +301,7 @@ class OpBehaviorIntRight(OpBehavior):
     """
     Behavior for the INT_RIGHT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_RIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -313,7 +313,7 @@ class OpBehaviorIntSright(OpBehavior):
     """
     Behavior for the INT_SRIGHT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SRIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -325,7 +325,7 @@ class OpBehaviorIntMult(OpBehavior):
     """
     Behavior for the INT_MULT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_MULT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -336,7 +336,7 @@ class OpBehaviorIntDiv(OpBehavior):
     """
     Behavior for the INT_DIV operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_DIV, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -347,7 +347,7 @@ class OpBehaviorIntSdiv(OpBehavior):
     """
     Behavior for the INT_SDIV operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SDIV, False)
 
     # uintb OpBehaviorIntSdiv::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -369,7 +369,7 @@ class OpBehaviorIntRem(OpBehavior):
     """
     Behavior for the INT_REM operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_REM, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -380,7 +380,7 @@ class OpBehaviorIntSrem(OpBehavior):
     """
     Behavior for the INT_SREM operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.INT_SREM, False)
 
     # uintb OpBehaviorIntSrem::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -402,7 +402,7 @@ class OpBehaviorBoolNegate(OpBehavior):
     """
     Behavior for the BOOL_NEGATE operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.BOOL_NEGATE, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
@@ -413,7 +413,7 @@ class OpBehaviorBoolXor(OpBehavior):
     """
     Behavior for the BOOL_XOR operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.BOOL_XOR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -424,7 +424,7 @@ class OpBehaviorBoolAnd(OpBehavior):
     """
     Behavior for the BOOL_AND operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.BOOL_AND, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -435,7 +435,7 @@ class OpBehaviorBoolOr(OpBehavior):
     """
     Behavior for the BOOL_OR operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.BOOL_OR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -446,7 +446,7 @@ class OpBehaviorFloatEqual(OpBehavior):
     """
     Behavior for the FLOAT_EQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_EQUAL, False)
 
     # uintb OpBehaviorFloatEqual::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -464,7 +464,7 @@ class OpBehaviorFloatNotEqual(OpBehavior):
     """
     Behavior for the FLOAT_NOTEQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_NOTEQUAL, False)
 
     # uintb OpBehaviorFloatNotEqual::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -482,7 +482,7 @@ class OpBehaviorFloatLess(OpBehavior):
     """
     Behavior for the FLOAT_LESS operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_LESS, False)
 
     # uintb OpBehaviorFloatLess::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -500,7 +500,7 @@ class OpBehaviorFloatLessEqual(OpBehavior):
     """
     Behavior for the FLOAT_LESSEQUAL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_LESSEQUAL, False)
 
     # uintb OpBehaviorFloatLessEqual::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -518,7 +518,7 @@ class OpBehaviorFloatNan(OpBehavior):
     """
     Behavior for the FLOAT_NAN operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_NAN, True)
 
     # uintb OpBehaviorFloatNan::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -536,7 +536,7 @@ class OpBehaviorFloatAdd(OpBehavior):
     """
     Behavior for the FLOAT_ADD operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_ADD, False)
 
     # uintb OpBehaviorFloatAdd::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -554,7 +554,7 @@ class OpBehaviorFloatDiv(OpBehavior):
     """
     Behavior for the FLOAT_DIV operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_DIV, False)
 
     # uintb OpBehaviorFloatDiv::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -572,7 +572,7 @@ class OpBehaviorFloatMult(OpBehavior):
     """
     Behavior for the FLOAT_MULT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_MULT, False)
 
     # uintb OpBehaviorFloatMult::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -590,7 +590,7 @@ class OpBehaviorFloatSub(OpBehavior):
     """
     Behavior for the FLOAT_SUB operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_SUB, False)
 
     # uintb OpBehaviorFloatSub::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -608,7 +608,7 @@ class OpBehaviorFloatNeg(OpBehavior):
     """
     Behavior for the FLOAT_NEG operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_NEG, True)
 
     # uintb OpBehaviorFloatNeg::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -626,7 +626,7 @@ class OpBehaviorFloatAbs(OpBehavior):
     """
     Behavior for the FLOAT_ABS operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_ABS, True)
 
     # uintb OpBehaviorFloatAbs::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -644,7 +644,7 @@ class OpBehaviorFloatSqrt(OpBehavior):
     """
     Behavior for the FLOAT_SQRT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_SQRT, True)
 
     # uintb OpBehaviorFloatSqrt::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -662,7 +662,7 @@ class OpBehaviorFloatInt2Float(OpBehavior):
     """
     Behavior for the FLOAT_INT2FLOAT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_INT2FLOAT, True)
 
     # uintb OpBehaviorFloatInt2Float::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -680,7 +680,7 @@ class OpBehaviorFloatFloat2Float(OpBehavior):
     """
     Behavior for the FLOAT_FLOAT2FLOAT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_FLOAT2FLOAT, True)
 
     # uintb OpBehaviorFloatFloat2Float::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -701,7 +701,7 @@ class OpBehaviorFloatTrunc(OpBehavior):
     """
     Behavior for the FLOAT_TRUNC operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_TRUNC, True)
 
     # uintb OpBehaviorFloatTrunc::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -719,7 +719,7 @@ class OpBehaviorFloatCeil(OpBehavior):
     """
     Behavior for the FLOAT_CEIL operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_CEIL, True)
 
     # uintb OpBehaviorFloatCeil::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -737,7 +737,7 @@ class OpBehaviorFloatFloor(OpBehavior):
     """
     Behavior for the FLOAT_FLOOR operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_FLOOR, True)
 
     # uintb OpBehaviorFloatFloor::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -755,7 +755,7 @@ class OpBehaviorFloatRound(OpBehavior):
     """
     Behavior for the FLOAT_ROUND operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.FLOAT_ROUND, True)
 
     # uintb OpBehaviorFloatRound::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
@@ -773,7 +773,7 @@ class OpBehaviorPiece(OpBehavior):
     """
     Behavior for the PIECE operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.PIECE, False)
 
     # uintb OpBehaviorPiece::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
@@ -788,7 +788,7 @@ class OpBehaviorSubpiece(OpBehavior):
     """
     Behavior for the SUBPIECE operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.SUBPIECE, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
@@ -801,7 +801,7 @@ class OpBehaviorPopcount(OpBehavior):
     """
     Behavior for the POPCOUNT operation.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(OpCode.POPCOUNT, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
@@ -815,7 +815,7 @@ class BehaviorFactory:
     """
     Returns the behavior object for a given opcode.
     """
-    def __init__(self) -> None:
+    def __init__(self):
         self._behaviors = {}
         self._register_behaviors()
 

@@ -497,7 +497,7 @@ class Lifter:
     arch: archinfo.Arch
     addr: int
 
-    def __init__(self, arch: archinfo.Arch, addr: int) -> None:
+    def __init__(self, arch: archinfo.Arch, addr: int):
         self.arch = arch
         self.addr = addr
         self.data = None
@@ -569,7 +569,7 @@ class Lifter:
 
 
 class Postprocessor:
-    def __init__(self, irsb: IRSB) -> None:
+    def __init__(self, irsb: IRSB):
         self.irsb = irsb
 
     def postprocess(self) -> None:
@@ -868,7 +868,7 @@ class PcodeBasicBlockLifter:
     context: pypcode.Context
     behaviors: BehaviorFactory
 
-    def __init__(self, arch: archinfo.Arch) -> None:
+    def __init__(self, arch: archinfo.Arch):
         archinfo_to_lang_map = {
             'X86':   'x86:LE:32:default',
             'AMD64': 'x86:LE:64:default'
