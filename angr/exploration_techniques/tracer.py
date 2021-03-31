@@ -137,6 +137,8 @@ class Tracer(ExplorationTechnique):
     :param mode:                Tracing mode.
     :param aslr:                Whether there are aslr slides. if not, tracer uses trace address
                                 as state address.
+    :param follow_unsat:        Whether unsatisfiable states should be treated as potential
+                                successors or not.
 
     :ivar predecessors:         A list of states in the history before the final state.
     """
@@ -149,7 +151,8 @@ class Tracer(ExplorationTechnique):
             copy_states=False,
             fast_forward_to_entry=True,
             mode=TracingMode.Strict,
-            aslr=True):
+            aslr=True,
+            follow_unsat=False):
         super().__init__()
         self._trace = trace
         self._resiliency = resiliency
@@ -157,6 +160,7 @@ class Tracer(ExplorationTechnique):
         self._copy_states = copy_states
         self._mode = mode
         self._aslr = aslr
+        self._follow_unsat = follow_unsat
         self._fast_forward_to_entry = fast_forward_to_entry
 
         self._aslr_slides = {}  # type: Dict[cle.Backend, int]
@@ -339,8 +343,8 @@ class Tracer(ExplorationTechnique):
         sat_succs = succs_dict[None]  # satisfiable states
         succs = sat_succs + succs_dict['unsat']  # both satisfiable and unsatisfiable states
 
-        if self._mode == TracingMode.Permissive:
-            # permissive mode
+        if not self._follow_unsat:
+            # Only satisfiable states need to be checked for correct successor
             if len(sat_succs) == 1:
                 try:
                     self._update_state_tracking(sat_succs[0])
@@ -356,7 +360,7 @@ class Tracer(ExplorationTechnique):
                 succs_dict[None] = [succ]
                 succs_dict['missed'] = [s for s in sat_succs if s is not succ]
         else:
-            # strict mode
+            # Check all states for correct successor
             if len(succs) == 1:
                 self._update_state_tracking(succs[0])
             elif len(succs) == 0:
