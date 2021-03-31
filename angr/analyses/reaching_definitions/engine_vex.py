@@ -6,6 +6,7 @@ import pyvex
 import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from ...state_plugins.solver import SimSolver
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
@@ -629,7 +630,7 @@ class SimEngineRDVEX(
         if not skip_cc:
             self._handle_function_cc(func_addr)
 
-    def _handle_function_core(self, func_addr: Optional[DataSet], **kwargs) -> bool:  # pylint:disable=unused-argument
+    def _handle_function_core(self, func_addr: Optional[MultiValues], **kwargs) -> bool:  # pylint:disable=unused-argument
 
         if self._call_stack is not None and len(self._call_stack) + 1 > self._maximum_local_call_depth:
             l.warning('The analysis reached its maximum recursion depth.')
@@ -646,7 +647,7 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
 
-        if len(func_addr) != 1:
+        if len(func_addr.values) != 1:
             # indirect call
             handler_name = 'handle_indirect_call'
             if hasattr(self._function_handler, handler_name):
@@ -656,9 +657,9 @@ class SimEngineRDVEX(
                 l.warning('Please implement the indirect function handler with your own logic.')
             return False
 
-        func_addr_int = func_addr.get_first_element()
-        if not isinstance(func_addr_int, int):
-            l.warning('Invalid type %s for IP.', type(func_addr_int).__name__)
+        first_function_address = func_addr.one_value()
+
+        if not first_function_address.concrete:
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
@@ -668,6 +669,8 @@ class SimEngineRDVEX(
             else:
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
+
+        func_addr_int: int = SimSolver._cast_to(first_function_address, first_function_address.args[0], cast_to=int)
 
         # direct calls
         ext_func_name = None
