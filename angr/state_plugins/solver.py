@@ -2,7 +2,7 @@ import binascii
 import functools
 import time
 import logging
-from typing import TypeVar, overload, Any, Optional
+from typing import Type, TypeVar, overload, Any, Optional
 
 from claripy import backend_manager
 
@@ -666,8 +666,9 @@ class SimSolver(SimStatePlugin):
     # And some convenience stuff
     #
 
+    T = TypeVar('T', int, bytes)
     @staticmethod
-    def _cast_to(e, solution, cast_to):
+    def _cast_to(e, solution, cast_to: Type[T]) -> T:
         """
         Casts a solution for the given expression to type `cast_to`.
 

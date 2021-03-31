@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Dict, Optional, Set
 
 import claripy
 
@@ -20,7 +20,7 @@ class MultiValues:
             self.values[offset] = set()
         self.values[offset].add(value)
 
-    def one_value(self):
+    def one_value(self) -> Optional[claripy.ast.Base]:
         if len(self.values) == 1 and len(self.values[0]) == 1:
             return next(iter(self.values[0]))
         return None
