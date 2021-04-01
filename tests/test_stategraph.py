@@ -94,18 +94,33 @@ def test_smoketest():
     base_addr = int(data['variable_base_addr'], 16)
     time_addr = int(data['time_addr'], 16)
 
-    # switch on
-    switch = next(x for x in data['variables'] if x['name'] == "SWITCH_BUTTON")
-    switch_value_addr = base_addr + int(switch['address'], 16)
-    switch_flag_addr = switch_value_addr + 1
-    initial_state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=proj.arch.memory_endness)  # value
-    initial_state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=proj.arch.memory_endness)  # flag
+    def switch_on(state):
+        # switch on
+        switch = next(x for x in data['variables'] if x['name'] == "SWITCH_BUTTON")
+        switch_value_addr = base_addr + int(switch['address'], 16)
+        switch_flag_addr = switch_value_addr + 1
+        state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=proj.arch.memory_endness)  # value
+        state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=proj.arch.memory_endness)  # flag
 
     # define abstract fields
     fields_desc = {}
+    config_fields = {}
     for variable in data['variables']:
         if variable['type'] == 'output':
-            fields_desc[variable['name']] = (base_addr + int(variable['address'], 16), variable['size_bits'])
+            fields_desc[variable['name']] = (base_addr + int(variable['address'], 16), variable['size'])
+        elif variable['type'] == 'config':
+            config_fields[variable['name']] = (base_addr + int(variable['address'], 16), variable['size'])
+
+
+    # pre-constrain configuration variables so that we can track them
+    config_vars = {}
+    for var_name, (var_addr, var_size) in config_fields.items():
+        print("[.] Preconstraining %s..." % var_name)
+        symbolic_v = claripy.BVS(var_name, var_size * 8)
+        concrete_v = initial_state.memory.load(var_addr, size=var_size, endness=proj.arch.memory_endness)
+        initial_state.memory.store(var_addr, symbolic_v, endness=proj.arch.memory_endness)
+        initial_state.preconstrainer.preconstrain(concrete_v, symbolic_v)
+        config_vars['var_name'] = symbolic_v
 
     # fields_desc = {
     #     'RED': (base_addr + 0x8, 1),
@@ -116,7 +131,7 @@ def test_smoketest():
     # }
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
     func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state)
+    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on)
     state_graph = sgr.state_graph
 
     finder = RuleVerifier(state_graph)
@@ -133,6 +148,8 @@ def test_smoketest():
         for a, b in zip(path, path[1:]):
             data = state_graph[a][b]
             constraint = data['time_delta_constraint']
+            if data['time_delta_src'] is None:
+                continue
             block_addr, stmt_idx = data['time_delta_src']
 
             if constraint is not None and block_addr is not None and stmt_idx is not None:
