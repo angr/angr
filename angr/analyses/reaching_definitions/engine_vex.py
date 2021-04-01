@@ -74,9 +74,10 @@ class SimEngineRDVEX(
         elif self.block.vex.jumpkind == "Ijk_Boring":
             # test if the target addr is a function or not
             addr = self._expr(self.block.vex.next)
-            if len(addr) == 1:
-                addr_int = next(iter(addr.data))
-                if isinstance(addr_int, int) and addr_int in self.functions:
+            addr_v = addr.one_value()
+            if addr_v is not None and addr_v.concrete:
+                addr_int = addr_v._model_concrete.value
+                if addr_int in self.functions:
                     # yes it's a jump to a function
                     self._handle_function(addr)
 
@@ -625,7 +626,7 @@ class SimEngineRDVEX(
     # User defined high level statement handlers
     #
 
-    def _handle_function(self, func_addr: Optional[DataSet], **kwargs):
+    def _handle_function(self, func_addr: Optional[MultiValues], **kwargs):
         skip_cc = self._handle_function_core(func_addr, **kwargs)
         if not skip_cc:
             self._handle_function_cc(func_addr)
@@ -647,8 +648,9 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
 
-        if len(func_addr.values) != 1:
-            # indirect call
+        func_addr_v = func_addr.one_value()
+        if func_addr_v is None or self.state.is_top(func_addr_v):
+            # probably an indirect call
             handler_name = 'handle_indirect_call'
             if hasattr(self._function_handler, handler_name):
                 _, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
@@ -657,9 +659,7 @@ class SimEngineRDVEX(
                 l.warning('Please implement the indirect function handler with your own logic.')
             return False
 
-        first_function_address = func_addr.one_value()
-
-        if not first_function_address.concrete:
+        if not func_addr_v.concrete:
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
                 executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
@@ -670,7 +670,7 @@ class SimEngineRDVEX(
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
 
-        func_addr_int: int = SimSolver._cast_to(first_function_address, first_function_address.args[0], cast_to=int)
+        func_addr_int: int = func_addr_v._model_concrete.value
 
         # direct calls
         ext_func_name = None
