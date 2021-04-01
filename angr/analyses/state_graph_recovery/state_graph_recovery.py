@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Tuple, Set, TYPE_CHECKING
+from typing import Optional, List, Dict, Tuple, Set, Callable, TYPE_CHECKING
 
 import networkx
 
@@ -91,10 +91,12 @@ class StateGraphRecoveryAnalysis(Analysis):
     """
     Traverses a function and derive a state graph with respect to given variables.
     """
-    def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int, init_state: Optional['SimState']=None):
+    def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int,
+                 init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None):
         self.func = func
         self.fields = fields
         self.init_state = init_state
+        self._switch_on = switch_on
         self._ret_trap: int = 0x1f37ff4a
 
         # self._iec_time = 0x425620       # Traffic_Light_short_ped
@@ -124,6 +126,8 @@ class StateGraphRecoveryAnalysis(Analysis):
         abs_state = self.fields.generate_abstract_state(init_state)
         self.state_graph.add_node(abs_state)
         state_queue = [(init_state, abs_state, None, None, None)]
+        countdown_timer = 2  # how many iterations to execute before switching on
+        switched_on = False
 
         absstate_to_slice = { }
 
@@ -160,9 +164,21 @@ class StateGraphRecoveryAnalysis(Analysis):
                                       )
 
             # discover time deltas
-            delta_and_sources = self._discover_time_deltas(next_state)
-            for delta, constraint, (block_addr, stmt_idx) in delta_and_sources:
-                print(f"[.] Discovered a new time interval {delta} defined at {block_addr:#x}:{stmt_idx}")
+            if not switched_on and self._switch_on is not None:
+                if countdown_timer > 0:
+                    print("[.] Pre-heat... %d" % countdown_timer)
+                    countdown_timer -= 1
+                    state_queue.append((next_state, abs_state, None, None, None))
+                    continue
+                else:
+                    print("[.] Switch on.")
+                    self._switch_on(next_state)
+                    switched_on = True
+                    delta_and_sources = {}
+            else:
+                delta_and_sources = self._discover_time_deltas(next_state)
+                for delta, constraint, (block_addr, stmt_idx) in delta_and_sources:
+                    print(f"[.] Discovered a new time interval {delta} defined at {block_addr:#x}:{stmt_idx}")
 
             if delta_and_sources:
                 for delta, constraint, src in delta_and_sources:
@@ -312,6 +328,8 @@ class StateGraphRecoveryAnalysis(Analysis):
             # sys.stdout.write('.')
 
             s = simgr.active[0]
+            if len(simgr.active) > 1:
+                import ipdb; ipdb.set_trace()
 
             simgr.stash(lambda x: x.addr == self._ret_trap, from_stash='active', to_stash='finished')
 
