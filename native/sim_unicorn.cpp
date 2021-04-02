@@ -770,8 +770,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				modified_reg_data.second.first = sink.value_size;
 				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
-				instruction_taint_entry.mem_read_count += result.mem_read_count;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
+				instruction_taint_entry.mem_read_size += result.mem_read_size;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 
 				// Store taint sources and compute dependencies to save
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
@@ -818,8 +818,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				}
 				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
-				instruction_taint_entry.mem_read_count += result.mem_read_count;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
+				instruction_taint_entry.mem_read_size += result.mem_read_size;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 
 				// Store taint sources and compute dependencies to save
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
@@ -848,8 +848,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				}
 				// TODO: What if memory addresses have ITE expressions in them?
 				sink.mem_ref_entity_list.assign(result.taint_sources.begin(), result.taint_sources.end());
-				instruction_taint_entry.mem_read_count += result.mem_read_count;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
+				instruction_taint_entry.mem_read_size += result.mem_read_size;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 
 				result = process_vex_expr(stmt->Ist.Store.data, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
@@ -860,8 +860,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				sink.value_size = result.value_size;
 				srcs = result.taint_sources;
 				ite_cond_entity_list = result.ite_cond_entities;
-				instruction_taint_entry.mem_read_count += result.mem_read_count;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
+				instruction_taint_entry.mem_read_size += result.mem_read_size;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 
 				// Store taint sources and compute dependencies to save
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
@@ -884,8 +884,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				}
 				block_taint_entry.exit_stmt_guard_expr_deps = result.taint_sources;
 				block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
-				instruction_taint_entry.mem_read_count += result.mem_read_count;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_count != 0);
+				instruction_taint_entry.mem_read_size += result.mem_read_size;
+				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 				if (block_taint_entry.exit_stmt_guard_expr_deps.size() > 0) {
 					auto dependencies_to_save = compute_dependencies_to_save(block_taint_entry.exit_stmt_guard_expr_deps);
 				}
@@ -968,8 +968,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 	else {
 		block_taint_entry.block_next_entities = block_next_taint_sources.taint_sources;
 		auto dependencies_to_save = compute_dependencies_to_save(block_next_taint_sources.taint_sources);
-		instruction_taint_entry.mem_read_count += block_next_taint_sources.mem_read_count;
-		instruction_taint_entry.has_memory_read |= (block_next_taint_sources.mem_read_count != 0);
+		instruction_taint_entry.mem_read_size += block_next_taint_sources.mem_read_size;
+		instruction_taint_entry.has_memory_read |= (block_next_taint_sources.mem_read_size != 0);
 		instruction_taint_entry.dependencies_to_save.insert(dependencies_to_save.begin(), dependencies_to_save.end());
 	}
 	// Save last instruction's entry
@@ -1044,7 +1044,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);;
 			break;
 		}
@@ -1058,7 +1058,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.Binop.arg2, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1068,7 +1068,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);;
 			break;
 		}
@@ -1082,7 +1082,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.Triop.details->arg2, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1092,7 +1092,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.Triop.details->arg3, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1102,7 +1102,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
@@ -1116,7 +1116,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.Qop.details->arg2, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1126,7 +1126,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.Qop.details->arg3, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1136,7 +1136,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.Qop.details->arg4, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1146,7 +1146,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
@@ -1170,7 +1170,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 				result.ite_cond_entities.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
 			}
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.ITE.iffalse, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1180,7 +1180,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 
 			temp = process_vex_expr(expr->Iex.ITE.iftrue, vex_block_tyenv, instr_addr, false);
 			if (temp.has_unsupported_expr) {
@@ -1190,7 +1190,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			}
 			result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 			result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-			result.mem_read_count += temp.mem_read_count;
+			result.mem_read_size += temp.mem_read_size;
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
@@ -1206,7 +1206,7 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 				}
 				result.taint_sources.insert(temp.taint_sources.begin(), temp.taint_sources.end());
 				result.ite_cond_entities.insert(temp.ite_cond_entities.begin(), temp.ite_cond_entities.end());
-				result.mem_read_count += temp.mem_read_count;
+				result.mem_read_size += temp.mem_read_size;
 			}
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
@@ -1225,16 +1225,11 @@ processed_vex_expr_t State::process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_
 			source.mem_ref_entity_list.assign(temp.taint_sources.begin(), temp.taint_sources.end());
 			source.instr_addr = instr_addr;
 			result.taint_sources.emplace(source);
-			// Calculate number of times read hook would be triggered. unicorn triggers a memory read hook for each
-			// arch_width bytes
-			result.mem_read_count += temp.mem_read_count;
+			// Calculate number of bytes read. unicorn sometimes triggers read hook multiple times for the same read
+			result.mem_read_size += temp.mem_read_size;
 			// TODO: Will there be a 1 bit read from memory?
 			auto load_size = sizeofIRType(expr->Iex.Load.ty);
-			auto arch_width = arch_byte_width();
-			result.mem_read_count += load_size / arch_width;
-			if ((load_size % arch_width) != 0) {
-				result.mem_read_count += 1;
-			}
+			result.mem_read_size += load_size;
 			result.value_size = get_vex_expr_result_size(expr, vex_block_tyenv);
 			break;
 		}
@@ -1440,7 +1435,7 @@ void State::propagate_taints() {
 			// Pause taint propagation to process the memory read and continue from instruction
 			// after the memory read.
 			taint_engine_stop_mem_read_instruction = curr_instr_addr;
-			taint_engine_stop_mem_read_count = instr_taint_data_entries_it->second.mem_read_count;
+			taint_engine_stop_mem_read_size = instr_taint_data_entries_it->second.mem_read_size;
 			taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 			return;
 		}
@@ -1498,10 +1493,9 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 			return;
 		}
 	}
-	decrement_pending_mem_reads_count();
-	if (get_pending_mem_reads_count() != 0) {
-		// There are pending reads at this instruction yet to be executed. We do not propagate taint until all reads are
-		// done.
+	if (mem_read_result.read_size != taint_engine_stop_mem_read_size) {
+		// There are more bytes to be read by this instruction. We do not propagate taint until bytes are read
+		// Sometimes reads are split across multiple reads hooks in unicorn.
 		return;
 	}
 
@@ -1887,11 +1881,14 @@ static void hook_mem_read(uc_engine *uc, uc_mem_type type, uint64_t address, int
 		mem_read_result_t mem_read_result;
 		mem_read_result.memory_values.emplace_back(memory_read_value);
 		mem_read_result.is_mem_read_symbolic = is_memory_value_symbolic;
+		mem_read_result.read_size = size;
 		state->mem_reads_map.emplace(curr_instr_addr, mem_read_result);
 	}
 	else {
-		state->mem_reads_map.at(curr_instr_addr).memory_values.emplace_back(memory_read_value);
-		state->mem_reads_map.at(curr_instr_addr).is_mem_read_symbolic |= is_memory_value_symbolic;
+		auto &mem_read_entry = state->mem_reads_map.at(curr_instr_addr);
+		mem_read_entry.memory_values.emplace_back(memory_read_value);
+		mem_read_entry.is_mem_read_symbolic |= is_memory_value_symbolic;
+		mem_read_entry.read_size += size;
 	}
 	state->propagate_taint_of_mem_read_instr_and_continue(curr_instr_addr);
 	return;
