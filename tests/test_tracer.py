@@ -182,7 +182,6 @@ def test_fauxware():
 
     nose.tools.assert_true('traced' in simgr.stashes)
 
-
 def test_rollback_on_symbolic_conditional_exit():
     # Test if state is correctly rolled back to before start of block in case block cannot be executed in unicorn engine
     # because exit condition is symbolic
@@ -198,6 +197,14 @@ def test_rollback_on_symbolic_conditional_exit():
                             b"Capturing Authority: Employer\n"]
     trace_cgc_with_pov_file(binary, "tracer_rollback_on_symbolic_conditional_exit", pov_file, b'\n'.join(output_initial_bytes))
 
+def test_floating_point_memory_reads():
+    # Test float point memory reads in which bytes longer than architecture width are read in a single memory read hook
+    # in unicorn. The other related case is when such reads are split across multiple reads. This is tested in
+    # b01lersctf2020 little engine solver
+    binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00027")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "NRFIN_00027_POV_00000.xml")
+    output = b'\x00' * 36
+    trace_cgc_with_pov_file(binary, "tracer_floating_point_memory_reads", pov_file, output)
 
 def test_skip_some_symbolic_memory_writes():
     # Test symbolic memory write skipping in SimEngineUnicorn during tracing
