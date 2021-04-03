@@ -76,6 +76,9 @@ class Assignment(Statement):
         else:
             return False, self
 
+    def copy(self) -> 'Assignment':
+        return Assignment(self.idx, self.dst, self.src, **self.tags)
+
 
 class Store(Statement):
 
@@ -141,6 +144,10 @@ class Store(Statement):
                                guard=replaced_guard, variable=self.variable, **self.tags)
         else:
             return False, self
+
+    def copy(self) -> 'Store':
+        return Store(self.idx, self.addr, self.data, self.size, self.endness, guard=self.guard, variable=self.variable,
+                     offset=self.offset, **self.tags)
 
 
 class Jump(Statement):
@@ -235,6 +242,9 @@ class ConditionalJump(Statement):
             return True, ConditionalJump(self.idx, replaced_cond, replaced_true, replaced_false, **self.tags)
         else:
             return False, self
+
+    def copy(self) -> 'ConditionalJump':
+        return ConditionalJump(self.idx, self.condition, self.true_target, self.false_target, **self.tags)
 
 
 class Call(Expression, Statement):
@@ -434,3 +444,6 @@ class DirtyStatement(Statement):
 
     def __str__(self):
         return "[D] %s" % (str(self.dirty_stmt))
+
+    def copy(self) -> 'DirtyStatement':
+        return DirtyStatement(self.idx, self.dirty_stmt, **self.tags)
