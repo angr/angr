@@ -2,7 +2,9 @@ import os
 from typing import Dict, Tuple,TYPE_CHECKING
 
 import networkx
-
+import sys
+import json
+from termcolor import colored, cprint
 import claripy
 import angr
 from angr.analyses.state_graph_recovery import MinDelayBaseRule, RuleVerifier, IllegalNodeBaseRule
@@ -52,6 +54,45 @@ class NoPedGreenCarGreen(IllegalNodeBaseRule):
         return True
 
 
+def printstate(abs_state):
+    light_on = '\u25cf'
+    light_off = '\u25cb'
+    switch_on = u"\U0001F532"
+    switch_off = u"\U0001F533"
+
+    SWITCH_BUTTON = switch_off
+    RED_LIGHT = light_off
+    ORANGE_LIGHT = light_off
+    GREEN_LIGHT = light_off
+    PEDESTRIAN_RED_LIGHT = light_off
+    PEDESTRIAN_GREEN_LIGHT = light_off
+
+    for state in abs_state:
+        if state[0] == "SWITCH_BUTTON":
+            if state[1] == 1:
+                SWITCH_BUTTON = switch_on
+        elif state[0] == "RED_LIGHT":
+            if state[1] == 1:
+                RED_LIGHT = light_on
+        elif state[0] == "ORANGE_LIGHT":
+            if state[1] == 1:
+                ORANGE_LIGHT = light_on
+        elif state[0] == "GREEN_LIGHT":
+            if state[1] == 1:
+                GREEN_LIGHT = light_on
+        elif state[0] == "PEDESTRIAN_RED_LIGHT":
+            if state[1] == 1:
+                PEDESTRIAN_RED_LIGHT = light_on
+        elif state[0] == "PEDESTRIAN_GREEN_LIGHT":
+            if state[1] == 1:
+                PEDESTRIAN_GREEN_LIGHT = light_on
+        else:
+            print(state)
+
+    print("switch button  ", SWITCH_BUTTON)
+    print("car  ", colored(RED_LIGHT, 'red'), colored(ORANGE_LIGHT, 'yellow'), colored(GREEN_LIGHT, 'green'))
+    print("ped  ", colored(PEDESTRIAN_RED_LIGHT, 'red'), colored(PEDESTRIAN_GREEN_LIGHT, 'green'))
+
 def test_smoketest():
     # binary_path = '/home/bonnie/PLCRCA/test/Traffic_Light_Short_Ped.so'
     # variable_path = '/home/bonnie/PLCRCA/test/Traffic_Light_Short_Ped.json'
@@ -62,6 +103,9 @@ def test_smoketest():
     # binary_path = '/home/bonnie/PLCRCA/arm32/Traffic_Light/build/Traffic_Light.so'
     # binary_path = '/home/bonnie/PLCRCA/arm32/Traffic_Light_Short_Ped/build/Traffic_Light_Short_Ped.so'
     # variable_path = '/home/bonnie/PLCRCA/arm32/Traffic_Light_variables.json'
+
+    # binary_path = '/home/bonnie/PLCRCA/Traffic_Light_addsensor/build/Traffic_Light_addsensor.so'
+    # variable_path = '/home/bonnie/PLCRCA/Traffic_Light_addsensor/Traffic_Light_variables.json'
 
     binary_path = sys.argv[1]
     variable_path = sys.argv[2]
@@ -111,7 +155,6 @@ def test_smoketest():
         elif variable['type'] == 'config':
             config_fields[variable['name']] = (base_addr + int(variable['address'], 16), variable['size'])
 
-
     # pre-constrain configuration variables so that we can track them
     config_vars = {}
     for var_name, (var_addr, var_size) in config_fields.items():
@@ -131,18 +174,18 @@ def test_smoketest():
     # }
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
     func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on)
+    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on, printstate=printstate)
     state_graph = sgr.state_graph
 
     finder = RuleVerifier(state_graph)
     rule = MinDelayRule_Orange(2.0)
     r, src, dst = finder.verify(rule)
-    assert r is True
+    # assert r is True
 
     rule = MinDelayRule_PedGreen(10.0)
     r, src, dst = finder.verify(rule)
 
-    assert r is False
+    # assert r is False
     # find the constraint and the source of the timing interval from the state graph
     for path in networkx.all_simple_paths(state_graph, src, dst):
         for a, b in zip(path, path[1:]):
