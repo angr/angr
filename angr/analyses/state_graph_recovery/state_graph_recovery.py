@@ -92,12 +92,13 @@ class StateGraphRecoveryAnalysis(Analysis):
     Traverses a function and derive a state graph with respect to given variables.
     """
     def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int,
-                 init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None):
+                 init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None, printstate: Optional[Callable]=None):
         self.func = func
         self.fields = fields
         self.init_state = init_state
         self._switch_on = switch_on
         self._ret_trap: int = 0x1f37ff4a
+        self.printstate = printstate
 
         # self._iec_time = 0x425620       # Traffic_Light_short_ped
         # self._iec_time = 0x448630       # Traffic_Light_both_green
@@ -150,9 +151,13 @@ class StateGraphRecoveryAnalysis(Analysis):
                           ('tdc', time_delta_constraint),
                           ('td_src', time_delta_src)
                           )
+
             import pprint
             print("[+] Discovered a new abstract state:")
-            pprint.pprint(abs_state)
+            if self.printstate is None:
+                pprint.pprint(abs_state)
+            else:
+                self.printstate(abs_state)
             absstate_to_slice[abs_state] = slice_gen.slice
             print("[.] There are %d nodes in the slice." % len(slice_gen.slice))
 
