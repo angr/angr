@@ -20,7 +20,7 @@ class fmod(angr.SimProcedure):
         r = x / y
         quotient = claripy.fpToSBV(rm, r, 64)
         remainder = x - y * quotient.val_to_fp(None)
-        return remainder.raw_to_bv()
+        return remainder
 
 
 from ...state_plugins.sim_action_object import _raw_ast

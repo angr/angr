@@ -15,12 +15,12 @@ class AbstractState:
 
 
 class AbstractStateFields:
-    def __init__(self, fields: Dict[str,Tuple[int,int]]):
+    def __init__(self, fields: Dict[str,Tuple[int,str,int]]):
         self.fields = fields
 
     def generate_abstract_state(self, state: 'SimState') -> Tuple[Tuple[str,Any]]:
         lst = [ ]
-        for field, (offset, size) in self.fields.items():
+        for field, (offset, type_, size) in self.fields.items():
             val = state.solver.eval(state.memory.load(offset, size=size))
             lst.append((field, val))
         return tuple(lst)
