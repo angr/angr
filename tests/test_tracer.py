@@ -253,6 +253,14 @@ def test_symbolic_memory_dependencies_liveness():
     trace_cgc_with_pov_file(binary, "tracer_symbolic_memory_dependencies_liveness", pov_file, output_initial_bytes)
 
 
+def test_user_controlled_code_execution():
+    # Test user controlled code execution where instruction pointer is concrete and code is symbolic
+    binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00034")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "NRFIN_00034_POV_00000.xml")
+    output_initial_bytes = b"\x00" * 8
+    trace_cgc_with_pov_file(binary, "tracer_user_controlled_code_execution", pov_file, output_initial_bytes)
+
+
 def run_all():
     def print_test_name(name):
         print('#' * (len(name) + 8))
