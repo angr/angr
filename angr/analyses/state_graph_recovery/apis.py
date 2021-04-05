@@ -8,20 +8,26 @@
 #   from angr.analyses.state_graph_recovery import apis
 #
 
-from typing import Optional, Iterable
+import struct
+from typing import List, Optional, Iterable, TYPE_CHECKING
 import logging
+
+if TYPE_CHECKING:
+    import angr
 
 _l = logging.getLogger(name=__name__)
 
 try:
     from patcherex.patches import AddCodePatch, InsertCodePatch, AddLabelPatch
     from patcherex.patches import Patch
+    from patcherex.backends.detourbackend import DetourBackend
 except ImportError:
     _l.warning("Cannot import Patcherex. You will not be able to apply patches.")
 
     # dummy patch base class
     class Patch:
-        pass
+        def __init__(self, name):
+            self.name = name
 
 from .abstract_state import AbstractState
 
@@ -121,10 +127,15 @@ class DataItemCause(CauseBase):
     architectures like ARM and MIPS, large integers are almost always directly loaded from memory. In these scenarios,
     it can be captured by a DataItemCause instance.
     """
-    def __init__(self, addr: int, data_type: str, data_size: int):
+    def __init__(self, addr: int, data_type: str, data_size: int, name: Optional[str]=None):
         self.addr = addr
         self.data_type = data_type
         self.data_size = data_size
+        self.name = name
+
+    def __repr__(self):
+        return f"<DataItemCause: {self.data_type}@{self.addr:#x}[{self.data_size} bytes]%s>" % (
+            self.name if self.name else "")
 
 
 class InstrOperandCause(CauseBase):
@@ -144,6 +155,9 @@ class InstrOperandCause(CauseBase):
         self.operand_idx = operand_idx
         self.old_value = old_value
 
+    def __repr__(self):
+        return f"<InstrOperandCause {self.addr:#x} operand {self.operand_idx}:{self.old_value}>"
+
 
 class InstrOpcodeCause(CauseBase):
     """
@@ -160,3 +174,139 @@ class InstrOpcodeCause(CauseBase):
     def __init__(self, addr: int, operator):
         self.addr = addr
         self.operator = operator
+
+    def __repr__(self):
+        return f"<InstrOpcodeCause {self.addr:#x} opcode {self.operator}>"
+
+
+#
+# Interaction
+#
+
+def generate_patch(arch, causes: List[CauseBase]) -> Optional[Patch]:
+    # patches
+    idx = input("[?] Which root cause do you want to mitigate? (%d - %d) " % (0, len(causes)))
+    try:
+        idx = int(idx)
+    except (ValueError, TypeError):
+        print("[-] Invalid ID. Continue.")
+        return
+    if 0 <= idx < len(causes):
+        cause = causes[idx]
+        # Generate patch based on user input and cause type
+        if isinstance(cause, DataItemCause):
+            new_value = input("[?] New value:")
+            endness_prefix = "<" if arch.memory_endness == "Iend_LE" else ">"
+
+            # encode the value as required
+            if cause.data_type == "int":
+                new_data = struct.pack(f"{endness_prefix}I", int(new_value))
+            elif cause.data_type == "float":
+                new_data = struct.pack(f"{endness_prefix}f", float(new_value))
+            elif cause.data_type == "double":
+                new_data = struct.pack(f"{endness_prefix}d", float(new_value))
+            else:
+                raise RuntimeError(f"Unsupported data type {cause.data_type}")
+
+            patch = EditDataPatch(cause.addr, new_data)
+            return patch
+
+    return None
+
+
+def apply_patch_on_state(patch: Patch, state: 'angr.SimState'):
+    if isinstance(patch, EditDataPatch):
+        state.memory.store(patch.addr, patch.data, endness='Iend_BE')
+    else:
+        raise NotImplementedError("Do not support other types of patches yet.")
+
+
+def apply_patch(patch: Patch, file_path: str, output_path: str, proj: 'angr.Project', start_addr: int) -> None:
+    if isinstance(patch, EditDataPatch):
+        # create a patch that uses ptrace to overwrite the target address in memory
+        prolog = """
+import sys
+import ptrace.debugger
+
+def get_library_base(pid: int, library_name: str):
+    with open(f"/proc/{pid}/maps", "r") as f:
+        lines = f.read().split("\\n")
+        for line in lines:
+            if library_name in line:
+                items = line.split(" ")
+                base_addr = items[0][:items[0].index("-")]
+                base_addr = int(base_addr, 16)
+                return base_addr
+    return None
+
+
+pid = int(sys.argv[1])
+library_name = "/tmp/"
+
+lib_base_addr = get_library_base(pid, library_name)
+debugger = ptrace.debugger.PtraceDebugger()
+process = debugger.addProcess(pid, False)
+"""
+        epilog = """
+process.detach()
+        """
+        overwrite_one_byte = "process.writeBytes(lib_base_addr + %#x, b\"\\x%02x\")"
+
+        py_code = prolog + "\n"
+        for pos, byt in enumerate(patch.data):
+            py_code += overwrite_one_byte % (
+                patch.addr - proj.loader.main_object.mapped_base + pos,
+                byt,
+            )
+            py_code += "\n"
+        py_code += epilog + "\n"
+
+        with open(output_path, "w") as f:
+            f.write(py_code)
+
+        return
+
+        # create a patch to overwrite the address with the data we want
+        backend = DetourBackend(file_path)
+        # TODO: Support ASLR
+        if proj.arch.name == "AMD64":
+            prolog = "push rdi"
+            overwrite_one_byte = """
+            mov rdi, %#x
+            mov BYTE [rdi], %#x
+            """
+            epilog = "pop rdi"
+        else:
+            raise RuntimeError("Unsupported architecture %s." % proj.arch.name)
+
+        asm_code = prolog + "\n"
+        base_addr = 0x400000  # FIXME: Adjust this address based on the base address of the executable on PLC devices
+        for pos, byt in enumerate(patch.data):
+            asm_code += overwrite_one_byte % (
+                base_addr + patch.addr - proj.loader.main_object.mapped_base + pos,
+                byt,
+            )
+            asm_code += "\n"
+        asm_code += epilog
+        new_patch = InsertCodePatch(start_addr, asm_code)
+        backend.apply_patches([new_patch])
+        backend.save(output_path)
+
+        return
+
+        # convert memory address to file offset
+        section = proj.loader.find_section_containing(patch.addr)
+        if section is None:
+            # TODO: Support section-less binaries
+            raise RuntimeError(f"Cannot find the section containing the address {patch.addr:#x}")
+
+        fileaddr = section.offset + (patch.addr - section.vaddr)
+
+        if not 0 <= fileaddr < len(raw_binary):
+            raise RuntimeError(f"Calculated fileaddr {fileaddr} is out of bound.")
+
+        # apply the patch
+        binary = raw_binary[:fileaddr] + patch.data + raw_binary[fileaddr + len(patch.data):]
+        return binary
+
+    return None

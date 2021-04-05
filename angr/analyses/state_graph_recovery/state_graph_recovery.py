@@ -1,4 +1,5 @@
-from typing import Optional, List, Dict, Tuple, Set, Callable, TYPE_CHECKING
+from itertools import count
+from typing import Optional, List, Dict, Tuple, Set, Callable, Any, TYPE_CHECKING
 
 import networkx
 
@@ -28,6 +29,20 @@ class ConstraintLogger:
                 claripy.is_false(added_constraints[0]))):
             for constraint in added_constraints:
                 self.mapping[constraint] = state.scratch.irsb.addr, state.scratch.stmt_idx
+
+
+class ExpressionLogger:
+    """
+    Logs symbolic expressions and where they are created via the on_register_write callback.
+    """
+    def __init__(self, mapping: Dict[claripy.ast.Base,Tuple[int,int]], variables: Set[str]):
+        self.mapping = mapping
+        self.variables: Set[str] = variables if variables else set()
+
+    def on_register_write(self, state: 'SimState'):
+        expr = state._inspect_getattr('reg_write_expr', None)
+        if expr is not None and expr.symbolic and expr.variables.intersection(self.variables):
+            self.mapping[expr] = state.scratch.irsb.addr, state.scratch.stmt_idx
 
 
 class DefinitionNode:
@@ -92,13 +107,18 @@ class StateGraphRecoveryAnalysis(Analysis):
     Traverses a function and derive a state graph with respect to given variables.
     """
     def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int,
-                 init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None, printstate: Optional[Callable]=None):
+                 init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None,
+                 printstate: Optional[Callable] = None,
+                 config_vars: Optional[Set[claripy.ast.Base]]=None,
+                 patch_callback: Optional[Callable]=None):
         self.func = func
         self.fields = fields
+        self.config_vars = config_vars if config_vars is not None else set()
         self.init_state = init_state
         self._switch_on = switch_on
         self._ret_trap: int = 0x1f37ff4a
         self.printstate = printstate
+        self.patch_callback = patch_callback
 
         # self._iec_time = 0x425620       # Traffic_Light_short_ped
         # self._iec_time = 0x448630       # Traffic_Light_both_green
@@ -106,6 +126,7 @@ class StateGraphRecoveryAnalysis(Analysis):
         self._tv_sec_var = None
         self._tv_nsec_var = None
         self.state_graph = None
+        self._expression_source = {}
 
         self.traverse()
 
@@ -119,21 +140,35 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         symbolic_input_fields = self._symbolize_input_fields(init_state)
         symbolic_time_counters = self._symbolize_timecounter(init_state)
+
+        # setup inspection points to catch where expressions are created
         all_vars = set(symbolic_input_fields.values())
         all_vars |= set(symbolic_time_counters.values())
+        all_vars |= self.config_vars
         slice_gen = SliceGenerator(all_vars, bp=None)
         expression_bp = slice_gen.install_expr_hook(init_state)
 
+        # setup inspection points to catch where expressions are written to registers
+        expression_logger = ExpressionLogger(self._expression_source, { v.args[0] for v in all_vars })
+        expr_logging_bp = BP(when=BP_BEFORE, enabled=True, action=expression_logger.on_register_write)
+        init_state.inspect.add_breakpoint('reg_write', expr_logging_bp)
+
+        # Abstract state ID counter
+        abs_state_id_ctr = count(0)
+
         abs_state = self.fields.generate_abstract_state(init_state)
-        self.state_graph.add_node(abs_state)
-        state_queue = [(init_state, abs_state, None, None, None)]
+        abs_state_id = next(abs_state_id_ctr)
+        self.state_graph.add_node((('STATE_ID', abs_state_id),) + abs_state)
+        state_queue = [(init_state, abs_state_id, abs_state, 1, None, None)]
         countdown_timer = 2  # how many iterations to execute before switching on
         switched_on = False
+
+        known_transitions = set()
 
         absstate_to_slice = { }
 
         while state_queue:
-            prev_state, prev_abs_state, time_delta, time_delta_constraint, time_delta_src = state_queue.pop(0)
+            prev_state, prev_abs_state_id, prev_abs_state, time_delta, time_delta_constraint, time_delta_src = state_queue.pop(0)
             if time_delta is None:
                 pass
             else:
@@ -146,9 +181,10 @@ class StateGraphRecoveryAnalysis(Analysis):
             expression_bp.enabled = False
 
             # print(time_delta)
+            abs_state_id = next(abs_state_id_ctr)
             abs_state = self.fields.generate_abstract_state(next_state)
             abs_state += (('time_delta', time_delta),
-                          ('tdc', time_delta_constraint),
+                          # ('tdc', time_delta_constraint),
                           ('td_src', time_delta_src)
                           )
 
@@ -161,8 +197,13 @@ class StateGraphRecoveryAnalysis(Analysis):
             absstate_to_slice[abs_state] = slice_gen.slice
             print("[.] There are %d nodes in the slice." % len(slice_gen.slice))
 
-            self.state_graph.add_edge(prev_abs_state,
-                                      abs_state,
+            transition = (prev_abs_state, abs_state)
+            if switched_on and transition in known_transitions:
+                continue
+
+            known_transitions.add(transition)
+            self.state_graph.add_edge((('STATE_ID', prev_abs_state_id),) + prev_abs_state,
+                                      (('STATE_ID', abs_state_id),) + abs_state,
                                       time_delta=time_delta,
                                       time_delta_constraint=time_delta_constraint,
                                       time_delta_src=time_delta_src,
@@ -173,16 +214,25 @@ class StateGraphRecoveryAnalysis(Analysis):
                 if countdown_timer > 0:
                     print("[.] Pre-heat... %d" % countdown_timer)
                     countdown_timer -= 1
-                    state_queue.append((next_state, abs_state, None, None, None))
+                    new_state = self._initialize_state(init_state=next_state)
+                    state_queue.append((new_state, abs_state_id, abs_state, 1, None, None))
                     continue
                 else:
                     print("[.] Switch on.")
                     self._switch_on(next_state)
+                    if self.patch_callback is not None:
+                        print("[.] Applying patches...")
+                        self.patch_callback(next_state)
                     switched_on = True
                     delta_and_sources = {}
+                    prev_abs_state = None
             else:
                 delta_and_sources = self._discover_time_deltas(next_state)
-                for delta, constraint, (block_addr, stmt_idx) in delta_and_sources:
+                for delta, constraint, source in delta_and_sources:
+                    if source is None:
+                        block_addr, stmt_idx = -1, -1
+                    else:
+                        block_addr, stmt_idx = source
                     print(f"[.] Discovered a new time interval {delta} defined at {block_addr:#x}:{stmt_idx}")
 
             if delta_and_sources:
@@ -196,7 +246,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                     all_vars |= set(symbolic_time_counters.values())
                     slice_gen = SliceGenerator(all_vars, bp=expression_bp)
 
-                    state_queue.append((new_state, abs_state, delta, constraint, src))
+                    state_queue.append((new_state, abs_state_id, abs_state, delta, constraint, src))
             else:
                 if prev_abs_state == abs_state and time_delta is None:
                     continue
@@ -207,9 +257,10 @@ class StateGraphRecoveryAnalysis(Analysis):
                 symbolic_time_counters = self._symbolize_timecounter(new_state)
                 all_vars = set(symbolic_input_fields.values())
                 all_vars |= set(symbolic_time_counters.values())
+                all_vars |= self.config_vars
                 slice_gen = SliceGenerator(all_vars, bp=expression_bp)
 
-                state_queue.append((new_state, abs_state, None, None, None))
+                state_queue.append((new_state, abs_state_id, abs_state, None, None, None))
 
     def _discover_time_deltas(self, state: 'SimState') -> List[Tuple[int,claripy.ast.Base,Tuple[int,int]]]:
         """
@@ -221,11 +272,12 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         state = self._initialize_state(state)
         time_deltas = self._symbolically_advance_timecounter(state)
-        # setup inspect points to catch where comparison happens
+        # setup inspection points to catch where comparison happens
         constraint_source = { }
         constraint_logger = ConstraintLogger(constraint_source)
-        bp = BP(when=BP_BEFORE, enabled=True, action=constraint_logger.on_adding_constraints)
-        state.inspect.add_breakpoint('constraints', bp)
+        bp_0 = BP(when=BP_BEFORE, enabled=True, action=constraint_logger.on_adding_constraints)
+        state.inspect.add_breakpoint('constraints', bp_0)
+
         next_state = self._traverse_one(state)
 
         # detect required time delta
@@ -234,19 +286,42 @@ class StateGraphRecoveryAnalysis(Analysis):
         if time_deltas:
             for delta in time_deltas:
                 for constraint in next_state.solver.constraints:
+                    original_constraint = constraint
+                    # attempt simplification if this constraint has both config variables and time delta variables
+                    if list(self.config_vars)[0].args[0] in constraint.variables and delta.args[0] in constraint.variables:
+                        simplified_constraint, self._expression_source = self._simplify_constraint(constraint,
+                                                                                                   self._expression_source)
+                        if simplified_constraint is not None:
+                            constraint = simplified_constraint
+
                     if constraint.op == "__eq__" and constraint.args[0] is delta:
                         continue
                     elif constraint.op == "__ne__":
                         if constraint.args[0] is delta:     # amd64
                             # found a potential step
                             if constraint.args[1].op == 'BVV':
-                                step = constraint.args[1].args[0]
-                                steps.append((
-                                    step,
-                                    constraint,
-                                    constraint_source.get(constraint, None),
-                                ))
-                                continue
+                                step = constraint.args[1]._model_concrete.value
+                                if step != 0:
+                                    steps.append((
+                                        step,
+                                        constraint,
+                                        constraint_source.get(original_constraint, None),
+                                    ))
+                                    continue
+                            else:
+                                # attempt to evaluate the right-hand side
+                                values = state.solver.eval_upto(constraint.args[1], 2)
+                                if len(values) == 1:
+                                    # it has a single value!
+                                    step = values[0]
+                                    if step != 0:
+                                        steps.append((
+                                            step,
+                                            constraint,
+                                            constraint_source.get(original_constraint, None),
+                                        ))
+                                        continue
+
                         if constraint.args[1].op == "Extract":      # arm32
                             # access constraint.args[1].args[2]
                             if constraint.args[1].args[2] is delta:
@@ -255,21 +330,148 @@ class StateGraphRecoveryAnalysis(Analysis):
                                     steps.append((
                                         step,
                                         constraint,
-                                        constraint_source.get(constraint, None),
+                                        constraint_source.get(original_constraint, None),
                                     ))
                                     continue
 
         return steps
 
+    def _simplify_constraint(self, constraint: claripy.ast.Base, source: Dict[claripy.ast.Base,Any]) -> Tuple[Optional[claripy.ast.Base],Dict[claripy.ast.Base,Any]]:
+        """
+        Attempt to simplify a constraint and generate a new source mapping.
+
+        Note that this simplification focuses on readability and is not always sound!
+
+        :param constraint:
+        :param source:
+        :return:
+        """
+
+        if (constraint.op in ("__ne__", "__eq__")
+                and constraint.args[0].op == "__add__"
+                and constraint.args[1].op == "__add__"):
+            # remove arguments that appear in both sides of the comparison
+            same_args = set(constraint.args[0].args).intersection(set(constraint.args[1].args))
+            if same_args:
+                left_new_args = tuple(arg for arg in constraint.args[0].args if arg not in same_args)
+                left = constraint.args[0].make_like("__add__", left_new_args) if len(left_new_args) > 1 else left_new_args[0]
+                if constraint.args[0] in source:
+                    source[left] = source[constraint.args[0]]
+
+                right_new_args = tuple(arg for arg in constraint.args[1].args if arg not in same_args)
+                right = constraint.args[1].make_like("__add__", right_new_args) if len(right_new_args) else right_new_args[0]
+                if constraint.args[1] in source:
+                    source[right] = source[constraint.args[1]]
+
+                simplified = constraint.make_like(constraint.op, (left, right))
+                if constraint in source:
+                    source[simplified] = source[constraint]
+                return self._simplify_constraint(simplified, source)
+
+        # Transform signed-extension of fpToSBV() to unsigned extension
+        if constraint.op == "Concat":
+            args = constraint.args
+            if all(arg.op == "Extract" for arg in args):
+                if len(set(arg.args[2] for arg in args)) == 1:
+                    if all(arg.args[0:2] in ((15,15), (31,31)) for arg in args[:-1]):
+                        # found it!
+                        core, source = self._simplify_constraint(args[0].args[2], source)
+                        if core is None:
+                            core = args[0].args[2]
+                        simplified = claripy.ZeroExt(len(args) - 1, core)
+                        if constraint in source:
+                            source[simplified] = source[constraint]
+                        return simplified, source
+            elif all(arg.op == "Extract" for arg in args[:-1]):
+                if len(set(arg.args[2] for arg in args[:-1])) == 1:
+                    v = args[0].args[2]
+                    if v is args[-1]:
+                        if all(arg.args[0:2] in ((15,15), (31,31)) for arg in args[:-1]):
+                            # found it!
+                            core, source = self._simplify_constraint(v, source)
+                            if core is None:
+                                core = v
+                            simplified = claripy.ZeroExt(len(args) - 1, core)
+                            if constraint is source:
+                                source[simplified] = source[constraint]
+                            return simplified, source
+
+        elif constraint.op in ('__ne__', '__mod__'):
+            left, source = self._simplify_constraint(constraint.args[0], source)
+            right, source = self._simplify_constraint(constraint.args[1], source)
+            if left is None and right is None:
+                return None, source
+            if left is None:
+                left = constraint.args[0]
+            if right is None:
+                right = constraint.args[1]
+            simplified = constraint.make_like(constraint.op, (left, right))
+            if constraint in source:
+                source[simplified] = source[constraint]
+            return simplified, source
+
+        elif constraint.op in ('__add__', ):
+            new_args = [ ]
+            simplified = False
+            for arg in constraint.args:
+                new_arg, source = self._simplify_constraint(arg, source)
+                if new_arg is not None:
+                    new_args.append(new_arg)
+                    simplified = True
+                else:
+                    new_args.append(arg)
+            if not simplified:
+                return None, source
+            simplified = constraint.make_like(constraint.op, tuple(new_args))
+            if constraint in source:
+                source[simplified] = source[constraint]
+            return simplified, source
+
+        elif constraint.op in ('fpToSBV', 'fpToFP'):
+            arg1, source = self._simplify_constraint(constraint.args[1], source)
+            if arg1 is None:
+                return None, source
+            simplified = constraint.make_like(constraint.op, (constraint.args[0], arg1, constraint.args[2]))
+            if constraint in source:
+                source[simplified] = source[constraint]
+            return simplified, source
+
+        elif constraint.op in ('fpMul', ):
+            if constraint.args[1].op == "FPV" and constraint.args[1]._model_concrete.value == 0.0:
+                return constraint.args[1], source
+            elif constraint.args[2].op == "FPV" and constraint.args[2]._model_concrete.value == 0.0:
+                return constraint.args[2], source
+            arg1, source = self._simplify_constraint(constraint.args[1], source)
+            arg2, source = self._simplify_constraint(constraint.args[2], source)
+            if arg1 is None and arg2 is None:
+                return None, source
+            if arg1 is None:
+                arg1 = constraint.args[1]
+            if arg2 is None:
+                arg2 = constraint.args[2]
+            simplified = constraint.make_like(constraint.op, (constraint.args[0], arg1, arg2))
+            if constraint in source:
+                source[simplified] = source[constraint]
+            return simplified, source
+
+        return None, source
+
     def _symbolize_input_fields(self, state: 'SimState') -> Dict[str,claripy.ast.Base]:
 
         symbolic_input_vars = { }
 
-        for name, (address, size) in self.fields.fields.items():
-            print(f"[.] Symbolizing field {name}...")
+        for name, (address, type_, size) in self.fields.fields.items():
+            # print(f"[.] Symbolizing field {name}...")
 
             v = state.memory.load(address, size=size, endness=self.project.arch.memory_endness)
             if not state.solver.symbolic(v):
+                # if type_ == "float":
+                #     concrete_v = state.solver.eval(v, cast_to=float)
+                #     symbolic_v = claripy.FPS(name, claripy.fp.FSORT_FLOAT)
+                # elif type_ == "double":
+                #     concrete_v = state.solver.eval(v, cast_to=float)
+                #     symbolic_v = claripy.FPS(name, claripy.fp.FSORT_DOUBLE)
+                # else:
                 concrete_v = state.solver.eval(v)
                 symbolic_v = claripy.BVS(name, size * self.project.arch.byte_width)
                 symbolic_input_vars[name] = symbolic_v
