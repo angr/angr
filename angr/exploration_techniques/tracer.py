@@ -644,7 +644,7 @@ class Tracer(ExplorationTechnique):
         # Now we check the part of the state history corresponding to this big basic block to ensure there are no
         # control flow instructions at end of any blocks in the part. This check moves backwards starting from the
         # desyncing block to the start of the big block we found earlier
-        for state_history_block_addr in reversed(state.history.bbl_addrs[:state_desync_block_idx]):
+        for state_history_block_addr in reversed(state.history.bbl_addrs.hardcopy[:state_desync_block_idx]):
             state_history_block = state.project.factory.block(state_history_block_addr)
             state_history_block_last_insn = state_history_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
