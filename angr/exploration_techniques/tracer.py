@@ -485,6 +485,14 @@ class Tracer(ExplorationTechnique):
                 if self._compare_addr(self._trace[idx], addr) or self._check_qemu_unicorn_large_block_split(state, idx, addr_idx):
                     idx += 1
                 else:
+                    is_contained, increment = self._check_qemu_block_in_unicorn_block(state, idx, addr_idx)
+                    if is_contained:
+                        idx += increment
+                        # Big block is now skipped in qemu trace. Perform compare at correct index again.
+                        if self._compare_addr(self._trace[idx], addr):
+                            idx += 1
+                            continue
+
                     raise TracerDesyncError('Oops! angr did not follow the trace',
                                             deviating_addr=addr,
                                             deviating_trace_idx=idx)
@@ -608,6 +616,40 @@ class Tracer(ExplorationTechnique):
             raise AngrTracerError("Trace desynced on jumping into %s. Did you load the right version of this library?" % current_bin.provides)
         else:
             raise AngrTracerError("Trace desynced on jumping into %#x, where no library is mapped!" % state_addr)
+
+    def _check_qemu_block_in_unicorn_block(self, state: 'angr.SimState', trace_curr_idx, state_desync_block_idx):
+        """
+        Check if desync occurred because unicorn block was split into multiple blocks in qemu tracer. If yes, find the
+        correct increment for trace index
+        """
+
+        # We first find the block address where the trace and state's history match
+        for trace_match_idx in range(trace_curr_idx - 1, -1, -1):
+            if self._trace[trace_match_idx] == state.history.recent_bbl_addrs[state_desync_block_idx - 1]:
+                break
+        else:
+            # Failed to find matching block address. qemu block is probably not contained in a previous block.
+            return (False, -1)
+
+        big_block_start = self._trace[trace_match_idx]
+        big_block = state.project.factory.block(self._translate_trace_addr(big_block_start))
+        big_block_end = big_block_start + big_block.size - 1
+        for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
+            if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
+                # This qemu block is not contained in the bigger block
+                break
+
+        if last_contain_index != trace_curr_idx:
+            # Current block in trace is not in the big block
+            return (False, -1)
+
+        # Check for future blocks in trace contained in big block
+        for next_contain_index in range(trace_curr_idx + 1, len(self._trace)):
+            if self._trace[next_contain_index] < big_block_start or self._trace[next_contain_index] > big_block_end:
+                # This qemu block is not contained in bigger block
+                break
+
+        return (True, next_contain_index - trace_curr_idx)
 
     def _check_qemu_unicorn_large_block_split(self, state: 'angr.SimState', trace_curr_idx, state_desync_block_idx):
         """
