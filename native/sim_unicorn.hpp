@@ -400,13 +400,12 @@ typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
 typedef std::unordered_map<vex_reg_offset_t, unicorn_reg_id_t> RegisterMap;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
-struct mem_access_t {
+struct mem_write_t {
 	address_t address;
 	uint8_t value[MAX_MEM_ACCESS_SIZE]; // assume size of any memory write is no more than 8
 	int size;
-	int clean; // save current page bitmap
-	bool is_symbolic;
-}; // actually it should be `mem_write_t` :)
+	std::vector<taint_t> previous_taint;
+};
 
 struct mem_update_t {
 	address_t address;
@@ -435,7 +434,7 @@ class State {
 
 	uc_context *saved_regs;
 
-	std::vector<mem_access_t> mem_writes;
+	std::vector<mem_write_t> mem_writes;
 	// List of all memory writes and their taint status
 	// Memory write instruction address -> is_symbolic
 	// TODO: Need to modify memory write taint handling for architectures that perform multiple

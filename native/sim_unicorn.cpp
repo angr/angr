@@ -145,6 +145,11 @@ void State::stop(stop_t reason, bool do_commit) {
 	if ((reason == STOP_SYSCALL) || do_commit) {
 		commit();
 	}
+	else if ((reason != STOP_NORMAL) && (reason != STOP_STOPPOINT)) {
+		// Stop reason is not NORMAL, STOPPOINT or SYSCALL. Rollback.
+		// EXECNONE, ZEROPAGE, NOSTART, ZERO_DIV, NODECODE and HLT are never passed to this function.
+		rollback();
+	}
 	uc_emu_stop(uc);
 	// Prepare details of blocks with symbolic instructions to re-execute for returning to state plugin
 	for (auto &block: blocks_with_symbolic_instrs) {
@@ -273,31 +278,11 @@ void State::rollback() {
 		}
 		auto page = page_lookup(rit->address);
 		taint_t *bitmap = page.first;
-		uint8_t *data = page.second;
 
-		if (data == NULL) {
-			if (rit->clean) {
-				// should untaint some bits
-				address_t start = rit->address & 0xFFF;
-				int size = rit->size;
-				int clean = rit->clean;
-				for (auto i = 0; i < size; i++) {
-					if ((clean >> i) & 1) {
-						// this byte is untouched before this memory action
-						// in the rollback, we already failed to execute, so
-						// we don't care about symoblic address, just mark
-						// it's clean.
-						bitmap[start + i] = TAINT_NONE;
-					}
-				}
-			}
-		} else {
-			uint64_t start = rit->address & 0xFFF;
-			int size = rit->size;
-			int clean = rit->clean;
-			for (auto i = 0; i < size; i++) {
-				bitmap[start + i] = (clean & (1 << i)) != 0 ? TAINT_NONE : TAINT_SYMBOLIC;
-			}
+		uint64_t start = rit->address & 0xFFF;
+		int size = rit->size;
+		for (auto i = 0; i < size; i++) {
+			bitmap[start + i] = rit->previous_taint[i];
 		}
 	}
 	mem_writes.clear();
@@ -560,7 +545,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 
 	// From here, we are definitely only dealing with one page
 
-	mem_access_t record;
+	mem_write_t record;
 	record.address = address;
 	record.size = size;
 	uc_err err = uc_mem_read(uc, address, record.value, size);
@@ -677,6 +662,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	}
 	if (data == NULL) {
 		for (auto i = start; i <= end; i++) {
+			record.previous_taint.push_back(bitmap[i]);
 			if (is_dst_symbolic) {
 				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
 				// Also, no need to set clean: rollback will set it to TAINT_NONE which
@@ -685,13 +671,13 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 				bitmap[i] = TAINT_SYMBOLIC;
 			}
 			else if (bitmap[i] != TAINT_DIRTY) {
-				clean |= 1 << i; // this bit should not be marked as taint if we undo this action
 				bitmap[i] = TAINT_DIRTY;
 			}
 		}
 	}
 	else {
 		for (auto i = start; i <= end; i++) {
+			record.previous_taint.push_back(bitmap[i]);
 			if (is_dst_symbolic) {
 				// Don't mark as TAINT_DIRTY since we don't want to sync it back to angr
 				// Also, no need to set clean: rollback will set it to TAINT_NONE which
@@ -699,15 +685,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 				// due to an error encountered
 				bitmap[i] = TAINT_SYMBOLIC;
 			}
-			else if (bitmap[i] == TAINT_NONE) {
-				clean |= 1 << (i - start);
-			} else {
+			else if (bitmap[i] != TAINT_NONE) {
 				bitmap[i] = TAINT_NONE;
 			}
 		}
 	}
-
-	record.clean = clean;
 	mem_writes.push_back(record);
 }
 
