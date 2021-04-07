@@ -8,7 +8,7 @@ class Atom:
     """
     This class represents a data storage location manipulated by IR instructions.
 
-    It could either be a Tmp (temporary variable), a Register, a MemoryLocation, or a Parameter.
+    It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
     def __repr__(self):
         raise NotImplementedError()
@@ -163,39 +163,3 @@ class MemoryLocation(Atom):
 
     def __hash__(self):
         return hash(('mem', self.addr, self.size))
-
-
-class Parameter(Atom):
-    """
-    Represents a function parameter.
-
-    Can either be a <angr.engines.light.data.SpOffset> if the parameter was passed on the stack, or a <Register>, depending on the calling
-    convention.
-    """
-    __slots__ = ('value', '_size', 'type_', 'meta')
-
-    def __init__(self, value, size=None, type_=None, meta=None):
-        super(Parameter, self).__init__()
-
-        self.value = value
-        self._size = size
-        self.type_ = type_
-        self.meta = meta
-
-    @property
-    def size(self) -> int:
-        return self._size
-
-    def __repr__(self):
-        type_ = ', type=%s' % self.type_ if self.type_ is not None else ''
-        meta = ', meta=%s' % self.meta if self.meta is not None else ''
-        return '<Param %s%s%s>' % (self.value, type_, meta)
-
-    def __eq__(self, other):
-        return type(other) is Parameter and \
-               self.value == other.value and \
-               self.type_ == other.type_ and \
-               self.meta == other.meta
-
-    def __hash__(self):
-        return hash(('par', self.value, self.type_, self.meta))
