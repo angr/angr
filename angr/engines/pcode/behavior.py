@@ -1,7 +1,7 @@
 import operator
 from typing import Callable, Iterable, Tuple
 
-from pypcode import OpCode, Sleigh
+from pypcode import OpCode
 import claripy
 from claripy.ast.bv import BV
 
@@ -54,7 +54,7 @@ class OpBehaviorCopy(OpBehavior):
     Behavior for the COPY operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_COPY, True)
+        super().__init__(OpCode.COPY, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
         return in1
@@ -65,7 +65,7 @@ class OpBehaviorEqual(OpBehavior):
     Behavior for the INT_EQUAL operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_EQUAL, False)
+        super().__init__(OpCode.INT_EQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return self.generic_compare((in1, in2), operator.eq)
@@ -76,7 +76,7 @@ class OpBehaviorNotEqual(OpBehavior):
     Behavior for the INT_NOTEQUAL operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_NOTEQUAL, False)
+        super().__init__(OpCode.INT_NOTEQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return self.generic_compare((in1, in2), operator.ne)
@@ -87,7 +87,7 @@ class OpBehaviorIntSless(OpBehavior):
     Behavior for the INT_SLESS operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SLESS, False)
+        super().__init__(OpCode.INT_SLESS, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return self.generic_compare((in1, in2), claripy.SLT)
@@ -98,7 +98,7 @@ class OpBehaviorIntSlessEqual(OpBehavior):
     Behavior for the INT_SLESSEQUAL operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SLESSEQUAL, False)
+        super().__init__(OpCode.INT_SLESSEQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return self.generic_compare((in1, in2), claripy.SLE)
@@ -109,7 +109,7 @@ class OpBehaviorIntLess(OpBehavior):
     Behavior for the INT_LESS operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_LESS, False)
+        super().__init__(OpCode.INT_LESS, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return self.generic_compare((in1, in2), claripy.ULT)
@@ -120,7 +120,7 @@ class OpBehaviorIntLessEqual(OpBehavior):
     Behavior for the INT_LESSEQUAL operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_LESSEQUAL, False)
+        super().__init__(OpCode.INT_LESSEQUAL, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return self.generic_compare((in1, in2), claripy.ULE)
@@ -131,7 +131,7 @@ class OpBehaviorIntZext(OpBehavior):
     Behavior for the INT_ZEXT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_ZEXT, True)
+        super().__init__(OpCode.INT_ZEXT, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
         return in1.zero_extend((size_out-size_in)*8)
@@ -142,7 +142,7 @@ class OpBehaviorIntSext(OpBehavior):
     Behavior for the INT_SEXT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SEXT, True)
+        super().__init__(OpCode.INT_SEXT, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
         return in1.sign_extend((size_out-size_in)*8)
@@ -153,7 +153,7 @@ class OpBehaviorIntAdd(OpBehavior):
     Behavior for the INT_ADD operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_ADD, False)
+        super().__init__(OpCode.INT_ADD, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 + in2
@@ -164,7 +164,7 @@ class OpBehaviorIntSub(OpBehavior):
     Behavior for the INT_SUB operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SUB, False)
+        super().__init__(OpCode.INT_SUB, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 - in2
@@ -175,7 +175,7 @@ class OpBehaviorIntCarry(OpBehavior):
     Behavior for the INT_CARRY operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_CARRY, False)
+        super().__init__(OpCode.INT_CARRY, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         # origin: ccall.py pc_actions_ADD
@@ -188,7 +188,7 @@ class OpBehaviorIntScarry(OpBehavior):
     Behavior for the INT_SCARRY operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SCARRY, False)
+        super().__init__(OpCode.INT_SCARRY, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         res = in1 + in2
@@ -210,7 +210,7 @@ class OpBehaviorIntSborrow(OpBehavior):
     Behavior for the INT_SBORROW operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SBORROW, False)
+        super().__init__(OpCode.INT_SBORROW, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         res = in1 - in2
@@ -231,7 +231,7 @@ class OpBehaviorInt2Comp(OpBehavior):
     Behavior for the INT_2COMP operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_2COMP, True)
+        super().__init__(OpCode.INT_2COMP, True)
 
     # uintb OpBehaviorInt2Comp::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -246,7 +246,7 @@ class OpBehaviorIntNegate(OpBehavior):
     Behavior for the INT_NEGATE operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_NEGATE, True)
+        super().__init__(OpCode.INT_NEGATE, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
         return ~in1
@@ -257,7 +257,7 @@ class OpBehaviorIntXor(OpBehavior):
     Behavior for the INT_XOR operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_XOR, False)
+        super().__init__(OpCode.INT_XOR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 ^ in2
@@ -268,7 +268,7 @@ class OpBehaviorIntAnd(OpBehavior):
     Behavior for the INT_AND operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_AND, False)
+        super().__init__(OpCode.INT_AND, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 & in2
@@ -279,7 +279,7 @@ class OpBehaviorIntOr(OpBehavior):
     Behavior for the INT_OR operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_OR, False)
+        super().__init__(OpCode.INT_OR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 | in2
@@ -290,7 +290,7 @@ class OpBehaviorIntLeft(OpBehavior):
     Behavior for the INT_LEFT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_LEFT, False)
+        super().__init__(OpCode.INT_LEFT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         in1, in2 = make_bv_sizes_equal(in1, in2)
@@ -302,7 +302,7 @@ class OpBehaviorIntRight(OpBehavior):
     Behavior for the INT_RIGHT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_RIGHT, False)
+        super().__init__(OpCode.INT_RIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         in1, in2 = make_bv_sizes_equal(in1, in2)
@@ -314,7 +314,7 @@ class OpBehaviorIntSright(OpBehavior):
     Behavior for the INT_SRIGHT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SRIGHT, False)
+        super().__init__(OpCode.INT_SRIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         in1, in2 = make_bv_sizes_equal(in1, in2)
@@ -326,7 +326,7 @@ class OpBehaviorIntMult(OpBehavior):
     Behavior for the INT_MULT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_MULT, False)
+        super().__init__(OpCode.INT_MULT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 * in2
@@ -337,7 +337,7 @@ class OpBehaviorIntDiv(OpBehavior):
     Behavior for the INT_DIV operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_DIV, False)
+        super().__init__(OpCode.INT_DIV, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 / in2
@@ -348,7 +348,7 @@ class OpBehaviorIntSdiv(OpBehavior):
     Behavior for the INT_SDIV operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SDIV, False)
+        super().__init__(OpCode.INT_SDIV, False)
 
     # uintb OpBehaviorIntSdiv::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -370,7 +370,7 @@ class OpBehaviorIntRem(OpBehavior):
     Behavior for the INT_REM operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_REM, False)
+        super().__init__(OpCode.INT_REM, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 % in2
@@ -381,7 +381,7 @@ class OpBehaviorIntSrem(OpBehavior):
     Behavior for the INT_SREM operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_INT_SREM, False)
+        super().__init__(OpCode.INT_SREM, False)
 
     # uintb OpBehaviorIntSrem::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -403,7 +403,7 @@ class OpBehaviorBoolNegate(OpBehavior):
     Behavior for the BOOL_NEGATE operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_BOOL_NEGATE, True)
+        super().__init__(OpCode.BOOL_NEGATE, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
         return in1 ^ 1
@@ -414,7 +414,7 @@ class OpBehaviorBoolXor(OpBehavior):
     Behavior for the BOOL_XOR operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_BOOL_XOR, False)
+        super().__init__(OpCode.BOOL_XOR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 ^ in2
@@ -425,7 +425,7 @@ class OpBehaviorBoolAnd(OpBehavior):
     Behavior for the BOOL_AND operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_BOOL_AND, False)
+        super().__init__(OpCode.BOOL_AND, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 & in2
@@ -436,7 +436,7 @@ class OpBehaviorBoolOr(OpBehavior):
     Behavior for the BOOL_OR operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_BOOL_OR, False)
+        super().__init__(OpCode.BOOL_OR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         return in1 | in2
@@ -446,13 +446,8 @@ class OpBehaviorFloatEqual(OpBehavior):
     """
     Behavior for the FLOAT_EQUAL operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_EQUAL, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_EQUAL, False)
 
     # uintb OpBehaviorFloatEqual::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -469,13 +464,8 @@ class OpBehaviorFloatNotEqual(OpBehavior):
     """
     Behavior for the FLOAT_NOTEQUAL operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_NOTEQUAL, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_NOTEQUAL, False)
 
     # uintb OpBehaviorFloatNotEqual::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -492,13 +482,8 @@ class OpBehaviorFloatLess(OpBehavior):
     """
     Behavior for the FLOAT_LESS operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_LESS, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_LESS, False)
 
     # uintb OpBehaviorFloatLess::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -515,13 +500,8 @@ class OpBehaviorFloatLessEqual(OpBehavior):
     """
     Behavior for the FLOAT_LESSEQUAL operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_LESSEQUAL, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_LESSEQUAL, False)
 
     # uintb OpBehaviorFloatLessEqual::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -538,13 +518,8 @@ class OpBehaviorFloatNan(OpBehavior):
     """
     Behavior for the FLOAT_NAN operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_NAN, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_NAN, True)
 
     # uintb OpBehaviorFloatNan::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -561,13 +536,8 @@ class OpBehaviorFloatAdd(OpBehavior):
     """
     Behavior for the FLOAT_ADD operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_ADD, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_ADD, False)
 
     # uintb OpBehaviorFloatAdd::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -584,13 +554,8 @@ class OpBehaviorFloatDiv(OpBehavior):
     """
     Behavior for the FLOAT_DIV operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_DIV, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_DIV, False)
 
     # uintb OpBehaviorFloatDiv::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -607,13 +572,8 @@ class OpBehaviorFloatMult(OpBehavior):
     """
     Behavior for the FLOAT_MULT operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_MULT, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_MULT, False)
 
     # uintb OpBehaviorFloatMult::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -630,13 +590,8 @@ class OpBehaviorFloatSub(OpBehavior):
     """
     Behavior for the FLOAT_SUB operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_SUB, False)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_SUB, False)
 
     # uintb OpBehaviorFloatSub::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -653,13 +608,8 @@ class OpBehaviorFloatNeg(OpBehavior):
     """
     Behavior for the FLOAT_NEG operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_NEG, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_NEG, True)
 
     # uintb OpBehaviorFloatNeg::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -676,13 +626,8 @@ class OpBehaviorFloatAbs(OpBehavior):
     """
     Behavior for the FLOAT_ABS operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_ABS, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_ABS, True)
 
     # uintb OpBehaviorFloatAbs::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -699,13 +644,8 @@ class OpBehaviorFloatSqrt(OpBehavior):
     """
     Behavior for the FLOAT_SQRT operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_SQRT, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_SQRT, True)
 
     # uintb OpBehaviorFloatSqrt::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -722,13 +662,8 @@ class OpBehaviorFloatInt2Float(OpBehavior):
     """
     Behavior for the FLOAT_INT2FLOAT operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_INT2FLOAT, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_INT2FLOAT, True)
 
     # uintb OpBehaviorFloatInt2Float::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -745,13 +680,8 @@ class OpBehaviorFloatFloat2Float(OpBehavior):
     """
     Behavior for the FLOAT_FLOAT2FLOAT operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_FLOAT2FLOAT, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_FLOAT2FLOAT, True)
 
     # uintb OpBehaviorFloatFloat2Float::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -771,13 +701,8 @@ class OpBehaviorFloatTrunc(OpBehavior):
     """
     Behavior for the FLOAT_TRUNC operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_TRUNC, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_TRUNC, True)
 
     # uintb OpBehaviorFloatTrunc::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -794,13 +719,8 @@ class OpBehaviorFloatCeil(OpBehavior):
     """
     Behavior for the FLOAT_CEIL operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_CEIL, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_CEIL, True)
 
     # uintb OpBehaviorFloatCeil::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -817,13 +737,8 @@ class OpBehaviorFloatFloor(OpBehavior):
     """
     Behavior for the FLOAT_FLOOR operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_FLOOR, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_FLOOR, True)
 
     # uintb OpBehaviorFloatFloor::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -840,13 +755,8 @@ class OpBehaviorFloatRound(OpBehavior):
     """
     Behavior for the FLOAT_ROUND operation.
     """
-
-    __slots__ = ("opcode", "is_unary", "is_special", "_translate")
-    _translate: Sleigh
-
-    def __init__(self, trans: Sleigh) -> None:
-        self._translate = trans
-        super().__init__(OpCode.CPUI_FLOAT_ROUND, True)
+    def __init__(self) -> None:
+        super().__init__(OpCode.FLOAT_ROUND, True)
 
     # uintb OpBehaviorFloatRound::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
@@ -864,7 +774,7 @@ class OpBehaviorPiece(OpBehavior):
     Behavior for the PIECE operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_PIECE, False)
+        super().__init__(OpCode.PIECE, False)
 
     # uintb OpBehaviorPiece::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -879,7 +789,7 @@ class OpBehaviorSubpiece(OpBehavior):
     Behavior for the SUBPIECE operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_SUBPIECE, False)
+        super().__init__(OpCode.SUBPIECE, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
         if in2.size() < in1.size():
@@ -892,7 +802,7 @@ class OpBehaviorPopcount(OpBehavior):
     Behavior for the POPCOUNT operation.
     """
     def __init__(self) -> None:
-        super().__init__(OpCode.CPUI_POPCOUNT, True)
+        super().__init__(OpCode.POPCOUNT, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
         expr = claripy.BVV(0, size_out*8)
@@ -905,8 +815,7 @@ class BehaviorFactory:
     """
     Returns the behavior object for a given opcode.
     """
-    def __init__(self, trans: Sleigh = None) -> None:
-        self._trans = trans
+    def __init__(self) -> None:
         self._behaviors = {}
         self._register_behaviors()
 
@@ -915,75 +824,75 @@ class BehaviorFactory:
 
     def _register_behaviors(self) -> None:
         self._behaviors.update({
-            OpCode.CPUI_COPY: OpBehaviorCopy(),
-            OpCode.CPUI_LOAD: OpBehavior(OpCode.CPUI_LOAD, False, True),
-            OpCode.CPUI_STORE: OpBehavior(OpCode.CPUI_STORE, False, True),
-            OpCode.CPUI_BRANCH: OpBehavior(OpCode.CPUI_BRANCH, False, True),
-            OpCode.CPUI_CBRANCH: OpBehavior(OpCode.CPUI_CBRANCH, False, True),
-            OpCode.CPUI_BRANCHIND: OpBehavior(OpCode.CPUI_BRANCHIND, False, True),
-            OpCode.CPUI_CALL: OpBehavior(OpCode.CPUI_CALL, False, True),
-            OpCode.CPUI_CALLIND: OpBehavior(OpCode.CPUI_CALLIND, False, True),
-            OpCode.CPUI_CALLOTHER: OpBehavior(OpCode.CPUI_CALLOTHER, False, True),
-            OpCode.CPUI_RETURN: OpBehavior(OpCode.CPUI_RETURN, False, True),
-            OpCode.CPUI_MULTIEQUAL: OpBehavior(OpCode.CPUI_MULTIEQUAL, False, True),
-            OpCode.CPUI_INDIRECT: OpBehavior(OpCode.CPUI_INDIRECT, False, True),
-            OpCode.CPUI_PIECE: OpBehaviorPiece(),
-            OpCode.CPUI_SUBPIECE: OpBehaviorSubpiece(),
-            OpCode.CPUI_INT_EQUAL: OpBehaviorEqual(),
-            OpCode.CPUI_INT_NOTEQUAL: OpBehaviorNotEqual(),
-            OpCode.CPUI_INT_SLESS: OpBehaviorIntSless(),
-            OpCode.CPUI_INT_SLESSEQUAL: OpBehaviorIntSlessEqual(),
-            OpCode.CPUI_INT_LESS: OpBehaviorIntLess(),
-            OpCode.CPUI_INT_LESSEQUAL: OpBehaviorIntLessEqual(),
-            OpCode.CPUI_INT_ZEXT: OpBehaviorIntZext(),
-            OpCode.CPUI_INT_SEXT: OpBehaviorIntSext(),
-            OpCode.CPUI_INT_ADD: OpBehaviorIntAdd(),
-            OpCode.CPUI_INT_SUB: OpBehaviorIntSub(),
-            OpCode.CPUI_INT_CARRY: OpBehaviorIntCarry(),
-            OpCode.CPUI_INT_SCARRY: OpBehaviorIntScarry(),
-            OpCode.CPUI_INT_SBORROW: OpBehaviorIntSborrow(),
-            OpCode.CPUI_INT_2COMP: OpBehaviorInt2Comp(),
-            OpCode.CPUI_INT_NEGATE: OpBehaviorIntNegate(),
-            OpCode.CPUI_INT_XOR: OpBehaviorIntXor(),
-            OpCode.CPUI_INT_AND: OpBehaviorIntAnd(),
-            OpCode.CPUI_INT_OR: OpBehaviorIntOr(),
-            OpCode.CPUI_INT_LEFT: OpBehaviorIntLeft(),
-            OpCode.CPUI_INT_RIGHT: OpBehaviorIntRight(),
-            OpCode.CPUI_INT_SRIGHT: OpBehaviorIntSright(),
-            OpCode.CPUI_INT_MULT: OpBehaviorIntMult(),
-            OpCode.CPUI_INT_DIV: OpBehaviorIntDiv(),
-            OpCode.CPUI_INT_SDIV: OpBehaviorIntSdiv(),
-            OpCode.CPUI_INT_REM: OpBehaviorIntRem(),
-            OpCode.CPUI_INT_SREM: OpBehaviorIntSrem(),
-            OpCode.CPUI_BOOL_NEGATE: OpBehaviorBoolNegate(),
-            OpCode.CPUI_BOOL_XOR: OpBehaviorBoolXor(),
-            OpCode.CPUI_BOOL_AND: OpBehaviorBoolAnd(),
-            OpCode.CPUI_BOOL_OR: OpBehaviorBoolOr(),
-            OpCode.CPUI_CAST: OpBehavior(OpCode.CPUI_CAST, False, True),
-            OpCode.CPUI_PTRADD: OpBehavior(OpCode.CPUI_PTRADD, False, True),
-            OpCode.CPUI_PTRSUB: OpBehavior(OpCode.CPUI_PTRSUB, False, True),
-            OpCode.CPUI_FLOAT_EQUAL: OpBehaviorFloatEqual(self._trans),
-            OpCode.CPUI_FLOAT_NOTEQUAL: OpBehaviorFloatNotEqual(self._trans),
-            OpCode.CPUI_FLOAT_LESS: OpBehaviorFloatLess(self._trans),
-            OpCode.CPUI_FLOAT_LESSEQUAL: OpBehaviorFloatLessEqual(self._trans),
-            OpCode.CPUI_FLOAT_NAN: OpBehaviorFloatNan(self._trans),
-            OpCode.CPUI_FLOAT_ADD: OpBehaviorFloatAdd(self._trans),
-            OpCode.CPUI_FLOAT_DIV: OpBehaviorFloatDiv(self._trans),
-            OpCode.CPUI_FLOAT_MULT: OpBehaviorFloatMult(self._trans),
-            OpCode.CPUI_FLOAT_SUB: OpBehaviorFloatSub(self._trans),
-            OpCode.CPUI_FLOAT_NEG: OpBehaviorFloatNeg(self._trans),
-            OpCode.CPUI_FLOAT_ABS: OpBehaviorFloatAbs(self._trans),
-            OpCode.CPUI_FLOAT_SQRT: OpBehaviorFloatSqrt(self._trans),
-            OpCode.CPUI_FLOAT_INT2FLOAT: OpBehaviorFloatInt2Float(self._trans),
-            OpCode.CPUI_FLOAT_FLOAT2FLOAT: OpBehaviorFloatFloat2Float(self._trans),
-            OpCode.CPUI_FLOAT_TRUNC: OpBehaviorFloatTrunc(self._trans),
-            OpCode.CPUI_FLOAT_CEIL: OpBehaviorFloatCeil(self._trans),
-            OpCode.CPUI_FLOAT_FLOOR: OpBehaviorFloatFloor(self._trans),
-            OpCode.CPUI_FLOAT_ROUND: OpBehaviorFloatRound(self._trans),
-            OpCode.CPUI_SEGMENTOP: OpBehavior(OpCode.CPUI_SEGMENTOP, False, True),
-            OpCode.CPUI_CPOOLREF: OpBehavior(OpCode.CPUI_CPOOLREF, False, True),
-            OpCode.CPUI_NEW: OpBehavior(OpCode.CPUI_NEW, False, True),
-            OpCode.CPUI_INSERT: OpBehavior(OpCode.CPUI_INSERT, False, True),
-            OpCode.CPUI_EXTRACT: OpBehavior(OpCode.CPUI_EXTRACT, False, True),
-            OpCode.CPUI_POPCOUNT: OpBehaviorPopcount(),
+            OpCode.COPY              : OpBehaviorCopy(),
+            OpCode.LOAD              : OpBehavior(OpCode.LOAD, False, True),
+            OpCode.STORE             : OpBehavior(OpCode.STORE, False, True),
+            OpCode.BRANCH            : OpBehavior(OpCode.BRANCH, False, True),
+            OpCode.CBRANCH           : OpBehavior(OpCode.CBRANCH, False, True),
+            OpCode.BRANCHIND         : OpBehavior(OpCode.BRANCHIND, False, True),
+            OpCode.CALL              : OpBehavior(OpCode.CALL, False, True),
+            OpCode.CALLIND           : OpBehavior(OpCode.CALLIND, False, True),
+            OpCode.CALLOTHER         : OpBehavior(OpCode.CALLOTHER, False, True),
+            OpCode.RETURN            : OpBehavior(OpCode.RETURN, False, True),
+            OpCode.MULTIEQUAL        : OpBehavior(OpCode.MULTIEQUAL, False, True),
+            OpCode.INDIRECT          : OpBehavior(OpCode.INDIRECT, False, True),
+            OpCode.PIECE             : OpBehaviorPiece(),
+            OpCode.SUBPIECE          : OpBehaviorSubpiece(),
+            OpCode.INT_EQUAL         : OpBehaviorEqual(),
+            OpCode.INT_NOTEQUAL      : OpBehaviorNotEqual(),
+            OpCode.INT_SLESS         : OpBehaviorIntSless(),
+            OpCode.INT_SLESSEQUAL    : OpBehaviorIntSlessEqual(),
+            OpCode.INT_LESS          : OpBehaviorIntLess(),
+            OpCode.INT_LESSEQUAL     : OpBehaviorIntLessEqual(),
+            OpCode.INT_ZEXT          : OpBehaviorIntZext(),
+            OpCode.INT_SEXT          : OpBehaviorIntSext(),
+            OpCode.INT_ADD           : OpBehaviorIntAdd(),
+            OpCode.INT_SUB           : OpBehaviorIntSub(),
+            OpCode.INT_CARRY         : OpBehaviorIntCarry(),
+            OpCode.INT_SCARRY        : OpBehaviorIntScarry(),
+            OpCode.INT_SBORROW       : OpBehaviorIntSborrow(),
+            OpCode.INT_2COMP         : OpBehaviorInt2Comp(),
+            OpCode.INT_NEGATE        : OpBehaviorIntNegate(),
+            OpCode.INT_XOR           : OpBehaviorIntXor(),
+            OpCode.INT_AND           : OpBehaviorIntAnd(),
+            OpCode.INT_OR            : OpBehaviorIntOr(),
+            OpCode.INT_LEFT          : OpBehaviorIntLeft(),
+            OpCode.INT_RIGHT         : OpBehaviorIntRight(),
+            OpCode.INT_SRIGHT        : OpBehaviorIntSright(),
+            OpCode.INT_MULT          : OpBehaviorIntMult(),
+            OpCode.INT_DIV           : OpBehaviorIntDiv(),
+            OpCode.INT_SDIV          : OpBehaviorIntSdiv(),
+            OpCode.INT_REM           : OpBehaviorIntRem(),
+            OpCode.INT_SREM          : OpBehaviorIntSrem(),
+            OpCode.BOOL_NEGATE       : OpBehaviorBoolNegate(),
+            OpCode.BOOL_XOR          : OpBehaviorBoolXor(),
+            OpCode.BOOL_AND          : OpBehaviorBoolAnd(),
+            OpCode.BOOL_OR           : OpBehaviorBoolOr(),
+            OpCode.CAST              : OpBehavior(OpCode.CAST, False, True),
+            OpCode.PTRADD            : OpBehavior(OpCode.PTRADD, False, True),
+            OpCode.PTRSUB            : OpBehavior(OpCode.PTRSUB, False, True),
+            OpCode.FLOAT_EQUAL       : OpBehaviorFloatEqual(),
+            OpCode.FLOAT_NOTEQUAL    : OpBehaviorFloatNotEqual(),
+            OpCode.FLOAT_LESS        : OpBehaviorFloatLess(),
+            OpCode.FLOAT_LESSEQUAL   : OpBehaviorFloatLessEqual(),
+            OpCode.FLOAT_NAN         : OpBehaviorFloatNan(),
+            OpCode.FLOAT_ADD         : OpBehaviorFloatAdd(),
+            OpCode.FLOAT_DIV         : OpBehaviorFloatDiv(),
+            OpCode.FLOAT_MULT        : OpBehaviorFloatMult(),
+            OpCode.FLOAT_SUB         : OpBehaviorFloatSub(),
+            OpCode.FLOAT_NEG         : OpBehaviorFloatNeg(),
+            OpCode.FLOAT_ABS         : OpBehaviorFloatAbs(),
+            OpCode.FLOAT_SQRT        : OpBehaviorFloatSqrt(),
+            OpCode.FLOAT_INT2FLOAT   : OpBehaviorFloatInt2Float(),
+            OpCode.FLOAT_FLOAT2FLOAT : OpBehaviorFloatFloat2Float(),
+            OpCode.FLOAT_TRUNC       : OpBehaviorFloatTrunc(),
+            OpCode.FLOAT_CEIL        : OpBehaviorFloatCeil(),
+            OpCode.FLOAT_FLOOR       : OpBehaviorFloatFloor(),
+            OpCode.FLOAT_ROUND       : OpBehaviorFloatRound(),
+            OpCode.SEGMENTOP         : OpBehavior(OpCode.SEGMENTOP, False, True),
+            OpCode.CPOOLREF          : OpBehavior(OpCode.CPOOLREF, False, True),
+            OpCode.NEW               : OpBehavior(OpCode.NEW, False, True),
+            OpCode.INSERT            : OpBehavior(OpCode.INSERT, False, True),
+            OpCode.EXTRACT           : OpBehavior(OpCode.EXTRACT, False, True),
+            OpCode.POPCOUNT          : OpBehaviorPopcount(),
             })
