@@ -457,13 +457,15 @@ class SimEngineRDVEX(
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
 
-        if len(expr_0) == 1:
-            e0 = expr_0.get_first_element()
-            if isinstance(e0, int):
-                return DataSet(e0 == 0, expr.result_size(self.tyenv))
+        e0 = expr_0.one_value()
+        bits = expr.result_size(self.tyenv)
 
-        l.warning('Comparison of multiple values / different types.')
-        return DataSet({True, False}, expr.result_size(self.tyenv))
+        if not e0.symbolic:
+            return MultiValues(offset_to_values={0: {
+                claripy.BVV(1, 1) if e0._model_concrete.value == 0 else claripy.BVV(0, 1)
+                }})
+
+        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
     #
     # Binary operation handlers
@@ -571,9 +573,10 @@ class SimEngineRDVEX(
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
 
-        if len(expr_0.values) == 1 and len(expr_1.values) == 1:
-            e0 = expr_0.one_value()
-            e1 = expr_1.one_value()
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+
+        if e0 is not None and e1 is not None:
             if not e0.symbolic and not e1.symbolic:
                 return MultiValues(offset_to_values={0: {
                     claripy.BVV(1, 1) if e0._model_concrete.value == e1._model_concrete.value else claripy.BVV(0, 1)
@@ -591,12 +594,13 @@ class SimEngineRDVEX(
 
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
-        if not e0.symbolic and not e1.symbolic:
-            return MultiValues(offset_to_values={0: {
-                claripy.BVV(1, 1) if e0._model_concrete.value != e1._model_concrete.value else claripy.BVV(0, 1)
-            }})
-        elif e0 is e1:
-            return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(offset_to_values={0: {
+                    claripy.BVV(1, 1) if e0._model_concrete.value != e1._model_concrete.value else claripy.BVV(0, 1)
+                }})
+            elif e0 is e1:
+                return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
         return MultiValues(offset_to_values={0: { self.state.top(1) }})
 
     def _handle_CmpLT(self, expr):
@@ -606,12 +610,13 @@ class SimEngineRDVEX(
 
         e0 = expr_0.one_value()
         e1 = expr_1.one_value()
-        if not e0.symbolic and not e1.symbolic:
-            return MultiValues(offset_to_values={0: {
-                claripy.BVV(1, 1) if e0._model_concrete.value < e1._model_concrete.value else claripy.BVV(0, 1)
-            }})
-        elif e0 is e1:
-            return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(offset_to_values={0: {
+                    claripy.BVV(1, 1) if e0._model_concrete.value < e1._model_concrete.value else claripy.BVV(0, 1)
+                }})
+            elif e0 is e1:
+                return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
         return MultiValues(offset_to_values={0: { self.state.top(1) }})
 
     # ppc only
@@ -624,15 +629,16 @@ class SimEngineRDVEX(
         e1 = expr_1.one_value()
         bits = expr.result_size(self.tyenv)
 
-        if not e0.symbolic and not e1.symbolic:
-            if e0 < e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(0x8, bits)}})
-            elif e0 > e1:
-                return MultiValues(offset_to_values={0: {claripy.BVV(0x4, bits)}})
-            else:
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                if e0 < e1:
+                    return MultiValues(offset_to_values={0: {claripy.BVV(0x8, bits)}})
+                elif e0 > e1:
+                    return MultiValues(offset_to_values={0: {claripy.BVV(0x4, bits)}})
+                else:
+                    return MultiValues(offset_to_values={0: {claripy.BVV(0x2, bits)}})
+            elif e0 is e1:
                 return MultiValues(offset_to_values={0: {claripy.BVV(0x2, bits)}})
-        elif e0 is e1:
-            return MultiValues(offset_to_values={0: {claripy.BVV(0x2, bits)}})
 
         return MultiValues(offset_to_values={0: { self.state.top(1) }})
 
