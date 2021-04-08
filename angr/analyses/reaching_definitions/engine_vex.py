@@ -530,25 +530,41 @@ class SimEngineRDVEX(
         return r
 
     def _handle_Sar(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
-
+        expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
-        data = set()
-        for e0 in expr_0:
-            for e1 in expr_1:
-                try:
-                    if e0 >> (bits - 1) == 0:
-                        head = 0
-                    else:
-                        head = ((1 << e1) - 1) << (bits - e1)
-                    data.add(head | (e0 >> e1))
-                except (ValueError, TypeError) as e:
-                    data.add(UNDEFINED)
-                    l.warning(e)
 
-        return DataSet(data, expr.result_size(self.tyenv))
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        def _shift_sar(e0, e1):
+            if e0 >> (bits - 1) == 0:
+                head = 0
+            else:
+                head = ((1 << e1) - 1) << (bits - e1)
+            return head | (e0 >> e1)
+
+        if expr0_v is None and expr1_v is None:
+            # we do not support shifting between two real multivalues
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # shifting a single value by a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = { _shift_sar(v, expr1_v)  for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # shifting a multivalue by a single value
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {_shift_sar(expr0_v, v) for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # subtracting a single value from another single value
+            r = MultiValues(offset_to_values={0: {_shift_sar(expr0_v, expr1_v)}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
 
     def _handle_CmpEQ(self, expr):
         arg0, arg1 = expr.args
