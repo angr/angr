@@ -458,14 +458,13 @@ class SimEngineRDVEX(
         expr_0 = self._expr(arg0)
 
         e0 = expr_0.one_value()
-        bits = expr.result_size(self.tyenv)
 
-        if not e0.symbolic:
-            return MultiValues(offset_to_values={0: {
-                claripy.BVV(1, 1) if e0._model_concrete.value == 0 else claripy.BVV(0, 1)
-                }})
+        if e0 is not None and not e0.symbolic:
+                return MultiValues(offset_to_values={0: {
+                        claripy.BVV(1, 1) if e0._model_concrete.value == 0 else claripy.BVV(0, 1)
+                    }})
 
-        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return MultiValues(offset_to_values={0: {self.state.top(1)}})
 
     #
     # Binary operation handlers
