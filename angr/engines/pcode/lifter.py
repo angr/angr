@@ -7,8 +7,6 @@
 
 from collections import defaultdict
 import logging
-import os
-import sys
 from typing import Union, Optional, Iterable, Sequence, Tuple
 
 import archinfo
@@ -51,11 +49,13 @@ class ExitStatement:
         self.dst = dst
         self.jumpkind = jumpkind
 
+
 class PcodeDisassemblerBlock(DisassemblerBlock):
     """
     Helper class to represent a block of dissassembled target architecture
     instructions
     """
+
 
 class PcodeDisassemblerInsn(DisassemblerInsn):
     """
@@ -71,100 +71,15 @@ class PcodeDisassemblerInsn(DisassemblerInsn):
 
     @property
     def address(self) -> int:
-        return self.insn.addr.getOffset()
+        return self.insn.address.offset
 
     @property
     def mnemonic(self) -> str:
-        return self.insn.asm_mnemonic
+        return self.insn.asm_mnem
 
     @property
     def op_str(self) -> str:
-        return self.insn.asm_op_str
-
-
-class PcodeInstruction:
-    __slots__ = (
-        "addr",
-        "length",
-        "pcode",
-        "trans",
-        "asm_mnemonic",
-        "asm_op_str"
-    )
-
-    addr: pypcode.Address
-    length: int
-    pcode: pypcode.PcodeRawOutHelper
-    trans: pypcode.Sleigh
-    asm_mnemonic: str
-    asm_op_str: str
-
-    def __init__(self,
-                 addr: pypcode.Address,
-                 length: int,
-                 pcode: pypcode.PcodeRawOutHelper,
-                 trans: pypcode.Sleigh,
-                 asm: pypcode.AssemblyEmitCacher) -> None:
-        self.addr = addr
-        self.length = length
-        self.pcode = pcode
-        self.trans = trans
-        self.asm_mnemonic = asm.mnem
-        self.asm_op_str = asm.body
-
-    @property
-    def ops(self) -> pypcode.PcodeRawOutHelper:
-        return self.pcode.opcache
-
-    def pp_vardata(self, data: pypcode.VarnodeData) -> None:
-        space_name = data.space.getName()
-        if space_name == "register":
-            space_name = "reg"
-            regname = self.trans.getRegisterName(data.space, data.offset, data.size)
-            space_name += "{%s}" % regname
-        return "(%s, 0x%x, %d) " % (space_name, data.offset, data.size)
-
-    def pp(self) -> None:
-        for op in self.pcode.opcache:
-            out = op.getOutput()
-            if out:
-                sys.stdout.write("%-20s = " % (self.pp_vardata(out)))
-            else:
-                sys.stdout.write(" " * 23)
-            sys.stdout.write("%-12s " % pypcode.get_opname(op.getOpcode()))
-            for i in range(op.numInput()):
-                sys.stdout.write(self.pp_vardata(op.getInput(i)))
-            sys.stdout.write("\n")
-
-    def pp_op_str(self, op: pypcode.PcodeOpRaw) -> str:
-        s = ""
-        out = op.getOutput()
-        if out:
-            s += "%-20s = " % (self.pp_vardata(out))
-        else:
-            s += " " * 23
-        s += "%-12s " % pypcode.get_opname(op.getOpcode())
-
-        start = 0
-        if op.getOpcode() in [pypcode.OpCode.CPUI_LOAD, pypcode.OpCode.CPUI_STORE]:
-            s += "[%s] " % self.pp_space_from_constant_id(op)
-            start += 1
-
-        for i in range(start, op.numInput()):
-            s += "%-20s" % self.pp_vardata(op.getInput(i))
-
-        if op.getOpcode() == pypcode.OpCode.CPUI_CALLOTHER:
-            print(s)
-            assert False
-
-        return s
-
-    @staticmethod
-    def pp_space_from_constant_id(op: int) -> str:
-        # For these operations, input0 contains a constant id of the space which
-        # input1 is an offset into
-        assert op.getOpcode() in [pypcode.OpCode.CPUI_LOAD, pypcode.OpCode.CPUI_STORE]
-        return pypcode.Address.getSpaceFromConst(op.getInput(0).getAddr()).getName()
+        return self.insn.asm_body
 
 
 class IRSB:
@@ -206,7 +121,7 @@ class IRSB:
     _direct_next: Optional[bool]
     _exit_statements: Sequence[Tuple[int, int, ExitStatement]]
     _instruction_addresses: Sequence[int]
-    _instructions: Sequence[PcodeInstruction]
+    _instructions: Sequence[pypcode.Translation]
     _size: Optional[int]
     _statements: Iterable # Note: currently unused
     _disassembly: Optional[PcodeDisassemblerBlock]
@@ -396,7 +311,7 @@ class IRSB:
         """
         Addresses of instructions in this block.
         """
-        return [ins.addr.getOffset() for ins in self._instructions]
+        return [ins.address.offset for ins in self._instructions]
 
     @property
     def size(self) -> int:
@@ -453,10 +368,10 @@ class IRSB:
         for i, ins in enumerate(self._instructions):
             sa.append(
                 "   %02d | ------ %08x, %d ------"
-                % (i, ins.addr.getOffset(), ins.length)
+                % (i, ins.address.offset, ins.length)
             )
-            for j, op in enumerate(ins.ops):
-                sa.append("  +%02d | %s" % (j, ins.pp_op_str(op)))
+            for op in ins.ops:
+                sa.append("  +%02d | %s" % (op.seq.uniq, pypcode.PcodePrettyPrinter.fmt_op(op)))
 
         if isinstance(self.next, int):
             next_str = '%x' % self.next
@@ -488,7 +403,7 @@ class IRSB:
         jumpkind: Optional[str] = None,
         direct_next: Optional[bool] = None,
         size: Optional[int] = None,
-        instructions: Optional[Iterable[PcodeInstruction]] = None,
+        instructions: Optional[Iterable[pypcode.Translation]] = None,
         instruction_addresses: Optional[Iterable[int]] = None,
         exit_statements: Sequence[Tuple[int, int, ExitStatement]] = None,
         default_exit_target: Optional = None,
@@ -501,7 +416,7 @@ class IRSB:
         self._size = size
         self._instructions = instructions or []
         self._instruction_addresses = instruction_addresses
-        self._exit_statements = exit_statements
+        self._exit_statements = exit_statements or []
         self.default_exit_target = default_exit_target
 
     def _from_py(self, irsb: "IRSB") -> None:
@@ -582,7 +497,7 @@ class Lifter:
     arch: archinfo.Arch
     addr: int
 
-    def __init__(self, arch: archinfo.Arch, addr: int) -> None:
+    def __init__(self, arch: archinfo.Arch, addr: int):
         self.arch = arch
         self.addr = addr
         self.data = None
@@ -654,7 +569,7 @@ class Lifter:
 
 
 class Postprocessor:
-    def __init__(self, irsb: IRSB) -> None:
+    def __init__(self, irsb: IRSB):
         self.irsb = irsb
 
     def postprocess(self) -> None:
@@ -950,48 +865,25 @@ def register(lifter: Lifter, arch_name: str) -> None:
 
 class PcodeBasicBlockLifter:
 
-    sleighfilename: str
-    docstorage: pypcode.DocumentStorage
-    doc: pypcode.Element
-    context: pypcode.ContextInternal
-    loader: pypcode.SimpleLoadImage
-    trans: pypcode.Sleigh
+    context: pypcode.Context
     behaviors: BehaviorFactory
-    data: Optional[bytearray]
 
-    def __init__(self, arch: archinfo.Arch) -> None:
-        if arch.name == "X86":
-            sleigh_arch = "x86"
-        elif arch.name == "AMD64":
-            sleigh_arch = "x86-64"
-        else:
-            # FIXME: Add more architectures
+    def __init__(self, arch: archinfo.Arch):
+        archinfo_to_lang_map = {
+            'X86':   'x86:LE:32:default',
+            'AMD64': 'x86:LE:64:default'
+        }
+        if arch.name not in archinfo_to_lang_map:
             raise NotImplementedError()
 
-        self.sleighfilename = os.path.join(pypcode.SLEIGH_SPECFILES_PATH, sleigh_arch + ".sla")
-        if not os.path.exists(self.sleighfilename):
-            raise Exception("SLIEGH file not found for architecture %s" % sleigh_arch)
-        self.docstorage = pypcode.DocumentStorage()
-        self.doc = self.docstorage.openDocument(self.sleighfilename).getRoot()
-        self.docstorage.registerTag(self.doc)
-        self.context = pypcode.ContextInternal()
-        self.loader = pypcode.SimpleLoadImage(0, bytearray(b"\x00"), 1)
-        self.trans = pypcode.Sleigh(self.loader, self.context)
-        self.trans.initialize(self.docstorage)
-        self.behaviors = BehaviorFactory(self.trans)
-        self.data = None
+        langs = {l.id:l
+            for a in pypcode.Arch.enumerate()
+                for l in a.languages}
 
-        # FIXME: Load from corresponding *.pspec instead of hardcoding here
-        if arch.name == "X86":
-            self.context.setVariableDefault("addrsize", 1)  # Address size is 32-bit
-            self.context.setVariableDefault("opsize", 1)  # Operand size is 32-bit
-        elif arch.name == "AMD64":
-            self.context.setVariableDefault("addrsize", 2)  # Address size is 64-bit
-            self.context.setVariableDefault("opsize", 1)  # Operand size is 64-bit
-            self.context.setVariableDefault("bit64", 1)
-            self.context.setVariableDefault("rexprefix", 0)
-        else:
-            raise NotImplementedError()
+        lang = langs[archinfo_to_lang_map[arch.name]]
+
+        self.context = pypcode.Context(lang)
+        self.behaviors = BehaviorFactory()
 
     def lift(self,
              irsb: IRSB,
@@ -1000,111 +892,55 @@ class PcodeBasicBlockLifter:
              bytes_offset: int = 0,
              max_bytes: Optional[int] = None,
              max_inst: Optional[int] = None) -> None:
+
         if max_bytes is None or max_bytes > MAX_BYTES:
             max_bytes = min(len(data), MAX_BYTES)
         if max_inst is None or max_inst > MAX_INSTRUCTIONS:
             max_inst = MAX_INSTRUCTIONS
 
-        addr = pypcode.Address(self.trans.getDefaultSpace(), baseaddr + bytes_offset)
-        lastaddr = pypcode.Address(self.trans.getDefaultSpace(), baseaddr + max_bytes)
+        irsb.behaviors = self.behaviors # FIXME
 
-        # NOTE: It's important to retain this reference to the data or it
-        # may be garbage collected while processing!
-        self.data = bytearray(data)
-        self.loader.setData(baseaddr, self.data, len(data))
-        self.trans.reset(self.loader, self.context)
-        self.trans.initialize(self.docstorage)
-        irsb.behaviors = self.behaviors
+        # Translate
+        addr = baseaddr + bytes_offset
+        result = self.context.translate(data[bytes_offset:], addr, max_inst, max_bytes, True)
+        irsb._instructions = result.instructions
 
-        # Lift basic block to pcode
-        # FIXME: Move this to C++ eventually
-        irsb._exit_statements = []
-        end_basic_block = False
-        op_count = 0
+        # Post-process block to mark exits and next block
+        next_block = None
+        for insn in irsb._instructions:
+            for op in insn.ops:
+                if (op.opcode in [pypcode.OpCode.BRANCH, pypcode.OpCode.CBRANCH]
+                    and op.inputs[0].get_addr().is_constant):
+                        l.warning('Block contains relative p-code jump at '
+                                  'instruction %#x:%d, which is not emulated '
+                                  'yet.', op.seq.pc.offset, op.seq.uniq)
+                if op.opcode == pypcode.OpCode.CBRANCH:
+                    irsb._exit_statements.append((
+                        op.seq.pc.offset, op.seq.uniq,
+                        ExitStatement(op.inputs[0].offset, 'Ijk_Boring')))
+                elif op.opcode == pypcode.OpCode.BRANCH:
+                    next_block = (op.inputs[0].offset, 'Ijk_Boring')
+                elif op.opcode == pypcode.OpCode.BRANCHIND:
+                    next_block = (None, 'Ijk_Boring')
+                elif op.opcode == pypcode.OpCode.CALL:
+                    next_block = (op.inputs[0].offset, 'Ijk_Call')
+                elif op.opcode == pypcode.OpCode.CALLIND:
+                    next_block = (None, 'Ijk_Call')
+                elif op.opcode == pypcode.OpCode.RETURN:
+                    next_block = (None, 'Ijk_Ret')
 
-        irsb.next = addr.getOffset()
-        irsb.jumpkind = "Ijk_Boring"
+        if len(irsb._instructions) > 0:
+            last_insn = irsb._instructions[-1]
+            fallthru_addr = last_insn.address.offset + last_insn.length
+        else:
+            fallthru_addr = addr
 
-        asm = pypcode.AssemblyEmitCacher()
+        if result.error:
+            next_block = (fallthru_addr, 'Ijk_NoDecode')
+        elif next_block is None:
+            next_block = (fallthru_addr, 'Ijk_Boring')
 
-        while (not end_basic_block) and (addr < lastaddr) and (len(irsb._instructions) < max_inst):
-            has_internal_branch = False
-            has_external_branch = False
-            emit = pypcode.PcodeRawOutHelper(self.trans)
-            try:
-                self.trans.printAssembly(asm, addr)
-                length = self.trans.oneInstruction(emit, addr)
-            except: # pylint:disable=bare-except
-                # FIXME: Add nicer exception handling for failed translation
-                l.warning('Failed to decode instruction at %08x', addr.getOffset())
-                irsb.jumpkind = "Ijk_NoDecode"
-                break
-
-            if (addr+length) > lastaddr:
-                # Decoded past the acceptable limit. Stop here.
-                break
-
-            ins = PcodeInstruction(addr, length, emit, self.trans, asm)
-            irsb._instructions.append(ins)
-            irsb.next = addr.getOffset() + length
-
-            # print('P-code ops for instruction at address %x' % addr.getOffset())
-            # for op_idx, op in enumerate(ins.pcode.opcache):
-            #     print(ins.pp_op_str(op))
-
-            for op in ins.pcode.opcache:
-                opcode = op.getOpcode()
-
-                if opcode in [
-                    pypcode.OpCode.CPUI_BRANCH,
-                    pypcode.OpCode.CPUI_CBRANCH,
-                ]:
-                    if op.getInput(0).space.getIndex() == pypcode.AddrSpace.constant_space_index:
-                        has_internal_branch = True
-                        raise NotImplementedError("P-code relative branches are not supported yet")
-
-                    has_external_branch = True
-                    assert not end_basic_block
-                    end_basic_block = True
-                    if opcode == pypcode.OpCode.CPUI_CBRANCH:
-                        ins_addr = addr.getOffset()
-                        exit_stmt = op.getInput(0).getAddr().getOffset()
-                        irsb._exit_statements.append((ins_addr, op_count, ExitStatement(exit_stmt, "Ijk_Boring")))
-
-                    elif opcode == pypcode.OpCode.CPUI_BRANCH:
-                        irsb.next = op.getInput(0).getAddr().getOffset()
-                        irsb.jumpkind = "Ijk_Boring"
-
-                elif opcode == pypcode.OpCode.CPUI_BRANCHIND:
-                    assert not end_basic_block
-                    end_basic_block = True
-                    irsb.next = None
-                    irsb.jumpkind = "Ijk_Boring"
-
-                elif opcode == pypcode.OpCode.CPUI_CALL:
-                    assert not end_basic_block
-                    end_basic_block = True
-                    irsb.next = op.getInput(0).getAddr().getOffset()
-                    irsb.jumpkind = "Ijk_Call"
-
-                elif opcode == pypcode.OpCode.CPUI_CALLIND:
-                    assert not end_basic_block
-                    end_basic_block = True
-                    irsb.next = None
-                    irsb.jumpkind = "Ijk_Call"
-
-                elif opcode == pypcode.OpCode.CPUI_RETURN:
-                    assert not end_basic_block
-                    end_basic_block = True
-                    irsb.next = None
-                    irsb.jumpkind = "Ijk_Ret"
-
-                op_count += 1
-
-            addr += length
-
-            # Should be okay but want to check. Not sure if any instructions do this.
-            assert not (has_internal_branch and has_external_branch), "CHECKME"
+        irsb.next, irsb.jumpkind = next_block
 
 
 class PcodeLifter(Lifter):
