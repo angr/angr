@@ -647,7 +647,7 @@ class SimEngineRDVEX(
         bits = expr.result_size(self.tyenv)
         for arg_expr in expr.args:
             self._expr(arg_expr)
-        return DataSet(UNDEFINED, bits)
+        return MultiValues(offset_to_values={0: { self.state.top(bits) }})
 
     #
     # User defined high level statement handlers
