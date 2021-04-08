@@ -573,14 +573,15 @@ class SimEngineRDVEX(
         expr_0 = self._expr(arg0)
         expr_1 = self._expr(arg1)
 
-        if len(expr_0) == 1 and len(expr_1) == 1:
-            e0 = expr_0.get_first_element()
-            e1 = expr_1.get_first_element()
-            if isinstance(e0, int) and isinstance(e1, int):
-                return DataSet(e0 != e1, expr.result_size(self.tyenv))
-
-        l.warning('Comparison of multiple values / different types.')
-        return DataSet({True, False}, expr.result_size(self.tyenv))
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+        if not e0.symbolic and not e1.symbolic:
+            return MultiValues(offset_to_values={0: {
+                claripy.BVV(1, 1) if e0._model_concrete.value != e1._model_concrete.value else claripy.BVV(0, 1)
+            }})
+        elif e0 is e1:
+            return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
+        return MultiValues(offset_to_values={0: { self.state.top(1) }})
 
     def _handle_CmpLT(self, expr):
         arg0, arg1 = expr.args
