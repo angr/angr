@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Type, Union, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -541,11 +541,15 @@ class SimEngineRDVEX(
         expr1_v = expr1.one_value()
 
         def _shift_sar(e0, e1):
-            if e0 >> (bits - 1) == 0:
-                head = 0
-            else:
-                head = ((1 << e1) - 1) << (bits - e1)
-            return head | (e0 >> e1)
+            try:
+                if e0 >> (bits - 1) == 0:
+                    head = 0
+                else:
+                    head = ((1 << e1) - 1) << (bits - e1)
+                return head | (e0 >> e1)
+            except (ValueError, TypeError) as e:
+                l.warning(e)
+                return self.state.top(bits)
 
         if expr0_v is None and expr1_v is None:
             # we do not support shifting between two real multivalues
