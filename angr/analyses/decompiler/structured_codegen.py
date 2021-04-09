@@ -1911,13 +1911,13 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_Convert(self, expr):
 
-        if expr.to_bits == 64:
+        if 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()
-        elif expr.to_bits == 32:
+        elif 32 >= expr.to_bits > 16:
             dst_type = SimTypeInt()
-        elif expr.to_bits == 16:
+        elif 16 >= expr.to_bits > 8:
             dst_type = SimTypeShort()
-        elif expr.to_bits == 8:
+        elif 8 >= expr.to_bits > 1:
             dst_type = SimTypeChar()
         elif expr.to_bits == 1:
             dst_type = SimTypeChar()  # FIXME: Add a SimTypeBit?
