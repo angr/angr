@@ -8,7 +8,6 @@ from collections import defaultdict, OrderedDict
 
 from sortedcontainers import SortedDict
 
-import archinfo
 import claripy
 import cle
 import pyvex
@@ -2151,7 +2150,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     size = stmt.data.result_size(irsb.tyenv) // 8 # convert to bytes
                     _process(stmt_idx, stmt.data.addr, instr_addr, next_instr_addr, data_size=size, data_type='integer')
                     # if the architecture is ARM and it's loading from a constant, perform the actual load
-                    if archinfo.arch_arm.is_arm_arch(self.project.arch) \
+                    if is_arm_arch(self.project.arch) \
                             and isinstance(stmt.data.addr, pyvex.IRExpr.Const):
                         read_addr = stmt.data.addr.con.value
                         v = self._fast_memory_load_pointer(read_addr, size)
@@ -2166,16 +2165,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             # perform the addition
                             loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
                             _process(stmt_idx, loc, instr_addr, next_instr_addr)
-                        elif isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and stmt.data.args[0].tmp in tmps and \
+                            continue
+                        elif is_arm_arch(self.project.arch) and \
+                                isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and stmt.data.args[0].tmp in tmps and \
                                 type(stmt.data.args[1]) is pyvex.expr.Const:
                             # perform the addition
                             v = tmps[stmt.data.args[0].tmp]
                             loc = v + stmt.data.args[1].con.value
                             _process(stmt_idx, loc, instr_addr, next_instr_addr)
-                    else:
-                        # binary operation
-                        for arg in stmt.data.args:
-                            _process(stmt_idx, arg, instr_addr, next_instr_addr)
+                            continue
+
+                    # binary operation
+                    for arg in stmt.data.args:
+                        _process(stmt_idx, arg, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
@@ -2185,7 +2187,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         _process(stmt_idx, child_expr, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Get:
-                    if archinfo.arch_arm.is_arm_arch(self.project.arch) and stmt.data.offset in regs:
+                    if is_arm_arch(self.project.arch) and stmt.data.offset in regs:
                         tmps[stmt.tmp] = regs[stmt.data.offset]
 
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
@@ -2194,7 +2196,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-                if archinfo.arch_arm.is_arm_arch(self.project.arch):
+                if is_arm_arch(self.project.arch):
                     if type(stmt.data) is pyvex.IRExpr.RdTmp and stmt.data.tmp in tmps:
                         regs[stmt.offset] = tmps[stmt.data.tmp]
                     else:
@@ -2265,7 +2267,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                       )
             self.kb.xrefs.add_xref(cr)
 
-        if archinfo.arch_arm.is_arm_arch(self.project.arch):
+        if is_arm_arch(self.project.arch):
             if (irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xffff_ffff_ffff_fffe) + 4:
                 return
             elif data_addr == insn_addr + 8:
