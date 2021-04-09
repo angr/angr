@@ -1538,7 +1538,7 @@ class StructuredCodeGenerator(Analysis):
         if isinstance(expr, CBinaryOp):
             if expr.op == "And" and isinstance(expr.rhs, CConstant) and is_alignment_mask(expr.rhs.value):
                 # alignment - ignore it
-                expr = expr.lhs
+                return self._parse_load_addr(expr.lhs)
             if expr.op in ("Add", "Sub"):
                 lhs, rhs = expr.lhs, expr.rhs
                 if isinstance(lhs, CConstant):
