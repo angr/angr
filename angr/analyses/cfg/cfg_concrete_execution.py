@@ -33,6 +33,7 @@ from .cfg_utils import CFGUtils
 from .cfg_vm_deobfuscation import CFGVMDeobfuscation, StorageState
 from .cfg_emulated import CFGEmulated
 
+
 l = logging.getLogger(name=__name__)
 
 
@@ -49,8 +50,11 @@ class EmulatedCFGVisitor(GraphVisitor):
 
     def successors(self, node):
         succs = list(self.graph.successors(node))
+        if len(succs) == 0:
+            return succs
         if len(node.final_states) > 1:
             raise Exception("Should have only one successor, since we are concretely executing")
+
         for succ in succs:
             if succ.addr == node.final_states[0].addr:
                 return [succ]
@@ -62,6 +66,7 @@ class EmulatedCFGVisitor(GraphVisitor):
         succs = list(self.graph.successors(node))
         if len(node.final_states) > 1:
             raise Exception("Should have only one successor, since we are concretely executing")
+
         for succ in succs:
             if succ.addr == node.final_states[0].addr:
                 return succ
@@ -271,7 +276,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         if enable_advanced_backward_slicing or enable_symbolic_back_traversal:
             l.warning("`advanced backward slicing` and `symbolic back traversal` are deprecated.")
             l.warning("Please use `resolve_indirect_jumps` to resolve indirect jumps using different resolvers instead.")
-        self.temp_counter = 0
+
         self._abstract_state_map = {}
         self._node_iterations = defaultdict(int)
         self._iropt_level = iropt_level
@@ -987,15 +992,20 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         else:
             jumpkind = "Ijk_Boring"
 
+        try:
+            print("Current node: \n" + str(node.irsb.pp()))
+        except:
+            pass
+
         sim_successors = self.project.factory.successors(
             input_state,
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
 
-        if node.addr == 0x400b74 and node.block_id.vm_vpc == 118:
-            self.temp_counter = self.temp_counter + 1
-            print(self.temp_counter)
+
+        print("Successors: " + str(sim_successors.all_successors))
+
         node.final_states = sim_successors.successors
         #self._node_iterations[block_key] += 1
         abstract_state.concrete_states = sim_successors.successors
