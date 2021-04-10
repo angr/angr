@@ -96,9 +96,9 @@ def printstate(abs_state):
         else:
             print(state)
 
-    print("switch button  ", SWITCH_BUTTON)
-    print("car  ", colored(RED_LIGHT, 'red'), colored(ORANGE_LIGHT, 'yellow'), colored(GREEN_LIGHT, 'green'))
-    print("ped  ", colored(PEDESTRIAN_RED_LIGHT, 'red'), colored(PEDESTRIAN_GREEN_LIGHT, 'green'))
+    print("SWITCH BUTTON  ", SWITCH_BUTTON)
+    print("CAR LIGHTS     ", colored(RED_LIGHT, 'red'), colored(ORANGE_LIGHT, 'yellow'), colored(GREEN_LIGHT, 'green'))
+    print("PED LIGHTS     ", colored(PEDESTRIAN_RED_LIGHT, 'red'), colored(PEDESTRIAN_GREEN_LIGHT, 'green'))
 
 
 def _hook_py_extensions(proj, cfg):
@@ -316,6 +316,8 @@ def test_verify_patched_binary():
         # Note that we must patch PED_GREEN_TIME since this variable is only updated during standstill
         p0 = EditDataPatch(base_addr + 0x1d8, struct.pack("<Q", 41), name="PATCH_PED_GREEN_TIME")  # PED_GREEN_TIME
         apply_patch_on_state(p0, state)
+
+        # PED_GREEN_TIME = MIN_WALK_TIME * (1.0 + 1.0 * LIGHT_LEVEL)
 
         # Updating LIGHT_LEVEL or MIN_WALK_TIME *after standstill* does not impact the pedestrian green light interval
         # Enabling the following two lines and commenting out p0 will lead to a safety violation being detected
