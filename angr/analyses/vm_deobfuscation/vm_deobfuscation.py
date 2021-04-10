@@ -7,7 +7,9 @@ import re
 import copy
 import os
 from collections import defaultdict, OrderedDict
+from pyvex.stmt import Exit
 from angr.code_location import CodeLocation
+from angr.analyses.cfg.cfg_job_base import BlockID
 from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
@@ -22,8 +24,7 @@ from ... import BP, BP_BEFORE, BP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
 
-
-logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
+#logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
 #filename = "/media/sf_Security/sample_vm/a.out"
 filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samplevm_with_input"
@@ -31,6 +32,7 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input_loop/samplevm_with_input_loop"
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
+
 
 class CLibFunctionHandler(FunctionHandler):
     def hook(self, analysis):
@@ -42,6 +44,37 @@ class CLibFunctionHandler(FunctionHandler):
                               codeloc=None):
         executed_rda = False
         return executed_rda, state, visited_blocks, dep_graph
+
+    def handle_ptrace(self, state, codeloc):
+        # rsi
+        state.add_use(Register(64, 8), codeloc)
+        # rdi
+        state.add_use(Register(72, 8), codeloc)
+        # rcx
+        state.add_use(Register(24, 8), codeloc)
+        # rdx
+        state.add_use(Register(32, 8), codeloc)
+        # rax
+        state.add_use(Register(16, 8), codeloc)
+
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            print("Error!")
+            # sp_data = set()
+            # for d in defs_sp:
+            #     sp_data.update(d.data)
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+        executed_rda = True
+        return executed_rda, state
 
     def handle_strcpy(self, state, codeloc):
         # rsi
@@ -142,13 +175,8 @@ class VMDeobfuscation(Analysis):
         self.start_addr = start_addr
         self.vm_vpc_addr = vm_vpc_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
-
-        new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
-        flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
-        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=0x400C88, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
-        new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
-                                                   resolve_indirect_jumps=True, max_iterations=100)
+        folder_name = os.path.dirname(self.project.filename)
+        self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
 
         # all_functions = []
         # for node in cfg.model.nodes():
@@ -162,24 +190,7 @@ class VMDeobfuscation(Analysis):
         #                 raise Exception("More than one successor for a call statement? hmmm.........")
 
         self.vm_instruction_addrs = cfg.vm_instruction_addresses
-
-        original_functions = list(cfg.kb.functions.items())
-
-        folder_name = os.path.dirname(self.project.filename)
-
-        ### Might be a problem with Angr's decompiler
-        # proj.analyses._init_plugin(VariableRecovery)
-        # for cur_func in proj.kb.functions._function_map.values():
-        #     proj.analyses.VariableRecovery(cur_func)
-        #     dec = proj.analyses.Decompiler(cur_func, cfg=cfg)
-        #     if dec.codegen is not None:
-        #         print(dec.codegen.text)
-        #     else:
-        #         print("Failed to decompile")
-
-
         initial_cfg = cfg
-        self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
         print("Doing constant propagation")
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
@@ -188,42 +199,40 @@ class VMDeobfuscation(Analysis):
         # DCE commented out temporarily to make testing faster for block simplifications
         for i in range(11):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
+        self.draw_graph(new_cfg, os.path.join(folder_name, "DCE_result.svg"))
 
         # self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join("dae_result.svg"))
         # DCE again to remove the temp variables remaining after dead assignment elimination, should I just do this along with DSA(being lazy is what it is)
         for i in range(11):
+            print("DCE round "+str(i))
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
+
+        self.perform_semantic_verification(new_cfg, proj, start_state=start_state)
+
         for i in range(2):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
+
+
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, proj, folder_name)
 
     def perform_semantic_verification(self, cfg, proj, start_state=None):
-        flag = claripy.BVV(b'Hello\n')
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
-        # if start_state:
-        #     initial_input_state = start_state
-        # else:
-        #     initial_input_state = proj.factory.blank_state(addr=self.start_addr,
-        #                                                    mode='fastpath',
-        #                                                    add_options=angr.sim_options.refs | {
-        #                                                        angr.sim_options.REPLACEMENT_SOLVER,
-        #                                                        angr.sim_options.DO_CCALLS})
-        initial_input_state = proj.factory.blank_state(addr=0x400C88,
-                                                       add_options={angr.sim_options.REPLACEMENT_SOLVER,
-                                                                    angr.sim_options.DO_CCALLS},
-                                                       concrete_fs=True,
-                                                       chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf",
-                                                       stdin=flag)
-        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
+        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=0x400C88, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
+        new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True)
+        import ipdb;ipdb.set_trace()
+
 
     def convert_to_atom(self, vex_inst, tyenv, byte_width):
         if isinstance(vex_inst, pyvex.expr.RdTmp):
@@ -295,7 +304,8 @@ class VMDeobfuscation(Analysis):
         #start_state = ReachingDefinitionsState()
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
-                                                       function_handler=CLibFunctionHandler()
+                                                       function_handler=CLibFunctionHandler(),
+                                                       max_iterations=2
                                                        )
 
         # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
@@ -304,7 +314,7 @@ class VMDeobfuscation(Analysis):
         # Find dead assignments
         dead_defs_locs = set()
         all_defs = rd.all_definitions
-        # import ipdb;ipdb.set_trace()
+
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
@@ -720,10 +730,11 @@ class VMDeobfuscation(Analysis):
     ####### Adding breakpoints
         def annotate_stack_read_value(state):
             is_stack_touched = False
-            for annotation in state.inspect.mem_read_address.annotations:
-                if isinstance(annotation, StackTouchedAnnotation):
-                    is_stack_touched = True
-                    break
+            if not isinstance(state.inspect.mem_read_address, int):
+                for annotation in state.inspect.mem_read_address.annotations:
+                    if isinstance(annotation, StackTouchedAnnotation):
+                        is_stack_touched = True
+                        break
             if is_stack_touched:
                 state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, StackTouchedAnnotation(1))
 
@@ -878,6 +889,7 @@ class VMDeobfuscation(Analysis):
             start_addr = main.rebased_addr
         ddg = proj.analyses.DDG(cfg, start_addr)
 
+        node_replace_dict = {}
         for node in list(cfg.graph.nodes()):
             if not node.is_simprocedure:
                 print(node.simprocedure_name)
@@ -921,6 +933,8 @@ class VMDeobfuscation(Analysis):
 
                 # Dealing with empty blocks i.e. removing them
                 if len(new_stmts) == 0:
+                    if node.addr in [0x4009b1]:#[0x4009b8]
+                        continue
                     succ = cfg.graph.successors(node)
                     succ = next(succ)
                     preds = cfg.graph.predecessors(node)
@@ -932,6 +946,7 @@ class VMDeobfuscation(Analysis):
                             cfg.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
                             if isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
                                 if pred.irsb.statements[-1].dst.value == node.irsb.addr:
+                                    # Checking to see if both the successor nodes have the same addr after the elimination in which case we modify one of the addresses to avoid collision(since VM counters are not considered as part of address for states)
                                     pred.irsb.statements[-1].dst = node.irsb.next.con
                                 else:
                                     pred.irsb.next = node.irsb.next
