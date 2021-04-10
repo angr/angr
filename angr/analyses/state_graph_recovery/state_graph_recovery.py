@@ -39,10 +39,22 @@ class ExpressionLogger:
         self.mapping = mapping
         self.variables: Set[str] = variables if variables else set()
 
+    def on_memory_read(self, state: 'SimState'):
+        expr = state._inspect_getattr("mem_read_expr", None)
+        if expr is not None and expr.symbolic and expr.variables.intersection(self.variables):
+            mem_read_addr = state._inspect_getattr("mem_read_address", None)
+            if mem_read_addr is not None:
+                if isinstance(mem_read_addr, int):
+                    self.mapping[expr] = mem_read_addr
+                elif not mem_read_addr.symbolic:
+                    self.mapping[expr] = mem_read_addr._model_concrete.value
+
     def on_register_write(self, state: 'SimState'):
         expr = state._inspect_getattr('reg_write_expr', None)
         if expr is not None and expr.symbolic and expr.variables.intersection(self.variables):
-            self.mapping[expr] = state.scratch.irsb.addr, state.scratch.stmt_idx
+            if expr not in self.mapping:
+                # do not overwrite an existing source - it might have been from a memory read, which is the real source...
+                self.mapping[expr] = state.scratch.irsb.addr, state.scratch.stmt_idx
 
 
 class DefinitionNode:
@@ -150,8 +162,10 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         # setup inspection points to catch where expressions are written to registers
         expression_logger = ExpressionLogger(self._expression_source, { v.args[0] for v in all_vars })
-        expr_logging_bp = BP(when=BP_BEFORE, enabled=True, action=expression_logger.on_register_write)
-        init_state.inspect.add_breakpoint('reg_write', expr_logging_bp)
+        regwrite_bp = BP(when=BP_BEFORE, enabled=True, action=expression_logger.on_register_write)
+        init_state.inspect.add_breakpoint('reg_write', regwrite_bp)
+        memread_bp = BP(when=BP_AFTER, enabled=True, action=expression_logger.on_memory_read)
+        init_state.inspect.add_breakpoint('mem_read', memread_bp)
 
         # Abstract state ID counter
         abs_state_id_ctr = count(0)
