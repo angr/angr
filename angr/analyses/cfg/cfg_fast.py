@@ -2035,23 +2035,61 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             )
 
             if ref.data_size == self.project.arch.bytes and is_arm_arch(self.project.arch):
-                # ARM (and maybe a few other architectures as well) has inline pointers
-                sec = self.project.loader.find_section_containing(ref.data_addr)
-                if sec is not None and sec.is_readable and not sec.is_writable:
-                    # points to a non-writable region. read it out and see if there is another pointer!
-                    ptr = self._fast_memory_load_pointer(ref.data_addr, ref.data_size)
-                    sec_2nd = self.project.loader.find_section_containing(ptr)
+                self._process_irsb_data_ref_inlined_data(irsb, ref)
 
-                    if sec_2nd is not None and sec_2nd.is_readable and not sec_2nd.is_writable:
-                        # found it!
-                        self._add_data_reference(
-                            irsb.addr,
-                            ref.stmt_idx,
-                            ref.ins_addr,
-                            ptr,
-                            data_size=None,
-                            data_type=MemoryDataSort.Unknown,
-                        )
+    def _process_irsb_data_ref_inlined_data(self, irsb, ref):
+        # ARM (and maybe a few other architectures as well) has inline pointers
+        sec = self.project.loader.find_section_containing(ref.data_addr)
+        if sec is not None and sec.is_readable and not sec.is_writable:
+            # points to a non-writable region. read it out and see if there is another pointer!
+            v = self._fast_memory_load_pointer(ref.data_addr, ref.data_size)
+
+            # this value can either be a pointer or an offset from the pc... we need to try them both
+            # attempt 1: a direct pointer
+            sec_2nd = self.project.loader.find_section_containing(v)
+            if sec_2nd is not None and sec_2nd.is_readable and not sec_2nd.is_writable:
+                # found it!
+                self._add_data_reference(
+                    irsb.addr,
+                    ref.stmt_idx,
+                    ref.ins_addr,
+                    v,
+                    data_size=None,
+                    data_type=MemoryDataSort.Unknown,
+                )
+                return
+
+            # attempt 2: pc + offset
+            #   ldr r3, [pc, #0x328]
+            #   add r3, pc
+            # the pc to add to r3 is the address of that instruction + 4 (THUMB) or 8 (ARM)
+            #
+            # According to the spec:
+            # In ARM state, the value of the PC is the address of the current instruction plus 8 bytes.
+            # In Thumb state:
+            # - For B, BL, CBNZ, and CBZ instructions, the value of the PC is the address of the current instruction
+            #   plus 4 bytes.
+            # - For all other instructions that use labels, the value of the PC is the address of the current
+            #   instruction plus 4 bytes, with bit[1] of the result cleared to 0 to make it word-aligned.
+            #
+            if (irsb.addr & 1) == 1:
+                actual_ref_ins_addr = ref.ins_addr + 2
+                v += 4 + actual_ref_ins_addr
+                v &= 0xffff_ffff_ffff_fffe
+            else:
+                actual_ref_ins_addr = ref.ins_addr + 4
+                v += 8 + actual_ref_ins_addr
+            sec_3rd = self.project.loader.find_section_containing(v)
+            if sec_3rd is not None and sec_3rd.is_readable and not sec_3rd.is_writable:
+                # found it!
+                self._add_data_reference(
+                    irsb.addr,
+                    ref.stmt_idx,
+                    actual_ref_ins_addr,
+                    v,
+                    data_size=None,
+                    data_type=MemoryDataSort.Unknown
+                )
 
     def _collect_data_references_by_scanning_stmts(self, irsb, irsb_addr):
 
@@ -2088,6 +2126,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # get all instruction addresses
         instr_addrs = irsb.instruction_addresses
 
+        # ARM-only: we need to simulate temps and registers to handle addresses that are coming from constant pools
+        regs = {}
+        tmps = {}
+
         # for each statement, collect all constants that are referenced or used.
         instr_addr = None
         next_instr_addr = None
@@ -2107,20 +2149,35 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # e.g. t7 = LDle:I64(0x0000000000600ff8)
                     size = stmt.data.result_size(irsb.tyenv) // 8 # convert to bytes
                     _process(stmt_idx, stmt.data.addr, instr_addr, next_instr_addr, data_size=size, data_type='integer')
+                    # if the architecture is ARM and it's loading from a constant, perform the actual load
+                    if is_arm_arch(self.project.arch) \
+                            and isinstance(stmt.data.addr, pyvex.IRExpr.Const):
+                        read_addr = stmt.data.addr.con.value
+                        v = self._fast_memory_load_pointer(read_addr, size)
+                        if v is not None:
+                            tmps[stmt.tmp] = v
 
                 elif type(stmt.data) in (pyvex.IRExpr.Binop, ):  # pylint: disable=unidiomatic-typecheck
 
                     # rip-related addressing
-                    if stmt.data.op in ('Iop_Add32', 'Iop_Add64') and \
-                            all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
-                        # perform the addition
-                        loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
-                        _process(stmt_idx, loc, instr_addr, next_instr_addr)
+                    if stmt.data.op in ('Iop_Add32', 'Iop_Add64'):
+                        if all(type(arg) is pyvex.expr.Const for arg in stmt.data.args):
+                            # perform the addition
+                            loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
+                            _process(stmt_idx, loc, instr_addr, next_instr_addr)
+                            continue
+                        elif is_arm_arch(self.project.arch) and \
+                                isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and stmt.data.args[0].tmp in tmps and \
+                                type(stmt.data.args[1]) is pyvex.expr.Const:
+                            # perform the addition
+                            v = tmps[stmt.data.args[0].tmp]
+                            loc = v + stmt.data.args[1].con.value
+                            _process(stmt_idx, loc, instr_addr, next_instr_addr)
+                            continue
 
-                    else:
-                        # binary operation
-                        for arg in stmt.data.args:
-                            _process(stmt_idx, arg, instr_addr, next_instr_addr)
+                    # binary operation
+                    for arg in stmt.data.args:
+                        _process(stmt_idx, arg, instr_addr, next_instr_addr)
 
                 elif type(stmt.data) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
@@ -2129,11 +2186,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     for child_expr in stmt.data.child_expressions:
                         _process(stmt_idx, child_expr, instr_addr, next_instr_addr)
 
+                elif type(stmt.data) is pyvex.IRExpr.Get:
+                    if is_arm_arch(self.project.arch) and stmt.data.offset in regs:
+                        tmps[stmt.tmp] = regs[stmt.data.offset]
+
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 if stmt.offset not in (self._initial_state.arch.ip_offset, ):
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
+
+                if is_arm_arch(self.project.arch):
+                    if type(stmt.data) is pyvex.IRExpr.RdTmp and stmt.data.tmp in tmps:
+                        regs[stmt.offset] = tmps[stmt.data.tmp]
+                    else:
+                        if stmt.offset in regs:
+                            del regs[stmt.offset]
 
             elif type(stmt) is pyvex.IRStmt.Store:  # pylint: disable=unidiomatic-typecheck
                 # store addr
@@ -2199,6 +2267,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                       )
             self.kb.xrefs.add_xref(cr)
 
+        if is_arm_arch(self.project.arch):
+            if (irsb_addr & 1) == 1 and data_addr == (insn_addr & 0xffff_ffff_ffff_fffe) + 4:
+                return
+            elif data_addr == insn_addr + 8:
+                return
         self.insn_addr_to_memory_data[insn_addr] = self._memory_data[data_addr]
 
     def _tidy_data_references(self):
