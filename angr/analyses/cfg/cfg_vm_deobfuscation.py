@@ -1162,6 +1162,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             jumpkind=jumpkind,
             irsb=node.irsb)
 
+        # if node.addr == 0x4009b1 and node.block_id.vm_vpc == 109 and sim_successors.all_successors[0].addr != 0x4009b8:
+        #     import ipdb;
+        #     ipdb.set_trace()
+
         node.final_states = sim_successors.all_successors
         self._node_iterations[block_key] += 1
         abstract_state.concrete_states = sim_successors.all_successors
