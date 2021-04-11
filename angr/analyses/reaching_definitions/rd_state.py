@@ -310,7 +310,7 @@ class ReachingDefinitionsState:
         """
 
         if data is None:
-            data = DataSet(UNDEFINED, atom.size)
+            data = MultiValues(offset_to_values={0: {self.top(atom.size * self.arch.byte_width)}})
 
         self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
 
