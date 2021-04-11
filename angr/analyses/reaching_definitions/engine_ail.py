@@ -1,12 +1,15 @@
-from typing import Iterable, Union, List
+from itertools import chain
+from typing import Iterable, Union, List, Optional
 import logging
 
+import archinfo
 import claripy
 import ailment
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.dataset import DataSet
@@ -22,6 +25,10 @@ class SimEngineRDAIL(
     SimEngineLightAILMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
+
+    arch: archinfo.Arch
+    state: ReachingDefinitionsState
+
     def __init__(self, project, call_stack, maximum_local_call_depth, function_handler=None):
         super(SimEngineRDAIL, self).__init__()
         self.project = project
@@ -30,8 +37,6 @@ class SimEngineRDAIL(
         self._function_handler = function_handler
         self._visited_blocks = None
         self._dep_graph = None
-
-        self.state: ReachingDefinitionsState
 
     def process(self, state, *args, **kwargs):
         self._dep_graph = kwargs.pop('dep_graph', None)
@@ -49,6 +54,9 @@ class SimEngineRDAIL(
             if kwargs.pop('fail_fast', False) is True:
                 raise e
         return self.state, self._visited_blocks, self._dep_graph
+
+    def sp_offset(self, offset: int):
+        return self.state.stack_address(offset)
 
     #
     # Private methods
@@ -106,29 +114,30 @@ class SimEngineRDAIL(
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
-    def _ail_handle_Store(self, stmt: ailment.Stmt.Store):
-        data: DataSet = self._expr(stmt.data)
-        addr: Iterable[Union[int,SpOffset,Undefined]] = self._expr(stmt.addr)
+    def _ail_handle_Store(self, stmt: ailment.Stmt.Store) -> None:
+        data: MultiValues = self._expr(stmt.data)
+        addr: MultiValues = self._expr(stmt.addr)
         size: int = stmt.size
         if stmt.guard is not None:
             guard = self._expr(stmt.guard)  # pylint:disable=unused-variable
         else:
             guard = None  # pylint:disable=unused-variable
 
-        for a in addr:
-            if type(a) is Undefined:
-                l.info('Memory address undefined, ins_addr = %#x.', self.ins_addr)
-                continue
+        addr_v = addr.one_value()
+        if addr_v is not None and not self.state.is_top(addr_v):
 
-            if isinstance(data, DataSet) and any(type(d) is Undefined for d in data):
-                l.info('Data to write at address %s undefined, ins_addr = %#x.',
-                       hex(a) if type(a) is int else a, self.ins_addr
-                       )
+            if self.state.is_stack_address(addr_v):
+                stack_offset = self.state.get_stack_offset(addr_v)
+                if stack_offset is not None:
+                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size)
+                else:
+                    memory_location = None
+            elif self.state.is_heap_address(addr_v):
+                memory_location = None
+            else:
+                memory_location = MemoryLocation(addr_v._model_concrete.value, size)
 
-            memory_location = MemoryLocation(a, size)
-            if not memory_location.symbolic:
-                # different addresses are not killed by a subsequent iteration, because kill only removes entries
-                # with same index and same size
+            if memory_location is not None:
                 self.state.kill_and_add_definition(memory_location, self._codeloc(), data)
 
     def _ail_handle_Jump(self, stmt):
@@ -201,8 +210,10 @@ class SimEngineRDAIL(
                 if isinstance(stmt.ret_expr, ailment.Expr.Register):
                     return_reg_offset = stmt.ret_expr.reg_offset
                     return_reg_size = stmt.ret_expr.size
-                    self.state.kill_and_add_definition(Register(return_reg_offset, return_reg_size), self._codeloc(),
-                                                       None)
+                    reg_atom = Register(return_reg_offset, return_reg_size)
+                    top = self.state.top(return_reg_size * self.arch.byte_width)
+                    self.state.kill_and_add_definition(reg_atom, self._codeloc(),
+                                                       MultiValues(offset_to_values={0: {top}}))
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
@@ -277,20 +288,20 @@ class SimEngineRDAIL(
     # AIL expression handlers
     #
 
-    def _ail_handle_BV(self, expr: claripy.ast.Base):
-        return DataSet(expr, expr.size())
+    def _ail_handle_BV(self, expr: claripy.ast.Base) -> MultiValues:
+        return MultiValues(offset_to_values={0: {expr}})
 
-    def _ail_handle_Tmp(self, expr: ailment.Expr.Tmp):
+    def _ail_handle_Tmp(self, expr: ailment.Expr.Tmp) -> MultiValues:
 
         self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
 
         return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
 
-    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
+    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> MultiValues:
         self._handle_Call_base(expr, is_expr=True)
-        return DataSet(UNDEFINED, expr.bits)
+        return MultiValues(offset_to_values={0: {self.state.top(expr.bits)}})
 
-    def _ail_handle_Register(self, expr):
+    def _ail_handle_Register(self, expr) -> MultiValues:
 
         self.state: ReachingDefinitionsState
 
@@ -298,31 +309,39 @@ class SimEngineRDAIL(
         size = expr.size
         bits = size * 8
 
+        reg_atom = Register(reg_offset, size)
+
         # first check if it is ever defined
         try:
-            value, labels = self.state.register_definitions.load_with_labels(reg_offset, size=size)
+            value: MultiValues = self.state.register_definitions.load(reg_offset, size=size)
         except SimMemoryMissingError:
             # the value does not exist
-            value = self.state.top(size * self.state.arch.byte_width)
-            labels = [ ]
+            top = self.state.top(size * self.state.arch.byte_width)
+            # annotate it
+            top = self.state.annotate_with_def(top, Definition(reg_atom, ExternalCodeLocation()))
+            value = MultiValues(offset_to_values={0: {top}})
+            # write it back
+            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
 
         # extract Definitions
-        defs: List[Definition] = [ label['def'] for label in labels ]
-        if not defs:
+        defs: Optional[Iterable[Definition]] = None
+        for vs in value.values.values():
+            for v in vs:
+                if defs is None:
+                    defs = self.state.extract_defs(v)
+                else:
+                    defs = chain(defs, self.state.extract_defs(v))
+
+        if defs is None:
             # define it right away as an external dependency
-            self.state.kill_and_add_definition(Register(reg_offset, size), self._external_codeloc(), value)
+            self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
 
-        self.state.add_use(Register(reg_offset, size), self._codeloc())
+        self.state.add_use(reg_atom, self._codeloc())
 
-        if reg_offset == self.arch.sp_offset:
-            return DataSet(SpOffset(bits, 0), bits)
-        elif reg_offset == self.arch.bp_offset:
-            return DataSet(SpOffset(bits, 0, is_base=True), bits)
+        return value
 
-        return DataSet(value, bits)
-
-    def _ail_handle_Load(self, expr: ailment.Expr.Load):
-        addrs = self._expr(expr.addr)
+    def _ail_handle_Load(self, expr: ailment.Expr.Load) -> MultiValues:
+        addrs: MultiValues = self._expr(expr.addr)
 
         size = expr.size
         bits = expr.bits
@@ -333,119 +352,287 @@ class SimEngineRDAIL(
             guard = None  # pylint:disable=unused-variable
             alt = None  # pylint:disable=unused-variable
 
-        data = set()
-        for addr in addrs:
+        # convert addrs from MultiValues to a list of valid addresses
+        if len(addrs.values) == 1:
+            addrs_v = next(iter(addrs.values.values()))
+        else:
+            top = self.state.top(bits)
+            # annotate it
+            dummy_atom = MemoryLocation(0, size)
+            top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+            # add use
+            self.state.add_use(dummy_atom, self._codeloc())
+            return MultiValues(offset_to_values={0: {top}})
+
+        result: Optional[MultiValues] = None
+        for addr in addrs_v:
             if not isinstance(addr, claripy.ast.Base):
                 continue
-            if addr.op == "BVV":
+            if addr.concrete:
                 # a concrete address
-                addr = addr.args[0]
-                current_defs = self.state.memory_definitions.get_objects_by_offset(addr)
-                if current_defs:
-                    for current_def in current_defs:
-                        data.update(current_def.data)
-                    if any(type(d) is Undefined for d in data):
-                        l.info('Memory at address %#x undefined, ins_addr = %#x.', addr, self.ins_addr)
-                else:
-                    try:
-                        data.add(self.project.loader.memory.unpack_word(addr, size=size))
-                    except KeyError:
-                        pass
+                addr = addr._model_concrete.value
+                try:
+                    vs: MultiValues = self.state.memory_definitions.load(addr, size=size, endness=expr.endness)
+                except SimMemoryMissingError:
+                    continue
 
-                # FIXME: _add_memory_use() iterates over the same loop
-                memory_location = MemoryLocation(addr, size)
+                memory_location = MemoryLocation(addr, size, endness=expr.endness)
                 self.state.add_use(memory_location, self._codeloc())
-            elif 'SpOffset' in addr.variables:
-                sp_offset = self.extract_offset_to_sp(addr)
-                if sp_offset is not None:
-                    current_defs = self.state.stack_definitions.get_objects_by_offset(sp_offset)
-                    if current_defs:
-                        for current_def in current_defs:
-                            # self.state.add_use(current_def, codeloc)
-                            if isinstance(current_def.data, DataSet):
-                                data.update(current_def.data)
-                            else:
-                                # dropped
-                                l.warning("Dropping data of type %s since it is not a DataSet.", type(current_def.data))
-                        if any(type(d) is Undefined for d in data):
-                            l.info('Stack access at offset %#x undefined, ins_addr = %#x.', addr.offset, self.ins_addr)
-                    else:
-                        data.add(UNDEFINED)
-                else:
-                    data.add(UNDEFINED)
+                result = result.merge(vs) if result is not None else vs
+            elif self.state.is_stack_address(addr):
+                stack_offset = self.state.get_stack_offset(addr)
+                stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
+                try:
+                    vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=expr.endness)
+                except SimMemoryMissingError:
+                    continue
 
-                self.state.add_use(MemoryLocation(addr, size), self._codeloc())
+                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=expr.endness)
+                self.state.add_use(memory_location, self._codeloc())
+                result = result.merge(vs) if result is not None else vs
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
 
-        if len(data) == 0:
-            data.add(UNDEFINED)
+        if result is None:
+            top = self.state.top(bits)
+            # TODO: Annotate top with a definition
+            result = MultiValues(offset_to_values={0: {top}})
 
-        return DataSet(data, bits)
+        return result
 
-    def _ail_handle_Convert(self, expr):
-        to_conv = self._expr(expr.operand)
-        if type(to_conv) is int:
-            return to_conv
+    def _ail_handle_Convert(self, expr: ailment.Expr.Convert) -> MultiValues:
+        to_conv: MultiValues = self._expr(expr.operand)
+        bits = expr.to_bits
+        size = bits // self.arch.byte_width
 
-        r = None
-        if expr.from_bits == to_conv.bits and \
-                isinstance(to_conv, DataSet):
-            if len(to_conv) == 1 and type(next(iter(to_conv.data))) is Undefined:
-                # handle Undefined
-                r = DataSet(to_conv.data.copy(), expr.to_bits)
-            elif all(isinstance(d, (ailment.Expr.Const, int)) for d in to_conv.data):
-                # handle consts
-                converted = set()
-                for d in to_conv.data:
-                    if isinstance(d, ailment.Expr.Const):
-                        converted.add(ailment.Expr.Const(d.idx, d.variable, d.value, expr.to_bits))
-                    else:  # isinstance(d, int)
-                        converted.add(d)
-                r = DataSet(converted, expr.to_bits)
+        if len(to_conv.values) == 1 and 0 in to_conv.values:
+            values = to_conv.values[0]
+        else:
+            top = self.state.top(expr.to_bits)
+            # annotate it
+            dummy_atom = MemoryLocation(0, size)
+            top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+            # add use
+            self.state.add_use(dummy_atom, self._codeloc())
+            return MultiValues(offset_to_values={0: {top}})
+
+        converted = set()
+        for v in values:
+            if expr.to_bits < expr.from_bits:
+                conv = v[expr.to_bits - 1:0]
+            elif expr.to_bits > expr.from_bits:
+                conv = claripy.ZeroExt(expr.to_bits - expr.from_bits, v)
             else:
-                # handle other cases
-                converted = set()
-                for item in to_conv.data:
-                    if isinstance(item, ailment.Expr.Convert):
-                        # unpack it
-                        item_ = ailment.Expr.Convert(expr.idx, item.from_bits, expr.to_bits, expr.is_signed,
-                                                     item.operand)
-                    elif isinstance(item, int):
-                        # TODO: integer conversion
-                        item_ = item
-                    elif isinstance(item, Undefined):
-                        item_ = item
-                    else:
-                        item_ = ailment.Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, item)
-                    converted.add(item_)
-                r = DataSet(converted, expr.to_bits)
+                conv = v
+            converted.add(conv)
 
-        if r is None:
-            r = DataSet(UNDEFINED, expr.to_bits)
+        return MultiValues(offset_to_values={0: converted})
 
-        return r
+    def _ail_handle_ITE(self, expr: ailment.Expr.ITE) -> MultiValues:
+        cond: MultiValues = self._expr(expr.cond)
+        iftrue: MultiValues = self._expr(expr.iftrue)
+        iffalse: MultiValues = self._expr(expr.iffalse)
+        top = self.state.top(len(iftrue))
+        return MultiValues(offset_to_values={0: {top}})
 
-    def _ail_handle_ITE(self, expr: ailment.Expr.ITE):
-        cond = self._expr(expr.cond)
-        iftrue = self._expr(expr.iftrue)
-        iffalse = self._expr(expr.iffalse)
-        return DataSet(ailment.Expr.ITE(expr.idx, cond, iffalse, iftrue), expr.bits)
-
-    def _ail_handle_BinaryOp(self, expr):
+    def _ail_handle_BinaryOp(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         r = super()._ail_handle_BinaryOp(expr)
         if isinstance(r, ailment.Expr.BinaryOp):
-            return DataSet(UNDEFINED, r.bits)
+            l.warning("Unimplemented operation %s.", expr.op)
+            top = self.state.top(expr.bits)
+            return MultiValues(offset_to_values={0: {top}})
         return r
 
-    def _ail_handle_Cmp(self, expr):
+    def _ail_handle_Add(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # adding a single value to a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v + expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # adding a single value to a multivalue
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {v + expr0_v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # adding to single values together
+            r = MultiValues(offset_to_values={0: {expr0_v + expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Sub(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # subtracting a single value from a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v - expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # subtracting a single value from a multivalue
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {expr0_v - v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            r = MultiValues(offset_to_values={0: {expr0_v - expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Shr(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # each value in expr0 >> expr1_v
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {claripy.LShR(v, expr1_v._model_concrete.value) for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # expr0_v >> each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {claripy.LShR(expr0_v, v._model_concrete.value) for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            r = MultiValues(offset_to_values={0: {claripy.LShR(expr0_v, expr1_v._model_concrete.value)}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Shl(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # each value in expr0 << expr1_v
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v << expr1_v._model_concrete.value for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # expr0_v >> each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {expr0_v << v._model_concrete.value for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            r = MultiValues(offset_to_values={0: {expr0_v << expr1_v._model_concrete.value}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_And(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+            return r
+
+        if expr0_v is None and expr1_v is not None:
+            # expr1_v & each value in expr0
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v & expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # expr0_v & each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {expr0_v & v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # spcial handling for stack alignment
+            if self.state.is_stack_address(expr0_v):
+                r = MultiValues(offset_to_values={0: {expr0_v}})
+            else:
+                r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Xor(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # expr1_v ^ each value in expr0
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v ^ expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # expr0_v ^ each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {expr0_v ^ v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            r = MultiValues(offset_to_values={0: {expr0_v ^ expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Cmp(self, expr) -> MultiValues:
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])
 
         if op0 is None: op0 = expr.operands[0]
         if op1 is None: op1 = expr.operands[1]
 
-        return ailment.Expr.BinaryOp(expr.idx, expr.op, [op0, op1], expr.signed, **expr.tags)
+        top = self.state.top(1)
+        return MultiValues(offset_to_values={0: {top}})
 
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
@@ -458,19 +645,17 @@ class SimEngineRDAIL(
     _ail_handle_CmpGT = _ail_handle_Cmp
     _ail_handle_CmpGTs = _ail_handle_Cmp
 
-    def _ail_handle_Const(self, expr):
-        return DataSet(expr.value, expr.bits)
+    def _ail_handle_Const(self, expr) -> MultiValues:
+        return MultiValues(offset_to_values={0: {claripy.BVV(expr.value, expr.bits)}})
 
-    def _ail_handle_StackBaseOffset(self, expr):
-        return DataSet(SpOffset(self.arch.bits,
-                                expr.offset if expr.offset is not None else 0,
-                                is_base=False
-                                ),
-                       self.arch.bits
-                       )
+    def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset) -> MultiValues:
+        stack_addr = self.state.stack_address(expr.offset)
+        return MultiValues(offset_to_values={0: {stack_addr}})
 
-    def _ail_handle_DirtyExpression(self, expr):  # pylint:disable=no-self-use
-        return DataSet(UNDEFINED, expr.bits // 8)
+    def _ail_handle_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> MultiValues:  # pylint:disable=no-self-use
+        # FIXME: DirtyExpression needs .bits
+        top = self.state.top(expr.bits)
+        return MultiValues(offset_to_values={0: {top}})
 
     #
     # User defined high-level statement handlers
