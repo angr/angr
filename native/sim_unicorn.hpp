@@ -136,6 +136,7 @@ struct memory_value_t {
 struct mem_read_result_t {
 	std::vector<memory_value_t> memory_values;
 	bool is_mem_read_symbolic;
+	uint32_t read_size;
 };
 
 struct register_value_t {
@@ -312,8 +313,8 @@ struct instruction_taint_entry_t {
 	// it's previous value
 	std::vector<std::pair<vex_reg_offset_t, std::pair<int64_t, bool>>> modified_regs;
 
-	// Count of memory reads in the instruction
-	uint32_t mem_read_count;
+	// Count number of bytes read from memory by the instruction
+	uint32_t mem_read_size;
 
 	bool has_memory_read;
 	bool has_memory_write;
@@ -332,7 +333,7 @@ struct instruction_taint_entry_t {
 		modified_regs.clear();
 		has_memory_read = false;
 		has_memory_write = false;
-		mem_read_count = 0;
+		mem_read_size = 0;
 		return;
 	}
 };
@@ -363,14 +364,14 @@ struct processed_vex_expr_t {
 	std::unordered_set<taint_entity_t> ite_cond_entities;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
-	uint32_t mem_read_count;
+	uint32_t mem_read_size;
 	int64_t value_size;
 
 	void reset() {
 		taint_sources.clear();
 		ite_cond_entities.clear();
 		has_unsupported_expr = false;
-		mem_read_count = 0;
+		mem_read_size = 0;
 		value_size = -1;
 	}
 };
@@ -469,7 +470,7 @@ class State {
 	std::set<uint64_t> stop_points;
 
 	address_t taint_engine_next_instr_address, taint_engine_stop_mem_read_instruction;
-	uint32_t taint_engine_stop_mem_read_count;
+	uint32_t taint_engine_stop_mem_read_size;
 
 	address_t unicorn_next_instr_addr;
 	address_t prev_stack_top_addr;
@@ -575,21 +576,6 @@ class State {
 				return UC_ARM64_REG_SP;
 			case UC_ARCH_MIPS:
 				return UC_MIPS_REG_SP;
-			default:
-				return -1;
-		}
-	}
-
-	inline unsigned int arch_byte_width() const {
-		switch(arch) {
-			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? 8 : 4;
-			case UC_ARCH_ARM:
-				return 4;
-			case UC_ARCH_ARM64:
-				return 8;
-			case UC_ARCH_MIPS:
-				return mode == UC_MODE_MIPS64 ? 8 : 4;
 			default:
 				return -1;
 		}
@@ -749,15 +735,6 @@ class State {
 
 		inline address_t get_taint_engine_stop_mem_read_instr_addr() const {
 			return taint_engine_stop_mem_read_instruction;
-		}
-
-		inline uint32_t get_pending_mem_reads_count() const {
-			return taint_engine_stop_mem_read_count;
-		}
-
-		inline void decrement_pending_mem_reads_count() {
-			taint_engine_stop_mem_read_count--;
-			return;
 		}
 
 		inline void update_previous_stack_top() {
