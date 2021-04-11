@@ -31,6 +31,9 @@ class SimEnginePropagatorAIL(
     def extract_offset_to_sp(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> Optional[int]:
         if isinstance(expr, Expr.StackBaseOffset):
             return expr.offset
+        elif isinstance(expr, Expr.Expression):
+            # not supported
+            return None
         return super().extract_offset_to_sp(expr)
 
     #
@@ -394,6 +397,29 @@ class SimEnginePropagatorAIL(
             return self.state.top(operand_1.size())
 
         return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    def _ail_handle_Shl(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_0.size())
+
+        return Expr.BinaryOp(expr.idx, 'Shl', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    def _ail_handle_Shr(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_0.size())
+
+        return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
 
     #
     # Util methods

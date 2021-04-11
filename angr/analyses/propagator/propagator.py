@@ -13,7 +13,6 @@ from ...code_location import CodeLocation  # pylint:disable=unused-import
 from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from .values import Top
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 
@@ -83,7 +82,7 @@ class PropagatorState:
                             state._replacements[loc][var] = repl
                         else:
                             if state._replacements[loc][var] != repl:
-                                state._replacements[loc][var] = Top(self.arch.byte_width)
+                                state._replacements[loc][var] = self.top(self.arch.byte_width)
             state._equivalence |= o._equivalence
 
         return state
@@ -102,7 +101,7 @@ class PropagatorState:
             return
 
         if self._only_consts:
-            if isinstance(new, int) or type(new) is Top:
+            if isinstance(new, int) or self.is_top(new):
                 self._replacements[codeloc][old] = new
         else:
             self._replacements[codeloc][old] = new
@@ -328,7 +327,7 @@ class PropagatorAILState(PropagatorState):
             # do not replace anything with a call expression
             return
 
-        if type(new) is Top:
+        if self.is_top(new):
             # eliminate the past propagation of this expression
             if codeloc in self._replacements and old in self._replacements[codeloc]:
                 del self._replacements[codeloc][old]
