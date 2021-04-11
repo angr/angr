@@ -328,7 +328,7 @@ class SimEngineRDVEX(
 
     # e.g. t27 = LDle:I64(t9), t9 might include multiple values
     # caution: Is also called from StoreG
-    def _handle_Load(self, expr):
+    def _handle_Load(self, expr) -> MultiValues:
         addr = self._expr(expr.addr)
         bits = expr.result_size(self.tyenv)
         size = bits // self.arch.byte_width
@@ -337,6 +337,14 @@ class SimEngineRDVEX(
         if len(addr.values) == 1:
             addrs = next(iter(addr.values.values()))
             return self._load_core(addrs, size, expr.endness)
+
+        top = self.state.top(bits)
+        # annotate it
+        dummy_atom = MemoryLocation(0, size)
+        top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
+        # add use
+        self.state.add_use(dummy_atom, self._codeloc())
+        return MultiValues(offset_to_values={0: {top}})
 
     def _load_core(self, addrs: Iterable[claripy.ast.Base], size: int, endness: str) -> MultiValues:
 
@@ -784,6 +792,8 @@ class SimEngineRDVEX(
                     atom = MemoryLocation(SpOffset(self.arch.bits,
                                           arg.stack_offset),
                                           arg.size * self.arch.byte_width)
+                else:
+                    raise TypeError("Unsupported argument type %s" % type(arg))
                 self.state.add_use(atom, code_loc)
                 self._tag_definitions_of_atom(atom, func_addr_int)
 

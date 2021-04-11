@@ -1,5 +1,5 @@
 # pylint:disable=arguments-differ
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING
 import logging
 
 import claripy
@@ -21,6 +21,18 @@ class SimEnginePropagatorAIL(
     SimEnginePropagatorBase,
 ):
 
+    state: 'PropagatorAILState'
+
+    def _is_top(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> bool:
+        if isinstance(expr, Expr.StackBaseOffset):
+            return False
+        return super()._is_top(expr)
+
+    def extract_offset_to_sp(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> Optional[int]:
+        if isinstance(expr, Expr.StackBaseOffset):
+            return expr.offset
+        return super().extract_offset_to_sp(expr)
+
     #
     # AIL statement handlers
     #
@@ -31,8 +43,6 @@ class SimEnginePropagatorAIL(
         :param Stmt.Assignment stmt:
         :return:
         """
-
-        self.state: 'PropagatorAILState'
 
         src = self._expr(stmt.src)
         dst = stmt.dst
@@ -111,18 +121,18 @@ class SimEnginePropagatorAIL(
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
             if self.is_using_outdated_def(new_expr):
-                return expr
+                return self.state.top(expr.size * self.arch.byte_width)
 
             l.debug("Add a replacement: %s with %s", expr, new_expr)
             self.state.add_replacement(self._codeloc(), expr, new_expr)
             if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert, Expr.BasePointerOffset]:
-                expr = new_expr
+                return new_expr
 
         if not self._propagate_tmps:
             # we should not propagate any tmps. as a result, we return None for reading attempts to a tmp.
             return self.state.top(expr.size * self.arch.byte_width)
 
-        return expr
+        return self.state.top(expr.size * self.arch.byte_width)
 
     def _ail_handle_Register(self, expr):
 
@@ -133,13 +143,13 @@ class SimEnginePropagatorAIL(
             if expr.reg_offset == self.arch.sp_offset:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.sp_offset)
                 if sb_offset is not None:
-                    new_expr = self.sp_offset(sb_offset)
+                    new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
                     self.state.add_replacement(self._codeloc(), expr, new_expr)
                     return new_expr
             elif expr.reg_offset == self.arch.bp_offset:
                 sb_offset = self._stack_pointer_tracker.offset_before(self.ins_addr, self.arch.bp_offset)
                 if sb_offset is not None:
-                    new_expr = self.sp_offset(sb_offset)
+                    new_expr = Expr.StackBaseOffset(None, self.arch.bits, sb_offset)
                     self.state.add_replacement(self._codeloc(), expr, new_expr)
                     return new_expr
 
@@ -352,8 +362,8 @@ class SimEnginePropagatorAIL(
                              expr.signed,
                              **expr.tags)
 
-    def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
-        raise TypeError("You should never see StackBaseOffset!")
+    def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset):
+        return expr
 
     def _ail_handle_And(self, expr):
 

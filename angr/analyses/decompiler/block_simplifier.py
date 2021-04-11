@@ -14,6 +14,8 @@ from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationSt
 from .ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
+    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
     from ailment.block import Block
 
 
@@ -145,7 +147,7 @@ class BlockSimplifier(Analysis):
                                                        )
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
-        live_defs = rd.one_result
+        live_defs: 'LiveDefinitions' = rd.one_result
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
@@ -166,12 +168,21 @@ class BlockSimplifier(Analysis):
                     # is entirely possible that at the end of the block, a register definition is not used.
                     # however, it might be used in future blocks.
                     # so we only remove a definition if the definition is not alive anymore at the end of the block
+                    defs_ = set()
                     if isinstance(d.atom, atoms.Register):
-                        if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
-                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-                    if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                        if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.addr.offset):
-                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                        vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                    elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                        stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                        vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+                                                                             endness=d.atom.endness)
+                    else:
+                        continue
+                    for values in vs.values.values():
+                        for value in values:
+                            defs_.add(live_defs.extract_defs(value))
+
+                    if d not in defs_:
+                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):

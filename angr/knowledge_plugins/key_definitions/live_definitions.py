@@ -156,8 +156,11 @@ class LiveDefinitions:
         if "stack_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
-            elif addr.op == "__add__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return addr.args[1]._model_concrete.value
+            elif addr.op == "__add__":
+                if len(addr.args) == 2 and addr.args[1].op == "BVV":
+                    return addr.args[1]._model_concrete.value
+                if len(addr.args) == 1:
+                    return 0
             elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
                 return -addr.args[1]._model_concrete.value
         return None
@@ -202,11 +205,13 @@ class LiveDefinitions:
     def stack_offset_to_stack_addr(self, offset) -> int:
         if self.arch.bits == 32:
             base_v = self.INITIAL_SP_32BIT
+            mask = 0xffff_ffff
         elif self.arch.bits == 64:
             base_v = self.INITIAL_SP_64BIT
+            mask = 0xffff_ffff_ffff_ffff
         else:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
-        return base_v + offset
+        return (base_v + offset) & mask
 
     def merge(self, *others):
 
