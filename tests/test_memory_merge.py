@@ -1,3 +1,5 @@
+# pylint:disable=isinstance-second-argument-not-valid-type
+
 import claripy
 
 from angr.storage.memory_mixins import (
