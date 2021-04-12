@@ -139,12 +139,14 @@ class MVListPage(
             mos = set(mo for mo, _ in memory_objects)
             mo_bases = set(mo.base for mo, _ in memory_objects)
             mo_lengths = set(mo.length for mo, _ in memory_objects)
+            endnesses = set(mo.endness for mo in mos)
 
             if not unconstrained_in and not (mos - merged_objects):
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
-            if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in:
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in and len(endnesses) == 1:
+                the_endness = next(iter(endnesses))
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
@@ -165,7 +167,7 @@ class MVListPage(
                 first_value = True
                 for v in merged_val:
                     self.store(b,
-                               { SimMemoryObject(v, mo_base, endness='Iend_BE') },
+                               { SimMemoryObject(v, mo_base, endness=the_endness) },
                                size=size,
                                cooperate=True,
                                weak=not first_value,

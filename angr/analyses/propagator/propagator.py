@@ -200,9 +200,9 @@ class PropagatorAILState(PropagatorState):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
                          equivalence=equivalence)
 
-        self._stack_variables = LabeledMemory(memory_id='reg', top_func=self.top) \
+        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top) \
             if stack_variables is None else stack_variables
-        self._registers = LabeledMemory(memory_id='mem', top_func=self.top) \
+        self._registers = LabeledMemory(memory_id='reg', top_func=self.top) \
             if registers is None else registers
         self._tmps = {}
 

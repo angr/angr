@@ -129,16 +129,19 @@ class SimEngineRDAIL(
             if self.state.is_stack_address(addr_v):
                 stack_offset = self.state.get_stack_offset(addr_v)
                 if stack_offset is not None:
-                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size)
+                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=stmt.endness)
                 else:
                     memory_location = None
             elif self.state.is_heap_address(addr_v):
                 memory_location = None
             else:
-                memory_location = MemoryLocation(addr_v._model_concrete.value, size)
+                memory_location = MemoryLocation(addr_v._model_concrete.value, size, endness=stmt.endness)
 
             if memory_location is not None:
-                self.state.kill_and_add_definition(memory_location, self._codeloc(), data)
+                self.state.kill_and_add_definition(memory_location,
+                                                   self._codeloc(),
+                                                   data,
+                                                   endness=stmt.endness)
 
     def _ail_handle_Jump(self, stmt):
         _ = self._expr(stmt.target)
@@ -358,7 +361,7 @@ class SimEngineRDAIL(
         else:
             top = self.state.top(bits)
             # annotate it
-            dummy_atom = MemoryLocation(0, size)
+            dummy_atom = MemoryLocation(0, size, endness=expr.endness)
             top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
             # add use
             self.state.add_use(dummy_atom, self._codeloc())
@@ -410,7 +413,7 @@ class SimEngineRDAIL(
         else:
             top = self.state.top(expr.to_bits)
             # annotate it
-            dummy_atom = MemoryLocation(0, size)
+            dummy_atom = MemoryLocation(0, size, endness=self.arch.memory_endness)
             top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
             # add use
             self.state.add_use(dummy_atom, self._codeloc())

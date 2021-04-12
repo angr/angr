@@ -82,11 +82,12 @@ class SimEnginePropagatorAIL(
         if target == stmt.target:
             return
 
-        new_jump_stmt = Stmt.Jump(stmt.idx, target, **stmt.tags)
-        self.state.add_replacement(self._codeloc(),
-                                   stmt,
-                                   new_jump_stmt,
-                                   )
+        if not self.state.is_top(target):
+            new_jump_stmt = Stmt.Jump(stmt.idx, target, **stmt.tags)
+            self.state.add_replacement(self._codeloc(),
+                                       stmt,
+                                       new_jump_stmt,
+                                       )
 
     def _ail_handle_Call(self, expr_stmt: Stmt.Call):
         _ = self._expr(expr_stmt.target)
