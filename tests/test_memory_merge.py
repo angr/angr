@@ -53,4 +53,3 @@ def test_merge_memory_object_endness():
 
 if __name__ == '__main__':
     test_merge_memory_object_endness()
-    #import sys; sys.exit(0)
