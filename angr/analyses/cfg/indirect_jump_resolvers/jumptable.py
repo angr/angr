@@ -471,7 +471,8 @@ class BSSHook:
             # it was never written to before. we overwrite it with unconstrained bytes
             for i in range(0, concrete_read_length, self.project.arch.bytes):
                 state.memory.store(concrete_read_addr + i, state.solver.Unconstrained('unconstrained',
-                                                                                      self.project.arch.bits))
+                                                                                      self.project.arch.bits),
+                                   endness=self.project.arch.memory_endness)
 
                 # job done :-)
 
