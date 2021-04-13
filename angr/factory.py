@@ -104,20 +104,7 @@ class AngrObjectFactory:
         execution begins at a special SimProcedure that plays the role of the dynamic loader, calling each of the
         initializer functions that should be called before execution reaches the entry point.
 
-        :param addr:            The address the state should start at instead of the entry point.
-        :param initial_prefix:  If this is provided, all symbolic registers will hold symbolic values with names
-                                prefixed by this string.
-        :param fs:              a dictionary of file names with associated preset SimFile objects.
-        :param concrete_fs:     boolean describing whether the host filesystem should be consulted when opening files.
-        :param chroot:          a path to use as a fake root directory, behaves similar to a real chroot. used only when
-                                concrete_fs is set to True.
-        :param argc:            a custom value to use for the program's argc. May be either an int or a bitvector. If
-                                not provided, defaults to the length of args.
-        :param args:            a list of values to use as arguments to the program. May be mixed strings and bitvectors.
-        :param env:             a dictionary to use as the environment for the program. Both keys and values may be
-                                mixed strings and bitvectors.
-        :return:                The fully initialized state.
-        :rtype:                 SimState
+        It can take any of the arguments that can be provided to ``entry_state``, except for ``addr``.
         """
         return self.project.simos.state_full_init(**kwargs)
 
