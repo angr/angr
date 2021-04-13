@@ -114,13 +114,14 @@ class ListPage(MemoryObjectMixin, PageBase):
             mos = set(mo for mo, _ in memory_objects)
             mo_bases = set(mo.base for mo, _ in memory_objects)
             mo_lengths = set(mo.length for mo, _ in memory_objects)
+            endnesses = set(mo.endness for mo in mos)
 
             if not unconstrained_in and not (mos - merged_objects):
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
-            if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in:
-                our_mo = self.content[b]
+            if len(mo_bases) == 1 and len(mo_lengths) == 1 and not unconstrained_in and len(endnesses) == 1:
+                the_endness = next(iter(endnesses))
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
@@ -139,7 +140,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
                 self.store(b,
-                           SimMemoryObject(merged_val, mo_base, endness='Iend_BE'),
+                           SimMemoryObject(merged_val, mo_base, endness=the_endness),
                            size=size,
                            cooperate=True
                            )
