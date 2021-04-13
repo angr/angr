@@ -5,6 +5,7 @@ resources:
   - repository: ci-settings
     type: github
     name: angr/ci-settings
+    ref: refs/heads/default_pool
     endpoint: angr
 
 stages:
