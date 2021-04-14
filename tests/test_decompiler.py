@@ -276,10 +276,10 @@ def test_decompiling_1after909():
     dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is not None:
         code = dec.codegen.text
-        assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(v0, &v3, 0x40)" in code
-        assert "strncmp(v0, &v3, 0x40);" not in code, "Call expressions folding failed for strncmp()"
         print(code)
+        assert "stack_base" not in code, "Some stack variables are not recognized"
+        assert "strncmp(v0, &v4, 0x40)" in code
+        assert "strncmp(v0, &v4, 0x40);" not in code, "Call expressions folding failed for strncmp()"
     else:
         print("Failed to decompile function %r." % f)
         assert False
