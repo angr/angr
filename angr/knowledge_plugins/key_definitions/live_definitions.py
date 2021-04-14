@@ -35,9 +35,11 @@ class DefinitionAnnotation(Annotation):
         super().__init__()
         self.definition = definition
 
+    @property
     def relocatable(self):
-        return False
+        return True
 
+    @property
     def eliminatable(self):
         return False
 
