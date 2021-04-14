@@ -28,7 +28,7 @@ class MultiValues:
     def __len__(self) -> int:
         max_offset = max(self.values.keys())
         max_len = max(x.size() for x in self.values[max_offset])
-        return max_len
+        return max_offset * 8 + max_len  # FIXME: we are assuming byte_width of 8
 
     def merge(self, mv: 'MultiValues') -> 'MultiValues':
         new_mv = MultiValues(offset_to_values=self.values)
