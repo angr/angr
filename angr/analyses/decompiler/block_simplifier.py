@@ -179,7 +179,7 @@ class BlockSimplifier(Analysis):
                         continue
                     for values in vs.values.values():
                         for value in values:
-                            defs_.add(live_defs.extract_defs(value))
+                            defs_.update(live_defs.extract_defs(value))
 
                     if d not in defs_:
                         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)

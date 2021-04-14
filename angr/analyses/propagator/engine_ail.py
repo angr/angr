@@ -68,14 +68,27 @@ class SimEnginePropagatorAIL(
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
-        if isinstance(addr, claripy.ast.Base) and data is not None:
-            sp_offset = self.extract_offset_to_sp(addr)
-            if sp_offset is not None:
+        # is it accessing the stack?
+        sp_offset = self.extract_offset_to_sp(addr)
+        if sp_offset is not None:
+            if isinstance(data, Expr.StackBaseOffset):
+                # convert it to a BV
+                data_v = self.sp_offset(data.offset)
+                size = data_v.size() // self.arch.byte_width
+            elif isinstance(data, claripy.ast.BV):
+                data_v = data
+                size = data_v.size() // self.arch.byte_width
+            else:
+                data_v = None
+                size = data.bits // self.arch.byte_width
+
+            if data_v is not None:
                 # Storing data to a stack variable
-                self.state.store_stack_variable(sp_offset, data.bits // 8, data, endness=stmt.endness)
-                # set equivalence
-                var = SimStackVariable(sp_offset, data.bits // 8)
-                self.state.add_equivalence(self._codeloc(), var, stmt.data)
+                self.state.store_stack_variable(sp_offset, size, data_v, endness=stmt.endness)
+
+            # set equivalence
+            var = SimStackVariable(sp_offset, size)
+            self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -366,7 +379,7 @@ class SimEnginePropagatorAIL(
                              expr.signed,
                              **expr.tags)
 
-    def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset):
+    def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> Expr.StackBaseOffset:
         return expr
 
     def _ail_handle_And(self, expr):
