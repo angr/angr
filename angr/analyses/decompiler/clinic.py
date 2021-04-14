@@ -438,12 +438,13 @@ class Clinic(Analysis):
         def _handler(block):
             csm = self.project.analyses.AILCallSiteMaker(block, reaching_definitions=rd)
             if csm.result_block:
-                ail_block = csm.result_block
-                simp = self.project.analyses.AILBlockSimplifier(ail_block,
-                                                                stack_pointer_tracker=stack_pointer_tracker,
-                                                                peephole_optimizations=self.peephole_optimizations,
-                                                                )
-                return simp.result_block
+                if csm.result_block != block:
+                    ail_block = csm.result_block
+                    simp = self.project.analyses.AILBlockSimplifier(ail_block,
+                                                                    stack_pointer_tracker=stack_pointer_tracker,
+                                                                    peephole_optimizations=self.peephole_optimizations,
+                                                                    )
+                    return simp.result_block
             return None
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
