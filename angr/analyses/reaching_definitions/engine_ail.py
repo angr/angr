@@ -310,7 +310,7 @@ class SimEngineRDAIL(
 
         reg_offset = expr.reg_offset
         size = expr.size
-        bits = size * 8
+        # bits = size * 8
 
         reg_atom = Register(reg_offset, size)
 
@@ -437,6 +437,20 @@ class SimEngineRDAIL(
         iffalse: MultiValues = self._expr(expr.iffalse)
         top = self.state.top(len(iftrue))
         return MultiValues(offset_to_values={0: {top}})
+
+    def _ail_handle_Not(self, expr: ailment.Expr.UnaryOp) -> MultiValues:
+        operand: MultiValues = self._expr(expr.operand)
+        bits = expr.bits
+
+        r = None
+        operand_v = operand.one_value()
+
+        if operand_v is None or self.state.is_top(operand_v):
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        else:
+            r = MultiValues(offset_to_values={0: {~operand_v}})
+
+        return r
 
     def _ail_handle_BinaryOp(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         r = super()._ail_handle_BinaryOp(expr)
@@ -592,6 +606,35 @@ class SimEngineRDAIL(
                 r = MultiValues(offset_to_values={0: {expr0_v}})
             else:
                 r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Or(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # expr1_v | each value in expr0
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v | expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # expr0_v | each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {expr0_v | v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            r = MultiValues(offset_to_values={0: {expr0_v | expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
