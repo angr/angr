@@ -189,13 +189,12 @@ class SimEnginePropagatorAIL(
         if self.state.is_top(addr):
             return self.state.top(expr.size * self.arch.byte_width)
 
-        if isinstance(addr, claripy.ast.Base):
-            sp_offset = self.extract_offset_to_sp(addr)
-            if sp_offset is not None:
-                # Stack variable.
-                var = self.state.get_stack_variable(sp_offset, expr.size, endness=expr.endness)
-                if var is not None:
-                    return var
+        sp_offset = self.extract_offset_to_sp(addr)
+        if sp_offset is not None:
+            # Stack variable.
+            var = self.state.get_stack_variable(sp_offset, expr.size, endness=expr.endness)
+            if var is not None:
+                return var
 
         if addr is not expr.addr:
             return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
