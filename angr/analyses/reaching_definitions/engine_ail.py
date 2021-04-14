@@ -338,8 +338,10 @@ class SimEngineRDAIL(
         if defs is None:
             # define it right away as an external dependency
             self.state.kill_and_add_definition(reg_atom, self._external_codeloc(), value)
-
-        self.state.add_use(reg_atom, self._codeloc())
+        else:
+            codeloc = self._codeloc()
+            for def_ in defs:
+                self.state.add_use_by_def(def_, codeloc)
 
         return value
 
