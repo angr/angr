@@ -42,7 +42,7 @@ class ProcedureMixin:
             state.options.discard(o.AUTO_REFS)
 
         if procedure.is_syscall:
-            state._inspect('syscall', BP_AFTER, syscall_name=procedure.display_name)
+            state._inspect('syscall', BP_AFTER, syscall_name=procedure.display_name, simprocedure=inst)
 
         successors.description = 'SimProcedure ' + procedure.display_name
         if procedure.is_syscall:
