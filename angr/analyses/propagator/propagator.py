@@ -247,6 +247,10 @@ class PropagatorAILState(PropagatorState):
             if isinstance(value, claripy.ast.Base):
                 # We directly store the value in memory
                 expr = None
+            elif isinstance(value, ailment.Expr.Const):
+                # convert the const expression to a claripy AST
+                expr = value
+                value = claripy.BVV(value.value, value.bits)
             elif isinstance(value, ailment.Expr.Expression):
                 # the value is an expression. the actual value will be TOP.
                 expr = value
@@ -290,23 +294,26 @@ class PropagatorAILState(PropagatorState):
                 def_at = None
 
             if self.is_top(value):
-                # return an expression if there is one, or return a Top
+                # return a non-const expression if there is one, or return a Top
                 if expr is not None:
-                    if isinstance(expr, ailment.Expr.Expression):
+                    if isinstance(expr, ailment.Expr.Expression) and not isinstance(expr, ailment.Expr.Const):
                         copied_expr = expr.copy()
                         copied_expr.tags['def_at'] = def_at
                         return copied_expr
                     else:
-                        return expr
+                        return value
                 if value.size() != variable.bits:
                     return self.top(variable.bits)
                 return value
 
-            # value is not TOP. ignore the expression and just return the value directly
+            # value is not TOP
             if value.size() != variable.bits:
                 raise TypeError("Incorrect sized read. Expect %d bits." % variable.bits)
 
-            return value
+            if expr is None:
+                return value
+            else:
+                return expr
 
         return None
 
