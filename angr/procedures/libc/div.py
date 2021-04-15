@@ -1,3 +1,4 @@
+import archinfo.arch_arm
 import claripy
 import angr
 
@@ -11,16 +12,16 @@ class div(angr.SimProcedure):
 
     def run(self, x, y):
         # in ARM, div function requires 3 arguments
-        if self.arch.name == 'ARMHF':
-            x = _raw_ast(self.arg(0))
-            y = _raw_ast(self.arg(1))
-            z = _raw_ast(self.arg(2))
+        if archinfo.arch_arm.is_arm_arch(self.arch):
+            ptr = _raw_ast(self.arg(0))
+            x = _raw_ast(self.arg(1))
+            y = _raw_ast(self.arg(2))
+            x = x[31:0]
             y = y[31:0]
-            z = z[31:0]
-            quotient = y / z
-            remainder = y % z
-            self.state.memory.store(x, quotient)
-            self.state.memory.store(x + self.arch.bytes, remainder)
+            quotient = x / y
+            remainder = x % y
+            self.state.memory.store(ptr, quotient)
+            self.state.memory.store(ptr + self.arch.bytes, remainder)
             return x
         else:
             x = _raw_ast(x)
