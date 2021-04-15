@@ -1250,6 +1250,7 @@ class SimCCARM(SimCC):
     CALLER_SAVED_REGS = []
     RETURN_ADDR = SimRegArg('lr', 4)
     RETURN_VAL = SimRegArg('r0', 4)
+    FP_RETURN_VAL = SimRegArg('r0', 4)
     ARCH = archinfo.ArchARM
 
 
