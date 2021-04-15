@@ -20,8 +20,8 @@ class div(angr.SimProcedure):
             y = y[31:0]
             quotient = x / y
             remainder = x % y
-            self.state.memory.store(ptr, quotient)
-            self.state.memory.store(ptr + self.arch.bytes, remainder)
+            self.state.memory.store(ptr, quotient, endness=self.arch.memory_endness)
+            self.state.memory.store(ptr + self.arch.bytes, remainder, endness=self.arch.memory_endness)
             return x
         else:
             x = _raw_ast(x)
