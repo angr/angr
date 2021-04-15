@@ -33,6 +33,23 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input_depend_branch"
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 
+class DataSensitiveU64(pyvex.const.U64):
+    def __init__(self, value, vm_vpc):
+        super(DataSensitiveU64, self).__init__(value)
+        self._vm_vpc = vm_vpc
+
+
+class DataSensitiveU32(pyvex.const.U32):
+    def __init__(self, value, vm_vpc):
+        super(DataSensitiveU32, self).__init__(value)
+        self._vm_vpc = vm_vpc
+
+
+class DataSensitiveRdTmp(pyvex.expr.RdTmp):
+    def __init__(self, tmp, vm_vpc):
+        super(DataSensitiveRdTmp, self).__init__(tmp)
+        self._vm_vpc = vm_vpc
+
 
 class CLibFunctionHandler(FunctionHandler):
     def hook(self, analysis):
@@ -175,6 +192,7 @@ class VMDeobfuscation(Analysis):
         self.start_addr = start_addr
         self.vm_vpc_addr = vm_vpc_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
+        cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state)
         folder_name = os.path.dirname(self.project.filename)
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
 
@@ -193,7 +211,6 @@ class VMDeobfuscation(Analysis):
         initial_cfg = cfg
         print("Doing constant propagation")
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
         # DCE commented out temporarily to make testing faster for block simplifications
@@ -223,6 +240,76 @@ class VMDeobfuscation(Analysis):
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, proj, folder_name)
+
+    def convert_to_data_sensitive_irsb(self, cfg, proj, start_state):
+        new_model = self.new_model_graph(cfg.graph, proj, 'data_sensitive_irsb')
+        for node in new_model.nodes():
+            if node.is_simprocedure:
+                continue
+            succs = cfg.model.get_successors(node)
+            if len(succs) == 0:
+                continue
+            new_stmts = node.irsb.statements
+            if isinstance(new_stmts[-1], pyvex.stmt.Exit):
+                # Matching the successors with the correct vm_vpc
+                succs = cfg.model.get_successors(node)
+                if len(succs) > 2:
+                    raise Exception("Greater than 2 successors!")
+                branch_vm_vpc = None
+                vm_vpc_for_next = None
+                for succ in succs:
+                    if succ.addr == new_stmts[-1].dst.value:
+                        branch_vm_vpc = succ.block_id.vm_vpc
+                    elif not isinstance(node.irsb.next, pyvex.expr.RdTmp):
+                        if succ.addr == node.irsb.next.con.value:
+                            vm_vpc_for_next = succ.block_id.vm_vpc
+
+                if isinstance(new_stmts[-1].dst, pyvex.const.U64):
+                    new_stmts[-1] = pyvex.stmt.Exit(new_stmts[-1].guard,
+                                                        DataSensitiveU64(new_stmts[-1].dst.value, branch_vm_vpc),
+                                                        new_stmts[-1].jk,
+                                                        new_stmts[-1].offsIP)
+                elif isinstance(new_stmts[-1].dst, pyvex.const.U32):
+                    new_stmts[-1] = pyvex.stmt.Exit(new_stmts[-1].guard,
+                                                        DataSensitiveU32(new_stmts[-1].dst.value, branch_vm_vpc),
+                                                        new_stmts[-1].jk,
+                                                        new_stmts[-1].offsIP)
+            else:
+                succs = cfg.model.get_successors(node)
+                if len(succs) > 1:
+                    raise Exception("more than one successor!")
+                vm_vpc_for_next = succs[0].block_id.vm_vpc
+
+            if isinstance(node.irsb.next, pyvex.expr.RdTmp):
+                new_next = DataSensitiveRdTmp(node.irsb.next.tmp, vm_vpc_for_next)
+            elif isinstance(node.irsb.next.con, pyvex.const.U64):
+                new_next = pyvex.expr.Const(DataSensitiveU64(node.irsb.next.con.value, vm_vpc_for_next))
+            elif isinstance(node.irsb.next.con, pyvex.const.U32):
+                new_next = pyvex.expr.Const(DataSensitiveU32(node.irsb.next.con.value, vm_vpc_for_next))
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_stmts,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=new_next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind)
+
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+
+
+        return new_cfg
 
     def perform_semantic_verification(self, cfg, proj, start_state=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
