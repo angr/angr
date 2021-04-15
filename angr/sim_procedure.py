@@ -176,10 +176,6 @@ class SimProcedure:
         inst.ret_to = ret_to
         inst.inhibit_autoret = False
 
-        # in ARM, div function requires 3 arguments
-        if self.arch.name == 'ARMHF' and self.display_name == 'div':
-            inst.num_args = 3
-
         # check to see if this is a syscall and if we should override its return value
         if inst.is_syscall:
             state.history.recent_syscall_count = 1

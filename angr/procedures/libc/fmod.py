@@ -10,7 +10,7 @@ class fmod(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, x, y):
-        val_len = self.arch.bytes * 8
+        val_len = self.arch.bytes * self.arch.byte_width
         # both x and y are double
         x = _raw_ast(x)
         y = _raw_ast(y)

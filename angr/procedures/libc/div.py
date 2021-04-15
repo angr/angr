@@ -9,11 +9,12 @@ import angr
 class div(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
-    def run(self, x, y, z=None):
+    def run(self, x, y):
+        # in ARM, div function requires 3 arguments
         if self.arch.name == 'ARMHF':
-            x = _raw_ast(x)
-            y= _raw_ast(y)
-            z = _raw_ast(z)
+            x = _raw_ast(self.arg(0))
+            y = _raw_ast(self.arg(1))
+            z = _raw_ast(self.arg(2))
             y = y[31:0]
             z = z[31:0]
             quotient = y / z
