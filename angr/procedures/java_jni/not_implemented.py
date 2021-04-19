@@ -15,7 +15,7 @@ class UnsupportedJNIFunction(JNISimProcedure):
         native_arch_size = self.state.project.simos.native_arch.bits
         jni_function_table = self.state.project.simos.jni_function_table
         function_idx = (self.state.addr - jni_function_table) // (native_arch_size//8)
-        function_name = jni_functions.keys()[function_idx]
+        function_name = list(jni_functions.keys())[function_idx]
 
         # show warning
         l.warning("SimProcedure for JNI function %s is not implemented. "
