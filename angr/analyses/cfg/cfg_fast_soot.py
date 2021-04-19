@@ -26,7 +26,7 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
 
-    def __init__(self, skip_android_classes=False, **kwargs):
+    def __init__(self, skip_android_classes=False, add_all_classes=True, **kwargs):
 
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
@@ -35,6 +35,7 @@ class CFGFastSoot(CFGFast):
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
 
         self.skip_android_classes = skip_android_classes
+        self.add_all_classes = add_all_classes
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
@@ -90,18 +91,19 @@ class CFGFastSoot(CFGFast):
         total_methods = 0
 
         # add all other methods as well
-        for cls in self.project.loader.main_object.classes.values():
-            for method in cls.methods:
-                # Do not add classes containing android in its name
-                if self.skip_android_classes and (method.class_name.startswith("android") or \
-                                                  method.class_name.startswith("com.google.android")):
-                    continue
-                total_methods += 1
-                if method.blocks:
-                    method_des = SootMethodDescriptor(cls.name, method.name, method.params)
-                    # TODO shouldn't this be idx?
-                    block_idx = method.blocks[0].label
-                    self._insert_job(CFGJob(SootAddressDescriptor(method_des, block_idx, 0), method_des, 'Ijk_Boring'))
+        if self.add_all_classes:
+            for cls in self.project.loader.main_object.classes.values():
+                for method in cls.methods:
+                    # Do not add classes containing android in its name
+                    if self.skip_android_classes and (method.class_name.startswith("android") or \
+                                                      method.class_name.startswith("com.google.android")):
+                        continue
+                    total_methods += 1
+                    if method.blocks:
+                        method_des = SootMethodDescriptor(cls.name, method.name, method.params)
+                        # TODO shouldn't this be idx?
+                        block_idx = method.blocks[0].label
+                        self._insert_job(CFGJob(SootAddressDescriptor(method_des, block_idx, 0), method_des, 'Ijk_Boring'))
 
         self._total_methods = total_methods
 
