@@ -34,21 +34,21 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 #filename="/media/sf_Security/sample_vm/tigress-challenges/Linux-x86_64/0000/challenge-0"
 
 class DataSensitiveU64(pyvex.const.U64):
-    def __init__(self, value, vm_vpc):
+    def __init__(self, value, block_id):
         super(DataSensitiveU64, self).__init__(value)
-        self._vm_vpc = vm_vpc
+        self.block_id = block_id
 
 
 class DataSensitiveU32(pyvex.const.U32):
-    def __init__(self, value, vm_vpc):
+    def __init__(self, value, block_id):
         super(DataSensitiveU32, self).__init__(value)
-        self._vm_vpc = vm_vpc
+        self.block_id = block_id
 
 
 class DataSensitiveRdTmp(pyvex.expr.RdTmp):
-    def __init__(self, tmp, vm_vpc):
+    def __init__(self, tmp, block_id):
         super(DataSensitiveRdTmp, self).__init__(tmp)
-        self._vm_vpc = vm_vpc
+        self.block_id = block_id
 
 
 class CLibFunctionHandler(FunctionHandler):
@@ -246,46 +246,49 @@ class VMDeobfuscation(Analysis):
         for node in new_model.nodes():
             if node.is_simprocedure:
                 continue
-            succs = cfg.model.get_successors(node)
-            if len(succs) == 0:
-                continue
+
             new_stmts = node.irsb.statements
             if isinstance(new_stmts[-1], pyvex.stmt.Exit):
-                # Matching the successors with the correct vm_vpc
+                # Matching the successors with the correct block_id
                 succs = cfg.model.get_successors(node)
                 if len(succs) > 2:
                     raise Exception("Greater than 2 successors!")
-                branch_vm_vpc = None
-                vm_vpc_for_next = None
+                branch_block_id = None
+                block_id_for_next = None
                 for succ in succs:
                     if succ.addr == new_stmts[-1].dst.value:
-                        branch_vm_vpc = succ.block_id.vm_vpc
+                        branch_block_id = succ.block_id
                     elif not isinstance(node.irsb.next, pyvex.expr.RdTmp):
                         if succ.addr == node.irsb.next.con.value:
-                            vm_vpc_for_next = succ.block_id.vm_vpc
+                            block_id_for_next = succ.block_id
 
                 if isinstance(new_stmts[-1].dst, pyvex.const.U64):
                     new_stmts[-1] = pyvex.stmt.Exit(new_stmts[-1].guard,
-                                                        DataSensitiveU64(new_stmts[-1].dst.value, branch_vm_vpc),
+                                                        DataSensitiveU64(new_stmts[-1].dst.value, branch_block_id),
                                                         new_stmts[-1].jk,
                                                         new_stmts[-1].offsIP)
                 elif isinstance(new_stmts[-1].dst, pyvex.const.U32):
                     new_stmts[-1] = pyvex.stmt.Exit(new_stmts[-1].guard,
-                                                        DataSensitiveU32(new_stmts[-1].dst.value, branch_vm_vpc),
+                                                        DataSensitiveU32(new_stmts[-1].dst.value, branch_block_id),
                                                         new_stmts[-1].jk,
                                                         new_stmts[-1].offsIP)
             else:
                 succs = cfg.model.get_successors(node)
                 if len(succs) > 1:
                     raise Exception("more than one successor!")
-                vm_vpc_for_next = succs[0].block_id.vm_vpc
+                if len(succs) == 0: # Last node in the graph
+                    block_id_for_next = None
+                else:
+                    block_id_for_next = succs[0].block_id
+
+
 
             if isinstance(node.irsb.next, pyvex.expr.RdTmp):
-                new_next = DataSensitiveRdTmp(node.irsb.next.tmp, vm_vpc_for_next)
+                new_next = DataSensitiveRdTmp(node.irsb.next.tmp, block_id_for_next)
             elif isinstance(node.irsb.next.con, pyvex.const.U64):
-                new_next = pyvex.expr.Const(DataSensitiveU64(node.irsb.next.con.value, vm_vpc_for_next))
+                new_next = pyvex.expr.Const(DataSensitiveU64(node.irsb.next.con.value, block_id_for_next))
             elif isinstance(node.irsb.next.con, pyvex.const.U32):
-                new_next = pyvex.expr.Const(DataSensitiveU32(node.irsb.next.con.value, vm_vpc_for_next))
+                new_next = pyvex.expr.Const(DataSensitiveU32(node.irsb.next.con.value, block_id_for_next))
 
             node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                node.irsb.addr,
