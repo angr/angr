@@ -91,7 +91,7 @@ class PropagatorState:
     def concrete_states(self, v):
         self._concrete_states = v
 
-    def get_concrete_state(self, addr):
+    def get_concrete_state(self, block_id):
         """
 
         :param addr:
@@ -103,7 +103,7 @@ class PropagatorState:
         #else:
         #    possible_successors = self.concrete_states.all_successors
         for s in possible_successors:
-            if s.ip._model_concrete.value == addr:
+            if s.globals['cur_block_id'] == block_id:
                 return s
         return None
 
@@ -141,7 +141,7 @@ class PropagatorVEXState(PropagatorState):
         # if not isinstance(self.concrete_states, list):
         #     self.concrete_states = self.concrete_states.all_successors
         for s in self.concrete_states:
-            other_state = other.get_concrete_state(s.ip._model_concrete.value)
+            other_state = other.get_concrete_state(s.globals['cur_block_id'])
             if other_state is not None:
                 s = s.merge(other_state, plugin_whitelist=['inspect', 'preconstrainer', 'globals', 'mem', 'heap', 'regs', 'solver', 'callstack', 'history', 'fs', 'scratch', 'memory', 'registers', 'libc'])
                 merged.append(s[0])
@@ -231,6 +231,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         graph_visitor = EmulatedCFGVisitor(graph, self.project.entry if start is None else start)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=False, allow_widening=False,
                                  graph_visitor=graph_visitor)
+        self._graph=graph
         self._base_state = base_state
         self._function = func
         self._max_iterations = max_iterations
@@ -255,6 +256,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         pass
 
     def _initial_abstract_state(self, node):
+        node.input_state.globals['cur_block_id'] = node.block_id
         if isinstance(node, ailment.Block):
             # AIL
             state = PropagatorAILState(arch=self.project.arch)
@@ -286,7 +288,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
 
     def _run_on_node(self, node, abstract_state):
         print("Constant-prop: "+str(node))
-        concrete_state = abstract_state.get_concrete_state(node.addr)
+        concrete_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = concrete_state
         if concrete_state is None:
             # didn't find any state going to here
@@ -348,6 +350,12 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       successor.scratch.source)
         print(symbolic_sim_successors.all_successors)
         print("Replacements: "+str(node.input_state.solver._solver._replacements))
+        if node.is_simprocedure:
+            if len(symbolic_sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
+                raise Exception("Sim Procedure has more than one successor")
+            else:
+                symbolic_sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
+
         node.final_states = symbolic_sim_successors
         abstract_state.concrete_states = symbolic_sim_successors.all_successors
         self._node_iterations[block_key] += 1
