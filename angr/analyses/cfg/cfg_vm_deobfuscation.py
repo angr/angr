@@ -9,8 +9,13 @@ import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
-
-
+from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
+from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
+from ...engines.unicorn import SimEngineUnicorn
+from ...engines.failure import SimEngineFailure
+from ...engines.syscall import SimEngineSyscall
+from ...engines.hook import HooksMixin
+from ...engines.soot import SootMixin
 from ...engines.successors import SimSuccessors
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
@@ -33,6 +38,10 @@ from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils
 
 l = logging.getLogger(name=__name__)
+
+
+class DataSensitiveEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, DataSensitiveHeavyVEXMixin):
+    pass
 
 def annotate_with_new_replacements(state, variable, annotation):
     if o.REPLACEMENT_SOLVER in state.options and variable.cache_key in state.solver._solver._replacement_cache:
@@ -173,7 +182,7 @@ class StorageState:
         merged = [ ]
 
         for s in self.concrete_states:
-            other_state = other.get_concrete_state(s.ip._model_concrete.value)
+            other_state = other.get_concrete_state(s.globals['cur_block_id'])
             if other_state is not None:
                 s = s.merge(other_state)
             merged.append(s[0])
@@ -187,18 +196,19 @@ class StorageState:
     def concrete_states(self, v):
         self._concrete_states = v
 
-    def get_concrete_state(self, addr):
+    def get_concrete_state(self, block_id):
         """
 
         :param addr:
         :return:
         """
+
         if isinstance(self.concrete_states, list):
             possible_successors = self.concrete_states
         else:
             possible_successors = self.concrete_states.all_successors
         for s in possible_successors:
-            if s.ip._model_concrete.value == addr:
+            if s.globals['cur_block_id'] == block_id:
                 return s
 
         return None
@@ -384,13 +394,15 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         graph_visitor = None
         self._graph = None
         self._model = None
+        self._graph_engine = DataSensitiveEngine(project=self.project)
         ### This is for storing the addresses of the found vm_instructions
         self.vm_instruction_addresses = []
         if model is not None:
             graph_visitor = EmulatedCFGVisitor(model.graph, self.project.entry if start is None else start)
-            self._graph = model.graph
             self._model = model
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False, graph_visitor=graph_visitor, allow_merging=False)
+        if model is not None:
+            self._graph = model.graph
         self.data_sensitive = data_sensitive
         CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize,
                          resolve_indirect_jumps=resolve_indirect_jumps,
@@ -1131,6 +1143,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     def _initial_abstract_state(self, node):
         state = StorageState()
+        node.input_state.globals['cur_block_id'] = node.block_id
         state.concrete_states = [node.input_state]
         return state
 
@@ -1143,7 +1156,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     def _run_on_node(self, node, abstract_state):
         print("Running on node: "+str(node))
-        input_state = abstract_state.get_concrete_state(node.addr)
+        input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
         if block_key in self._abstract_state_map:
@@ -1156,11 +1169,23 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         else:
             jumpkind = "Ijk_Boring"
 
-        sim_successors = self.project.factory.successors(
+        sim_successors = self._graph_engine.process(
             input_state,
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
+
+        if node.is_simprocedure:
+            if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
+                raise Exception("Sim Procedure has more than one successor")
+            else:
+                sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
+
+        # sim_successors = self.project.factory.successors(
+        #     input_state,
+        #     opt_level=self._iropt_level,
+        #     jumpkind=jumpkind,
+        #     irsb=node.irsb)
 
         # if node.addr == 0x4009b1 and node.block_id.vm_vpc == 109 and sim_successors.all_successors[0].addr != 0x4009b8:
         #     import ipdb;
