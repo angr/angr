@@ -341,12 +341,13 @@ class StateGraphRecoveryAnalysis(Analysis):
                             if constraint.args[1].args[2] is delta or constraint.args[1] is delta:
                                 if constraint.args[0].op == 'BVV':
                                     step = constraint.args[0].args[0]
-                                    steps.append((
-                                        step,
-                                        constraint,
-                                        constraint_source.get(original_constraint, None),
-                                    ))
-                                    continue
+                                    if step != 0:
+                                        steps.append((
+                                            step,
+                                            constraint,
+                                            constraint_source.get(original_constraint, None),
+                                        ))
+                                        continue
 
         return steps
 
