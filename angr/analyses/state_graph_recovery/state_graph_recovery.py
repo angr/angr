@@ -336,17 +336,18 @@ class StateGraphRecoveryAnalysis(Analysis):
                                         ))
                                         continue
 
-                        if constraint.args[1].op == "Extract":      # arm32
+                        if constraint.args[1].op == "BVS":      # arm32
                             # access constraint.args[1].args[2]
-                            if constraint.args[1].args[2] is delta:
+                            if constraint.args[1].args[2] is delta or constraint.args[1] is delta:
                                 if constraint.args[0].op == 'BVV':
                                     step = constraint.args[0].args[0]
-                                    steps.append((
-                                        step,
-                                        constraint,
-                                        constraint_source.get(original_constraint, None),
-                                    ))
-                                    continue
+                                    if step != 0:
+                                        steps.append((
+                                            step,
+                                            constraint,
+                                            constraint_source.get(original_constraint, None),
+                                        ))
+                                        continue
 
         return steps
 
@@ -503,17 +504,17 @@ class StateGraphRecoveryAnalysis(Analysis):
     def _symbolize_timecounter(self, state: 'SimState') -> Dict[str,claripy.ast.Base]:
         # TODO: Generalize it
         tv_sec_addr = self._iec_time
-        tv_nsec_addr = tv_sec_addr + 8
+        tv_nsec_addr = tv_sec_addr + self.project.arch.bytes
 
-        self._tv_sec_var = claripy.BVS('tv_sec', 64)
-        self._tv_nsec_var = claripy.BVS('tv_nsec', 64)
+        self._tv_sec_var = claripy.BVS('tv_sec', self.project.arch.bytes * self.project.arch.byte_width)
+        self._tv_nsec_var = claripy.BVS('tv_nsec', self.project.arch.bytes * self.project.arch.byte_width)
 
         state.memory.store(tv_sec_addr, self._tv_sec_var, endness=self.project.arch.memory_endness)
         state.memory.store(tv_nsec_addr, self._tv_nsec_var, endness=self.project.arch.memory_endness)
 
         # the initial timer values are 0
-        state.preconstrainer.preconstrain(claripy.BVV(0, 64), self._tv_sec_var)
-        state.preconstrainer.preconstrain(claripy.BVV(0, 64), self._tv_nsec_var)
+        state.preconstrainer.preconstrain(claripy.BVV(0, self.project.arch.bytes * self.project.arch.byte_width), self._tv_sec_var)
+        state.preconstrainer.preconstrain(claripy.BVV(0, self.project.arch.bytes * self.project.arch.byte_width), self._tv_nsec_var)
 
         return {
             'tv_sec_var': self._tv_sec_var,
@@ -522,22 +523,22 @@ class StateGraphRecoveryAnalysis(Analysis):
 
     def _symbolically_advance_timecounter(self, state: 'SimState') -> List[claripy.ast.Bits]:
         # TODO: Generalize it
-        sec_delta = claripy.BVS("sec_delta", 64)
-        state.preconstrainer.preconstrain(claripy.BVV(1, 64), sec_delta)
+        sec_delta = claripy.BVS("sec_delta", self.project.arch.bytes * self.project.arch.byte_width)
+        state.preconstrainer.preconstrain(claripy.BVV(1, self.project.arch.bytes * self.project.arch.byte_width), sec_delta)
 
-        tv_sec = state.memory.load(self._iec_time, size=8, endness=self.project.arch.memory_endness)
+        tv_sec = state.memory.load(self._iec_time, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
         state.memory.store(self._iec_time, tv_sec + sec_delta, endness=self.project.arch.memory_endness)
 
         return [sec_delta]
 
     def _advance_timecounter(self, state: 'SimState', delta: int) -> None:
         # TODO: Generalize it
-        tv_sec = state.memory.load(self._iec_time, size=8, endness=self.project.arch.memory_endness)
+        tv_sec = state.memory.load(self._iec_time, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
         state.memory.store(self._iec_time, tv_sec + delta, endness=self.project.arch.memory_endness)
 
         # hack
-        tv_nsec = state.memory.load(self._iec_time + 8, size=8, endness=self.project.arch.memory_endness)
-        state.memory.store(self._iec_time + 8, tv_nsec + 200, endness=self.project.arch.memory_endness)
+        tv_nsec = state.memory.load(self._iec_time + self.project.arch.bytes, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        state.memory.store(self._iec_time + self.project.arch.bytes, tv_nsec + 200, endness=self.project.arch.memory_endness)
 
     def _traverse_one(self, state: 'SimState'):
 
