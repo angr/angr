@@ -30,7 +30,7 @@ from ..forward_analysis.visitors.graph import GraphVisitor
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils
-from .cfg_vm_deobfuscation import CFGVMDeobfuscation, StorageState
+from .cfg_vm_deobfuscation import CFGVMDeobfuscation, StorageState, DataSensitiveEngine
 from .cfg_emulated import CFGEmulated
 
 
@@ -49,16 +49,7 @@ class EmulatedCFGVisitor(GraphVisitor):
         return [self._start]
 
     def successors(self, node):
-        succs = list(self.graph.successors(node))
-        if len(succs) == 0:
-            return succs
-        if len(node.final_states) > 1:
-            raise Exception("Should have only one successor, since we are concretely executing")
-
-        for succ in succs:
-            if succ.addr == node.final_states[0].addr:
-                return [succ]
-        raise Exception("No matching node and state!")
+        return list(self.graph.successors(node))
 
     def next_node(self, node):
         if node is None:
@@ -68,7 +59,7 @@ class EmulatedCFGVisitor(GraphVisitor):
             raise Exception("Should have only one successor, since we are concretely executing")
 
         for succ in succs:
-            if succ.addr == node.final_states[0].addr:
+            if succ.block_id == node.final_states[0].globals['cur_block_id']:
                 return succ
 
     def predecessors(self, node):
@@ -251,10 +242,13 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         """
         if model is not None:
             graph_visitor = EmulatedCFGVisitor(model.graph, self.project.entry if start is None else start)
-            self._graph = model.graph
             self._model = model
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False,
                                  graph_visitor=graph_visitor, allow_merging=False)
+        if model is not None:
+            self._graph = model.graph
+
+        self._graph_engine = DataSensitiveEngine(project=self.project)
         CFGBase.__init__(self, 'emulated', context_sensitivity_level, normalize=normalize,
                          resolve_indirect_jumps=resolve_indirect_jumps,
                          indirect_jump_resolvers=indirect_jump_resolvers,
@@ -935,6 +929,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
 
     def _initial_abstract_state(self, node):
         state = StorageState()
+        node.input_state.globals['cur_block_id'] = node.block_id
         state.concrete_states = [node.input_state]
         return state
 
@@ -978,8 +973,8 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
 
 
     def _run_on_node(self, node, abstract_state):
-        print("Running on node: "+str(node))
-        input_state = abstract_state.get_concrete_state(node.addr)
+        print("Running semantic verification on node: "+str(node))
+        input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
         if block_key in self._abstract_state_map:
@@ -997,11 +992,17 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         except:
             pass
 
-        sim_successors = self.project.factory.successors(
+        sim_successors = self._graph_engine.process(
             input_state,
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
+
+        if node.is_simprocedure:
+            if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
+                raise Exception("Sim Procedure has more than one successor")
+            else:
+                sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
 
 
         print("Successors: " + str(sim_successors.all_successors))
