@@ -129,6 +129,7 @@ class SimEngineVRBase(SimEngineLight):
                                             )
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
                 l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                existing_vars.append((variable, 0))
 
             else:
                 # FIXME: Why is it only taking the first variable?
@@ -138,7 +139,7 @@ class SimEngineVRBase(SimEngineLight):
         stack_addr = self.state.stack_addr_from_offset(stack_offset)
         if vs is None:
             top = self.state.top(self.arch.byte_width)
-            top = self.state.annotate_with_variables(top, [(stack_offset, variable)])
+            top = self.state.annotate_with_variables(top, [(0, variable)])
             vs = MultiValues(offset_to_values={0: {top}})
         self.state.stack_region.store(stack_addr, vs)
         typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
