@@ -1,4 +1,3 @@
-from itertools import chain
 import weakref
 from typing import Optional, Iterable, Dict, Set, Generator
 import logging
@@ -17,9 +16,7 @@ from ...code_location import CodeLocation
 from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
-from .undefined import UNDEFINED
 from .uses import Uses
-from .dataset import DataSet
 
 
 l = logging.getLogger(name=__name__)

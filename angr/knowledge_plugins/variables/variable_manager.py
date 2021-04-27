@@ -103,7 +103,7 @@ class VariableManagerInternal:
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def set_variable(self, sort, start, variable):
+    def set_variable(self, sort, start, variable: SimVariable):
         if sort == 'stack':
             region = self._stack_region
         elif sort == 'register':
