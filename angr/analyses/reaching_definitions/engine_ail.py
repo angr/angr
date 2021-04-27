@@ -484,7 +484,7 @@ class SimEngineRDAIL(
                 vs = {v + expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
-            # adding to single values together
+            # adding two single values together
             r = MultiValues(offset_to_values={0: {expr0_v + expr1_v}})
 
         if r is None:
