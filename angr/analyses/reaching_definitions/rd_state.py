@@ -299,7 +299,17 @@ class ReachingDefinitionsState:
                 self, subject.cc, subject.content.current_function_address(), rtoc_value
             )
         elif subject.type == SubjectType.Block:
-            pass
+            # Ashwin added this to make block wise RDA track stack variables
+            sp = Register(self.arch.sp_offset, self.arch.bytes)
+            sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits),
+                                tags={InitialValueTag()})
+            self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+
+            bp = Register(self.arch.bp_offset, self.arch.bytes)
+            bp_def = Definition(bp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0, is_base=True), self.arch.bits),
+                                tags={InitialValueTag()})
+            self.register_definitions.set_object(bp_def.offset, bp_def, bp_def.size)
+            # pass
         elif subject.type == SubjectType.Tuple:
             self._initialize_function(
                 None,
