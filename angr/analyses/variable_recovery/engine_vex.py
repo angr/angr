@@ -1,15 +1,21 @@
+from typing import TYPE_CHECKING
 
+import claripy
 import pyvex
 
 from ...engines.light import SimEngineLightVEXMixin
 from ..typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
 
+if TYPE_CHECKING:
+    from .variable_recovery_base import VariableRecoveryStateBase
+
 
 class SimEngineVRVEX(
     SimEngineLightVEXMixin,
     SimEngineVRBase,
 ):
+    state: 'VariableRecoveryStateBase'
 
     # Statement handlers
 
@@ -90,7 +96,7 @@ class SimEngineVRVEX(
 
         return self._read_from_register(reg_offset, reg_size, expr=expr)
 
-    def _handle_Load(self, expr):
+    def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
         addr = self._expr(expr.addr)
         size = expr.result_size(self.tyenv) // 8
 
@@ -100,13 +106,17 @@ class SimEngineVRVEX(
         # ccalls don't matter
         return None
 
+    def _handle_Conversion(self, expr: pyvex.IRExpr.Unop) -> RichR:
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+
     # Function handlers
 
     def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use,useless-return
         return None
 
     def _handle_Const(self, expr):
-        return RichR(expr.con.value, typevar=typeconsts.int_type(expr.con.size))
+        return RichR(claripy.BVV(expr.con.value, expr.con.size), typevar=typeconsts.int_type(expr.con.size))
 
     def _handle_Add(self, expr):
         arg0, arg1 = expr.args

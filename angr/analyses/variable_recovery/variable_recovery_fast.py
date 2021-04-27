@@ -2,6 +2,7 @@ from typing import Optional, List
 import logging
 from collections import defaultdict
 
+import claripy
 import pyvex
 import ailment
 
@@ -55,7 +56,7 @@ class ProcessorState:
         if self.bp is None:
             self.bp = other.bp
         elif other.bp is not None:  # and self.bp is not None
-            if self.bp == other.bp:
+            if self.bp is other.bp:
                 pass
             else:
                 if type(self.bp) is int and type(other.bp) is int:
@@ -69,7 +70,7 @@ class ProcessorState:
             return False
         return (self.sp_adjusted == other.sp_adjusted and
                 self.sp_adjustment == other.sp_adjustment and
-                self.bp == other.bp and
+                self.bp is other.bp and
                 self.bp_as_base == other.bp_as_base)
 
     def __repr__(self):
@@ -85,11 +86,12 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     :ivar KeyedRegion register_region:  The register store.
     """
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None, processor_state=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, processor_state=None,
+                 project=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
                          global_region=global_region, typevars=typevars, type_constraints=type_constraints,
-                         delayed_type_constraints=delayed_type_constraints)
+                         delayed_type_constraints=delayed_type_constraints, project=project)
 
         self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
 
@@ -116,6 +118,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             type_constraints=self.type_constraints.copy(),
             processor_state=self.processor_state.copy(),
             delayed_type_constraints=self.delayed_type_constraints.copy(),
+            project=self.project,
         )
 
         return state
@@ -133,22 +136,29 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         :rtype:                             VariableRecoveryState
         """
 
-        replacements = {}
-        if successor in self.dominance_frontiers:
-            replacements = self._make_phi_variables(successor, self, other)
+        self.phi_variables = {}  # A mapping from original variable and its corresponding phi variable
+        self.successor_block_addr = successor
 
-        merged_stack_region = self.stack_region.copy().replace(replacements).merge(other.stack_region,
-                                                                                   replacements=replacements)
-        merged_register_region = self.register_region.copy().replace(replacements).merge(other.register_region,
-                                                                                         replacements=replacements)
-        merged_global_region = self.global_region.copy().merge(other.global_region)
+        merged_stack_region = self.stack_region.copy()
+        merged_stack_region.set_state(self)
+        merged_stack_region.merge([other.stack_region], None)
+
+        merged_register_region = self.register_region.copy()
+        merged_register_region.set_state(self)
+        merged_register_region.merge([other.register_region], None)
+
+        merged_global_region = self.global_region.copy()
+        merged_global_region.set_state(self)
+        merged_global_region.merge([other.global_region], None)
+
         merged_typevars = self.typevars.merge(other.typevars)
         merged_typeconstraints = self.type_constraints.copy() | other.type_constraints
         delayed_typeconstraints = self.delayed_type_constraints.copy()
         for v, cons in other.delayed_type_constraints.items():
             delayed_typeconstraints[v] |= cons
+
         # add subtype constraints for all replacements
-        for v0, v1 in replacements.items():
+        for v0, v1 in self.phi_variables.items():
             # v0 will be replaced by v1
             if not merged_typevars.has_type_variable_for(v1, None):
                 merged_typevars.add_type_variable(v1, None, TypeVariable())
@@ -166,6 +176,10 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                                       )
             delayed_typeconstraints[v1].add(equivalence)
 
+        # clean up
+        self.phi_variables = {}
+        self.successor_block_addr = None
+
         state = VariableRecoveryFastState(
             successor,
             self._analysis,
@@ -178,6 +192,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             type_constraints=merged_typeconstraints,
             delayed_type_constraints=delayed_typeconstraints,
             processor_state=self.processor_state.copy().merge(other.processor_state),
+            project=self.project,
         )
 
         return state
@@ -283,7 +298,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         # give it enough stack space
         # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
 
-        state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function,
+        state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function, project=self.project,
                                           )
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
@@ -291,15 +306,26 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bytes, base='bp', name='ret_addr',
                                             region=self.function.addr, category='return_address',
                                             )
-            state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
+            ret_addr = claripy.BVS("ret_addr", self.project.arch.bits)
+            ret_addr = state.annotate_with_variables(ret_addr, [(0, ret_addr_var)])
+            state.stack_region.store(state.stack_addr_from_offset(ret_addr_offset),
+                                     ret_addr,
+                                     endness=self.project.arch.memory_endness)
 
         if self._func_args:
             for arg in self._func_args:
                 if isinstance(arg, SimRegisterVariable):
-                    state.register_region.set_variable(arg.reg, arg)
+                    v = claripy.BVS("reg_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    state.register_region.store(arg.reg, v)
                     self.variable_manager[self.function.addr].add_variable('register', arg.reg, arg)
                 elif isinstance(arg, SimStackVariable):
-                    state.stack_region.set_variable(arg.offset, arg)
+                    v = claripy.BVS("stack_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    state.stack_region.store(state.stack_addr_from_offset(arg.offset),
+                                             v,
+                                             endness=self.project.arch.memory_endness,
+                                             )
                     self.variable_manager[self.function.addr].add_variable('stack', arg.offset, arg)
                 else:
                     raise TypeError("Unsupported function argument type %s." % type(arg))
