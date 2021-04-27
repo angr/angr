@@ -6,6 +6,7 @@ import claripy
 import pyvex
 import ailment
 
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...block import Block
 from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
@@ -86,14 +87,11 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     :ivar KeyedRegion register_region:  The register store.
     """
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None, processor_state=None,
-                 project=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
                          global_region=global_region, typevars=typevars, type_constraints=type_constraints,
                          delayed_type_constraints=delayed_type_constraints, project=project)
-
-        self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
 
     def __repr__(self):
         return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
@@ -116,7 +114,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             global_region=self.global_region.copy(),
             typevars=self.typevars.copy(),
             type_constraints=self.type_constraints.copy(),
-            processor_state=self.processor_state.copy(),
             delayed_type_constraints=self.delayed_type_constraints.copy(),
             project=self.project,
         )
@@ -191,7 +188,6 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             typevars=merged_typevars,
             type_constraints=merged_typeconstraints,
             delayed_type_constraints=delayed_typeconstraints,
-            processor_state=self.processor_state.copy().merge(other.processor_state),
             project=self.project,
         )
 
@@ -291,15 +287,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             self._release_gil(self._job_ctr, 5, 0.000001)
 
     def _initial_abstract_state(self, node):
-
-        # annotate the stack pointer
-        # concrete_state.regs.sp = concrete_state.regs.sp.annotate(StackLocationAnnotation(8))
-
-        # give it enough stack space
-        # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
-
         state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function, project=self.project,
                                           )
+        state.register_region.store(self.project.arch.sp_offset, state.stack_address(0))
+        # give it enough stack space
+        state.register_region.store(self.project.arch.bp_offset, state.stack_address(0) + 0x100000)
+
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
             ret_addr_offset = self.project.arch.bytes
@@ -471,23 +464,28 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         if self._track_sp and block.addr in self._node_to_cc:
             # readjusting sp at the end for blocks that end in a call
+            sp: MultiValues = state.register_region.load(self.project.arch.sp_offset, size=self.project.arch.bytes)
+            sp_v = sp.one_value()
+            if sp_v is None:
+                l.warning("Unexpected stack pointer value at the end of the function. Pick the first one.")
+                sp_v = next(iter(next(iter(sp.values.values()))))
+
             adjusted = False
-            if state.processor_state.sp_adjustment is None:
-                state.processor_state.sp_adjustment = 0
             cc = self._node_to_cc[block.addr]
             if cc is not None and cc.sp_delta is not None:
-                state.processor_state.sp_adjustment += cc.sp_delta
-                state.processor_state.sp_adjusted = True
+                sp_v += cc.sp_delta
                 adjusted = True
-                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
-                        block.addr, state.processor_state.sp_adjustment)
+                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, cc.sp_delta)
 
             if not adjusted:
                 # make a guess
                 # of course, this will fail miserably if the function called is not cdecl
                 if self.project.arch.call_pushes_ret:
-                    state.processor_state.sp_adjustment += self.project.arch.bytes
-                    state.processor_state.sp_adjusted = True
+                    sp_v += self.project.arch.bytes
+                    adjusted = True
+
+            if adjusted:
+                state.register_region.store(self.project.arch.sp_offset, sp_v)
 
 
 from angr.analyses import AnalysesHub

@@ -563,7 +563,7 @@ class PagedMemoryMixin(MemoryMixin):
 
 
 class LabeledPagesMixin(PagedMemoryMixin):
-    def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Any]]:
+    def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Tuple[int,int,Any]]]:
         if endness is None:
             endness = self.endness
 
@@ -593,10 +593,10 @@ class LabeledPagesMixin(PagedMemoryMixin):
                 pageno = (pageno + 1) % max_pageno
                 pageoff = 0
 
-        out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, **kwargs)
-        labels = tuple(v[0][1].label for v in vals if isinstance(v[0][1], SimLabeledMemoryObject))
+        labels = [ ]
+        out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, labels=labels, **kwargs)
         l.debug("%s.load_with_labels(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
-        return out, labels
+        return out, tuple(labels)
 
 
 class ListPagesMixin(PagedMemoryMixin):
