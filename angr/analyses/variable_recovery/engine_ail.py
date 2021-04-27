@@ -222,8 +222,7 @@ class SimEngineVRAIL(
             # FIXME
             typevar = next(iter(typevar_set))
 
-        value_v = self.state.annotate_with_variables(self.state.top(self.arch.bits),
-                                                     [(0, SpOffset(self.arch.bits, expr.offset, is_base=False))])
+        value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=typevar)
         if self._reference_spoffset:
             self._reference(richr, self._codeloc(), src=expr)

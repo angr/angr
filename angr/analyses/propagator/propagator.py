@@ -285,9 +285,16 @@ class PropagatorAILState(PropagatorState):
 
             if len(labels) == 1:
                 # extract labels
-                label = labels[0]
-                expr = label['expr']
+                offset, size, label = labels[0]
+                expr: Optional[ailment.Expr.Expression] = label['expr']
                 def_at = label['def_at']
+                if expr is not None and expr.bits > size * self.arch.byte_width:
+                    # we are loading a chunk of the original expression
+                    expr = self._extract_ail_expression(
+                        offset * self.arch.byte_width,
+                        size * self.arch.byte_width,
+                        expr,
+                    )
             else:
                 # Multiple definitions and expressions
                 expr = None
@@ -371,6 +378,13 @@ class PropagatorAILState(PropagatorState):
     def add_equivalence(self, codeloc, old, new):
         eq = Equivalence(codeloc, old, new)
         self._equivalence.add(eq)
+
+    def _extract_ail_expression(self, start: int, bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+        if start == 0:
+            return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
+        else:
+            a = ailment.Expr.BinaryOp(None, "Shr", (expr, bits), False)
+            return ailment.Expr.Convert(None, a.bits, bits, False, a)
 
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
