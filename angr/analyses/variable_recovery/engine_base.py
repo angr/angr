@@ -370,7 +370,7 @@ class SimEngineVRBase(SimEngineLight):
                     typevars.Subtype(data.typevar, typevar)
                 )
 
-    def _store_to_variable(self, richr_addr: RichR, size, stmt=None):  # pylint:disable=unused-argument
+    def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument
 
         addr_variable = richr_addr.variable
         codeloc = self._codeloc()
@@ -398,7 +398,7 @@ class SimEngineVRBase(SimEngineLight):
 
             store_typevar = typevars.DerivedTypeVariable(
                 typevars.DerivedTypeVariable(base_typevar, typevars.Store()),
-                typevars.HasField(size * 8, field_offset)
+                typevars.HasField(size * self.state.arch.byte_width, field_offset)
             )
             if addr_variable is not None:
                 self.state.typevars.add_type_variable(addr_variable, codeloc, typevar)
@@ -547,7 +547,7 @@ class SimEngineVRBase(SimEngineLight):
             # create a type constraint
             typevar = typevars.DerivedTypeVariable(
                 typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
-                typevars.HasField(size * 8, offset)
+                typevars.HasField(size * self.state.arch.byte_width, offset)
             )
             self.state.add_type_constraint(typevars.Existence(typevar))
             return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
