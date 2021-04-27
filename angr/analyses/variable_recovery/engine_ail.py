@@ -56,14 +56,10 @@ class SimEngineVRAIL(
         else:
             l.warning('Unsupported dst type %s.', dst_type)
 
-    def _ail_handle_Store(self, stmt):
+    def _ail_handle_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr(stmt.addr)
         data = self._expr(stmt.data)
-        if isinstance(stmt.data, claripy.ast.Base):
-            size = stmt.data.size() // self.arch.byte_width
-        else:
-            size = stmt.data.bits // self.arch.byte_width
-
+        size = stmt.size
         self._store(addr_r, data, size, stmt=stmt)
 
     def _ail_handle_Jump(self, stmt):
@@ -260,11 +256,10 @@ class SimEngineVRAIL(
         r1 = self._expr(arg1)
 
         try:
-            typevar = None
             type_constraints = set()
-            if r0.typevar is not None and isinstance(r1.data, int):
+            if r0.typevar is not None and r1.data.concrete:
                 # addition with constants. create a derived type variable
-                typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data))
+                typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data._model_concrete.value))
             else:
                 # create a new type variable and add constraints accordingly
                 typevar = typevars.TypeVariable()
