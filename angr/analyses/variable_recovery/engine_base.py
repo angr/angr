@@ -116,8 +116,7 @@ class SimEngineVRBase(SimEngineLight):
                 for values in vs.values.values():
                     for v in values:
                         for var_stack_offset, var in self.state.extract_variables(v):
-                            offset = stack_offset - var_stack_offset
-                            existing_vars.append((var, offset))
+                            existing_vars.append((var, var_stack_offset))
 
             if not existing_vars:
                 # no variables exist
@@ -147,6 +146,7 @@ class SimEngineVRBase(SimEngineLight):
 
         # find all variables
         for var, offset in existing_vars:
+            if offset is None: offset = 0
             offset_into_var = stack_offset - offset  # TODO: Is this correct?
             if offset_into_var == 0: offset_into_var = None
             self.variable_manager[self.func_addr].reference_at(var, offset_into_var, codeloc,

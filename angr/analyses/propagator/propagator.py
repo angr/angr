@@ -288,13 +288,20 @@ class PropagatorAILState(PropagatorState):
                 offset, size, label = labels[0]
                 expr: Optional[ailment.Expr.Expression] = label['expr']
                 def_at = label['def_at']
-                if expr is not None and expr.bits > size * self.arch.byte_width:
-                    # we are loading a chunk of the original expression
-                    expr = self._extract_ail_expression(
-                        offset * self.arch.byte_width,
-                        size * self.arch.byte_width,
-                        expr,
-                    )
+                if expr is not None:
+                    if expr.bits > size * self.arch.byte_width:
+                        # we are loading a chunk of the original expression
+                        expr = self._extract_ail_expression(
+                            offset * self.arch.byte_width,
+                            size * self.arch.byte_width,
+                            expr,
+                        )
+                    if expr.bits < variable.size * self.arch.byte_width:
+                        # we are loading more than the expression has - extend the size of the expression
+                        expr = self._extend_ail_expression(
+                            variable.size * self.arch.byte_width - expr.bits,
+                            expr,
+                        )
             else:
                 # Multiple definitions and expressions
                 expr = None
@@ -379,12 +386,17 @@ class PropagatorAILState(PropagatorState):
         eq = Equivalence(codeloc, old, new)
         self._equivalence.add(eq)
 
-    def _extract_ail_expression(self, start: int, bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+    @staticmethod
+    def _extract_ail_expression(start: int, bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
         if start == 0:
             return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
         else:
             a = ailment.Expr.BinaryOp(None, "Shr", (expr, bits), False)
             return ailment.Expr.Convert(None, a.bits, bits, False, a)
+
+    @staticmethod
+    def _extend_ail_expression(bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+        return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr)
 
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
