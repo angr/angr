@@ -21,64 +21,6 @@ from .engine_ail import SimEngineVRAIL
 l = logging.getLogger(name=__name__)
 
 
-class ProcessorState:
-
-    __slots__ = ['_arch', 'sp_adjusted', 'sp_adjustment', 'bp_as_base', 'bp']
-
-    def __init__(self, arch):
-        self._arch = arch
-        # whether we have met the initial stack pointer adjustment
-        self.sp_adjusted = None
-        # how many bytes are subtracted from the stack pointer
-        self.sp_adjustment = arch.bytes if arch.call_pushes_ret else 0
-        # whether the base pointer is used as the stack base of the stack frame or not
-        self.bp_as_base = None
-        # content of the base pointer
-        self.bp = None
-
-    def copy(self):
-        s = ProcessorState(self._arch)
-        s.sp_adjusted = self.sp_adjusted
-        s.sp_adjustment = self.sp_adjustment
-        s.bp_as_base = self.bp_as_base
-        s.bp = self.bp
-        return s
-
-    def merge(self, other):
-        if not self == other:
-            l.warning("Inconsistent merge: %s %s ", self, other)
-
-        # FIXME: none of the following logic makes any sense...
-        if other.sp_adjusted is True:
-            self.sp_adjusted = True
-        self.sp_adjustment = max(self.sp_adjustment, other.sp_adjustment)
-        if other.bp_as_base is True:
-            self.bp_as_base = True
-        if self.bp is None:
-            self.bp = other.bp
-        elif other.bp is not None:  # and self.bp is not None
-            if self.bp is other.bp:
-                pass
-            else:
-                if type(self.bp) is int and type(other.bp) is int:
-                    self.bp = max(self.bp, other.bp)
-                else:
-                    self.bp = None
-        return self
-
-    def __eq__(self, other):
-        if not isinstance(other, ProcessorState):
-            return False
-        return (self.sp_adjusted == other.sp_adjusted and
-                self.sp_adjustment == other.sp_adjustment and
-                self.bp is other.bp and
-                self.bp_as_base == other.bp_as_base)
-
-    def __repr__(self):
-        return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
-            " adjusted" if self.sp_adjusted else "", self.bp_as_base)
-
-
 class VariableRecoveryFastState(VariableRecoveryStateBase):
     """
     The abstract state of variable recovery analysis.
