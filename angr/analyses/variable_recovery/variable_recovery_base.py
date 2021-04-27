@@ -180,6 +180,30 @@ class VariableRecoveryStateBase:
         expr = expr.annotate(VariableAnnotation(list(addr_and_variables)))
         return expr
 
+    def stack_address(self, offset: int) -> claripy.ast.Base:
+        base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
+        if offset:
+            return base + offset
+        return base
+
+    @staticmethod
+    def is_stack_address(addr: claripy.ast.Base) -> bool:
+        return "stack_base" in addr.variables
+
+    @staticmethod
+    def get_stack_offset(addr: claripy.ast.Base) -> Optional[int]:
+        if "stack_base" in addr.variables:
+            if addr.op == "BVS":
+                return 0
+            elif addr.op == "__add__":
+                if len(addr.args) == 2 and addr.args[1].op == "BVV":
+                    return addr.args[1]._model_concrete.value
+                if len(addr.args) == 1:
+                    return 0
+            elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return -addr.args[1]._model_concrete.value
+        return None
+
     def stack_addr_from_offset(self, offset: int) -> int:
         if self.arch.bits == 32:
             base = 0x7fff_fe00

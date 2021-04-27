@@ -1,5 +1,5 @@
 import claripy
-from typing import List, Tuple, Set, Dict
+from typing import List, Tuple, Set, Dict, Optional
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
@@ -56,7 +56,7 @@ class MemoryObjectMixin(CooperationBase):
     """
     @classmethod
     def _compose_objects(cls, objects: List[List[Tuple[int, SimMemoryObject]]], size, endness=None,
-                         memory=None, **kwargs):
+                         memory=None, labels: Optional[List]=None, **kwargs):
         c_objects = []
         for objlist in objects:
             for element in objlist:
@@ -64,11 +64,22 @@ class MemoryObjectMixin(CooperationBase):
                     c_objects.append(element)
 
         mask = (1 << memory.state.arch.bits) - 1
-        elements = [o.bytes_at(
-                a,
-                ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
-                endness=endness)
-            for i, (a, o) in enumerate(c_objects)]
+        if labels is None:
+            # fast path - ignore labels
+            elements = [o.bytes_at(
+                    a,
+                    ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
+                    endness=endness)
+                for i, (a, o) in enumerate(c_objects)]
+        else:
+            # we need to extract labels for SimLabeledMemoryObjects
+            elements = [ ]
+            for i, (a, o) in enumerate(c_objects):
+                length: int = ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask)
+                byts = o.bytes_at(a, length, endness=endness)
+                elements.append(byts)
+                if isinstance(o, SimLabeledMemoryObject):
+                    labels.append((a - o.base, length, o.label))
         if len(elements) == 0:
             # nothing is read out
             return claripy.BVV(0, 0)
