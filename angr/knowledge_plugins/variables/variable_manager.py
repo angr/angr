@@ -171,7 +171,7 @@ class VariableManagerInternal:
             ident_sort = 'register'
             a = SimRegisterVariable(repre.reg, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimMemoryVariable:
-            ident_sort = 'memory'
+            ident_sort = 'global'
             a = SimMemoryVariable(repre.addr, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimStackVariable:
             ident_sort = 'stack'
