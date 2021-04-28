@@ -268,9 +268,11 @@ class MVListPage(
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
         differences: Set[int] = set()
         for c in candidates:
-            if not self._contains(c, page_addr) and other._contains(c, page_addr):
+            s_contains = self._contains(c, page_addr)
+            o_contains = other._contains(c, page_addr)
+            if not s_contains and o_contains:
                 differences.add(c)
-            elif self._contains(c, page_addr) and not other._contains(c, page_addr):
+            elif s_contains and not o_contains:
                 differences.add(c)
             else:
                 if self.content[c] is None:
