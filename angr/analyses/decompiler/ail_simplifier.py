@@ -1,4 +1,4 @@
-from typing import Set, Dict, List, Tuple
+from typing import Set, Dict, List, Tuple, Optional
 from collections import defaultdict
 
 from ailment.block import Block
@@ -285,7 +285,7 @@ class AILSimplifier(Analysis):
         return lst
 
     def _replace_expr_and_update_block(self, block, stmt_idx, stmt, the_def, codeloc, src_expr,
-                                       dst_expr) -> Tuple[bool,Block]:
+                                       dst_expr) -> Tuple[bool,Optional[Block]]:
         replaced, new_stmt = stmt.replace(src_expr, dst_expr)
         if replaced:
             new_block = block.copy()
