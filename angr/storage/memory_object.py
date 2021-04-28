@@ -113,12 +113,15 @@ class SimMemoryObject:
             return self.length.cache_key == other.length.cache_key
 
     def __eq__(self, other):
+        if self is other:
+            return True
+
         if type(other) is not SimMemoryObject:
             return NotImplemented
 
-        return  self.base == other.base and \
-                self._object_equals(other) and \
-                self._length_equals(other)
+        return self.base == other.base and \
+               self._object_equals(other) and \
+               self._length_equals(other)
 
     def __hash__(self):
         obj_hash = hash(self.object) if self.is_bytes else self.object.cache_key
