@@ -49,6 +49,7 @@ class LiveDefinitions:
 
     INITIAL_SP_32BIT = 0x7fff0000
     INITIAL_SP_64BIT = 0x7fffffff0000
+    _tops = {}
 
     __slots__ = ('project', 'arch', 'track_tmps', 'register_definitions', 'stack_definitions', 'heap_definitions',
                  'memory_definitions', 'tmps', 'register_uses', 'stack_uses', 'heap_uses',
@@ -123,7 +124,10 @@ class LiveDefinitions:
         :return:        The TOP value.
         """
 
+        if bits in LiveDefinitions._tops:
+            return LiveDefinitions._tops[bits]
         r = claripy.BVS("TOP", bits, explicit_name=True)
+        LiveDefinitions._tops[bits] = r
         return r
 
     def is_top(self, expr) -> bool:

@@ -106,6 +106,8 @@ class VariableRecoveryStateBase:
     The base abstract state for variable recovery analysis.
     """
 
+    _tops = {}
+
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
                  typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
 
@@ -153,7 +155,11 @@ class VariableRecoveryStateBase:
 
     @staticmethod
     def top(bits) -> claripy.ast.BV:
-        return claripy.BVS("top", bits, explicit_name=True)
+        if bits in VariableRecoveryStateBase._tops:
+            return VariableRecoveryStateBase._tops[bits]
+        r = claripy.BVS("top", bits, explicit_name=True)
+        VariableRecoveryStateBase._tops[bits] = r
+        return r
 
     @staticmethod
     def is_top(thing) -> bool:
