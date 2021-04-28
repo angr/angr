@@ -22,6 +22,9 @@ _l = logging.getLogger(name=__name__)
 # The base state
 
 class PropagatorState:
+
+    _tops = {}
+
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
@@ -40,7 +43,7 @@ class PropagatorState:
     def _get_weakref(self):
         return weakref.proxy(self)
 
-    def top(self, size: int):
+    def top(self, bits: int):
         """
         Get a TOP value.
 
@@ -48,7 +51,10 @@ class PropagatorState:
         :return:        The TOP value.
         """
 
-        r = claripy.BVS("TOP", size, explicit_name=True)
+        if bits in self._tops:
+            return self._tops[bits]
+        r = claripy.BVS("TOP", bits, explicit_name=True)
+        self._tops[bits] = r
         return r
 
     def is_top(self, expr) -> bool:
