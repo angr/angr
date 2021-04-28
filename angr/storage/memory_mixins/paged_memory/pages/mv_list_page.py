@@ -103,11 +103,12 @@ class MVListPage(
                         self.content[subaddr] |= data
 
     def merge(self, others: List['MVListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
-              memory=None):
+              memory=None, changed_offsets: Optional[Set[int]]=None):
 
-        changed_offsets = set()
-        for other in others:
-            changed_offsets |= self.changed_bytes(other, page_addr)
+        if changed_offsets is None:
+            changed_offsets = set()
+            for other in others:
+                changed_offsets |= self.changed_bytes(other, page_addr)
 
         all_pages: List['MVListPage'] = [self] + others
         if merge_conditions is None:
