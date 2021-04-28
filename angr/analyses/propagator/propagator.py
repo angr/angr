@@ -494,13 +494,6 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _pre_job_handling(self, job):
         pass
 
-    def _post_analysis(self):
-        # Filter replacements and remove all TOP values
-        if self.replacements is not None:
-            for codeloc in list(self.replacements.keys()):
-                rep = { (k, v) for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v) }
-                self.replacements[codeloc] = rep
-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
@@ -585,6 +578,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         We add the current propagation replacements result to the kb if the
         function has already been completed in cfg creation.
         """
+
+        # Filter replacements and remove all TOP values
+        if self.replacements is not None:
+            for codeloc in list(self.replacements.keys()):
+                rep = dict((k, v) for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v))
+                self.replacements[codeloc] = rep
+
         if self._function is not None:
             if self._check_func_complete(self._function):
                 func_loc = CodeLocation(self._function.addr, None)
