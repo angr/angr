@@ -160,18 +160,19 @@ class UltraPage(MemoryObjectMixin, PageBase):
             self.symbolic_data[addr] = data
 
     def merge(self, others: List['UltraPage'], merge_conditions, common_ancestor=None, page_addr: int=None,
-              memory=None):
+              memory=None, changed_offsets: Optional[Set[int]]=None):
 
         all_pages = [self] + others
         merged_to = None
         merged_objects = set()
         merged_offsets = set()
 
-        changed_bytes: Set[int] = set()
-        for o in others:
-            changed_bytes |= self.changed_bytes(o, page_addr=page_addr)
+        if changed_offsets is None:
+            changed_offsets = set()
+            for other in others:
+                changed_offsets |= self.changed_bytes(other, page_addr)
 
-        for b in sorted(changed_bytes):
+        for b in sorted(changed_offsets):
             if merged_to is not None and not b >= merged_to:
                 l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue

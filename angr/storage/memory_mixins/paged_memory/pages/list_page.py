@@ -98,11 +98,12 @@ class ListPage(MemoryObjectMixin, PageBase):
             self._update_boundaries(addr, addr + size)
 
     def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int=None,
-              memory=None):
+              memory=None, changed_offsets: Optional[Set[int]]=None):
 
-        changed_offsets = set()
-        for other in others:
-            changed_offsets |= self.changed_bytes(other, page_addr)
+        if changed_offsets is None:
+            changed_offsets = set()
+            for other in others:
+                changed_offsets |= self.changed_bytes(other, page_addr)
 
         all_pages: List['ListPage'] = [self] + others
         if merge_conditions is None:
