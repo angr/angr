@@ -250,7 +250,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -259,7 +259,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -268,7 +268,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -277,7 +277,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -286,7 +286,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -295,7 +295,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -304,7 +304,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -313,7 +313,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -322,7 +322,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -331,7 +331,7 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(self.arch.byte_width)
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpNE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -432,7 +432,6 @@ class SimEnginePropagatorAIL(
             return self.state.top(operand_0.size())
 
         return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
 
     #
     # Util methods
