@@ -291,11 +291,17 @@ class PropagatorAILState(PropagatorState):
         else:
             _l.warning("Unsupported old variable type %s.", type(variable))
 
-    def store_stack_variable(self, sp_offset: int, size, new, endness=None) -> None:  # pylint:disable=unused-argument
+    def store_stack_variable(self, sp_offset: int, size, new, expr=None, def_at=None, endness=None) -> None:  # pylint:disable=unused-argument
         # normalize sp_offset to handle negative offsets
         sp_offset += 0x65536
         sp_offset &= (1 << self.arch.bits) - 1
-        self._stack_variables.store(sp_offset, new, size=size, endness=endness)
+
+        label = {
+            'expr': expr,
+            'def_at': def_at,
+        }
+
+        self._stack_variables.store(sp_offset, new, size=size, endness=endness, label=label)
 
     def get_variable(self, variable) -> Any:
         if isinstance(variable, ailment.Expr.Tmp):
@@ -360,11 +366,49 @@ class PropagatorAILState(PropagatorState):
         sp_offset += 0x65536
         sp_offset &= (1 << self.arch.bits) - 1
         try:
-            obj = self._stack_variables.load(sp_offset, size=size, endness=endness)
-            return obj
+            value, labels = self._stack_variables.load_with_labels(sp_offset, size=size, endness=endness)
         except SimMemoryMissingError:
             # the stack variable does not exist
             return None
+
+        if len(labels) == 1:
+            # extract labels
+            offset, size, label = labels[0]
+            expr: Optional[ailment.Expr.Expression] = label['expr']
+            def_at = label['def_at']
+            if expr is not None:
+                if expr.bits > size * self.arch.byte_width:
+                    # we are loading a chunk of the original expression
+                    expr = self._extract_ail_expression(
+                        offset * self.arch.byte_width,
+                        size * self.arch.byte_width,
+                        expr,
+                    )
+                if expr.bits < size * self.arch.byte_width:
+                    # we are loading more than the expression has - extend the size of the expression
+                    expr = self._extend_ail_expression(
+                        size * self.arch.byte_width - expr.bits,
+                        expr,
+                    )
+        else:
+            # Multiple definitions and expressions
+            expr = None
+            def_at = None
+
+        if self.is_top(value):
+            # return a non-const expression if there is one, or return a Top
+            if expr is not None:
+                if isinstance(expr, ailment.Expr.Expression) and not isinstance(expr, ailment.Expr.Const):
+                    copied_expr = expr.copy()
+                    copied_expr.tags['def_at'] = def_at
+                    return copied_expr
+                else:
+                    return value
+            if value.size() != size * self.arch.byte_width:
+                return self.top(size * self.arch.byte_width)
+            return value
+
+        return expr if expr is not None else value
 
     def add_replacement(self, codeloc, old, new):
 
