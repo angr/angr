@@ -21,8 +21,6 @@ def _testfind(addr, failmsg):
     s = p.factory.simgr(e)
     r = s.explore(find=addr)
     nose.tools.ok_(len(r.found) > 0, failmsg)
-    with open("./out.txt", "a") as outfile:
-        print(r.found[0].posix.dumps(0), file=outfile)
     return r.found[0].posix.dumps(0)
 
 def _testnotfind(addr, failmsg):
@@ -38,10 +36,8 @@ def test_normal():
     nose.tools.ok_(answer == b'normal\n')
 
 def test_exact():
-    _testfind(find_exact, "Exact Failure!")
-
-def test_eof():
-    _testfind(find_eof, "EOF Failure!")
+    answer = _testfind(find_exact, "Exact Failure!")
+    nose.tools.ok_(answer.endswith(b'0123456789'))
 
 def test_impossible():
     _testnotfind(find_impossible, "Impossible Failure!")
