@@ -41,7 +41,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     * Some more documentation and examples would be nice.
     """
 
-    def __init__(self, subject: Union[Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=3,
+    def __init__(self, subject: Union[Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=2,
                  track_tmps=False, observation_points=None, init_state: ReachingDefinitionsState=None, cc=None,
                  function_handler=None, call_stack: Optional[List[int]]=None, maximum_local_call_depth=5,
                  observe_all=False, visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None,
