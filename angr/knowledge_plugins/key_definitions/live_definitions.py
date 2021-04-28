@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator
+from typing import Optional, Iterable, Dict, Set, Generator, TYPE_CHECKING
 import logging
 
 import claripy
@@ -17,6 +17,9 @@ from .atoms import Atom, Register, MemoryLocation, Tmp
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
+
+if TYPE_CHECKING:
+    from angr.storage import SimMemoryObject
 
 
 l = logging.getLogger(name=__name__)
@@ -67,13 +70,13 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = MultiValuedMemory(memory_id="reg", top_func=self.top) \
+        self.register_definitions = MultiValuedMemory(memory_id="reg", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if register_definitions is None else register_definitions
-        self.stack_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
+        self.stack_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if stack_definitions is None else stack_definitions
-        self.memory_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
+        self.memory_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if memory_definitions is None else memory_definitions
-        self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top) \
+        self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if heap_definitions is None else heap_definitions
         self.tmps: Dict[int, Set[Definition]] = {}
 
@@ -115,6 +118,18 @@ class LiveDefinitions:
 
     def _get_weakref(self):
         return weakref.proxy(self)
+
+    def _mo_cmp(self, mo_self: Set['SimMemoryObject'], mo_other: Set['SimMemoryObject'], addr: int, size: int):
+        # comparing bytes from two sets of memory objects
+        # we don't need to resort to byte-level comparison. object-level is good enough.
+
+        values_self = set()
+        values_other = set()
+        for mo in mo_self:
+            values_self.add(mo)
+        for mo in mo_other:
+            values_other.add(mo)
+        return values_self != values_other
 
     def top(self, bits: int):
         """

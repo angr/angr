@@ -1,5 +1,5 @@
 import weakref
-from typing import Set, Optional, Any, Tuple
+from typing import Set, Optional, Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -15,6 +15,10 @@ from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
+
+if TYPE_CHECKING:
+    from angr.storage import SimMemoryObject
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -42,6 +46,14 @@ class PropagatorState:
 
     def _get_weakref(self):
         return weakref.proxy(self)
+
+    def _mo_cmp(self, mo_self: 'SimMemoryObject', mo_other: 'SimMemoryObject', addr: int, size: int):
+        # comparing bytes from two sets of memory objects
+        # we don't need to resort to byte-level comparison. object-level is good enough.
+
+        if mo_self.object.symbolic or mo_other.object.symbolic:
+            return mo_self.object is mo_other.object
+        return None
 
     def top(self, bits: int):
         """
@@ -122,8 +134,8 @@ class PropagatorVEXState(PropagatorState):
     def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
                  prop_count=None):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
-        self._registers = LabeledMemory(memory_id='reg', top_func=self.top) if registers is None else registers
-        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top) if local_variables is None else local_variables
+        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if registers is None else registers
+        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if local_variables is None else local_variables
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -206,9 +218,9 @@ class PropagatorAILState(PropagatorState):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
                          equivalence=equivalence)
 
-        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top) \
+        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if stack_variables is None else stack_variables
-        self._registers = LabeledMemory(memory_id='reg', top_func=self.top) \
+        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if registers is None else registers
         self._tmps = {}
 
