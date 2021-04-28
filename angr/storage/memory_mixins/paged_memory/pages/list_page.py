@@ -16,15 +16,29 @@ class ListPage(MemoryObjectMixin, PageBase):
         super().__init__(**kwargs)
 
         self.content: List[Optional[SimMemoryObject]] = content
+        self._min_stored_offset: Optional[int] = None
+        self._max_stored_offset: Optional[int] = None
         if content is None:
             if memory is not None:
                 self.content: List[Optional[SimMemoryObject]] = [None] * memory.page_size  # TODO: this isn't the best
 
         self.sinkhole: Optional[SimMemoryObject] = sinkhole
 
+    def _update_boundaries(self, min_offset: int, max_offset: int) -> None:
+        if self._min_stored_offset is None:
+            self._min_stored_offset = min_offset
+        else:
+            self._min_stored_offset = min(self._min_stored_offset, min_offset)
+        if self._max_stored_offset is None:
+            self._max_stored_offset = max_offset
+        else:
+            self._max_stored_offset = max(self._max_stored_offset, max_offset)
+
     def copy(self, memo):
         o = super().copy(memo)
         o.content = list(self.content)
+        o._min_stored_offset = self._min_stored_offset
+        o._max_stored_offset = self._max_stored_offset
         o.sinkhole = self.sinkhole
         return o
 
@@ -63,8 +77,10 @@ class ListPage(MemoryObjectMixin, PageBase):
         size = global_end_addr - global_start_addr
         new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr), key=(self.category, global_start_addr), memory=memory, **kwargs)
         new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
-        for subaddr in range(global_start_addr - page_addr, addr):
+        subaddr_start = global_start_addr - page_addr
+        for subaddr in range(subaddr_start, addr):
             self.content[subaddr] = new_item
+        self._update_boundaries(subaddr_start, addr)
         result[-1] = (global_start_addr, new_item)
 
     def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, **kwargs):
@@ -74,9 +90,12 @@ class ListPage(MemoryObjectMixin, PageBase):
         if size == len(self.content) and addr == 0:
             self.sinkhole = data
             self.content = [None]*len(self.content)
+            self._min_stored_offset = None
+            self._max_stored_offset = None
         else:
             for subaddr in range(addr, addr + size):
                 self.content[subaddr] = data
+            self._update_boundaries(addr, addr + size)
 
     def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int=None,
               memory=None):
@@ -181,17 +200,32 @@ class ListPage(MemoryObjectMixin, PageBase):
                            )  # do not convert endianness again
                 merged_offsets.add(b)
 
+        if merged_offsets:
+            self._update_boundaries(min(merged_offsets), max(merged_offsets) + 1)
         return merged_offsets
 
     def changed_bytes(self, other: 'ListPage', page_addr: int=None):
 
         candidates: Set[int] = set()
-        for i in range(len(self.content)):
-            if self._contains(i, page_addr):
-                candidates.add(i)
-        for i in range(len(other.content)):
-            if other._contains(i, page_addr):
-                candidates.add(i)
+        if self.sinkhole is None:
+            if self._min_stored_offset is not None and self._max_stored_offset is not None:
+                for i in range(self._min_stored_offset, self._max_stored_offset):
+                    if self._contains(i, page_addr):
+                        candidates.add(i)
+        else:
+            for i in range(len(self.content)):
+                if self._contains(i, page_addr):
+                    candidates.add(i)
+
+        if other.sinkhole is None:
+            if other._min_stored_offset is not None and other._max_stored_offset is not None:
+                for i in range(other._min_stored_offset, other._max_stored_offset):
+                    if other._contains(i, page_addr):
+                        candidates.add(i)
+        else:
+            for i in range(len(other.content)):
+                if other._contains(i, page_addr):
+                    candidates.add(i)
 
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
         differences: Set[int] = set()
