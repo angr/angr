@@ -129,7 +129,7 @@ class LiveDefinitions:
             values_self.add(mo)
         for mo in mo_other:
             values_other.add(mo)
-        return values_self != values_other
+        return values_self == values_other
 
     def top(self, bits: int):
         """
