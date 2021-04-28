@@ -30,7 +30,7 @@ class RichR:
 
     def __init__(self, data: claripy.ast.Base, variable=None, typevar: Optional[typevars.TypeVariable]=None,
                  type_constraints=None):
-        self.data = data
+        self.data: claripy.ast.Base = data
         self.variable = variable
         self.typevar = typevar
         self.type_constraints = type_constraints
@@ -434,7 +434,6 @@ class SimEngineVRBase(SimEngineLight):
 
                 if len(all_vars) > 1:
                     # overlapping variables
-                    import ipdb; ipdb.set_trace()
                     l.warning("Reading memory with overlapping variables: %s. Ignoring all but the first one.",
                               all_vars)
 
