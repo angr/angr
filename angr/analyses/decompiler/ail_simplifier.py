@@ -74,12 +74,14 @@ class AILSimplifier(Analysis):
 
         blocks_by_addr_and_idx = dict(((node.addr, node.idx), node) for node in self.func_graph.nodes())
 
+        replaced = False
         for (block_addr, block_idx), reps in replacements_by_block_addrs_and_idx.items():
             block = blocks_by_addr_and_idx[(block_addr, block_idx)]
-            new_block = BlockSimplifier._replace_and_build(block, reps)
+            r, new_block = BlockSimplifier._replace_and_build(block, reps)
+            replaced |= r
             self.blocks[block] = new_block
 
-        return True
+        return replaced
 
     def _unify_local_variables(self) -> bool:
         """
