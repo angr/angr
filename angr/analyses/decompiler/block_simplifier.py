@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
-from typing import Optional, Union, Type, Iterable, TYPE_CHECKING
+from typing import Optional, Union, Type, Iterable, Tuple, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call
 from ailment.expression import Expression, Tmp, Register, Load
@@ -85,15 +85,17 @@ class BlockSimplifier(Analysis):
         replacements = list(propagator._states.values())[0]._replacements
         if not replacements:
             return block
-        new_block = self._replace_and_build(block, replacements)
+        _, new_block = self._replace_and_build(block, replacements)
+        new_block = self._eliminate_self_assignments(new_block)
         new_block = self._eliminate_dead_assignments(new_block)
         new_block = self._peephole_optimize(new_block)
         return new_block
 
     @staticmethod
-    def _replace_and_build(block, replacements):
+    def _replace_and_build(block, replacements) -> Tuple[bool,'Block']:
 
         new_statements = block.statements[::]
+        replaced = False
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
@@ -115,11 +117,15 @@ class BlockSimplifier(Analysis):
                         r, new_stmt = stmt.replace(old, new)
 
                 if r:
+                    replaced = True
                     new_statements[codeloc.stmt_idx] = new_stmt
+
+        if not replaced:
+            return False, block
 
         new_block = block.copy()
         new_block.statements = new_statements
-        return new_block
+        return True, new_block
 
     @staticmethod
     def _eliminate_self_assignments(block):
