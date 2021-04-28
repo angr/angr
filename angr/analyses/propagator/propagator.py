@@ -55,7 +55,8 @@ class PropagatorState:
             return mo_self.object is mo_other.object
         return None
 
-    def top(self, bits: int):
+    @staticmethod
+    def top(bits: int) -> claripy.ast.Base:
         """
         Get a TOP value.
 
@@ -63,13 +64,14 @@ class PropagatorState:
         :return:        The TOP value.
         """
 
-        if bits in self._tops:
-            return self._tops[bits]
+        if bits in PropagatorState._tops:
+            return PropagatorState._tops[bits]
         r = claripy.BVS("TOP", bits, explicit_name=True)
-        self._tops[bits] = r
+        PropagatorState._tops[bits] = r
         return r
 
-    def is_top(self, expr) -> bool:
+    @staticmethod
+    def is_top(expr) -> bool:
         """
         Check if the given expression is a TOP value.
 
@@ -99,8 +101,12 @@ class PropagatorState:
                         if var not in state._replacements[loc]:
                             state._replacements[loc][var] = repl
                         else:
-                            if state._replacements[loc][var] != repl:
-                                state._replacements[loc][var] = self.top(self.arch.byte_width)
+                            if self.is_top(repl) or self.is_top(self._replacements[loc][var]):
+                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                                state._replacements[loc][var] = t
+                            elif state._replacements[loc][var] != repl:
+                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                                state._replacements[loc][var] = t
             state._equivalence |= o._equivalence
 
         return state
@@ -487,6 +493,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
 
     def _pre_job_handling(self, job):
         pass
+
+    def _post_analysis(self):
+        # Filter replacements and remove all TOP values
+        if self.replacements is not None:
+            for codeloc in list(self.replacements.keys()):
+                rep = { (k, v) for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v) }
+                self.replacements[codeloc] = rep
 
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
