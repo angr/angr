@@ -381,26 +381,20 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
+        result_size = arg0.bits
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data << r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
-
-            r = None
-            if r0.data is not None and r1.data is not None:
-                r = r0.data << r1.data
-
+        if not r1.data.concrete:
+            # we don't support symbolic shiftamount
+            r = self.state.top(result_size)
             return RichR(r,
                          typevar=r0.typevar,
                          )
 
-        except TypeError as ex:
-            self.l.warning(ex)
-            return RichR(self.state.top(expr.bits))
+        shiftamount = r1.data._model_concrete.value
+
+        return RichR(r0.data << shiftamount,
+                     typevar=typeconsts.int_type(result_size),
+                     type_constraints=None)
 
     def _ail_handle_Shr(self, expr):
 
@@ -408,26 +402,20 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
+        result_size = arg0.bits
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data >> r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
-
-            r = None
-            if r0.data is not None and r1.data is not None:
-                r = r0.data >> r1.data
-
+        if not r1.data.concrete:
+            # we don't support symbolic shiftamount
+            r = self.state.top(result_size)
             return RichR(r,
                          typevar=r0.typevar,
                          )
 
-        except TypeError as ex:
-            self.l.warning(ex)
-            return RichR(self.state.top(expr.bits))
+        shiftamount = r1.data._model_concrete.value
+
+        return RichR(claripy.LShR(r0.data, shiftamount),
+                     typevar=typeconsts.int_type(result_size),
+                     type_constraints=None)
 
     def _ail_handle_Sal(self, expr):
 
@@ -435,26 +423,20 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
+        result_size = arg0.bits
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                result_size = arg0.bits
-                # constants
-                return RichR(r0.data << r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
-
-            r = None
-            if r0.data is not None and r1.data is not None:
-                r = r0.data << r1.data
-
+        if not r1.data.concrete:
+            # we don't support symbolic shiftamount
+            r = self.state.top(result_size)
             return RichR(r,
                          typevar=r0.typevar,
                          )
 
-        except TypeError as ex:
-            self.l.warning(ex)
-            return RichR(self.state.top(expr.bits))
+        shiftamount = r1.data._model_concrete.value
+
+        return RichR(r0.data << shiftamount,
+                     typevar=typeconsts.int_type(result_size),
+                     type_constraints=None)
 
     def _ail_handle_Sar(self, expr):
 
@@ -462,27 +444,20 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
+        result_size = arg0.bits
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data >> r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
-
-            if r0.data is not None and r1.data is not None:
-                r = r0.data >> r1.data
-            else:
-                r = self.state.top(expr.bits)
-
+        if not r1.data.concrete:
+            # we don't support symbolic shiftamount
+            r = self.state.top(result_size)
             return RichR(r,
                          typevar=r0.typevar,
                          )
 
-        except TypeError as ex:
-            self.l.warning(ex)
-            return RichR(self.state.top(expr.bits))
+        shiftamount = r1.data._model_concrete.value
+
+        return RichR(r0.data >> shiftamount,
+                     typevar=typeconsts.int_type(result_size),
+                     type_constraints=None)
 
     def _ail_handle_And(self, expr):
 
