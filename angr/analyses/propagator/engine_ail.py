@@ -73,18 +73,25 @@ class SimEnginePropagatorAIL(
         if sp_offset is not None:
             if isinstance(data, Expr.StackBaseOffset):
                 # convert it to a BV
+                expr = data
                 data_v = self.sp_offset(data.offset)
                 size = data_v.size() // self.arch.byte_width
             elif isinstance(data, claripy.ast.BV):
+                expr = stmt.data
                 data_v = data
                 size = data_v.size() // self.arch.byte_width
             else:
-                data_v = None
+                expr = data
+                data_v = self.state.top(data.bits)
                 size = data.bits // self.arch.byte_width
 
             if data_v is not None:
                 # Storing data to a stack variable
-                self.state.store_stack_variable(sp_offset, size, data_v, endness=stmt.endness)
+                self.state.store_stack_variable(sp_offset, size, data_v,
+                                                expr=expr,
+                                                def_at=self._codeloc(),
+                                                endness=stmt.endness,
+                                                )
 
             # set equivalence
             var = SimStackVariable(sp_offset, size)
@@ -194,6 +201,12 @@ class SimEnginePropagatorAIL(
             # Stack variable.
             var = self.state.get_stack_variable(sp_offset, expr.size, endness=expr.endness)
             if var is not None:
+                # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
+                # replacing stack variables.
+                #
+                #if not self.is_using_outdated_def(var):
+                #    l.debug("Add a replacement: %s with %s", expr, var)
+                #    self.state.add_replacement(self._codeloc(), expr, var)
                 return var
 
         if addr is not expr.addr:
