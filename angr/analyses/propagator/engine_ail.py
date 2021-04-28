@@ -180,7 +180,7 @@ class SimEnginePropagatorAIL(
 
         return expr
 
-    def _ail_handle_Load(self, expr):
+    def _ail_handle_Load(self, expr: Expr.Load):
 
         self.state: 'PropagatorAILState'
 
@@ -200,11 +200,11 @@ class SimEnginePropagatorAIL(
             return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
         return expr
 
-    def _ail_handle_Convert(self, expr):
+    def _ail_handle_Convert(self, expr: Expr.Convert):
         operand_expr = self._expr(expr.operand)
 
         if self.state.is_top(operand_expr):
-            return self.state.top(operand_expr.size() * self.arch.byte_width)
+            return self.state.top(expr.to_bits)
 
         if type(operand_expr) is Expr.Convert:
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
