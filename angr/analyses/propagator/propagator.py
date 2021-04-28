@@ -445,7 +445,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     - Writing values to a stack variable
     """
 
-    def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=2,
+    def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
                  load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None):
         if func is not None:
             if block is not None:
