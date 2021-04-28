@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List, Set, Tuple, Union, Dict
+from typing import Optional, List, Set, Tuple, Union, Callable
 
 import claripy
 
@@ -24,12 +24,13 @@ class MVListPage(
     or not.
     Each load() returns an iterator of all values stored at that location.
     """
-    def __init__(self, memory=None, content=None, sinkhole=None, **kwargs):
+    def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
         self.content: List[Optional[Set[_MOTYPE]]] = content
         self._min_stored_offset: Optional[int] = None
         self._max_stored_offset: Optional[int] = None
+        self._mo_cmp: Optional[Callable] = mo_cmp
 
         if content is None:
             if memory is not None:
@@ -53,6 +54,7 @@ class MVListPage(
         o.sinkhole = self.sinkhole
         o._min_stored_offset = self._min_stored_offset
         o._max_stored_offset = self._max_stored_offset
+        o._mo_cmp = self._mo_cmp
         return o
 
     def load(self, addr, size=None, endness=None, page_addr=None, memory=None, cooperate=False,
@@ -277,14 +279,17 @@ class MVListPage(
                 if other.content[c] is None:
                     other.content[c] = { SimMemoryObject(other.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
                                                        byte_width=byte_width, endness='Iend_BE') }
-                if self._contains(c, page_addr) and self.content[c] != other.content[c]:
-                    # Try to see if the bytes are equal
-                    self_bytes = { mo.bytes_at(page_addr + c, 1) for mo in self.content[c] }
-                    other_bytes = { mo.bytes_at(page_addr + c, 1) for mo in other.content[c] }
-                    if self_bytes != other_bytes:
-                        # l.debug("%s: offset %x, two different bytes %s %s from %s %s", self.id, c,
-                        #        self_byte, other_byte,
-                        #        self[c].object.model, other[c].object.model)
+                if s_contains and self.content[c] != other.content[c]:
+                    same = None
+                    if self._mo_cmp is not None:
+                        same = self._mo_cmp(self.content[c], other.content[c], page_addr + c, 1)
+                    if same is None:
+                        # Try to see if the bytes are equal
+                        self_bytes = { mo.bytes_at(page_addr + c, 1) for mo in self.content[c] }
+                        other_bytes = { mo.bytes_at(page_addr + c, 1) for mo in other.content[c] }
+                        same = self_bytes == other_bytes
+
+                    if same is False:
                         differences.add(c)
                 else:
                     # this means the byte is in neither memory
