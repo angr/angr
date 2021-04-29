@@ -1,9 +1,10 @@
 import nose
 import logging
-
+import os
 import angr
 
-TARGET_APP = "../../binaries/tests/x86_64/fgets"
+TARGET_APP = os.path.join(os.path.dirname(os.path.realpath(str(__file__))),
+    "../../binaries/tests/x86_64/fgets")
 
 l = logging.getLogger('angr.tests.libc.fgets')
 
