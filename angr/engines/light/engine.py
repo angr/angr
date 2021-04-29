@@ -57,9 +57,11 @@ class SimEngineLightMixin:
             # Local variable
             if spoffset_expr.op == "BVS":
                 return 0
-            elif spoffset_expr.op == '__add__' and \
-                    isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
-                return spoffset_expr.args[1].args[0]
+            elif spoffset_expr.op == '__add__':
+                if len(spoffset_expr.args) == 1:
+                    return 0
+                elif isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
+                    return spoffset_expr.args[1].args[0]
         return None
 
 
