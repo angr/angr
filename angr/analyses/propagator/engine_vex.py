@@ -122,6 +122,8 @@ class SimEnginePropagatorVEX(
             self.state.store_register(stmt.offset, size, data)
 
     def _store_data(self, addr, data, size, endness):
+        if data is None:
+            data = self.state.top(size * self.arch.byte_width)
         # pylint: disable=unused-argument,no-self-use
         if isinstance(addr, claripy.ast.Base):
             sp_offset = self.extract_offset_to_sp(addr)
