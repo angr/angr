@@ -367,7 +367,8 @@ class SimEnginePropagatorAIL(
         return Expr.BinaryOp(expr.idx, 'Add', [operand_0 if operand_0 is not None else expr.operands[0],
                                                operand_1 if operand_1 is not None else expr.operands[1]
                                                ],
-                             expr.signed)
+                             expr.signed,
+                             **expr.tags)
 
     def _ail_handle_Sub(self, expr):
         operand_0 = self._expr(expr.operands[0])
