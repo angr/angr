@@ -211,6 +211,10 @@ class VariableRecoveryStateBase:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
                 return -addr.args[1]._model_concrete.value
+            elif addr.op == "__and__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                offset = VariableRecoveryStateBase.get_stack_offset(addr.args[0])
+                if isinstance(offset, int):
+                    return offset, addr.args[1]._model_concrete.value
         return None
 
     def stack_addr_from_offset(self, offset: int) -> int:
