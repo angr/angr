@@ -383,13 +383,21 @@ class SimEngineVRBase(SimEngineLight):
         codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
 
         if self.state.is_stack_address(addr):
-            stack_offset = self.state.get_stack_offset(addr)
-            if stack_offset is not None:
+            potential_offset = self.state.get_stack_offset(addr)
+            custom_mask = None
+            if potential_offset is not None:
                 # Loading data from stack
 
                 # split the offset into a concrete offset and a dynamic offset
                 # the stack offset may not be a concrete offset
                 # for example, SP-0xe0+var_1
+                if isinstance(potential_offset, tuple):
+                    stack_offset = potential_offset[0]
+                    custom_mask = potential_offset[1]
+                    print(custom_mask)
+                else:
+                    stack_offset = potential_offset
+
                 if type(stack_offset) is ArithmeticExpression:
                     if type(stack_offset.operands[0]) is int:
                         concrete_offset = stack_offset.operands[0]
@@ -408,7 +416,7 @@ class SimEngineVRBase(SimEngineLight):
 
                 try:
                     values: Optional[MultiValues] = self.state.stack_region.load(
-                        self.state.stack_addr_from_offset(concrete_offset),
+                        self.state.stack_addr_from_offset(concrete_offset, custom_mask=custom_mask),
                         size=size,
                         endness=self.state.arch.memory_endness)
 
