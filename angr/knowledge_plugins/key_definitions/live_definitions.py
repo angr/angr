@@ -31,6 +31,9 @@ l = logging.getLogger(name=__name__)
 
 
 class DefinitionAnnotation(Annotation):
+
+    __slots__ = ('definition', )
+
     def __init__(self, definition):
         super().__init__()
         self.definition = definition
@@ -183,7 +186,8 @@ class LiveDefinitions:
                 return -addr.args[1]._model_concrete.value
         return None
 
-    def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition):
+    @staticmethod
+    def annotate_with_def(symvar: claripy.ast.Base, definition: Definition):
         """
 
         :param symvar:
@@ -251,7 +255,7 @@ class LiveDefinitions:
         return state
 
     def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[MultiValues]=None, dummy=True,
-                         tags: Set[Tag]=None) -> None:
+                         tags: Set[Tag]=None, annotated=False) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
@@ -261,19 +265,24 @@ class LiveDefinitions:
         :return: None
         """
 
-        data = MultiValues(offset_to_values={0: {self.top(atom.size * self.arch.byte_width)}})
-        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags)
+        if data is None:
+            data = MultiValues(offset_to_values={0: {self.top(atom.size * self.arch.byte_width)}})
+        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags, annotated=annotated)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
-                                dummy=False, tags: Set[Tag]=None, endness=None) -> Optional[MultiValues]:
+                                dummy=False, tags: Set[Tag]=None, endness=None,
+                                annotated=False) -> Optional[MultiValues]:
         if data is None:
             raise TypeError("kill_and_add_definition() does not take None as data.")
 
-        definition: Definition = Definition(atom, code_loc, dummy=dummy, tags=tags)
-        d = MultiValues()
-        for offset, vs in data.values.items():
-            for v in vs:
-                d.add_value(offset, self.annotate_with_def(v, definition))
+        if annotated:
+            d = data
+        else:
+            definition: Definition = Definition(atom, code_loc, dummy=dummy, tags=tags)
+            d = MultiValues()
+            for offset, vs in data.values.items():
+                for v in vs:
+                    d.add_value(offset, self.annotate_with_def(v, definition))
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
