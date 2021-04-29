@@ -25,7 +25,7 @@ class __getdelim(angr.SimProcedure):
 
 
         # symbolic delimiters will make this tricky
-        if delim.to_claripy().symbolic:
+        if delim.symbolic:
             raise angr.SimProcedureError("I don't know how to handle a symbolic delimiter")
 
         # case 1: the data is concrete. we should read it a byte at a time since we can't seek for
