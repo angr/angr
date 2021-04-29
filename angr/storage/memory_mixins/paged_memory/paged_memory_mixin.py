@@ -191,7 +191,7 @@ class PagedMemoryMixin(MemoryMixin):
     def merge(self, others: Iterable['PagedMemoryMixin'], merge_conditions, common_ancestor=None) -> bool:
         changed_pages_and_offsets: Dict[int,Optional[Set[int]]] = {}
         for o in others:
-            for changed_page, changed_offsets in self.changed_pages(o):
+            for changed_page, changed_offsets in self.changed_pages(o).items():
                 if changed_offsets is None:
                     changed_pages_and_offsets[changed_page] = None
                 else:
@@ -490,26 +490,26 @@ class PagedMemoryMixin(MemoryMixin):
 
         return changes
 
-    def changed_pages(self, other) -> Set[Tuple[int,Optional[Set[int]]]]:
+    def changed_pages(self, other) -> Dict[int,Optional[Set[int]]]:
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
         difference = my_pages.difference(other_pages)
 
-        changes: Set[Tuple[int,Optional[Set[int]]]] = set((d, None) for d in difference)
+        changes: Dict[int,Optional[Set[int]]] = dict((d, None) for d in difference)
 
         for pageno in intersection:
             my_page = self._pages[pageno]
             other_page = other._pages[pageno]
 
             if (my_page is None) ^ (other_page is None):
-                changes.update((pageno, None))
+                changes[pageno] = None
             elif my_page is None:
                 pass
             else:
                 changed_offsets = my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)
                 if changed_offsets:
-                    changes.add((pageno, tuple(changed_offsets)))
+                    changes[pageno] = changed_offsets
 
         return changes
 
