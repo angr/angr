@@ -395,7 +395,7 @@ class SimSystemPosix(SimStatePlugin):
             pass
 
         ideal = self._pick_fd()
-        self.state.solver.add(fd == ideal)
+        self.state.add_constraints(fd == ideal)
         if not self.state.solver.satisfiable():
             raise SimPosixError("Tried to do operation on symbolic but partially constrained file descriptor")
         fd = ideal

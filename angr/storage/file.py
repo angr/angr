@@ -254,7 +254,7 @@ class SimFile(SimFileBase, DefaultMemory):  # TODO: pick a better base class omg
             except SimSolverError:
                 passed_max_size = self.state.solver.min(size)
                 l.warning("Symbolic read size is too large for threshold - concretizing to min (%d)", passed_max_size)
-                self.state.solver.add(size == passed_max_size)
+                self.state.add_constraints(size == passed_max_size)
         else:
             passed_max_size = self.state.solver.eval(size)
             if passed_max_size > 2**13:
@@ -463,7 +463,7 @@ class SimPackets(SimFileBase):
             raise SimFileError("SimPacket.read(%d): Packet number is past frontier of %d?" % (pos, len(self.content)))
         elif pos != len(self.content):
             _, realsize = self.content[pos]
-            self.state.solver.add(realsize <= size)  # assert that the packet fits within the read request
+            self.state.add_constraints(realsize <= size)  # assert that the packet fits within the read request
             if not self.state.solver.satisfiable():
                 raise SimFileError("SimPackets could not fit the current packet into the read request of %s bytes: %s" % (size, self.content[pos]))
             return self.content[pos] + (pos+1,)
@@ -479,7 +479,7 @@ class SimPackets(SimFileBase):
         # if short reads are enabled, replace size with a symbol
         if short_reads is True or (short_reads is None and sim_options.SHORT_READS in self.state.options):
             size = self.state.solver.BVS('packetsize_%d_%s' % (len(self.content), self.ident), self.state.arch.bits, key=('file', self.ident, 'packetsize', len(self.content)))
-            self.state.solver.add(size <= orig_size)
+            self.state.add_constraints(size <= orig_size)
 
         # figure out the maximum size of the read
         if not self.state.solver.symbolic(size):
@@ -487,7 +487,7 @@ class SimPackets(SimFileBase):
         elif self.state.solver.satisfiable(extra_constraints=(size <= self.state.libc.max_packet_size,)):
             l.info("Constraining symbolic packet size to be less than %d", self.state.libc.max_packet_size)
             if not self.state.solver.is_true(orig_size <= self.state.libc.max_packet_size):
-                self.state.solver.add(size <= self.state.libc.max_packet_size)
+                self.state.add_constraints(size <= self.state.libc.max_packet_size)
             if not self.state.solver.symbolic(orig_size):
                 max_size = min(self.state.solver.eval(orig_size), self.state.libc.max_packet_size)
             else:
@@ -495,7 +495,7 @@ class SimPackets(SimFileBase):
         else:
             max_size = self.state.solver.min(size)
             l.warning("Could not constrain symbolic packet size to <= %d; using minimum %d for size", self.state.libc.max_packet_size, max_size)
-            self.state.solver.add(size == max_size)
+            self.state.add_constraints(size == max_size)
 
         # generate the packet data and return it
         data = self.state.solver.BVS('packet_%d_%s' % (len(self.content), self.ident), max_size * self.state.arch.byte_width, key=('file', self.ident, 'packet', len(self.content)))
@@ -537,8 +537,8 @@ class SimPackets(SimFileBase):
         elif pos != len(self.content):
             realdata, realsize = self.content[pos]
             maxlen = max(len(realdata), len(data))
-            self.state.solver.add(realdata[maxlen-1:0] == data[maxlen-1:0])
-            self.state.solver.add(size == realsize)
+            self.state.add_constraints(realdata[maxlen-1:0] == data[maxlen-1:0])
+            self.state.add_constraints(size == realsize)
             if not self.state.solver.satisfiable():
                 raise SimFileError("Packet write equality constraints made state unsatisfiable???")
             return pos+1
@@ -662,7 +662,7 @@ class SimFileDescriptorBase(SimStatePlugin):
             except SimSolverError:
                 passed_max_size = self.state.solver.min(size)
                 l.warning("Symbolic write size is too large for threshold - concretizing to min (%d)", passed_max_size)
-                self.state.solver.add(size == passed_max_size)
+                self.state.add_constraints(size == passed_max_size)
         else:
             passed_max_size = self.state.solver.eval(size)
             if passed_max_size > 2**13:

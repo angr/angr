@@ -118,8 +118,8 @@ class SimWindows(SimOS):
                 arg = claripy.BVV(arg)
             elif isinstance(arg, claripy.ast.BV):
                 for byte in arg.chop(8):
-                    state.solver.add(byte != claripy.BVV(b'"'))
-                    state.solver.add(byte != claripy.BVV(0, 8))
+                    state.add_constraints(byte != claripy.BVV(b'"'))
+                    state.add_constraints(byte != claripy.BVV(0, 8))
             else:
                 raise TypeError("Argument must be str or bytes or bitvector")
 

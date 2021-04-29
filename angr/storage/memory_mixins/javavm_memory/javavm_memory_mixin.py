@@ -155,7 +155,7 @@ class JavaVmMemoryMixin(MemoryMixin):
                                                   value_type=array.element_type)
             # if the index was symbolic before concretization, this
             # constraint it to concrete start idx
-            self.state.solver.add(concrete_start_idx == start_idx)
+            self.state.add_constraints(concrete_start_idx == start_idx)
 
         else:
             # multiple start indexes
@@ -214,7 +214,7 @@ class JavaVmMemoryMixin(MemoryMixin):
                            for idx in range(concrete_start_idx, concrete_start_idx+no_of_elements)]
             # if the index was symbolic before concretization, this
             # constraint it to concrete start idx
-            self.state.solver.add(start_idx == concrete_start_idx)
+            self.state.add_constraints(start_idx == concrete_start_idx)
 
         else:
             # multiple start indexes

@@ -70,6 +70,6 @@ class strlen(angr.SimProcedure):
             result = r - s
             if result.depth > 3:
                 rresult = self.state.solver.BVS('strlen', len(result), key=('api', 'strlen'))
-                self.state.solver.add(result == rresult)
+                self.state.add_constraints(result == rresult)
                 result = rresult
             return result

@@ -131,17 +131,17 @@ class FormatString:
             for component in self.components:
                 if type(component) is bytes:
                     sdata, _ = simfd.read_data(len(component), short_reads=False)
-                    self.state.solver.add(sdata == component)
+                    self.state.add_constraints(sdata == component)
                 elif isinstance(component, claripy.Bits):
                     sdata, _ = simfd.read_data(len(component) // 8, short_reads=False)
-                    self.state.solver.add(sdata == component)
+                    self.state.add_constraints(sdata == component)
                 elif component.spec_type == b's':
                     if component.length_spec is None:
                         sdata, slen = simfd.read_data(self.state.libc.buf_symbolic_bytes)
                     else:
                         sdata, slen = simfd.read_data(component.length_spec)
                     for byte in sdata.chop(8):
-                        self.state.solver.add(claripy.And(*[byte != char for char in self.SCANF_DELIMITERS]))
+                        self.state.add_constraints(claripy.And(*[byte != char for char in self.SCANF_DELIMITERS]))
                     self.state.memory.store(args(argnum), sdata, size=slen)
                     self.state.memory.store(args(argnum) + slen, claripy.BVV(0, 8))
                     argnum += 1
@@ -178,7 +178,7 @@ class FormatString:
 
                     # constrain target variable range explicitly if it can't take on all possible values
                     if not_enough_bits:
-                        self.state.solver.add(self.state.solver.And(
+                        self.state.add_constraints(self.state.solver.And(
                             self.state.solver.SLE(target_variable, (base**digits) - 1),
                             self.state.solver.SGE(target_variable, -(base**(digits - 1) - 1))))
 
@@ -206,7 +206,7 @@ class FormatString:
 
                             digit_ascii = claripy.If(negative, neg_digit_ascii, digit_ascii)
 
-                        self.state.solver.add(digit == digit_ascii[7:0])
+                        self.state.add_constraints(digit == digit_ascii[7:0])
 
                     self.state.memory.store(args(argnum), target_variable, endness=self.state.arch.memory_endness)
                     argnum += 1
@@ -295,7 +295,7 @@ class FormatString:
 
         if simfd is not None:
             _, realsize = simfd.read_data(position - addr)
-            self.state.solver.add(realsize == position - addr)
+            self.state.add_constraints(realsize == position - addr)
 
         return (argpos - startpos) - failed
 

@@ -172,7 +172,7 @@ class SimStatePreconstrainer(SimStatePlugin):
             if not solver.satisfiable():
                 for var in solver.variables:
                     if var in self.variable_map:
-                        self.state.solver.add(self.variable_map[var])
+                        self.state.add_constraints(self.variable_map[var])
                     else:
                         l.warning("var %s not found in self.variable_map", var)
 

@@ -47,7 +47,7 @@ class fgets(angr.SimProcedure):
             data, real_size = simfd.read_data(size-1)
 
             for i, byte in enumerate(data.chop(8)):
-                self.state.solver.add(self.state.solver.If(
+                self.state.add_constraints(self.state.solver.If(
                     i+1 != real_size, byte != b'\n', # if not last byte returned, not newline
                     self.state.solver.Or(            # otherwise one of the following must be true:
                         i+2 == size,                 # - we ran out of space, or

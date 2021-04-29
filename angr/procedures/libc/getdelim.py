@@ -70,7 +70,7 @@ class __getdelim(angr.SimProcedure):
             delim_byte = chr(self.state.solver.eval(delim))
 
             for i, byte in enumerate(data.chop(8)):
-                self.state.solver.add(self.state.solver.If(
+                self.state.add_constraints(self.state.solver.If(
                     i+1 != real_size, byte != delim_byte, # if not last byte returned, not newline
                     self.state.solver.Or(            # otherwise one of the following must be true:
                         i+2 == size,                 # - we ran out of space, or

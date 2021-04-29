@@ -146,7 +146,7 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         except KeyError:
             symbol = claripy.BVS(name_prefix + hex(page_base), self.state.arch.bits)
             self.page_symbols[page_base] = symbol
-            self.state.solver.add(symbol == page_base)
+            self.state.add_constraints(symbol == page_base)
         self.symbolized_count += 1
         return symbol + (value - page_base)
 
