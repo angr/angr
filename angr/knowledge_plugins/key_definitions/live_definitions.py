@@ -126,12 +126,17 @@ class LiveDefinitions:
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
+        if len(mo_self) == 1 and len(mo_other) == 1:
+            a = next(iter(mo_self))
+            b = next(iter(mo_other))
+            return a.object is b.object and a.endness == b.endness
+
         values_self = set()
         values_other = set()
         for mo in mo_self:
-            values_self.add(mo)
+            values_self.add(mo.object)
         for mo in mo_other:
-            values_other.add(mo)
+            values_other.add(mo.object)
         return values_self == values_other
 
     def top(self, bits: int):
