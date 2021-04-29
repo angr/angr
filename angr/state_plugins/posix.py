@@ -261,7 +261,14 @@ class SimSystemPosix(SimStatePlugin):
                     if conc_end & 0xfff:
                         conc_end = (conc_end & ~0xfff) + 0x1000
                     # TODO: figure out what permissions to use
-                    self.state.memory.map_region(conc_start, conc_end - conc_start, 7)
+                    try:
+                        self.state.memory.map_region(conc_start, conc_end - conc_start, 7)
+                    except SimMemoryError as e:
+                        if len(e.args) >= 2 and type(e.args[1]) is int:
+                            l.warning("The heap seems to have collided with another allocation. Be careful!")
+                            self.brk = e.args[1]
+                        else:
+                            raise
 
         return self.brk
 
@@ -606,4 +613,4 @@ class SimSystemPosix(SimStatePlugin):
 from angr.sim_state import SimState
 SimState.register_default('posix', SimSystemPosix)
 
-from ..errors import SimPosixError, SimSolverError, SimMergeError
+from ..errors import SimPosixError, SimSolverError, SimMergeError, SimMemoryError
