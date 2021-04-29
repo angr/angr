@@ -84,9 +84,15 @@ class SimEngineVRBase(SimEngineLight):
     def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data: claripy.ast.Base = richr.data
         # extract stack offset
+        custom_mask=None
         if self.state.is_stack_address(data):
             # this is a stack address
-            stack_offset = self.state.get_stack_offset(data)
+            potential_offset = self.state.get_stack_offset(data)
+            if isinstance(potential_offset, tuple) and len(potential_offset) == 2:
+                custom_mask = potential_offset[1]
+                stack_offset = potential_offset[0]
+            else:
+                stack_offset = potential_offset
         else:
             return
 
@@ -103,7 +109,7 @@ class SimEngineVRBase(SimEngineLight):
                 break
 
         vs = None
-        stack_addr = self.state.stack_addr_from_offset(stack_offset)
+        stack_addr = self.state.stack_addr_from_offset(stack_offset, custom_mask=custom_mask)
         if variable is None:
             # TODO: how to determine the size for a lea?
             try:

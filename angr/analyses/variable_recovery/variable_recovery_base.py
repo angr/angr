@@ -208,9 +208,13 @@ class VariableRecoveryStateBase:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
                 return -addr.args[1]._model_concrete.value
+            elif addr.op == "__and__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                offset = VariableRecoveryStateBase.get_stack_offset(addr.args[0])
+                if isinstance(offset, int):
+                    return offset, addr.args[1]._model_concrete.value
         return None
 
-    def stack_addr_from_offset(self, offset: int) -> int:
+    def stack_addr_from_offset(self, offset: int, custom_mask: int = None) -> int:
         if self.arch.bits == 32:
             base = 0x7fff_fe00
             mask = 0xffff_ffff
@@ -219,6 +223,9 @@ class VariableRecoveryStateBase:
             mask = 0xffff_ffff_ffff_ffff
         else:
             raise RuntimeError("Unsupported bits %d" % self.arch.bits)
+
+        if custom_mask:
+            mask = custom_mask
         return (offset + base) & mask
 
     @property
