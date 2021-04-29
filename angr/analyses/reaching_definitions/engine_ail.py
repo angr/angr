@@ -153,23 +153,40 @@ class SimEngineRDAIL(
         false_target = self._expr(stmt.false_target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
-        self.state.kill_definitions(ip, self._codeloc(), )
+        codeloc = self._codeloc()
+
+        # Use the same annotated data for kill_definitions() to avoid creating ASTs multiple times
+        # Note that the cached dummy definition is always the IP register. This is intentional.
+        top_v = self.state.top(self.arch.bits)
+        dummy_def = Definition(Register(self.arch.ip_offset, self.arch.bytes), codeloc, dummy=True)
+        top_v = self.state.annotate_with_def(top_v, dummy_def)
+        top_mv = MultiValues(offset_to_values={0: {top_v}})
+
+        self.state.kill_definitions(ip, codeloc, data=top_mv, annotated=True)
 
         # kill all cc_ops
         if 'cc_op' in self.arch.registers:
-            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
-            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), codeloc, data=top_mv, annotated=True)
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), codeloc, data=top_mv, annotated=True)
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), codeloc, data=top_mv, annotated=True)
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), codeloc, data=top_mv, annotated=True)
 
     def _ail_handle_Call(self, stmt: ailment.Stmt.Call):
         self._handle_Call_base(stmt, is_expr=False)
 
     def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool=False):
         target = self._expr(stmt.target)  # pylint:disable=unused-variable
+        codeloc = self._codeloc()
+
+        # Use the same annotated data for kill_definitions() to avoid creating ASTs multiple times
+        # Note that the cached dummy definition is always the IP register. This is intentional.
+        top_v = self.state.top(self.arch.bits)
+        dummy_def = Definition(Register(self.arch.ip_offset, self.arch.bytes), codeloc, dummy=True)
+        top_v = self.state.annotate_with_def(top_v, dummy_def)
+        top_mv = MultiValues(offset_to_values={0: {top_v}})
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
-        self.state.kill_definitions(ip, self._codeloc())
+        self.state.kill_definitions(ip, codeloc, data=top_mv, annotated=True)
 
         # When stmt.args are available, used registers/stack variables are decided by stmt.args. Otherwise we fall-back
         # to using all argument registers.
@@ -215,29 +232,28 @@ class SimEngineRDAIL(
                     return_reg_size = stmt.ret_expr.size
                     reg_atom = Register(return_reg_offset, return_reg_size)
                     top = self.state.top(return_reg_size * self.arch.byte_width)
-                    self.state.kill_and_add_definition(reg_atom, self._codeloc(),
-                                                       MultiValues(offset_to_values={0: {top}}))
+                    self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(offset_to_values={0: {top}}))
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
             else:
                 # Return value is redefined here, so it is not a dummy value
                 return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
-                self.state.kill_definitions(Register(return_reg_offset, return_reg_size), self._codeloc(), dummy=False)
+                self.state.kill_definitions(Register(return_reg_offset, return_reg_size), codeloc, dummy=False)
 
         # Kill those ones that should be killed
         for var in killed_vars:
             if var.reg_offset == return_reg_offset:
                 # Skip the return variable
                 continue
-            self.state.kill_definitions(var, self._codeloc())
+            self.state.kill_definitions(var, codeloc, data=top_mv, annotated=True)
 
         # kill all cc_ops
         if 'cc_op' in self.arch.registers:
-            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), self._codeloc())
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), self._codeloc())
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), self._codeloc())
-            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), self._codeloc())
+            self.state.kill_definitions(Register(*self.arch.registers['cc_op']), codeloc, data=top_mv, annotated=True)
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']), codeloc, data=top_mv, annotated=True)
+            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']), codeloc, data=top_mv, annotated=True)
+            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']), codeloc, data=top_mv, annotated=True)
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
