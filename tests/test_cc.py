@@ -9,11 +9,12 @@ def test_calling_conventions():
     # SimProcedures
     #
 
-    from angr.calling_conventions import SimCCCdecl
+    from angr.calling_conventions import SimCCCdecl, SimCCMicrosoftFastcall
 
     args = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 1000, 100000, 1000000, 2000000, 14, 15, 16 ]
     arches = [
         ('X86', SimCCCdecl),
+        ('X86', SimCCMicrosoftFastcall),
         ('AMD64', None),
         ('ARMEL', None),
         ('MIPS32', None),
