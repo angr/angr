@@ -1,6 +1,7 @@
 import nose
 import logging
 import os
+
 import angr
 
 TARGET_APP = os.path.join(os.path.dirname(os.path.realpath(str(__file__))),
