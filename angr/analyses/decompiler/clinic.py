@@ -12,7 +12,7 @@ from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
@@ -348,26 +348,14 @@ class Clinic(Analysis):
         :return:    None
         """
 
-        # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=ail_graph,
-                                                       observe_callback=self._simplify_function_rd_observe_callback)
-
         simp = self.project.analyses.AILSimplifier(
             self.function,
             func_graph=ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
-            reaching_definitions=rd,
             unify_variables=unify_variables,
         )
-        if not simp.simplified:
-            return False
-
-        def _handler(node):
-            return simp.blocks.get(node, None)
-
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
-
-        return True
+        # the function graph has been updated at this point
+        return simp.simplified
 
     @timethis
     def _run_simplification_passes(self, ail_graph, stage:int=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
@@ -746,13 +734,6 @@ class Clinic(Analysis):
         stmt = kwargs.pop('stmt')
         op_type = kwargs.pop('op_type')
         return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
-
-    @staticmethod
-    def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        if ob_type != 'node':
-            return False
-        op_type = kwargs.pop('op_type')
-        return op_type == OP_AFTER
 
 
 register_analysis(Clinic, 'Clinic')
