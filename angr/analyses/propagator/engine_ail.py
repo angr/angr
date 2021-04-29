@@ -149,8 +149,8 @@ class SimEnginePropagatorAIL(
 
             l.debug("Add a replacement: %s with %s", expr, new_expr)
             self.state.add_replacement(self._codeloc(), expr, new_expr)
-            if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert, Expr.BasePointerOffset]:
-                return new_expr
+            # if isinstance(new_expr, (Expr.Register, Expr.Const, Expr.Convert, Expr.BasePointerOffset)):
+            return new_expr
 
         if not self._propagate_tmps:
             # we should not propagate any tmps. as a result, we return None for reading attempts to a tmp.
