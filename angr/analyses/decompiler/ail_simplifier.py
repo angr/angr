@@ -5,6 +5,7 @@ from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call
 from ailment.expression import Register, Convert, Load, StackBaseOffset
 
+from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...code_location import CodeLocation
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from ...sim_variable import SimStackVariable
@@ -13,6 +14,7 @@ from ...knowledge_plugins.key_definitions import atoms
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import Analysis, AnalysesHub
 from .ailblock_walker import AILBlockWalker
+from .ailgraph_walker import AILGraphWalker
 from .block_simplifier import BlockSimplifier
 
 
@@ -24,11 +26,11 @@ class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
     """
-    def __init__(self, func, func_graph=None, remove_dead_memdefs=False, unify_variables=False,
-                 reaching_definitions=None):
+    def __init__(self, func, func_graph=None, remove_dead_memdefs=False, unify_variables=False):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
-        self._reaching_definitions = reaching_definitions
+        self._reaching_definitions = None
+        self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._unify_vars = unify_variables
@@ -44,15 +46,65 @@ class AILSimplifier(Analysis):
         folded_exprs = self._fold_exprs()
         self.simplified |= folded_exprs
         if folded_exprs:
+            self._rebuild_func_graph()
             # reading definition analysis results are no longer reliable
             return
 
         if self._unify_vars:
-            self.simplified |= self._unify_local_variables()
+            r = self._unify_local_variables()
+            if r:
+                self.simplified = True
+                self._rebuild_func_graph()
             # _fold_call_exprs() may set self._calls_to_remove, which will be honored in _remove_dead_assignments()
-            self.simplified |= self._fold_call_exprs()
+            r = self._fold_call_exprs()
+            if r:
+                self.simplified = True
+                self._rebuild_func_graph()
 
-        self.simplified |= self._remove_dead_assignments()
+        r = self._remove_dead_assignments()
+        if r:
+            self.simplified = True
+            self._rebuild_func_graph()
+
+    def _rebuild_func_graph(self):
+        def _handler(node):
+            return self.blocks.get(node, None)
+        AILGraphWalker(self.func_graph, _handler, replace_nodes=True).walk()
+        self.blocks = {}
+
+    def _compute_reaching_definitions(self):
+        # Computing reaching definitions or return the cached one
+        if self._reaching_definitions is not None:
+            return self._reaching_definitions
+        rd = self.project.analyses.ReachingDefinitions(subject=self.func, func_graph=self.func_graph,
+                                                       observe_callback=self._simplify_function_rd_observe_callback)
+        self._reaching_definitions = rd
+        return rd
+
+    @staticmethod
+    def _simplify_function_rd_observe_callback(ob_type, **kwargs):
+        if ob_type != 'node':
+            return False
+        op_type = kwargs.pop('op_type')
+        return op_type == OP_AFTER
+
+    def _compute_propagation(self):
+        # Propagate expressions or return the existing result
+        if self._propagator is not None:
+            return self._propagator
+        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        self._propagator = prop
+        return prop
+
+    def _clear_cache(self) -> None:
+        self._propagator = None
+        self._reaching_definitions = None
+
+    def _clear_propagator_cache(self) -> None:
+        self._propagator = None
+
+    def _clear_reaching_definitions_cache(self) -> None:
+        self._reaching_definitions = None
 
     def _fold_exprs(self):
         """
@@ -60,7 +112,7 @@ class AILSimplifier(Analysis):
         """
 
         # propagator
-        propagator = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        propagator = self._compute_propagation()
         replacements = list(propagator._states.values())[0]._replacements
 
         # take replacements and rebuild the corresponding blocks
@@ -81,6 +133,9 @@ class AILSimplifier(Analysis):
             replaced |= r
             self.blocks[block] = new_block
 
+        if replaced:
+            # blocks have been rebuilt - expression propagation results are no longer reliable
+            self._clear_cache()
         return replaced
 
     def _unify_local_variables(self) -> bool:
@@ -90,7 +145,7 @@ class AILSimplifier(Analysis):
 
         simplified = False
 
-        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        prop = self._compute_propagation()
         if not prop.equivalence:
             return simplified
 
@@ -129,7 +184,8 @@ class AILSimplifier(Analysis):
                 continue
 
             # find the definition of this register
-            defs = self._reaching_definitions.all_uses.get_uses_by_location(eq.codeloc)
+            rd = self._compute_reaching_definitions()
+            defs = rd.all_uses.get_uses_by_location(eq.codeloc)
             for def_ in defs:
                 def_: Definition
                 if isinstance(def_.atom, atoms.Register) and def_.atom.reg_offset == reg.reg_offset:
@@ -144,7 +200,7 @@ class AILSimplifier(Analysis):
 
             # find all uses of this definition
             # we make a copy of the set since we may touch the set (uses) when replacing expressions
-            all_uses: Set[CodeLocation] = set(self._reaching_definitions.all_uses.get_uses(the_def))
+            all_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(the_def))
 
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
             # TODO: re-assigned of a new value. Perform this check.
@@ -177,6 +233,7 @@ class AILSimplifier(Analysis):
                     self.blocks[old_block] = new_block
                 simplified |= r
 
+        # no need to clear cache at the end of this function
         return simplified
 
     def _fold_call_exprs(self) -> bool:
@@ -196,7 +253,7 @@ class AILSimplifier(Analysis):
 
         simplified = False
 
-        prop = self.project.analyses.Propagator(func=self.func, func_graph=self.func_graph)
+        prop = self._compute_propagation()
         if not prop.equivalence:
             return simplified
 
@@ -216,7 +273,8 @@ class AILSimplifier(Analysis):
                     continue
 
                 # find the definition of this register
-                defs = [ d for d in self._reaching_definitions.all_definitions
+                rd = self._compute_reaching_definitions()
+                defs = [ d for d in rd.all_definitions
                          if d.codeloc == eq.codeloc
                          and isinstance(d.atom, atoms.Register)
                          and d.atom.reg_offset == eq.atom0.reg_offset
@@ -226,7 +284,7 @@ class AILSimplifier(Analysis):
                 the_def: Definition = defs[0]
 
                 # find all uses of this definition
-                all_uses: Set[CodeLocation] = set(self._reaching_definitions.all_uses.get_uses(the_def))
+                all_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(the_def))
 
                 if len(all_uses) != 1:
                     continue
@@ -263,6 +321,7 @@ class AILSimplifier(Analysis):
                     self._calls_to_remove.add(eq.codeloc)
                     simplified = True
 
+        # no need to clear the cache at the end of this method
         return simplified
 
     def _get_super_node_blocks(self, start_node: Block) -> List[Block]:
@@ -295,7 +354,8 @@ class AILSimplifier(Analysis):
             new_block.statements[stmt_idx] = new_stmt
 
             # update the uses
-            self._reaching_definitions.all_uses.remove_use(the_def, codeloc)
+            rd = self._compute_reaching_definitions()
+            rd.all_uses.remove_use(the_def, codeloc)
             return True, new_block
 
         return False, None
@@ -306,7 +366,8 @@ class AILSimplifier(Analysis):
 
         # Find all statements that should be removed
 
-        for def_ in self._reaching_definitions.all_definitions:  # type: Definition
+        rd = self._compute_reaching_definitions()
+        for def_ in rd.all_definitions:  # type: Definition
             if def_.dummy:
                 continue
             # we do not remove references to global memory regions no matter what
@@ -314,7 +375,7 @@ class AILSimplifier(Analysis):
                 continue
             if not self._remove_dead_memdefs and isinstance(def_.atom, atoms.MemoryLocation):
                 continue
-            uses = self._reaching_definitions.all_uses.get_uses(def_)
+            uses = rd.all_uses.get_uses(def_)
 
             if not uses:
                 stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
