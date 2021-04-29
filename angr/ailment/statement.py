@@ -1,5 +1,10 @@
 from typing import Optional, TYPE_CHECKING
 
+try:
+    import claripy
+except ImportError:
+    claripy = None
+
 from .tagged_object import TaggedObject
 from .expression import Expression
 
@@ -25,6 +30,11 @@ class Statement(TaggedObject):
 
     def replace(self, old_expr, new_expr):
         raise NotImplementedError()
+
+    def eq(self, expr0, expr1):
+        if claripy is not None and (isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base)):
+            return expr0 is expr1
+        return expr0 == expr1
 
 
 class Assignment(Statement):
@@ -98,8 +108,8 @@ class Store(Statement):
     def __eq__(self, other):
         return type(other) is Store and \
                self.idx == other.idx and \
-               self.addr == other.addr and \
-               self.data == other.data and \
+               self.eq(self.addr, other.addr) and \
+               self.eq(self.data, other.data) and \
                self.size == other.size and \
                self.guard == other.guard and \
                self.endness == other.endness
@@ -128,11 +138,14 @@ class Store(Statement):
         else:
             r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
 
-        if self.data.likes(old_expr):
-            r_data = True
-            replaced_data = new_expr
+        if isinstance(self.data, Expression):
+            if self.data.likes(old_expr):
+                r_data = True
+                replaced_data = new_expr
+            else:
+                r_data, replaced_data = self.data.replace(old_expr, new_expr)
         else:
-            r_data, replaced_data = self.data.replace(old_expr, new_expr)
+            r_data, replaced_data = False, self.data
 
         if self.guard is not None:
             r_guard, replaced_guard = self.guard.replace(old_expr, new_expr)

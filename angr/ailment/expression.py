@@ -1,5 +1,10 @@
+try:
+    import claripy
+except ImportError:
+    claripy = None
 
 from .tagged_object import TaggedObject
+from .utils import get_bits
 
 
 class Expression(TaggedObject):
@@ -328,7 +333,10 @@ class BinaryOp(Op):
 
         assert len(operands) == 2
         self.operands = operands
-        self.bits = operands[0].bits if type(operands[0]) is not int else operands[1].bits
+        if self.op.startswith("Cmp"):
+            self.bits = 1
+        else:
+            self.bits = get_bits(operands[0]) if type(operands[0]) is not int else get_bits(operands[1])
         self.signed = signed
         self.variable = variable
         self.variable_offset = variable_offset
@@ -372,14 +380,18 @@ class BinaryOp(Op):
         if self.operands[0] == old_expr:
             r0 = True
             replaced_operand_0 = new_expr
-        else:
+        elif isinstance(self.operands[0], Expression):
             r0, replaced_operand_0 = self.operands[0].replace(old_expr, new_expr)
+        else:
+            r0, replaced_operand_0 = False, None
 
         if self.operands[1] == old_expr:
             r1 = True
             replaced_operand_1 = new_expr
-        else:
+        elif isinstance(self.operands[1], Expression):
             r1, replaced_operand_1 = self.operands[1].replace(old_expr, new_expr)
+        else:
+            r1, replaced_operand_1 = False, None
 
         if r0 or r1:
             return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], self.signed,
@@ -433,7 +445,7 @@ class Load(Expression):
         if super().has_atom(atom, identity=identity):
             return True
 
-        if type(self.addr) is int:
+        if claripy is not None and isinstance(self.addr, (int, claripy.ast.Base)):
             return False
         return self.addr.has_atom(atom, identity=identity)
 
