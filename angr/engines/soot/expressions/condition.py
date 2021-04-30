@@ -24,6 +24,9 @@ class SimSootExpr_Condition(SimSootExpr):
         else:
             self.expr = operator_func(v1.expr, v2.expr)
 
+        if type(self.expr) is bool:
+            self.expr = claripy.true if self.expr else claripy.false
+
     # Java only has signed primitives
     condition_str_to_function = {
         "eq": operator.eq,
