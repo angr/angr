@@ -44,6 +44,9 @@ def parse_stack_pointer(sp):
 
 
 class VariableAnnotation(Annotation):
+
+    __slots__ = ('addr_and_variables', )
+
     def __init__(self, addr_and_variables: List[Tuple[int,SimVariable]]):
         self.addr_and_variables = addr_and_variables
 
