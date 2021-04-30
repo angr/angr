@@ -40,6 +40,7 @@ class Clinic(Analysis):
                  optimization_passes=None,
                  cfg=None,
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
+                 must_struct: Optional[Set[str]]=None,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -59,6 +60,7 @@ class Clinic(Analysis):
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._cfg: Optional['CFGModel'] = cfg
         self.peephole_optimizations = peephole_optimizations
+        self._must_struct = must_struct
 
         # sanity checks
         if not self.kb.functions:
@@ -547,8 +549,16 @@ class Clinic(Analysis):
         tmp_kb.variables[self.function.addr].remove_types()
         # TODO: Type inference for global variables
         # run type inference
+        if self._must_struct:
+            must_struct = set()
+            for var, typevar in vr.var_to_typevar.items():
+                if var.ident in self._must_struct:
+                    must_struct.add(typevar)
+        else:
+            must_struct = None
         try:
-            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar)
+            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar,
+                                                must_struct=must_struct)
             tp.update_variable_types(self.function.addr, vr.var_to_typevar)
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
