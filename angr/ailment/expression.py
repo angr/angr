@@ -28,7 +28,7 @@ class Expression(TaggedObject):
             return self.likes(atom)
 
     def likes(self, atom):  # pylint:disable=unused-argument,no-self-use
-        return False
+        return self == atom
 
     def replace(self, old_expr, new_expr):
         if self is old_expr:
@@ -322,6 +322,19 @@ class BinaryOp(Op):
         'CmpGTs': '>s',
         'CmpGEs': '>=s',
         'Concat': 'CONCAT',
+    }
+
+    COMPARISON_NEGATION = {
+        'CmpEQ': 'CmpNE',
+        'CmpNE': 'CmpEQ',
+        'CmpLT': 'CmpGE',
+        'CmpGE': 'CmpLT',
+        'CmpLE': 'CmpGT',
+        'CmpGT': 'CmpLE',
+        'CmpLTs': 'CmpGEs',
+        'CmpGEs': 'CmpLTs',
+        'CmpLEs': 'CmpGTs',
+        'CmpGTs': 'CmpLEs',
     }
 
     def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, **kwargs):
