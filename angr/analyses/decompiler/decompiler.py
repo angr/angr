@@ -1,6 +1,6 @@
 # pylint:disable=unused-import
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, TYPE_CHECKING
+from typing import List, Tuple, Optional, Iterable, Union, Type, Set, TYPE_CHECKING
 
 from cle import SymbolType
 
@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 class Decompiler(Analysis):
     def __init__(self, func, cfg=None, options=None, optimization_passes=None, sp_tracker_track_memory=True,
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
+                 vars_must_struct: Optional[Set[str]]=None,
                  ):
         self.func = func
         self._cfg = cfg
@@ -23,6 +24,7 @@ class Decompiler(Analysis):
         self._optimization_passes = optimization_passes
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
+        self._vars_must_struct = vars_must_struct
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -50,6 +52,7 @@ class Decompiler(Analysis):
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
                                               cfg=self._cfg,
                                               peephole_optimizations=self._peephole_optimizations,
+                                              must_struct=self._vars_must_struct,
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
         self.clinic = clinic

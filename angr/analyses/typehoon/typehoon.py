@@ -24,11 +24,14 @@ class Typehoon(Analysis):
     User may specify ground truth, which will override all types at certain program points during constraint solving.
     """
     def __init__(self, constraints, ground_truth=None, var_mapping: Optional[Dict['SimVariable','TypeVariable']]=None,
-                 prioritize_char_array_over_struct: bool=True):
+                 prioritize_char_array_over_struct: bool=True,
+                 must_struct: Optional[Set['TypeVariable']]=None,
+                 ):
 
         self._constraints: Set['TypeConstraint'] = constraints
         self._ground_truth = ground_truth
         self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
+        self._must_struct = must_struct
 
         self.bits = self.project.arch.bits
         self.solution = None
@@ -90,6 +93,8 @@ class Typehoon(Analysis):
         """
 
         for tv in list(self.solution.keys()):
+            if self._must_struct and tv in self._must_struct:
+                continue
             sol = self.solution[tv]
             specialized = self._specialize_struct(sol)
             if specialized is not None:
