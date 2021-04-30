@@ -3,6 +3,7 @@ import logging
 
 from ailment import Stmt, Expr
 
+from ...errors import SimMemoryMissingError
 from ...sim_type import SimTypeBottom
 from ...sim_variable import SimStackVariable
 from ...calling_conventions import SimRegArg, SimStackArg
@@ -166,7 +167,10 @@ class CallSiteMaker(Analysis):
             except KeyError:
                 return
 
-            vs: 'MultiValues' = rd.register_definitions.load(offset, size=size, endness=self.project.arch.memory_endness)
+            try:
+                vs: 'MultiValues' = rd.register_definitions.load(offset, size=size, endness=self.project.arch.memory_endness)
+            except SimMemoryMissingError:
+                return None
             defs_ = set()
             for values in vs.values.values():
                 for value in values:
