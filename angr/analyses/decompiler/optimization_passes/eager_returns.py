@@ -29,7 +29,7 @@ class EagerReturnsSimplifier(OptimizationPass):
     """
 
     # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = ["X86", "AMD64", "ARMCortexM"]
+    ARCHES = ["X86", "AMD64", "ARMCortexM", ]
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
 

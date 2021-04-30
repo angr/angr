@@ -18,7 +18,7 @@ def s2u(s, bits):
 
 class StackCanarySimplifier(OptimizationPass):
 
-    ARCHES = ["X86", "AMD64", 'ARMEL', 'ARMCortexM']
+    ARCHES = ["X86", "AMD64", ] # TODO: fs is x86 only. Figure out how stack canary is loaded in other architectures
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 

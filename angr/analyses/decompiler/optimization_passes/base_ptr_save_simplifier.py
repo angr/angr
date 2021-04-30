@@ -10,7 +10,7 @@ _l = logging.getLogger(name=__name__)
 
 class BasePointerSaveSimplifier(OptimizationPass):
 
-    ARCHES = ['X86', 'AMD64', 'ARMEL', "ARMCortexM"]
+    ARCHES = ['X86', 'AMD64', 'ARMEL', 'ARMHF', "ARMCortexM"]
     PLATFORMS = ["cgc", 'linux']
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
