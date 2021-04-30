@@ -6,8 +6,8 @@ import pyvex
 import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...state_plugins.solver import SimSolver
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
+from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC
@@ -424,7 +424,7 @@ class SimEngineRDVEX(
     #
 
     def _handle_Const(self, expr) -> MultiValues:
-        return MultiValues(offset_to_values={0: { claripy.BVV(expr.con.value, expr.result_size(self.tyenv)) }})
+        return MultiValues(offset_to_values={0: { claripy_value(expr.con.type, expr.con.value) }})
 
     def _handle_Conversion(self, expr):
         simop = vex_operations[expr.op]
