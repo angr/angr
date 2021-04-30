@@ -138,7 +138,8 @@ class Clinic(Analysis):
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
 
         # Make returns
-        ail_graph = self._make_returns(ail_graph)
+        if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
+            ail_graph = self._make_returns(ail_graph)
 
         # Simplify blocks
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
