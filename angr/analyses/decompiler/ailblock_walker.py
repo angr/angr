@@ -3,7 +3,7 @@ from typing import Dict, Type, Callable, Any, Optional
 
 from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert
+from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE
 
 
 class AILBlockWalker:
@@ -26,6 +26,7 @@ class AILBlockWalker:
             BinaryOp: self._handle_BinaryOp,
             UnaryOp: self._handle_UnaryOp,
             Convert: self._handle_Convert,
+            ITE: self._handle_ITE,
         }
 
         self.stmt_handlers: Dict[Type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -243,4 +244,33 @@ class AILBlockWalker:
         new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
         if new_operand is not None and new_operand is not expr.operand:
             return Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **expr.tags)
+        return None
+
+    def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement, block: Optional[Block]):
+        changed = False
+
+        cond = self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
+        if cond is not None and cond is not expr.cond:
+            changed = True
+        else:
+            cond = expr.cond
+
+        iftrue = self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
+        if iftrue is not None and iftrue is not expr.iftrue:
+            changed = True
+        else:
+            iftrue = expr.iftrue
+
+        iffalse = self._handle_expr(1, expr.iffalse, stmt_idx, stmt, block)
+        if iffalse is not None and iffalse is not expr.iffalse:
+            changed = True
+        else:
+            iffalse = expr.iffalse
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.cond = cond
+            new_expr.iftrue = iftrue
+            new_expr.iffalse = iffalse
+            return new_expr
         return None
