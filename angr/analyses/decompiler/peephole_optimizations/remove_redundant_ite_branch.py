@@ -16,11 +16,11 @@ class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
             # cascading ITEs
             if isinstance(expr.cond, BinaryOp) and isinstance(expr.iffalse.cond, BinaryOp):
                 # are they negating each other?
-                if { expr.cond.op, expr.iffalse.cond.op } == {"CmpEQ", "CmpNE"}:
-                    # FIXME: DON'T COMPARE STRINGS! Implement .likes() for all ailment.Expression classes!
-                    condstr0 = repr(tuple(expr.cond.operands))
-                    condstr1 = repr(tuple(expr.iffalse.cond.operands))
-                    if condstr0 == condstr1:
+                if expr.cond.op in BinaryOp.COMPARISON_NEGATION and expr.iffalse.cond.op == BinaryOp.COMPARISON_NEGATION[expr.cond.op]:
+                    cond0_operands = expr.cond.operands
+                    cond1_operands = expr.iffalse.cond.operands
+                    import ipdb; ipdb.set_trace()
+                    if cond0_operands[0].likes(cond1_operands[0]) and cond0_operands[1].likes(cond1_operands[1]):
                         # YES...
                         expr = ITE(expr.idx, expr.cond, expr.iffalse.iftrue, expr.iftrue, **expr.tags)
                         return expr
