@@ -19,7 +19,6 @@ class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
                 if expr.cond.op in BinaryOp.COMPARISON_NEGATION and expr.iffalse.cond.op == BinaryOp.COMPARISON_NEGATION[expr.cond.op]:
                     cond0_operands = expr.cond.operands
                     cond1_operands = expr.iffalse.cond.operands
-                    import ipdb; ipdb.set_trace()
                     if cond0_operands[0].likes(cond1_operands[0]) and cond0_operands[1].likes(cond1_operands[1]):
                         # YES...
                         expr = ITE(expr.idx, expr.cond, expr.iffalse.iftrue, expr.iftrue, **expr.tags)
