@@ -286,7 +286,7 @@ class PagedMemoryMixin(MemoryMixin):
         except SimMemoryError:
             pass  # good, expected error
         else:
-            raise SimMemoryError("Page is already mapped")
+            raise SimMemoryError("Page is already mapped", pageno * self.page_size)
 
         page = self._initialize_default_page(pageno, permissions=permissions, **kwargs)
         self._pages[pageno] = page
