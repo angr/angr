@@ -231,9 +231,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     def _initial_abstract_state(self, node):
         state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function, project=self.project,
                                           )
-        state.register_region.store(self.project.arch.sp_offset, state.stack_address(0))
+        initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)
+        state.register_region.store(self.project.arch.sp_offset, initial_sp)
         # give it enough stack space
-        state.register_region.store(self.project.arch.bp_offset, state.stack_address(0) + 0x100000)
+        state.register_region.store(self.project.arch.bp_offset, initial_sp + 0x100000)
 
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
