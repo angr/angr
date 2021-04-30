@@ -7,6 +7,7 @@ import pyvex
 import claripy
 import archinfo
 
+from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import UnsupportedIROpError, vexop_to_simop
 from ...code_location import CodeLocation
 from ...utils.constants import DEFAULT_STATEMENT
@@ -357,7 +358,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         return expr.value
 
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
-        return claripy.BVV(expr.con.value, expr.con.size)
+        return claripy_value(expr.con.type, expr.con.value)
 
     def _handle_Conversion(self, expr):
         expr_ = self._expr(expr.args[0])
