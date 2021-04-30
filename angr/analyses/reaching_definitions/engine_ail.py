@@ -12,8 +12,7 @@ from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.dataset import DataSet
-from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
+from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.key_definitions.live_definitions import Definition
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
@@ -66,12 +65,6 @@ class SimEngineRDAIL(
     def _external_codeloc():
         return ExternalCodeLocation()
 
-    @staticmethod
-    def _dataset_unpack(d):
-        if type(d) is DataSet and len(d) == 1:
-            return next(iter(d.data))
-        return d
-
     #
     # AIL statement handlers
     #
@@ -97,7 +90,7 @@ class SimEngineRDAIL(
         dst = stmt.dst
 
         if src is None:
-            src = DataSet(UNDEFINED, dst.bits)
+            src = self.state.top(dst.bits)
 
         if isinstance(dst, ailment.Tmp):
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), self._codeloc(), src)
@@ -402,15 +395,16 @@ class SimEngineRDAIL(
                 result = result.merge(vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
-                stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
-                try:
-                    vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=expr.endness)
-                except SimMemoryMissingError:
-                    continue
+                if stack_offset is not None:
+                    stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
+                    try:
+                        vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=expr.endness)
+                    except SimMemoryMissingError:
+                        continue
 
-                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=expr.endness)
-                self.state.add_use(memory_location, self._codeloc())
-                result = result.merge(vs) if result is not None else vs
+                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=expr.endness)
+                    self.state.add_use(memory_location, self._codeloc())
+                    result = result.merge(vs) if result is not None else vs
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
 
@@ -559,7 +553,38 @@ class SimEngineRDAIL(
                 vs = {claripy.LShR(expr0_v, v._model_concrete.value) for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
-            r = MultiValues(offset_to_values={0: {claripy.LShR(expr0_v, expr1_v._model_concrete.value)}})
+            if expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {claripy.LShR(expr0_v, expr1_v._model_concrete.value)}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Sar(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # each value in expr0 >> expr1_v
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {claripy.LShR(v, expr1_v._model_concrete.value) for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # expr0_v >> each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {claripy.LShR(expr0_v, v._model_concrete.value) for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            if expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {expr0_v >> expr1_v._model_concrete.value}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -588,7 +613,8 @@ class SimEngineRDAIL(
                 vs = {expr0_v << v._model_concrete.value for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
-            r = MultiValues(offset_to_values={0: {expr0_v << expr1_v._model_concrete.value}})
+            if expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {expr0_v << expr1_v._model_concrete.value}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
