@@ -316,10 +316,17 @@ class VMDeobfuscation(Analysis):
     def perform_semantic_verification(self, cfg, proj, start_state=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
         flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
+        #flag = claripy.BVV(b'random-wrong-pass\n')
         new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=0x400C88, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
                                        concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
+
+        for node in new_cfg.graph.nodes():
+            succs = new_cfg.model.get_successors(node)
+            if len(succs) == 0:
+                final_state = node.input_state
+
         import ipdb;ipdb.set_trace()
 
 
@@ -520,6 +527,7 @@ class VMDeobfuscation(Analysis):
                 ## perform arithmetic simplifications on each component individually
                 simplified_statements = []
                 inst_grouped_simp_stmts = OrderedDict()
+                new_address_map = {}
                 for sub_graph in sub_graphs:
                     to_simplify_sub_graph = nx.DiGraph(copy.deepcopy(sub_graph.graph))
                     stmt_node_queue = []
@@ -615,6 +623,7 @@ class VMDeobfuscation(Analysis):
                             for arg in cur_stmt.data.args:
                                 if isinstance(arg, pyvex.expr.Const):
                                     const_0 = arg.con.value
+                                    cur_stmt_const_class = arg.con.__class__
                             if cur_stmt.data.op in ["Iop_Sub32", "Iop_Sub64"]:
                                 const_0 = -const_0
                             successor = successors[0]
@@ -640,8 +649,11 @@ class VMDeobfuscation(Analysis):
                                 #simplified_statements[-1] = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add"+cur_stmt.data.op[-2:], [pyvex.expr.RdTmp(tmp_to_keep), pyvex.expr.Const(cur_stmt.data.args[1].__class__(pyvex.expr.U64(const_0+const_1 if const_0 + const_1 >= 0 else (1<<64)+const_1+const_0)))]))
                                 new_simpl_stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add" + cur_stmt.data.op[-2:],
                                                                                 [pyvex.expr.RdTmp(tmp_to_keep),
-                                                                                 pyvex.expr.Const(pyvex.expr.U64(((const_0+const_1)&(1<<64)-1)))]))
+                                                                                 pyvex.expr.Const(cur_stmt_const_class(((const_0+const_1)&(1<<64)-1)))]))
                                 new_simpl_stmt_node = StatementNode(new_simpl_stmt, successor.codeloc)
+                                # This map is to ensure that if the two VEX insts are from two different x86 insts then after this simp we should treat them as one...... to make our life easier while mapping VEX back to x86
+                                if successor.codeloc.ins_addr != cur_stmt_node.codeloc.ins_addr:
+                                    new_address_map[successor.codeloc.ins_addr] = cur_stmt_node.codeloc.ins_addr
                                 #successor.stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add"+cur_stmt.data.op[-2:], [pyvex.expr.RdTmp(tmp_to_keep), pyvex.expr.Const(cur_stmt.data.args[1].__class__(pyvex.expr.U64(const_0+const_1 if const_0 + const_1 >= 0 else (1<<64)+const_1+const_0)))]))
                                 for pred_node in pred_nodes_to_join:
                                     to_simplify_sub_graph.add_edge(pred_node, new_simpl_stmt_node)
@@ -657,8 +669,11 @@ class VMDeobfuscation(Analysis):
                     stmt_node_queue = []
                     visited_stmt_nodes = {}
 
-                    # insert the leaf nodes into the queue
+                    # insert the leaf nodes into the queue and update the addresses of the modified instructions
                     for stmt_node in to_simplify_sub_graph.nodes():
+                        # Updating the new code locs for the stmts
+                        if stmt_node.codeloc.ins_addr in new_address_map:
+                            stmt_node.codeloc.ins_addr = new_address_map[stmt_node.codeloc.ins_addr]
                         if to_simplify_sub_graph.out_degree(stmt_node) == 0:
                             stmt_node_queue.append(stmt_node)
                             print(stmt_node)
@@ -681,15 +696,21 @@ class VMDeobfuscation(Analysis):
                         visited_stmt_nodes[cur_stmt_node] = True
                         if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
                             continue
-                        simplified_statements.append(cur_stmt_node.stmt)
-                #         if cur_stmt_node.codeloc.ins_addr not in inst_grouped_simp_stmts:
-                #             inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr] = []
-                #         inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr].append(cur_stmt_node.stmt)
-                #
-                # for ins_addr in inst_grouped_simp_stmts:
-                #     simplified_statements.append(pyvex.stmt.IMark(ins_addr, length=0, delta=0))
-                #     for simp_stmt in inst_grouped_simp_stmts[ins_addr]:
-                #         simplified_statements.append(simp_stmt)
+                        #simplified_statements.append(cur_stmt_node.stmt)
+                        if cur_stmt_node.codeloc.ins_addr not in inst_grouped_simp_stmts:
+                            inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr] = []
+                        inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr].append(cur_stmt_node.stmt)
+
+                # Making sure that the order of instructions is same as the original binary, though does not necessarily mean the best
+                ordered_ins_addrs = []
+                for stmt in node.irsb.statements:
+                    if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in inst_grouped_simp_stmts:
+                        ordered_ins_addrs.append(stmt.addr)
+
+                for ins_addr in ordered_ins_addrs:
+                    simplified_statements.append(pyvex.stmt.IMark(ins_addr, length=0, delta=0))
+                    for simp_stmt in inst_grouped_simp_stmts[ins_addr]:
+                        simplified_statements.append(simp_stmt)
 
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
                                                    node.irsb.addr,
@@ -702,7 +723,8 @@ class VMDeobfuscation(Analysis):
                 print(node.irsb.pp())
 
                 if simp_flag == 1:
-                    import ipdb;ipdb.set_trace()
+                    #import ipdb;ipdb.set_trace()
+                    pass
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         if start_state:
@@ -1276,9 +1298,31 @@ class VMDeobfuscation(Analysis):
                         ###### STle(t0) = 0x00001064
                         ###### to
                         ###### mov dword ptr[reg -constant], constant
-                        match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\sAdd64\(t\d+,(0xff+\w+)\)\nt\d+\s=\st\d+\nSTle\(t\d+\)\s=\s(\w+)",cur_ins_str)
+                        match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\sAdd64\(t\d+,(0xff+\w+)\)\nt\d+\s=\st\d+\nSTle\(t\d+\)\s=\s(\w{10})",cur_ins_str)
                         if match_result:
                             x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov dword ptr [" + match_result.group(1) + " - "+str((int(match_result.group(2), 16)^0xffffffffffffffff)+1) +"], "+match_result.group(3) +"</FONT>"
+                            continue
+
+                        ###### This is a regex for converting
+                        # ------ IMark(0x400cf3, 0, 0) - -----
+                        # t4 = GET:I64(rax)
+                        # t5 = Add64(t4, 0x000000000060269f)
+                        # STle(t5) = 0x00
+                        # to
+                        #  mov byte ptr [rax + 0x000000000060269f], 0x00
+                        match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\sAdd64\(t\d+,(0x\w+)\)\nSTle\(t\d+\)\s=\s(\w{4})",cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov byte ptr [" + match_result.group(1) + " + "+match_result.group(2) +"], "+match_result.group(3) +"</FONT>"
+                            continue
+
+                        ###### This is a regex for converting
+                        # ------ IMark(0x40090c, 0, 0) - -----
+                        # STle(0x00000000006027a0) = 0x00
+                        # to
+                        #  mov byte ptr [0x00000000006027a0], 0x00
+                        match_result = re.match("\nSTle\((\w+)\)\s=\s(\w{4})",cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov byte ptr [" + match_result.group(1) +"], "+match_result.group(2) +"</FONT>"
                             continue
 
                         match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\s64to32\(t\d+\)\nt\d+\s=\st\d+\nt\d+\s=\sAdd32\((\w+),t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
@@ -1295,6 +1339,63 @@ class VMDeobfuscation(Analysis):
                         if match_result:
                             x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
                                 hex(curr_ins_addr)) + ": mov " + match_result.group(2) + ", dword ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
+                            continue
+
+                        # ------ IMark(0x400cd5, 0, 0) - -----
+                        # t7 = LDle:I8(0x00000000006026a0)
+                        # t16 = 8Uto32(t7)
+                        # t6 = t16
+                        # t17 = 32Uto64(t6)
+                        # t5 = t17
+                        # PUT(rax) = t5
+                        # to
+                        # movzx rax, byte ptr [0x6026a0]
+                        match_result = re.match("\nt\d+\s=\sLDle:I8\((0x\w+)\)\nt\d+\s=\s8Uto32\(t\d+\)\nt\d+\s=\st\d+\nt\d+\s=\s32Uto64\(t\d+\)\nt\d+\s=\st\d+\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": movzx " + match_result.group(
+                                2) + ", byte ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
+                            continue
+
+                        # ------ IMark(0x400928, 0, 0) - -----
+                        # t31 = LDle:I8(0x00000000006027a0)
+                        # t30 = 8Uto32(t31)
+                        # t29 = 32Uto64(t30)
+                        # PUT(rcx) = t2
+                        # to
+                        # movzx rcx, byte ptr [0x00000000006027a0]
+                        match_result = re.match("\nt\d+\s=\sLDle:I8\((0x\w+)\)\nt\d+\s=\s8Uto32\(t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": movzx " + match_result.group(
+                                2) + ", byte ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
+                            continue
+
+                        # # ------ IMark(0x40096c, 0, 0) - -----
+                        # # t45 = Add64(t42, 0x00000000006026a0)
+                        # # t51 = LDle:I8(t45)
+                        # # t50 = 8Uto32(t51)
+                        # # t49 = 32Uto64(t50)
+                        # # PUT(rcx) = t49
+                        # # to
+                        # # movzx ecx, byte ptr [0x00000000006026a0]
+                        # match_result = re.match("\nt\d+\s=\sAdd64\(t\d+,(0x\w+)\)\nt\d+\s=\sLDle:I8\((0x\w+)\)\nt\d+\s=\s8Uto32\(t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
+                        # if match_result:
+                        #     x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                        #         hex(curr_ins_addr)) + ": movzx " + match_result.group(
+                        #         3) + ", byte ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
+                        #     continue
+
+                        # ------ IMark(0x400939, 0, 0) - -----
+                        # t43 = GET:I8(cl)
+                        # STle(0x00000000006027a1) = t43
+                        # to
+                        # mov byte ptr [0x00000000006027a1], cl
+                        match_result = re.match("\nt\d+\s=\sGET:I8\((\w+)\)\nSTle\((0x\w+)\)\s=\s(t\d+)", cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": mov " + "byte ptr " + "[" + match_result.group(
+                                2) + "], " + match_result.group(1) + "</FONT>"
                             continue
 
                         match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\s64to32\(t\d+\)\nSTle\((0x\w+)\)\s=\s(t\d+)", cur_ins_str)
