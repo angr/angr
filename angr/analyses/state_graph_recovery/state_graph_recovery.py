@@ -374,7 +374,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                     source[left] = source[constraint.args[0]]
 
                 right_new_args = tuple(arg for arg in constraint.args[1].args if arg not in same_args)
-                right = constraint.args[1].make_like("__add__", right_new_args) if len(right_new_args) else right_new_args[0]
+                right = constraint.args[1].make_like("__add__", right_new_args) if len(right_new_args) > 1 else right_new_args[0]
                 if constraint.args[1] in source:
                     source[right] = source[constraint.args[1]]
 
@@ -411,7 +411,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                                 source[simplified] = source[constraint]
                             return simplified, source
 
-        elif constraint.op in ('__ne__', '__mod__'):
+        elif constraint.op in ('__ne__', '__mod__', '__floordiv__'):
             left, source = self._simplify_constraint(constraint.args[0], source)
             right, source = self._simplify_constraint(constraint.args[1], source)
             if left is None and right is None:

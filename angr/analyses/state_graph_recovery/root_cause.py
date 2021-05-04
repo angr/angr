@@ -52,6 +52,9 @@ class RootCauseAnalysis(Analysis):
         if self.constraint is not None:
             causes += self._root_cause_expr_tree(self.constraint)
 
+        # deduplicate causes
+        causes = list(set(causes))
+
         return causes
 
     def _root_cause_expr_tree(self, expr: claripy.ast.Base) -> List[CauseBase]:
