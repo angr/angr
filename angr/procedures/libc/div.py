@@ -22,7 +22,7 @@ class div(angr.SimProcedure):
             remainder = x % y
             self.state.memory.store(ptr, quotient, endness=self.arch.memory_endness)
             self.state.memory.store(ptr + self.arch.bytes, remainder, endness=self.arch.memory_endness)
-            return x
+            return ptr
         else:
             x = _raw_ast(x)
             y = _raw_ast(y)
