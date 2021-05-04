@@ -137,6 +137,16 @@ class DataItemCause(CauseBase):
         return f"<DataItemCause: {self.data_type}@{self.addr:#x}[{self.data_size} bytes]%s>" % (
             self.name if self.name else "")
 
+    def __eq__(self, other):
+        if not isinstance(other, DataItemCause):
+            return False
+        return self.addr == other.addr and \
+            self.data_type == other.data_type and \
+            self.data_size == other.data_size and \
+            self.name == other.name
+
+    def __hash__(self):
+        return hash((self.addr, self.data_type, self.data_size, self.name))
 
 class InstrOperandCause(CauseBase):
     """
@@ -158,6 +168,14 @@ class InstrOperandCause(CauseBase):
     def __repr__(self):
         return f"<InstrOperandCause {self.addr:#x} operand {self.operand_idx}:{self.old_value}>"
 
+    def __eq__(self, other):
+        if not isinstance(other, InstrOperandCause):
+            return False
+        return self.addr == other.addr and self.operand_idx == other.operand_idx and self.old_value == other.old_value
+
+    def __hash__(self):
+        return hash((self.addr, self.operand_idx, self.old_value))
+
 
 class InstrOpcodeCause(CauseBase):
     """
@@ -178,6 +196,13 @@ class InstrOpcodeCause(CauseBase):
     def __repr__(self):
         return f"<InstrOpcodeCause {self.addr:#x} opcode {self.operator}>"
 
+    def __eq__(self, other):
+        if not isinstance(other, InstrOpcodeCause):
+            return False
+        return self.addr == other.addr and self.operator == other.operator
+
+    def __hash__(self):
+        return hash((self.addr, self.operator))
 
 #
 # Interaction
@@ -185,7 +210,7 @@ class InstrOpcodeCause(CauseBase):
 
 def generate_patch(arch, causes: List[CauseBase]) -> Optional[Patch]:
     # patches
-    idx = input("[?] Which root cause do you want to mitigate? (%d - %d) " % (0, len(causes)))
+    idx = input("[?] Which root cause do you want to mitigate? (%d - %d) " % (0, len(causes) - 1))
     try:
         idx = int(idx)
     except (ValueError, TypeError):
