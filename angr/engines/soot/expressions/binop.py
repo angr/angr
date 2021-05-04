@@ -4,6 +4,10 @@ import operator
 from .base import SimSootExpr
 
 
+def logical_rshift(a, b):
+    return a.LShR(b)
+
+
 class SimSootExpr_Binop(SimSootExpr):
     def _execute(self):
         v1 = self._translate_expr(self.expr.value1)
@@ -20,7 +24,7 @@ class SimSootExpr_Binop(SimSootExpr):
         "or": operator.or_,
         "shl": operator.lshift,
         "shr": operator.rshift,
-        # "ushr": operator.rshift, #TODO
+        "ushr": logical_rshift,
         "xor": operator.xor,
         "rem": operator.imod,
         "cmpl": operator.lt,
