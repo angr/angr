@@ -286,7 +286,8 @@ class SimEngineVRVEX(
 
             r = None
             if r0.data is not None and r1.data is not None:
-                r = r0.data >> r1.data
+                r = r0.data >> r1.data.sign_extend(r0.data.size()-r1.data.size())
+                print(r)
 
             return RichR(r,
                          typevar=r0.typevar,
@@ -311,7 +312,7 @@ class SimEngineVRVEX(
 
             r = None
             if r0.data is not None and r1.data is not None:
-                r = r0.data >> r1.data
+                r = r0.data >> r1.data.sign_extend(r0.data.size()-r1.data.size())
 
             return RichR(r,
                          typevar=r0.typevar,
@@ -337,7 +338,7 @@ class SimEngineVRVEX(
 
             r = None
             if r0.data is not None and r1.data is not None:
-                r = r0.data << r1.data
+                r = r0.data << r1.data.sign_extend(r0.data.size()-r1.data.size())
                 r &= mask
 
             return RichR(r,
