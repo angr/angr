@@ -55,7 +55,10 @@ class Loggers:
             logging.getLogger(name).setLevel(level)
 
 class CuteHandler(logging.StreamHandler):
-     def emit(self, record):
+    def emit(self, record):
+        if not record.name.startswith("angr"):
+            return
+
         color = zlib.adler32(record.name.encode()) % 7 + 31
         try:
             record.name = ("\x1b[%dm" % color) + record.name + "\x1b[0m"
