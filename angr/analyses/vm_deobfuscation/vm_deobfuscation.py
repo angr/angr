@@ -233,7 +233,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state)
+        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr)
 
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
@@ -313,12 +313,15 @@ class VMDeobfuscation(Analysis):
 
         return new_cfg
 
-    def perform_semantic_verification(self, cfg, proj, start_state=None):
+    def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
         flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
-        #flag = claripy.BVV(b'random-wrong-pass\n')
-        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=0x400C88, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
                                        concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
+        # flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
+        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
+
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
 
@@ -474,8 +477,8 @@ class VMDeobfuscation(Analysis):
         return new_cfg
 
     def block_arithmetic_simplifications(self, cfg, proj, start_state=None):
-
-        new_model = self.new_model_graph(cfg.graph, proj, 'dsa')
+        # Naming this this CFGEmulated so that certain other analysis can uses the results from this
+        new_model = self.new_model_graph(cfg.graph, proj, 'CFGEmulated')
 
         for node in list(new_model.nodes()):
             # if node.addr in [0x400ce8, 0x400857, 0x400c86]:
@@ -1357,6 +1360,49 @@ class VMDeobfuscation(Analysis):
                                 2) + ", byte ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
                             continue
 
+
+                        # ------ IMark(0x4009e4, 0, 0) - -----
+                        # t2 = LDle:I32(0x00000000006010a0)
+                        # t1 = 32Sto64(t2)
+                        # PUT(rax) = t1
+                        # to
+                        # movsxd rax, dword ptr [0x00000000006010a0]
+                        match_result = re.match("\nt\d+\s=\sLDle:I32\((0x\w+)\)\nt\d+\s=\s32Sto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+", cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": movsxd " + match_result.group(
+                                2) + ", dword ptr " + "[" + match_result.group(1) + "]" + "</FONT>"
+                            continue
+
+                        # ------ IMark(0x4009eb, 0, 0) - -----
+                        # t5 = GET:I64(rbp)
+                        # t2 = Add64(t5, 0x0000000000000140)
+                        # t8 = LDle:I8(t2)
+                        # t7 = 8Sto32(t8)
+                        # t6 = 32Uto64(t7)
+                        # PUT(rax) = t6
+                        # to
+                        # movsx eax, byte ptr [rbp + 0x0000000000000140]
+                        match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\sAdd64\(t\d+,(0x\w+)\)\nt\d+\s=\sLDle:I8\(\w+\)\nt\d+\s=\s8Sto32\(t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+", cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": movsx " + match_result.group(3) + ", byte ptr [" + match_result.group(1) + " + " + match_result.group(2)+ "]" + "</FONT>"
+                            continue
+
+                        # ------ IMark(0x40092d, 0, 0) - -----
+                        # t5 = GET:I64(rbp)
+                        # t2 = Add64(t5, 0x0000000000000141)
+                        # t6 = GET:I8(dl)
+                        # STle(t2) = t6
+                        # to
+                        # mov byte ptr [rbp + 0x0000000000000141], dl
+                        match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\sAdd64\(t\d+,(0x\w+)\)\nt\d+\s=\sGET:I8\((\w+)\)\nSTle\(t\d+\)\s=\s(t\d+)", cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": mov byte ptr " + "[" + match_result.group(1) + " + " + match_result.group(2)+ "], " + match_result.group(3) + "</FONT>"
+                            continue
+
+
                         # ------ IMark(0x400928, 0, 0) - -----
                         # t31 = LDle:I8(0x00000000006027a0)
                         # t30 = 8Uto32(t31)
@@ -1402,6 +1448,20 @@ class VMDeobfuscation(Analysis):
                         if match_result:
                             x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr)) + ": mov " + "dword ptr " + "[" + match_result.group(2) + "], " + match_result.group(1)  + "</FONT>"
                             continue
+
+                        # ------ IMark(0x4009cb, 0, 0) - -----
+                        # t2 = LDle:I32(0x00000000006010a0)
+                        # t0 = Add32(t2, 0x000000f1)
+                        # STle(0x00000000006010a0) = t0
+                        # to
+                        # add dword ptr [0x00000000006010a0], 0x000000f1
+                        match_result = re.match("\nt\d+\s=\sLDle:I32\((0x\w+)\)\nt\d+\s=\sAdd32\(t\d+,(0x\w+)\)\nSTle\(0x\w+\)\s=\st\d+", cur_ins_str)
+                        if match_result:
+                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                hex(curr_ins_addr)) + ": add " + "dword ptr " + "[" + match_result.group(
+                                1) + "], " + match_result.group(2) + "</FONT>"
+                            continue
+
 
                         x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='blue'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ") + "</FONT>"
 
