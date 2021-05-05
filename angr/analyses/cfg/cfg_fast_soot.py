@@ -3,8 +3,10 @@ import logging
 
 from collections import defaultdict
 from sortedcontainers import  SortedDict
+from copy import copy
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
+from pysoot.sootir.soot_value import SootLocal
 
 from ...utils.constants import DEFAULT_STATEMENT
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
@@ -26,7 +28,7 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
 
-    def __init__(self, **kwargs):
+    def __init__(self, support_jni=False, **kwargs):
 
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
@@ -35,6 +37,7 @@ class CFGFastSoot(CFGFast):
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
+        self.support_jni = support_jni
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
 
         self._changed_functions = None
@@ -149,6 +152,19 @@ class CFGFastSoot(CFGFast):
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
 
+        if self.support_jni and block is None:
+            successors = [ ]
+            class_name = "nativemethod"
+            method_name = "Java_" +  method.class_name.replace('.', '_') + '_' + method.name # e.g., Java_com_example_nativemedia_NativeMedia_shutdown
+            params = method.params
+            dummy_expr = SootStaticInvokeExpr("void", class_name, method_name, params, {"jni"})
+            dummy_stmt = InvokeStmt(0, 0, dummy_expr)
+
+            succs_native = self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
+            successors.extend(succs_native)
+
+            return successors
+
         block_id = block.idx
 
         if addr.stmt_idx is None:
@@ -176,6 +192,29 @@ class CFGFastSoot(CFGFast):
 
             elif isinstance(stmt, InvokeStmt):
                 invoke_expr = stmt.invoke_expr
+                
+                # add clinit
+                if self.support_jni and invoke_expr.method_name == 'loadLibrary':
+                    try:
+                        native_lib_name = invoke_expr.args[0].value.replace('"', '').replace("'", "")
+                        invoke_expr.class_name = native_lib_name
+                    except AttributeError:
+                        pass
+                    invoke_expr.method_name = 'JNI_OnLoad'
+                    succs_native = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
+                    if succs_native:
+                        successors.extend(succs_native)
+                        has_default_exit = False
+                        break
+
+                if self.support_jni and invoke_expr.method_name is '<init>':
+                    clinit_invoke_expr = copy(invoke_expr)
+                    clinit_invoke_expr.method_name = '<clinit>'
+                    succs_clinit = self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr)
+                    if succs_clinit:
+                        successors.extend(succs_clinit)
+                        has_default_exit = False
+                        break
 
                 succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
                 if succs:
@@ -198,6 +237,25 @@ class CFGFastSoot(CFGFast):
                 expr = stmt.right_op
 
                 if isinstance(expr, SootInvokeExpr):
+                    # add clinit
+                    if self.support_jni and expr.method_name == 'loadLibrary':
+                        native_lib_name = expr.args[0].value.replace('"', '').replace("'", "")
+                        expr.class_name = native_lib_name
+                        expr.method_name = 'JNI_OnLoad'
+                        succs_native = self._soot_create_invoke_successors(stmt, addr, expr)
+                        if succs_native:
+                            successors.extend(succs_native)
+                            has_default_exit = False
+                            break
+
+                    if self.support_jni and expr.method_name is '<init>':
+                        clinit_expr = copy(expr)
+                        clinit_expr.method_name = '<clinit>'
+                        succs_clinit = self._soot_create_invoke_successors(stmt, addr, clinit_expr)
+                        if succs_clinit:
+                            successors.extend(succs_clinit)
+                            has_default_exit = False
+                            break
                     succs = self._soot_create_invoke_successors(stmt, addr, expr)
                     if succs:
                         successors.extend(succs)
@@ -458,6 +516,11 @@ class CFGFastSoot(CFGFast):
 
         :return: None
         """
+
+        # There are some issues in support_jni environment(e.g. _graph_bfs_custom looping)
+        # It handled as passing over for quick fix.
+        if self.support_jni:
+            return
 
         tmp_functions = self.kb.functions.copy()
 
