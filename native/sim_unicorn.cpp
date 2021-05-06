@@ -253,8 +253,6 @@ void State::commit() {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
-			auto result = find_symbolic_mem_deps(symbolic_instr);
-			symbolic_instr.symbolic_mem_deps.insert(symbolic_instr.symbolic_mem_deps.end(), result.begin(), result.end());
 		}
 		blocks_with_symbolic_instrs.emplace_back(curr_block_details);
 	}
@@ -625,6 +623,19 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 						stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
 						return;
 					}
+				}
+			}
+		}
+		// Also check if the destination is a memory dependency of an instruction in current block should be re-executed
+		for (auto &sym_instr: curr_block_details.symbolic_instrs) {
+			for (auto &symbolic_mem_dep: sym_instr.symbolic_mem_deps) {
+				auto symbolic_start_addr = symbolic_mem_dep.first;
+				auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+				if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
+					// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
+					// will be lost. Stop execution.
+					stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK);
+					return;
 				}
 			}
 		}
@@ -1605,6 +1616,8 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			instr_details.reg_deps.insert(reg_val);
 		}
 		instr_details.instr_deps.insert(instr_details.instr_deps.end(), instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
+		auto result = find_symbolic_mem_deps(instr_details);
+		instr_details.symbolic_mem_deps.insert(instr_details.symbolic_mem_deps.end(), result.begin(), result.end());
 		curr_block_details.symbolic_instrs.emplace_back(instr_details);
 	}
 	return;
