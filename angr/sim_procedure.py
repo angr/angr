@@ -157,7 +157,7 @@ class SimProcedure:
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        if self.addr is None and not state.regs.ip.symbolic:
+        if self.addr is None and not state.regs._ip.symbolic:
             self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
