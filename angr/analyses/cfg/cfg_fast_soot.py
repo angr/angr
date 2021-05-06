@@ -152,17 +152,9 @@ class CFGFastSoot(CFGFast):
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
 
+        # native method has no soot block
         if self.support_jni and block is None:
-            successors = [ ]
-            class_name = "nativemethod"
-            method_name = "Java_" +  method.class_name.replace('.', '_') + '_' + method.name # e.g., Java_com_example_nativemedia_NativeMedia_shutdown
-            params = method.params
-            dummy_expr = SootStaticInvokeExpr("void", class_name, method_name, params, {"jni"})
-            dummy_stmt = InvokeStmt(0, 0, dummy_expr)
-
-            succs_native = self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
-            successors.extend(succs_native)
-
+            successors = self._native_method_successors(addr, method)
             return successors
 
         block_id = block.idx
@@ -193,52 +185,11 @@ class CFGFastSoot(CFGFast):
             elif isinstance(stmt, InvokeStmt):
                 invoke_expr = stmt.invoke_expr
 
-                # add thread.start()
-                if self.support_jni and \
-                    invoke_expr.class_name == 'java.lang.Thread' and invoke_expr.method_name == 'start':
-                    # Runnable arg case
-                    if invoke_expr.base.type == 'java.lang.Thread':
-                        thread_class_name = None
-                        args = []
-                        for before_stmt in block.statements[:block.statements.index(stmt)]:
-                            args.extend(before_stmt.invoke_expr.args) if isinstance(before_stmt, InvokeStmt) else None
-
-                        # match arg.name == base.name
-                        for name in [arg.name for arg in args if isinstance(arg, SootLocal)]:
-                            thread_class_name = name if name == invoke_expr.base.name else None
-
-                    # Basic case
-                    else:
-                        thread_class_name = invoke_expr.base.type
-
-                    if thread_class_name is not None:
-                        thread_invoke_expr = copy(invoke_expr)
-                        thread_invoke_expr.class_name = thread_class_name
-                        thread_invoke_expr.method_name = 'run'
-                        succs_thread = self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr)
-                        if succs_thread:
-                            successors.extend(succs_thread)
-
-                # add clinit
-                if self.support_jni and invoke_expr.method_name == 'loadLibrary':
-                    try:
-                        native_lib_name = invoke_expr.args[0].value.replace('"', '').replace("'", "")
-                        invoke_expr.class_name = native_lib_name
-                    except AttributeError:
-                        pass
-                    invoke_expr.method_name = 'JNI_OnLoad'
-                    succs_native = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
-                    if succs_native:
-                        successors.extend(succs_native)
-                        has_default_exit = False
-                        break
-
-                if self.support_jni and invoke_expr.method_name is '<init>':
-                    clinit_invoke_expr = copy(invoke_expr)
-                    clinit_invoke_expr.method_name = '<clinit>'
-                    succs_clinit = self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr)
-                    if succs_clinit:
-                        successors.extend(succs_clinit)
+                # add special successors
+                if self.support_jni:
+                    succs = self._special_invoke_successors(stmt, addr, block)
+                    if succs:
+                        successors.extend(succs)
                         has_default_exit = False
                         break
 
@@ -263,25 +214,6 @@ class CFGFastSoot(CFGFast):
                 expr = stmt.right_op
 
                 if isinstance(expr, SootInvokeExpr):
-                    # add clinit
-                    if self.support_jni and expr.method_name == 'loadLibrary':
-                        native_lib_name = expr.args[0].value.replace('"', '').replace("'", "")
-                        expr.class_name = native_lib_name
-                        expr.method_name = 'JNI_OnLoad'
-                        succs_native = self._soot_create_invoke_successors(stmt, addr, expr)
-                        if succs_native:
-                            successors.extend(succs_native)
-                            has_default_exit = False
-                            break
-
-                    if self.support_jni and expr.method_name is '<init>':
-                        clinit_expr = copy(expr)
-                        clinit_expr.method_name = '<clinit>'
-                        succs_clinit = self._soot_create_invoke_successors(stmt, addr, clinit_expr)
-                        if succs_clinit:
-                            successors.extend(succs_clinit)
-                            has_default_exit = False
-                            break
                     succs = self._soot_create_invoke_successors(stmt, addr, expr)
                     if succs:
                         successors.extend(succs)
@@ -297,6 +229,68 @@ class CFGFastSoot(CFGFast):
                               )
 
         return successors
+
+    def _native_method_successors(self, addr, method):
+        class_name = "nativemethod"
+        # e.g., Java_com_example_nativemedia_NativeMedia_shutdown
+        method_name = "Java_" +  method.class_name.replace('.', '_') + '_' + method.name
+        params = method.params
+        dummy_expr = SootStaticInvokeExpr("void", class_name, method_name, params, {"jni"})
+        dummy_stmt = InvokeStmt(0, 0, dummy_expr)
+        succs_native = self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
+
+        return succs_native
+
+    def _special_invoke_successors(self, stmt, addr, block):
+        invoke_expr = stmt.invoke_expr
+        succs = None
+
+        # add <clinit>
+        # many class using jni are loading the library in static method
+        if invoke_expr.method_name is '<init>':
+            clinit_invoke_expr = copy(invoke_expr)
+            clinit_invoke_expr.method_name = '<clinit>'
+            succs = self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr)
+
+        # convert 'System.loadLibrary' to JNI_OnLoad of library name
+        # format: <libname>.JNI_OnLoad(java.lang.String)
+        elif invoke_expr.class_name == 'System' and invoke_expr.method_name == 'loadLibrary':
+            # Todo: restrictly set condition System.loadlibrary
+            try:
+                native_lib_name = invoke_expr.args[0].value.replace('"', '').replace("'", "")
+                invoke_expr.class_name = native_lib_name
+            except AttributeError:
+                pass
+            invoke_expr.method_name = 'JNI_OnLoad'
+            succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
+
+        # add thread.start()
+        # it may occur that block is NoneType when thread call native method.
+        # so only use on support_jni condition
+        # format: <classname>.run()
+        elif invoke_expr.class_name == 'java.lang.Thread' and invoke_expr.method_name == 'start':
+            # Runnable arg case
+            if invoke_expr.base.type == 'java.lang.Thread':
+                thread_class_name = None
+                args = []
+                for before_stmt in block.statements[:block.statements.index(stmt)]:
+                    args.extend(before_stmt.invoke_expr.args) if isinstance(before_stmt, InvokeStmt) else None
+
+                # match arg.name == base.name
+                for name in [arg.name for arg in args if isinstance(arg, SootLocal)]:
+                    thread_class_name = name if name == invoke_expr.base.name else None
+
+            # Basic case
+            else:
+                thread_class_name = invoke_expr.base.type
+
+            if thread_class_name is not None:
+                thread_invoke_expr = copy(invoke_expr)
+                thread_invoke_expr.class_name = thread_class_name
+                thread_invoke_expr.method_name = 'run'
+                succs = self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr)
+
+        return succs
 
     def _soot_create_invoke_successors(self, stmt, addr, invoke_expr):
 
