@@ -247,7 +247,7 @@ class CFGFastSoot(CFGFast):
 
         # add <clinit>
         # many class using jni are loading the library in static method
-        if invoke_expr.method_name is '<init>':
+        if invoke_expr.method_name == '<init>':
             clinit_invoke_expr = copy(invoke_expr)
             clinit_invoke_expr.method_name = '<clinit>'
             succs = self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr)
@@ -274,7 +274,8 @@ class CFGFastSoot(CFGFast):
                 thread_class_name = None
                 args = []
                 for before_stmt in block.statements[:block.statements.index(stmt)]:
-                    args.extend(before_stmt.invoke_expr.args) if isinstance(before_stmt, InvokeStmt) else None
+                    if isinstance(before_stmt, InvokeStmt):
+                        args.extend(before_stmt.invoke_expr.args)
 
                 # match arg.name == base.name
                 for name in [arg.name for arg in args if isinstance(arg, SootLocal)]:
