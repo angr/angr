@@ -44,9 +44,12 @@ def parse_stack_pointer(sp):
 
 
 class VariableAnnotation(Annotation):
+<<<<<<< HEAD
 
     __slots__ = ('addr_and_variables', )
 
+=======
+>>>>>>> eeb6c9e22170fa530d6c9a682d68fe601db7138d
     def __init__(self, addr_and_variables: List[Tuple[int,SimVariable]]):
         self.addr_and_variables = addr_and_variables
 

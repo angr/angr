@@ -112,6 +112,10 @@ class SimEngineVRVEX(
         return RichR(self.state.top(expr.result_size(self.tyenv)))
 
 
+    def _handle_Conversion(self, expr: pyvex.IRExpr.Unop) -> RichR:
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+
     # Function handlers
 
     def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use,useless-return
@@ -237,31 +241,12 @@ class SimEngineVRVEX(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-<<<<<<< HEAD
         result_size = expr.result_size(self.tyenv)
         if r0.data.concrete and r1.data.concrete:
             # constants
             return RichR(claripy.LShR(r0.data, r1.data._model_concrete.value),
                          typevar=typeconsts.int_type(result_size),
                          type_constraints=None)
-=======
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = expr.result_size(self.tyenv)
-                return RichR(r0.data >> r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
-
-            r = None
-            if r0.data is not None and r1.data is not None:
-                r = r0.data >> r1.data.sign_extend(r0.data.size()-r1.data.size())
-                print(r)
-
-            return RichR(r,
-                         typevar=r0.typevar,
-                         )
->>>>>>> Fix size diff when shifting
 
         r = self.state.top(result_size)
         return RichR(r,
@@ -280,52 +265,22 @@ class SimEngineVRVEX(
                          typevar=typeconsts.int_type(result_size),
                          type_constraints=None)
 
-<<<<<<< HEAD
         r = self.state.top(result_size)
         return RichR(r,
                      typevar=r0.typevar,
                      )
-=======
-            r = None
-            if r0.data is not None and r1.data is not None:
-                r = r0.data >> r1.data.sign_extend(r0.data.size()-r1.data.size())
-
-            return RichR(r,
-                         typevar=r0.typevar,
-                         )
-
-        except TypeError as e:
-            self.l.warning(e)
-            return RichR(None)
->>>>>>> Fix size diff when shifting
 
     def _handle_Shl(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-<<<<<<< HEAD
         result_size = expr.result_size(self.tyenv)
         if r0.data.concrete and r1.data.concrete:
             # constants
             return RichR(r0.data << r1.data._model_concrete.value,
                          typevar=typeconsts.int_type(result_size),
                          type_constraints=None)
-=======
-        try:
-            result_size = expr.result_size(self.tyenv)
-            mask = (1 << result_size) - 1
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                return RichR((r0.data << r1.data) & mask,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
-
-            r = None
-            if r0.data is not None and r1.data is not None:
-                r = r0.data << r1.data.sign_extend(r0.data.size()-r1.data.size())
-                r &= mask
->>>>>>> Fix size diff when shifting
 
         r = self.state.top(result_size)
         return RichR(r,
