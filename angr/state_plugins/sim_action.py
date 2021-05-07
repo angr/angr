@@ -274,6 +274,8 @@ class SimActionData(SimAction):
             _size = self.size.ast if isinstance(self.size, SimActionObject) else self.size
             assert isinstance(_size, int)
             storage = self.arch.register_size_names[(self.offset, _size // self.arch.byte_width)]
+        elif self.type == 'tmp':
+            storage = f'tmp_{self.tmp}'
         else:
             storage = self.addr
         direction = '<<----' if self.action == 'write' else '---->>'
