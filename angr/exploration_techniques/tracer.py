@@ -700,6 +700,19 @@ class Tracer(ExplorationTechnique):
                 # desync happend.
                 break
 
+        # Let's find the address of the last byte of the big basic block using VEX lifter
+        angr_big_block_end_addr = None
+        curr_block_addr = big_block_start_addr
+        while True:
+            curr_block = state.project.factory.block(self._translate_trace_addr(curr_block_addr))
+            curr_block_last_insn = curr_block.capstone.insns[-1]
+            if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
+                # Found last block
+                angr_big_block_end_addr = curr_block.addr + curr_block.size
+                break
+            else:
+                curr_block_addr = curr_block.addr + curr_block.size
+
         # Let's find the address of the last bytes of the big basic block from the trace
         big_block_end_addr = None
         for trace_block_idx in range(trace_curr_idx + 1, len(self._trace)):
@@ -707,10 +720,18 @@ class Tracer(ExplorationTechnique):
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
                 if trace_block_last_insn.group(insn_type):
+                    # Found first block in trace ending in a control flow instruction. Verify it matches the end of big
+                    # block according to VEX lifter
                     big_block_end_addr = trace_block.addr + trace_block.size
-                    break
+                    if angr_big_block_end_addr != big_block_end_addr:
+                        # End does not match. Treat as trace desync.
+                        return False
+                    else:
+                        break
 
-        if big_block_end_addr is None:
+            if big_block_end_addr is not None:
+                break
+        else:
             # Failed to find end of the big basic block in trace. Treat as trace desync.
             return False
 
