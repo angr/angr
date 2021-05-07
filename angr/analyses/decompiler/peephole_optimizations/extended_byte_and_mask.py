@@ -23,7 +23,7 @@ class ExtendedByteAndMask(PeepholeOptimizationExprBase):
             mask = expr.operands[1].value
             to_bits = _MASK_TO_BITS.get(mask, None)
             if to_bits is None:
-                return
+                return None
 
             if isinstance(expr.operands[0], Convert):
                 conv: Convert = expr.operands[0]
