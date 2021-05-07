@@ -722,7 +722,7 @@ class Tracer(ExplorationTechnique):
 
         # Let's find the address of the last bytes of the big basic block from the trace
         big_block_end_addr = None
-        for trace_block_idx in range(trace_curr_idx + 1, len(self._trace)):
+        for trace_block_idx in range(trace_curr_idx, len(self._trace)):
             trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_block_idx]))
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
