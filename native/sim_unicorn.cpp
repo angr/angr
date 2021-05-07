@@ -607,7 +607,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 			}
 		}
 	}
-	if (find_tainted(address, size) != -1) {
+	if ((find_tainted(address, size) != -1) & (!is_dst_symbolic)) {
 		// We are writing to a memory location that is currently symbolic. If the destination if a memory dependency
 		// of some instruction to be re-executed, we need to re-execute that instruction before continuing.
 		auto write_start_addr = address;
@@ -639,35 +639,33 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 				}
 			}
 		}
-		if (!is_dst_symbolic) {
-			// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
-			// instructions to be re-executed write to this same location. If there is one, they need not be re-executed
-			// since this concrete write nullifies their effects.
-			auto curr_write_start_addr = address;
-			auto curr_write_end_addr = address + size;
-			std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
-			for (auto &block: blocks_with_symbolic_instrs) {
-				instrs_to_erase_it.clear();
-				for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
-					int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
-					if (symbolic_write_start_addr == -1) {
-						// Instruction does not write a symbolic write to memory. No need to check this.
-						continue;
-					}
-					int64_t symbolic_write_end_addr = sym_instr_it->mem_write_addr + sym_instr_it->mem_write_size;
-					if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
-						// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
-						// instruction need not be re-executed
-						// TODO: How to handle partial overwrite?
-						// TODO: If this block is not fully executed in unicorn before control returns to python land,
-						// the state will be inconsistent until this concrete memory write is executed. If this happens,
-						// the symbolic memory write should be removed from list of instructions to re-execute in commit.
-						instrs_to_erase_it.emplace_back(sym_instr_it);
-					}
+		// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
+		// instructions to be re-executed write to this same location. If there is one, they need not be re-executed
+		// since this concrete write nullifies their effects.
+		auto curr_write_start_addr = address;
+		auto curr_write_end_addr = address + size;
+		std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
+		for (auto &block: blocks_with_symbolic_instrs) {
+			instrs_to_erase_it.clear();
+			for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
+				int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
+				if (symbolic_write_start_addr == -1) {
+					// Instruction does not write a symbolic write to memory. No need to check this.
+					continue;
 				}
-				for (auto &instr_to_erase_it: instrs_to_erase_it) {
-					block.symbolic_instrs.erase(instr_to_erase_it);
+				int64_t symbolic_write_end_addr = sym_instr_it->mem_write_addr + sym_instr_it->mem_write_size;
+				if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
+					// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
+					// instruction need not be re-executed
+					// TODO: How to handle partial overwrite?
+					// TODO: If this block is not fully executed in unicorn before control returns to python land,
+					// the state will be inconsistent until this concrete memory write is executed. If this happens,
+					// the symbolic memory write should be removed from list of instructions to re-execute in commit.
+					instrs_to_erase_it.emplace_back(sym_instr_it);
 				}
+			}
+			for (auto &instr_to_erase_it: instrs_to_erase_it) {
+				block.symbolic_instrs.erase(instr_to_erase_it);
 			}
 		}
 	}
