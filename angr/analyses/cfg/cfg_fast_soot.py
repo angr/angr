@@ -190,8 +190,6 @@ class CFGFastSoot(CFGFast):
                     succs = self._special_invoke_successors(stmt, addr, block)
                     if succs:
                         successors.extend(succs)
-                        has_default_exit = False
-                        break
 
                 succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
                 if succs:
@@ -214,6 +212,10 @@ class CFGFastSoot(CFGFast):
                 expr = stmt.right_op
 
                 if isinstance(expr, SootInvokeExpr):
+                    succs = self._special_invoke_successors(stmt, addr, block)
+                    if succs:
+                        successors.extend(succs)
+
                     succs = self._soot_create_invoke_successors(stmt, addr, expr)
                     if succs:
                         successors.extend(succs)
@@ -242,7 +244,7 @@ class CFGFastSoot(CFGFast):
         return succs_native
 
     def _special_invoke_successors(self, stmt, addr, block):
-        invoke_expr = stmt.invoke_expr
+        invoke_expr = stmt.invoke_expr if isinstance(stmt, InvokeStmt) else stmt.right_op
         succs = None
 
         # add <clinit>
