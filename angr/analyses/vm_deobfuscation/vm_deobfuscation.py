@@ -233,12 +233,96 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
+        new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+
+        self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
+
         self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr)
 
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, proj, folder_name)
+
+    def join_basic_blocks(self, cfg, proj, start_addr, vm_vpc_addr, start_state):
+        new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
+
+        for node in list(new_model.graph.nodes()):
+            # This is to check if the node was deleted or not
+            if node in new_model.graph.nodes():
+                if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
+                    succ = list(new_model.graph.successors(node))[0]
+                    if len(list(new_model.graph.predecessors(succ))) == 1 and not succ.is_simprocedure:
+                        new_stmts = []
+                        new_types = {}
+                        tmps_used_cur_block = []
+                        tmps_used_succ_block = []
+                        tmp_replace_map = {}
+                        tmp_no_to_use = 0
+                        for stmt in node.irsb.statements:
+                            new_stmts.append(stmt)
+                            if isinstance(stmt, pyvex.stmt.WrTmp):
+                                tmps_used_cur_block.append(stmt.tmp)
+                                new_types[stmt.tmp] = node.irsb.tyenv.lookup(stmt.tmp)
+                        for stmt in succ.irsb.statements:
+                            if isinstance(stmt, pyvex.stmt.WrTmp):
+                                tmps_used_succ_block.append(stmt.tmp)
+
+                        tmp_no_to_use = max(tmps_used_cur_block+tmps_used_succ_block) + 1
+
+                        for stmt in succ.irsb.statements:
+                            if isinstance(stmt, pyvex.stmt.WrTmp):
+                                if stmt.tmp in tmps_used_cur_block:
+                                    tmp_replace_map[pyvex.expr.RdTmp(stmt.tmp)] = pyvex.expr.RdTmp(tmp_no_to_use)
+                                    new_types[tmp_no_to_use] = succ.irsb.tyenv.lookup(stmt.tmp)
+                                    stmt.tmp = tmp_no_to_use
+                                    tmp_no_to_use = tmp_no_to_use + 1
+                                else:
+                                    new_types[stmt.tmp] = succ.irsb.tyenv.lookup(stmt.tmp)
+
+                            if not isinstance(stmt, pyvex.stmt.IMark):
+                                for rd_tmp in tmp_replace_map:
+                                    for expr in stmt.expressions:
+                                        if expr == rd_tmp:
+                                            stmt.replace_expression(expr, tmp_replace_map[rd_tmp])
+                            new_stmts.append(stmt)
+
+                        #convert types dict to list, with 'None' str for the missing tmps
+                        new_types_list = []
+                        for i in range(max(new_types.keys())+1):
+                            if i in new_types:
+                                new_types_list.append(new_types[i])
+                            else:
+                                new_types_list.append("tmp removed")
+
+                        node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                          node.irsb.addr,
+                                                          statements=new_stmts,
+                                                          tyenv=pyvex.block.IRTypeEnv(node.irsb.arch,types=new_types_list),
+                                                          nxt=succ.irsb.next,
+                                                          direct_next=succ.irsb.direct_next,
+                                                          jumpkind=succ.irsb.jumpkind,
+                                                          size=node.irsb.size+succ.irsb.size)
+
+                        for succ_of_succ in new_model.graph.successors(succ):
+                            edge_data = cfg.graph.get_edge_data(node, succ)
+                            new_model.graph.add_edge(node, succ_of_succ, jumpkind=edge_data['jumpkind'])
+                        new_model.graph.remove_node(succ)
+
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+
+        return new_cfg
 
     def convert_to_data_sensitive_irsb(self, cfg, proj, start_state):
         new_model = self.new_model_graph(cfg.graph, proj, 'data_sensitive_irsb')
