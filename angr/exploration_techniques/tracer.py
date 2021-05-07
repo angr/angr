@@ -631,9 +631,20 @@ class Tracer(ExplorationTechnique):
             # Failed to find matching block address. qemu block is probably not contained in a previous block.
             return (False, -1)
 
+        control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
         big_block_start = self._trace[trace_match_idx]
-        big_block = state.project.factory.block(self._translate_trace_addr(big_block_start))
-        big_block_end = big_block_start + big_block.size - 1
+        big_block_end = None
+        curr_block_addr = big_block_start
+        while True:
+            curr_block = state.project.factory.block(self._translate_trace_addr(curr_block_addr))
+            curr_block_last_insn = curr_block.capstone.insns[-1]
+            if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
+                # Found last block
+                big_block_end = curr_block.addr + curr_block.size
+                break
+            else:
+                curr_block_addr = curr_block.addr + curr_block.size
+
         for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
             if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
                 # This qemu block is not contained in the bigger block
