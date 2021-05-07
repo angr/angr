@@ -637,11 +637,7 @@ class Tracer(ExplorationTechnique):
         for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
             if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
                 # This qemu block is not contained in the bigger block
-                break
-
-        if last_contain_index != trace_curr_idx:
-            # Current block in trace is not in the big block
-            return (False, -1)
+                return (False, -1)
 
         # Check for future blocks in trace contained in big block
         for next_contain_index in range(trace_curr_idx + 1, len(self._trace)):
