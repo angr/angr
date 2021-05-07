@@ -269,6 +269,8 @@ class SimActionData(SimAction):
                 o = o.ast
             except AttributeError:
                 pass
+            if type(o) in {bytes, str, int}:
+                return o
             return o.shallow_repr()
         if self.type == 'reg':
             _size = self.size.ast if isinstance(self.size, SimActionObject) else self.size
