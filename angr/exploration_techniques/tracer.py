@@ -642,8 +642,8 @@ class Tracer(ExplorationTechnique):
                 # Found last block
                 big_block_end = curr_block.addr + curr_block.size
                 break
-            else:
-                curr_block_addr = curr_block.addr + curr_block.size
+
+            curr_block_addr = curr_block.addr + curr_block.size
 
         for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
             if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
@@ -717,8 +717,8 @@ class Tracer(ExplorationTechnique):
                 # Found last block
                 angr_big_block_end_addr = curr_block.addr + curr_block.size
                 break
-            else:
-                curr_block_addr = curr_block.addr + curr_block.size
+
+            curr_block_addr = curr_block.addr + curr_block.size
 
         # Let's find the address of the last bytes of the big basic block from the trace
         big_block_end_addr = None
