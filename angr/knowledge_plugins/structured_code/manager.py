@@ -25,4 +25,7 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __setitem__(self, key, value):
         self._codegens[self._normalize_key(key)] = value
 
+    def copy(self):
+        raise NotImplementedError
+
 KnowledgeBasePlugin.register_default('structured_code', StructuredCodeManager)
