@@ -41,6 +41,7 @@ class Clinic(Analysis):
                  cfg=None,
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  must_struct: Optional[Set[str]]=None,
+                 variable_kb=None,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -49,7 +50,7 @@ class Clinic(Analysis):
 
         self.graph = None
         self.arg_list = None
-        self.variable_kb = None
+        self.variable_kb = variable_kb
 
         self._func_graph: Optional[networkx.DiGraph] = None
         self._ail_manager = None
@@ -536,12 +537,7 @@ class Clinic(Analysis):
     def _recover_and_link_variables(self, ail_graph, arg_list):
 
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project)
-        # remove existing variables for this function
-        if tmp_kb.variables.has_function_manager(self.function.addr):
-            l.warning("Removing existing variable recovery result for function %#x.", self.function.addr)
-            del tmp_kb.variables[self.function.addr]
-        # stack pointers have been removed at this point
+        tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=ail_graph, kb=tmp_kb, track_sp=False,
                                                         func_args=arg_list)
@@ -566,7 +562,7 @@ class Clinic(Analysis):
 
         # Unify SSA variables
         tmp_kb.variables[self.function.addr].unify_variables()
-        tmp_kb.variables[self.function.addr].assign_unified_variable_names(labels=self.kb.labels, reset=True)
+        tmp_kb.variables[self.function.addr].assign_unified_variable_names(labels=self.kb.labels)
 
         # Link variables to each statement
         for block in ail_graph.nodes():
