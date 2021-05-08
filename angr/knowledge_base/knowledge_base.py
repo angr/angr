@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from ..knowledge_plugins import VariableManager
     from ..knowledge_plugins import KeyDefinitionManager
     from ..knowledge_plugins import CFGManager
+    from ..knowledge_plugins import StructuredCodeManager
 
 from ..knowledge_plugins.plugin import default_plugins
 
@@ -27,6 +28,7 @@ class KnowledgeBase:
     """
     functions: 'FunctionManager'
     variables: 'VariableManager'
+    structured_code: 'StructuredCodeManager'
     defs: 'KeyDefinitionManager'
     cfgs: 'CFGManager'
     _project: 'Project'
