@@ -549,15 +549,14 @@ class SimEngineRDVEX(
         expr1_v = expr1.one_value()
 
         def _shift_sar(e0, e1):
-            try:
-                if e0 >> (bits - 1) == 0:
-                    head = 0
-                else:
-                    head = ((1 << e1) - 1) << (bits - e1)
-                return head | (e0 >> e1)
-            except (ValueError, TypeError) as e:
-                l.warning(e)
-                return self.state.top(bits)
+            # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
+            e1 = e1._model_concrete.value
+
+            if claripy.is_true(e0 >> (bits - 1) == 0):
+                head = claripy.BVV(0, bits)
+            else:
+                head = ((1 << e1) - 1) << (bits - e1)
+            return head | (e0 >> e1)
 
         if expr0_v is None and expr1_v is None:
             # we do not support shifting between two real multivalues
@@ -565,7 +564,7 @@ class SimEngineRDVEX(
         elif expr0_v is None and expr1_v is not None:
             # shifting a single value by a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = { _shift_sar(v, expr1_v)  for v in expr1.values[0]}
+                vs = { _shift_sar(v, expr1_v) for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # shifting a multivalue by a single value
@@ -575,6 +574,41 @@ class SimEngineRDVEX(
         else:
             # subtracting a single value from another single value
             r = MultiValues(offset_to_values={0: {_shift_sar(expr0_v, expr1_v)}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _handle_Shl(self, expr):
+        expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        def _shift_shl(e0, e1):
+            # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
+            e1 = e1._model_concrete.value
+            return e0 << e1
+
+        if expr0_v is None and expr1_v is None:
+            # we do not support shifting between two real multivalues
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # shifting left a single value by a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = { _shift_shl(v, expr1_v) for v in expr0.values[0] }
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # shifting left a multivalue by a single value
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = { _shift_shl(expr0_v, v) for v in expr1.values[0] }
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # subtracting a single value from another single value
+            r = MultiValues(offset_to_values={0: {_shift_shl(expr0_v, expr1_v)}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
