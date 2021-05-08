@@ -140,7 +140,8 @@ class SimEnginePropagatorVEX(
             return
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
-        self._store_data(addr, data, size, self.arch.memory_endness)
+        if data is not None:
+            self._store_data(addr, data, size, self.arch.memory_endness)
 
     def _handle_LoadG(self, stmt):
         guard = self._expr(stmt.guard)
