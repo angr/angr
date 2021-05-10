@@ -436,24 +436,23 @@ class SimEngineVRBase(SimEngineLight):
                     l.warning("Reading memory with overlapping variables: %s. Ignoring all but the first one.",
                               all_vars)
 
-                for var_offset, var in all_vars:
-                    # calculate variable_offset
-                    if dynamic_offset is None:
-                        offset_into_variable = None
+                var_offset, var = next(iter(all_vars))  # won't fail
+                # calculate variable_offset
+                if dynamic_offset is None:
+                    offset_into_variable = None
+                else:
+                    if var_offset == 0:
+                        offset_into_variable = dynamic_offset
                     else:
-                        if var_offset == 0:
-                            offset_into_variable = dynamic_offset
-                        else:
-                            offset_into_variable = ArithmeticExpression(ArithmeticExpression.Add,
-                                                                        (dynamic_offset, var_offset,)
-                                                                        )
-                    self.variable_manager[self.func_addr].read_from(var,
-                                                                    offset_into_variable,
-                                                                    codeloc,
-                                                                    atom=expr,
-                                                                    # overwrite=True
+                        offset_into_variable = ArithmeticExpression(ArithmeticExpression.Add,
+                                                                    (dynamic_offset, var_offset,)
                                                                     )
-                    break
+                self.variable_manager[self.func_addr].read_from(var,
+                                                                offset_into_variable,
+                                                                codeloc,
+                                                                atom=expr,
+                                                                # overwrite=True
+                                                                )
 
                 # add delayed type constraints
                 if var in self.state.delayed_type_constraints:
@@ -547,7 +546,7 @@ class SimEngineVRBase(SimEngineLight):
         variable_set = set()
         for value_set in value_list:
             for value in value_set:
-                for var_offset, var in self.state.extract_variables(value):
+                for _, var in self.state.extract_variables(value):
                     self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
                     variable_set.add(var)
 

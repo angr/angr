@@ -285,42 +285,42 @@ class SimEngineVRVEX(
 
     def _handle_CmpEQ(self, expr):
         arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         return RichR(self.state.top(1))
 
     def _handle_CmpNE(self, expr):
         arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         return RichR(self.state.top(1))
 
     def _handle_CmpLE(self, expr):
         arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         return RichR(self.state.top(1))
 
     def _handle_CmpLT(self, expr):
         arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         return RichR(self.state.top(1))
 
     def _handle_CmpGE(self, expr):
         arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         return RichR(self.state.top(1))
 
     def _handle_CmpGT(self, expr):
         arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        _ = self._expr(arg0)
+        _ = self._expr(arg1)
 
         return RichR(self.state.top(1))

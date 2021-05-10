@@ -1,3 +1,4 @@
+# pylint:disable=abstract-method
 from typing import Iterable, Tuple, Any, Optional
 
 import claripy
@@ -105,7 +106,7 @@ class MemoryMixin(SimStatePlugin):
         """
         pass
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int) -> Optional[Any]:
+    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int, **kwargs) -> Optional[Any]:
         """
         Override this method to provide value merging support.
 

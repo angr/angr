@@ -28,7 +28,8 @@ class SimEngineInitFinderVEX(
     # Utils
     #
 
-    def is_concrete(self, expr) -> bool:
+    @staticmethod
+    def is_concrete(expr) -> bool:
         if isinstance(expr, claripy.ast.Base) and expr.op == "BVV":
             return True
         if isinstance(expr, int):
@@ -128,7 +129,6 @@ class SimEngineInitFinderVEX(
             return
 
         if self.is_concrete(data_v):
-            import ipdb; ipdb.set_trace()
             if isinstance(data_v, int):
                 data_size = self.tyenv.sizeof(stmt.data.tmp)
                 data_v = claripy.BVV(data_v, data_size)

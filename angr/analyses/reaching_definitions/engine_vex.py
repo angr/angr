@@ -35,7 +35,7 @@ class SimEngineRDVEX(
 ):  # pylint:disable=abstract-method
     def __init__(self, project, call_stack, maximum_local_call_depth, functions=None,
                  function_handler=None):
-        super(SimEngineRDVEX, self).__init__()
+        super().__init__()
         self.project = project
         self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
@@ -97,7 +97,7 @@ class SimEngineRDVEX(
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
-        super(SimEngineRDVEX, self)._handle_Stmt(stmt)
+        super()._handle_Stmt(stmt)
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)

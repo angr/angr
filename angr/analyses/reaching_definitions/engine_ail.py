@@ -1,18 +1,17 @@
 from itertools import chain
-from typing import Iterable, Union, List, Optional
+from typing import Iterable, Optional
 import logging
 
 import archinfo
 import claripy
 import ailment
 
-from ...engines.light import SimEngineLight, SimEngineLightAILMixin, RegisterOffset, SpOffset
+from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
 from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ...knowledge_plugins.key_definitions.live_definitions import Definition
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
@@ -29,7 +28,7 @@ class SimEngineRDAIL(
     state: ReachingDefinitionsState
 
     def __init__(self, project, call_stack, maximum_local_call_depth, function_handler=None):
-        super(SimEngineRDAIL, self).__init__()
+        super().__init__()
         self.project = project
         self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
@@ -74,7 +73,7 @@ class SimEngineRDAIL(
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_BEFORE)
 
-        super(SimEngineRDAIL, self)._handle_Stmt(stmt)
+        super()._handle_Stmt(stmt)
 
         if self.state.analysis:
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
@@ -307,7 +306,7 @@ class SimEngineRDAIL(
 
         self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
 
-        return super(SimEngineRDAIL, self)._ail_handle_Tmp(expr)
+        return super()._ail_handle_Tmp(expr)
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> MultiValues:
         self._handle_Call_base(expr, is_expr=True)
@@ -444,9 +443,9 @@ class SimEngineRDAIL(
         return MultiValues(offset_to_values={0: converted})
 
     def _ail_handle_ITE(self, expr: ailment.Expr.ITE) -> MultiValues:
-        cond: MultiValues = self._expr(expr.cond)
+        _: MultiValues = self._expr(expr.cond)
         iftrue: MultiValues = self._expr(expr.iftrue)
-        iffalse: MultiValues = self._expr(expr.iffalse)
+        _: MultiValues = self._expr(expr.iffalse)
         top = self.state.top(len(iftrue))
         return MultiValues(offset_to_values={0: {top}})
 

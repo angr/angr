@@ -122,7 +122,8 @@ class LiveDefinitions:
     def _get_weakref(self):
         return weakref.proxy(self)
 
-    def _mo_cmp(self, mo_self: Set['SimMemoryObject'], mo_other: Set['SimMemoryObject'], addr: int, size: int):
+    @staticmethod
+    def _mo_cmp(mo_self: Set['SimMemoryObject'], mo_other: Set['SimMemoryObject'], addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
@@ -139,7 +140,8 @@ class LiveDefinitions:
             values_other.add(mo.object)
         return values_self == values_other
 
-    def top(self, bits: int):
+    @staticmethod
+    def top(bits: int):
         """
         Get a TOP value.
 
@@ -153,7 +155,8 @@ class LiveDefinitions:
         LiveDefinitions._tops[bits] = r
         return r
 
-    def is_top(self, expr) -> bool:
+    @staticmethod
+    def is_top(expr) -> bool:
         """
         Check if the given expression is a TOP value.
 
@@ -369,7 +372,7 @@ class LiveDefinitions:
                     for v in vs:
                         yield from self.extract_defs(v)
             elif isinstance(atom.addr, HeapAddress):
-                return self.heap_definitions.get_objects_by_offset(atom.addr.value)
+                yield self.heap_definitions.get_objects_by_offset(atom.addr.value)
             elif isinstance(atom.addr, int):
                 try:
                     values = self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)

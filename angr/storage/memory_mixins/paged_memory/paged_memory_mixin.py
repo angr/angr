@@ -86,7 +86,7 @@ class PagedMemoryMixin(MemoryMixin):
         if not allow_default:
             raise SimMemoryError("I have been instructed not to create a default page")
 
-        return self.PAGE_TYPE(**self._page_kwargs(pageno, permissions))
+        return self.PAGE_TYPE(**self._page_kwargs(pageno, permissions))  # pylint:disable=not-callable
 
     def _page_kwargs(self, pageno, permissions):
         # permissions lookup: let permissions arg override everything else
@@ -232,7 +232,7 @@ class PagedMemoryMixin(MemoryMixin):
             for off in merged_offsets:
                 merged_bytes.add(page_addr + off)
 
-        return True if merged_bytes else False
+        return bool(merged_bytes)
 
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is not int:
@@ -295,7 +295,7 @@ class PagedMemoryMixin(MemoryMixin):
             page.store(0, None, size=self.page_size, endness='Iend_BE', page_addr=pageno*self.page_size, memory=self,
                        **kwargs)
 
-    def _unmap_page(self, pageno, **kwargs):
+    def _unmap_page(self, pageno, **kwargs):  # pylint:disable=unused-argument
         try:
             if self._pages[pageno] is not None:
                 self._pages[pageno].release_shared()

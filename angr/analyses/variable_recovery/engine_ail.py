@@ -1,15 +1,14 @@
 # pylint:disable=arguments-differ
-from typing import Optional, Set, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import logging
 
 import claripy
 import ailment
 
-from ...sim_variable import SimVariable
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction
-from ...engines.light import SimEngineLightAILMixin, SpOffset
+from ...engines.light import SimEngineLightAILMixin
 from ...errors import SimMemoryMissingError
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter
@@ -207,7 +206,7 @@ class SimEngineVRAIL(
         typevar_set = set()
         if vs:
             for value in vs:
-                for offset, v in self.state.extract_variables(value):
+                for _, v in self.state.extract_variables(value):
                     try:
                         typevar = self.state.typevars.get_type_variable(v, self._codeloc())
                         typevar_set.add(typevar)

@@ -11,7 +11,7 @@ class MultiValueMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int):
+    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int, **kwargs):
         values_set = set(v for v, _ in values)
         if self._phi_maker is not None:
             phi_var = self._phi_maker(values_set)

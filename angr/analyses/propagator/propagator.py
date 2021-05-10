@@ -47,7 +47,8 @@ class PropagatorState:
     def _get_weakref(self):
         return weakref.proxy(self)
 
-    def _mo_cmp(self, mo_self: 'SimMemoryObject', mo_other: 'SimMemoryObject', addr: int, size: int):
+    @staticmethod
+    def _mo_cmp(mo_self: 'SimMemoryObject', mo_other: 'SimMemoryObject', addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 

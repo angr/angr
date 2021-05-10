@@ -170,12 +170,14 @@ class VariableRecoveryStateBase:
             return True
         return False
 
-    def extract_variables(self, expr: claripy.ast.Base) -> Generator[Tuple[int,Union[SimVariable,SpOffset]],None,None]:
+    @staticmethod
+    def extract_variables(expr: claripy.ast.Base) -> Generator[Tuple[int,Union[SimVariable,SpOffset]],None,None]:
         for anno in expr.annotations:
             if isinstance(anno, VariableAnnotation):
                 yield from anno.addr_and_variables
 
-    def annotate_with_variables(self, expr: claripy.ast.Base,
+    @staticmethod
+    def annotate_with_variables(expr: claripy.ast.Base,
                                 addr_and_variables: Iterable[Tuple[int,Union[SimVariable,SpOffset]]]) -> claripy.ast.Base:
 
         annotations_to_remove = [ ]

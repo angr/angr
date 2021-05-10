@@ -165,7 +165,7 @@ class CallSiteMaker(Analysis):
             try:
                 rd: 'LiveDefinitions' = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
             except KeyError:
-                return
+                return None
 
             try:
                 vs: 'MultiValues' = rd.register_definitions.load(offset, size=size, endness=self.project.arch.memory_endness)

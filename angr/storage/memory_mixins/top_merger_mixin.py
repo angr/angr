@@ -9,7 +9,7 @@ class TopMergerMixin(MemoryMixin):
 
         super().__init__(*args, **kwargs)
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int):
+    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int, **kwargs):
         merged_val = self._top_func(merged_size * self.state.arch.byte_width)
         return merged_val
 

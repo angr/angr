@@ -10,8 +10,6 @@ from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register,
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
-from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
-from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...calling_conventions import SimCC, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
@@ -99,10 +97,12 @@ class ReachingDefinitionsState:
             return base + offset
         return base
 
-    def is_heap_address(self, addr: claripy.ast.Base) -> bool:
+    @staticmethod
+    def is_heap_address(addr: claripy.ast.Base) -> bool:
         return "heap_base" in addr.variables
 
-    def get_heap_offset(self, addr: claripy.ast.Base) -> Optional[int]:
+    @staticmethod
+    def get_heap_offset(addr: claripy.ast.Base) -> Optional[int]:
         if "heap_base" in addr.variables:
             if addr.op == "BVS":
                 return 0

@@ -1,10 +1,8 @@
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
 
-import claripy
-
+from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
-from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .cooperation import MemoryObjectSetMixin
 
 

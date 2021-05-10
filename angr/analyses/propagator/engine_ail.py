@@ -392,7 +392,7 @@ class SimEnginePropagatorAIL(
                              expr.signed,
                              **expr.tags)
 
-    def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> Expr.StackBaseOffset:
+    def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> Expr.StackBaseOffset:  # pylint:disable=no-self-use
         return expr
 
     def _ail_handle_And(self, expr):
