@@ -324,8 +324,10 @@ class ReachingDefinitionsState:
 
         if mv is not None:
             defs = set()
+            values = set()
             for vs in mv.values.values():
                 for v in vs:
+                    values.add(v)
                     defs |= set(self.extract_defs(v))
             self.all_definitions |= defs
 
@@ -370,6 +372,7 @@ class ReachingDefinitionsState:
                         for def_ in defs:
                             self.dep_graph.add_edge(used, def_)
                         self.dep_graph.add_dependencies_for_concrete_pointers_of(
+                            values,
                             used,
                             self.analysis.project.kb.cfgs.get_most_accurate(),
                             self.analysis.project.loader
@@ -392,10 +395,10 @@ class ReachingDefinitionsState:
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)
 
-    def mark_guard(self, code_loc: CodeLocation, data: DataSet, target):
+    def mark_guard(self, code_loc: CodeLocation, target):
         self._cycle(code_loc)
         atom = GuardUse(target)
-        kinda_definition = Definition(atom, code_loc, data)
+        kinda_definition = Definition(atom, code_loc)
 
         if self.dep_graph is not None:
             for used in self.codeloc_uses:

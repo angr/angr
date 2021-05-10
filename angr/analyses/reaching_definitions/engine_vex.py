@@ -6,7 +6,7 @@ import pyvex
 import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset, RegisterOffset
+from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
@@ -16,9 +16,8 @@ from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
 from ...knowledge_plugins.key_definitions.atoms import Atom, Register, MemoryLocation, Tmp
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.heap_address import HeapAddress
-from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
+from ...knowledge_plugins.key_definitions.undefined import Undefined
 from ...code_location import CodeLocation
 from .rd_state import ReachingDefinitionsState
 from .external_codeloc import ExternalCodeLocation
@@ -162,28 +161,33 @@ class SimEngineRDVEX(
 
     def _handle_StoreG(self, stmt: pyvex.IRStmt.StoreG):
         guard = self._expr(stmt.guard)
-        if guard.data == {True}:
-            addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) // 8
-            data = self._expr(stmt.data)
+        guard_v = guard.one_value()
 
-            self._store_core(addr, size, data)
-        elif guard.data == {False}:
+        if claripy.is_true(guard_v):
+            addr = self._expr(stmt.addr)
+            if len(addr.values) == 1:
+                addrs = next(iter(addr.values.values()))
+                size = stmt.data.result_size(self.tyenv) // 8
+                data = self._expr(stmt.data)
+                self._store_core(addrs, size, data)
+        elif claripy.is_false(guard_v):
             pass
         else:
             # guard.data == {True, False}
             # get current data
             addr = self._expr(stmt.addr)
-            size = stmt.data.result_size(self.tyenv) // 8
-            data_old = self._load_core(addr, size, stmt.endness)
-            data = self._expr(stmt.data)
+            if len(addr.values) == 1:
+                addrs = next(iter(addr.values.values()))
+                size = stmt.data.result_size(self.tyenv) // 8
+                data_old = self._load_core(addrs, size, stmt.endness)
+                data = self._expr(stmt.data)
 
-            self._store_core(addr, size, data, data_old=data_old)
+                self._store_core(addrs, size, data, data_old=data_old)
 
     def _store_core(self, addr: Iterable[Union[int,HeapAddress,SpOffset]], size: int, data: MultiValues,
-                    data_old=None, endness=None):
-        if data_old:
-            data.update(data_old)
+                    data_old: Optional[MultiValues]=None, endness=None):
+        if data_old is not None:
+            data = data.merge(data_old)
 
         for a in addr:
             if self.state.is_top(a):
@@ -218,30 +222,34 @@ class SimEngineRDVEX(
                 self.state.kill_and_add_definition(atom, self._codeloc(), data, tags=tags, endness=endness)
 
     def _handle_LoadG(self, stmt):
-        guard: DataSet = self._expr(stmt.guard)
-        if guard.data == {True}:
+        guard = self._expr(stmt.guard)
+        guard_v = guard.one_value()
+
+        if claripy.is_true(guard_v):
             # FIXME: full conversion support
             if stmt.cvt.find('Ident') < 0:
                 l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
             load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
             wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, load_expr)
             self._handle_WrTmp(wr_tmp_stmt)
-        elif guard.data == {False}:
+        elif claripy.is_false(guard_v):
             wr_tmp_stmt = pyvex.stmt.WrTmp(stmt.dst, stmt.alt)
             self._handle_WrTmp(wr_tmp_stmt)
         else:
             if stmt.cvt.find('Ident') < 0:
                 l.warning('Unsupported conversion %s in LoadG.', stmt.cvt)
             load_expr = pyvex.expr.Load(stmt.end, stmt.cvt_types[1], stmt.addr)
-            data = set()
-            data.update(self._expr(load_expr).data)
-            data.update(self._expr(stmt.alt).data)
-            self._handle_WrTmpData(stmt.dst, DataSet(data, load_expr.result_size(self.tyenv)))
+
+            load_expr_v = self._expr(load_expr)
+            alt_v = self._expr(stmt.alt)
+
+            data = load_expr_v.merge(alt_v)
+            self._handle_WrTmpData(stmt.dst, data)
 
     def _handle_Exit(self, stmt):
-        guard = self._expr(stmt.guard)
+        _ = self._expr(stmt.guard)
         target = stmt.dst.value
-        self.state.mark_guard(self._codeloc(), guard, target)
+        self.state.mark_guard(self._codeloc(), target)
 
     def _handle_IMark(self, stmt):
         pass
@@ -253,23 +261,27 @@ class SimEngineRDVEX(
         if stmt.storedata is None:
             # load-link
             addr = self._expr(stmt.addr)
-            size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
-            load_result = self._load_core(addr, size, stmt.endness)
-            self.tmps[stmt.result] = load_result
-            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
-                                               self._codeloc(),
-                                               load_result)
+            if len(addr.values) == 1:
+                addrs = next(iter(addr.values.values()))
+                size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
+                load_result = self._load_core(addrs, size, stmt.endness)
+                self.tmps[stmt.result] = load_result
+                self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                                                   self._codeloc(),
+                                                   load_result)
         else:
             # store-conditional
             storedata = self._expr(stmt.storedata)
             addr = self._expr(stmt.addr)
-            size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
+            if len(addr.values) == 1:
+                addrs = next(iter(addr.values.values()))
+                size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
 
-            self._store_core(addr, size, storedata)
-            self.tmps[stmt.result] = DataSet({1}, 1)
-            self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
-                                               self._codeloc(),
-                                               self.tmps[stmt.result])
+                self._store_core(addrs, size, storedata)
+                self.tmps[stmt.result] = MultiValues(offset_to_values={0: {claripy.BVV(1, 1)}})
+                self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                                                   self._codeloc(),
+                                                   self.tmps[stmt.result])
 
     #
     # VEX expression handlers
@@ -283,7 +295,7 @@ class SimEngineRDVEX(
             data = MultiValues(offset_to_values={0: {top}})
         return data
 
-    def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[DataSet]:
+    def _handle_RdTmp(self, expr: pyvex.IRExpr.RdTmp) -> Optional[MultiValues]:
         tmp: int = expr.tmp
 
         self.state.add_use(Tmp(tmp, expr.result_size(self.tyenv) // self.arch.byte_width), self._codeloc())
@@ -404,20 +416,19 @@ class SimEngineRDVEX(
         return result
 
     # CAUTION: experimental
-    def _handle_ITE(self, expr):
+    def _handle_ITE(self, expr: pyvex.IRExpr.ITE):
         cond = self._expr(expr.cond)
+        cond_v = cond.one_value()
 
-        if cond.data == {True}:
+        if claripy.is_true(cond_v):
             return self._expr(expr.iftrue)
-        elif cond.data == {False}:
+        elif claripy.is_false(cond_v):
             return self._expr(expr.iffalse)
         else:
-            if cond.data != {True, False}:
-                l.info('Could not resolve condition %s for ITE.', str(cond))
-            data = set()
-            data.update(self._expr(expr.iftrue).data)
-            data.update(self._expr(expr.iffalse).data)
-            return DataSet(data, expr.result_size(self.tyenv))
+            iftrue = self._expr(expr.iftrue)
+            iffalse = self._expr(expr.iffalse)
+            data = iftrue.merge(iffalse)
+            return data
 
     #
     # Unary operation handlers
@@ -540,6 +551,36 @@ class SimEngineRDVEX(
 
         return r
 
+    def _handle_And(self, expr):
+        expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            # we do not support addition between two real multivalues
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # bitwise-and a single value with a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v & expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # bitwise-and a single value to a multivalue
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {v & expr0_v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # bitwise-and two single values together
+            r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
     def _handle_Sar(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)
@@ -574,6 +615,41 @@ class SimEngineRDVEX(
         else:
             # subtracting a single value from another single value
             r = MultiValues(offset_to_values={0: {_shift_sar(expr0_v, expr1_v)}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _handle_Shr(self, expr):
+        expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        def _shift_shr(e0, e1):
+            # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
+            e1 = e1._model_concrete.value
+            return claripy.LShR(e0, e1)
+
+        if expr0_v is None and expr1_v is None:
+            # we do not support shifting between two real multivalues
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # shifting a single value by a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = { _shift_shr(v, expr1_v) for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # shifting a multivalue by a single value
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {_shift_shr(expr0_v, v) for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # subtracting a single value from another single value
+            r = MultiValues(offset_to_values={0: {_shift_shr(expr0_v, expr1_v)}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -665,6 +741,22 @@ class SimEngineRDVEX(
             elif e0 is e1:
                 return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
         return MultiValues(offset_to_values={0: { self.state.top(1) }})
+
+    def _handle_CmpLE(self, expr):
+        arg0, arg1 = expr.args
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        e0 = expr_0.one_value()
+        e1 = expr_1.one_value()
+        if e0 is not None and e1 is not None:
+            if not e0.symbolic and not e1.symbolic:
+                return MultiValues(offset_to_values={0: {
+                    claripy.BVV(1, 1) if e0._model_concrete.value <= e1._model_concrete.value else claripy.BVV(0, 1)
+                }})
+            elif e0 is e1:
+                return MultiValues(offset_to_values={0: {claripy.BVV(0, 1)}})
+        return MultiValues(offset_to_values={0: {self.state.top(1)}})
 
     # ppc only
     def _handle_CmpORD(self, expr):
@@ -803,13 +895,16 @@ class SimEngineRDVEX(
 
         return skip_cc
 
-    def _handle_function_cc(self, func_addr: Optional[DataSet]):
+    def _handle_function_cc(self, func_addr: Optional[MultiValues]):
         _cc = None
         func_addr_int: Optional[Union[int,Undefined]] = None
-        if func_addr is not None and len(func_addr) == 1 and self.functions is not None:
-            func_addr_int = next(iter(func_addr))
-            if self.functions.contains_addr(func_addr_int):
-                _cc = self.functions[func_addr_int].calling_convention
+        if func_addr is not None and self.functions is not None:
+            func_addr_v = func_addr.one_value()
+            if func_addr_v is not None and not self.state.is_top(func_addr_v):
+                func_addr_int = func_addr_v._model_concrete.value
+                if self.functions.contains_addr(func_addr_int):
+                    _cc = self.functions[func_addr_int].calling_convention
+
         cc: SimCC = _cc or DEFAULT_CC.get(self.arch.name, None)(self.arch)
 
         # follow the calling convention and:
