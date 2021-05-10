@@ -227,7 +227,12 @@ class LiveDefinitions:
         sp_values: MultiValues = self.register_definitions.load(self.arch.sp_offset, size=self.arch.bytes)
         sp_v = sp_values.one_value()
         if sp_v is None:
-            # multiple values of sp exists. not supported.
+            # multiple values of sp exists. still return a value if there is only one value (maybe with different
+            # definitions)
+            if len(sp_values.values) == 1:
+                values = next(iter(sp_values.values.values()))
+                if len(set(map(self.get_stack_offset, values))) == 1:
+                    return self.stack_offset_to_stack_addr(self.get_stack_offset(next(iter(values))))
             assert False
 
         return self.stack_offset_to_stack_addr(self.get_stack_offset(sp_v))
