@@ -557,20 +557,23 @@ class SimEngineVRBase(SimEngineLight):
         else:
             # we accept the precision loss here by only returning the first variable
             # FIXME: Multiple variables
-            var = next(iter(variable_set))
+            typevar = None
+            var = None
+            if variable_set:
+                var = next(iter(variable_set))
 
-            # add delayed type constraints
-            if var in self.state.delayed_type_constraints:
-                for constraint in self.state.delayed_type_constraints[var]:
-                    self.state.add_type_constraint(constraint)
-                self.state.delayed_type_constraints.pop(var)
+                # add delayed type constraints
+                if var in self.state.delayed_type_constraints:
+                    for constraint in self.state.delayed_type_constraints[var]:
+                        self.state.add_type_constraint(constraint)
+                    self.state.delayed_type_constraints.pop(var)
 
-            if var not in self.state.typevars:
-                typevar = typevars.TypeVariable()
-                self.state.typevars.add_type_variable(var, codeloc, typevar)
-            else:
-                # FIXME: This is an extremely stupid hack. Fix it later.
-                # typevar = next(reversed(list(self.state.typevars[var].values())))
-                typevar = self.state.typevars[var]
+                if var not in self.state.typevars:
+                    typevar = typevars.TypeVariable()
+                    self.state.typevars.add_type_variable(var, codeloc, typevar)
+                else:
+                    # FIXME: This is an extremely stupid hack. Fix it later.
+                    # typevar = next(reversed(list(self.state.typevars[var].values())))
+                    typevar = self.state.typevars[var]
 
         return RichR(next(iter(value_list[0])), variable=var, typevar=typevar)
