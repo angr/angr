@@ -640,7 +640,7 @@ class Tracer(ExplorationTechnique):
             curr_block_last_insn = curr_block.capstone.insns[-1]
             if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
                 # Found last block
-                big_block_end = curr_block.addr + curr_block.size
+                big_block_end = curr_block.addr + curr_block.size - 1
                 break
 
             curr_block_addr = curr_block.addr + curr_block.size
@@ -715,7 +715,7 @@ class Tracer(ExplorationTechnique):
             curr_block_last_insn = curr_block.capstone.insns[-1]
             if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
                 # Found last block
-                angr_big_block_end_addr = curr_block.addr + curr_block.size
+                angr_big_block_end_addr = curr_block.addr + curr_block.size - 1
                 break
 
             curr_block_addr = curr_block.addr + curr_block.size
@@ -729,7 +729,7 @@ class Tracer(ExplorationTechnique):
                 if trace_block_last_insn.group(insn_type):
                     # Found first block in trace ending in a control flow instruction. Verify it matches the end of big
                     # block according to VEX lifter
-                    big_block_end_addr = trace_block.addr + trace_block.size
+                    big_block_end_addr = trace_block.addr + trace_block.size - 1
                     if angr_big_block_end_addr != big_block_end_addr:
                         # End does not match. Treat as trace desync.
                         return False
