@@ -296,7 +296,7 @@ class LabeledMemory(
     PagedMemoryMixin,
 ):
     """
-    LabeledMemory is used in static analysis. It allows storing values with labels, such as `Definition`s.
+    LabeledMemory is used in static analysis. It allows storing values with labels, such as `Definition`.
     """
     def _default_value(self, addr, size, **kwargs):
         # TODO: Make _default_value() a separate Mixin

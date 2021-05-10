@@ -115,11 +115,11 @@ class MVListPage(
         else:
             if not weak:
                 for subaddr in range(addr, addr + size):
-                    self.content[subaddr] = data
+                    self.content[subaddr] = set(data)
             else:
                 for subaddr in range(addr, addr + size):
                     if self.content[subaddr] is None:
-                        self.content[subaddr] = data
+                        self.content[subaddr] = set(data)
                     else:
                         self.content[subaddr] |= data
             self._update_boundaries(addr, addr + size)
