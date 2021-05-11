@@ -997,6 +997,8 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
+        # if node.addr == 0x400971:
+        #     import ipdb;ipdb.set_trace()
 
         if node.is_simprocedure:
             if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
