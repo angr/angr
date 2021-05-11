@@ -1,14 +1,19 @@
-
+from typing import TYPE_CHECKING
 import logging
 
 from ailment import Stmt, Expr
 
+from ...errors import SimMemoryMissingError
 from ...sim_type import SimTypeBottom
 from ...sim_variable import SimStackVariable
 from ...calling_conventions import SimRegArg, SimStackArg
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...knowledge_plugins.key_definitions.definition import Definition
 from .. import Analysis, register_analysis
+
+if TYPE_CHECKING:
+    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 
 
 l = logging.getLogger(name=__name__)
@@ -158,24 +163,32 @@ class CallSiteMaker(Analysis):
             # Find its definition
             ins_addr = call_stmt.tags['ins_addr']
             try:
-                rd = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
+                rd: 'LiveDefinitions' = self._reaching_definitions.get_reaching_definitions_by_insn(ins_addr, OP_BEFORE)
             except KeyError:
-                rd = None
+                return None
 
-            if rd is not None:
-                defs = rd.register_definitions.get_variables_by_offset(offset)
-                if not defs:
-                    l.warning("Did not find any reaching definition for register %s at instruction %x.",
-                              arg_loc, ins_addr)
-                elif len(defs) > 1:
-                    l.warning("TODO: More than one reaching definition are found at instruction %x.",
-                              ins_addr)
-                else:
-                    # Find the definition
-                    def_ = next(iter(defs))  # type:Definition
-                    var_or_value = self._find_variable_from_definition(def_)
-                    if var_or_value is not None:
-                        return var_or_value
+            try:
+                vs: 'MultiValues' = rd.register_definitions.load(offset, size=size, endness=self.project.arch.memory_endness)
+            except SimMemoryMissingError:
+                return None
+            defs_ = set()
+            for values in vs.values.values():
+                for value in values:
+                    defs_.update(rd.extract_defs(value))
+
+            if not defs_:
+                l.warning("Did not find any reaching definition for register %s at instruction %x.",
+                          arg_loc, ins_addr)
+            elif len(defs_) > 1:
+                l.warning("TODO: More than one reaching definition are found at instruction %x.",
+                          ins_addr)
+            else:
+                # Find the definition
+                # FIXME: Multiple definitions - we need phi nodes
+                def_ = next(iter(defs_))  # type:Definition
+                var_or_value = self._find_variable_from_definition(def_)
+                if var_or_value is not None:
+                    return var_or_value
 
         return None
 

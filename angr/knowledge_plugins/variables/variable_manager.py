@@ -103,7 +103,7 @@ class VariableManagerInternal:
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def set_variable(self, sort, start, variable):
+    def set_variable(self, sort, start, variable: SimVariable):
         if sort == 'stack':
             region = self._stack_region
         elif sort == 'register':
@@ -181,7 +181,7 @@ class VariableManagerInternal:
             ident_sort = 'register'
             a = SimRegisterVariable(repre.reg, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimMemoryVariable:
-            ident_sort = 'memory'
+            ident_sort = 'global'
             a = SimMemoryVariable(repre.addr, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimStackVariable:
             ident_sort = 'stack'

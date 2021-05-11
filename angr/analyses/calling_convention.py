@@ -8,6 +8,7 @@ from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
+from .reaching_definitions import get_all_definitions
 from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
@@ -210,7 +211,7 @@ class CallingConventionAnalysis(Analysis):
         if default_cc_cls is not None:
 
             default_cc: SimCC = default_cc_cls(self.project.arch)
-            all_defs: Set['Definition'] = state.register_definitions.get_all_variables()
+            all_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
 
             return_val = default_cc.RETURN_VAL
             if return_val is not None and isinstance(return_val, SimRegArg):

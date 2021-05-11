@@ -1,12 +1,13 @@
 import cffi
-from typing import Tuple, Type, Dict, Optional, Iterable, List, Any, Set
+from typing import Tuple, Type, Dict, Optional, Iterable, Set, Any
 import logging
 from collections import defaultdict
 
 import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
-from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage
+from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
+from angr.storage.memory_object import SimLabeledMemoryObject
 from ....errors import SimMemoryError
 
 # yeet
@@ -85,7 +86,7 @@ class PagedMemoryMixin(MemoryMixin):
         if not allow_default:
             raise SimMemoryError("I have been instructed not to create a default page")
 
-        return self.PAGE_TYPE(**self._page_kwargs(pageno, permissions))
+        return self.PAGE_TYPE(**self._page_kwargs(pageno, permissions))  # pylint:disable=not-callable
 
     def _page_kwargs(self, pageno, permissions):
         # permissions lookup: let permissions arg override everything else
@@ -231,7 +232,7 @@ class PagedMemoryMixin(MemoryMixin):
             for off in merged_offsets:
                 merged_bytes.add(page_addr + off)
 
-        return True if merged_bytes else False
+        return bool(merged_bytes)
 
     def permissions(self, addr, permissions=None, **kwargs):
         if type(addr) is not int:
@@ -294,7 +295,7 @@ class PagedMemoryMixin(MemoryMixin):
             page.store(0, None, size=self.page_size, endness='Iend_BE', page_addr=pageno*self.page_size, memory=self,
                        **kwargs)
 
-    def _unmap_page(self, pageno, **kwargs):
+    def _unmap_page(self, pageno, **kwargs):  # pylint:disable=unused-argument
         try:
             if self._pages[pageno] is not None:
                 self._pages[pageno].release_shared()
@@ -560,8 +561,64 @@ class PagedMemoryMixin(MemoryMixin):
         self._pages = new_page_dict
         return flushed
 
+
+class LabeledPagesMixin(PagedMemoryMixin):
+    def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Tuple[int,int,Any]]]:
+        if endness is None:
+            endness = self.endness
+
+        if type(size) is not int:
+            raise TypeError("Need size to be resolved to an int by this point")
+
+        if type(addr) is not int:
+            raise TypeError("Need addr to be resolved to an int by this point")
+
+        pageno, pageoff = self._divide_addr(addr)
+        vals = []
+
+        # fasttrack basic case
+        if pageoff + size <= self.page_size:
+            page = self._get_page(pageno, False, **kwargs)
+            vals.append(page.load(pageoff, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs))
+
+        else:
+            max_pageno = (1 << self.state.arch.bits) // self.page_size
+            bytes_done = 0
+            while bytes_done < size:
+                page = self._get_page(pageno, False, **kwargs)
+                sub_size = min(self.page_size-pageoff, size-bytes_done)
+                vals.append(page.load(pageoff, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs))
+
+                bytes_done += sub_size
+                pageno = (pageno + 1) % max_pageno
+                pageoff = 0
+
+        labels = [ ]
+        out = self.PAGE_TYPE._compose_objects(vals, size, endness, memory=self, labels=labels, **kwargs)
+        l.debug("%s.load_with_labels(%#x, %d, %s) = %s", self.id, addr, size, endness, out)
+        return out, tuple(labels)
+
+
 class ListPagesMixin(PagedMemoryMixin):
     PAGE_TYPE = ListPage
+
+
+class MVListPagesMixin(PagedMemoryMixin):
+    PAGE_TYPE = MVListPage
+
+
+class ListPagesWithLabelsMixin(
+    LabeledPagesMixin,
+    ListPagesMixin,
+):
+    pass
+
+
+class MVListPagesWithLabelsMixin(
+    LabeledPagesMixin,
+    MVListPagesMixin,
+):
+    pass
 
 
 class UltraPagesMixin(PagedMemoryMixin):

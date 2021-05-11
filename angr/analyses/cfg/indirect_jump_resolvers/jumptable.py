@@ -159,6 +159,12 @@ class JumpTableProcessor(
         self._bp_sp_diff = bp_sp_diff  # bp - sp
         self._tsrc = set()  # a scratch variable to store source information for values
 
+    def _top(self, size: int):
+        return None
+
+    def _is_top(self, expr) -> bool:
+        return expr is None
+
     def _handle_WrTmp(self, stmt):
         self._tsrc = set()
         super()._handle_WrTmp(stmt)
@@ -465,7 +471,8 @@ class BSSHook:
             # it was never written to before. we overwrite it with unconstrained bytes
             for i in range(0, concrete_read_length, self.project.arch.bytes):
                 state.memory.store(concrete_read_addr + i, state.solver.Unconstrained('unconstrained',
-                                                                                      self.project.arch.bits))
+                                                                                      self.project.arch.bits),
+                                   endness=self.project.arch.memory_endness)
 
                 # job done :-)
 

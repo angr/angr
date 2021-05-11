@@ -13,21 +13,26 @@ from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.block import Block
+from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
 from angr.knowledge_plugins.key_definitions.atoms import GuardUse, Tmp, Register, MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from angr.knowledge_plugins.key_definitions.live_definitions import Definition, SpOffset
 from angr.utils.constants import DEFAULT_STATEMENT
+from angr.storage.memory_mixins import MultiValuedMemory
+from angr.storage.memory_object import SimMemoryObject
+
 
 class InsnAndNodeObserveTestingUtils():
     @staticmethod
     def assert_for_live_definitions(assertion, live_definition_1, live_definition_2):
         list(map(
             lambda attr: {
-                assertion(getattr(live_definition_1, attr),
-                          getattr(live_definition_2, attr))
+                assertion(getattr(live_definition_1, attr)._pages,
+                          getattr(live_definition_2, attr)._pages)
             },
-            ["register_definitions", "stack_definitions", "memory_definitions", "tmp_definitions"]
+            ["register_definitions", "stack_definitions", "memory_definitions"]
         ))
+        assertion(getattr(live_definition_1, "tmps"), getattr(live_definition_2, "tmps"))
 
     @staticmethod
     def filter(observed_results, observation_points):
@@ -92,13 +97,30 @@ class TestReachingDefinitions(TestCase):
 
         self.assertListEqual(result, expected_result)
 
+    @staticmethod
+    def _extract_all_definitions_from_storage(storage: MultiValuedMemory):
+        all_defs = [ ]
+        for page_id, page in storage._pages.items():
+            last_mo = None
+            for pos, n in enumerate(page.content):
+                if n is not None:
+                    if len(n) == 1:
+                        addr = page_id * 4096 + pos
+                        mo: SimMemoryObject = next(iter(n))
+                        if mo is not last_mo:
+                            last_mo = mo
+                            all_defs.append((addr, list(LiveDefinitions.extract_defs(mo.object))))
+
+        return all_defs
+
     def test_reaching_definition_analysis_definitions(self):
         def _result_extractor(rda):
             unsorted_result = map(
                 lambda x: {'key': x[0],
-                           'register_definitions': x[1].register_definitions._storage,
-                           'stack_definitions': x[1].stack_definitions._storage,
-                           'memory_definitions': x[1].memory_definitions._storage},
+                           'register_definitions': self._extract_all_definitions_from_storage(x[1].register_definitions),
+                           'stack_definitions': self._extract_all_definitions_from_storage(x[1].stack_definitions),
+                           'memory_definitions': self._extract_all_definitions_from_storage(x[1].memory_definitions),
+                           },
                 rda.observed_results.items()
             )
             return list(sorted(
@@ -168,7 +190,7 @@ class TestReachingDefinitions(TestCase):
             reaching_definition.observed_results,
             observation_points
         )
-        expected_results = [state]
+        expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
         list(map(
@@ -193,7 +215,7 @@ class TestReachingDefinitions(TestCase):
             reaching_definition.observed_results,
             observation_points
         )
-        expected_results = [state]
+        expected_results = [state.live_definitions]
 
         self.assertGreater(len(results), 0)
         list(map(
@@ -330,7 +352,7 @@ class TestReachingDefinitions(TestCase):
 
         sp_value = reach_definition_at_main.get_sp()
 
-        self.assertEqual(sp_value, SpOffset(project.arch.bits, 0))
+        self.assertEqual(sp_value, LiveDefinitions.INITIAL_SP_64BIT)
 
     def test_dep_graph(self):
         project = angr.Project(_binary_path('true'), auto_load_libs=False)

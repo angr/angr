@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
-from typing import Optional, Union, Type, Iterable, TYPE_CHECKING
+from typing import Optional, Union, Type, Iterable, Tuple, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call
 from ailment.expression import Expression, Tmp, Register, Load
@@ -14,6 +14,8 @@ from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationSt
 from .ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
+    from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
     from ailment.block import Block
 
 
@@ -83,15 +85,17 @@ class BlockSimplifier(Analysis):
         replacements = list(propagator._states.values())[0]._replacements
         if not replacements:
             return block
-        new_block = self._replace_and_build(block, replacements)
+        _, new_block = self._replace_and_build(block, replacements)
+        new_block = self._eliminate_self_assignments(new_block)
         new_block = self._eliminate_dead_assignments(new_block)
         new_block = self._peephole_optimize(new_block)
         return new_block
 
     @staticmethod
-    def _replace_and_build(block, replacements):
+    def _replace_and_build(block, replacements) -> Tuple[bool,'Block']:
 
         new_statements = block.statements[::]
+        replaced = False
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
@@ -113,11 +117,15 @@ class BlockSimplifier(Analysis):
                         r, new_stmt = stmt.replace(old, new)
 
                 if r:
+                    replaced = True
                     new_statements[codeloc.stmt_idx] = new_stmt
+
+        if not replaced:
+            return False, block
 
         new_block = block.copy()
         new_block.statements = new_statements
-        return new_block
+        return True, new_block
 
     @staticmethod
     def _eliminate_self_assignments(block):
@@ -145,7 +153,7 @@ class BlockSimplifier(Analysis):
                                                        )
 
         used_tmp_indices = set(rd.one_result.tmp_uses.keys())
-        live_defs = rd.one_result
+        live_defs: 'LiveDefinitions' = rd.one_result
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
@@ -166,12 +174,21 @@ class BlockSimplifier(Analysis):
                     # is entirely possible that at the end of the block, a register definition is not used.
                     # however, it might be used in future blocks.
                     # so we only remove a definition if the definition is not alive anymore at the end of the block
+                    defs_ = set()
                     if isinstance(d.atom, atoms.Register):
-                        if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
-                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-                    if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
-                        if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.addr.offset):
-                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                        vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                    elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                        stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                        vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+                                                                             endness=d.atom.endness)
+                    else:
+                        continue
+                    for values in vs.values.values():
+                        for value in values:
+                            defs_.update(live_defs.extract_defs(value))
+
+                    if d not in defs_:
+                        dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
         # Remove dead assignments
         for idx, stmt in enumerate(block.statements):

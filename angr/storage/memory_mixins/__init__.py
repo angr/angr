@@ -1,3 +1,4 @@
+# pylint:disable=abstract-method
 from typing import Iterable, Tuple, Any, Optional
 
 import claripy
@@ -105,7 +106,7 @@ class MemoryMixin(SimStatePlugin):
         """
         pass
 
-    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int) -> Optional[Any]:
+    def _merge_values(self, values: Iterable[Tuple[Any,Any]], merged_size: int, **kwargs) -> Optional[Any]:
         """
         Override this method to provide value merging support.
 
@@ -144,17 +145,20 @@ from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
 from .hex_dumper_mixin import HexDumperMixin
+from .multi_value_merger_mixin import MultiValueMergerMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
 from .simple_interface_mixin import SimpleInterfaceMixin
 from .size_resolution_mixin import SizeNormalizationMixin, SizeConcretizationMixin
 from .smart_find_mixin import SmartFindMixin
 from .symbolic_merger_mixin import SymbolicMergerMixin
+from .top_merger_mixin import TopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
 
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
-from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin
+from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin, \
+    ListPagesWithLabelsMixin, MVListPagesMixin, MVListPagesWithLabelsMixin
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
 from .paged_memory.stack_allocation_mixin import StackAllocationMixin
 from .paged_memory.pages import *
@@ -283,6 +287,49 @@ class RegionedMemory(
     PagedMemoryMixin,
 ):
     pass
+
+
+class LabeledMemory(
+    SizeNormalizationMixin,
+    ListPagesWithLabelsMixin,
+    DefaultFillerMixin,
+    TopMergerMixin,
+    PagedMemoryMixin,
+):
+    """
+    LabeledMemory is used in static analysis. It allows storing values with labels, such as `Definition`.
+    """
+    def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self.state.top(size * self.state.arch.byte_width)
+
+        # we never fill default values for non-existent loads
+        kwargs['fill_missing'] = False
+        return super()._default_value(addr, size, **kwargs)
+
+
+class MultiValuedMemory(
+    SizeNormalizationMixin,
+    MVListPagesMixin,
+    DefaultFillerMixin,
+    MultiValueMergerMixin,
+    PagedMemoryMixin,
+):
+    def _default_value(self, addr, size, **kwargs):
+        # TODO: Make _default_value() a separate Mixin
+
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self.state.top(size * self.state.arch.byte_width)
+
+        # we never fill default values for non-existent loads
+        kwargs['fill_missing'] = False
+        return super()._default_value(addr, size, **kwargs)
 
 
 class KeyValueMemory(

@@ -1,10 +1,16 @@
-
+import weakref
+from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict
 import logging
 from collections import defaultdict
 
+import claripy
+from claripy.annotation import Annotation
+from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
-from ...keyed_region import KeyedRegion
+from ...engines.light import SpOffset
+from ...sim_variable import SimVariable
+from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
 from ..typehoon.typevars import TypeVariables
 
@@ -35,6 +41,22 @@ def parse_stack_pointer(sp):
             return off0 + off1
 
     raise NotImplementedError("Unsupported stack pointer representation type %s." % type(sp))
+
+
+class VariableAnnotation(Annotation):
+
+    __slots__ = ('addr_and_variables', )
+
+    def __init__(self, addr_and_variables: List[Tuple[int,SimVariable]]):
+        self.addr_and_variables = addr_and_variables
+
+    @property
+    def relocatable(self):
+        return True
+
+    @property
+    def eliminatable(self):
+        return False
 
 
 class VariableRecoveryBase(Analysis):
@@ -87,31 +109,122 @@ class VariableRecoveryStateBase:
     The base abstract state for variable recovery analysis.
     """
 
+    _tops = {}
+
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
-        self.arch = arch
+        self.arch: Arch = arch
         self.function = func
+        self.project = project
 
         if stack_region is not None:
-            self.stack_region = stack_region
+            self.stack_region: MultiValuedMemory = stack_region
+            self.stack_region._phi_maker = self._make_phi_variable
         else:
-            self.stack_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
+            self.stack_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
+                                                                     phi_maker=self._make_phi_variable)
+        self.stack_region.set_state(self)
+
         if register_region is not None:
-            self.register_region = register_region
+            self.register_region: MultiValuedMemory = register_region
+            self.register_region._phi_maker = self._make_phi_variable
         else:
-            self.register_region = KeyedRegion(phi_node_contains=self._phi_node_contains)
+            self.register_region: MultiValuedMemory = MultiValuedMemory(memory_id="reg", top_func=self.top,
+                                                                        phi_maker=self._make_phi_variable)
+        self.register_region.set_state(self)
+
         if global_region is not None:
-            self.global_region = global_region
+            self.global_region: MultiValuedMemory = global_region
+            self.global_region._phi_maker = self._make_phi_variable
         else:
-            self.global_region = KeyedRegion()
+            self.global_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
+                                                                      phi_maker=self._make_phi_variable)
+        self.global_region.set_state(self)
+
+        # Used during merging
+        self.successor_block_addr: Optional[int] = None
+        self.phi_variables: Dict[SimVariable,SimVariable] = {}
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = set() if type_constraints is None else type_constraints
         self.delayed_type_constraints = defaultdict(set) \
             if delayed_type_constraints is None else delayed_type_constraints
+
+    def _get_weakref(self):
+        return weakref.proxy(self)
+
+    @staticmethod
+    def top(bits) -> claripy.ast.BV:
+        if bits in VariableRecoveryStateBase._tops:
+            return VariableRecoveryStateBase._tops[bits]
+        r = claripy.BVS("top", bits, explicit_name=True)
+        VariableRecoveryStateBase._tops[bits] = r
+        return r
+
+    @staticmethod
+    def is_top(thing) -> bool:
+        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'TOP':
+            return True
+        return False
+
+    @staticmethod
+    def extract_variables(expr: claripy.ast.Base) -> Generator[Tuple[int,Union[SimVariable,SpOffset]],None,None]:
+        for anno in expr.annotations:
+            if isinstance(anno, VariableAnnotation):
+                yield from anno.addr_and_variables
+
+    @staticmethod
+    def annotate_with_variables(expr: claripy.ast.Base,
+                                addr_and_variables: Iterable[Tuple[int,Union[SimVariable,SpOffset]]]) -> claripy.ast.Base:
+
+        annotations_to_remove = [ ]
+        for anno in expr.annotations:
+            if isinstance(anno, VariableAnnotation):
+                annotations_to_remove.append(anno)
+
+        if annotations_to_remove:
+            expr = expr.remove_annotations(annotations_to_remove)
+
+        expr = expr.annotate(VariableAnnotation(list(addr_and_variables)))
+        return expr
+
+    def stack_address(self, offset: int) -> claripy.ast.Base:
+        base = claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
+        if offset:
+            return base + offset
+        return base
+
+    @staticmethod
+    def is_stack_address(addr: claripy.ast.Base) -> bool:
+        return "stack_base" in addr.variables
+
+    @staticmethod
+    def get_stack_offset(addr: claripy.ast.Base) -> Optional[int]:
+        if "stack_base" in addr.variables:
+            if addr.op == "BVS":
+                return 0
+            elif addr.op == "__add__":
+                if len(addr.args) == 2 and addr.args[1].op == "BVV":
+                    return addr.args[1]._model_concrete.value
+                if len(addr.args) == 1:
+                    return 0
+            elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
+                return -addr.args[1]._model_concrete.value
+        return None
+
+    def stack_addr_from_offset(self, offset: int) -> int:
+        if self.arch.bits == 32:
+            base = 0x7fff_fe00
+            mask = 0xffff_ffff
+        elif self.arch.bits == 64:
+            base = 0x7f_ffff_fffe_0000
+            mask = 0xffff_ffff_ffff_ffff
+        else:
+            raise RuntimeError("Unsupported bits %d" % self.arch.bits)
+        return (offset + base) & mask
 
     @property
     def func_addr(self):
@@ -158,32 +271,55 @@ class VariableRecoveryStateBase:
     # Private methods
     #
 
-    def _make_phi_variables(self, successor, state0, state1):
+    def _make_phi_variable(self, values: Set[claripy.ast.Base]) -> Optional[claripy.ast.Base]:
+        # we only create a new phi variable if the there is at least one variable involved
+        variables = set()
+        bits: Optional[int] = None
+        for v in values:
+            bits = v.size()
+            for _, var in self.extract_variables(v):
+                variables.add(var)
 
-        stack_variables = defaultdict(set)
-        register_variables = defaultdict(set)
+        if len(variables) <= 1:
+            return None
 
-        for state in [ state0, state1 ]:
-            stack_vardefs = state.stack_region.get_all_variables()
-            reg_vardefs = state.register_region.get_all_variables()
-            for var in stack_vardefs:
-                stack_variables[(var.offset, var.size)].add(var)
-            for var in reg_vardefs:
-                register_variables[(var.reg, var.size)].add(var)
+        assert self.successor_block_addr is not None
 
-        replacements = {}
+        # find existing phi variables
+        phi_var = self.variable_manager[self.function.addr].make_phi_node(self.successor_block_addr, *variables)
+        for var in variables:
+            self.phi_variables[var] = phi_var
 
-        for variable_dict in [stack_variables, register_variables]:
-            for _, variables in variable_dict.items():
-                if len(variables) > 1:
-                    # Create a new phi variable
-                    phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
-                    # Fill the replacements dict
-                    for var in variables:
-                        if var is not phi_node:
-                            replacements[var] = phi_node
+        r = self.top(bits)
+        r = self.annotate_with_variables(r, [(0, phi_var)])
+        return r
 
-        return replacements
+    # def _make_phi_variables(self, successor, state0, state1):
+#
+    #     stack_variables = defaultdict(set)
+    #     register_variables = defaultdict(set)
+#
+    #     for state in [ state0, state1 ]:
+    #         stack_vardefs = state.stack_region.get_all_variables()
+    #         reg_vardefs = state.register_region.get_all_variables()
+    #         for var in stack_vardefs:
+    #             stack_variables[(var.offset, var.size)].add(var)
+    #         for var in reg_vardefs:
+    #             register_variables[(var.reg, var.size)].add(var)
+#
+    #     replacements = {}
+#
+    #     for variable_dict in [stack_variables, register_variables]:
+    #         for _, variables in variable_dict.items():
+    #             if len(variables) > 1:
+    #                 # Create a new phi variable
+    #                 phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
+    #                 # Fill the replacements dict
+    #                 for var in variables:
+    #                     if var is not phi_node:
+    #                         replacements[var] = phi_node
+#
+    #     return replacements
 
     def _phi_node_contains(self, phi_variable, variable):
         """
