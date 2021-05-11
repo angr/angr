@@ -1,4 +1,4 @@
-import angr
+from ..project import Project
 from networkx import union
 import logging
 from . import Analysis, register_analysis
@@ -37,7 +37,7 @@ class CGFastAPK(Analysis):
         else:
             return None
 
-        native_project = angr.Project(elf_object.binary)
+        native_project = Project(elf_object.binary)
         entry_symbol = native_project.loader.find_symbol("JNI_OnLoad")
 
         # Set entrypoint: JNI_OnLoad
