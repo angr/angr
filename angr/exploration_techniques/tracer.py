@@ -631,17 +631,24 @@ class Tracer(ExplorationTechnique):
             # Failed to find matching block address. qemu block is probably not contained in a previous block.
             return (False, -1)
 
+        control_flow_insn_types = [CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET]
         big_block_start = self._trace[trace_match_idx]
-        big_block = state.project.factory.block(self._translate_trace_addr(big_block_start))
-        big_block_end = big_block_start + big_block.size - 1
+        big_block_end = None
+        curr_block_addr = big_block_start
+        while True:
+            curr_block = state.project.factory.block(self._translate_trace_addr(curr_block_addr))
+            curr_block_last_insn = curr_block.capstone.insns[-1]
+            if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
+                # Found last block
+                big_block_end = curr_block.addr + curr_block.size - 1
+                break
+
+            curr_block_addr = curr_block.addr + curr_block.size
+
         for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
             if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
                 # This qemu block is not contained in the bigger block
-                break
-
-        if last_contain_index != trace_curr_idx:
-            # Current block in trace is not in the big block
-            return (False, -1)
+                return (False, -1)
 
         # Check for future blocks in trace contained in big block
         for next_contain_index in range(trace_curr_idx + 1, len(self._trace)):
@@ -700,17 +707,38 @@ class Tracer(ExplorationTechnique):
                 # desync happend.
                 break
 
+        # Let's find the address of the last byte of the big basic block using VEX lifter
+        angr_big_block_end_addr = None
+        curr_block_addr = big_block_start_addr
+        while True:
+            curr_block = state.project.factory.block(self._translate_trace_addr(curr_block_addr))
+            curr_block_last_insn = curr_block.capstone.insns[-1]
+            if any((curr_block_last_insn.group(insn_type) for insn_type in control_flow_insn_types)):
+                # Found last block
+                angr_big_block_end_addr = curr_block.addr + curr_block.size - 1
+                break
+
+            curr_block_addr = curr_block.addr + curr_block.size
+
         # Let's find the address of the last bytes of the big basic block from the trace
         big_block_end_addr = None
-        for trace_block_idx in range(trace_curr_idx + 1, len(self._trace)):
+        for trace_block_idx in range(trace_curr_idx, len(self._trace)):
             trace_block = state.project.factory.block(self._translate_trace_addr(self._trace[trace_block_idx]))
             trace_block_last_insn = trace_block.capstone.insns[-1]
             for insn_type in control_flow_insn_types:
                 if trace_block_last_insn.group(insn_type):
-                    big_block_end_addr = trace_block.addr + trace_block.size
-                    break
+                    # Found first block in trace ending in a control flow instruction. Verify it matches the end of big
+                    # block according to VEX lifter
+                    big_block_end_addr = trace_block.addr + trace_block.size - 1
+                    if angr_big_block_end_addr != big_block_end_addr:
+                        # End does not match. Treat as trace desync.
+                        return False
+                    else:
+                        break
 
-        if big_block_end_addr is None:
+            if big_block_end_addr is not None:
+                break
+        else:
             # Failed to find end of the big basic block in trace. Treat as trace desync.
             return False
 

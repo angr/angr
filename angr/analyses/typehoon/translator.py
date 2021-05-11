@@ -101,7 +101,10 @@ class TypeTranslator:
             translated_type = self._translate(typ)
             s.fields["field_%x" % offset] = translated_type
 
-            next_offset = translated_type.size + offset
+            if isinstance(translated_type, sim_type.SimTypeBottom):
+                next_offset = 1 + offset
+            else:
+                next_offset = translated_type.size + offset
 
         return s
 

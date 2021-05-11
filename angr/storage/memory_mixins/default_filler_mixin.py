@@ -3,11 +3,9 @@ import logging
 from . import MemoryMixin
 from ... import sim_options as options
 from ...misc.ux import once
+from ...errors import SimMemoryMissingError
 
 l = logging.getLogger(__name__)
-
-class MemoryMissingException(Exception):
-    pass
 
 
 class DefaultFillerMixin(MemoryMixin):
@@ -16,7 +14,7 @@ class DefaultFillerMixin(MemoryMixin):
         if self.state.project and self.state.project.concrete_target:
             return self.state.project.concrete_target.read_memory(addr, size)
         if fill_missing is False:
-            raise MemoryMissingException(addr, size)
+            raise SimMemoryMissingError(addr, size)
 
         bits = size * self.state.arch.byte_width
 

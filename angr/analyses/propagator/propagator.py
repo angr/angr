@@ -1,19 +1,24 @@
-from typing import Set, Optional, Any, Tuple
+import weakref
+from typing import Set, Optional, Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
+import claripy
 import ailment
 
 from ... import sim_options
-from ...engines.light import SpOffset
-from ...keyed_region import KeyedRegion
+from ...storage.memory_mixins import LabeledMemory
+from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation  # pylint:disable=unused-import
 from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
-from .values import Top
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
+
+if TYPE_CHECKING:
+    from angr.storage import SimMemoryObject
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -21,7 +26,10 @@ _l = logging.getLogger(name=__name__)
 # The base state
 
 class PropagatorState:
-    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None, equivalence=None):
+
+    _tops = {}
+
+    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -31,8 +39,52 @@ class PropagatorState:
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
 
+        self.project = project
+
     def __repr__(self):
         return "<PropagatorState>"
+
+    def _get_weakref(self):
+        return weakref.proxy(self)
+
+    @staticmethod
+    def _mo_cmp(mo_self: 'SimMemoryObject', mo_other: 'SimMemoryObject', addr: int, size: int):  # pylint:disable=unused-argument
+        # comparing bytes from two sets of memory objects
+        # we don't need to resort to byte-level comparison. object-level is good enough.
+
+        if mo_self.object.symbolic or mo_other.object.symbolic:
+            return mo_self.object is mo_other.object
+        return None
+
+    @staticmethod
+    def top(bits: int) -> claripy.ast.Base:
+        """
+        Get a TOP value.
+
+        :param size:    Width of the TOP value (in bits).
+        :return:        The TOP value.
+        """
+
+        if bits in PropagatorState._tops:
+            return PropagatorState._tops[bits]
+        r = claripy.BVS("TOP", bits, explicit_name=True)
+        PropagatorState._tops[bits] = r
+        return r
+
+    @staticmethod
+    def is_top(expr) -> bool:
+        """
+        Check if the given expression is a TOP value.
+
+        :param expr:    The given expression.
+        :return:        True if the expression is TOP, False otherwise.
+        """
+        if isinstance(expr, claripy.ast.Base):
+            if expr.op == "BVS" and expr.args[0] == "TOP":
+                return True
+            if "TOP" in expr.variables:
+                return True
+        return False
 
     def copy(self) -> 'PropagatorState':
         raise NotImplementedError()
@@ -50,8 +102,12 @@ class PropagatorState:
                         if var not in state._replacements[loc]:
                             state._replacements[loc][var] = repl
                         else:
-                            if state._replacements[loc][var] != repl:
-                                state._replacements[loc][var] = Top(1)
+                            if self.is_top(repl) or self.is_top(self._replacements[loc][var]):
+                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                                state._replacements[loc][var] = t
+                            elif state._replacements[loc][var] != repl:
+                                t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
+                                state._replacements[loc][var] = t
             state._equivalence |= o._equivalence
 
         return state
@@ -66,8 +122,11 @@ class PropagatorState:
         :param new:                     The expression to replace with.
         :return:                        None
         """
+        if self.is_top(new):
+            return
+
         if self._only_consts:
-            if isinstance(new, int) or type(new) is Top:
+            if isinstance(new, int) or self.is_top(new):
                 self._replacements[codeloc][old] = new
         else:
             self._replacements[codeloc][old] = new
@@ -79,20 +138,24 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
-    def __init__(self, arch, registers=None, local_variables=None, replacements=None, only_consts=False,
+    def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
                  prop_count=None):
-        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
-        self.registers = {} if registers is None else registers  # offset to values
-        self.local_variables = {} if local_variables is None else local_variables  # offset to values
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
+        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if registers is None else registers
+        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if local_variables is None else local_variables
+
+        self._registers.set_state(self)
+        self._stack_variables.set_state(self)
 
     def __repr__(self):
         return "<PropagatorVEXState>"
 
-    def copy(self):
+    def copy(self) -> 'PropagatorVEXState':
         cp = PropagatorVEXState(
             self.arch,
-            registers=self.registers.copy(),
-            local_variables=self.local_variables.copy(),
+            project=self.project,
+            registers=self._registers.copy(),
+            local_variables=self._stack_variables.copy(),
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
             only_consts=self._only_consts
@@ -100,52 +163,36 @@ class PropagatorVEXState(PropagatorState):
 
         return cp
 
-    def merge(self, *others):
+    def merge(self, *others: 'PropagatorVEXState') -> 'PropagatorVEXState':
         state = self.copy()
-        for other in others:  # type: PropagatorVEXState
-            for offset, value in other.registers.items():
-                if offset not in state.registers:
-                    state.registers[offset] = value
-                else:
-                    if state.registers[offset] != value:
-                        state.registers[offset] = Top(self.arch.bytes)
-
-            for offset, value in other.local_variables.items():
-                if offset not in state.local_variables:
-                    state.local_variables[offset] = value
-                else:
-                    if state.local_variables[offset] != value:
-                        state.local_variables[offset] = Top(self.arch.bytes)
-
+        state._registers.merge([o._registers for o in others], None)
+        state._stack_variables.merge([o._stack_variables for o in others], None)
         return state
 
-    def store_local_variable(self, offset, size, value):  # pylint:disable=unused-argument
+    def store_local_variable(self, offset, size, value, endness):  # pylint:disable=unused-argument
         # TODO: Handle size
-        self.local_variables[offset] = value
+        self._stack_variables.store(offset, value, size=size, endness=endness)
 
-    def load_local_variable(self, offset, size):  # pylint:disable=unused-argument
+    def load_local_variable(self, offset, size, endness):  # pylint:disable=unused-argument
         # TODO: Handle size
         try:
-            return self.local_variables[offset]
-        except KeyError:
-            return Top(size)
+            return self._stack_variables.load(offset, size=size, endness=endness)
+        except SimMemoryMissingError:
+            return self.top(size * self.arch.byte_width)
 
     def store_register(self, offset, size, value):
-        if size != self.gpr_size:
-            return
-
-        self.registers[offset] = value
+        self._registers.store(offset, value, size=size)
 
     def load_register(self, offset, size):
 
         # TODO: Fix me
         if size != self.gpr_size:
-            return Top(size)
+            return self.top(size * self.arch.byte_width)
 
         try:
-            return self.registers[offset]
-        except KeyError:
-            return Top(size)
+            return self._registers.load(offset, size=size)
+        except SimMemoryMissingError:
+            return self.top(size * self.arch.byte_width)
 
 
 # AIL state
@@ -173,13 +220,19 @@ class Equivalence:
 
 
 class PropagatorAILState(PropagatorState):
-    def __init__(self, arch, replacements=None, only_consts=False, prop_count=None, equivalence=None):
-        super().__init__(arch, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
+    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
+                 stack_variables=None, registers=None):
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
                          equivalence=equivalence)
 
-        self._stack_variables = KeyedRegion()
-        self._registers = KeyedRegion()
+        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+            if stack_variables is None else stack_variables
+        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+            if registers is None else registers
         self._tmps = {}
+
+        self._registers.set_state(self)
+        self._stack_variables.set_state(self)
 
     def __repr__(self):
         return "<PropagatorAILState>"
@@ -187,91 +240,176 @@ class PropagatorAILState(PropagatorState):
     def copy(self):
         rd = PropagatorAILState(
             self.arch,
+            project=self.project,
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
             only_consts=self._only_consts,
             equivalence=self._equivalence.copy(),
+            stack_variables=self._stack_variables.copy(),
+            registers=self._registers.copy(),
+            # drop tmps
         )
-
-        rd._stack_variables = self._stack_variables.copy()
-        rd._registers = self._registers.copy()
-        # drop tmps
 
         return rd
 
     def merge(self, *others) -> 'PropagatorAILState':
         # TODO:
-        state = super().merge(*others)
+        state: 'PropagatorAILState' = super().merge(*others)
 
-        for o in others:
-            state._stack_variables.merge_to_top(o._stack_variables, top=Top(1))
-            state._registers.merge_to_top(o._registers, top=(Top(1), None))
-
+        state._registers.merge([o._registers for o in others], None)
+        state._stack_variables.merge([o._stack_variables for o in others], None)
         return state
 
-    def store_variable(self, old, new, def_at) -> None:
-        if old is None or new is None:
+    def store_variable(self, variable, value, def_at) -> None:
+        if variable is None or value is None:
             return
-        if type(new) is not Top and new.has_atom(old, identity=False):
+        if isinstance(value, ailment.Expr.Expression) and value.has_atom(variable, identity=False):
             return
 
-        if isinstance(old, ailment.Expr.Tmp):
-            self._tmps[old.tmp_idx] = new
-        elif isinstance(old, ailment.Expr.Register):
-            self._registers.set_object(old.reg_offset, (new, def_at), old.size)
-        else:
-            _l.warning("Unsupported old variable type %s.", type(old))
-
-    def store_stack_variable(self, addr, size, new, endness=None) -> None:  # pylint:disable=unused-argument
-        if isinstance(addr, ailment.Expr.StackBaseOffset):
-            if addr.offset is None:
-                offset = 0
+        if isinstance(variable, ailment.Expr.Tmp):
+            self._tmps[variable.tmp_idx] = value
+        elif isinstance(variable, ailment.Expr.Register):
+            if isinstance(value, claripy.ast.Base):
+                # We directly store the value in memory
+                expr = None
+            elif isinstance(value, ailment.Expr.Const):
+                # convert the const expression to a claripy AST
+                expr = value
+                value = claripy.BVV(value.value, value.bits)
+            elif isinstance(value, ailment.Expr.Expression):
+                # the value is an expression. the actual value will be TOP.
+                expr = value
+                value = self.top(expr.bits)
             else:
-                offset = addr.offset
-            self._stack_variables.set_object(offset, new, size)
+                raise TypeError("Unsupported value type %s" % type(value))
+
+            label = {
+                'expr': expr,
+                'def_at': def_at,
+            }
+
+            self._registers.store(variable.reg_offset, value, size=variable.size, label=label)
         else:
-            _l.warning("Unsupported addr type %s.", type(addr))
+            _l.warning("Unsupported old variable type %s.", type(variable))
+
+    def store_stack_variable(self, sp_offset: int, size, new, expr=None, def_at=None, endness=None) -> None:  # pylint:disable=unused-argument
+        # normalize sp_offset to handle negative offsets
+        sp_offset += 0x65536
+        sp_offset &= (1 << self.arch.bits) - 1
+
+        label = {
+            'expr': expr,
+            'def_at': def_at,
+        }
+
+        self._stack_variables.store(sp_offset, new, size=size, endness=endness, label=label)
 
     def get_variable(self, variable) -> Any:
         if isinstance(variable, ailment.Expr.Tmp):
             return self._tmps.get(variable.tmp_idx, None)
         elif isinstance(variable, ailment.Expr.Register):
-            objs = self._registers.get_objects_by_offset(variable.reg_offset)
-            if not objs:
+            try:
+                value, labels = self._registers.load_with_labels(variable.reg_offset, size=variable.size)
+            except SimMemoryMissingError:
+                # value does not exist
                 return None
-            # FIXME: Right now we are always getting one item - we should, in fact, work on a multi-value domain
-            obj: Tuple[Any,Optional[CodeLocation]] = next(iter(objs))
-            first_obj, def_at = obj
 
-            if type(first_obj) is Top:
-                # return a Top
-                if first_obj.bits != variable.bits:
-                    return Top(variable.bits // 8)
-                return first_obj
+            if len(labels) == 1:
+                # extract labels
+                offset, size, label = labels[0]
+                expr: Optional[ailment.Expr.Expression] = label['expr']
+                def_at = label['def_at']
+                if expr is not None:
+                    if expr.bits > size * self.arch.byte_width:
+                        # we are loading a chunk of the original expression
+                        expr = self._extract_ail_expression(
+                            offset * self.arch.byte_width,
+                            size * self.arch.byte_width,
+                            expr,
+                        )
+                    if expr.bits < variable.size * self.arch.byte_width:
+                        # we are loading more than the expression has - extend the size of the expression
+                        expr = self._extend_ail_expression(
+                            variable.size * self.arch.byte_width - expr.bits,
+                            expr,
+                        )
+            else:
+                # Multiple definitions and expressions
+                expr = None
+                def_at = None
 
-            if first_obj.bits != variable.bits:
-                # conversion is needed
-                if isinstance(first_obj, ailment.Expr.Convert):
-                    if variable.bits == first_obj.operand.bits:
-                        first_obj = first_obj.operand
+            if self.is_top(value):
+                # return a non-const expression if there is one, or return a Top
+                if expr is not None:
+                    if isinstance(expr, ailment.Expr.Expression) and not isinstance(expr, ailment.Expr.Const):
+                        copied_expr = expr.copy()
+                        copied_expr.tags['def_at'] = def_at
+                        return copied_expr
                     else:
-                        first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.operand.bits, variable.bits,
-                                                         first_obj.is_signed, first_obj.operand)
+                        return value
+                if value.size() != variable.bits:
+                    return self.top(variable.bits)
+                return value
+
+            # value is not TOP
+            if value.size() != variable.bits:
+                raise TypeError("Incorrect sized read. Expect %d bits." % variable.bits)
+
+            if expr is None:
+                return value
+            else:
+                return expr
+
+        return None
+
+    def get_stack_variable(self, sp_offset: int, size, endness=None) -> Optional[Any]:
+        # normalize sp_offset to handle negative offsets
+        sp_offset += 0x65536
+        sp_offset &= (1 << self.arch.bits) - 1
+        try:
+            value, labels = self._stack_variables.load_with_labels(sp_offset, size=size, endness=endness)
+        except SimMemoryMissingError:
+            # the stack variable does not exist
+            return None
+
+        if len(labels) == 1:
+            # extract labels
+            offset, size, label = labels[0]
+            expr: Optional[ailment.Expr.Expression] = label['expr']
+            def_at = label['def_at']
+            if expr is not None:
+                if expr.bits > size * self.arch.byte_width:
+                    # we are loading a chunk of the original expression
+                    expr = self._extract_ail_expression(
+                        offset * self.arch.byte_width,
+                        size * self.arch.byte_width,
+                        expr,
+                    )
+                if expr.bits < size * self.arch.byte_width:
+                    # we are loading more than the expression has - extend the size of the expression
+                    expr = self._extend_ail_expression(
+                        size * self.arch.byte_width - expr.bits,
+                        expr,
+                    )
+        else:
+            # Multiple definitions and expressions
+            expr = None
+            def_at = None
+
+        if self.is_top(value):
+            # return a non-const expression if there is one, or return a Top
+            if expr is not None:
+                if isinstance(expr, ailment.Expr.Expression) and not isinstance(expr, ailment.Expr.Const):
+                    copied_expr = expr.copy()
+                    copied_expr.tags['def_at'] = def_at
+                    return copied_expr
                 else:
-                    first_obj = ailment.Expr.Convert(first_obj.idx, first_obj.bits, variable.bits, False, first_obj)
+                    return value
+            if value.size() != size * self.arch.byte_width:
+                return self.top(size * self.arch.byte_width)
+            return value
 
-            v = first_obj.copy()
-            v.tags['def_at'] = def_at  # put def_at into tags
-            return v
-        return None
-
-    def get_stack_variable(self, addr, size, endness=None):  # pylint:disable=unused-argument
-        if isinstance(addr, ailment.Expr.StackBaseOffset):
-            objs = self._stack_variables.get_objects_by_offset(addr.offset)
-            if not objs:
-                return None
-            return next(iter(objs))
-        return None
+        return expr if expr is not None else value
 
     def add_replacement(self, codeloc, old, new):
 
@@ -279,7 +417,7 @@ class PropagatorAILState(PropagatorState):
             # do not replace anything with a call expression
             return
 
-        if type(new) is Top:
+        if self.is_top(new):
             # eliminate the past propagation of this expression
             if codeloc in self._replacements and old in self._replacements[codeloc]:
                 del self._replacements[codeloc][old]
@@ -317,12 +455,28 @@ class PropagatorAILState(PropagatorState):
         eq = Equivalence(codeloc, old, new)
         self._equivalence.add(eq)
 
+    @staticmethod
+    def _extract_ail_expression(start: int, bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+        if start == 0:
+            return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
+        else:
+            a = ailment.Expr.BinaryOp(None, "Shr", (expr, bits), False)
+            return ailment.Expr.Convert(None, a.bits, bits, False, a)
+
+    @staticmethod
+    def _extend_ail_expression(bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+        return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr)
+
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
     PropagatorAnalysis propagates values (either constant values or variables) and expressions inside a block or across
-    a function. It supports both VEX and AIL. It performs certain arithmetic operations between constants, including
-    but are not limited to:
+    a function.
+
+    PropagatorAnalysis supports both VEX and AIL. The VEX propagator only performs constant propagation. The AIL
+    propagator performs both constant propagation and copy propagation of depth-N expressions.
+
+    PropagatorAnalysis performs certain arithmetic operations between constants, including but are not limited to:
 
     - addition
     - subtraction
@@ -330,7 +484,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     - division
     - xor
 
-    It also performs the following memory operations, too:
+    It also performs the following memory operations:
 
     - Loading values from a known address
     - Writing values to a stack variable
@@ -365,8 +519,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self.replacements: Optional[defaultdict] = None
         self.equivalence: Set[Equivalence] = set()
 
-        self._engine_vex = SimEnginePropagatorVEX(project=self.project)
+        self._engine_vex = SimEnginePropagatorVEX(project=self.project, arch=self.project.arch)
         self._engine_ail = SimEnginePropagatorAIL(
+            arch=self.project.arch,
             stack_pointer_tracker=self._stack_pointer_tracker,
             # We only propagate tmps within the same block. This is because the lifetime of tmps is one block only.
             propagate_tmps=block is not None,
@@ -387,13 +542,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     def _initial_abstract_state(self, node):
         if isinstance(node, ailment.Block):
             # AIL
-            state = PropagatorAILState(arch=self.project.arch, only_consts=self._only_consts)
+            state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(arch=self.project.arch, only_consts=self._only_consts)
+            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            spoffset_var = self._engine_vex.sp_offset(0)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
-                                 SpOffset(self.project.arch.bits, 0)
+                                 spoffset_var,
                                  )
         return state
 
@@ -467,6 +623,13 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         We add the current propagation replacements result to the kb if the
         function has already been completed in cfg creation.
         """
+
+        # Filter replacements and remove all TOP values
+        if self.replacements is not None:
+            for codeloc in list(self.replacements.keys()):
+                rep = dict((k, v) for k, v in self.replacements[codeloc].items() if not PropagatorState.is_top(v))
+                self.replacements[codeloc] = rep
+
         if self._function is not None:
             if self._check_func_complete(self._function):
                 func_loc = CodeLocation(self._function.addr, None)

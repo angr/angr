@@ -1,14 +1,14 @@
 # pylint:disable=arguments-differ
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Union, TYPE_CHECKING
 import logging
 
+import claripy
 from ailment import Block, Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
 from ...sim_variable import SimStackVariable
 from .engine_base import SimEnginePropagatorBase
-from .values import Top
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState
@@ -21,6 +21,21 @@ class SimEnginePropagatorAIL(
     SimEnginePropagatorBase,
 ):
 
+    state: 'PropagatorAILState'
+
+    def _is_top(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> bool:
+        if isinstance(expr, Expr.StackBaseOffset):
+            return False
+        return super()._is_top(expr)
+
+    def extract_offset_to_sp(self, expr: Union[claripy.ast.Base,Expr.StackBaseOffset]) -> Optional[int]:
+        if isinstance(expr, Expr.StackBaseOffset):
+            return expr.offset
+        elif isinstance(expr, Expr.Expression):
+            # not supported
+            return None
+        return super().extract_offset_to_sp(expr)
+
     #
     # AIL statement handlers
     #
@@ -32,20 +47,11 @@ class SimEnginePropagatorAIL(
         :return:
         """
 
-        self.state: 'PropagatorAILState'
-
         src = self._expr(stmt.src)
         dst = stmt.dst
 
         if type(dst) is Expr.Tmp:
-            new_src = self.state.get_variable(src)
-            if new_src is not None:
-                l.debug("%s = %s, replace %s with %s.", dst, src, src, new_src)
-                self.state.store_variable(dst, new_src, self._codeloc())
-
-            else:
-                l.debug("Replacing %s with %s.", dst, src)
-                self.state.store_variable(dst, src, self._codeloc())
+            self.state.store_variable(dst, src, self._codeloc())
 
         elif type(dst) is Expr.Register:
             self.state.store_variable(dst, src, self._codeloc())
@@ -56,27 +62,52 @@ class SimEnginePropagatorAIL(
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
     def _ail_handle_Store(self, stmt):
+
+        self.state: 'PropagatorAILState'
+
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
-        if isinstance(addr, Expr.StackBaseOffset):
-            if data is not None:
+        # is it accessing the stack?
+        sp_offset = self.extract_offset_to_sp(addr)
+        if sp_offset is not None:
+            if isinstance(data, Expr.StackBaseOffset):
+                # convert it to a BV
+                expr = data
+                data_v = self.sp_offset(data.offset)
+                size = data_v.size() // self.arch.byte_width
+            elif isinstance(data, claripy.ast.BV):
+                expr = stmt.data
+                data_v = data
+                size = data_v.size() // self.arch.byte_width
+            else:
+                expr = data
+                data_v = self.state.top(data.bits)
+                size = data.bits // self.arch.byte_width
+
+            if data_v is not None:
                 # Storing data to a stack variable
-                self.state.store_stack_variable(addr, data.bits // 8, data, endness=stmt.endness)
-                # set equivalence
-                var = SimStackVariable(addr.offset, data.bits // 8)
-                self.state.add_equivalence(self._codeloc(), var, stmt.data)
+                self.state.store_stack_variable(sp_offset, size, data_v,
+                                                expr=expr,
+                                                def_at=self._codeloc(),
+                                                endness=stmt.endness,
+                                                )
+
+            # set equivalence
+            var = SimStackVariable(sp_offset, size)
+            self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
         if target == stmt.target:
             return
 
-        new_jump_stmt = Stmt.Jump(stmt.idx, target, **stmt.tags)
-        self.state.add_replacement(self._codeloc(),
-                                   stmt,
-                                   new_jump_stmt,
-                                   )
+        if not self.state.is_top(target):
+            new_jump_stmt = Stmt.Jump(stmt.idx, target, **stmt.tags)
+            self.state.add_replacement(self._codeloc(),
+                                       stmt,
+                                       new_jump_stmt,
+                                       )
 
     def _ail_handle_Call(self, expr_stmt: Stmt.Call):
         _ = self._expr(expr_stmt.target)
@@ -87,7 +118,10 @@ class SimEnginePropagatorAIL(
 
         if expr_stmt.ret_expr:
             # it has a return expression. awesome - treat it as an assignment
-            self.state.store_variable(expr_stmt.ret_expr, Top(expr_stmt.ret_expr.size), self._codeloc())
+            self.state.store_variable(expr_stmt.ret_expr,
+                                      self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
+                                      self._codeloc(),
+                                      )
             # set equivalence
             self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
 
@@ -111,20 +145,23 @@ class SimEnginePropagatorAIL(
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
             if self.is_using_outdated_def(new_expr):
-                return expr
+                return self.state.top(expr.size * self.arch.byte_width)
 
             l.debug("Add a replacement: %s with %s", expr, new_expr)
             self.state.add_replacement(self._codeloc(), expr, new_expr)
-            if type(new_expr) in [Expr.Register, Expr.Const, Expr.Convert, Expr.StackBaseOffset, Expr.BasePointerOffset]:
-                expr = new_expr
+            # if isinstance(new_expr, (Expr.Register, Expr.Const, Expr.Convert, Expr.BasePointerOffset)):
+            return new_expr
 
         if not self._propagate_tmps:
             # we should not propagate any tmps. as a result, we return None for reading attempts to a tmp.
-            return Top(expr.size)
+            return self.state.top(expr.size * self.arch.byte_width)
 
-        return expr
+        return self.state.top(expr.size * self.arch.byte_width)
 
     def _ail_handle_Register(self, expr):
+
+        self.state: 'PropagatorAILState'
+
         # Special handling for SP and BP
         if self._stack_pointer_tracker is not None:
             if expr.reg_offset == self.arch.sp_offset:
@@ -147,28 +184,40 @@ class SimEnginePropagatorAIL(
                 l.debug("Add a replacement: %s with %s", expr, new_expr)
                 self.state.add_replacement(self._codeloc(), expr, new_expr)
                 expr = new_expr
+
         return expr
 
-    def _ail_handle_Load(self, expr):
+    def _ail_handle_Load(self, expr: Expr.Load):
+
+        self.state: 'PropagatorAILState'
+
         addr = self._expr(expr.addr)
 
-        if type(addr) is Top:
-            return Top(expr.size)
+        if self.state.is_top(addr):
+            return self.state.top(expr.size * self.arch.byte_width)
 
-        if isinstance(addr, Expr.StackBaseOffset):
-            var = self.state.get_stack_variable(addr, expr.size, endness=expr.endness)
+        sp_offset = self.extract_offset_to_sp(addr)
+        if sp_offset is not None:
+            # Stack variable.
+            var = self.state.get_stack_variable(sp_offset, expr.size, endness=expr.endness)
             if var is not None:
+                # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
+                # replacing stack variables.
+                #
+                #if not self.is_using_outdated_def(var):
+                #    l.debug("Add a replacement: %s with %s", expr, var)
+                #    self.state.add_replacement(self._codeloc(), expr, var)
                 return var
 
-        if addr != expr.addr:
+        if addr is not expr.addr:
             return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
         return expr
 
-    def _ail_handle_Convert(self, expr):
+    def _ail_handle_Convert(self, expr: Expr.Convert):
         operand_expr = self._expr(expr.operand)
 
-        if type(operand_expr) is Top:
-            return Top(expr.to_bits // 8)
+        if self.state.is_top(operand_expr):
+            return self.state.top(expr.to_bits)
 
         if type(operand_expr) is Expr.Convert:
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
@@ -213,8 +262,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -222,8 +271,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -231,8 +280,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -240,8 +289,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpLTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -249,8 +298,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -258,8 +307,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -267,8 +316,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -276,8 +325,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpGTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -285,8 +334,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -294,8 +343,8 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(1)
+        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
+            return self.state.top(1)
 
         return Expr.BinaryOp(expr.idx, 'CmpNE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -303,8 +352,10 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(operand_0.size)
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_1.size())
 
         if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
             return Expr.Const(expr.idx, None, operand_0.value + operand_1.value, expr.bits)
@@ -312,17 +363,21 @@ class SimEnginePropagatorAIL(
             r = operand_0.copy()
             r.offset += operand_1.value
             return r
+
         return Expr.BinaryOp(expr.idx, 'Add', [operand_0 if operand_0 is not None else expr.operands[0],
                                                operand_1 if operand_1 is not None else expr.operands[1]
                                                ],
-                             expr.signed)
+                             expr.signed,
+                             **expr.tags)
 
     def _ail_handle_Sub(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(operand_0.size)
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_1.size())
 
         if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
             return Expr.Const(expr.idx, None, operand_0.value - operand_1.value, expr.bits)
@@ -330,27 +385,31 @@ class SimEnginePropagatorAIL(
             r = operand_0.copy()
             r.offset -= operand_1.value
             return r
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(expr.bits // 8)
+
         return Expr.BinaryOp(expr.idx, 'Sub', [ operand_0 if operand_0 is not None else expr.operands[0],
                                                 operand_1 if operand_1 is not None else expr.operands[1]
                                                 ],
                              expr.signed,
                              **expr.tags)
 
-    def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
+    def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> Expr.StackBaseOffset:  # pylint:disable=no-self-use
         return expr
 
     def _ail_handle_And(self, expr):
+
+        self.state: 'PropagatorAILState'
+
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(operand_0.size)
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_1.size())
 
-        # Special logic for SP alignment
-        if type(operand_0) is Expr.StackBaseOffset and \
-                type(operand_1) is Expr.Const and is_alignment_mask(operand_1.value):
+        # Special logic for stack pointer alignment
+        sp_offset = self.extract_offset_to_sp(operand_0)
+        if sp_offset is not None and type(operand_1) is Expr.Const and is_alignment_mask(operand_1.value):
             return operand_0
 
         return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ], expr.signed, **expr.tags)
@@ -359,10 +418,34 @@ class SimEnginePropagatorAIL(
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
-        if type(operand_0) is Top or type(operand_1) is Top:
-            return Top(operand_0.size)
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_1.size())
 
         return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    def _ail_handle_Shl(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_0.size())
+
+        return Expr.BinaryOp(expr.idx, 'Shl', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
+    def _ail_handle_Shr(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(operand_0.size())
+        elif self.state.is_top(operand_1):
+            return self.state.top(operand_0.size())
+
+        return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
     #
     # Util methods

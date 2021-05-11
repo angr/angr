@@ -3,12 +3,11 @@ from random import randrange
 from unittest import mock, TestCase
 import networkx
 
+import claripy
 
 from angr.code_location import CodeLocation
-from angr.knowledge_plugins.key_definitions.dataset import DataSet
 from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, Register
 from angr.knowledge_plugins.key_definitions.definition import Definition
-from angr.knowledge_plugins.key_definitions.undefined import UNDEFINED
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 
@@ -28,14 +27,14 @@ def _a_mock_definition(atom: Atom=None):
     # Randomise code locations to forcefully produce "different" <Definition>s.
     statement_index = unique_randrange(1000)
     code_location = CodeLocation(0x42, statement_index)
-    return Definition(atom, code_location, DataSet(set(), 8), None)
+    return Definition(atom, code_location)
 
 
 class TestDepGraph(TestCase):
     class ArchMock:
         def __init__(self): pass
         @property
-        def bits(self): return 4
+        def bits(self): return 32
     class CFGMock:
         def __init__(self, memory_data): self._memory_data = memory_data
         @property
@@ -242,11 +241,10 @@ class TestDepGraph(TestCase):
         definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(UNDEFINED, 4)
         )
 
         with self.assertRaises(AssertionError) as cm:
-            dependency_graph.add_dependencies_for_concrete_pointers_of(definition, None, None)
+            dependency_graph.add_dependencies_for_concrete_pointers_of([claripy.BVS('TOP', 32)], definition, None, None)
 
         ex = cm.exception
         self.assertEqual(str(ex), 'The given Definition must be present in the given graph.')
@@ -266,18 +264,17 @@ class TestDepGraph(TestCase):
         register_definition = Definition(
             Register(0, 4),
             None,
-            DataSet(self.memory_address, arch.bits)
         )
 
         dependency_graph = DepGraph()
         dependency_graph.add_node(register_definition)
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
+        dependency_graph.add_dependencies_for_concrete_pointers_of([claripy.BVV(self.memory_address, arch.bits)],
+                                                                   register_definition, cfg, loader)
 
         memory_definition = Definition(
             MemoryLocation(self.memory_address, self.string_in_memory_length),
             ExternalCodeLocation(),
-            DataSet(self.string_in_memory, self.string_in_memory_length * 8)
         )
 
         nodes = list(dependency_graph.nodes())
@@ -300,13 +297,11 @@ class TestDepGraph(TestCase):
         memory_location_definition = Definition(
             MemoryLocation(self.memory_address, self.string_in_memory_length),
             CodeLocation(0, 0),
-            DataSet(self.string_in_memory, self.string_in_memory_length * 8)
         )
 
         register_definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(self.memory_address, arch.bits)
         )
 
         dependency_graph = DepGraph(networkx.DiGraph([
@@ -315,7 +310,12 @@ class TestDepGraph(TestCase):
 
         nodes_before_call = dependency_graph.nodes()
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(
+            [claripy.BVV(self.memory_address, arch.bits)],
+            register_definition,
+            cfg,
+            loader
+        )
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
@@ -327,7 +327,6 @@ class TestDepGraph(TestCase):
         register_definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(UNDEFINED, arch.bits)
         )
 
         dependency_graph = DepGraph()
@@ -335,13 +334,17 @@ class TestDepGraph(TestCase):
 
         nodes_before_call = dependency_graph.nodes()
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(
+            [claripy.BVS("TOP", arch.bits)],
+            register_definition,
+            cfg,
+            loader,
+        )
 
         self.assertEqual(nodes_before_call, dependency_graph.nodes())
 
     def test_add_dependencies_for_concrete_pointers_of_create_memory_location_with_undefined_data_if_data_pointed_to_by_definition_is_not_known(self):
         arch = self.ArchMock()
-        cfg = self.CFGMock({})
         loader = self.LoaderMock(self.MainObjectMock(self.SectionMock(True)))
 
         datum_content = None
@@ -357,19 +360,22 @@ class TestDepGraph(TestCase):
         memory_definition = Definition(
             MemoryLocation(self.memory_address, datum_size),
             ExternalCodeLocation(),
-            DataSet(UNDEFINED, datum_size * 8)
         )
 
         register_definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(self.memory_address, arch.bits)
         )
 
         dependency_graph = DepGraph()
         dependency_graph.add_node(register_definition)
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(
+            [claripy.BVV(self.memory_address, arch.bits)],
+            register_definition,
+            cfg,
+            loader,
+        )
 
         nodes = list(dependency_graph.nodes())
         predecessors = list(dependency_graph.graph.predecessors(register_definition))
@@ -393,13 +399,17 @@ class TestDepGraph(TestCase):
         register_definition = Definition(
             Register(0, 4),
             CodeLocation(0x42, 0),
-            DataSet(self.memory_address, arch.bits)
         )
 
         dependency_graph = DepGraph()
         dependency_graph.add_node(register_definition)
 
-        dependency_graph.add_dependencies_for_concrete_pointers_of(register_definition, cfg, loader)
+        dependency_graph.add_dependencies_for_concrete_pointers_of(
+            [claripy.BVV(self.memory_address, arch.bits)],
+            register_definition,
+            cfg,
+            loader,
+        )
 
         origin_codelocation = CodeLocation(0, 0, info={'readonly': True})
 

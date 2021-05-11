@@ -1,5 +1,6 @@
 import logging
 
+import claripy
 import pyvex
 
 from .resolver import IndirectJumpResolver
@@ -71,7 +72,8 @@ class ConstantResolver(IndirectJumpResolver):
                 if exists_in_replacements(replacements, block_loc, tmp_var):
                     resolved_tmp = replacements[block_loc][tmp_var]
 
-                    if isinstance(resolved_tmp, int) and self._is_target_valid(cfg, resolved_tmp):
-                        return True, [resolved_tmp]
+                    if isinstance(resolved_tmp, claripy.ast.Base) and resolved_tmp.op == "BVV" \
+                            and self._is_target_valid(cfg, resolved_tmp.args[0]):
+                        return True, [resolved_tmp.args[0]]
 
         return False, [ ]

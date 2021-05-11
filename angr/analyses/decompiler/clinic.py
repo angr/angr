@@ -12,7 +12,7 @@ from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
 from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
@@ -41,6 +41,7 @@ class Clinic(Analysis):
                  cfg=None,
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  must_struct: Optional[Set[str]]=None,
+                 variable_kb=None,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -49,7 +50,7 @@ class Clinic(Analysis):
 
         self.graph = None
         self.arg_list = None
-        self.variable_kb = None
+        self.variable_kb = variable_kb
 
         self._func_graph: Optional[networkx.DiGraph] = None
         self._ail_manager = None
@@ -347,26 +348,14 @@ class Clinic(Analysis):
         :return:    None
         """
 
-        # Computing reaching definitions
-        rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=ail_graph,
-                                                       observe_callback=self._simplify_function_rd_observe_callback)
-
         simp = self.project.analyses.AILSimplifier(
             self.function,
             func_graph=ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
-            reaching_definitions=rd,
             unify_variables=unify_variables,
         )
-        if not simp.simplified:
-            return False
-
-        def _handler(node):
-            return simp.blocks.get(node, None)
-
-        AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
-
-        return True
+        # the function graph has been updated at this point
+        return simp.simplified
 
     @timethis
     def _run_simplification_passes(self, ail_graph, stage:int=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
@@ -441,12 +430,13 @@ class Clinic(Analysis):
         def _handler(block):
             csm = self.project.analyses.AILCallSiteMaker(block, reaching_definitions=rd)
             if csm.result_block:
-                ail_block = csm.result_block
-                simp = self.project.analyses.AILBlockSimplifier(ail_block,
-                                                                stack_pointer_tracker=stack_pointer_tracker,
-                                                                peephole_optimizations=self.peephole_optimizations,
-                                                                )
-                return simp.result_block
+                if csm.result_block != block:
+                    ail_block = csm.result_block
+                    simp = self.project.analyses.AILBlockSimplifier(ail_block,
+                                                                    stack_pointer_tracker=stack_pointer_tracker,
+                                                                    peephole_optimizations=self.peephole_optimizations,
+                                                                    )
+                    return simp.result_block
             return None
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
@@ -536,12 +526,7 @@ class Clinic(Analysis):
     def _recover_and_link_variables(self, ail_graph, arg_list):
 
         # variable recovery
-        tmp_kb = KnowledgeBase(self.project)
-        # remove existing variables for this function
-        if tmp_kb.variables.has_function_manager(self.function.addr):
-            l.warning("Removing existing variable recovery result for function %#x.", self.function.addr)
-            del tmp_kb.variables[self.function.addr]
-        # stack pointers have been removed at this point
+        tmp_kb = KnowledgeBase(self.project) if self.variable_kb is None else self.variable_kb
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=ail_graph, kb=tmp_kb, track_sp=False,
                                                         func_args=arg_list)
@@ -566,7 +551,10 @@ class Clinic(Analysis):
 
         # Unify SSA variables
         tmp_kb.variables[self.function.addr].unify_variables()
-        tmp_kb.variables[self.function.addr].assign_unified_variable_names(labels=self.kb.labels, reset=True)
+        tmp_kb.variables[self.function.addr].assign_unified_variable_names(
+            labels=self.kb.labels,
+            reset=self.variable_kb is None
+        )
 
         # Link variables to each statement
         for block in ail_graph.nodes():
@@ -746,13 +734,6 @@ class Clinic(Analysis):
         stmt = kwargs.pop('stmt')
         op_type = kwargs.pop('op_type')
         return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
-
-    @staticmethod
-    def _simplify_function_rd_observe_callback(ob_type, **kwargs):
-        if ob_type != 'node':
-            return False
-        op_type = kwargs.pop('op_type')
-        return op_type == OP_AFTER
 
 
 register_analysis(Clinic, 'Clinic')

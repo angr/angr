@@ -2,9 +2,11 @@ from typing import Optional, List
 import logging
 from collections import defaultdict
 
+import claripy
 import pyvex
 import ailment
 
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...block import Block
 from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
@@ -19,64 +21,6 @@ from .engine_ail import SimEngineVRAIL
 l = logging.getLogger(name=__name__)
 
 
-class ProcessorState:
-
-    __slots__ = ['_arch', 'sp_adjusted', 'sp_adjustment', 'bp_as_base', 'bp']
-
-    def __init__(self, arch):
-        self._arch = arch
-        # whether we have met the initial stack pointer adjustment
-        self.sp_adjusted = None
-        # how many bytes are subtracted from the stack pointer
-        self.sp_adjustment = arch.bytes if arch.call_pushes_ret else 0
-        # whether the base pointer is used as the stack base of the stack frame or not
-        self.bp_as_base = None
-        # content of the base pointer
-        self.bp = None
-
-    def copy(self):
-        s = ProcessorState(self._arch)
-        s.sp_adjusted = self.sp_adjusted
-        s.sp_adjustment = self.sp_adjustment
-        s.bp_as_base = self.bp_as_base
-        s.bp = self.bp
-        return s
-
-    def merge(self, other):
-        if not self == other:
-            l.warning("Inconsistent merge: %s %s ", self, other)
-
-        # FIXME: none of the following logic makes any sense...
-        if other.sp_adjusted is True:
-            self.sp_adjusted = True
-        self.sp_adjustment = max(self.sp_adjustment, other.sp_adjustment)
-        if other.bp_as_base is True:
-            self.bp_as_base = True
-        if self.bp is None:
-            self.bp = other.bp
-        elif other.bp is not None:  # and self.bp is not None
-            if self.bp == other.bp:
-                pass
-            else:
-                if type(self.bp) is int and type(other.bp) is int:
-                    self.bp = max(self.bp, other.bp)
-                else:
-                    self.bp = None
-        return self
-
-    def __eq__(self, other):
-        if not isinstance(other, ProcessorState):
-            return False
-        return (self.sp_adjusted == other.sp_adjusted and
-                self.sp_adjustment == other.sp_adjustment and
-                self.bp == other.bp and
-                self.bp_as_base == other.bp_as_base)
-
-    def __repr__(self):
-        return "<ProcessorState %s%#x%s %s>" % (self.bp, self.sp_adjustment,
-            " adjusted" if self.sp_adjusted else "", self.bp_as_base)
-
-
 class VariableRecoveryFastState(VariableRecoveryStateBase):
     """
     The abstract state of variable recovery analysis.
@@ -85,13 +29,11 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     :ivar KeyedRegion register_region:  The register store.
     """
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None, processor_state=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
                          global_region=global_region, typevars=typevars, type_constraints=type_constraints,
-                         delayed_type_constraints=delayed_type_constraints)
-
-        self.processor_state = ProcessorState(self.arch) if processor_state is None else processor_state
+                         delayed_type_constraints=delayed_type_constraints, project=project)
 
     def __repr__(self):
         return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
@@ -114,8 +56,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             global_region=self.global_region.copy(),
             typevars=self.typevars.copy(),
             type_constraints=self.type_constraints.copy(),
-            processor_state=self.processor_state.copy(),
             delayed_type_constraints=self.delayed_type_constraints.copy(),
+            project=self.project,
         )
 
         return state
@@ -133,22 +75,29 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         :rtype:                             VariableRecoveryState
         """
 
-        replacements = {}
-        if successor in self.dominance_frontiers:
-            replacements = self._make_phi_variables(successor, self, other)
+        self.phi_variables = {}  # A mapping from original variable and its corresponding phi variable
+        self.successor_block_addr = successor
 
-        merged_stack_region = self.stack_region.copy().replace(replacements).merge(other.stack_region,
-                                                                                   replacements=replacements)
-        merged_register_region = self.register_region.copy().replace(replacements).merge(other.register_region,
-                                                                                         replacements=replacements)
-        merged_global_region = self.global_region.copy().merge(other.global_region)
+        merged_stack_region = self.stack_region.copy()
+        merged_stack_region.set_state(self)
+        merged_stack_region.merge([other.stack_region], None)
+
+        merged_register_region = self.register_region.copy()
+        merged_register_region.set_state(self)
+        merged_register_region.merge([other.register_region], None)
+
+        merged_global_region = self.global_region.copy()
+        merged_global_region.set_state(self)
+        merged_global_region.merge([other.global_region], None)
+
         merged_typevars = self.typevars.merge(other.typevars)
         merged_typeconstraints = self.type_constraints.copy() | other.type_constraints
         delayed_typeconstraints = self.delayed_type_constraints.copy()
         for v, cons in other.delayed_type_constraints.items():
             delayed_typeconstraints[v] |= cons
+
         # add subtype constraints for all replacements
-        for v0, v1 in replacements.items():
+        for v0, v1 in self.phi_variables.items():
             # v0 will be replaced by v1
             if not merged_typevars.has_type_variable_for(v1, None):
                 merged_typevars.add_type_variable(v1, None, TypeVariable())
@@ -166,6 +115,10 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                                       )
             delayed_typeconstraints[v1].add(equivalence)
 
+        # clean up
+        self.phi_variables = {}
+        self.successor_block_addr = None
+
         state = VariableRecoveryFastState(
             successor,
             self._analysis,
@@ -177,7 +130,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             typevars=merged_typevars,
             type_constraints=merged_typeconstraints,
             delayed_type_constraints=delayed_typeconstraints,
-            processor_state=self.processor_state.copy().merge(other.processor_state),
+            project=self.project,
         )
 
         return state
@@ -276,30 +229,39 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             self._release_gil(self._job_ctr, 5, 0.000001)
 
     def _initial_abstract_state(self, node):
-
-        # annotate the stack pointer
-        # concrete_state.regs.sp = concrete_state.regs.sp.annotate(StackLocationAnnotation(8))
-
-        # give it enough stack space
-        # concrete_state.regs.bp = concrete_state.regs.sp + 0x100000
-
-        state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function,
+        state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function, project=self.project,
                                           )
+        initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)
+        state.register_region.store(self.project.arch.sp_offset, initial_sp)
+        # give it enough stack space
+        state.register_region.store(self.project.arch.bp_offset, initial_sp + 0x100000)
+
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
             ret_addr_offset = self.project.arch.bytes
             ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bytes, base='bp', name='ret_addr',
                                             region=self.function.addr, category='return_address',
                                             )
-            state.stack_region.add_variable(ret_addr_offset, ret_addr_var)
+            ret_addr = claripy.BVS("ret_addr", self.project.arch.bits)
+            ret_addr = state.annotate_with_variables(ret_addr, [(0, ret_addr_var)])
+            state.stack_region.store(state.stack_addr_from_offset(ret_addr_offset),
+                                     ret_addr,
+                                     endness=self.project.arch.memory_endness)
 
         if self._func_args:
             for arg in self._func_args:
                 if isinstance(arg, SimRegisterVariable):
-                    state.register_region.set_variable(arg.reg, arg)
+                    v = claripy.BVS("reg_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    state.register_region.store(arg.reg, v)
                     self.variable_manager[self.function.addr].add_variable('register', arg.reg, arg)
                 elif isinstance(arg, SimStackVariable):
-                    state.stack_region.set_variable(arg.offset, arg)
+                    v = claripy.BVS("stack_arg", arg.bits)
+                    v = state.annotate_with_variables(v, [(0, arg)])
+                    state.stack_region.store(state.stack_addr_from_offset(arg.offset),
+                                             v,
+                                             endness=self.project.arch.memory_endness,
+                                             )
                     self.variable_manager[self.function.addr].add_variable('stack', arg.offset, arg)
                 else:
                     raise TypeError("Unsupported function argument type %s." % type(arg))
@@ -445,23 +407,28 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         if self._track_sp and block.addr in self._node_to_cc:
             # readjusting sp at the end for blocks that end in a call
+            sp: MultiValues = state.register_region.load(self.project.arch.sp_offset, size=self.project.arch.bytes)
+            sp_v = sp.one_value()
+            if sp_v is None:
+                l.warning("Unexpected stack pointer value at the end of the function. Pick the first one.")
+                sp_v = next(iter(next(iter(sp.values.values()))))
+
             adjusted = False
-            if state.processor_state.sp_adjustment is None:
-                state.processor_state.sp_adjustment = 0
             cc = self._node_to_cc[block.addr]
             if cc is not None and cc.sp_delta is not None:
-                state.processor_state.sp_adjustment += cc.sp_delta
-                state.processor_state.sp_adjusted = True
+                sp_v += cc.sp_delta
                 adjusted = True
-                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.',
-                        block.addr, state.processor_state.sp_adjustment)
+                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, cc.sp_delta)
 
             if not adjusted:
                 # make a guess
                 # of course, this will fail miserably if the function called is not cdecl
                 if self.project.arch.call_pushes_ret:
-                    state.processor_state.sp_adjustment += self.project.arch.bytes
-                    state.processor_state.sp_adjusted = True
+                    sp_v += self.project.arch.bytes
+                    adjusted = True
+
+            if adjusted:
+                state.register_region.store(self.project.arch.sp_offset, sp_v)
 
 
 from angr.analyses import AnalysesHub

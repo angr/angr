@@ -1,22 +1,79 @@
 # pylint:disable=no-self-use
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union, Any
 import logging
 
 import ailment
 import pyvex
+import claripy
 import archinfo
 
+from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import UnsupportedIROpError, vexop_to_simop
 from ...code_location import CodeLocation
 from ...utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
 
 
-class SimEngineLight(SimEngine):
-    def __init__(self):
-        super(SimEngineLight, self).__init__()
+class SimEngineLightMixin:
+    def __init__(self, *args, logger=None, **kwargs):
+        self.arch: archinfo.Arch = None
+        self.l = logger
+        super().__init__(*args, **kwargs)
 
-        self.l = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
+    def _is_top(self, expr) -> bool:
+        """
+        Check if a given expression is a TOP value.
+
+        :param expr:    The given expression.
+        :return:        True if the expression is TOP, False otherwise.
+        """
+        return False
+
+    def _top(self, size: int):
+        """
+        Return a TOP value. It will only be called if _is_top() has been implemented.
+
+        :param size:    The size (in bits) of the TOP value.
+        :return:        A TOP value.
+        """
+        raise NotImplementedError()
+
+    def sp_offset(self, offset: int):
+        base = claripy.BVS("SpOffset", self.arch.bits, explicit_name=True)
+        if offset:
+            base += offset
+        return base
+
+    def extract_offset_to_sp(self, spoffset_expr: claripy.ast.Base) -> Optional[int]:
+        """
+        Extract the offset to the original stack pointer.
+
+        :param spoffset_expr:   The claripy AST to parse.
+        :return:                The offset to the original stack pointer, or None if `spoffset_expr` is not a supported
+                                type of SpOffset expression.
+        """
+
+        if 'SpOffset' in spoffset_expr.variables:
+            # Local variable
+            if spoffset_expr.op == "BVS":
+                return 0
+            elif spoffset_expr.op == '__add__':
+                if len(spoffset_expr.args) == 1:
+                    # Unexpected but fine
+                    return 0
+                elif isinstance(spoffset_expr.args[1], claripy.ast.Base) and spoffset_expr.args[1].op == "BVV":
+                    return spoffset_expr.args[1].args[0]
+        return None
+
+
+class SimEngineLight(
+    SimEngineLightMixin,
+    SimEngine,
+):
+    def __init__(self):
+
+        logger = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
+        super(SimEngineLight, self).__init__(logger=logger)
 
         # local variables
         self.state = None
@@ -68,7 +125,7 @@ class SimEngineLight(SimEngine):
                             )
 
 
-class SimEngineLightVEXMixin:
+class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
@@ -304,28 +361,52 @@ class SimEngineLightVEXMixin:
         return expr.value
 
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
-        return expr.con.value
+        return claripy_value(expr.con.type, expr.con.value)
 
     def _handle_Conversion(self, expr):
-        expr = self._expr(expr.args[0])
-        if expr is None:
+        expr_ = self._expr(expr.args[0])
+        if expr_ is None:
             return None
+        to_size = expr.result_size(self.tyenv)
+        if self._is_top(expr_):
+            return self._top(to_size)
 
-        # FIXME: implement real conversion
-        return expr
+        if isinstance(expr_, claripy.ast.Base) and expr_.op == "BVV":
+            if expr_.size() > to_size:
+                # truncation
+                return expr_[to_size - 1 : 0]
+            elif expr_.size() < to_size:
+                # extension
+                return claripy.ZeroExt(to_size - expr_.size(), expr_)
+            else:
+                return expr_
+
+        return self._top(to_size)
 
     #
     # Binary operation handlers
     #
 
-    def _handle_And(self, expr):
+    def _binop_get_args(self, expr) -> Union[Optional[Tuple[Any,Any]],Optional[Any]]:
         arg0, arg1 = expr.args
         expr_0 = self._expr(arg0)
         if expr_0 is None:
-            return None
+            return None, None
+        if self._is_top(expr_0):
+            return None, self._top(expr_0.size())
+
         expr_1 = self._expr(arg1)
         if expr_1 is None:
-            return None
+            return None, None
+        if self._is_top(expr_1):
+            return None, self._top(expr_0.size())  # always use the size of expr_0
+
+        return (expr_0, expr_1), None
+
+    def _handle_And(self, expr):
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 & expr_1
@@ -334,13 +415,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Or(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 | expr_1
@@ -356,6 +433,9 @@ class SimEngineLightVEXMixin:
         expr_0 = self._expr(arg0)
         if expr_0 is None:
             return None
+        if self._is_top(expr_0):
+            return self._top(expr_0.size())
+
         try:
             return ~expr_0  # pylint:disable=invalid-unary-operand-type
         except TypeError as e:
@@ -363,13 +443,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Add(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             if isinstance(expr_0, int) and isinstance(expr_1, int):
@@ -383,13 +459,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Sub(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             if isinstance(expr_0, int) and isinstance(expr_1, int):
@@ -403,13 +475,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Mul(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             if isinstance(expr_0, int) and isinstance(expr_1, int):
@@ -423,13 +491,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Div(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             # TODO: Probably should take care of the sign
@@ -442,13 +506,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Mod(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             # TODO: Probably should take care of the sign
@@ -458,13 +518,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Xor(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 ^ expr_1
@@ -473,58 +529,45 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_Shl(self, expr):
-        arg0, arg1 = expr.args
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
-        #elif expr_1 < 0:
-        #    expr.args = [expr_0, -1*expr_1]
-         #   return self._handle_Shr(expr)
+        if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
+            # convert it to an int when possible
+            expr_1 = expr_1.args[0]
+
         try:
-            if isinstance(expr_0, int) and isinstance(expr_1, int):
-                # self.tyenv is not used
-                mask = (1 << expr.result_size(self.tyenv)) - 1
-                if expr_1 < 0:
-                    return (expr_0 >> -expr_1) & mask
-                else:
-                    return (expr_0 << expr_1) & mask
-            else:
-                return expr_0 << expr_1
+            return expr_0 << expr_1
         except TypeError as e:
             self.l.warning(e)
             return None
 
     def _handle_Shr(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
+
+        if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
+            # convert it to an int when possible
+            expr_1 = expr_1.args[0]
 
         try:
-            if expr_1 < 0:
-                return expr_0 << -expr_1
-            else:
-                return expr_0 >> expr_1
+            return expr_0 >> expr_1
         except TypeError as e:
             self.l.warning(e)
             return None
 
     def _handle_Sar(self, expr):
         # EDG asks: is this right?
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
+
+        if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
+            # convert it to an int when possible
+            expr_1 = expr_1.args[0]
+
         try:
             return expr_0 >> expr_1
         except TypeError as e:
@@ -532,13 +575,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_CmpEQ(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 == expr_1
@@ -547,13 +586,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_CmpNE(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 != expr_1
@@ -562,13 +597,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_CmpLE(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 <= expr_1
@@ -577,13 +608,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_CmpGE(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 >= expr_1
@@ -592,13 +619,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_CmpLT(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 < expr_1
@@ -607,13 +630,9 @@ class SimEngineLightVEXMixin:
             return None
 
     def _handle_CmpGT(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
 
         try:
             return expr_0 > expr_1
@@ -626,18 +645,13 @@ class SimEngineLightVEXMixin:
         return None
 
     def _handle_32HLto64(self, expr):
-        arg0, arg1 = expr.args
-        expr_0 = self._expr(arg0)
-        if expr_0 is None:
-            return None
-        expr_1 = self._expr(arg1)
-        if expr_1 is None:
-            return None
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
 
         return None
 
 
-class SimEngineLightAILMixin:
+class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
 
@@ -727,6 +741,9 @@ class SimEngineLightAILMixin:
     # Expression handlers
     #
 
+    def _ail_handle_BV(self, expr: claripy.ast.Base):
+        return expr
+
     def _ail_handle_Const(self, expr):  # pylint:disable=no-self-use
         return expr.value
 
@@ -804,8 +821,14 @@ class SimEngineLightAILMixin:
 
         arg0, arg1 = expr.operands
 
-        expr_0 = self._expr(arg0)
-        expr_1 = self._expr(arg1)
+        if not isinstance(arg0, claripy.ast.Base):
+            expr_0 = self._expr(arg0)
+        else:
+            expr_0 = arg0
+        if not isinstance(arg1, claripy.ast.Base):
+            expr_1 = self._expr(arg1)
+        else:
+            expr_1 = self._expr(arg1)
 
         if expr_0 is None:
             expr_0 = arg0

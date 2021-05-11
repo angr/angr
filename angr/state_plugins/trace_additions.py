@@ -258,7 +258,7 @@ def exit_hook(state):
     stdin_min_stdout_constraints = chall_resp_plugin.stdin_min_stdout_constraints
     stdout_pos = state.solver.eval(state.posix.fd[1].write_pos)
     for v in guard.variables:
-        if v.startswith("aeg_stdin"): # TODO THIS IS SO FUCKED LMAO
+        if v.startswith("aeg_input"): # TODO THIS IS SO FUCKED LMAO
             byte_num = ChallRespInfo.get_byte(v)
             if byte_num not in stdin_min_stdout_constraints:
                 stdin_min_stdout_constraints[byte_num] = stdout_pos
@@ -355,7 +355,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
     def get_byte(var_name):
         ## XXX TODO FIXME DO NOT DO THIS HOLY SHIT WHAT THE FUCK
         ## see comments in rex
-        idx = var_name.split("_")[2]
+        idx = var_name.split("_")[3]
         return int(idx, 16)
 
     def lookup_original(self, replacement):
@@ -382,7 +382,7 @@ class ChallRespInfo(angr.state_plugins.SimStatePlugin):
                     l.warning("original_str is None")
                     continue
                 for v in original_str.variables:
-                    if v.startswith("age_stdin"):
+                    if v.startswith("aeg_input"):
                         byte_indices.add(self.get_byte(v))
         return byte_indices
 

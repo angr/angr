@@ -117,6 +117,7 @@ class STOP:  # stop_t
     STOP_UNKNOWN_MEMORY_WRITE     = 28
     STOP_SYMBOLIC_MEM_DEP_NOT_LIVE = 29
     STOP_SYSCALL_ARM    = 30
+    STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK = 31
 
     stop_message = {}
     stop_message[STOP_NORMAL]        = "Reached maximum steps"
@@ -150,10 +151,12 @@ class STOP:  # stop_t
     stop_message[STOP_UNKNOWN_MEMORY_WRITE]    = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly"
     stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE] = "A symbolic memory dependency on stack is no longer in scope"
     stop_message[STOP_SYSCALL_ARM]   = "ARM syscalls are currently not supported by SimEngineUnicorn"
+    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK] = "An instruction in current block overwrites a symbolic value needed for re-executing some instruction in same block"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
-        STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYSCALL_ARM]
+        STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYSCALL_ARM,
+        STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK]
 
     unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
         STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,

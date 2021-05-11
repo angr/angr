@@ -253,8 +253,6 @@ void State::commit() {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
-			auto result = find_symbolic_mem_deps(symbolic_instr);
-			symbolic_instr.symbolic_mem_deps.insert(symbolic_instr.symbolic_mem_deps.end(), result.begin(), result.end());
 		}
 		blocks_with_symbolic_instrs.emplace_back(curr_block_details);
 	}
@@ -609,7 +607,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 			}
 		}
 	}
-	if (find_tainted(address, size) != -1) {
+	if ((find_tainted(address, size) != -1) & (!is_dst_symbolic)) {
 		// We are writing to a memory location that is currently symbolic. If the destination if a memory dependency
 		// of some instruction to be re-executed, we need to re-execute that instruction before continuing.
 		auto write_start_addr = address;
@@ -628,35 +626,46 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 				}
 			}
 		}
-		if (!is_dst_symbolic) {
-			// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
-			// instructions to be re-executed write to this same location. If there is one, they need not be re-executed
-			// since this concrete write nullifies their effects.
-			auto curr_write_start_addr = address;
-			auto curr_write_end_addr = address + size;
-			std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
-			for (auto &block: blocks_with_symbolic_instrs) {
-				instrs_to_erase_it.clear();
-				for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
-					int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
-					if (symbolic_write_start_addr == -1) {
-						// Instruction does not write a symbolic write to memory. No need to check this.
-						continue;
-					}
-					int64_t symbolic_write_end_addr = sym_instr_it->mem_write_addr + sym_instr_it->mem_write_size;
-					if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
-						// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
-						// instruction need not be re-executed
-						// TODO: How to handle partial overwrite?
-						// TODO: If this block is not fully executed in unicorn before control returns to python land,
-						// the state will be inconsistent until this concrete memory write is executed. If this happens,
-						// the symbolic memory write should be removed from list of instructions to re-execute in commit.
-						instrs_to_erase_it.emplace_back(sym_instr_it);
-					}
+		// Also check if the destination is a memory dependency of an instruction in current block should be re-executed
+		for (auto &sym_instr: curr_block_details.symbolic_instrs) {
+			for (auto &symbolic_mem_dep: sym_instr.symbolic_mem_deps) {
+				auto symbolic_start_addr = symbolic_mem_dep.first;
+				auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+				if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
+					// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
+					// will be lost. Stop execution.
+					stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK);
+					return;
 				}
-				for (auto &instr_to_erase_it: instrs_to_erase_it) {
-					block.symbolic_instrs.erase(instr_to_erase_it);
+			}
+		}
+		// The destination is not a memory dependency of some instruction to be re-executed. We now check if any
+		// instructions to be re-executed write to this same location. If there is one, they need not be re-executed
+		// since this concrete write nullifies their effects.
+		auto curr_write_start_addr = address;
+		auto curr_write_end_addr = address + size;
+		std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
+		for (auto &block: blocks_with_symbolic_instrs) {
+			instrs_to_erase_it.clear();
+			for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
+				int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
+				if (symbolic_write_start_addr == -1) {
+					// Instruction does not write a symbolic write to memory. No need to check this.
+					continue;
 				}
+				int64_t symbolic_write_end_addr = sym_instr_it->mem_write_addr + sym_instr_it->mem_write_size;
+				if ((curr_write_start_addr <= symbolic_write_start_addr) && (symbolic_write_end_addr <= curr_write_end_addr)) {
+					// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
+					// instruction need not be re-executed
+					// TODO: How to handle partial overwrite?
+					// TODO: If this block is not fully executed in unicorn before control returns to python land,
+					// the state will be inconsistent until this concrete memory write is executed. If this happens,
+					// the symbolic memory write should be removed from list of instructions to re-execute in commit.
+					instrs_to_erase_it.emplace_back(sym_instr_it);
+				}
+			}
+			for (auto &instr_to_erase_it: instrs_to_erase_it) {
+				block.symbolic_instrs.erase(instr_to_erase_it);
 			}
 		}
 	}
@@ -1605,6 +1614,8 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			instr_details.reg_deps.insert(reg_val);
 		}
 		instr_details.instr_deps.insert(instr_details.instr_deps.end(), instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
+		auto result = find_symbolic_mem_deps(instr_details);
+		instr_details.symbolic_mem_deps.insert(instr_details.symbolic_mem_deps.end(), result.begin(), result.end());
 		curr_block_details.symbolic_instrs.emplace_back(instr_details);
 	}
 	return;

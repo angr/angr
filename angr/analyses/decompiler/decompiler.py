@@ -17,6 +17,7 @@ class Decompiler(Analysis):
     def __init__(self, func, cfg=None, options=None, optimization_passes=None, sp_tracker_track_memory=True,
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  vars_must_struct: Optional[Set[str]]=None,
+                 flavor='pseudocode',
                  ):
         self.func = func
         self._cfg = cfg
@@ -25,6 +26,7 @@ class Decompiler(Analysis):
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
+        self._flavor = flavor
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -35,6 +37,11 @@ class Decompiler(Analysis):
 
         if self.func.is_simprocedure:
             return
+
+        try:
+            old_codegen = self.kb.structured_code[(self.func.addr, self._flavor)]
+        except KeyError:
+            old_codegen = None
 
         options_by_class = defaultdict(list)
 
@@ -48,6 +55,7 @@ class Decompiler(Analysis):
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
+                                              variable_kb=old_codegen._variable_kb if old_codegen is not None else None,
                                               optimization_passes=self._optimization_passes,
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
                                               cfg=self._cfg,
@@ -78,6 +86,7 @@ class Decompiler(Analysis):
                                                                 variable_kb=clinic.variable_kb)
 
         self.codegen = codegen
+        self.kb.structured_code[(self.func.addr, self._flavor)] = codegen
 
     def _set_global_variables(self):
 

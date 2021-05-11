@@ -1,13 +1,13 @@
-from typing import Optional, Dict, Set
+from typing import Optional, Dict, Set, Iterable, Union, TYPE_CHECKING
 from functools import reduce
 
 import networkx
 
+import claripy
 from cle.loader import Loader
 
 from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
-from ...knowledge_plugins.key_definitions.dataset import DataSet
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
 from ..cfg.cfg_base import CFGBase
@@ -121,13 +121,19 @@ class DepGraph:
             self.nodes()
         ))
 
-    def add_dependencies_for_concrete_pointers_of(self, definition: Definition, cfg: CFGBase, loader: Loader):
+    def add_dependencies_for_concrete_pointers_of(self,
+                                                  values: Iterable[Union[claripy.ast.Base,int]],
+                                                  definition: Definition,
+                                                  cfg: CFGBase,
+                                                  loader: Loader):
         """
-        When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in the
-        dependency graph; Adds them if necessary.
+        When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in
+        the dependency graph; Adds them if necessary.
 
+        :param values:
         :param definition: The definition which has data that can contain concrete pointers.
-        :param cfg: The CFG, containing informations about memory data.
+        :param cfg: The CFG, containing information about memory data.
+        :param loader:
         """
         assert definition in self.nodes(), 'The given Definition must be present in the given graph.'
 
@@ -139,10 +145,13 @@ class DepGraph:
             )
         ))
 
-        unknown_concrete_addresses = list(filter(
-            lambda address: isinstance(address, int) and address not in known_predecessor_addresses,
-            definition.data
-        ))
+        unknown_concrete_addresses: Set[int] = set()
+        for v in values:
+            if isinstance(v, claripy.ast.Base) and v.concrete:
+                v = v._model_concrete.value
+            if isinstance(v, int):
+                if v not in known_predecessor_addresses:
+                    unknown_concrete_addresses.add(v)
 
         for address in unknown_concrete_addresses:
             data_at_address = cfg.memory_data.get(address, None)
@@ -156,15 +165,14 @@ class DepGraph:
 
             def _string_and_length_from(data_at_address):
                 if data_at_address.content is None:
-                    return (UNDEFINED, data_at_address.size)
+                    return UNDEFINED, data_at_address.size
                 else:
-                    return (data_at_address.content.decode('utf-8'), data_at_address.size + 1)
-            pointed_string, string_length = _string_and_length_from(data_at_address)
+                    return data_at_address.content.decode('utf-8'), data_at_address.size + 1
+            _, string_length = _string_and_length_from(data_at_address)
 
             memory_location_definition = Definition(
                 MemoryLocation(address, string_length),
                 code_location,
-                DataSet(pointed_string, string_length * 8)
             )
 
             self.graph.add_edge(memory_location_definition, definition)

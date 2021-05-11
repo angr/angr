@@ -5,6 +5,8 @@ from functools import reduce
 import claripy
 import angr # type annotations; pylint: disable=unused-import
 
+from ...errors import SimMemoryMissingError
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ... import BP, BP_AFTER
 from ...sim_variable import SimRegisterVariable, SimStackVariable
 from ...code_location import CodeLocation
@@ -100,17 +102,21 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         :rtype:                             VariableRecoveryState
         """
 
-        replacements = {}
-        if successor in self.dominance_frontiers:
-            replacements = self._make_phi_variables(successor, self, other)
+        self.phi_variables = {}
+        self.successor_block_addr = successor
 
         merged_concrete_states =  [ self._concrete_states[0] ] # self._merge_concrete_states(other)
 
-        new_stack_region = self.stack_region.copy().replace(replacements)
-        new_stack_region.merge(other.stack_region, replacements=replacements)
+        new_stack_region = self.stack_region.copy()
+        new_stack_region.set_state(self)
+        new_stack_region.merge([ other.stack_region ], None)
 
-        new_register_region = self.register_region.copy().replace(replacements)
-        new_register_region.merge(other.register_region, replacements=replacements)
+        new_register_region = self.register_region.copy()
+        new_register_region.set_state(self)
+        new_register_region.merge([ other.register_region ], None)
+
+        self.phi_variables = {}
+        self.successor_block_addr = None
 
         return VariableRecoveryState(successor, self._analysis, self.arch, self.function, merged_concrete_states,
                                      stack_region=new_stack_region,
@@ -149,22 +155,23 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 return
             reg_read_offset = state.solver.eval(reg_read_offset)
         reg_read_length = state.inspect.reg_read_length
+        reg_read_expr = state.inspect.reg_read_expr
 
         if reg_read_offset == state.arch.sp_offset and reg_read_length == state.arch.bytes:
             # TODO: make sure the sp is not overwritten by something that we are not tracking
             return
 
-        #if reg_read_offset == state.arch.bp_offset and reg_read_length == state.arch.bytes:
-        #    # TODO:
-
-        var_offset = self._normalize_register_offset(reg_read_offset)
-        if var_offset not in self.register_region:
+        var_offset = reg_read_offset
+        try:
+            _: MultiValues = self.register_region.load(reg_read_offset, reg_read_length)
+        except SimMemoryMissingError:
             # the variable being read doesn't exist before
             variable = SimRegisterVariable(reg_read_offset, reg_read_length,
                                            ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
                                            region=self.func_addr,
                                            )
-            self.register_region.add_variable(var_offset, variable)
+            data = self.annotate_with_variables(reg_read_expr, [(0, variable)])
+            self.register_region.store(var_offset, data)
 
             # record this variable in variable manager
             self.variable_manager[self.func_addr].add_variable('register', var_offset, variable)
@@ -200,8 +207,11 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                                            ident=self.variable_manager[self.func_addr].next_variable_ident('register'),
                                            region=self.func_addr,
                                            )
-            var_offset = self._normalize_register_offset(reg_write_offset)
-            self.register_region.set_variable(var_offset, variable)
+            var_offset = reg_write_offset
+            data = self.top(reg_write_length * self.arch.byte_width)
+            data = self.annotate_with_variables(data, [(0, variable)])
+            self.register_region.store(var_offset, data)
+
             # record this variable in variable manager
             self.variable_manager[self.func_addr].set_variable('register', var_offset, variable)
             self.variable_manager[self.func_addr].write_to(variable, 0, self._codeloc_from_state(state))
@@ -216,25 +226,39 @@ class VariableRecoveryState(VariableRecoveryStateBase):
             if stack_offset not in self.stack_region:
                 lea_size = 1
                 new_var = SimStackVariable(stack_offset, lea_size, base='bp',
-                                            ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
-                                            region=self.func_addr,
-                                            )
-                self.stack_region.add_variable(stack_offset, new_var)
+                                           ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
+                                           region=self.func_addr,
+                                           )
+                reg_write_expr = self.annotate_with_variables(reg_write_expr, [(0, new_var)])
+                self.stack_region.store(self.stack_addr_from_offset(stack_offset),
+                                        reg_write_expr,
+                                        endness=self.arch.memory_endness)
 
                 # record this variable in variable manager
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, new_var)
 
-            base_offset = self.stack_region.get_base_addr(stack_offset)
-            assert base_offset is not None
-            for var in self.stack_region.get_variables_by_offset(stack_offset):
-                self.variable_manager[self.func_addr].reference_at(var, stack_offset - base_offset,
+            existing_vars = set()
+            try:
+                vs: MultiValues = self.stack_region.load(self.stack_addr_from_offset(stack_offset), size=1)
+                for values in vs.values.values():
+                    for v in values:
+                        for offset, var in self.extract_variables(v):
+                            existing_vars.add((offset, var))
+            except SimMemoryMissingError:
+                pass
+
+            for offset, var in existing_vars:
+                self.variable_manager[self.func_addr].reference_at(var,
+                                                                   offset,
                                                                    self._codeloc_from_state(state)
                                                                    )
 
     def _hook_memory_read(self, state):
 
         mem_read_address = state.inspect.mem_read_address
+        mem_read_expr = state.inspect.mem_read_expr
         mem_read_length = state.inspect.mem_read_length
+        endness = state.inspect.mem_read_endness
 
         stack_offset = self._addr_to_stack_offset(mem_read_address)
 
@@ -251,15 +275,24 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                                             ident=self.variable_manager[self.func_addr].next_variable_ident(ident_sort),
                                             region=self.func_addr,
                                             )
-                self.stack_region.add_variable(stack_offset, variable)
+                mem_read_expr = self.annotate_with_variables(mem_read_expr, [(0, variable)])
+                self.stack_region.store(self.stack_addr_from_offset(stack_offset), mem_read_expr, endness=endness)
 
                 # record this variable in variable manager
                 self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
 
-            base_offset = self.stack_region.get_base_addr(stack_offset)
-            assert base_offset is not None
-
-            existing_variables = self.stack_region.get_variables_by_offset(stack_offset)
+            # load existing variables
+            existing_variables = set()
+            try:
+                vs: MultiValues = self.stack_region.load(self.stack_addr_from_offset(stack_offset),
+                                                         size=mem_read_length,
+                                                         endness=endness)
+                for values in vs.values.values():
+                    for v in values:
+                        for offset, var in self.extract_variables(v):
+                            existing_variables.add((offset, var))
+            except SimMemoryMissingError:
+                pass
 
             if len(existing_variables) > 1:
                 # create a phi node for all other variables
@@ -267,15 +300,15 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                           existing_variables)
 
             if existing_variables:
-                variable = next(iter(existing_variables))
-                self.variable_manager[self.func_addr].read_from(variable, stack_offset - base_offset,
-                                                                self._codeloc_from_state(state))
+                offset, variable = next(iter(existing_variables))
+                self.variable_manager[self.func_addr].read_from(variable, offset, self._codeloc_from_state(state))
 
     def _hook_memory_write(self, state):
 
         mem_write_address = state.inspect.mem_write_address
         mem_write_expr = state.inspect.mem_write_expr
         mem_write_length = len(mem_write_expr) // 8
+        endness = state.inspect.mem_write_endness
 
         stack_offset = self._addr_to_stack_offset(mem_write_address)
 
@@ -290,15 +323,12 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                                         ident=self.variable_manager[self.func_addr].next_variable_ident('stack'),
                                         region=self.func_addr,
                                         )
-            self.stack_region.set_variable(stack_offset, variable)
+            mem_write_expr = self.annotate_with_variables(mem_write_expr, [(0, variable)])
+            self.stack_region.store(self.stack_addr_from_offset(stack_offset), mem_write_expr, endness=endness)
 
             # record this variable in variable manager
             self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-
-            base_offset = self.stack_region.get_base_addr(stack_offset)
-            assert base_offset is not None
-            for variable in self.stack_region.get_variables_by_offset(stack_offset):
-                self.variable_manager[self.func_addr].write_to(variable, stack_offset - base_offset, self._codeloc_from_state(state))
+            self.variable_manager[self.func_addr].write_to(variable, 0, self._codeloc_from_state(state))
 
     #
     # Util methods

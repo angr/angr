@@ -103,15 +103,25 @@ class VariableManagerInternal:
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
 
-    def set_variable(self, sort, start, variable):
+    def set_variable(self, sort, start, variable: SimVariable):
         if sort == 'stack':
-            self._stack_region.set_variable(start, variable)
+            region = self._stack_region
         elif sort == 'register':
-            self._register_region.set_variable(start, variable)
+            region = self._register_region
         elif sort == 'global':
-            self._global_region.set_variable(start, variable)
+            region = self._global_region
         else:
-            raise ValueError('Unsupported sort %s in add_variable().' % sort)
+            raise ValueError('Unsupported sort %s in set_variable().' % sort)
+        existing = [x for x in region.get_variables_by_offset(start) if x.ident == variable.ident]
+        if len(existing) == 1:
+            var = existing[0]
+            if var.renamed:
+                variable.name = var.name
+                variable.renamed = True
+        else:
+            # implicitly overwrite or add I guess
+            pass
+        region.set_variable(start, variable)
 
     def write_to(self, variable, offset, location, overwrite=False, atom=None):
         self._record_variable_access('write', variable, offset, location, overwrite=overwrite, atom=atom)
@@ -171,7 +181,7 @@ class VariableManagerInternal:
             ident_sort = 'register'
             a = SimRegisterVariable(repre.reg, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimMemoryVariable:
-            ident_sort = 'memory'
+            ident_sort = 'global'
             a = SimMemoryVariable(repre.addr, repre.size, ident=self.next_variable_ident(ident_sort))
         elif repre_type is SimStackVariable:
             ident_sort = 'stack'
@@ -503,6 +513,13 @@ class VariableManagerInternal:
         :param unified:     THe unified variable.
         :return:            None
         """
+        old_unified = self._variables_to_unified_variables.get(variable, None)
+        if old_unified is not None and old_unified is not unified:
+            self._unified_variables.discard(old_unified)
+            if old_unified.renamed and not unified.renamed:
+                unified.renamed = True
+                unified.name = old_unified.name
+
         self._unified_variables.add(unified)
         self._variables_to_unified_variables[variable] = unified
 
@@ -561,7 +578,9 @@ class VariableManager(KnowledgeBasePlugin):
         return key in self.function_managers
 
     def get_function_manager(self, func_addr) -> VariableManagerInternal:
-        if not isinstance(func_addr, int):
+        if isinstance(func_addr, str):
+            func_addr = self._kb.labels.lookup(func_addr)
+        elif not isinstance(func_addr, int):
             raise TypeError('Argument "func_addr" must be an int.')
 
         if func_addr not in self.function_managers:
