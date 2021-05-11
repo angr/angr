@@ -6,7 +6,6 @@ from sortedcontainers import  SortedDict
 from copy import copy
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
-from pysoot.sootir.soot_value import SootLocal
 
 from ...utils.constants import DEFAULT_STATEMENT
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
