@@ -79,7 +79,7 @@ class CGFastAPK(Analysis):
                     native_addr_list.append(native_address)
                     soot_jni_nodes.append(soot_node)
                 else:
-                    l.warning('Cannot find address of "' + soot_node.name + '" in native project.')
+                    l.warning('Cannot find address of %s in native project.', soot_node.name)
 
         # get native node in native callgraph
         for native_node in native_callgraph.nodes():
