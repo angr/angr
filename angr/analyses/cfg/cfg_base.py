@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, List, Optional, Union
+from typing import Dict, Tuple, List, Optional, Union, Set
 import logging
 from collections import defaultdict
 
@@ -1329,6 +1329,10 @@ class CFGBase(Analysis):
                                                                                           predetermined_function_addrs,
                                                                                           blockaddr_to_function
                                                                                           )
+        self._process_jump_table_targeted_functions(tmp_functions,
+                                                    predetermined_function_addrs,
+                                                    blockaddr_to_function,
+                                                    )
         removed_functions = removed_functions_a | removed_functions_b
 
         # Remove all nodes that are adjusted
@@ -1704,6 +1708,67 @@ class CFGBase(Analysis):
 
         return functions_to_remove, adjusted_cfgnodes
 
+    def _process_jump_table_targeted_functions(self,
+                                               functions,
+                                               predetermined_function_addrs,
+                                               blockaddr_to_function) -> Set[int]:
+        """
+        Sometimes compilers will optimize "cold" code regions, make them separate functions, mark them as cold, which
+        conflicts with how angr handles jumps to these functions (becuase they weren't functions to start with). Here
+        is an example (in function version_etc_arn() from gllib)::
+
+        switch (n_authors) {
+          case 0:
+            abort();
+          case 1:
+            ...
+        }
+
+        GCC may decide to move the `abort();` block under case 0 into a separate function (usually named
+        "version_etc_arn_cold") and mark it as "cold." When loading function hints from eh frame is enabled, this
+        function will be identified, and the recovered switch-case structure will have a jump to a function. It's
+        usually not a problem until we need to decompile this function, where (at least for now) angr decompiler
+        requires all switch-case entry blocks must belong to the same function.
+
+        The temporary solution is identifying functions that (a) have no call predecessors, and (b) are used as
+        jump targets for identified jump tables. Remove these functions so that they can be treated as part of the
+        source function where the corresponding jump table belongs.
+        """
+
+        jumptable_entries: Set[int] = set()
+        for jt in self.model.jump_tables.values():
+            jumptable_entries |= set(jt.jumptable_entries)
+
+        if not jumptable_entries:
+            return set()
+
+        functions_to_remove = set()
+
+        for func_addr in functions.keys():
+            if func_addr in predetermined_function_addrs:
+                continue
+            if func_addr in jumptable_entries:
+                # is there any call edge pointing to it?
+                func_node = self.get_any_node(func_addr)
+                if func_node is not None:
+                    in_edges = self.graph.in_edges(func_node, data=True)
+                    has_transition_pred = None
+                    has_non_transition_pred = None
+                    for _, _, data in in_edges:
+                        if data.get("jumpkind", None) == "Ijk_Boring":
+                            has_transition_pred = True
+                        else:
+                            has_non_transition_pred = True
+                    if has_transition_pred is True and not has_non_transition_pred:
+                        # all predecessors are transition-only
+                        # remove this function
+                        functions_to_remove.add(func_addr)
+
+        for to_remove in functions_to_remove:
+            del functions[to_remove]
+
+        return functions_to_remove
+
     def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
         """
         Convert an address to a Function object, and store the mapping in a dict. If the block is known to be part of a
@@ -1747,7 +1812,7 @@ class CFGBase(Analysis):
 
         return f
 
-    def _is_tail_call_optimization(self, g : networkx.DiGraph, src_addr, dst_addr, src_function, all_edges,
+    def _is_tail_call_optimization(self, g: networkx.DiGraph, src_addr, dst_addr, src_function, all_edges,
                                    known_functions, blockaddr_to_function):
         """
         If source and destination belong to the same function, and the following criteria apply:
@@ -2028,7 +2093,6 @@ class CFGBase(Analysis):
                 dst_node = dst_addr
             else:
                 dst_node = self._to_snippet(n)
-
 
             if dst_addr not in blockaddr_to_function:
                 if isinstance(dst_addr, SootAddressDescriptor):
