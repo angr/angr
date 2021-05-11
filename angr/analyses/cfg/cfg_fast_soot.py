@@ -6,7 +6,6 @@ from sortedcontainers import  SortedDict
 from copy import copy
 
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
-from pysoot.sootir.soot_value import SootLocal
 
 from ...utils.constants import DEFAULT_STATEMENT
 from ...errors import AngrCFGError, SimMemoryError, SimEngineError
@@ -18,6 +17,7 @@ from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 l = logging.getLogger(name=__name__)
 
 try:
+    from pysoot.sootir.soot_value import SootLocal
     from pysoot.sootir.soot_statement import IfStmt, InvokeStmt, GotoStmt, AssignStmt
     from pysoot.sootir.soot_expr import SootInterfaceInvokeExpr, SootSpecialInvokeExpr, SootStaticInvokeExpr, \
         SootVirtualInvokeExpr, SootInvokeExpr, SootDynamicInvokeExpr  # pylint:disable=unused-import
