@@ -23,6 +23,8 @@ from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnot
 from ... import BP, BP_BEFORE, BP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
+from ...knowledge_plugins.key_definitions.dataset import DataSet
+from ...knowledge_plugins.key_definitions.undefined import Undefined, UNDEFINED
 
 #logger = logging.getLogger('angr.analyses.cfg.cfg_vm_deobfuscation').setLevel(logging.DEBUG)
 #filename = "/media/sf_Security/sample_vm/sample_vm_with_input"
@@ -61,6 +63,75 @@ class CLibFunctionHandler(FunctionHandler):
                               codeloc=None):
         executed_rda = False
         return executed_rda, state, visited_blocks, dep_graph
+
+    def handle_getchar(self, state, codeloc):
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            print("Error!")
+            # sp_data = set()
+            # for d in defs_sp:
+            #     sp_data.update(d.data)
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+
+        # return value in RAX
+        atom = Register(16, 8)
+        state.kill_and_add_definition(atom, codeloc, DataSet({UNDEFINED}, 8 * 8))
+
+        executed_rda = True
+        return executed_rda, state
+
+    def handle_free(self, state, codeloc):
+        # rdi
+        state.add_use(Register(72, 8), codeloc)
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            print("Error!")
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+
+        executed_rda = True
+        return executed_rda, state
+
+    def handle_putchar(self, state, codeloc):
+        # rdi
+        state.add_use(Register(72, 8), codeloc)
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            print("Error!")
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+
+        # return value in RAX
+        atom = Register(16, 8)
+        state.kill_and_add_definition(atom, codeloc, DataSet({UNDEFINED}, 8 * 8))
+
+        executed_rda = True
+        return executed_rda, state
 
     def handle_ptrace(self, state, codeloc):
         # rsi
@@ -233,7 +304,8 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
-        new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        for i in range(4):
+            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
         self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
 
@@ -242,7 +314,7 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
-        self.pattern_match_to_x86_instructions(new_cfg, proj, folder_name)
+        self.pattern_match_to_x86_instructions(new_cfg, cfg, proj, folder_name)
 
     def join_basic_blocks(self, cfg, proj, start_addr, vm_vpc_addr, start_state):
         new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
@@ -399,12 +471,12 @@ class VMDeobfuscation(Analysis):
 
     def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
-        flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
-        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
-        # flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
+        # flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
+        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
+        flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
+        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
 
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
@@ -488,7 +560,7 @@ class VMDeobfuscation(Analysis):
         rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
                                                        track_tmps=True,
                                                        function_handler=CLibFunctionHandler(),
-                                                       max_iterations=2
+                                                       max_iterations=3
                                                        )
 
         # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
@@ -502,9 +574,11 @@ class VMDeobfuscation(Analysis):
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
 
-            #### Looking for use-defs that look like => Stle(addr).... LDle(addr), removed use defs that involve Put() because it was causing some incomplete elimination in (discount VM)0x400587
+            #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
             if isinstance(d.atom, atoms.MemoryLocation):
                 uses = rd.all_uses.get_uses(d)
+                if d.codeloc.block_id.addr == 0x40098a:
+                    import ipdb;ipdb.set_trace()
                 no_uses = len(uses)
                 for use in uses:
                     if not use.sim_procedure and isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.Put):
@@ -527,7 +601,7 @@ class VMDeobfuscation(Analysis):
                                 idx,
                                 block_id=node.block_id,
                                 ins_addr=cur_ins_addr,
-                                            )
+                                context=tuple())
 
                     # is it a dead virgin?
                     if stmt_loc in dead_defs_locs:
@@ -1360,13 +1434,16 @@ class VMDeobfuscation(Analysis):
         B.layout(prog="dot")
         B.draw(path=os.path.join(folder_name, "vex_comparision_final_cfg.svg"), format="svg")
 
-    def pattern_match_to_x86_instructions(self, final_cfg, proj, folder_name):
+    def pattern_match_to_x86_instructions(self, final_cfg, orig_cfg, proj, folder_name):
         A = nx.nx_agraph.to_agraph(final_cfg.graph)
+        original_addresses = []
+        original_instructions = []
+        for orig_cfg_node in orig_cfg.graph.nodes():
+            original_addresses = original_addresses + proj.factory.block(orig_cfg_node.addr).instruction_addrs
+            original_instructions = original_instructions + proj.factory.block(orig_cfg_node.addr).capstone.insns
 
         #### Iterating over nodes of the initial graph
         for final_cfg_node in final_cfg.graph.nodes():
-            original_addresses = proj.factory.block(final_cfg_node.addr).instruction_addrs
-            original_instructions = proj.factory.block(final_cfg_node.addr).capstone.insns
             x86_stmt_str = "<" + str(final_cfg_node).strip("<>")
             if final_cfg_node.irsb != None:
                 cur_ins_str = ""
