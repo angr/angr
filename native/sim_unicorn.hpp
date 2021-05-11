@@ -304,8 +304,8 @@ struct instruction_taint_entry_t {
 	// List of direct taint sources for a taint sink
 	taint_vector_t taint_sink_src_map;
 
-	// List of registers a taint sink depends on
-	std::unordered_set<taint_entity_t> dependencies_to_save;
+	// List of dependencies a taint sink depends on
+	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>> dependencies;
 
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
@@ -322,13 +322,16 @@ struct instruction_taint_entry_t {
 
 	bool operator==(const instruction_taint_entry_t &other_instr_deps) const {
 		return (taint_sink_src_map == other_instr_deps.taint_sink_src_map) &&
-			   (dependencies_to_save == other_instr_deps.dependencies_to_save) &&
+			   (dependencies == other_instr_deps.dependencies) &&
 			   (has_memory_read == other_instr_deps.has_memory_read) &&
 			   (has_memory_write == other_instr_deps.has_memory_write);
 	}
 
 	void reset() {
-		dependencies_to_save.clear();
+		dependencies.clear();
+		dependencies.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
+		dependencies.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
+		dependencies.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
 		ite_cond_entity_list.clear();
 		taint_sink_src_map.clear();
 		modified_regs.clear();
@@ -361,8 +364,8 @@ struct stop_details_t {
 };
 
 struct processed_vex_expr_t {
-	std::unordered_set<taint_entity_t> taint_sources;
-	std::unordered_set<taint_entity_t> ite_cond_entities;
+	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>> taint_sources;
+	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>> ite_cond_entities;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_size;
@@ -370,7 +373,13 @@ struct processed_vex_expr_t {
 
 	void reset() {
 		taint_sources.clear();
+		taint_sources.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
+		taint_sources.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
+		taint_sources.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
 		ite_cond_entities.clear();
+		ite_cond_entities.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
+		ite_cond_entities.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
+		ite_cond_entities.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
 		has_unsupported_expr = false;
 		mem_read_size = 0;
 		value_size = -1;
@@ -487,7 +496,6 @@ class State {
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
 
-	std::unordered_set<taint_entity_t> compute_dependencies_to_save(const std::unordered_set<taint_entity_t> &taint_sources) const;
 	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
