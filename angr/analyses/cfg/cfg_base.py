@@ -1766,6 +1766,8 @@ class CFGBase(Analysis):
 
         for to_remove in functions_to_remove:
             del functions[to_remove]
+            if to_remove in blockaddr_to_function:
+                del blockaddr_to_function[to_remove]
 
         return functions_to_remove
 
