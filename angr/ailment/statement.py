@@ -392,7 +392,7 @@ class Return(Statement):
         return hash((Return, self.idx, self.target, tuple(self.ret_exprs)))
 
     def __repr__(self):
-        return "Return to %r (%r)" % (self.target, ",".join(self.ret_exprs))
+        return "Return to %r (%s)" % (self.target, ",".join(repr(x) for x in self.ret_exprs))
 
     def __str__(self):
         exprs = (",".join(str(ret_expr) for ret_expr in self.ret_exprs))
