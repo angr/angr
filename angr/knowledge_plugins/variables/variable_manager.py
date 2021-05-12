@@ -497,8 +497,8 @@ class VariableManagerInternal:
                 reg_vars[v.reg].append(v)
 
         for _, vs in reg_vars.items():
-            unified = vs[0].copy()
             for v in vs:
+                unified = v.copy()
                 self.set_unified_variable(v, unified)
         for _, vs in stack_vars.items():
             unified = vs[0].copy()
