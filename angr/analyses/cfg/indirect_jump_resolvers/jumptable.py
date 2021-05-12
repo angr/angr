@@ -1,8 +1,9 @@
-from typing import Tuple
+from typing import Tuple, Optional
 import logging
 from collections import defaultdict, OrderedDict
 
 import pyvex
+import claripy
 from archinfo.arch_arm import is_arm_arch
 
 from ....concretization_strategies import SimConcretizationStrategyAny
@@ -130,6 +131,20 @@ class JumpTableProcessorState:
         self.regs_to_initialize = [ ]  # registers that we should initialize
 
 
+class RegOffsetAnnotation(claripy.Annotation):
+
+    __slots__ = ('reg_offset', )
+
+    def __init__(self, reg_offset: RegisterOffset):
+        self.reg_offset = reg_offset
+
+    def relocatable(self):
+        return False
+
+    def eliminatable(self):
+        return False
+
+
 class JumpTableProcessor(
     SimEngineLightVEXMixin,
     SimEngineLight,
@@ -159,11 +174,68 @@ class JumpTableProcessor(
         self._bp_sp_diff = bp_sp_diff  # bp - sp
         self._tsrc = set()  # a scratch variable to store source information for values
 
-    def _top(self, size: int):
+        self._SPOFFSET_BASE = claripy.BVS('SpOffset', self.project.arch.bits, explicit_name=True)
+        self._REGOFFSET_BASE = claripy.BVS('RegisterOffset', self.project.arch.bits, explicit_name=True)
+
+    @staticmethod
+    def _top(size: int):
         return None
 
-    def _is_top(self, expr) -> bool:
+    @staticmethod
+    def _is_top(expr) -> bool:
         return expr is None
+
+    @staticmethod
+    def _is_spoffset(expr) -> bool:
+        return 'SpOffset' in expr.variables
+
+    def _get_spoffset_expr(self, sp_offset: SpOffset) -> claripy.ast.BV:
+        v = self._SPOFFSET_BASE.annotate(RegOffsetAnnotation(sp_offset))
+        return v
+
+    @staticmethod
+    def _extract_spoffset_from_expr(expr: claripy.ast.Base) -> Optional[SpOffset]:
+        if expr.op == "BVS":
+            for anno in expr.annotations:
+                if isinstance(anno, RegOffsetAnnotation):
+                    return anno.reg_offset
+        elif expr.op == "__add__":
+            if len(expr.args) == 1:
+                return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
+            elif len(expr.args) == 2 and expr.args[1].op == "BVV":
+                sp_offset = JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
+                delta = expr.args[1]._model_concrete.value
+                sp_offset += delta
+                return sp_offset
+        elif expr.op == "__and__":
+            if len(expr.args) == 2 and expr.args[1].op == "BVV":
+                # ignore all masking on SpOffsets
+                return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
+        return None
+
+    @staticmethod
+    def _is_registeroffset(expr) -> bool:
+        return 'RegisterOffset' in expr.variables
+
+    def _get_regoffset_expr(self, reg_offset: RegisterOffset) -> claripy.ast.BV:
+        v = self._REGOFFSET_BASE.annotate(RegOffsetAnnotation(reg_offset))
+        return v
+
+    @staticmethod
+    def _extract_regoffset_from_expr(expr: claripy.ast.Base) -> Optional[RegisterOffset]:
+        if expr.op == "BVS":
+            for anno in expr.annotations:
+                if isinstance(anno, RegOffsetAnnotation):
+                    return anno.reg_offset
+        elif expr.op == "__add__":
+            if len(expr.args) == 1:
+                return JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
+            elif len(expr.args) == 2 and expr.args[1].op == "BVV":
+                reg_offset = JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
+                delta = expr.args[1]._model_concrete.value
+                reg_offset += delta
+                return reg_offset
+        return None
 
     def _handle_WrTmp(self, stmt):
         self._tsrc = set()
@@ -201,19 +273,32 @@ class JumpTableProcessor(
 
     def _handle_Get(self, expr):
         if expr.offset == self.arch.bp_offset:
-            return SpOffset(self.arch.bits, self._bp_sp_diff)
+            return self._get_spoffset_expr(SpOffset(self.arch.bits, self._bp_sp_diff))
         elif expr.offset == self.arch.sp_offset:
-            return SpOffset(self.arch.bits, 0)
+            return self._get_spoffset_expr(SpOffset(self.arch.bits, 0))
         else:
             if expr.offset in self.state._registers:
                 self._tsrc |= set(self.state._registers[expr.offset][0])
-                return self.state._registers[expr.offset][1]
-            # the register does not exist
-            # we initialize it here
-            v = RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
-            src = (self.block.addr, self.stmt_idx)
-            self._tsrc.add(src)
-            self.state._registers[expr.offset] = ([src], v)
+                v = self.state._registers[expr.offset][1]
+            else:
+                # the register does not exist
+                # we initialize it here
+                v = RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
+                v = self._get_regoffset_expr(v)
+                src = (self.block.addr, self.stmt_idx)
+                self._tsrc.add(src)
+                self.state._registers[expr.offset] = ([src], v)
+
+            # make sure the size matches
+            # note that this is sometimes incorrect. for example, we do not differentiate between reads at ah and al...
+            # but it should be good enough for now (without switching state._registers to a real SimMemory, which will
+            # surely slow down stuff quite a bit)
+            if v is not None:
+                bits = expr.result_size(self.tyenv)
+                if v.size() > bits:
+                    v = v[bits - 1:0]
+                elif v.size() < bits:
+                    v = claripy.ZeroExt(bits - v.size, v)
             return v
 
     def _handle_function(self, expr):  # pylint:disable=unused-argument,no-self-use
@@ -358,10 +443,11 @@ class JumpTableProcessor(
         if addr is None:
             return None
 
-        if isinstance(addr, SpOffset):
-            if addr.offset in self.state._stack:
-                self._tsrc = { self.state._stack[addr.offset][0] }
-                return self.state._stack[addr.offset][1]
+        if self._is_spoffset(addr):
+            spoffset = self._extract_spoffset_from_expr(addr)
+            if spoffset is not None and spoffset.offset in self.state._stack:
+                self._tsrc = { self.state._stack[spoffset.offset][0] }
+                return self.state._stack[spoffset.offset][1]
         elif isinstance(addr, int):
             # Load data from memory if it is mapped
             try:
@@ -369,16 +455,17 @@ class JumpTableProcessor(
                 return v
             except KeyError:
                 return None
-        elif isinstance(addr, RegisterOffset):
+        elif self._is_registeroffset(addr):
             # Load data from a register, but this register hasn't been initialized at this point
             # We will need to initialize this register during slice execution later
 
             # Try to get where this register is first accessed
-            if addr.reg in self.state._registers:
+            reg_offset = self._extract_regoffset_from_expr(addr)
+            if reg_offset is not None and reg_offset.reg in self.state._registers:
                 try:
-                    source = next(iter(src for src in self.state._registers[addr.reg][0] if src != 'const'))
+                    source = next(iter(src for src in self.state._registers[reg_offset.reg][0] if src != 'const'))
                     assert isinstance(source, tuple)
-                    self.state.regs_to_initialize.append(source + (addr.reg, addr.bits))
+                    self.state.regs_to_initialize.append(source + (reg_offset.reg, reg_offset.bits))
                 except StopIteration:
                     # we don't need to initialize this register
                     # it might be caused by an incorrect analysis result

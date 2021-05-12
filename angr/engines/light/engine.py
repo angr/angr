@@ -345,20 +345,20 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     # Unary operation handlers
     #
 
-    def _handle_U32(self, expr):
-        return expr.value
-
     def _handle_U64(self, expr):
-        return expr.value
+        return claripy.BVV(expr.value, 64)
+
+    def _handle_U32(self, expr):
+        return claripy.BVV(expr.value, 32)
 
     def _handle_U16(self, expr):
-        return expr.value
+        return claripy.BVV(expr.value, 16)
 
     def _handle_U8(self, expr):
-        return expr.value
+        return claripy.BVV(expr.value, 8)
 
     def _handle_U1(self, expr):
-        return expr.value
+        return claripy.BVV(expr.value, 1)
 
     def _handle_Const(self, expr):  # pylint:disable=no-self-use
         return claripy_value(expr.con.type, expr.con.value)
@@ -408,22 +408,20 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 & expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
+        return expr_0 & expr_1
 
     def _handle_Or(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 | expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
+        return expr_0 | expr_1
 
     def _handle_Not1(self, expr):
         return self._handle_Not(expr)
@@ -447,80 +445,64 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            if isinstance(expr_0, int) and isinstance(expr_1, int):
-                # self.tyenv is not used
-                mask = (1 << expr.result_size(self.tyenv)) - 1
-                return (expr_0 + expr_1) & mask
-            else:
-                return expr_0 + expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
+        return expr_0 + expr_1
 
     def _handle_Sub(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            if isinstance(expr_0, int) and isinstance(expr_1, int):
-                # self.tyenv is not used
-                mask = (1 << expr.result_size(self.tyenv)) - 1
-                return (expr_0 - expr_1) & mask
-            else:
-                return expr_0 - expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
+        return expr_0 - expr_1
 
     def _handle_Mul(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            if isinstance(expr_0, int) and isinstance(expr_1, int):
-                # self.tyenv is not used
-                mask = (1 << expr.result_size(self.tyenv)) - 1
-                return (expr_0 * expr_1) & mask
-            else:
-                return expr_0 * expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
+        return expr_0 * expr_1
 
     def _handle_Div(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
         try:
-            # TODO: Probably should take care of the sign
-            return expr_0 // expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
-        except ZeroDivisionError as e:
-            self.l.warning(e)
-            return None
+            return expr_0 / expr_1
+        except ZeroDivisionError:
+            return self._top(expr_0.size())
 
     def _handle_Mod(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
         try:
-            # TODO: Probably should take care of the sign
-            return expr_0 - (expr_0 // expr_1)*expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+            return expr_0 - (expr_1 // expr_1) * expr_1
+        except ZeroDivisionError:
+            return self._top(expr_0.size())
 
     def _handle_Xor(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
+
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
 
         try:
             return expr_0 ^ expr_1
@@ -533,30 +515,28 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if args is None: return r
         expr_0, expr_1 = args
 
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
         if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
             # convert it to an int when possible
             expr_1 = expr_1.args[0]
 
-        try:
-            return expr_0 << expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        return expr_0 << expr_1
 
     def _handle_Shr(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
         if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
             # convert it to an int when possible
             expr_1 = expr_1.args[0]
 
-        try:
-            return expr_0 >> expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        return claripy.LShR(expr_0, expr_1)
 
     def _handle_Sar(self, expr):
         # EDG asks: is this right?
@@ -564,81 +544,74 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if args is None: return r
         expr_0, expr_1 = args
 
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr_0.size())
+
         if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
             # convert it to an int when possible
             expr_1 = expr_1.args[0]
 
-        try:
-            return expr_0 >> expr_1
-        except TypeError as e:
-            self.l.warning(e)
-            return None
+        return expr_0 >> expr_1
 
     def _handle_CmpEQ(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 == expr_1
-        except TypeError as ex:
-            self.l.warning(ex)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(1)
+
+        return expr_0 == expr_1
 
     def _handle_CmpNE(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 != expr_1
-        except TypeError as ex:
-            self.l.warning(ex)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(1)
+
+        return expr_0 != expr_1
 
     def _handle_CmpLE(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 <= expr_1
-        except TypeError as ex:
-            self.l.warning(ex)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(1)
+
+        return expr_0 <= expr_1
 
     def _handle_CmpGE(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 >= expr_1
-        except TypeError as ex:
-            self.l.warning(ex)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(1)
+
+        return expr_0 >= expr_1
 
     def _handle_CmpLT(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 < expr_1
-        except TypeError as ex:
-            self.l.warning(ex)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(1)
+
+        return expr_0 <= expr_1
 
     def _handle_CmpGT(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
         expr_0, expr_1 = args
 
-        try:
-            return expr_0 > expr_1
-        except TypeError as ex:
-            self.l.warning(ex)
-            return None
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(1)
+
+        return expr_0 > expr_1
 
     def _handle_MBE(self, expr):  # pylint:disable=unused-argument
         # Yeah.... no.
