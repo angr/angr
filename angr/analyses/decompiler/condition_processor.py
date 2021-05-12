@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Iterable
 import operator
 import logging
@@ -626,6 +627,8 @@ class ConditionProcessor:
         cond = simplified if simplified is not None else cond
         simplified = ConditionProcessor._revert_short_circuit_conditions(cond)
         cond = simplified if simplified is not None else cond
+        simplified = ConditionProcessor._extract_common_subexpressions(cond)
+        cond = simplified if simplified is not None else cond
         return cond
 
     @staticmethod
@@ -707,6 +710,56 @@ class ConditionProcessor:
                 ConditionProcessor.simplify_condition(claripy.Not(or_1)),
             )
             return expr
+
+        return None
+
+    @staticmethod
+    def _extract_common_subexpressions(cond):
+
+        def _expr_inside_collection(expr_, coll_) -> bool:
+            for ex_ in coll_:
+                if expr_ is ex_:
+                    return True
+            return False
+
+        # (A && B) || (A && C) => A && (B || C)
+        if cond.op == "And":
+            args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
+            if all(arg is None for arg in args):
+                return None
+            return claripy.And(*((arg if arg is not None else ori_arg) for arg, ori_arg in zip(args, cond.args)))
+
+        if cond.op == "Or":
+            args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
+            args = [ (arg if arg is not None else ori_arg) for arg, ori_arg in zip(args, cond.args) ]
+
+            expr_ctrs = defaultdict(int)
+            for arg in args:
+                if arg.op == "And":
+                    for subexpr in arg.args:
+                        expr_ctrs[subexpr] += 1
+                else:
+                    expr_ctrs[arg] += 1
+
+            common_exprs = [ ]
+            for expr, ctr in expr_ctrs.items():
+                if ctr == len(args):
+                    common_exprs.append(expr)
+
+            if not common_exprs:
+                return claripy.Or(*args)
+
+            new_args = [ ]
+            for arg in args:
+                if arg.op == "And":
+                    new_subexprs = [ subexpr for subexpr in arg.args if not _expr_inside_collection(subexpr, common_exprs) ]
+                    new_args.append(claripy.And(*new_subexprs))
+                elif arg in common_exprs:
+                    continue
+                else:
+                    raise RuntimeError("Unexpected behavior - you should never reach here")
+
+            return claripy.And(*common_exprs, claripy.Or(*new_args))
 
         return None
 
