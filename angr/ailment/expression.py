@@ -490,9 +490,9 @@ class Load(Expression):
 
 class ITE(Expression):
 
-    __slots__ = ('cond', 'iffalse', 'iftrue', 'bits', )
+    __slots__ = ('cond', 'iffalse', 'iftrue', 'bits', 'variable', 'variable_offset', )
 
-    def __init__(self, idx, cond, iffalse, iftrue, **kwargs):
+    def __init__(self, idx, cond, iffalse, iftrue, variable=None, variable_offset=None, **kwargs):
         depth = max(cond.depth if isinstance(cond, Expression) else 0,
                     iffalse.depth if isinstance(iffalse, Expression) else 0,
                     iftrue.depth if isinstance(iftrue, Expression) else 0
@@ -503,6 +503,8 @@ class ITE(Expression):
         self.iffalse = iffalse
         self.iftrue = iftrue
         self.bits = iftrue.bits
+        self.variable = variable
+        self.variable_offset = variable_offset
 
     def __repr__(self):
         return str(self)
