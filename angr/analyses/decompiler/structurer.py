@@ -982,7 +982,7 @@ class Structurer(Analysis):
             node = seq.nodes[i]
 
             if isinstance(node, CodeNode):
-                if isinstance(node.node, SequenceNode):
+                if isinstance(node.node, SequenceNode) and node.node not in self._new_sequences:
                     self._make_condition_nodes(node.node)
 
                 if node.reaching_condition is not None and not claripy.is_true(node.reaching_condition):
