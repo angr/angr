@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 import logging
 from collections import defaultdict, OrderedDict
 
@@ -175,7 +175,7 @@ class JumpTableProcessor(
         self._tsrc = set()  # a scratch variable to store source information for values
 
         self._SPOFFSET_BASE = claripy.BVS('SpOffset', self.project.arch.bits, explicit_name=True)
-        self._REGOFFSET_BASE = claripy.BVS('RegisterOffset', self.project.arch.bits, explicit_name=True)
+        self._REGOFFSET_BASE: Dict[int,claripy.ast.BV] = {}
 
     @staticmethod
     def _top(size: int):
@@ -204,9 +204,10 @@ class JumpTableProcessor(
                 return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
             elif len(expr.args) == 2 and expr.args[1].op == "BVV":
                 sp_offset = JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
-                delta = expr.args[1]._model_concrete.value
-                sp_offset += delta
-                return sp_offset
+                if sp_offset is not None:
+                    delta = expr.args[1]._model_concrete.value
+                    sp_offset += delta
+                    return sp_offset
         elif expr.op == "__and__":
             if len(expr.args) == 2 and expr.args[1].op == "BVV":
                 # ignore all masking on SpOffsets
@@ -217,8 +218,10 @@ class JumpTableProcessor(
     def _is_registeroffset(expr) -> bool:
         return 'RegisterOffset' in expr.variables
 
-    def _get_regoffset_expr(self, reg_offset: RegisterOffset) -> claripy.ast.BV:
-        v = self._REGOFFSET_BASE.annotate(RegOffsetAnnotation(reg_offset))
+    def _get_regoffset_expr(self, reg_offset: RegisterOffset, bits: int) -> claripy.ast.BV:
+        if bits not in self._REGOFFSET_BASE:
+            self._REGOFFSET_BASE[bits] = claripy.BVS('RegisterOffset', bits, explicit_name=True)
+        v = self._REGOFFSET_BASE[bits].annotate(RegOffsetAnnotation(reg_offset))
         return v
 
     @staticmethod
@@ -232,9 +235,14 @@ class JumpTableProcessor(
                 return JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
             elif len(expr.args) == 2 and expr.args[1].op == "BVV":
                 reg_offset = JumpTableProcessor._extract_regoffset_from_expr(expr.args[0])
-                delta = expr.args[1]._model_concrete.value
-                reg_offset += delta
-                return reg_offset
+                if reg_offset is not None:
+                    delta = expr.args[1]._model_concrete.value
+                    reg_offset += delta
+                    return reg_offset
+        elif expr.op == "__and__":
+            if len(expr.args) == 2 and expr.args[1].op == "BVV":
+                # ignore all masking on SpOffsets
+                return JumpTableProcessor._extract_spoffset_from_expr(expr.args[0])
         return None
 
     def _handle_WrTmp(self, stmt):
@@ -284,7 +292,7 @@ class JumpTableProcessor(
                 # the register does not exist
                 # we initialize it here
                 v = RegisterOffset(expr.result_size(self.tyenv), expr.offset, 0)
-                v = self._get_regoffset_expr(v)
+                v = self._get_regoffset_expr(v, expr.result_size(self.tyenv))
                 src = (self.block.addr, self.stmt_idx)
                 self._tsrc.add(src)
                 self.state._registers[expr.offset] = ([src], v)
@@ -298,7 +306,7 @@ class JumpTableProcessor(
                 if v.size() > bits:
                     v = v[bits - 1:0]
                 elif v.size() < bits:
-                    v = claripy.ZeroExt(bits - v.size, v)
+                    v = claripy.ZeroExt(bits - v.size(), v)
             return v
 
     def _handle_function(self, expr):  # pylint:disable=unused-argument,no-self-use
