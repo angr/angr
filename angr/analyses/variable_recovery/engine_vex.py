@@ -232,6 +232,19 @@ class SimEngineVRVEX(
         r = self.state.top(result_size)
         return RichR(r)
 
+    def _handle_Div(self, expr):
+        arg0, arg1 = expr.args
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        result_size = expr.result_size(self.tyenv)
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            return RichR(r0.data / r1.data)
+
+        r = self.state.top(result_size)
+        return RichR(r)
+
     def _handle_Shr(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr(arg0)
