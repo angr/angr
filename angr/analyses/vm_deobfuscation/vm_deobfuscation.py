@@ -299,15 +299,15 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
-        for i in range(2):
-            new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        # for i in range(2):
+        #     new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        #
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
-        self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
-
-        for i in range(4):
-            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-
-        self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
+        # for i in range(4):
+        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        #
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
 
         self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr)
 
@@ -577,7 +577,7 @@ class VMDeobfuscation(Analysis):
             #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
             if isinstance(d.atom, atoms.MemoryLocation):
                 uses = rd.all_uses.get_uses(d)
-                if d.codeloc.block_id.addr == 0x40098a:
+                if d.codeloc.block_id.addr == 0x400961 and d.codeloc.stmt_idx == 8:
                     import ipdb;ipdb.set_trace()
                 no_uses = len(uses)
                 for use in uses:
@@ -601,7 +601,7 @@ class VMDeobfuscation(Analysis):
                                 idx,
                                 block_id=node.block_id,
                                 ins_addr=cur_ins_addr,
-                                context=tuple())
+                                context=None)
 
                     # is it a dead virgin?
                     if stmt_loc in dead_defs_locs:
