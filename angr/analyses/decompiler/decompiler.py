@@ -51,6 +51,7 @@ class Decompiler(Analysis):
 
         # set global variables
         self._set_global_variables()
+        self._update_progress(5., text='Converting to AIL')
 
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
@@ -61,9 +62,11 @@ class Decompiler(Analysis):
                                               cfg=self._cfg,
                                               peephole_optimizations=self._peephole_optimizations,
                                               must_struct=self._vars_must_struct,
+                                              progress_callback=lambda p, **kwargs: self._update_progress(p*(70-5)/100.+5, **kwargs),
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
         self.clinic = clinic
+        self._update_progress(70., text='Identifying regions')
 
         if clinic.graph is None:
             # the function is empty
@@ -73,17 +76,21 @@ class Decompiler(Analysis):
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
+        self._update_progress(75., text='Structuring code')
 
         # structure it
         rs = self.project.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=self.kb)
+        self._update_progress(80., text='Simplifying regions')
 
         # simplify it
         s = self.project.analyses.RegionSimplifier(rs.result, kb=self.kb)
+        self._update_progress(85., text='Generating code')
 
         codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,
                                                                 func_args=clinic.arg_list,
                                                                 kb=self.kb,
                                                                 variable_kb=clinic.variable_kb)
+        self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen
         self.kb.structured_code[(self.func.addr, self._flavor)] = codegen
