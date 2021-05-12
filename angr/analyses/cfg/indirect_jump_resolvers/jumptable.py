@@ -138,9 +138,11 @@ class RegOffsetAnnotation(claripy.Annotation):
     def __init__(self, reg_offset: RegisterOffset):
         self.reg_offset = reg_offset
 
+    @property
     def relocatable(self):
         return False
 
+    @property
     def eliminatable(self):
         return False
 

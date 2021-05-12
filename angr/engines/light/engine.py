@@ -1,4 +1,4 @@
-# pylint:disable=no-self-use
+# pylint:disable=no-self-use,isinstance-second-argument-not-valid-type
 from typing import Tuple, Optional, Union, Any
 import logging
 
@@ -20,7 +20,7 @@ class SimEngineLightMixin:
         self.l = logger
         super().__init__(*args, **kwargs)
 
-    def _is_top(self, expr) -> bool:
+    def _is_top(self, expr) -> bool:  # pylint:disable=unused-argument
         """
         Check if a given expression is a TOP value.
 
@@ -29,7 +29,7 @@ class SimEngineLightMixin:
         """
         return False
 
-    def _top(self, size: int):
+    def _top(self, size: int):  # pylint:disable=unused-argument
         """
         Return a TOP value. It will only be called if _is_top() has been implemented.
 
@@ -96,7 +96,7 @@ class SimEngineLight(
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError()
 
-    def _check(self, state, *args, **kwargs):
+    def _check(self, state, *args, **kwargs):  # pylint:disable=unused-argument
         return True
 
     #
