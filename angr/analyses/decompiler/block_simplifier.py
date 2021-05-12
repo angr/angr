@@ -113,6 +113,12 @@ class BlockSimplifier(Analysis):
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None
+                    elif isinstance(stmt, Assignment):
+                        # special case: do not replace the dst
+                        new_stmt = None
+                        r, new_src = stmt.src.replace(old, new)
+                        if r:
+                            new_stmt = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
                     else:
                         r, new_stmt = stmt.replace(old, new)
 

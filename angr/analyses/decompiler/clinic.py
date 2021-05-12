@@ -685,6 +685,20 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.Convert:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
+        elif type(expr) is ailment.Expr.ITE:
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            if len(variables) == 1:
+                var, offset = next(iter(variables))
+                expr.variable = var
+                expr.variable_offset = offset
+            else:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             expr.cond)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             expr.iftrue)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             expr.iftrue)
+
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 1:
