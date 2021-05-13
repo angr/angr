@@ -507,6 +507,8 @@ class VariableManagerInternal:
         # unify register variables based on phi nodes
         graph = networkx.Graph()
         for v, subvs in self._phi_variables.items():
+            if not isinstance(v, SimRegisterVariable):
+                continue
             if not self.get_variable_accesses(v):
                 # this phi node has never been used - discard it
                 continue
