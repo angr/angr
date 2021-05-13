@@ -38,3 +38,13 @@ class MultiValues:
             else:
                 new_mv.values[off] |= vs
         return new_mv
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, MultiValues):
+            return False
+        if set(self.values.keys()) != set(other.values.keys()):
+            return False
+        for k in self.values.keys():
+            if self.values[k] != other.values[k]:
+                return False
+        return True
