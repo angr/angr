@@ -157,7 +157,7 @@ class AILSimplifier(Analysis):
         for eq in prop.equivalence:
             equivalences[eq.atom1].add(eq)
 
-        for atom1, eqs in equivalences.items():
+        for _, eqs in equivalences.items():
             if len(eqs) > 1:
                 continue
 
