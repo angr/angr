@@ -3,6 +3,8 @@ import logging
 from collections import defaultdict
 from itertools import count, chain
 
+import networkx
+
 from claripy.utils.orderedset import OrderedSet
 
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
@@ -487,30 +489,51 @@ class VariableManagerInternal:
         Map SSA variables to a unified variable. Fill in self._unified_variables.
         """
 
-        reg_vars: Dict[int,List[SimRegisterVariable]] = defaultdict(list)
         stack_vars: Dict[int,List[SimStackVariable]] = defaultdict(list)
+        reg_vars: Set[SimRegisterVariable] = set()
 
+        # unify stack variables based on their locations
         for v in self.get_variables():
             if isinstance(v, SimStackVariable):
                 stack_vars[v.offset].append(v)
             elif isinstance(v, SimRegisterVariable):
-                reg_vars[v.reg].append(v)
+                reg_vars.add(v)
 
-        for _, vs in reg_vars.items():
-            for v in vs:
-                unified = v.copy()
-                self.set_unified_variable(v, unified)
         for _, vs in stack_vars.items():
             unified = vs[0].copy()
             for v in vs:
                 self.set_unified_variable(v, unified)
+
+        # unify register variables based on phi nodes
+        graph = networkx.Graph()
+        for v, subvs in self._phi_variables.items():
+            if not isinstance(v, SimRegisterVariable):
+                continue
+            if not self.get_variable_accesses(v):
+                # this phi node has never been used - discard it
+                continue
+            for subv in subvs:
+                graph.add_edge(v, subv)
+
+        for nodes in networkx.connected_components(graph):
+            if len(nodes) <= 1:
+                continue
+            nodes = list(nodes)
+            unified = nodes[0].copy()
+            for v in nodes:
+                self.set_unified_variable(v, unified)
+            for v in nodes:
+                reg_vars.discard(v)
+
+        for v in reg_vars:
+            self.set_unified_variable(v, v)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
         """
         Set the unified variable for a given SSA variable.
 
         :param variable:    The SSA variable.
-        :param unified:     THe unified variable.
+        :param unified:     The unified variable.
         :return:            None
         """
         old_unified = self._variables_to_unified_variables.get(variable, None)
