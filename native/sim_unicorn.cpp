@@ -5,6 +5,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <cstring>
+#include <queue>
 #include <memory>
 #include <map>
 #include <set>
@@ -730,6 +731,29 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 			}
 		}
 	}
+	std::queue<std::pair<taint_entity_t, address_t>> temps_to_process;
+	auto &curr_block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
+	for (auto &dependency: instr_taint_entry.dependencies.at(TAINT_ENTITY_TMP)) {
+		address_t vex_setter_instr = curr_block_taint_entry.vex_temp_deps.at(dependency).first;
+		if (!is_symbolic_temp(dependency.tmp_id)) {
+			temps_to_process.emplace(std::make_pair(dependency, vex_setter_instr));
+		}
+	}
+	while (!temps_to_process.empty()) {
+		auto &vex_tmp = temps_to_process.front();
+		if (vex_tmp.second != instr_addr) {
+			auto &tmp_instr_slice = instr_slice_details_map.at(vex_tmp.second);
+			auto &tmp_instr_details = curr_block_taint_entry.block_instrs_taint_data_map.at(vex_tmp.second);
+			instr_slice_details.concrete_registers.insert(tmp_instr_slice.concrete_registers.begin(), tmp_instr_slice.concrete_registers.end());
+			instr_slice_details.dependent_instrs.insert(tmp_instr_slice.dependent_instrs.begin(), tmp_instr_slice.dependent_instrs.end());
+			instr_slice_details.dependent_instrs.emplace(compute_instr_details(vex_tmp.second, tmp_instr_details));
+		}
+		temps_to_process.pop();
+		for (auto &dep_vex_tmp: curr_block_taint_entry.vex_temp_deps.at(vex_tmp.first).second) {
+			address_t vex_setter_instr = curr_block_taint_entry.vex_temp_deps.at(dep_vex_tmp).first;
+			temps_to_process.push(std::make_pair(dep_vex_tmp, vex_setter_instr));
+		}
+	}
 	instr_slice_details_map.emplace(instr_addr, instr_slice_details);
 	return;
 }
@@ -808,6 +832,19 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 					block_taint_entry.unsupported_stmt_stop_reason = result.unsupported_expr_stop_reason;
 					break;
 				}
+				// Store VEX temp dependencies details
+				auto vex_temp_dep_data = std::make_pair(curr_instr_addr, result.taint_sources.at(TAINT_ENTITY_TMP));
+				auto &vex_temp_ite_deps = result.ite_cond_entities.at(TAINT_ENTITY_TMP);
+				vex_temp_dep_data.second.insert(vex_temp_ite_deps.begin(), vex_temp_ite_deps.end());
+				for (auto &mem_taint_source: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+					for (auto &mem_ref_entity: mem_taint_source.mem_ref_entity_list) {
+						instruction_taint_entry.dependencies.at(mem_ref_entity.entity_type).emplace(mem_ref_entity);
+						if (mem_ref_entity.entity_type ==TAINT_ENTITY_TMP) {
+							vex_temp_dep_data.second.emplace(mem_ref_entity);
+						}
+					}
+				}
+				block_taint_entry.vex_temp_deps.emplace(sink, vex_temp_dep_data);
 				// Flatten list of taint sources and also save them as dependencies of instruction
 				for (auto &entry: result.taint_sources) {
 					srcs.insert(entry.second.begin(), entry.second.end());
@@ -840,6 +877,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				// TODO: What if memory addresses have ITE expressions in them?
 				for (auto &entry: result.taint_sources) {
 					sink.mem_ref_entity_list.insert(sink.mem_ref_entity_list.end(), entry.second.begin(), entry.second.end());
+					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.mem_read_size += result.mem_read_size;
 				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
@@ -1494,7 +1532,7 @@ void State::propagate_taints() {
 			taint_engine_next_instr_address = std::next(instr_taint_data_entries_it)->first;
 			return;
 		}
-		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
+		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0) && (block_symbolic_temps.size() == 0)) {
 			// There are no symbolic registers so no taint to propagate. Mark any memory writes
 			// as concrete and update slice of registers.
 			if (curr_instr_taint_entry.has_memory_write) {
@@ -1559,7 +1597,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 	// and overtaint.
 	auto& block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	auto& instr_taint_data_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_addr);
-	if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0)) {
+	if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0) ||
+	  block_symbolic_temps.size() > 0) {
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
 			// There are symbolic registers and/or memory read was symbolic and there are VEX
 			// statements in block for which taint propagation is not supported.
@@ -1705,7 +1744,7 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 		// Compute and cache taint sink-source relations for this block
 		// Disable cross instruction optimization in IR so that dependencies of symbolic
 		// instructions can be computed correctly.
-		VexRegisterUpdates pxControl = VexRegUpdLdAllregsAtEachInsn;
+		VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
 		std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
 		address_t lift_address;
 

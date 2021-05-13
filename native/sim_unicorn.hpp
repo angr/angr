@@ -345,6 +345,8 @@ struct instruction_taint_entry_t {
 struct block_taint_entry_t {
 	std::map<address_t, instruction_taint_entry_t> block_instrs_taint_data_map;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
+	// Track instruction that sets a VEX temp and list of VEX temps on which its value depends on
+	std::unordered_map<taint_entity_t, std::pair<address_t, std::unordered_set<taint_entity_t>>> vex_temp_deps;
 	address_t exit_stmt_instr_addr;
 	bool has_unsupported_stmt_or_expr_type;
 	stop_t unsupported_stmt_stop_reason;
@@ -352,6 +354,8 @@ struct block_taint_entry_t {
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
+			   (vex_temp_deps == other_entry.vex_temp_deps) &&
+			   (exit_stmt_instr_addr == other_entry.exit_stmt_instr_addr) &&
 			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps) &&
 			   (block_next_entities == other_entry.block_next_entities);
 	}
