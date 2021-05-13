@@ -140,19 +140,6 @@ def get_ast_subexprs(claripy_ast):
         if ast.op == "And":
             queue += ast.args[1:]
             yield ast.args[0]
-        elif ast.op == "Or":
-            # get the common subexpr of all operands
-            common = None
-            for arg in ast.args:
-                subexprs = get_ast_subexprs(arg)
-                if common is None:
-                    common = set(subexprs)
-                else:
-                    common = common.intersection(subexprs)
-                if len(common) == 0:
-                    break
-            for expr in common:
-                yield expr
         else:
             yield ast
 
