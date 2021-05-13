@@ -1,4 +1,4 @@
-from typing import Set, Dict, List, Tuple, Optional
+from typing import Set, Dict, List, Tuple, Any, Optional
 from collections import defaultdict
 
 from ailment.block import Block
@@ -153,8 +153,15 @@ class AILSimplifier(Analysis):
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
+        equivalences: Dict[Any,Set[Equivalence]] = defaultdict(set)
         for eq in prop.equivalence:
-            eq: Equivalence
+            equivalences[eq.atom1].add(eq)
+
+        for atom1, eqs in equivalences.items():
+            if len(eqs) > 1:
+                continue
+
+            eq = next(iter(eqs))
 
             # Acceptable equivalence classes:
             #

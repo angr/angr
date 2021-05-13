@@ -507,6 +507,9 @@ class VariableManagerInternal:
         # unify register variables based on phi nodes
         graph = networkx.Graph()
         for v, subvs in self._phi_variables.items():
+            if not self.get_variable_accesses(v):
+                # this phi node has never been used - discard it
+                continue
             for subv in subvs:
                 graph.add_edge(v, subv)
 
@@ -528,7 +531,7 @@ class VariableManagerInternal:
         Set the unified variable for a given SSA variable.
 
         :param variable:    The SSA variable.
-        :param unified:     THe unified variable.
+        :param unified:     The unified variable.
         :return:            None
         """
         old_unified = self._variables_to_unified_variables.get(variable, None)
