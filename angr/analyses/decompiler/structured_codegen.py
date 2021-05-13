@@ -301,7 +301,13 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield "tmp_%d" % variable.tmp_id, cvariable
             else:
                 yield str(variable), cvariable
-            yield ";\n", None
+            yield ";", None
+
+            loc_repr = variable.loc_repr(self.functy._arch)
+            yield "  // ", None
+            yield loc_repr, None
+            yield "\n", None
+
 
     def c_repr_chunks(self, indent=0):
 
