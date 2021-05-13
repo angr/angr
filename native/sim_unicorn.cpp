@@ -734,7 +734,12 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 	std::queue<std::pair<taint_entity_t, address_t>> temps_to_process;
 	auto &curr_block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	for (auto &dependency: instr_taint_entry.dependencies.at(TAINT_ENTITY_TMP)) {
-		address_t vex_setter_instr = curr_block_taint_entry.vex_temp_deps.at(dependency).first;
+		auto vex_temp_deps_entry = curr_block_taint_entry.vex_temp_deps.find(dependency);
+		if (vex_temp_deps_entry == curr_block_taint_entry.vex_temp_deps.end()) {
+			// No dependency entries for this VEX temp
+			continue;
+		}
+		address_t vex_setter_instr = vex_temp_deps_entry->second.first;
 		if (!is_symbolic_temp(dependency.tmp_id)) {
 			temps_to_process.emplace(std::make_pair(dependency, vex_setter_instr));
 		}
@@ -750,7 +755,12 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 		}
 		temps_to_process.pop();
 		for (auto &dep_vex_tmp: curr_block_taint_entry.vex_temp_deps.at(vex_tmp.first).second) {
-			address_t vex_setter_instr = curr_block_taint_entry.vex_temp_deps.at(dep_vex_tmp).first;
+			auto vex_temp_deps_entry = curr_block_taint_entry.vex_temp_deps.find(dep_vex_tmp);
+			if (vex_temp_deps_entry == curr_block_taint_entry.vex_temp_deps.end()) {
+				// No dependency entries for this VEX temp
+				continue;
+			}
+			address_t vex_setter_instr = vex_temp_deps_entry->second.first;
 			temps_to_process.push(std::make_pair(dep_vex_tmp, vex_setter_instr));
 		}
 	}
