@@ -1,5 +1,9 @@
 import collections.abc
 import claripy
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import archinfo
 
 class SimVariable:
 
@@ -18,6 +22,12 @@ class SimVariable:
         self.candidate_names = None
 
     def copy(self):
+        raise NotImplementedError()
+
+    def loc_repr(self, arch: 'archinfo.Arch'):
+        """
+        The representation that shows up in a GUI
+        """
         raise NotImplementedError()
 
     #
@@ -48,6 +58,9 @@ class SimConstantVariable(SimVariable):
         s = "<%s|const %s>" % (self.region, self.value)
 
         return s
+
+    def loc_repr(self, arch):
+        return f'const {self.value}'
 
     def __eq__(self, other):
         if not isinstance(other, SimConstantVariable):
@@ -81,9 +94,11 @@ class SimTemporaryVariable(SimVariable):
         self._hash = None
 
     def __repr__(self):
-        s = "<tmp %d>" % (self.tmp_id)
-
+        s = "<tmp %d>" % (self.tmp_id,)
         return s
+
+    def loc_repr(self, arch):
+        return f'tmp #{self.tmp_id}'
 
     def __hash__(self):
         if self._hash is None:
@@ -125,6 +140,9 @@ class SimRegisterVariable(SimVariable):
         s = "<%s%s|Reg %s, %sB>" % (region_str, ident_str, self.reg, self.size)
 
         return s
+
+    def loc_repr(self, arch):
+        return arch.translate_register_name(self.reg, self.size)
 
     def __hash__(self):
         if self._hash is None:
@@ -175,6 +193,9 @@ class SimMemoryVariable(SimVariable):
             s = "<%s|Mem %s %s>" % (self.region, self.addr, size)
 
         return s
+
+    def loc_repr(self, arch):
+        return f'[{self.addr:#x}]'
 
     def __hash__(self):
         if self._hash is not None:
@@ -261,6 +282,9 @@ class SimStackVariable(SimMemoryVariable):
             s = "<%s%s|%s %s%s, %s B>" % (region_str, ident, prefix, self.base, self.addr, size)
 
         return s
+
+    def loc_repr(self, arch):
+        return f'[{self.base}{self.offset:+#x}]'
 
     def __eq__(self, other):
         if type(other) is not SimStackVariable:
