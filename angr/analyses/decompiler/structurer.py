@@ -1055,6 +1055,7 @@ class Structurer(Analysis):
                     elif isinstance(this_node, MultiNode) and \
                             this_node.nodes and \
                             isinstance(this_node.nodes[-1], ailment.Block) and \
+                            this_node.nodes[-1].statements and \
                             isinstance(this_node.nodes[-1].statements[-1], ailment.Stmt.Jump):
                         this_node = this_node.nodes[-1]
                         goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
@@ -1080,6 +1081,7 @@ class Structurer(Analysis):
                     elif isinstance(this_node, MultiNode) and \
                             this_node.nodes and \
                             isinstance(this_node.nodes[-1], ailment.Block) and \
+                            this_node.nodes[-1].statements and \
                             isinstance(this_node.nodes[-1].statements[-1], ailment.Stmt.Jump):
                         goto_stmt: ailment.Stmt.Jump = this_node.nodes[-1].statements[-1]
                         this_node = this_node.nodes[-1]
