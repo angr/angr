@@ -39,6 +39,24 @@ options = [
         "exception_edges",
         category="Graph",
         default_value=False,
+    ),
+    O(
+        "Show casts",
+        "Disabling this option will blindly remove all C typecast constructs from pseudocode output.",
+        bool,
+        "codegen",
+        "show_casts",
+        category="Display",
+        default_value=True,
+    ),
+    O(
+        "Braces on own lines",
+        "Highly controversial. Disable this to see \"} else {\".",
+        bool,
+        "codegen",
+        "braces_on_own_lines",
+        category="Display",
+        default_value=True,
     )
 ]
 
