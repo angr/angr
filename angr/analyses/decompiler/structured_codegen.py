@@ -889,7 +889,7 @@ class CStructField(CExpression):
     def type(self):
         return self.struct_type
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         yield str(self.field), self
 
 
@@ -903,7 +903,7 @@ class CPlaceholder(CExpression):
 
         self.placeholder: str = placeholder
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         yield self.placeholder, self
 
 
@@ -937,7 +937,7 @@ class CVariable(CExpression):
         else:
             yield from self.offset.c_repr_chunks()
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
 
         v = self.variable if self.unified_variable is None else self.unified_variable
 
@@ -1072,7 +1072,7 @@ class CUnaryOp(CExpression):
                 self._type = self.operand.type
         return self._type
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         if self.variable is not None:
             yield "&", self
             yield from self.variable.c_repr_chunks()
@@ -1150,7 +1150,7 @@ class CBinaryOp(CExpression):
                 return i
         return len(precedence_list)
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
 
         if self.variable is not None:
             yield "&", self
@@ -1290,7 +1290,7 @@ class CTypeCast(CExpression):
             return self.dst_type
         return self._type
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         paren = CClosingObject("(")
         yield "(", paren
         yield "{}".format(self.dst_type), self
@@ -1316,7 +1316,7 @@ class CConstant(CExpression):
     def type(self):
         return self._type
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
 
         if self.variable is not None:
             yield from self.variable.c_repr_chunks()
@@ -1367,7 +1367,7 @@ class CRegister(CExpression):
         # FIXME
         return SimTypeInt()
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         yield str(self.reg), None
 
 
@@ -1386,7 +1386,7 @@ class CITE(CExpression):
     def type(self):
         return SimTypeInt()
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         paren = CClosingObject("(")
         yield "(", paren
         yield from self.cond.c_repr_chunks()
@@ -1413,7 +1413,7 @@ class CDirtyExpression(CExpression):
     def type(self):
         return SimTypeInt()
 
-    def c_repr_chunks(self):
+    def c_repr_chunks(self, indent=0):
         yield str(self.dirty), None
 
 
