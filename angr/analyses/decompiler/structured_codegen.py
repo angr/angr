@@ -1949,7 +1949,7 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Expr_BinaryOp(self, expr):
 
         if expr.depth > self.binop_depth_cutoff:
-            return CPlaceholder("...")
+            return CPlaceholder("...", codegen=self)
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1])
