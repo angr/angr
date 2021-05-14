@@ -1396,7 +1396,8 @@ class CClosingObject:
 
 class StructuredCodeGenerator(Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
-                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10):
+                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
+                 show_casts=True):
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1442,6 +1443,7 @@ class StructuredCodeGenerator(Analysis):
         self._variables_in_use: Optional[Dict] = None
         self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
         self._indent = indent
+        self._show_casts = show_casts
 
         self.text = None
         self.posmap = None
@@ -1916,6 +1918,8 @@ class StructuredCodeGenerator(Analysis):
                          )
 
     def _handle_Expr_Convert(self, expr):
+        if not self._show_casts:
+            return self._handle(expr.operand)
 
         if 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()

@@ -89,7 +89,8 @@ class Decompiler(Analysis):
         codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,
                                                                 func_args=clinic.arg_list,
                                                                 kb=self.kb,
-                                                                variable_kb=clinic.variable_kb)
+                                                                variable_kb=clinic.variable_kb,
+                                                                **self.options_to_params(options_by_class['codegen']))
         self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen
