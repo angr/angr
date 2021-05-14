@@ -521,6 +521,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
             # convert it to an int when possible
             expr_1 = expr_1.args[0]
+        else:
+            # make sure the sizes are the same - VEX does not care about it
+            if expr_1.size() < expr_0.size():
+                expr_1 = claripy.ZeroExt(expr_0.size() - expr_1.size(), expr_1)
+            elif expr_1.size() > expr_0.size():
+                expr_1 = claripy.Extract(expr_0.size() - 1, 0, expr_1)
 
         return expr_0 << expr_1
 
@@ -535,6 +541,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
             # convert it to an int when possible
             expr_1 = expr_1.args[0]
+        else:
+            # make sure the sizes are the same - VEX does not care about it
+            if expr_1.size() < expr_0.size():
+                expr_1 = claripy.ZeroExt(expr_0.size() - expr_1.size(), expr_1)
+            elif expr_1.size() > expr_0.size():
+                expr_1 = claripy.Extract(expr_0.size() - 1, 0, expr_1)
 
         return claripy.LShR(expr_0, expr_1)
 
@@ -550,6 +562,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         if isinstance(expr_1, claripy.ast.Base) and expr_1.op == "BVV":
             # convert it to an int when possible
             expr_1 = expr_1.args[0]
+        else:
+            # make sure the sizes are the same - VEX does not care about it
+            if expr_1.size() < expr_0.size():
+                expr_1 = claripy.ZeroExt(expr_0.size() - expr_1.size(), expr_1)
+            elif expr_1.size() > expr_0.size():
+                expr_1 = claripy.Extract(expr_0.size() - 1, 0, expr_1)
 
         return expr_0 >> expr_1
 

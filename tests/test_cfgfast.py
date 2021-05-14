@@ -135,6 +135,18 @@ def test_busybox():
         yield cfg_fast_edges_check, arch, filename, edges_
 
 
+@attr(speed='slow')
+def test_ntoskrnl():
+    path = "C:\\Windows\\System32\\ntoskrnl.exe"  # we cannot distribute this file. as a result, this test case is manual
+    if not os.path.isfile(path):
+        raise nose.SkipTest("ntoskrnl.exe does not exist on this system.")
+
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFG(data_references=True, normalize=True, show_progressbar=True)
+
+    # nothing should prevent us from finish creating the CFG
+
+
 def test_fauxware():
     filename = "fauxware"
     functions = {
