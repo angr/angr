@@ -348,6 +348,7 @@ class Structurer(Analysis):
         # traverse this node and rewrite all jumps that go to the beginning of the loop to continue
         self._rewrite_jumps_to_continues(seq)
 
+        seq = self._remove_redundant_jumps(seq)
         seq = self._remove_conditional_jumps(seq)
         seq = EmptyNodeRemover(seq).result
 
@@ -1032,6 +1033,40 @@ class Structurer(Analysis):
     #
     # Other methods
     #
+
+    @staticmethod
+    def _remove_redundant_jumps(seq):
+        """
+        Remove all redundant jumps.
+
+        :param SequenceNode seq:    The SequenceNode instance to handle.
+        :return:                    A processed SequenceNode.
+        """
+
+        def _handle_Sequence(node: SequenceNode, **kwargs):
+            if len(node.nodes) > 1:
+                for i in range(len(node.nodes) - 1):
+                    this_node = node.nodes[i]
+                    if isinstance(this_node, ailment.Block) and \
+                            this_node.statements and \
+                            isinstance(this_node.statements[-1], ailment.Stmt.Jump):
+                        goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
+                        next_node = node.nodes[i+1]
+                        if isinstance(goto_stmt.target, ailment.Expr.Const) and \
+                                goto_stmt.target.value == next_node.addr:
+                            # this goto is useless
+                            this_node.statements = this_node.statements[:-1]
+
+            return walker._handle_Sequence(node, **kwargs)
+
+        handlers = {
+            SequenceNode: _handle_Sequence,
+        }
+
+        walker = SequenceWalker(handlers=handlers)
+        walker.walk(seq)
+
+        return seq
 
     @staticmethod
     def _remove_conditional_jumps_from_block(block, parent=None, index=0, label=None):  # pylint:disable=unused-argument

@@ -486,6 +486,21 @@ def test_decompilation_excessive_condition_removal():
     assert "}v2=v2+1;}" in code
 
 
+def test_decompilation_excessive_goto_removal():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions[0x100003890]
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    assert "goto" not in code
+
+
 def test_decompiling_fauxware_mipsel():
     bin_path = os.path.join(test_location, "mipsel", "fauxware")
     p = angr.Project(bin_path, auto_load_libs=False)
