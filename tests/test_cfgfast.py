@@ -1,6 +1,7 @@
 import os
 import logging
 import sys
+import unittest
 
 from nose.plugins.attrib import attr
 import nose.tools
@@ -139,10 +140,10 @@ def test_busybox():
 def test_ntoskrnl():
     path = "C:\\Windows\\System32\\ntoskrnl.exe"  # we cannot distribute this file. as a result, this test case is manual
     if not os.path.isfile(path):
-        raise nose.SkipTest("ntoskrnl.exe does not exist on this system.")
+        raise unittest.skip("ntoskrnl.exe does not exist on this system.")
 
     proj = angr.Project(path, auto_load_libs=False)
-    cfg = proj.analyses.CFG(data_references=True, normalize=True, show_progressbar=True)
+    _ = proj.analyses.CFG(data_references=True, normalize=True, show_progressbar=True)
 
     # nothing should prevent us from finish creating the CFG
 
