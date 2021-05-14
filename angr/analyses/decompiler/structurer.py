@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 import logging
 from collections import defaultdict
 
@@ -1047,11 +1047,20 @@ class Structurer(Analysis):
             if len(node.nodes) > 1:
                 for i in range(len(node.nodes) - 1):
                     this_node = node.nodes[i]
+                    goto_stmt: Optional[ailment.Stmt.Jump] = None
                     if isinstance(this_node, ailment.Block) and \
                             this_node.statements and \
                             isinstance(this_node.statements[-1], ailment.Stmt.Jump):
                         goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
-                        next_node = node.nodes[i+1]
+                    elif isinstance(this_node, MultiNode) and \
+                            this_node.nodes and \
+                            isinstance(this_node.nodes[-1], ailment.Block) and \
+                            isinstance(this_node.nodes[-1].statements[-1], ailment.Stmt.Jump):
+                        this_node = this_node.nodes[-1]
+                        goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
+
+                    if goto_stmt is not None:
+                        next_node = node.nodes[i + 1]
                         if isinstance(goto_stmt.target, ailment.Expr.Const) and \
                                 goto_stmt.target.value == next_node.addr:
                             # this goto is useless
@@ -1059,8 +1068,34 @@ class Structurer(Analysis):
 
             return walker._handle_Sequence(node, **kwargs)
 
+        def _handle_MultiNode(node: MultiNode, **kwargs):
+            if len(node.nodes) > 1:
+                for i in range(len(node.nodes) - 1):
+                    this_node = node.nodes[i]
+                    goto_stmt: Optional[ailment.Stmt.Jump] = None
+                    if isinstance(this_node, ailment.Block) and \
+                            this_node.statements and \
+                            isinstance(this_node.statements[-1], ailment.Stmt.Jump):
+                        goto_stmt: ailment.Stmt.Jump = this_node.statements[-1]
+                    elif isinstance(this_node, MultiNode) and \
+                            this_node.nodes and \
+                            isinstance(this_node.nodes[-1], ailment.Block) and \
+                            isinstance(this_node.nodes[-1].statements[-1], ailment.Stmt.Jump):
+                        goto_stmt: ailment.Stmt.Jump = this_node.nodes[-1].statements[-1]
+                        this_node = this_node.nodes[-1]
+
+                    if goto_stmt is not None:
+                        next_node = node.nodes[i + 1]
+                        if isinstance(goto_stmt.target, ailment.Expr.Const) and \
+                                goto_stmt.target.value == next_node.addr:
+                            # this goto is useless
+                            this_node.statements = this_node.statements[:-1]
+
+            return walker._handle_MultiNode(node, **kwargs)
+
         handlers = {
             SequenceNode: _handle_Sequence,
+            MultiNode: _handle_MultiNode,
         }
 
         walker = SequenceWalker(handlers=handlers)
