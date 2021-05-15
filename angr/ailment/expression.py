@@ -346,7 +346,9 @@ class BinaryOp(Op):
 
         assert len(operands) == 2
         self.operands = operands
-        if self.op.startswith("Cmp"):
+        if self.op == 'Cmp':
+            self.bits = 32  # floating point comparison
+        elif self.op.startswith("Cmp"):
             self.bits = 1
         else:
             self.bits = get_bits(operands[0]) if type(operands[0]) is not int else get_bits(operands[1])
