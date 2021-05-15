@@ -5,7 +5,7 @@ from collections import defaultdict
 
 class DecompilationOption:
     def __init__(self, name, description, value_type, cls, param, value_range=None, category="General",
-                 default_value=None):
+                 default_value=None, clears_cache=True):
         self.name = name
         self.description = description
         self.value_type = value_type
@@ -14,6 +14,7 @@ class DecompilationOption:
         self.value_range = value_range
         self.category = category
         self.default_value = default_value
+        self.clears_cache = clears_cache
 
 
 O = DecompilationOption
@@ -48,6 +49,7 @@ options = [
         "show_casts",
         category="Display",
         default_value=True,
+        clears_cache=False,
     ),
     O(
         "Braces on own lines",
@@ -57,6 +59,7 @@ options = [
         "braces_on_own_lines",
         category="Display",
         default_value=True,
+        clears_cache=False,
     )
 ]
 
