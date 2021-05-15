@@ -720,7 +720,7 @@ class SimEngineRDAIL(
         if op0 is None: op0 = expr.operands[0]
         if op1 is None: op1 = expr.operands[1]
 
-        top = self.state.top(1)
+        top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
 
     _ail_handle_CmpEQ = _ail_handle_Cmp
