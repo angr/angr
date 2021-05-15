@@ -1291,10 +1291,11 @@ class CTypeCast(CExpression):
         return self._type
 
     def c_repr_chunks(self, indent=0):
-        paren = CClosingObject("(")
-        yield "(", paren
-        yield "{}".format(self.dst_type), self
-        yield ")", paren
+        if self.codegen.show_casts:
+            paren = CClosingObject("(")
+            yield "(", paren
+            yield "{}".format(self.dst_type), self
+            yield ")", paren
         yield from CExpression._try_c_repr_chunks(self.expr)
 
 
@@ -1477,7 +1478,7 @@ class StructuredCodeGenerator(Analysis):
         self._variables_in_use: Optional[Dict] = None
         self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
         self._indent = indent
-        self._show_casts = show_casts
+        self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
 
         self.text = None
@@ -1487,6 +1488,13 @@ class StructuredCodeGenerator(Analysis):
         self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
 
         self.cfunc = self._analyze()
+
+    def reapply_options(self, options):
+        for option, value in options:
+            if option.param == 'braces_on_own_lines':
+                self.braces_on_own_lines = value
+            elif option.param == 'show_casts':
+                self.show_casts = value
 
     def _analyze(self):
 
@@ -1962,9 +1970,6 @@ class StructuredCodeGenerator(Analysis):
                          )
 
     def _handle_Expr_Convert(self, expr):
-        if not self._show_casts:
-            return self._handle(expr.operand)
-
         if 64 >= expr.to_bits > 32:
             dst_type = SimTypeLongLong()
         elif 32 >= expr.to_bits > 16:
