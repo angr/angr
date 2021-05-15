@@ -118,6 +118,9 @@ class Project:
                 l.warning("You provided CLE options to angr but you also provided a completed cle.Loader object!")
             self.loader = thing
             self.filename = self.loader.main_object.binary
+        elif isinstance(thing, cle.Backend):
+            self.filename = thing.binary
+            self.loader = cle.Loader(thing, **load_options)
         elif hasattr(thing, 'read') and hasattr(thing, 'seek'):
             l.info("Loading binary from stream")
             self.filename = None
