@@ -900,7 +900,7 @@ class Tracer(ExplorationTechnique):
         if inst_cnt == 0:
             insts = 0
         elif crash_addr in inst_addrs:
-            insts = inst_addrs.index(crash_addr) + 1
+            insts = inst_addrs.index(crash_addr)
         else:
             insts = inst_cnt - 1
 
