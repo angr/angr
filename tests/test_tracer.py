@@ -206,6 +206,14 @@ def test_floating_point_memory_reads():
     output = b'\x00' * 36
     trace_cgc_with_pov_file(binary, "tracer_floating_point_memory_reads", pov_file, output)
 
+def test_fdwait_fds():
+    # Test fdwait working with appropriate bit order for read/write fds
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00029")
+    pov_file = os.path.join(bin_location, "tests_data", "cgc_povs", "CROMU_00029_POV_00000.xml")
+    output = [b"For what material would you like to run this simulation?", b"  1. Air", b"  2. Aluminum",
+              b"  3. Copper", b"  4. Custom\nSelection: "]
+    trace_cgc_with_pov_file(binary, "tracer_floating_point_memory_reads", pov_file, b'\n'.join(output))
+
 def test_skip_some_symbolic_memory_writes():
     # Test symbolic memory write skipping in SimEngineUnicorn during tracing
     # This test doesn't actually check if instruction was skipped. It checks if tracing is successful
