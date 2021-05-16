@@ -162,7 +162,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     accurately. However, it is not a requirement.
     """
 
-    def __init__(self, func, func_graph=None, max_iterations=1, low_priority=False, track_sp=True,
+    def __init__(self, func, func_graph=None, max_iterations=2, low_priority=False, track_sp=True,
                  func_args: Optional[List[SimVariable]]=None):
         """
 
