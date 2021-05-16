@@ -167,7 +167,8 @@ class PagedMemoryMixin(MemoryMixin):
             while written_size < size:
                 sub_data, sub_data_size = sub_gen.send(size - written_size)
                 page = self._get_page(pageno, True, **kwargs)
-                page.store(pageoff + written_size, sub_data, size=min(sub_data_size, size), endness=endness,
+                sub_data_size = min(sub_data_size, size - written_size)
+                page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
                            page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
                 written_size += sub_data_size
             sub_gen.close()
@@ -184,7 +185,8 @@ class PagedMemoryMixin(MemoryMixin):
 
             while written_size < sub_size:
                 sub_data, sub_data_size = sub_gen.send(sub_size)
-                page.store(pageoff + written_size, sub_data, size=min(sub_data_size, size), endness=endness,
+                sub_data_size = min(sub_data_size, sub_size - written_size)
+                page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
                            page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
                 written_size += sub_data_size
 
