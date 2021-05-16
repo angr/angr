@@ -865,6 +865,9 @@ class Tracer(ExplorationTechnique):
         if not state.ip.symbolic and state.mem[state.ip].char.resolved.symbolic:
             l.debug("executing input-related code")
             return state, state
+        # in case we can't unwind, we return the state itself
+        if state.addr == crash_addr:
+            return state, state
 
         state = state.copy()
         state.options.add(sim_options.COPY_STATES)
@@ -924,12 +927,14 @@ class Tracer(ExplorationTechnique):
         l.debug("final step...")
         succs = state.step(num_inst=1)
 
-        # now remove our breakpoints since other people might not want them
-        state.inspect.remove_breakpoint("address_concretization", bp1)
-        state.inspect.remove_breakpoint("address_concretization", bp2)
-
         successors = succs.flat_successors + succs.unconstrained_successors
         crash_state = successors[0]
+
+        # now remove our breakpoints since other people might not want them
+        for s in [last_state, crash_state]:
+            s.inspect.remove_breakpoint("address_concretization", bp1)
+            s.inspect.remove_breakpoint("address_concretization", bp2)
+
         return last_state, crash_state
 
     # the below are utility functions for crash windup
