@@ -317,22 +317,27 @@ class PropagatorAILState(PropagatorState):
             if len(labels) == 1:
                 # extract labels
                 offset, size, label = labels[0]
-                expr: Optional[ailment.Expr.Expression] = label['expr']
-                def_at = label['def_at']
-                if expr is not None:
-                    if expr.bits > size * self.arch.byte_width:
-                        # we are loading a chunk of the original expression
-                        expr = self._extract_ail_expression(
-                            offset * self.arch.byte_width,
-                            size * self.arch.byte_width,
-                            expr,
-                        )
-                    if expr.bits < variable.size * self.arch.byte_width:
-                        # we are loading more than the expression has - extend the size of the expression
-                        expr = self._extend_ail_expression(
-                            variable.size * self.arch.byte_width - expr.bits,
-                            expr,
-                        )
+                if value.size() // self.arch.byte_width == size:
+                    # the label covers the entire expression
+                    expr: Optional[ailment.Expr.Expression] = label['expr']
+                    def_at = label['def_at']
+                    if expr is not None:
+                        if expr.bits > size * self.arch.byte_width:
+                            # we are loading a chunk of the original expression
+                            expr = self._extract_ail_expression(
+                                offset * self.arch.byte_width,
+                                size * self.arch.byte_width,
+                                expr,
+                            )
+                        if expr.bits < variable.size * self.arch.byte_width:
+                            # we are loading more than the expression has - extend the size of the expression
+                            expr = self._extend_ail_expression(
+                                variable.size * self.arch.byte_width - expr.bits,
+                                expr,
+                            )
+                else:
+                    expr = None
+                    def_at = None
             else:
                 # Multiple definitions and expressions
                 expr = None
@@ -420,7 +425,7 @@ class PropagatorAILState(PropagatorState):
         if self.is_top(new):
             # eliminate the past propagation of this expression
             if codeloc in self._replacements and old in self._replacements[codeloc]:
-                del self._replacements[codeloc][old]
+                self._replacements[codeloc][old] = self.top(1)  # placeholder
             return
 
         prop_count = 0
@@ -436,7 +441,7 @@ class PropagatorAILState(PropagatorState):
             # eliminate the past propagation of this expression
             for codeloc_ in self._replacements:
                 if old in self._replacements[codeloc_]:
-                    del self._replacements[codeloc_][old]
+                    self._replacements[codeloc_][old] = self.top(1)
 
     def filter_replacements(self):
 
