@@ -900,7 +900,7 @@ class Tracer(ExplorationTechnique):
         if inst_cnt == 0:
             insts = 0
         elif crash_addr in inst_addrs:
-            insts = inst_addrs.index(crash_addr) + 1
+            insts = inst_addrs.index(crash_addr)
         else:
             insts = inst_cnt - 1
 
@@ -921,12 +921,13 @@ class Tracer(ExplorationTechnique):
         l.debug("reconstraining... ")
         state.preconstrainer.reconstrain()
 
+        l.debug("final step...")
+        succs = state.step(num_inst=1)
+
         # now remove our breakpoints since other people might not want them
         state.inspect.remove_breakpoint("address_concretization", bp1)
         state.inspect.remove_breakpoint("address_concretization", bp2)
 
-        l.debug("final step...")
-        succs = state.step()
         successors = succs.flat_successors + succs.unconstrained_successors
         crash_state = successors[0]
         return last_state, crash_state
