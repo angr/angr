@@ -311,7 +311,24 @@ def test_decompiling_true_x86_64_1():
     assert code.count("32") == 1
 
 
-def test_decompiling_true_a_x86_64():
+def test_decompiling_true_a_x86_64_0():
+    bin_path = os.path.join(test_location, "x86_64", "true_a")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    # disable eager returns simplifier
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                           "linux")
+    all_optimization_passes = [p for p in all_optimization_passes
+                               if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+    f = cfg.functions[0x401e60]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    print(dec.codegen.text)
+
+
+def test_decompiling_true_a_x86_64_1():
 
     bin_path = os.path.join(test_location, "x86_64", "true_a")
     p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)

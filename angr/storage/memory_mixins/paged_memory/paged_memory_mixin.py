@@ -163,10 +163,14 @@ class PagedMemoryMixin(MemoryMixin):
 
         # fasttrack basic case
         if pageoff + size <= self.page_size:
-            sub_data = sub_gen.send(size)
-            page = self._get_page(pageno, True, **kwargs)
-            page.store(pageoff, sub_data, size=size, endness=endness, page_addr=pageno*self.page_size, memory=self,
-                       cooperate=True, **kwargs)
+            written_size = 0
+            while written_size < size:
+                sub_data, sub_data_size = sub_gen.send(size - written_size)
+                page = self._get_page(pageno, True, **kwargs)
+                sub_data_size = min(sub_data_size, size - written_size)
+                page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
+                           page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
+                written_size += sub_data_size
             sub_gen.close()
             return
 
@@ -177,11 +181,14 @@ class PagedMemoryMixin(MemoryMixin):
             # instead of overwriting the old one. would have to be careful about maintaining the contract for _get_page
             page = self._get_page(pageno, True, **kwargs)
             sub_size = min(self.page_size-pageoff, size-bytes_done)
+            written_size = 0
 
-            sub_data = sub_gen.send(sub_size)
-
-            page.store(pageoff, sub_data, size=sub_size, endness=endness, page_addr=pageno*self.page_size, memory=self,
-                       cooperate=True, **kwargs)
+            while written_size < sub_size:
+                sub_data, sub_data_size = sub_gen.send(sub_size)
+                sub_data_size = min(sub_data_size, sub_size - written_size)
+                page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
+                           page_addr=pageno*self.page_size, memory=self, cooperate=True, **kwargs)
+                written_size += sub_data_size
 
             bytes_done += sub_size
             pageno = (pageno + 1) % max_pageno
