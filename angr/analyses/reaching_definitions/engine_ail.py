@@ -544,12 +544,12 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {claripy.LShR(v, expr1_v._model_concrete.value) for v in expr0.values[0]}
+                vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {claripy.LShR(expr0_v, v._model_concrete.value) for v in expr1.values[0]}
+                vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr1_v.concrete:
@@ -574,12 +574,12 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {claripy.LShR(v, expr1_v._model_concrete.value) for v in expr0.values[0]}
+                vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {claripy.LShR(expr0_v, v._model_concrete.value) for v in expr1.values[0]}
+                vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr1_v.concrete:
@@ -604,12 +604,12 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 << expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v << expr1_v._model_concrete.value for v in expr0.values[0]}
+                vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v << v._model_concrete.value for v in expr1.values[0]}
+                vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr1_v.concrete:
