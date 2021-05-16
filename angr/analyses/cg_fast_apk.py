@@ -7,8 +7,22 @@ l = logging.getLogger(name=__name__)
 
 
 class CGFastAPK(Analysis):
+    """
+    CGFastAPK generates callgraph that integrates Java with Native(C/C++) of APK.
 
-    def __init__(self, support_jni=False):
+    The field full_callgraph is a unionized callgraph, from projects APK and native library,
+    that link edges between a native method call.
+    Due to prevent node collision, it maintains only a single ELF object. If callgraph is collected
+    from multiple objects, it may occur confusing which node is whose node of the library.
+    The reason why the name is CGFastAPK is that it uses CFGFast and CFGFastSoot.
+    """
+
+    def __init__(self, support_jni=True):
+        """
+        :param support_jni: Enables native method invoking for CFGFastSoot
+
+        :return: None
+        """
         self.native_project = self._gen_native_project()
         self.kbs = None
         self.callgraphs = None
@@ -29,7 +43,7 @@ class CGFastAPK(Analysis):
 
     def _gen_native_project(self):
         # just support first of native libraries
-        # multiple library makes node conflict(how to resolve same addr but different library?)
+        # multiple libraries make node confliction, it says how to resolve same addr but different library?
         elf_objects = self.project.loader.all_elf_objects
 
         if len(elf_objects) > 0:
@@ -40,7 +54,7 @@ class CGFastAPK(Analysis):
         native_project = Project(elf_object.binary)
         entry_symbol = native_project.loader.find_symbol("JNI_OnLoad")
 
-        # Set entrypoint: JNI_OnLoad
+        # set entrypoint: JNI_OnLoad
         if entry_symbol is not None:
             native_project.entry = entry_symbol.rebased_addr
         else:
