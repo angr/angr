@@ -330,24 +330,49 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
+        from_size = expr.bits
+        to_size = r1.bits
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data // r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
+        if expr.signed:
+            remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+        else:
+            remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
 
-            remainder = None
-            if r0.data is not None and r1.data is not None:
-                remainder = r0.data // r1.data
+        return RichR(remainder,
+                     # typevar=r0.typevar,  # FIXME: Handle typevars for Div
+                     )
 
-            return RichR(remainder,
-                         typevar=r0.typevar,
-                         )
-        except TypeError:
-            return RichR(self.state.top(expr.bits))
+    def _ail_handle_DivMod(self, expr: ailment.Expr.BinaryOp):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+        from_size = expr.bits
+        to_size = r1.bits
+
+        if expr.signed:
+            quotient = r0.data.SDiv(claripy.SignExt(from_size - to_size, r1.data))
+            remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+            quotient_size = to_size
+            remainder_size = to_size
+            r = claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+        else:
+            quotient = (r0.data // claripy.ZeroExt(from_size - to_size, r1.data))
+            remainder = (r0.data % claripy.ZeroExt(from_size - to_size, r1.data))
+            quotient_size = to_size
+            remainder_size = to_size
+            r = claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+
+        return RichR(r,
+                     # typevar=r0.typevar,  # FIXME: Handle typevars for DivMod
+                     )
 
     def _ail_handle_Xor(self, expr):
 

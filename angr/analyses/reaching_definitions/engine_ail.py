@@ -713,6 +713,35 @@ class SimEngineRDAIL(
 
         return r
 
+    def _ail_handle_Concat(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # concatenate expr1_v with each value in expr0
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {claripy.Concat(v, expr1_v) for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # concatenate expr0_v with each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {claripy.Concat(expr0_v, v) for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            r = MultiValues(offset_to_values={0: {claripy.Concat(expr0_v, expr1_v)}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
     def _ail_handle_Cmp(self, expr) -> MultiValues:
         op0 = self._expr(expr.operands[0])
         op1 = self._expr(expr.operands[1])

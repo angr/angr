@@ -38,6 +38,8 @@ class RichR:
     @property
     def bits(self):
         if self.data is not None and not isinstance(self.data, (int, float)):
+            if isinstance(self.data, claripy.ast.Base):
+                return self.data.size()
             return self.data.bits
         if self.variable is not None:
             return self.variable.bits

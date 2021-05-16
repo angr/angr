@@ -383,6 +383,39 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
+    def _ail_handle_Div(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
+        elif self.state.is_top(operand_1):
+            return self.state.top(expr.bits)
+
+        return Expr.BinaryOp(expr.idx, 'Div', [ operand_0, operand_1, ], expr.signed, **expr.tags)
+
+    def _ail_handle_DivMod(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
+        elif self.state.is_top(operand_1):
+            return self.state.top(expr.bits)
+
+        return Expr.BinaryOp(expr.idx, 'DivMod', [operand_0, operand_1, ], expr.signed, **expr.tags)
+
+    def _ail_handle_Concat(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
+        elif self.state.is_top(operand_1):
+            return self.state.top(expr.bits)
+
+        return Expr.BinaryOp(expr.idx, 'Concat', [operand_0, operand_1, ], expr.signed, **expr.tags)
+
     #
     # Util methods
     #
