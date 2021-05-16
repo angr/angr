@@ -288,7 +288,8 @@ class VariableRecoveryStateBase:
         # find existing phi variables
         phi_var = self.variable_manager[self.function.addr].make_phi_node(self.successor_block_addr, *variables)
         for var in variables:
-            self.phi_variables[var] = phi_var
+            if var is not phi_var:
+                self.phi_variables[var] = phi_var
 
         r = self.top(bits)
         r = self.annotate_with_variables(r, [(0, phi_var)])

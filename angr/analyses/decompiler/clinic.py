@@ -653,9 +653,16 @@ class Clinic(Analysis):
         if type(expr) is ailment.Expr.Register:
             # find a register variable
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            # TODO: make sure it is the correct register we are looking for
-            if len(reg_vars) == 1:
-                reg_var, offset = next(iter(reg_vars))
+            final_reg_vars = set()
+            if len(reg_vars) > 1:
+                # take phi variables
+                for reg_var in reg_vars:
+                    if variable_manager.is_phi_variable(reg_var[0]):
+                        final_reg_vars.add(reg_var)
+            else:
+                final_reg_vars = reg_vars
+            if len(final_reg_vars) == 1:
+                reg_var, offset = next(iter(final_reg_vars))
                 expr.variable = reg_var
                 expr.variable_offset = offset
 
