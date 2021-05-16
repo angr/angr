@@ -309,7 +309,6 @@ def test_decompiling_true_x86_64_1():
 
     # constant propagation was failing. see https://github.com/angr/angr/issues/2659
     assert code.count("32") == 1
-    assert code.count("47") == 1
 
 
 def test_decompiling_true_a_x86_64():
