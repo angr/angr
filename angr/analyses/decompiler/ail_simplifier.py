@@ -1,4 +1,4 @@
-from typing import Set, Dict, List, Tuple, Optional
+from typing import Set, Dict, List, Tuple, Any, Optional
 from collections import defaultdict
 
 from ailment.block import Block
@@ -113,7 +113,7 @@ class AILSimplifier(Analysis):
 
         # propagator
         propagator = self._compute_propagation()
-        replacements = list(propagator._states.values())[0]._replacements
+        replacements = propagator.replacements
 
         # take replacements and rebuild the corresponding blocks
         replacements_by_block_addrs_and_idx = defaultdict(dict)
@@ -153,8 +153,15 @@ class AILSimplifier(Analysis):
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
+        equivalences: Dict[Any,Set[Equivalence]] = defaultdict(set)
         for eq in prop.equivalence:
-            eq: Equivalence
+            equivalences[eq.atom1].add(eq)
+
+        for _, eqs in equivalences.items():
+            if len(eqs) > 1:
+                continue
+
+            eq = next(iter(eqs))
 
             # Acceptable equivalence classes:
             #
@@ -379,6 +386,10 @@ class AILSimplifier(Analysis):
 
             if not uses:
                 stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
+
+        for codeloc in self._calls_to_remove:
+            # this call can be removed. make sure it exists in stmts_to_remove_per_block
+            stmts_to_remove_per_block[codeloc.block_addr, codeloc.block_idx].add(codeloc.stmt_idx)
 
         simplified = False
 

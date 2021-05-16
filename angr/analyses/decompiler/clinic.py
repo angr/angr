@@ -113,9 +113,11 @@ class Clinic(Analysis):
     def _analyze(self):
 
         # Set up the function graph according to configurations
+        self._update_progress(0., text="Setting up function graph")
         self._set_function_graph()
 
         # Remove alignment blocks
+        self._update_progress(5., text="Removing alignment blocks")
         self._remove_alignment_blocks()
 
         # if the graph is empty, don't continue
@@ -123,35 +125,43 @@ class Clinic(Analysis):
             return
 
         # Make sure calling conventions of all functions have been recovered
+        self._update_progress(10., text="Recovering calling conventions")
         self._recover_calling_conventions()
 
         # initialize the AIL conversion manager
         self._ail_manager = ailment.Manager(arch=self.project.arch)
 
         # Track stack pointers
+        self._update_progress(15., text="Tracking stack pointers")
         spt = self._track_stack_pointers()
 
         # Convert VEX blocks to AIL blocks and then simplify them
 
+        self._update_progress(20., text="Converting VEX to AIL")
         self._convert_all()
 
         ail_graph = self._make_ailgraph()
 
         # Fix "fake" indirect jumps and calls
+        self._update_progress(25., text="Analyzing simple indirect jumps")
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
 
         # Make returns
+        self._update_progress(30., text="Making return sites")
         if self.function.prototype is None or not isinstance(self.function.prototype.returnty, SimTypeBottom):
             ail_graph = self._make_returns(ail_graph)
 
         # Simplify blocks
+        self._update_progress(35., text="Simplifying blocks")
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Run simplification passes
+        self._update_progress(40., text="Running simplifications 1")
         ail_graph = self._run_simplification_passes(ail_graph,
                                                     stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION)
 
         # Simplify the entire function for the first time
+        self._update_progress(45., text="Simplifying function 1")
         self._simplify_function(ail_graph, unify_variables=False)
 
         # clear _blocks_by_addr_and_size so no one can use it again
@@ -159,21 +169,27 @@ class Clinic(Analysis):
         self._blocks_by_addr_and_size = None
 
         # Make call-sites
+        self._update_progress(50., text="Making callsites")
         self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the second time
+        self._update_progress(55., text="Simplifying function 2")
         self._simplify_function(ail_graph, unify_variables=True)
 
         # Make function arguments
+        self._update_progress(60., text="Making argument list")
         arg_list = self._make_argument_list()
 
         # Recover variables on AIL blocks
+        self._update_progress(65., text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
         # Make function prototype
+        self._update_progress(70., text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
+        self._update_progress(75., text="Running simplifications 2")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         self.graph = ail_graph
@@ -620,8 +636,7 @@ class Clinic(Analysis):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
                                              arg)
         if not is_expr and stmt.ret_expr:
-            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
-                                         stmt.ret_expr)
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr)
 
     def _link_variables_on_expr(self, variable_manager, global_variables, block, stmt_idx, stmt, expr):
         """
@@ -684,6 +699,20 @@ class Clinic(Analysis):
 
         elif type(expr) is ailment.Expr.Convert:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
+
+        elif type(expr) is ailment.Expr.ITE:
+            variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
+            if len(variables) == 1:
+                var, offset = next(iter(variables))
+                expr.variable = var
+                expr.variable_offset = offset
+            else:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             expr.cond)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             expr.iftrue)
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt,
+                                             expr.iftrue)
 
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)

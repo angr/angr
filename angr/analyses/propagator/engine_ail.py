@@ -258,104 +258,40 @@ class SimEnginePropagatorAIL(
         # ignore ret_expr
         return expr_stmt
 
-    def _ail_handle_CmpLE(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpLE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpLEs(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpLEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpLT(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpLT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpLTs(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpLTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpGE(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpGE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpGEs(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpGEs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpGT(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpGT', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpGTs(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpGTs', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpEQ(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpEQ', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_CmpNE(self, expr):
-        operand_0 = self._expr(expr.operands[0])
-        operand_1 = self._expr(expr.operands[1])
-
-        if self.state.is_top(operand_0) or self.state.is_top(operand_1):
-            return self.state.top(1)
-
-        return Expr.BinaryOp(expr.idx, 'CmpNE', [ operand_0, operand_1 ], expr.signed, **expr.tags)
-
-    def _ail_handle_Add(self, expr):
+    def _ail_handle_Cmp(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            operand_0 = expr.operands[0]
+        if self.state.is_top(operand_1):
+            operand_1 = expr.operands[1]
+
+        if operand_0 is expr.operands[0] and operand_1 is expr.operands[1]:
+            # nothing changed
+            return expr
+
+        return Expr.BinaryOp(expr.idx, expr.op, [operand_0, operand_1], expr.signed, **expr.tags)
+
+    _ail_handle_CmpLE = _ail_handle_Cmp
+    _ail_handle_CmpLEs = _ail_handle_Cmp
+    _ail_handle_CmpLT = _ail_handle_Cmp
+    _ail_handle_CmpLTs = _ail_handle_Cmp
+    _ail_handle_CmpGE = _ail_handle_Cmp
+    _ail_handle_CmpGEs = _ail_handle_Cmp
+    _ail_handle_CmpGT = _ail_handle_Cmp
+    _ail_handle_CmpGTs = _ail_handle_Cmp
+    _ail_handle_CmpEQ = _ail_handle_Cmp
+    _ail_handle_CmpNE = _ail_handle_Cmp
+
+    def _ail_handle_Add(self, expr: Expr.BinaryOp):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
             return Expr.Const(expr.idx, None, operand_0.value + operand_1.value, expr.bits)
@@ -370,14 +306,14 @@ class SimEnginePropagatorAIL(
                              expr.signed,
                              **expr.tags)
 
-    def _ail_handle_Sub(self, expr):
+    def _ail_handle_Sub(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
             return Expr.Const(expr.idx, None, operand_0.value - operand_1.value, expr.bits)
@@ -395,7 +331,7 @@ class SimEnginePropagatorAIL(
     def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> Expr.StackBaseOffset:  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_And(self, expr):
+    def _ail_handle_And(self, expr: Expr.BinaryOp):
 
         self.state: 'PropagatorAILState'
 
@@ -403,9 +339,9 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         # Special logic for stack pointer alignment
         sp_offset = self.extract_offset_to_sp(operand_0)
@@ -414,36 +350,36 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_Xor(self, expr):
+    def _ail_handle_Xor(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_Shl(self, expr):
+    def _ail_handle_Shl(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
 
         return Expr.BinaryOp(expr.idx, 'Shl', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_Shr(self, expr):
+    def _ail_handle_Shr(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
 
         return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
@@ -463,11 +399,14 @@ class SimEnginePropagatorAIL(
                 self.out_dated = False
 
             # pylint:disable=unused-argument
-            def _handle_Register(self, expr_idx: int, expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment, block: Optional[Block]):
-                v = self.state.get_variable(expr)
-                if v is not None and isinstance(v, Expr.TaggedObject) \
-                        and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
-                    self.out_dated = True
+            def _handle_Register(self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
+                                 block: Optional[Block]):
+                v = self.state.get_variable(reg_expr)
+                if v is not None:
+                    if not expr.likes(v):
+                        self.out_dated = True
+                    elif isinstance(v, Expr.TaggedObject) and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
+                        self.out_dated = True
 
         walker = OutdatedDefinitionWalker(self.state)
         walker.walk_expression(expr)

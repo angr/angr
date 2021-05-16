@@ -25,6 +25,9 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __setitem__(self, key, value):
         self._codegens[self._normalize_key(key)] = value
 
+    def __contains__(self, key):
+        return self._normalize_key(key) in self._codegens
+
     def copy(self):
         raise NotImplementedError
 

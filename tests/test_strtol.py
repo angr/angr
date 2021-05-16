@@ -1,12 +1,15 @@
-import nose
-import angr
 import subprocess
 import sys
+import os
+
+import nose
+from nose.plugins.attrib import attr
 
 import logging
 l = logging.getLogger('angr.tests.strtol')
 
-import os
+import angr
+
 test_location = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -42,6 +45,7 @@ def run_strtol(threads):
     nose.tools.assert_equal(len(expected_outputs), 0)
 
 
+@attr(speed='slow')
 def test_strtol():
     yield run_strtol, None
     # yield run_strtol, 8

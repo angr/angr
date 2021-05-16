@@ -262,6 +262,90 @@ def test_decompiling_switch2_x86_64():
         assert False
 
 
+def test_decompiling_true_x86_64_0():
+
+    # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
+    # 0x402543, which is an artificial function that the compiler (GCC) created for identified "cold" functions.
+
+    bin_path = os.path.join(test_location, "x86_64", "true_ubuntu_2004")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    # disable eager returns simplifier
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                           "linux")
+    all_optimization_passes = [p for p in all_optimization_passes
+                               if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+    f = cfg.functions[0x4048c0]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    print(dec.codegen.text)
+    if dec.codegen is not None:
+        code = dec.codegen.text
+        assert "switch" in code
+        assert "case" in code
+    else:
+        print("Failed to decompile function %r." % f)
+        assert False
+
+
+def test_decompiling_true_x86_64_1():
+    bin_path = os.path.join(test_location, "x86_64", "true_ubuntu_2004")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    # disable eager returns simplifier
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                           "linux")
+    all_optimization_passes = [p for p in all_optimization_passes
+                               if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+    f = cfg.functions[0x404dc0]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    print(dec.codegen.text)
+    code: str = dec.codegen.text
+
+    # constant propagation was failing. see https://github.com/angr/angr/issues/2659
+    assert code.count("32") == 1
+
+
+def test_decompiling_true_a_x86_64_0():
+    bin_path = os.path.join(test_location, "x86_64", "true_a")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    # disable eager returns simplifier
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                           "linux")
+    all_optimization_passes = [p for p in all_optimization_passes
+                               if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+    f = cfg.functions[0x401e60]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    print(dec.codegen.text)
+
+
+def test_decompiling_true_a_x86_64_1():
+
+    bin_path = os.path.join(test_location, "x86_64", "true_a")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    # disable eager returns simplifier
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                           "linux")
+    all_optimization_passes = [p for p in all_optimization_passes
+                               if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier]
+
+    f = cfg.functions[0x404410]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    print(dec.codegen.text)
+
+
 def test_decompiling_1after909():
 
     # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
@@ -438,6 +522,21 @@ def test_decompilation_excessive_condition_removal():
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
     assert "}v2=v2+1;}" in code
+
+
+def test_decompilation_excessive_goto_removal():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions[0x100003890]
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    assert "goto" not in code
 
 
 def test_decompiling_fauxware_mipsel():

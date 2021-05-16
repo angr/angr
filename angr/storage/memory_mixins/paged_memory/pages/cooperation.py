@@ -40,7 +40,7 @@ class CooperationBase:
             sub_gen = cls._zero_objects(addr, size, **kwargs)
 
         next(sub_gen)
-        sub_data = sub_gen.send(size)
+        sub_data, _ = sub_gen.send(size)
         sub_gen.close()
         return sub_data
 
@@ -105,7 +105,7 @@ class MemoryObjectMixin(CooperationBase):
         size = yield
         while True:
             cur_addr += size
-            size = yield memory_object
+            size = yield memory_object, memory_object.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
@@ -184,7 +184,7 @@ class MemoryObjectSetMixin(CooperationBase):
             # for MultiValues, we return sets of SimMemoryObjects
             assert label is None  # TODO: Support labels
 
-            size = yield
+            _ = yield
             offset_to_mos: Dict[int,Set[SimMemoryObject]] = {}
             for offset, vs in data.values.items():
                 offset_to_mos[offset] = set()
@@ -197,24 +197,24 @@ class MemoryObjectSetMixin(CooperationBase):
             sorted_offsets = list(sorted(offset_to_mos.keys()))
             pos = 0
             while pos < len(sorted_offsets):
-                cur_addr += size
                 mos = set(offset_to_mos[sorted_offsets[pos]])
-                size = yield mos
+                size = next(iter(mos)).length
+                cur_addr += size
+                yield mos, size
                 if sorted_offsets[pos] < cur_addr - addr - page_addr:
                     pos += 1
 
         else:
             if label is None:
                 obj = SimMemoryObject(data, cur_addr, endness,
-                                                byte_width=memory.state.arch.byte_width if memory is not None else 8)
+                                      byte_width=memory.state.arch.byte_width if memory is not None else 8)
             else:
                 obj = SimLabeledMemoryObject(data, cur_addr, endness,
-                                                       byte_width=memory.state.arch.byte_width if memory is not None else 8,
-                                                       label=label)
-            size = yield
+                                             byte_width=memory.state.arch.byte_width if memory is not None else 8,
+                                             label=label)
+            _ = yield
             while True:
-                cur_addr += size
-                size = yield { obj }
+                _ = yield { obj }, obj.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):
@@ -242,14 +242,14 @@ class BasicClaripyCooperation(CooperationBase):
             while True:
                 data_slice = data.get_bytes(offset, size)
                 offset += size
-                size = yield data_slice
+                size = yield data_slice, data_slice.length
         else:
             size = yield
             offset = len(data) // (memory.state.arch.byte_width if memory is not None else 8)
             while True:
                 offset -= size
                 data_slice = data.get_bytes(offset, size)
-                size = yield data_slice
+                size = yield data_slice, data_slice.length
 
     @classmethod
     def _zero_objects(cls, addr, size, memory=None, **kwargs):

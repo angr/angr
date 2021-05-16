@@ -1,6 +1,7 @@
 import os
 import logging
 import sys
+import unittest
 
 from nose.plugins.attrib import attr
 import nose.tools
@@ -133,6 +134,18 @@ def test_busybox():
 
     for arch, edges_ in edges.items():
         yield cfg_fast_edges_check, arch, filename, edges_
+
+
+@attr(speed='slow')
+@unittest.skipIf(not os.path.isfile("C:\\Windows\\System32\\ntoskrnl.exe"),
+                 "ntoskrnl.exe does not exist on this system.")
+def test_ntoskrnl():
+    # we cannot distribute ntoskrnl.exe. as a result, this test case is manual
+    path = "C:\\Windows\\System32\\ntoskrnl.exe"
+    proj = angr.Project(path, auto_load_libs=False)
+    _ = proj.analyses.CFG(data_references=True, normalize=True, show_progressbar=True)
+
+    # nothing should prevent us from finish creating the CFG
 
 
 def test_fauxware():

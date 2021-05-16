@@ -294,33 +294,6 @@ class VariableRecoveryStateBase:
         r = self.annotate_with_variables(r, [(0, phi_var)])
         return r
 
-    # def _make_phi_variables(self, successor, state0, state1):
-#
-    #     stack_variables = defaultdict(set)
-    #     register_variables = defaultdict(set)
-#
-    #     for state in [ state0, state1 ]:
-    #         stack_vardefs = state.stack_region.get_all_variables()
-    #         reg_vardefs = state.register_region.get_all_variables()
-    #         for var in stack_vardefs:
-    #             stack_variables[(var.offset, var.size)].add(var)
-    #         for var in reg_vardefs:
-    #             register_variables[(var.reg, var.size)].add(var)
-#
-    #     replacements = {}
-#
-    #     for variable_dict in [stack_variables, register_variables]:
-    #         for _, variables in variable_dict.items():
-    #             if len(variables) > 1:
-    #                 # Create a new phi variable
-    #                 phi_node = self.variable_manager[self.function.addr].make_phi_node(successor, *variables)
-    #                 # Fill the replacements dict
-    #                 for var in variables:
-    #                     if var is not phi_node:
-    #                         replacements[var] = phi_node
-#
-    #     return replacements
-
     def _phi_node_contains(self, phi_variable, variable):
         """
         Checks if `phi_variable` is a phi variable, and if it contains `variable` as a sub-variable.

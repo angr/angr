@@ -1,7 +1,7 @@
-from typing import Iterable
+from collections import defaultdict
+from typing import Iterable, Generator, Dict, Any
 import operator
 import logging
-from typing import Dict, Any
 
 import networkx
 
@@ -22,6 +22,10 @@ class TagsAnnotation(claripy.Annotation):
     def __init__(self, **tags):
         self.tags = tags
         super().__init__()
+
+    def __hash__(self):
+        keys = list(sorted(self.tags.keys()))
+        return hash(tuple((k, self.tags[k]) for k in keys))
 
     @property
     def eliminatable(self):
@@ -143,6 +147,38 @@ class ConditionProcessor:
                 reaching_conditions[node_with_greatest_indegree] = claripy.true
                 l.warning("Marking node %r as trivially reachable. Disable this optimization in condition_processor.py "
                           "if it leads to incorrect decompilation result.", node_with_greatest_indegree)
+
+        # Another hypothesis: for nodes where two paths come together, we are better off using their "guarding
+        # conditions" instead of reaching conditions. see my super long chatlog with rhelmot on 5/14/2021.
+        for the_node in sorted_nodes:
+
+            preds = list(_g.predecessors(the_node))
+            if len(preds) != 2:
+                continue
+            # figure out which paths cause the divergence from this node
+            nodes_do_not_reach_the_node = set()
+            for node_ in _g:
+                if not networkx.has_path(_g, node_, the_node):
+                    nodes_do_not_reach_the_node.add(node_)
+
+            diverging_conditions = [ ]
+
+            for node_ in nodes_do_not_reach_the_node:
+                preds_ = list(_g.predecessors(node_))
+                for pred_ in preds_:
+                    if pred_ in nodes_do_not_reach_the_node:
+                        continue
+                    # this predecessor is the diverging node!
+                    edge_ = pred_, node_
+                    edge_condition = edge_conditions.get(edge_, None)
+                    if edge_condition is not None:
+                        diverging_conditions.append(edge_condition)
+
+            if diverging_conditions:
+                # the negation of the union of diverging conditions is the guarding condition for this node
+                cond = claripy.Or(*map(claripy.Not, diverging_conditions))
+                if the_node not in reaching_conditions or cond.depth < reaching_conditions[the_node].depth:
+                    reaching_conditions[the_node] = cond
 
         self.reaching_conditions = reaching_conditions
 
@@ -626,6 +662,10 @@ class ConditionProcessor:
         cond = simplified if simplified is not None else cond
         simplified = ConditionProcessor._revert_short_circuit_conditions(cond)
         cond = simplified if simplified is not None else cond
+        simplified = ConditionProcessor._extract_common_subexpressions(cond)
+        cond = simplified if simplified is not None else cond
+        # simplified = ConditionProcessor._remove_redundant_terms(cond)
+        # cond = simplified if simplified is not None else cond
         return cond
 
     @staticmethod
@@ -710,6 +750,149 @@ class ConditionProcessor:
 
         return None
 
+    @staticmethod
+    def _extract_common_subexpressions(cond):
+
+        def _expr_inside_collection(expr_, coll_) -> bool:
+            for ex_ in coll_:
+                if expr_ is ex_:
+                    return True
+            return False
+
+        # (A && B) || (A && C) => A && (B || C)
+        if cond.op == "And":
+            args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
+            if all(arg is None for arg in args):
+                return None
+            return claripy.And(*((arg if arg is not None else ori_arg) for arg, ori_arg in zip(args, cond.args)))
+
+        if cond.op == "Or":
+            args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
+            args = [ (arg if arg is not None else ori_arg) for arg, ori_arg in zip(args, cond.args) ]
+
+            expr_ctrs = defaultdict(int)
+            for arg in args:
+                if arg.op == "And":
+                    for subexpr in arg.args:
+                        expr_ctrs[subexpr] += 1
+                else:
+                    expr_ctrs[arg] += 1
+
+            common_exprs = [ ]
+            for expr, ctr in expr_ctrs.items():
+                if ctr == len(args):
+                    common_exprs.append(expr)
+
+            if not common_exprs:
+                return claripy.Or(*args)
+
+            new_args = [ ]
+            for arg in args:
+                if arg.op == "And":
+                    new_subexprs = [ subexpr for subexpr in arg.args if not _expr_inside_collection(subexpr, common_exprs) ]
+                    new_args.append(claripy.And(*new_subexprs))
+                elif arg in common_exprs:
+                    continue
+                else:
+                    raise RuntimeError("Unexpected behavior - you should never reach here")
+
+            return claripy.And(*common_exprs, claripy.Or(*new_args))
+
+        return None
+
+
+    @staticmethod
+    def _extract_terms(ast: claripy.ast.Bool) -> Generator[claripy.ast.Bool,None,None]:
+        if ast.op == "And":
+            for arg in ast.args:
+                yield from ConditionProcessor._extract_terms(arg)
+        elif ast.op == "Or":
+            for arg in ast.args:
+                yield from ConditionProcessor._extract_terms(arg)
+        elif ast.op == "Not":
+            yield from ConditionProcessor._extract_terms(ast.args[0])
+        else:
+            yield ast
+
+    @staticmethod
+    def _replace_term_in_ast(ast: claripy.ast.Bool,
+                             r0: claripy.ast.Bool,
+                             r0_with: claripy.ast.Bool,
+                             r1: claripy.ast.Bool,
+                             r1_with: claripy.ast.Bool) -> claripy.ast.Bool:
+        if ast.op == "And":
+            return ast.make_like("And", (
+                (ConditionProcessor._replace_term_in_ast(
+                    arg,
+                    r0,
+                    r0_with,
+                    r1,
+                    r1_with) for arg in ast.args)))
+        elif ast.op == "Or":
+            return ast.make_like("Or", (
+                 (ConditionProcessor._replace_term_in_ast(
+                    arg,
+                    r0,
+                    r0_with,
+                    r1,
+                    r1_with) for arg in ast.args)))
+        elif ast.op == "Not":
+            return ast.make_like("Not", (
+                ConditionProcessor._replace_term_in_ast(
+                    ast.args[0],
+                    r0,
+                    r0_with,
+                    r1,
+                    r1_with),))
+        else:
+            if ast is r0: return r0_with
+            if ast is r1: return r1_with
+            return ast
+
+    @staticmethod
+    def _remove_redundant_terms(cond):
+        """
+        Extract all terms and test for each term if its truism impacts the truism of the entire condition. If not, the
+        term is redundant and can be replaced with a True.
+        """
+
+        all_terms = set()
+        for term in ConditionProcessor._extract_terms(cond):
+            if term not in all_terms:
+                all_terms.add(term)
+
+        negations = {}
+        to_skip = set()
+        all_terms_without_negs = set()
+        for term in all_terms:
+            if term in to_skip:
+                continue
+            neg = claripy.Not(term)
+            if neg in all_terms:
+                negations[term] = neg
+                to_skip.add(neg)
+                all_terms_without_negs.add(term)
+            else:
+                all_terms_without_negs.add(term)
+
+        solver = claripy.SolverCacheless()
+        for term in all_terms_without_negs:
+            neg = negations.get(term, None)
+
+            replaced_with_true = ConditionProcessor._replace_term_in_ast(cond, term, claripy.true, neg, claripy.false)
+            sat0 = solver.satisfiable(extra_constraints=(cond, claripy.Not(replaced_with_true),))
+            sat1 = solver.satisfiable(extra_constraints=(claripy.Not(cond), replaced_with_true,))
+            if sat0 or sat1:
+                continue
+
+            replaced_with_false = ConditionProcessor._replace_term_in_ast(cond, term, claripy.false, neg, claripy.true)
+            sat0 = solver.satisfiable(extra_constraints=(cond, claripy.Not(replaced_with_false),))
+            sat1 = solver.satisfiable(extra_constraints=(claripy.Not(cond), replaced_with_false,))
+            if sat0 or sat1:
+                continue
+
+            # TODO: Finish the implementation
+            print(term, "is redundant")
 
 # delayed import
 from .region_identifier import GraphRegion, MultiNode
