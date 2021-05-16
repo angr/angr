@@ -201,18 +201,25 @@ class VariableRecoveryStateBase:
     def is_stack_address(addr: claripy.ast.Base) -> bool:
         return "stack_base" in addr.variables
 
-    @staticmethod
-    def get_stack_offset(addr: claripy.ast.Base) -> Optional[int]:
+    def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
         if "stack_base" in addr.variables:
+            r = None
             if addr.op == "BVS":
                 return 0
             elif addr.op == "__add__":
                 if len(addr.args) == 2 and addr.args[1].op == "BVV":
-                    return addr.args[1]._model_concrete.value
+                    r = addr.args[1]._model_concrete.value
                 if len(addr.args) == 1:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return -addr.args[1]._model_concrete.value
+                r = -addr.args[1]._model_concrete.value
+
+            if r is not None:
+                # convert it to a signed integer
+                if r >= 2 ** (self.arch.bits - 1):
+                    return r - 2 ** self.arch.bits
+                return r
+
         return None
 
     def stack_addr_from_offset(self, offset: int) -> int:
