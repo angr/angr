@@ -90,12 +90,16 @@ class SimEngineVRBase(SimEngineLight):
         else:
             return
 
-        existing_vars: List[Tuple[SimVariable,int]] = self.variable_manager[self.func_addr].find_variables_by_stmt(
+        var_candidates: List[Tuple[SimVariable,int]] = self.variable_manager[self.func_addr].find_variables_by_stmt(
             self.block.addr,
             self.stmt_idx,
             'memory')
 
         # find the correct variable
+        existing_vars: List[Tuple[SimVariable,int]] = [ ]
+        for candidate, offset in var_candidates:
+            if isinstance(candidate, SimStackVariable) and candidate.offset == -stack_offset:
+                existing_vars.append((candidate, offset))
         variable = None
         if existing_vars:
             variable, _ = existing_vars[0]
@@ -145,11 +149,9 @@ class SimEngineVRBase(SimEngineLight):
 
         # find all variables
         for var, offset in existing_vars:
-            if offset is None: offset = 0
-            offset_into_var = (stack_offset - offset) if stack_offset is not None else None  # TODO: Is this correct?
-            if offset_into_var == 0: offset_into_var = None
-            self.variable_manager[self.func_addr].reference_at(var, offset_into_var, codeloc,
-                                                               atom=src)
+            if offset == 0:
+                offset = None
+            self.variable_manager[self.func_addr].reference_at(var, offset, codeloc, atom=src)
 
     def _assign_to_register(self, offset, richr, size, src=None, dst=None):
         """
@@ -485,7 +487,7 @@ class SimEngineVRBase(SimEngineLight):
                 global_variables.add_variable('global', addr_v, var)
                 variables = [var]
             for var in variables:
-                global_variables.read_from(var, 0, codeloc, atom=expr)
+                global_variables.read_from(var, None, codeloc, atom=expr)
 
         # Loading data from a pointer
         if richr_addr.type_constraints:
