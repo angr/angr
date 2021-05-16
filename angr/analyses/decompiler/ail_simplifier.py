@@ -113,7 +113,7 @@ class AILSimplifier(Analysis):
 
         # propagator
         propagator = self._compute_propagation()
-        replacements = list(propagator._states.values())[0]._replacements
+        replacements = propagator.replacements
 
         # take replacements and rebuild the corresponding blocks
         replacements_by_block_addrs_and_idx = defaultdict(dict)
