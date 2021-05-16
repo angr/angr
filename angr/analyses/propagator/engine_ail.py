@@ -273,7 +273,6 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, expr.op, [operand_0, operand_1], expr.signed, **expr.tags)
 
-
     _ail_handle_CmpLE = _ail_handle_Cmp
     _ail_handle_CmpLEs = _ail_handle_Cmp
     _ail_handle_CmpLT = _ail_handle_Cmp
@@ -285,14 +284,14 @@ class SimEnginePropagatorAIL(
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
 
-    def _ail_handle_Add(self, expr):
+    def _ail_handle_Add(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
             return Expr.Const(expr.idx, None, operand_0.value + operand_1.value, expr.bits)
@@ -307,14 +306,14 @@ class SimEnginePropagatorAIL(
                              expr.signed,
                              **expr.tags)
 
-    def _ail_handle_Sub(self, expr):
+    def _ail_handle_Sub(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         if isinstance(operand_0, Expr.Const) and isinstance(operand_1, Expr.Const):
             return Expr.Const(expr.idx, None, operand_0.value - operand_1.value, expr.bits)
@@ -332,7 +331,7 @@ class SimEnginePropagatorAIL(
     def _ail_handle_StackBaseOffset(self, expr: Expr.StackBaseOffset) -> Expr.StackBaseOffset:  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_And(self, expr):
+    def _ail_handle_And(self, expr: Expr.BinaryOp):
 
         self.state: 'PropagatorAILState'
 
@@ -340,9 +339,9 @@ class SimEnginePropagatorAIL(
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         # Special logic for stack pointer alignment
         sp_offset = self.extract_offset_to_sp(operand_0)
@@ -351,36 +350,36 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_Xor(self, expr):
+    def _ail_handle_Xor(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_1.size())
+            return self.state.top(expr.bits)
 
         return Expr.BinaryOp(expr.idx, 'Xor', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_Shl(self, expr):
+    def _ail_handle_Shl(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
 
         return Expr.BinaryOp(expr.idx, 'Shl', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
-    def _ail_handle_Shr(self, expr):
+    def _ail_handle_Shr(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
 
         if self.state.is_top(operand_0):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
         elif self.state.is_top(operand_1):
-            return self.state.top(operand_0.size())
+            return self.state.top(expr.bits)
 
         return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
