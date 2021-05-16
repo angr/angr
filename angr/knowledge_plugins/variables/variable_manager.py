@@ -117,9 +117,9 @@ class VariableManagerInternal:
         existing = [x for x in region.get_variables_by_offset(start) if x.ident == variable.ident]
         if len(existing) == 1:
             var = existing[0]
-            if var.renamed:
+            if var.name is not None and not variable.renamed:
                 variable.name = var.name
-                variable.renamed = True
+                variable.renamed = var.renamed
         else:
             # implicitly overwrite or add I guess
             pass
@@ -429,16 +429,12 @@ class VariableManagerInternal:
 
         for var in self._unified_variables:
             if isinstance(var, SimStackVariable):
-                if not reset and var.name is not None:
-                    continue
                 if var.ident and var.ident.startswith('iarg_'):
                     arg_vars.append(var)
                 else:
                     sorted_stack_variables.append(var)
 
             elif isinstance(var, SimRegisterVariable):
-                if not reset and var.name is not None:
-                    continue
                 if var.ident and var.ident.startswith('arg_'):
                     arg_vars.append(var)
                 else:
@@ -455,7 +451,7 @@ class VariableManagerInternal:
                 elif var.ident:
                     var.name = var.ident
                 else:
-                    var.name = "g_%x" % var.addr
+                    var.name = f"g_{var.addr:x}"
 
         # rename variables in a fixed order
         var_ctr = count(0)
@@ -464,10 +460,13 @@ class VariableManagerInternal:
         sorted_reg_variables = sorted(sorted_reg_variables, key=lambda v: v.reg)
 
         for var in chain(sorted_stack_variables, sorted_reg_variables):
+            idx = next(var_ctr)
+            if var.name is not None and not reset:
+                continue
             if isinstance(var, SimStackVariable):
-                var.name = 'v%d' % next(var_ctr)
+                var.name = f'v{idx}'
             elif isinstance(var, SimRegisterVariable):
-                var.name = "v%d" % next(var_ctr)
+                var.name = f"v{idx}"
             # clear the hash cache
             var._hash = None
 
@@ -475,7 +474,10 @@ class VariableManagerInternal:
         arg_ctr = count(0)
         arg_vars = sorted(arg_vars, key=lambda v: int(v.ident[v.ident.index("_")+1:]) if v.ident else 0)
         for var in arg_vars:
-            var.name = "a%d" % next(arg_ctr)
+            idx = next(arg_ctr)
+            if var.name is not None and not reset:
+                continue
+            var.name = f"a{idx}"
             var._hash = None
 
     def get_variable_type(self, var):
@@ -539,9 +541,9 @@ class VariableManagerInternal:
         old_unified = self._variables_to_unified_variables.get(variable, None)
         if old_unified is not None and old_unified is not unified:
             self._unified_variables.discard(old_unified)
-            if old_unified.renamed and not unified.renamed:
-                unified.renamed = True
+            if old_unified.name is not None and not unified.renamed:
                 unified.name = old_unified.name
+                unified.renamed = old_unified.renamed
 
         self._unified_variables.add(unified)
         self._variables_to_unified_variables[variable] = unified
@@ -562,7 +564,7 @@ class VariableManager(KnowledgeBasePlugin):
     Manage variables.
     """
     def __init__(self, kb):
-        super(VariableManager, self).__init__()
+        super().__init__()
         self._kb: 'KnowledgeBase' = kb
         self.global_manager = VariableManagerInternal(self)
         self.function_managers: Dict[int,VariableManagerInternal] = { }
