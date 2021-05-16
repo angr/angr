@@ -303,6 +303,7 @@ class BinaryOp(Op):
         'Sub': '-',
         'Mul': '*',
         'Div': '/',
+        'DivMod': '/m',
         'Xor': '^',
         'And': '&',
         'LogicalAnd': '&&',

@@ -126,7 +126,7 @@ class VEXExprConverter(Converter):
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
-        if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT'}:
+        if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT', 'Div', 'DivMod'}:
             if vexop_to_simop(expr.op).is_signed:
                 signed = True
 
