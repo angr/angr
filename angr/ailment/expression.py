@@ -351,6 +351,8 @@ class BinaryOp(Op):
             self.bits = 32  # floating point comparison
         elif self.op.startswith("Cmp"):
             self.bits = 1
+        elif self.op == "Concat":
+            self.bits = get_bits(operands[0]) + get_bits(operands[1])
         else:
             self.bits = get_bits(operands[0]) if type(operands[0]) is not int else get_bits(operands[1])
         self.signed = signed
