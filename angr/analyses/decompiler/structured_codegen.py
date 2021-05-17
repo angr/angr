@@ -303,7 +303,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield str(variable), cvariable
             yield ";", None
 
-            loc_repr = variable.loc_repr(self.functy._arch)
+            loc_repr = variable.loc_repr(self.codegen.project.arch)
             yield "  // ", None
             yield loc_repr, None
             yield "\n", None

@@ -536,7 +536,7 @@ class Clinic(Analysis):
         else:
             returnty = SimTypeInt()
 
-        self.function.prototype = SimTypeFunction(func_args, returnty)
+        self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
 
     @timethis
     def _recover_and_link_variables(self, ail_graph, arg_list):
