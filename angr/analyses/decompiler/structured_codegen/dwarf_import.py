@@ -1,4 +1,5 @@
 import os
+import re
 import logging
 from typing import TYPE_CHECKING
 from sortedcontainers import SortedList
@@ -40,10 +41,10 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
         if self._source_root is None:
             return None
 
-        filename = filename.strip('/')
-        path_keys = filename.split('/')
+        filename = filename.strip('/\\')
+        path_keys = re.split('[/\\\\]', filename)
         for i in range(len(path_keys)):
-            maybe_path = os.path.join(self._source_root, '/'.join(path_keys[i:]))
+            maybe_path = os.path.join(self._source_root, *path_keys[i:])
             if os.path.isfile(maybe_path):
                 return maybe_path
 
