@@ -87,6 +87,7 @@ class Decompiler(Analysis):
         self._update_progress(85., text='Generating code')
 
         codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,
+                                                                flavor=self._flavor,
                                                                 func_args=clinic.arg_list,
                                                                 kb=self.kb,
                                                                 variable_kb=clinic.variable_kb,
@@ -94,7 +95,6 @@ class Decompiler(Analysis):
         self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen
-        self.kb.structured_code[(self.func.addr, self._flavor)] = codegen
 
     def _set_global_variables(self):
 

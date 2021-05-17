@@ -1317,8 +1317,8 @@ class CClosingObject:
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
-                 show_casts=True, braces_on_own_lines=True):
-        super().__init__()
+                 show_casts=True, braces_on_own_lines=True, flavor=None):
+        super().__init__(flavor=flavor)
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1374,6 +1374,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
 
         self.cfunc = self._analyze()
+
+        if flavor is not None:
+            self.kb.structured_code[(func.addr, flavor)] = self
 
     def reapply_options(self, options):
         for option, value in options:

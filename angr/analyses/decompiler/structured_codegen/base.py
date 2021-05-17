@@ -118,7 +118,8 @@ class InstructionMapping:
             return e2.posmap_pos
 
 class BaseStructuredCodeGenerator:
-    def __init__(self):
+    def __init__(self, flavor=None):
+        self.flavor = flavor
         self.text = None
         self.posmap = None
         self.stmt_posmap = None
