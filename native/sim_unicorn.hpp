@@ -305,7 +305,7 @@ struct instruction_taint_entry_t {
 	taint_vector_t taint_sink_src_map;
 
 	// List of dependencies a taint sink depends on
-	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>> dependencies;
+	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> dependencies;
 
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
@@ -368,8 +368,8 @@ struct stop_details_t {
 };
 
 struct processed_vex_expr_t {
-	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>> taint_sources;
-	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>> ite_cond_entities;
+	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> taint_sources;
+	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> ite_cond_entities;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_size;
