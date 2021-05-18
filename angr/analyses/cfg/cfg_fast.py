@@ -2193,10 +2193,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
-                if stmt.offset not in (self._initial_state.arch.ip_offset, ):
+                is_itstate = is_arm_arch(self.project.arch) and stmt.offset == self.project.arch.registers['itstate'][0]
+                if stmt.offset not in (self._initial_state.arch.ip_offset, ) and not is_itstate:
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-                if is_arm_arch(self.project.arch):
+                if is_arm_arch(self.project.arch) and not is_itstate:
                     if type(stmt.data) is pyvex.IRExpr.RdTmp and stmt.data.tmp in tmps:
                         regs[stmt.offset] = tmps[stmt.data.tmp]
                     else:
@@ -2212,6 +2213,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             elif type(stmt) is pyvex.IRStmt.Dirty:
 
                 _process(stmt_idx, stmt.mAddr, instr_addr, next_instr_addr, data_size=stmt.mSize, data_type='fp')
+
+            elif type(stmt) is pyvex.IRStmt.LoadG:
+
+                _process(stmt_idx, stmt.addr, instr_addr, next_instr_addr,
+                         data_size=stmt.addr.result_size(irsb.tyenv) // self.project.arch.byte_width)
 
     def _add_data_reference(self, irsb_addr, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
                             data_size=None, data_type=None):
