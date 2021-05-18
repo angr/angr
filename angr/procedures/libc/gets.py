@@ -40,7 +40,7 @@ class gets(angr.SimProcedure):
                 if self.state.solver.is_true(data == b'\n'):
                     break
             self.state.memory.store(dst + count, b'\0')
-            return count
+            return dst
 
         # case 2: the data is symbolic, the newline could be anywhere. Read the maximum number of bytes
         # (SHORT_READS should take care of the variable length) and add a constraint to assert the
@@ -62,4 +62,4 @@ class gets(angr.SimProcedure):
             end_address = end_address.annotate(MultiwriteAnnotation())
             self.state.memory.store(end_address, b'\0')
 
-            return real_size
+            return dst
