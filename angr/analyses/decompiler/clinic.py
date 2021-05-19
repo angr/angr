@@ -479,8 +479,13 @@ class Clinic(Analysis):
                 ret_val = self.function.calling_convention.ret_val
                 if isinstance(ret_val, SimRegArg):
                     reg = self.project.arch.registers[ret_val.reg_name]
-                    new_stmt.ret_exprs.append(ailment.Expr.Register(None, None, reg[0],
-                                                                    reg[1] * self.project.arch.byte_width))
+                    new_stmt.ret_exprs.append(ailment.Expr.Register(
+                        None,
+                        None,
+                        reg[0],
+                        reg[1] * self.project.arch.byte_width,
+                        reg_name=self.project.arch.translate_register_name(reg[0], reg[1])
+                    ))
                 else:
                     l.warning("Unsupported type of return expression %s.",
                               type(self.function.calling_convention.ret_val))
