@@ -5,13 +5,17 @@ from typing import TYPE_CHECKING
 from sortedcontainers import SortedList
 
 from ... import Analysis, register_analysis
-from .base import BaseStructuredCodeGenerator #, InstructionMapping, PositionMapping, PositionMappingElement
+from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions.function import Function
 
 
 l = logging.getLogger(__name__)
+
+class ImportedLine:
+    def __init__(self, addr):
+        self.tags = {'ins_addr': addr}
 
 class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, function, flavor='source', source_root=None, encoding='utf-8'):
@@ -31,9 +35,23 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
     def regenerate_text(self):
         cache = {}
         ranges = self._compute_function_ranges(cache=cache)
+        line_to_addr = self._compute_line_to_addr(ranges)
 
-        # TODO generate posmap and stuff
-        self.text = ''.join(''.join(self._open_file(filename)[range_start-1:range_end-1+1]) for filename, range_start, range_end in ranges)
+        self.stmt_posmap = PositionMapping()
+        self.insmap = InstructionMapping()
+        pos = 0
+        all_lines = []
+        for filename, range_start, range_end in ranges:
+            these_lines = self._open_file(filename)[range_start-1:range_end-1+1]
+            all_lines.extend(these_lines)
+            for idx, line_text in enumerate(these_lines):
+                addr = line_to_addr[(filename, range_start + idx)]
+                if addr is not None:
+                    self.stmt_posmap.add_mapping(pos, len(line_text), ImportedLine(addr))
+                    self.insmap.add_mapping(addr, pos + len(line_text) - len(line_text.lstrip(' \t')))
+                pos += len(line_text)
+
+        self.text = ''.join(all_lines)
 
     def _locate_file(self, filename):
         if os.path.isfile(filename):
@@ -139,5 +157,19 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             ranges.append((filename, range_start, range_end))
 
         return ranges
+
+    def _compute_line_to_addr(self, ranges):
+        result = {}
+        for filename, range_start, range_end in ranges:
+            for line in range(range_start, range_end+1):
+                result[(filename, line)] = None
+
+        obj = self.project.loader.find_object_containing(self.function.addr)
+        for addr, filename_line in obj.addr_to_line.items():
+            if filename_line in result:
+                result[filename_line] = addr
+
+        return result
+
 
 register_analysis(ImportSourceCode, 'ImportSourceCode')

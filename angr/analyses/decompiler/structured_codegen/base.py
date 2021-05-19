@@ -103,6 +103,7 @@ class InstructionMapping:
             self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
 
     def get_nearest_pos(self, ins_addr: int) -> Optional[int]:
+        import ipdb; ipdb.set_trace()
         try:
             pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
             pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
