@@ -169,9 +169,10 @@ struct instr_details_t {
 	int64_t mem_write_size;
 	bool has_concrete_memory_dep;
 	bool has_symbolic_memory_dep;
-	memory_value_t *memory_values;
-	uint64_t memory_values_count;
-	std::vector<instr_details_t> instr_deps;
+	// Mark fields as mutable so that they can be updated after inserting into std::set
+	mutable memory_value_t *memory_values;
+	mutable uint64_t memory_values_count;
+	std::set<instr_details_t> instr_deps;
 	std::unordered_set<register_value_t> reg_deps;
 	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 
@@ -501,6 +502,7 @@ class State {
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
 
 	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
+	void compute_slice_of_instrs_for_vex_temps(instr_details_t &instr);
 	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
 	// Return list of all dependent instructions including dependencies of those dependent instructions
@@ -536,7 +538,7 @@ class State {
 	// Save values of concrete memory reads performed by an instruction and it's dependencies
 	void save_concrete_memory_deps(instr_details_t &instr);
 	// Find address and size of all symbolic memory reads performed by an instruction and it's dependencies
-	std::vector<std::pair<address_t, uint64_t>> find_symbolic_mem_deps(instr_details_t &instr) const;
+	std::vector<std::pair<address_t, uint64_t>> find_symbolic_mem_deps(const instr_details_t &instr) const;
 	void update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry);
 
 	// Inline functions
