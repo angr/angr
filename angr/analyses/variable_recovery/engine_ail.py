@@ -3,7 +3,7 @@ from typing import Optional, TYPE_CHECKING
 import logging
 
 import claripy
-import ailment
+import ailment.utils
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...calling_conventions import SimRegArg
@@ -450,7 +450,7 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
-        result_size = arg0.bits
+        result_size = ailment.utils.get_bits(arg0)
 
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
