@@ -1261,7 +1261,7 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
 
     @staticmethod
     def syscall_num(state):
-        svc = state.mem[state.regs.ip_at_syscall].dword.resolved & 0xffffff
+        svc = state.mem[state.regs.ip_at_syscall - 4].dword.resolved & 0xffffff
         if (svc == 0).is_true():
             return state.regs.r7
         elif (svc > 0x900000).is_true() and (svc < 0x90ffff).is_true():
