@@ -1261,7 +1261,13 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
 
     @staticmethod
     def syscall_num(state):
-        return state.regs.r7
+        svc = state.mem[state.regs.ip_at_syscall].dword.resolved & 0xffffff
+        if (svc == 0).is_true():
+            return state.regs.r7
+        elif (svc > 0x900000).is_true() and (svc < 0x90ffff).is_true():
+            return svc - 0x900000
+        else:
+            raise Exception("I don't know how to translate this ARM SVC into a syscall number")
 
 
 class SimCCAArch64(SimCC):
