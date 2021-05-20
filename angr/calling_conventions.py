@@ -1261,13 +1261,20 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
 
     @staticmethod
     def syscall_num(state):
-        svc = state.mem[state.regs.ip_at_syscall - 4].dword.resolved & 0xffffff
-        if (svc == 0).is_true():
+        svc = state.mem[state.regs.ip_at_syscall - 4].dword.resolved
+        is_svc = ((svc & 0x0f000000) == 0x0f000000).is_true()
+        if not is_svc:
+            l.error("ARM syscall number being queried at an address which is not an SVC")
+            return claripy.BVV(0, 32)
+
+        svc_num = svc & 0xffffff
+        if (svc_num == 0).is_true():
             return state.regs.r7
-        elif (svc > 0x900000).is_true() and (svc < 0x90ffff).is_true():
-            return svc - 0x900000
+        elif (svc_num > 0x900000).is_true() and (svc_num < 0x90ffff).is_true():
+            return svc_num - 0x900000
         else:
-            raise Exception("I don't know how to translate this ARM SVC into a syscall number")
+            l.error("I don't know how to translate SVC %s into a syscall number", svc_num)
+            return claripy.BVV(0, 32)
 
 
 class SimCCAArch64(SimCC):
