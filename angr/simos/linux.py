@@ -71,13 +71,16 @@ class SimLinux(SimUserland):
             # set up some static data in the loader object...
             _rtld_global = self.project.loader.find_symbol('_rtld_global')
             if _rtld_global is not None:
-                if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
-                elif isinstance(self.project.arch, ArchARM):
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7E8, self._loader_lock_addr)
-                    self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7EC, self._loader_unlock_addr)
+                try:
+                    if isinstance(self.project.arch, ArchAMD64):
+                        self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF08, self._loader_lock_addr)
+                        self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0xF10, self._loader_unlock_addr)
+                        self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x990, self._error_catch_tsd_addr)
+                    elif isinstance(self.project.arch, ArchARM):
+                        self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7E8, self._loader_lock_addr)
+                        self.project.loader.memory.pack_word(_rtld_global.rebased_addr + 0x7EC, self._loader_unlock_addr)
+                except KeyError:
+                    _l.error('KeyError while trying to set up rtld_global. Libc emulation may not work.')
 
             # TODO: what the hell is this
             _rtld_global_ro = self.project.loader.find_symbol('_rtld_global_ro')
