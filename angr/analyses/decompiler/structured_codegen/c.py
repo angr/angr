@@ -442,7 +442,7 @@ class CForLoop(CStatement):
             yield from self.condition.c_repr_chunks(indent=0)
         yield '; ', None
         if self.iterator is not None:
-            yield from self.iterator.c_repr_chunks(indent=0)
+            yield from self.iterator.c_repr_chunks(indent=0, asexpr=True)
         yield ')', paren
 
         if self.codegen.braces_on_own_lines:
@@ -664,7 +664,7 @@ class CAssignment(CStatement):
         self.rhs = rhs
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -672,7 +672,8 @@ class CAssignment(CStatement):
         yield from CExpression._try_c_repr_chunks(self.lhs)
         yield " = ", self
         yield from CExpression._try_c_repr_chunks(self.rhs)
-        yield ";\n", self
+        if not asexpr:
+            yield ";\n", self
 
 
 class CFunctionCall(CStatement, CExpression):
