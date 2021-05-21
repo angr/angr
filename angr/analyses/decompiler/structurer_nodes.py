@@ -186,10 +186,12 @@ class ConditionNode(BaseNode):
 
 
 class LoopNode(BaseNode):
-    def __init__(self, sort, condition, sequence_node, addr=None):
+    def __init__(self, sort, condition, sequence_node, addr=None, initializer=None, iterator=None):
         self.sort = sort
         self.condition = condition
         self.sequence_node = sequence_node
+        self.initializer = initializer
+        self.iterator = iterator
         self._addr = addr
 
     @property

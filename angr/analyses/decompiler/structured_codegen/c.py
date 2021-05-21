@@ -410,6 +410,53 @@ class CDoWhileLoop(CLoop):
         yield ";\n", self
 
 
+class CForLoop(CStatement):
+    """
+    Represents a for-loop in C.
+    """
+
+    __slots__ = ('initializer', 'condition', 'iterator', 'body', 'tags')
+
+    def __init__(self, initializer, condition, iterator, body, tags=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.initializer = initializer
+        self.condition = condition
+        self.iterator = iterator
+        self.body = body
+
+        self.tags = tags
+
+    def c_repr_chunks(self, indent=0):
+        indent_str = self.indent_str(indent=indent)
+        brace = CClosingObject("{")
+        paren = CClosingObject("(")
+
+        yield indent_str, None
+        yield "for ", self
+        yield '(', paren
+        if self.initializer is not None:
+            yield from self.initializer.c_repr_chunks(indent=0)
+        yield '; ', None
+        if self.condition is not None:
+            yield from self.condition.c_repr_chunks(indent=0)
+        yield '; ', None
+        if self.iterator is not None:
+            yield from self.iterator.c_repr_chunks(indent=0)
+        yield ')', paren
+
+        if self.codegen.braces_on_own_lines:
+            yield "\n", None
+            yield indent_str, None
+        else:
+            yield " ", None
+        yield "{", brace
+        yield "\n", None
+        yield from self.body.c_repr_chunks(indent=indent + INDENT_DELTA)
+        yield indent_str, None
+        yield "}", brace
+        yield '\n', None
+
 class CIfElse(CStatement):
     """
     Represents an if-else construct in C.
@@ -1566,6 +1613,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                                 tags=tags,
                                 codegen=self,
                                 )
+        elif loop_node.sort == 'for':
+            return CForLoop(None if loop_node.initializer is None else self._handle(loop_node.initializer),
+                            self._handle(loop_node.condition),
+                            None if loop_node.iterator is None else self._handle(loop_node.iterator),
+                            self._handle(loop_node.sequence_node, is_expr=False),
+                            tags=tags,
+                            codegen=self,
+                            )
 
         else:
             raise NotImplementedError()

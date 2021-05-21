@@ -255,6 +255,10 @@ class Structurer(Analysis):
             r, loop_node = self._refine_loop_dowhile(loop_node)
             if r: continue
 
+            # for (partial; missing initializer info)
+            r, loop_node = self._refine_loop_for(loop_node)
+            if r: continue
+
             # no more changes
             break
 
@@ -291,6 +295,24 @@ class Structurer(Analysis):
                 new_loop_node = LoopNode('do-while', while_cond, new_seq)
 
                 return True, new_loop_node
+
+        return False, loop_node
+
+    @staticmethod
+    def _refine_loop_for(loop_node):
+        if loop_node.sort == 'while' and loop_node.condition is not None and loop_node.sequence_node.nodes:
+            last_node = loop_node.sequence_node.nodes[-1]
+            if type(last_node) is ailment.Block and last_node.statements:
+                last_stmt = last_node.statements[-1]
+                if type(last_stmt) is ailment.statement.Store:
+                    new_block = last_node.copy()
+                    new_block.statements = new_block.statements[:-1]
+                    new_seq = loop_node.sequence_node.copy()
+                    new_seq.nodes[-1] = new_block
+                    import ipdb; ipdb.set_trace()
+                    new_loop_node = LoopNode('for', loop_node.condition, new_seq, iterator=last_stmt)
+
+                    return True, new_loop_node
 
         return False, loop_node
 
