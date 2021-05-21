@@ -14,6 +14,7 @@ from angr.analyses.reaching_definitions.function_handler import FunctionHandler
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.knowledge_plugins.cfg.cfg_node import CFGENode
 from angr.knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
+from angr.knowledge_plugins.key_definitions.constants import OP_AFTER
 from ailment.converter import IRSBConverter
 from ailment.manager import Manager
 from ..reaching_definitions.dep_graph import DepGraph
@@ -61,8 +62,85 @@ class CLibFunctionHandler(FunctionHandler):
                               maximum_local_call_depth, visited_blocks, dep_graph,
                               src_ins_addr=None,
                               codeloc=None):
-        executed_rda = False
+        executed_rda = True
         return executed_rda, state, visited_blocks, dep_graph
+
+    def handle_external_function_fallback(self, state, codeloc):
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
+
+        # This handles the function cc
+        executed_rda = True
+        return executed_rda, state
+
+    def handle_fseek(self, state, codeloc):# this is incomplete
+        # return address
+        defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
+        if len(defs_sp) == 0:
+            raise ValueError('No definition for SP found')
+        if len(defs_sp) == 1:
+            sp_data = next(iter(defs_sp)).data.data
+            sp_addr = next(iter(sp_data))
+        else:  # len(defs_sp) > 1
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
+        atom = MemoryLocation(SpOffset(state.arch.bits,
+                                       sp_addr.offset),
+                              sp_addr.bits)
+        state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
+
+        executed_rda = True
+        return executed_rda, state
 
     def handle_getchar(self, state, codeloc):
         # return address
@@ -73,14 +151,31 @@ class CLibFunctionHandler(FunctionHandler):
             sp_data = next(iter(defs_sp)).data.data
             sp_addr = next(iter(sp_data))
         else:  # len(defs_sp) > 1
-            print("Error!")
-            # sp_data = set()
-            # for d in defs_sp:
-            #     sp_data.update(d.data)
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
         atom = MemoryLocation(SpOffset(state.arch.bits,
                                        sp_addr.offset),
                               sp_addr.bits)
         state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
 
         # return value in RAX
         atom = Register(16, 8)
@@ -100,11 +195,31 @@ class CLibFunctionHandler(FunctionHandler):
             sp_data = next(iter(defs_sp)).data.data
             sp_addr = next(iter(sp_data))
         else:  # len(defs_sp) > 1
-            print("Error!")
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
         atom = MemoryLocation(SpOffset(state.arch.bits,
                                        sp_addr.offset),
                               sp_addr.bits)
         state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
 
         executed_rda = True
         return executed_rda, state
@@ -120,11 +235,32 @@ class CLibFunctionHandler(FunctionHandler):
             sp_data = next(iter(defs_sp)).data.data
             sp_addr = next(iter(sp_data))
         else:  # len(defs_sp) > 1
-            print("Error!")
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
         atom = MemoryLocation(SpOffset(state.arch.bits,
                                        sp_addr.offset),
                               sp_addr.bits)
         state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
+
 
         # return value in RAX
         atom = Register(16, 8)
@@ -153,14 +289,32 @@ class CLibFunctionHandler(FunctionHandler):
             sp_data = next(iter(defs_sp)).data.data
             sp_addr = next(iter(sp_data))
         else:  # len(defs_sp) > 1
-            print("Error!")
-            # sp_data = set()
-            # for d in defs_sp:
-            #     sp_data.update(d.data)
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
         atom = MemoryLocation(SpOffset(state.arch.bits,
                                        sp_addr.offset),
                               sp_addr.bits)
         state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
+
         executed_rda = True
         return executed_rda, state
 
@@ -169,7 +323,7 @@ class CLibFunctionHandler(FunctionHandler):
         state.add_use(Register(64, 8), codeloc)
         # rdi
         state.add_use(Register(72, 8), codeloc)
-        # return address
+        # add use of return address
         defs_sp = state.register_definitions.get_objects_by_offset(state.arch.sp_offset)
         if len(defs_sp) == 0:
             raise ValueError('No definition for SP found')
@@ -177,14 +331,31 @@ class CLibFunctionHandler(FunctionHandler):
             sp_data = next(iter(defs_sp)).data.data
             sp_addr = next(iter(sp_data))
         else:  # len(defs_sp) > 1
-            print("Error!")
-            # sp_data = set()
-            # for d in defs_sp:
-            #     sp_data.update(d.data)
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
         atom = MemoryLocation(SpOffset(state.arch.bits,
                                        sp_addr.offset),
                               sp_addr.bits)
         state.add_use(atom, codeloc)
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address, new def for rsp
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
+
         executed_rda = True
         return executed_rda, state
 
@@ -199,14 +370,32 @@ class CLibFunctionHandler(FunctionHandler):
             sp_data = next(iter(defs_sp)).data.data
             sp_addr = next(iter(sp_data))
         else:  # len(defs_sp) > 1
-            print("Error!")
-            # sp_data = set()
-            # for d in defs_sp:
-            #     sp_data.update(d.data)
+            sp_data = set()
+            for d in defs_sp:
+                sp_data.update(d.data)
         atom = MemoryLocation(SpOffset(state.arch.bits,
                                        sp_addr.offset),
                               sp_addr.bits)
         state.add_use(atom, codeloc)
+
+        # add use of the rsp
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.add_use(atom, codeloc)
+
+        # change stack offset for popped return address
+        if len(sp_data) != 1:
+            l.critical('Invalid number of values for stack pointer. Stack is probably unbalanced. This indicates '
+                       'serious problems with function handlers. Stack pointer values include: %s.', sp_data)
+        sp_addr = next(iter(sp_data))
+        if isinstance(sp_addr, (int, SpOffset)):
+            sp_addr -= state.arch.stack_change
+        elif isinstance(sp_addr, Undefined):
+            pass
+        else:
+            raise TypeError('Invalid type %s for stack pointer.' % type(sp_addr).__name__)
+        atom = Register(state.arch.sp_offset, state.arch.bytes)
+        state.kill_and_add_definition(atom, codeloc, DataSet(sp_addr, state.arch.bits))
+
         executed_rda = True
         return executed_rda, state
 
@@ -289,6 +478,15 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "DCE_result.svg"))
 
+        # Right now cannot do block arithmetic simps after joining blocks because it doesn't reorder instructions correctly (need to make it block_id sensitive)_
+        for i in range(2):
+            new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
+
+        for i in range(4):
+            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
+
         # self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
@@ -298,16 +496,6 @@ class VMDeobfuscation(Analysis):
             print("DCE round "+str(i))
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
-
-        # for i in range(2):
-        #     new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
-        #
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
-
-        # for i in range(4):
-        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-        #
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
 
         self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr)
 
@@ -451,7 +639,8 @@ class VMDeobfuscation(Analysis):
                                                tyenv=node.irsb.tyenv,
                                                nxt=new_next,
                                                direct_next=node.irsb.direct_next,
-                                               jumpkind=node.irsb.jumpkind)
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
 
         if start_state:
             initial_input_state = start_state
@@ -471,12 +660,12 @@ class VMDeobfuscation(Analysis):
 
     def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
-        # flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
-        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
-        flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
+        flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
         new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
+                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
+        # flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
+        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
 
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
@@ -550,74 +739,133 @@ class VMDeobfuscation(Analysis):
 
     def _eliminate_dead_assignments(self, cfg, proj, start_state=None):
 
-        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dsa')
+        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dae')
         for node in dsa_new_model.nodes():
             if node.addr == self.vm_start_addr:
                 start_node = node
                 break
 
-        #start_state = ReachingDefinitionsState()
-        rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
-                                                       track_tmps=True,
-                                                       function_handler=CLibFunctionHandler(),
-                                                       max_iterations=3
-                                                       )
-
-        # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
-        # live_defs = rd.one_result
-
-        # Find dead assignments
-        dead_defs_locs = set()
-        all_defs = rd.all_definitions
-
-        for d in all_defs:
-            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+        for node in dsa_new_model.nodes():
+            if node.is_simprocedure:
                 continue
+            cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+            rd = self.project.analyses.ReachingDefinitions(cur_block,
+                                                           track_tmps=True,
+                                                           function_handler=CLibFunctionHandler(),
+                                                           observation_points=[('node', node.addr, OP_AFTER)]
+                                                           )
 
-            #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
-            if isinstance(d.atom, atoms.MemoryLocation):
+            used_tmp_indices = set(rd.one_result.tmp_uses.keys())
+            live_defs = rd.one_result
+
+            # Find dead assignments
+            dead_defs_stmt_idx = set()
+            all_defs = rd.all_definitions
+            for d in all_defs:
+                if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                    continue
+
+                # if isinstance(d.atom, atoms.Tmp):
+                #     uses = live_defs.tmp_uses[d.atom.tmp_idx]
+                #     if not uses:
+                #         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                # else:
                 uses = rd.all_uses.get_uses(d)
-                if d.codeloc.block_id.addr == 0x400961 and d.codeloc.stmt_idx == 8:
-                    import ipdb;ipdb.set_trace()
-                no_uses = len(uses)
-                for use in uses:
-                    if not use.sim_procedure and isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.Put):
-                        no_uses = no_uses - 1
-                if no_uses == 0:
-                    print(d)
-                    print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
-                    dead_defs_locs.add(d.codeloc)
+                if not uses:
+                    # is entirely possible that at the end of the block, a register definition is not used.
+                    # however, it might be used in future blocks.
+                    # so we only remove a definition if the definition is not alive anymore at the end of the block
+                    if isinstance(d.atom, atoms.Register):
+                        if d not in live_defs.register_definitions.get_variables_by_offset(d.atom.reg_offset):
+                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                    if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                        if d not in live_defs.stack_definitions.get_variables_by_offset(d.atom.addr.offset):
+                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+
+            new_statements = []
+            # Remove dead assignments
+            for idx, stmt in enumerate(cur_block.vex.statements):
+                # if isinstance(stmt, pyvex.stmt.WrTmp):
+                #     if stmt.tmp not in used_tmp_indices:
+                #         continue
+
+                # is it a dead virgin?
+                if idx in dead_defs_stmt_idx:
+                    continue
+
+                new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_statements,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+
+        # #start_state = ReachingDefinitionsState()
+        # rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
+        #                                                track_tmps=True,
+        #                                                function_handler=CLibFunctionHandler(),
+        #                                                max_iterations=3
+        #                                                )
+        #
+        # # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
+        # # live_defs = rd.one_result
+        #
+        # # Find dead assignments
+        # dead_defs_locs = set()
+        # all_defs = rd.all_definitions
+        #
+        # # There can be multiple memory definitions for the same location with different stack offset because of rd_state merging
+        # for d in all_defs:
+        #     if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+        #         continue
+        #
+        #     #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
+        #     if isinstance(d.atom, atoms.MemoryLocation):
+        #         uses = rd.all_uses.get_uses(d)
+        #         no_uses = len(uses)
+        #         for use in uses:
+        #             if not use.sim_procedure and isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.Put):
+        #                 no_uses = no_uses - 1
+        #         if no_uses == 0:
+        #             print(d)
+        #             print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
+        #             dead_defs_locs.add(d.codeloc)
 
         # Remove dead assignments
-        for node in dsa_new_model.nodes():
-            new_statements = []
-            if not node.is_simprocedure:
-                print(node.irsb.pp())
-                for idx, stmt in enumerate(node.irsb.statements):
-                    if isinstance(stmt, pyvex.stmt.IMark):
-                        cur_ins_addr = stmt.addr
-
-                    stmt_loc = CodeLocation(node.irsb.addr,
-                                idx,
-                                block_id=node.block_id,
-                                ins_addr=cur_ins_addr,
-                                context=None)
-
-                    # is it a dead virgin?
-                    if stmt_loc in dead_defs_locs:
-                        continue
-
-                    new_statements.append(stmt)
-                for idx, stmt in enumerate(new_statements):
-                    print(f'{idx}, {stmt}')
-
-                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
-                                                   node.irsb.addr,
-                                                   statements=new_statements,
-                                                   tyenv=node.irsb.tyenv,
-                                                   nxt=node.irsb.next,
-                                                   direct_next=node.irsb.direct_next,
-                                                   jumpkind=node.irsb.jumpkind)
+        # for node in dsa_new_model.nodes():
+        #     new_statements = []
+        #     if not node.is_simprocedure:
+        #         print(node.irsb.pp())
+        #         for idx, stmt in enumerate(node.irsb.statements):
+        #             if isinstance(stmt, pyvex.stmt.IMark):
+        #                 cur_ins_addr = stmt.addr
+        #
+        #             stmt_loc = CodeLocation(node.irsb.addr,
+        #                         idx,
+        #                         block_id=node.block_id,
+        #                         ins_addr=cur_ins_addr,
+        #                         context=None)
+        #
+        #             # is it a dead virgin?
+        #             if stmt_loc in dead_defs_locs:
+        #                 continue
+        #
+        #             new_statements.append(stmt)
+        #         for idx, stmt in enumerate(new_statements):
+        #             print(f'{idx}, {stmt}')
+        #
+        #         node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+        #                                            node.irsb.addr,
+        #                                            statements=new_statements,
+        #                                            tyenv=node.irsb.tyenv,
+        #                                            nxt=node.irsb.next,
+        #                                            direct_next=node.irsb.direct_next,
+        #                                            jumpkind=node.irsb.jumpkind)
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         if start_state:
@@ -639,9 +887,6 @@ class VMDeobfuscation(Analysis):
         new_model = self.new_model_graph(cfg.graph, proj, 'CFGEmulated')
 
         for node in list(new_model.nodes()):
-            # if node.addr in [0x400ce8, 0x400857, 0x400c86]:
-            #     continue
-            #     import ipdb;ipdb.set_trace()
             if not node.is_simprocedure:
                 cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
                 result = proj.analyses.ReachingDefinitions(cur_block, track_tmps=True, observe_all=True, dep_graph=DepGraph())
@@ -884,7 +1129,7 @@ class VMDeobfuscation(Analysis):
                 print(node.irsb.pp())
 
                 if simp_flag == 1:
-                    #import ipdb;ipdb.set_trace()
+                    import ipdb;ipdb.set_trace()
                     pass
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
@@ -1095,7 +1340,8 @@ class VMDeobfuscation(Analysis):
                                                    tyenv=node.irsb.tyenv,
                                                    nxt=node.irsb.next,
                                                    direct_next=node.irsb.direct_next,
-                                                   jumpkind=node.irsb.jumpkind)
+                                                   jumpkind=node.irsb.jumpkind,
+                                                   size=node.irsb.size)
                 print("DCE version")
                 print(node.irsb.pp())
                 print("\n")
@@ -1230,7 +1476,8 @@ class VMDeobfuscation(Analysis):
                                                        tyenv=node.irsb.tyenv,
                                                        nxt=node.irsb.next,
                                                        direct_next=node.irsb.direct_next,
-                                                       jumpkind=node.irsb.jumpkind)
+                                                       jumpkind=node.irsb.jumpkind,
+                                                       size=node.irsb.size)
 
                     print("DCE version")
                     print(node.irsb.pp())
