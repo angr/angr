@@ -751,6 +751,8 @@ void State::compute_slice_of_instrs_for_vex_temps(instr_details_t &instr) {
 			temps_to_process.emplace(std::make_pair(dependency, vex_setter_instr));
 		}
 	}
+	std::vector<instr_details_t> new_dep_instrs(instr.instr_deps.begin(), instr.instr_deps.end());
+	instr.instr_deps.clear();
 	while (!temps_to_process.empty()) {
 		auto &vex_tmp = temps_to_process.front();
 		if (vex_tmp.second != instr.instr_addr) {
@@ -762,8 +764,8 @@ void State::compute_slice_of_instrs_for_vex_temps(instr_details_t &instr) {
 				reg_val.size = reg.second;
 				instr.reg_deps.insert(reg_val);
 			}
-			instr.instr_deps.insert(tmp_instr_slice.dependent_instrs.begin(), tmp_instr_slice.dependent_instrs.end());
-			instr.instr_deps.insert(compute_instr_details(vex_tmp.second, tmp_instr_details));
+			new_dep_instrs.insert(new_dep_instrs.end(), tmp_instr_slice.dependent_instrs.begin(), tmp_instr_slice.dependent_instrs.end());
+			new_dep_instrs.emplace_back(compute_instr_details(vex_tmp.second, tmp_instr_details));
 		}
 		temps_to_process.pop();
 		for (auto &dep_vex_tmp: block_taint_entry.vex_temp_deps.at(vex_tmp.first).second) {
@@ -775,6 +777,14 @@ void State::compute_slice_of_instrs_for_vex_temps(instr_details_t &instr) {
 			address_t vex_setter_instr = vex_temp_deps_entry->second.first;
 			temps_to_process.push(std::make_pair(dep_vex_tmp, vex_setter_instr));
 		}
+	}
+	for (auto &dep_instr: new_dep_instrs) {
+		compute_slice_of_instrs_for_vex_temps(dep_instr);
+		instr.reg_deps.insert(dep_instr.reg_deps.begin(), dep_instr.reg_deps.end());
+		instr.instr_deps.insert(dep_instr.instr_deps.begin(), dep_instr.instr_deps.end());
+		dep_instr.reg_deps.clear();
+		dep_instr.instr_deps.clear();
+		instr.instr_deps.insert(dep_instr);
 	}
 	return;
 }
