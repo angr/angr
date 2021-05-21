@@ -96,6 +96,48 @@ class GotoSimplifier(SequenceWalker):
                 block.statements = block.statements[:-1]
 
 
+class LoopSimplifier(SequenceWalker):
+    def __init__(self, node):
+        handlers = {
+            SequenceNode: self._handle_sequencenode,
+            CodeNode: self._handle_codenode,
+            MultiNode: self._handle_multinode,
+            LoopNode: self._handle_loopnode,
+            ConditionNode: self._handle_conditionnode,
+            ailment.Block: self._handle_block,
+        }
+
+        super().__init__(handlers)
+        self.walk(node)
+
+    def _handle_sequencenode(self, node, successor=None, loop=None, **kwargs):
+        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
+            self._handle(n0, successor=n1, loop=loop)
+
+    def _handle_codenode(self, node, successor=None, loop=None, **kwargs):
+        self._handle(node.node, successor=successor, loop=loop)
+
+    def _handle_conditionnode(self, node, successor=None, loop=None, **kwargs):
+        if node.true_node is not None:
+            self._handle(node.true_node, successor=successor, loop=loop)
+        if node.false_node is not None:
+            self._handle(node.false_node, successor=successor, loop=loop)
+
+    def _handle_loopnode(self, node, successor=None, loop=None, **kwargs):
+        self._handle(node.sequence_node, successor=successor, loop=node)
+
+    def _handle_multinode(self, node, successor=None, loop=None, **kwargs):
+        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
+            self._handle(n0, successor=n1, loop=loop)
+
+    def _handle_block(self, block, successor=None, loop=None, **kwargs):  # pylint:disable=no-self-use
+        # find for-loop initializers
+        if block.statements and isinstance(successor, LoopNode) and \
+                isinstance(block.statements[-1], (ailment.Stmt.Assignment, ailment.Stmt.Store)):
+            successor.initializer = block.statements[-1]
+            block.statements = block.statements[:-1]
+
+
 class IfSimplifier(SequenceWalker):
     """
     Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards.
@@ -358,6 +400,8 @@ class RegionSimplifier(Analysis):
         r = self._simplify_ifelses(r)
         #
         r = self._simplify_cascading_ifs(r)
+        #
+        r = self._simplify_loops(r)
 
         self.result = r
 
@@ -382,6 +426,11 @@ class RegionSimplifier(Analysis):
     @staticmethod
     def _simplify_cascading_ifs(region):
         CascadingIfsRemover(region)
+        return region
+
+    @staticmethod
+    def _simplify_loops(region):
+        LoopSimplifier(region)
         return region
 
 

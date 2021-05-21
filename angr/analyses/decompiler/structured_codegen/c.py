@@ -436,7 +436,7 @@ class CForLoop(CStatement):
         yield "for ", self
         yield '(', paren
         if self.initializer is not None:
-            yield from self.initializer.c_repr_chunks(indent=0)
+            yield from self.initializer.c_repr_chunks(indent=0, asexpr=True)
         yield '; ', None
         if self.condition is not None:
             yield from self.condition.c_repr_chunks(indent=0)

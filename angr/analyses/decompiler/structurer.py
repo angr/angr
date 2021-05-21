@@ -309,10 +309,12 @@ class Structurer(Analysis):
                     new_block.statements = new_block.statements[:-1]
                     new_seq = loop_node.sequence_node.copy()
                     new_seq.nodes[-1] = new_block
-                    new_loop_node = LoopNode('for', loop_node.condition, new_seq,
-                                             addr=loop_node.addr,
-                                             iterator=last_stmt,
-                                             )
+
+                    new_loop_node = loop_node.copy()
+                    new_loop_node.sort = 'for'
+                    new_loop_node.sequence_node = new_seq
+                    new_loop_node.iterator = last_stmt
+                    new_loop_node.continue_addr = last_stmt.ins_addr
 
                     return True, new_loop_node
 
