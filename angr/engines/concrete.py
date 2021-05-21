@@ -161,12 +161,4 @@ class SimEngineConcrete(SuccessorsMixin):
         except SimConcreteRegisterError:
             l.debug("read_register raise a SimConcreteRegisterError, ok!")
 
-        try:
-            concrete_target.read_memory(0x0, 0x4)
-            l.error("read_memory should raise a SimConcreteMemoryError when accessing non mapped memory")
-            return False
-
-        except SimConcreteMemoryError:
-            l.debug("read_register raise a SimConcreteMemoryError, ok!")
-
         return True
