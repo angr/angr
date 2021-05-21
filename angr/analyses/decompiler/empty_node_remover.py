@@ -87,13 +87,9 @@ class EmptyNodeRemover:
         if new_seq is None:
             return None
 
-        return LoopNode(node.sort,
-                        node.condition,
-                        new_seq,
-                        addr=node.addr,
-                        initializer=node.initializer,
-                        iterator=node.iterator,
-                        )
+        result = node.copy()
+        result.sequence_node = new_seq
+        return result
 
     def _handle_SwitchCase(self, node, **kwargs):
 

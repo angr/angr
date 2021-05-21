@@ -194,6 +194,16 @@ class LoopNode(BaseNode):
         self.iterator = iterator
         self._addr = addr
 
+    def copy(self):
+        return LoopNode(
+            self.sort,
+            self.condition,
+            self.sequence_node,
+            addr=self._addr,
+            initializer=self.initializer,
+            iterator=self.iterator
+        )
+
     @property
     def addr(self):
         if self._addr is None:
