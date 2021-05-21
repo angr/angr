@@ -271,6 +271,8 @@ class ConditionProcessor:
                             self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None,
                             self.remove_claripy_bool_asts(node.sequence_node, memo=memo),
                             addr=node.addr,
+                            initializer=node.initializer,
+                            iterator=node.iterator,
                             )
 
         elif isinstance(node, SwitchCaseNode):

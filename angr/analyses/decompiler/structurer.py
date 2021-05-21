@@ -310,7 +310,10 @@ class Structurer(Analysis):
                     new_seq = loop_node.sequence_node.copy()
                     new_seq.nodes[-1] = new_block
                     import ipdb; ipdb.set_trace()
-                    new_loop_node = LoopNode('for', loop_node.condition, new_seq, iterator=last_stmt)
+                    new_loop_node = LoopNode('for', loop_node.condition, new_seq,
+                                             addr=loop_node.addr,
+                                             iterator=last_stmt,
+                                             )
 
                     return True, new_loop_node
 

@@ -90,7 +90,9 @@ class EmptyNodeRemover:
         return LoopNode(node.sort,
                         node.condition,
                         new_seq,
-                        addr=node.addr
+                        addr=node.addr,
+                        initializer=node.initializer,
+                        iterator=node.iterator,
                         )
 
     def _handle_SwitchCase(self, node, **kwargs):
