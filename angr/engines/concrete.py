@@ -3,7 +3,7 @@ import threading
 
 from angr.errors import AngrError
 from .engine import SuccessorsMixin
-from ..errors import SimConcreteMemoryError, SimConcreteRegisterError
+from ..errors import SimConcreteRegisterError
 
 l = logging.getLogger("angr.engines.concrete")
 #l.setLevel(logging.DEBUG)
@@ -160,13 +160,5 @@ class SimEngineConcrete(SuccessorsMixin):
 
         except SimConcreteRegisterError:
             l.debug("read_register raise a SimConcreteRegisterError, ok!")
-
-        try:
-            concrete_target.read_memory(0x0, 0x4)
-            l.error("read_memory should raise a SimConcreteMemoryError when accessing non mapped memory")
-            return False
-
-        except SimConcreteMemoryError:
-            l.debug("read_register raise a SimConcreteMemoryError, ok!")
 
         return True
