@@ -252,6 +252,7 @@ void State::commit() {
 	}
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
+			compute_slice_of_instrs_for_vex_temps(symbolic_instr);
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
 		}
@@ -731,11 +732,17 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 			}
 		}
 	}
+	instr_slice_details_map.emplace(instr_addr, instr_slice_details);
+	return;
+}
+
+void State::compute_slice_of_instrs_for_vex_temps(instr_details_t &instr) {
 	std::queue<std::pair<taint_entity_t, address_t>> temps_to_process;
-	auto &curr_block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
+	auto &block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
+	auto &instr_taint_entry = block_taint_entry.block_instrs_taint_data_map.at(instr.instr_addr);
 	for (auto &dependency: instr_taint_entry.dependencies.at(TAINT_ENTITY_TMP)) {
-		auto vex_temp_deps_entry = curr_block_taint_entry.vex_temp_deps.find(dependency);
-		if (vex_temp_deps_entry == curr_block_taint_entry.vex_temp_deps.end()) {
+		auto vex_temp_deps_entry = block_taint_entry.vex_temp_deps.find(dependency);
+		if (vex_temp_deps_entry == block_taint_entry.vex_temp_deps.end()) {
 			// No dependency entries for this VEX temp
 			continue;
 		}
@@ -744,19 +751,26 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 			temps_to_process.emplace(std::make_pair(dependency, vex_setter_instr));
 		}
 	}
+	std::vector<instr_details_t> new_dep_instrs(instr.instr_deps.begin(), instr.instr_deps.end());
+	instr.instr_deps.clear();
 	while (!temps_to_process.empty()) {
 		auto &vex_tmp = temps_to_process.front();
-		if (vex_tmp.second != instr_addr) {
+		if (vex_tmp.second != instr.instr_addr) {
 			auto &tmp_instr_slice = instr_slice_details_map.at(vex_tmp.second);
-			auto &tmp_instr_details = curr_block_taint_entry.block_instrs_taint_data_map.at(vex_tmp.second);
-			instr_slice_details.concrete_registers.insert(tmp_instr_slice.concrete_registers.begin(), tmp_instr_slice.concrete_registers.end());
-			instr_slice_details.dependent_instrs.insert(tmp_instr_slice.dependent_instrs.begin(), tmp_instr_slice.dependent_instrs.end());
-			instr_slice_details.dependent_instrs.emplace(compute_instr_details(vex_tmp.second, tmp_instr_details));
+			auto &tmp_instr_details = block_taint_entry.block_instrs_taint_data_map.at(vex_tmp.second);
+			for (auto &reg: tmp_instr_slice.concrete_registers) {
+				auto reg_offset = reg.first;
+				auto reg_val = block_start_reg_values.at(reg_offset);
+				reg_val.size = reg.second;
+				instr.reg_deps.insert(reg_val);
+			}
+			new_dep_instrs.insert(new_dep_instrs.end(), tmp_instr_slice.dependent_instrs.begin(), tmp_instr_slice.dependent_instrs.end());
+			new_dep_instrs.emplace_back(compute_instr_details(vex_tmp.second, tmp_instr_details));
 		}
 		temps_to_process.pop();
-		for (auto &dep_vex_tmp: curr_block_taint_entry.vex_temp_deps.at(vex_tmp.first).second) {
-			auto vex_temp_deps_entry = curr_block_taint_entry.vex_temp_deps.find(dep_vex_tmp);
-			if (vex_temp_deps_entry == curr_block_taint_entry.vex_temp_deps.end()) {
+		for (auto &dep_vex_tmp: block_taint_entry.vex_temp_deps.at(vex_tmp.first).second) {
+			auto vex_temp_deps_entry = block_taint_entry.vex_temp_deps.find(dep_vex_tmp);
+			if (vex_temp_deps_entry == block_taint_entry.vex_temp_deps.end()) {
 				// No dependency entries for this VEX temp
 				continue;
 			}
@@ -764,7 +778,14 @@ void State::compute_slice_of_instrs(address_t instr_addr, const instruction_tain
 			temps_to_process.push(std::make_pair(dep_vex_tmp, vex_setter_instr));
 		}
 	}
-	instr_slice_details_map.emplace(instr_addr, instr_slice_details);
+	for (auto &dep_instr: new_dep_instrs) {
+		compute_slice_of_instrs_for_vex_temps(dep_instr);
+		instr.reg_deps.insert(dep_instr.reg_deps.begin(), dep_instr.reg_deps.end());
+		instr.instr_deps.insert(dep_instr.instr_deps.begin(), dep_instr.instr_deps.end());
+		dep_instr.reg_deps.clear();
+		dep_instr.instr_deps.clear();
+		instr.instr_deps.insert(dep_instr);
+	}
 	return;
 }
 
@@ -1708,7 +1729,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			reg_val.size = reg_size;
 			instr_details.reg_deps.insert(reg_val);
 		}
-		instr_details.instr_deps.insert(instr_details.instr_deps.end(), instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
+		instr_details.instr_deps.insert(instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
 		auto result = find_symbolic_mem_deps(instr_details);
 		instr_details.symbolic_mem_deps.insert(instr_details.symbolic_mem_deps.end(), result.begin(), result.end());
 		curr_block_details.symbolic_instrs.emplace_back(instr_details);
@@ -1835,7 +1856,7 @@ void State::continue_propagating_taint() {
 	return;
 }
 
-std::vector<std::pair<address_t, uint64_t>> State::find_symbolic_mem_deps(instr_details_t &instr) const {
+std::vector<std::pair<address_t, uint64_t>> State::find_symbolic_mem_deps(const instr_details_t &instr) const {
 	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 	for (auto &dep_instr: instr.instr_deps) {
 		auto result = find_symbolic_mem_deps(dep_instr);
@@ -1857,8 +1878,21 @@ void State::save_concrete_memory_deps(instr_details_t &instr) {
 		instr.memory_values = &(archived_memory_values.back()[0]);
 		instr.memory_values_count = archived_memory_values.back().size();
 	}
-	for (auto &dep_instr: instr.instr_deps) {
-		save_concrete_memory_deps(dep_instr);
+	std::queue<std::set<instr_details_t>::iterator> instrs_to_process;
+	for (auto it = instr.instr_deps.begin(); it != instr.instr_deps.end(); it++) {
+		instrs_to_process.push(it);
+	}
+	while (!instrs_to_process.empty()) {
+		auto &curr_instr = instrs_to_process.front();
+		if (curr_instr->has_concrete_memory_dep) {
+			archived_memory_values.emplace_back(mem_reads_map.at(curr_instr->instr_addr).memory_values);
+			curr_instr->memory_values = &(archived_memory_values.back()[0]);
+			curr_instr->memory_values_count = archived_memory_values.back().size();
+		}
+		instrs_to_process.pop();
+		for (auto it = curr_instr->instr_deps.begin(); it != curr_instr->instr_deps.end(); *it++) {
+			instrs_to_process.push(it);
+		}
 	}
 	return;
 }
