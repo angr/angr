@@ -1,11 +1,13 @@
 # pylint:disable=unused-argument,arguments-differ
 import logging
+from typing import Dict, List
+from collections import defaultdict
 
 import ailment
 
 from ..analysis import Analysis
 from .sequence_walker import SequenceWalker
-from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice
+from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice, ContinueNode
 from .condition_processor import ConditionProcessor
 from .utils import insert_node
 
@@ -108,34 +110,47 @@ class LoopSimplifier(SequenceWalker):
         }
 
         super().__init__(handlers)
+        self.continue_preludes: Dict[LoopNode, List[ailment.Block]] = defaultdict(list)
         self.walk(node)
 
-    def _handle_sequencenode(self, node, successor=None, loop=None, **kwargs):
-        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._handle(n0, successor=n1, loop=loop)
+    def _handle_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+        for n0, n1, n2 in zip(node.nodes, node.nodes[1:] + [successor], [predecessor] + node.nodes[:-1]):
+            self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
 
-    def _handle_codenode(self, node, successor=None, loop=None, **kwargs):
-        self._handle(node.node, successor=successor, loop=loop)
+    def _handle_codenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+        self._handle(node.node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
 
-    def _handle_conditionnode(self, node, successor=None, loop=None, **kwargs):
+    def _handle_conditionnode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         if node.true_node is not None:
-            self._handle(node.true_node, successor=successor, loop=loop)
+            self._handle(node.true_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
         if node.false_node is not None:
-            self._handle(node.false_node, successor=successor, loop=loop)
+            self._handle(node.false_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
 
-    def _handle_loopnode(self, node, successor=None, loop=None, **kwargs):
-        self._handle(node.sequence_node, successor=successor, loop=node)
+    def _handle_loopnode(self, node: LoopNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+        self._handle(node.sequence_node, predecessor=predecessor, successor=successor, loop=node, loop_successor=successor)
 
-    def _handle_multinode(self, node, successor=None, loop=None, **kwargs):
-        for n0, n1 in zip(node.nodes, node.nodes[1:] + [successor]):
-            self._handle(n0, successor=n1, loop=loop)
+        if node.sort == 'while' and self.continue_preludes[node] and \
+                all(block.statements for block in self.continue_preludes[node]) and \
+                all(block.statements[-1] == self.continue_preludes[node][0].statements[-1] for block in self.continue_preludes[node]):
+            # we found a loop iterator statement!
+            node.sort = 'for'
+            node.iterator = self.continue_preludes[node][0].statements[-1]
+            for block in self.continue_preludes[node]:
+                block.statements = block.statements[:-1]
 
-    def _handle_block(self, block, successor=None, loop=None, **kwargs):  # pylint:disable=no-self-use
         # find for-loop initializers
-        if block.statements and isinstance(successor, LoopNode) and \
-                isinstance(block.statements[-1], (ailment.Stmt.Assignment, ailment.Stmt.Store)):
-            successor.initializer = block.statements[-1]
-            block.statements = block.statements[:-1]
+        if node.sort == 'for' and isinstance(predecessor, ailment.Block) and predecessor.statements and \
+                isinstance(predecessor.statements[-1], (ailment.Stmt.Assignment, ailment.Stmt.Store)):
+            node.initializer = predecessor.statements[-1]
+            predecessor.statements = predecessor.statements[:-1]
+
+    def _handle_multinode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
+        for n0, n1, n2 in zip(node.nodes, node.nodes[1:] + [successor], [predecessor] + node.nodes[:-1]):
+            self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
+
+    def _handle_block(self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):  # pylint:disable=no-self-use
+        if isinstance(successor, ContinueNode) or successor is loop_successor:
+            self.continue_preludes[loop].append(block)
 
 
 class IfSimplifier(SequenceWalker):

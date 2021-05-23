@@ -256,8 +256,8 @@ class Structurer(Analysis):
             if r: continue
 
             # for (partial; missing initializer info)
-            r, loop_node = self._refine_loop_for(loop_node)
-            if r: continue
+            #r, loop_node = self._refine_loop_for(loop_node)
+            #if r: continue
 
             # no more changes
             break
