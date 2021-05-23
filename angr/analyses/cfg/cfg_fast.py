@@ -12,6 +12,7 @@ import claripy
 import cle
 import pyvex
 from cle.address_translator import AT
+from archinfo import Endness
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
@@ -3672,6 +3673,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         current_function_addr = addr_0
                     addr = addr_0
 
+            is_thumb = False
+            if is_arm_arch(self.project.arch) and addr % 2 == 1:
+                # thumb mode
+                is_thumb = True
+
             if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                 # decoding error
                 # is the current location already occupied and marked as non-code?
@@ -3692,6 +3698,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     irsb_size = 0
                 else:
                     irsb_size = irsb.size
+
+                # the default case
+                valid_ins = False
+                nodecode_size = 1
+
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
                 if irsb_string[-2:] == b'\x0f\x0b' and self.project.arch.name == 'AMD64':
                     # VEX supports ud2 and make it part of the block size, only in AMD64.
@@ -3709,9 +3720,34 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     valid_ins = True
                     # VEX does not support ud0 or ud1 or ud2 under AMD64. they are not part of the block size.
                     nodecode_size = 2
-                else:
-                    valid_ins = False
-                    nodecode_size = 1
+                elif is_arm_arch(self.project.arch):
+                    # check for UND
+                    # Ref: https://developer.arm.com/documentation/dui0489/c/arm-and-thumb-instructions/pseudo-instructions/und-pseudo-instruction
+                    # load raw bytes
+                    trailing = self.project.loader.memory.load((addr & 0xffff_fffe) + irsb_size, 4)
+                    trailing = trailing.ljust(4, b"\x00")
+                    if is_thumb:
+                        if self.project.arch.instruction_endness == Endness.LE:
+                            # swap endianness
+                            trailing = bytes([trailing[1]]) + bytes([trailing[0]]) + \
+                                       bytes([trailing[3]]) + bytes([trailing[2]])
+                        if trailing[0] == 0xde:
+                            # UND xx for THUMB-16
+                            valid_ins = True
+                            nodecode_size = 2
+                        elif trailing[0] == 0xf7 and (trailing[1] & 0xf0) == 0xf0 and (trailing[2] & 0xf0) == 0xa0 and (trailing[3] & 0xf0) == 0xf0:
+                            # UND xxx for THUMB-32
+                            valid_ins = True
+                            nodecode_size = 4
+                    else:
+                        if self.project.arch.instruction_endness == Endness.LE:
+                            # swap endianness
+                            trailing = trailing[::-1]
+                        if (trailing[0] & 0xf) == 7 and (trailing[1] & 0xf0) == 0xf0 and (trailing[3] & 0xf0) == 0xf0:
+                            # UND xxxx for ARM
+                            valid_ins = True
+                            nodecode_size = 4
+
                 self._seg_list.occupy(addr, irsb_size, 'code')
                 self._seg_list.occupy(addr + irsb_size, nodecode_size, 'nodecode')
                 if not valid_ins:
@@ -3721,12 +3757,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             )
                     return None, None, None, None
 
-            is_thumb = False
             # Occupy the block in segment list
             if irsb.size > 0:
-                if is_arm_arch(self.project.arch) and addr % 2 == 1:
-                    # thumb mode
-                    is_thumb=True
+
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
