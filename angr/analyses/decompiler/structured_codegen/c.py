@@ -1,21 +1,20 @@
-from typing import Optional, Dict, List, Tuple, Set, Any, TYPE_CHECKING
+from typing import Optional, Dict, List, Tuple, Set, Any, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
 
-from sortedcontainers import SortedDict
-
 from ailment import Block, Expr, Stmt
 
-from ...sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
+from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
     SimTypeBottom, SimTypeArray, SimTypeFunction)
-from ...sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
-from ...utils.constants import is_alignment_mask
-from ...utils.library import get_cpp_function_name
-from ...errors import UnsupportedNodeTypeError
-from .. import Analysis, register_analysis
-from .region_identifier import MultiNode
-from .structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
+from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from ....utils.constants import is_alignment_mask
+from ....utils.library import get_cpp_function_name
+from ....errors import UnsupportedNodeTypeError
+from ... import Analysis, register_analysis
+from ..region_identifier import MultiNode
+from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
                          SwitchCaseNode, ContinueNode)
+from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
@@ -24,119 +23,6 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 INDENT_DELTA = 4
-
-#
-#   Position Mapping Classes
-#
-
-class PositionMappingElement:
-
-    __slots__ = ('start', 'length', 'obj')
-
-    def __init__(self, start, length, obj):
-        self.start: int = start
-        self.length: int = length
-        self.obj = obj
-
-    def __contains__(self, offset):
-        return self.start <= offset < self.start + self.length
-
-    def __repr__(self):
-        return "<%d-%d: %s>" % (self.start, self.start + self.length, self.obj)
-
-
-class PositionMapping:
-
-    __slots__ = ('_posmap', )
-
-    DUPLICATION_CHECK = True
-
-    def __init__(self):
-        self._posmap: Dict[int,PositionMappingElement] = SortedDict()
-
-    def items(self):
-        return self._posmap.items()
-
-    #
-    # Public methods
-    #
-
-    def add_mapping(self, start_pos, length, obj):
-        # duplication check
-        if self.DUPLICATION_CHECK:
-            try:
-                pre = next(self._posmap.irange(maximum=start_pos, reverse=True))
-                if start_pos in self._posmap[pre]:
-                    raise ValueError("New mapping is overlapping with an existing element.")
-            except StopIteration:
-                pass
-
-        self._posmap[start_pos] = PositionMappingElement(start_pos, length, obj)
-
-    def get_node(self, pos: int):
-        element = self.get_element(pos)
-        if element is None:
-            return None
-        return element.obj
-
-    def get_element(self, pos: int) -> PositionMappingElement:
-        try:
-            pre = next(self._posmap.irange(maximum=pos, reverse=True))
-        except StopIteration:
-            return None
-
-        element = self._posmap[pre]
-        if pos in element:
-            return element
-        return None
-
-
-class InstructionMappingElement:
-
-    __slots__ = ('ins_addr', 'posmap_pos')
-
-    def __init__(self, ins_addr, posmap_pos):
-        self.ins_addr: int = ins_addr
-        self.posmap_pos: int = posmap_pos
-
-    def __contains__(self, offset: int):
-        return self.ins_addr == offset
-
-    def __repr__(self):
-        return "<%d: %d>" % (self.ins_addr, self.posmap_pos)
-
-
-class InstructionMapping:
-
-    __slots__ = ('_insmap', )
-
-    def __init__(self):
-        self._insmap: Dict[int,InstructionMappingElement] = SortedDict()
-
-    def items(self):
-        return self._insmap.items()
-
-    def add_mapping(self, ins_addr, posmap_pos):
-        if ins_addr in self._insmap:
-            if posmap_pos <= self._insmap[ins_addr].posmap_pos:
-                self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
-        else:
-            self._insmap[ins_addr] = InstructionMappingElement(ins_addr, posmap_pos)
-
-    def get_nearest_pos(self, ins_addr: int) -> int:
-        try:
-            pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
-            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
-        except StopIteration:
-            return None
-
-        e1: InstructionMappingElement = self._insmap[pre_max]
-        e2: InstructionMappingElement = self._insmap[pre_min]
-
-        if abs(ins_addr - e1.ins_addr) <= abs(ins_addr - e2.ins_addr):
-            return e1.posmap_pos
-        else:
-            return e2.posmap_pos
 
 #
 #   C Representation Classes
@@ -1428,11 +1314,11 @@ class CClosingObject:
     def __init__(self, opening_symbol):
         self.opening_symbol = opening_symbol
 
-
-class StructuredCodeGenerator(Analysis):
+class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
-                 show_casts=True, braces_on_own_lines=True):
+                 show_casts=True, braces_on_own_lines=True, flavor=None):
+        super().__init__(flavor=flavor)
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -1486,8 +1372,12 @@ class StructuredCodeGenerator(Analysis):
         self.stmt_posmap = None
         self.insmap = None
         self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
+        self.cfunc = None
 
-        self.cfunc = self._analyze()
+        self._analyze()
+
+        if flavor is not None:
+            self.kb.structured_code[(func.addr, flavor)] = self
 
     def reapply_options(self, options):
         for option, value in options:
@@ -1512,13 +1402,12 @@ class StructuredCodeGenerator(Analysis):
 
         self._memo = None  # clear the memo since it's useless now
 
-        cfunc = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
+        self.cfunc = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
                           self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name,
                           codegen=self)
         self._variables_in_use = None
 
-        self.regenerate_text(cfunc)
-        return cfunc
+        self.regenerate_text()
 
     def cleanup(self):
         """
@@ -1530,15 +1419,12 @@ class StructuredCodeGenerator(Analysis):
         self.nodemap = None
         self.text = None
 
-    def regenerate_text(self, cfunc: Optional[CFunction]=None) -> None:
+    def regenerate_text(self) -> None:
         """
         Re-render text and re-generate all sorts of mapping information.
         """
         self.cleanup()
-        if cfunc is None:
-            cfunc = self.cfunc
-        if cfunc is not None:
-            self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(cfunc)
+        self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(self.cfunc)
 
     def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
 
@@ -1638,7 +1524,7 @@ class StructuredCodeGenerator(Analysis):
         if (node, is_expr) in self._memo:
             return self._memo[(node, is_expr)]
 
-        handler = self._handlers.get(node.__class__, None)
+        handler: Optional[Callable] = self._handlers.get(node.__class__, None)
         if handler is not None:
             if isinstance(node, Stmt.Call):
                 # special case for Call
@@ -1689,9 +1575,9 @@ class StructuredCodeGenerator(Analysis):
 
         code = CIfElse(self._handle(condition_node.condition),
                        true_node=self._handle(condition_node.true_node, is_expr=False)
-                                 if condition_node.true_node else None,
+                       if condition_node.true_node else None,
                        false_node=self._handle(condition_node.false_node, is_expr=False)
-                                  if condition_node.false_node else None,
+                       if condition_node.false_node else None,
                        tags=tags,
                        codegen=self,
                        )
@@ -1990,7 +1876,7 @@ class StructuredCodeGenerator(Analysis):
 
     def _handle_Expr_ITE(self, expr: Expr.ITE):
         return CITE(self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse), tags=expr.tags,
-            codegen=self)
+                    codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
@@ -2011,5 +1897,5 @@ class StructuredCodeGenerator(Analysis):
     def _handle_Variable_SimMemoryVariable(self, variable):  # pylint:disable=no-self-use
         return self._cvariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
 
-
+StructuredCodeGenerator = CStructuredCodeGenerator
 register_analysis(StructuredCodeGenerator, 'StructuredCodeGenerator')

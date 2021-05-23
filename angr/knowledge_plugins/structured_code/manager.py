@@ -28,6 +28,11 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __contains__(self, key):
         return self._normalize_key(key) in self._codegens
 
+    def available_flavors(self, item):
+        if type(item) is str:
+            item = self._kb.labels.lookup(item)
+        return [flavor for func, flavor in self._codegens if func == item]
+
     def copy(self):
         raise NotImplementedError
 
