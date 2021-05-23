@@ -302,7 +302,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                 for constraint in next_state.solver.constraints:
                     original_constraint = constraint
                     # attempt simplification if this constraint has both config variables and time delta variables
-                    if list(self.config_vars)[0].args[0] in constraint.variables and delta.args[0] in constraint.variables:
+                    if any(x.args[0] in constraint.variables for x in self.config_vars) and delta.args[0] in constraint.variables:
                         simplified_constraint, self._expression_source = self._simplify_constraint(constraint,
                                                                                                    self._expression_source)
                         if simplified_constraint is not None:
