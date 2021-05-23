@@ -31,7 +31,7 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def available_flavors(self, item):
         if type(item) is str:
             item = self._kb.labels.lookup(item)
-        return [flavor for func, flavor in self._codegens.keys() if func == item]
+        return [flavor for func, flavor in self._codegens if func == item]
 
     def copy(self):
         raise NotImplementedError

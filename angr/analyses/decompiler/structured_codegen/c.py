@@ -1372,8 +1372,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.stmt_posmap = None
         self.insmap = None
         self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
+        self.cfunc = None
 
-        self.cfunc = self._analyze()
+        self._analyze()
 
         if flavor is not None:
             self.kb.structured_code[(func.addr, flavor)] = self
@@ -1401,13 +1402,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._memo = None  # clear the memo since it's useless now
 
-        cfunc = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
+        self.cfunc = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
                           self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name,
                           codegen=self)
         self._variables_in_use = None
 
-        self.regenerate_text(cfunc)
-        return cfunc
+        self.regenerate_text()
 
     def cleanup(self):
         """
@@ -1419,15 +1419,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.nodemap = None
         self.text = None
 
-    def regenerate_text(self, cfunc: Optional[CFunction]=None) -> None:
+    def regenerate_text(self) -> None:
         """
         Re-render text and re-generate all sorts of mapping information.
         """
         self.cleanup()
-        if cfunc is None:
-            cfunc = self.cfunc
-        if cfunc is not None:
-            self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(cfunc)
+        self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(self.cfunc)
 
     def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
 

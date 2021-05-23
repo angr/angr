@@ -1,14 +1,11 @@
 import os
 import re
 import logging
-from typing import TYPE_CHECKING
 from sortedcontainers import SortedList
 
 from ... import Analysis, register_analysis
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
-
-if TYPE_CHECKING:
-    from angr.knowledge_plugins.functions.function import Function
+from ....knowledge_plugins.functions.function import Function
 
 
 l = logging.getLogger(__name__)
@@ -103,7 +100,7 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
                     lines.add((*obj.addr_to_line[insn], insn))
 
         ranges = []
-        for filename, line, addr in lines:
+        for filename, line, _ in lines:
             if any(r[0] == filename and r[1] <= line <= r[2] for r in ranges):
                 continue
             file_lines = self._open_file(filename, cache=cache)
