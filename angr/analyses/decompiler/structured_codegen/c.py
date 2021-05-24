@@ -43,8 +43,8 @@ class CConstruct:
         """
         Creates the C reperesentation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
-        The posmap and stmt_posmap act as position maps for the location of each variable and statment to be
-        tracked for later GUI operations. The stmt_posmap also contains expressions that are nested inside of
+        The map_pos_to_node and map_pos_to_addr act as position maps for the location of each variable and statment to be
+        tracked for later GUI operations. The map_pos_to_addr also contains expressions that are nested inside of
         statments.
 
         :param indent:  # of indents (int)
@@ -68,23 +68,23 @@ class CConstruct:
             for s, obj in chunks:
                 # filter out anything that is not a statement or expression object
                 if isinstance(obj, (CStatement, CExpression)):
-                    # only add statements/expressions that can be address tracked into stmt_posmap
+                    # only add statements/expressions that can be address tracked into map_pos_to_addr
                     if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
                         last_insn_addr = obj.tags['ins_addr']
 
-                        # filter CVariables to make sure only first variable definitions are added to stmt_posmap
+                        # filter CVariables to make sure only first variable definitions are added to map_pos_to_addr
                         if isinstance(obj, CVariable):
                             if obj not in used_cvars:
                                 used_cvars.add(obj)
                                 stmt_posmap.add_mapping(pos, len(s), obj)
 
-                        # any other valid statement or expression should be added to stmt_posmap and
+                        # any other valid statement or expression should be added to map_pos_to_addr and
                         # tracked for instruction mapping from disassembly
                         else:
                             stmt_posmap.add_mapping(pos, len(s), obj)
                             insmap.add_mapping(obj.tags['ins_addr'], pos)
 
-                    # add all variables, constants, and function calls to posmap for highlighting
+                    # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     if isinstance(obj, (CVariable, CConstant, CFunctionCall)):
                         posmap.add_mapping(pos, len(s), obj)
 
@@ -1393,10 +1393,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.stmt_comments = stmt_comments if stmt_comments is not None else {}
 
         self.text = None
-        self.posmap = None
-        self.stmt_posmap = None
-        self.insmap = None
-        self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
+        self.map_pos_to_node = None
+        self.map_pos_to_addr = None
+        self.map_addr_to_pos = None
+        self.map_pos_to_ast: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.cfunc = None
 
         self._analyze()
@@ -1438,10 +1438,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         """
         Remove existing rendering results.
         """
-        self.posmap = None
-        self.stmt_posmap = None
-        self.insmap = None
-        self.nodemap = None
+        self.map_pos_to_node = None
+        self.map_pos_to_addr = None
+        self.map_addr_to_pos = None
+        self.map_pos_to_ast = None
         self.text = None
 
     def regenerate_text(self) -> None:
@@ -1449,7 +1449,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         Re-render text and re-generate all sorts of mapping information.
         """
         self.cleanup()
-        self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(self.cfunc)
+        self.text, self.map_pos_to_node, self.map_pos_to_addr, self.map_addr_to_pos, self.map_pos_to_ast = self.render_text(self.cfunc)
 
     def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
 
