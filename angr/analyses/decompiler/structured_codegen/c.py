@@ -59,9 +59,6 @@ class CConstruct:
             # track all CVariables to assure they are only used in definitions for tabbing
             used_cvars = set()
 
-            # track all Function Calls for highlighting
-            used_func_calls = set()
-
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 # filter out anything that is not a statement or expression object
@@ -82,12 +79,8 @@ class CConstruct:
                             insmap.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to posmap for highlighting
-                    if isinstance(obj, (CVariable, CConstant)):
+                    if isinstance(obj, (CVariable, CConstant, CFunctionCall)):
                         posmap.add_mapping(pos, len(s), obj)
-                    elif isinstance(obj, CFunctionCall):
-                        if obj not in used_func_calls:
-                            used_func_calls.add(obj)
-                            posmap.add_mapping(pos, len(s), obj)
 
                 # add (), {}, and [] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction)):
