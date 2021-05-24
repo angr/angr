@@ -174,7 +174,7 @@ def test_simple_loop():
     print(codegen.text)
 
     nose.tools.assert_greater(len(codegen.map_pos_to_node._posmap), 1)
-    nose.tools.assert_greater(len(codegen.map_ast_to_node), 1)
+    nose.tools.assert_greater(len(codegen.map_ast_to_pos), 1)
 
 
 def test_recursive_structuring():

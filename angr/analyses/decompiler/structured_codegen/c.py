@@ -1396,7 +1396,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_node: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
+        self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.cfunc = None
 
         self._analyze()
@@ -1441,7 +1441,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_node = None
+        self.map_ast_to_pos = None
         self.text = None
 
     def regenerate_text(self) -> None:
@@ -1449,37 +1449,37 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         Re-render text and re-generate all sorts of mapping information.
         """
         self.cleanup()
-        self.text, self.map_pos_to_node, self.map_pos_to_addr, self.map_addr_to_pos, self.map_ast_to_node = self.render_text(self.cfunc)
+        self.text, self.map_pos_to_node, self.map_pos_to_addr, self.map_addr_to_pos, self.map_ast_to_pos = self.render_text(self.cfunc)
 
     def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
 
         pos_to_node = PositionMapping()
         pos_to_addr = PositionMapping()
         addr_to_pos = InstructionMapping()
-        ast_to_node = defaultdict(set)
+        ast_to_pos = defaultdict(set)
 
         text = cfunc.c_repr(indent=self._indent, pos_to_node=pos_to_node, pos_to_addr=pos_to_addr, addr_to_pos=addr_to_pos)
 
         for elem, node in pos_to_node.items():
             if isinstance(node.obj, CConstant):
-                ast_to_node[node.obj.value].add(elem)
+                ast_to_pos[node.obj.value].add(elem)
             elif isinstance(node.obj, CVariable):
                 if node.obj.unified_variable is not None:
-                    ast_to_node[node.obj.unified_variable].add(elem)
+                    ast_to_pos[node.obj.unified_variable].add(elem)
                 else:
-                    ast_to_node[node.obj.variable].add(elem)
+                    ast_to_pos[node.obj.variable].add(elem)
             elif isinstance(node.obj, CFunctionCall):
                 if node.obj.callee_func is not None:
-                    ast_to_node[node.obj.callee_func].add(elem)
+                    ast_to_pos[node.obj.callee_func].add(elem)
                 else:
-                    ast_to_node[node.obj.callee_target].add(elem)
+                    ast_to_pos[node.obj.callee_target].add(elem)
             elif isinstance(node.obj, CStructField):
                 key = (node.obj.struct_type, node.obj.offset)
-                ast_to_node[key].add(elem)
+                ast_to_pos[key].add(elem)
             else:
-                ast_to_node[node.obj].add(elem)
+                ast_to_pos[node.obj].add(elem)
 
-        return text, pos_to_node, pos_to_addr, addr_to_pos, ast_to_node
+        return text, pos_to_node, pos_to_addr, addr_to_pos, ast_to_pos
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
