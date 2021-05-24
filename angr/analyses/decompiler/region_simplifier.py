@@ -129,15 +129,15 @@ class LoopSimplifier(SequenceWalker):
     def _handle_loopnode(self, node: LoopNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         self._handle(node.sequence_node, predecessor=predecessor, successor=successor, loop=node, loop_successor=successor)
 
+        # find for-loop iterators
         if node.sort == 'while' and self.continue_preludes[node] and \
-                (node.condition is not None or len(self.continue_preludes[node]) > 1) and \
-                all(block.statements for block in self.continue_preludes[node]) and \
-                all(block.statements[-1] == self.continue_preludes[node][0].statements[-1] for block in self.continue_preludes[node]):
-            # we found a loop iterator statement!
-            node.sort = 'for'
-            node.iterator = self.continue_preludes[node][0].statements[-1]
-            for block in self.continue_preludes[node]:
-                block.statements = block.statements[:-1]
+                (node.condition is not None or len(self.continue_preludes[node]) > 1):
+            if all(block.statements for block in self.continue_preludes[node]) and \
+                    all(block.statements[-1] == self.continue_preludes[node][0].statements[-1] for block in self.continue_preludes[node]):
+                node.sort = 'for'
+                node.iterator = self.continue_preludes[node][0].statements[-1]
+                for block in self.continue_preludes[node]:
+                    block.statements = block.statements[:-1]
 
         # find for-loop initializers
         if isinstance(predecessor, MultiNode):
