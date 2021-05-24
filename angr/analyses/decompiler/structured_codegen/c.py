@@ -52,9 +52,14 @@ class CConstruct:
         :return:
         """
 
+        pending_stmt_comments = dict(self.codegen.stmt_comments)
+        pending_expr_comments = dict(self.codegen.expr_comments)
+
         def mapper(chunks, posmap: PositionMapping, stmt_posmap, insmap):
             # start all positions at beginning of document
             pos = 0
+
+            last_insn_addr = None
 
             # track all CVariables to assure they are only used in definitions for tabbing
             used_cvars = set()
@@ -65,6 +70,7 @@ class CConstruct:
                 if isinstance(obj, (CStatement, CExpression)):
                     # only add statements/expressions that can be address tracked into stmt_posmap
                     if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
+                        last_insn_addr = obj.tags['ins_addr']
 
                         # filter CVariables to make sure only first variable definitions are added to stmt_posmap
                         if isinstance(obj, CVariable):
@@ -86,8 +92,31 @@ class CConstruct:
                 elif isinstance(obj, (CClosingObject, CFunction)):
                     posmap.add_mapping(pos, len(s), obj)
 
+                if s.endswith('\n'):
+                    text = pending_stmt_comments.pop(last_insn_addr, None)
+                    if text is not None:
+                        todo = '  // ' + text
+                        pos += len(s) - 1
+                        yield s[:-1]
+                        pos += len(todo)
+                        yield todo
+                        s = '\n'
+
                 pos += len(s)
                 yield s
+
+                text = pending_expr_comments.pop(last_insn_addr, None)
+                if text is not None:
+                    todo = ' /*' + text + '*/ '
+                    pos += len(todo)
+                    yield todo
+
+            if pending_expr_comments or pending_stmt_comments:
+                yield '// Orphaned comments\n'
+                for text in pending_stmt_comments.values():
+                    yield '// ' + text + '\n'
+                for text in pending_expr_comments.values():
+                    yield '/* ' + text + '*/\n'
 
         # A special note about this line:
         # Polymorphism allows that the c_repr_chunks() call will be called
@@ -1310,7 +1339,8 @@ class CClosingObject:
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
-                 show_casts=True, braces_on_own_lines=True, flavor=None):
+                 show_casts=True, braces_on_own_lines=True, flavor=None,
+                 stmt_comments=None, expr_comments=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1359,6 +1389,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._indent = indent
         self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
+        self.expr_comments = expr_comments if expr_comments is not None else {}
+        self.stmt_comments = stmt_comments if stmt_comments is not None else {}
 
         self.text = None
         self.posmap = None
