@@ -1616,7 +1616,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                                 )
         elif loop_node.sort == 'for':
             return CForLoop(None if loop_node.initializer is None else self._handle(loop_node.initializer),
-                            self._handle(loop_node.condition),
+                            None if loop_node.condition is None else self._handle(loop_node.condition),
                             None if loop_node.iterator is None else self._handle(loop_node.iterator),
                             self._handle(loop_node.sequence_node, is_expr=False),
                             tags=tags,
