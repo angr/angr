@@ -267,11 +267,10 @@ class ConditionProcessor:
 
         elif isinstance(node, LoopNode):
 
-            return LoopNode(node.sort,
-                            self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None,
-                            self.remove_claripy_bool_asts(node.sequence_node, memo=memo),
-                            addr=node.addr,
-                            )
+            result = node.copy()
+            result.condition = self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None
+            result.sequence_node = self.remove_claripy_bool_asts(node.sequence_node, memo=memo)
+            return result
 
         elif isinstance(node, SwitchCaseNode):
             return SwitchCaseNode(self.convert_claripy_bool_ast(node.switch_expr, memo=memo),

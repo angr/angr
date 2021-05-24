@@ -186,11 +186,24 @@ class ConditionNode(BaseNode):
 
 
 class LoopNode(BaseNode):
-    def __init__(self, sort, condition, sequence_node, addr=None):
+    def __init__(self, sort, condition, sequence_node, addr=None, continue_addr=None, initializer=None, iterator=None):
         self.sort = sort
         self.condition = condition
         self.sequence_node = sequence_node
+        self.initializer = initializer
+        self.iterator = iterator
         self._addr = addr
+        self._continue_addr = continue_addr
+
+    def copy(self):
+        return LoopNode(
+            self.sort,
+            self.condition,
+            self.sequence_node,
+            addr=self._addr,
+            initializer=self.initializer,
+            iterator=self.iterator
+        )
 
     @property
     def addr(self):
@@ -198,6 +211,17 @@ class LoopNode(BaseNode):
             return self.sequence_node.addr
         else:
             return self._addr
+
+    @property
+    def continue_addr(self):
+        if self._continue_addr is None:
+            return self.addr
+        else:
+            return self._continue_addr
+
+    @continue_addr.setter
+    def continue_addr(self, value):
+        self._continue_addr = value
 
 
 class BreakNode(BaseNode):
