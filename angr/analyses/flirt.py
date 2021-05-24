@@ -2,10 +2,7 @@ from functools import partial
 from typing import Union, TYPE_CHECKING
 import logging
 
-try:
-    import nampa
-except ImportError:
-    nampa = None
+import nampa
 
 from ..flirt import FlirtSignature
 from .analysis import Analysis
@@ -19,9 +16,6 @@ _l = logging.getLogger(name=__name__)
 
 class FlirtAnalysis(Analysis):
     def __init__(self, sig: Union[FlirtSignature,str]):
-        if nampa is None:
-            raise ImportError("Cannot import nampa. Please install nampa first before using %s" % self.__class__)
-
         if isinstance(sig, str):
             # this is a file path
             self.sig = FlirtSignature(self.project.arch.name.lower(), self.project.simos.name.lower(), "Temporary",
