@@ -124,7 +124,7 @@ class BaseStructuredCodeGenerator:
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_pos_to_ast: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
+        self.map_ast_to_node: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
 
     def reapply_options(self, options):
         pass

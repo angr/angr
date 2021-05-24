@@ -39,7 +39,7 @@ class CConstruct:
     def __init__(self, codegen):
         self.codegen: 'StructuredCodeGenerator' = codegen
 
-    def c_repr(self, indent=0, posmap=None, stmt_posmap=None, insmap=None):
+    def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
         Creates the C reperesentation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
@@ -48,14 +48,14 @@ class CConstruct:
         statments.
 
         :param indent:  # of indents (int)
-        :param posmap:
+        :param pos_to_nodemap_pos_to_ast:
         :return:
         """
 
         pending_stmt_comments = dict(self.codegen.stmt_comments)
         pending_expr_comments = dict(self.codegen.expr_comments)
 
-        def mapper(chunks, posmap: PositionMapping, stmt_posmap, insmap):
+        def mapper(chunks):
             # start all positions at beginning of document
             pos = 0
 
@@ -76,21 +76,21 @@ class CConstruct:
                         if isinstance(obj, CVariable):
                             if obj not in used_cvars:
                                 used_cvars.add(obj)
-                                stmt_posmap.add_mapping(pos, len(s), obj)
+                                pos_to_addr.add_mapping(pos, len(s), obj)
 
                         # any other valid statement or expression should be added to map_pos_to_addr and
                         # tracked for instruction mapping from disassembly
                         else:
-                            stmt_posmap.add_mapping(pos, len(s), obj)
-                            insmap.add_mapping(obj.tags['ins_addr'], pos)
+                            pos_to_addr.add_mapping(pos, len(s), obj)
+                            addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     if isinstance(obj, (CVariable, CConstant, CFunctionCall)):
-                        posmap.add_mapping(pos, len(s), obj)
+                        pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, and [] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction)):
-                    posmap.add_mapping(pos, len(s), obj)
+                    pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith('\n'):
                     text = pending_stmt_comments.pop(last_insn_addr, None)
@@ -122,7 +122,7 @@ class CConstruct:
         # Polymorphism allows that the c_repr_chunks() call will be called
         # by the CFunction class, which will then call each statement within it and construct
         # the chunks that get printed in qccode_edit in angr-management.
-        return ''.join(mapper(self.c_repr_chunks(indent), posmap, stmt_posmap, insmap))
+        return ''.join(mapper(self.c_repr_chunks(indent)))
 
     def c_repr_chunks(self, indent=0):
         raise NotImplementedError()
@@ -1396,7 +1396,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_pos_to_ast: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
+        self.map_ast_to_node: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.cfunc = None
 
         self._analyze()
@@ -1441,7 +1441,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_pos_to_ast = None
+        self.map_ast_to_node = None
         self.text = None
 
     def regenerate_text(self) -> None:
@@ -1449,37 +1449,37 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         Re-render text and re-generate all sorts of mapping information.
         """
         self.cleanup()
-        self.text, self.map_pos_to_node, self.map_pos_to_addr, self.map_addr_to_pos, self.map_pos_to_ast = self.render_text(self.cfunc)
+        self.text, self.map_pos_to_node, self.map_pos_to_addr, self.map_addr_to_pos, self.map_ast_to_node = self.render_text(self.cfunc)
 
     def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
 
-        posmap = PositionMapping()
-        stmt_posmap = PositionMapping()
-        insmap = InstructionMapping()
-        nodemap = defaultdict(set)
+        pos_to_node = PositionMapping()
+        pos_to_addr = PositionMapping()
+        addr_to_pos = InstructionMapping()
+        ast_to_node = defaultdict(set)
 
-        text = cfunc.c_repr(indent=self._indent, posmap=posmap, stmt_posmap=stmt_posmap, insmap=insmap)
+        text = cfunc.c_repr(indent=self._indent, pos_to_node=pos_to_node, pos_to_addr=pos_to_addr, addr_to_pos=addr_to_pos)
 
-        for elem, node in posmap.items():
+        for elem, node in pos_to_node.items():
             if isinstance(node.obj, CConstant):
-                nodemap[node.obj.value].add(elem)
+                ast_to_node[node.obj.value].add(elem)
             elif isinstance(node.obj, CVariable):
                 if node.obj.unified_variable is not None:
-                    nodemap[node.obj.unified_variable].add(elem)
+                    ast_to_node[node.obj.unified_variable].add(elem)
                 else:
-                    nodemap[node.obj.variable].add(elem)
+                    ast_to_node[node.obj.variable].add(elem)
             elif isinstance(node.obj, CFunctionCall):
                 if node.obj.callee_func is not None:
-                    nodemap[node.obj.callee_func].add(elem)
+                    ast_to_node[node.obj.callee_func].add(elem)
                 else:
-                    nodemap[node.obj.callee_target].add(elem)
+                    ast_to_node[node.obj.callee_target].add(elem)
             elif isinstance(node.obj, CStructField):
                 key = (node.obj.struct_type, node.obj.offset)
-                nodemap[key].add(elem)
+                ast_to_node[key].add(elem)
             else:
-                nodemap[node.obj].add(elem)
+                ast_to_node[node.obj].add(elem)
 
-        return text, posmap, stmt_posmap, insmap, nodemap
+        return text, pos_to_node, pos_to_addr, addr_to_pos, ast_to_node
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
