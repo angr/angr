@@ -16,7 +16,7 @@ class DefaultFillerMixin(MemoryMixin):
             endness = self.state.project.arch.memory_endness
             bvv = self.state.solver.BVV(mem)
             return bvv if endness == 'Iend_BE' else bvv.reversed
-        
+
         if fill_missing is False:
             raise SimMemoryMissingError(addr, size)
 
