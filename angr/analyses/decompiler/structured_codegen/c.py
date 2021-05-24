@@ -64,18 +64,24 @@ class CConstruct:
             # track all Function Calls for highlighting
             used_func_calls = set()
 
+            # track all variables so we can tell if this is a declaration or not
+            used_vars = set()
+
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 # filter out anything that is not a statement or expression object
                 if isinstance(obj, (CStatement, CExpression)):
                     # only add statements/expressions that can be address tracked into map_pos_to_addr
                     if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
-                        last_insn_addr = obj.tags['ins_addr']
+                        if isinstance(obj, CVariable) and obj not in used_vars:
+                            used_vars.add(obj)
+                        else:
+                            last_insn_addr = obj.tags['ins_addr']
 
-                        # all valid statements and expressions should be added to map_pos_to_addr and
-                        # tracked for instruction mapping from disassembly
-                        pos_to_addr.add_mapping(pos, len(s), obj)
-                        addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
+                            # all valid statements and expressions should be added to map_pos_to_addr and
+                            # tracked for instruction mapping from disassembly
+                            pos_to_addr.add_mapping(pos, len(s), obj)
+                            addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     if isinstance(obj, (CVariable, CConstant)):
