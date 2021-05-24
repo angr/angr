@@ -61,9 +61,6 @@ class CConstruct:
 
             last_insn_addr = None
 
-            # track all CVariables to assure they are only used in definitions for tabbing
-            used_cvars = set()
-
             # track all Function Calls for highlighting
             used_func_calls = set()
 
@@ -75,17 +72,10 @@ class CConstruct:
                     if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
                         last_insn_addr = obj.tags['ins_addr']
 
-                        # filter CVariables to make sure only first variable definitions are added to map_pos_to_addr
-                        if isinstance(obj, CVariable):
-                            if obj not in used_cvars:
-                                used_cvars.add(obj)
-                                pos_to_addr.add_mapping(pos, len(s), obj)
-
-                        # any other valid statement or expression should be added to map_pos_to_addr and
+                        # all valid statements and expressions should be added to map_pos_to_addr and
                         # tracked for instruction mapping from disassembly
-                        else:
-                            pos_to_addr.add_mapping(pos, len(s), obj)
-                            addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
+                        pos_to_addr.add_mapping(pos, len(s), obj)
+                        addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     if isinstance(obj, (CVariable, CConstant)):
@@ -112,11 +102,12 @@ class CConstruct:
                 pos += len(s)
                 yield s
 
-                text = pending_expr_comments.pop(last_insn_addr, None)
-                if text is not None:
-                    todo = ' /*' + text + '*/ '
-                    pos += len(todo)
-                    yield todo
+                if isinstance(obj, CExpression):
+                    text = pending_expr_comments.pop(last_insn_addr, None)
+                    if text is not None:
+                        todo = ' /*' + text + '*/ '
+                        pos += len(todo)
+                        yield todo
 
             if pending_expr_comments or pending_stmt_comments:
                 yield '// Orphaned comments\n'
@@ -1711,9 +1702,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     offset = None
 
             if base is not None and offset is not None:
-                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type)
+                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type, tags=stmt.tags)
             else:
-                cvariable = self._cvariable(cvariable, offset=None)
+                cvariable = self._cvariable(cvariable, offset=None, tags=stmt.tags)
         else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
@@ -1781,7 +1772,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ret_expr = None
         if stmt.ret_expr is not None:
             if stmt.ret_expr.variable is not None:
-                ret_expr = self._cvariable(stmt.ret_expr.variable, offset=stmt.ret_expr.variable_offset)
+                ret_expr = self._cvariable(stmt.ret_expr.variable, offset=stmt.ret_expr.variable_offset, tags=stmt.ret_expr.tags)
             else:
                 ret_expr = self._handle(stmt.ret_expr)
 
@@ -1855,7 +1846,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
         l.warning("FIXME: Leftover Tmp expressions are found.")
-        return self._cvariable(SimTemporaryVariable(expr.tmp_idx))
+        return self._cvariable(SimTemporaryVariable(expr.tmp_idx), tags=expr.tags)
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
@@ -1913,7 +1904,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
         if expr.variable is not None:
-            return CUnaryOp('Reference', expr, variable=self._handle(expr.variable), tags=expr.tags, codegen=self)
+            var_thing = self._handle(expr.variable)
+            var_thing.tags = dict(expr.tags)
+            var_thing.tags['ins_addr'] = var_thing.tags['def_at'].ins_addr
+            return CUnaryOp('Reference', expr, variable=var_thing, codegen=self)
 
         # FIXME
         r = CUnaryOp('Reference', expr, variable=None, tags=expr.tags, codegen=self)
