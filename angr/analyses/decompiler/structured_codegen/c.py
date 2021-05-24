@@ -102,7 +102,7 @@ class CConstruct:
         # the chunks that get printed in qccode_edit in angr-management.
         return ''.join(mapper(self.c_repr_chunks(indent), posmap, stmt_posmap, insmap))
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         raise NotImplementedError()
 
     @staticmethod
@@ -195,7 +195,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield "\n", None
 
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent)
 
@@ -283,7 +283,7 @@ class CStatements(CStatement):
 
         self.statements = statements
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         for stmt in self.statements:
             yield from stmt.c_repr_chunks(indent=indent)
@@ -302,7 +302,7 @@ class CAILBlock(CStatement):
 
         self.block = block
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
         r = str(self.block)
@@ -335,7 +335,7 @@ class CWhileLoop(CLoop):
         self.body = body
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -377,7 +377,7 @@ class CDoWhileLoop(CLoop):
         self.body = body
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
         brace = CClosingObject("{")
@@ -427,7 +427,7 @@ class CForLoop(CStatement):
 
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         brace = CClosingObject("{")
         paren = CClosingObject("(")
@@ -476,7 +476,7 @@ class CIfElse(CStatement):
         if self.true_node is None and self.false_node is None:
             raise ValueError("'true_node' and 'false_node' cannot be both unspecified.")
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
         paren = CClosingObject("(")
@@ -536,7 +536,7 @@ class CIfBreak(CStatement):
         self.condition = condition
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
         paren = CClosingObject("(")
@@ -572,7 +572,7 @@ class CBreak(CStatement):
         super().__init__(**kwargs)
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -591,7 +591,7 @@ class CContinue(CStatement):
         super().__init__(**kwargs)
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -614,7 +614,7 @@ class CSwitchCase(CStatement):
         self.default = default
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
         paren = CClosingObject("(")
@@ -705,7 +705,7 @@ class CFunctionCall(CStatement, CExpression):
         else:
             raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -751,7 +751,7 @@ class CReturn(CStatement):
         self.retval = retval
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -775,7 +775,7 @@ class CGoto(CStatement):
         self.target = target
         self.tags = tags
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -797,7 +797,7 @@ class CUnsupportedStatement(CStatement):
 
         self.stmt = stmt
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent=indent)
 
@@ -823,7 +823,7 @@ class CStructField(CExpression):
     def type(self):
         return self.struct_type
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         yield str(self.field), self
 
 
@@ -837,7 +837,7 @@ class CPlaceholder(CExpression):
 
         self.placeholder: str = placeholder
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.placeholder, self
 
 
@@ -871,7 +871,7 @@ class CVariable(CExpression):
         else:
             yield from self.offset.c_repr_chunks()
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         v = self.variable if self.unified_variable is None else self.unified_variable
 
@@ -1006,7 +1006,7 @@ class CUnaryOp(CExpression):
                 self._type = self.operand.type
         return self._type
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         if self.variable is not None:
             yield "&", self
             yield from self.variable.c_repr_chunks()
@@ -1084,7 +1084,7 @@ class CBinaryOp(CExpression):
                 return i
         return len(precedence_list)
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         if self.variable is not None:
             yield "&", self
@@ -1224,7 +1224,7 @@ class CTypeCast(CExpression):
             return self.dst_type
         return self._type
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         if self.codegen.show_casts:
             paren = CClosingObject("(")
             yield "(", paren
@@ -1251,7 +1251,7 @@ class CConstant(CExpression):
     def type(self):
         return self._type
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
 
         if self.variable is not None:
             yield from self.variable.c_repr_chunks()
@@ -1302,7 +1302,7 @@ class CRegister(CExpression):
         # FIXME
         return SimTypeInt()
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         yield str(self.reg), None
 
 
@@ -1321,7 +1321,7 @@ class CITE(CExpression):
     def type(self):
         return SimTypeInt()
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         paren = CClosingObject("(")
         yield "(", paren
         yield from self.cond.c_repr_chunks()
@@ -1348,7 +1348,7 @@ class CDirtyExpression(CExpression):
     def type(self):
         return SimTypeInt()
 
-    def c_repr_chunks(self, indent=0):
+    def c_repr_chunks(self, indent=0, asexpr=False):
         yield str(self.dirty), None
 
 
