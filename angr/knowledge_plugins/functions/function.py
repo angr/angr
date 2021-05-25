@@ -844,10 +844,13 @@ class Function(Serializable):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
+            node._graph = self.transition_graph
+            if node.addr in self:
+                # we add each node only once
+                continue
             self.transition_graph.add_node(node)
             if not isinstance(node, CodeNode):
                 continue
-            node._graph = self.transition_graph
             if node.addr not in self or self._block_sizes[node.addr] == 0:
                 self._block_sizes[node.addr] = node.size
             if node.addr == self.addr:
