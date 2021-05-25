@@ -6,7 +6,8 @@ from ...serializable import Serializable
 class IndirectJumpType:
     Jumptable_AddressLoadedFromMemory = 0
     Jumptable_AddressComputed = 1
-    Unknown = 2
+    Vtable = 3
+    Unknown = 255
 
 
 class IndirectJump(Serializable):
@@ -35,8 +36,11 @@ class IndirectJump(Serializable):
     def __repr__(self):
 
         status = ""
-        if self.jumptable:
-            status = "jumptable"
+        if self.jumptable or self.jumptable_entries:
+            if self.type == IndirectJumpType.Vtable:
+                status = "vtable"
+            else:
+                status = "jumptable"
             if self.jumptable_addr is not None:
                 status += "@%#08x" % self.jumptable_addr
             if self.jumptable_entries is not None:

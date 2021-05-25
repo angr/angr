@@ -16,7 +16,7 @@ from archinfo import Endness
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump
+from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
@@ -2648,10 +2648,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         jump.resolved_targets = targets
         all_targets = set(targets)
         for addr in all_targets:
-            to_outside = jump.jumpkind == 'Ijk_Call' or addr in self.functions or not self._addrs_belong_to_same_section(jump.addr, addr)
+            to_outside = (jump.jumpkind == 'Ijk_Call'
+                          or jump.type == IndirectJumpType.Vtable
+                          or addr in self.functions
+                          or not self._addrs_belong_to_same_section(jump.addr, addr))
 
             # TODO: get a better estimate of the function address
-            target_func_addr = jump.func_addr if not to_outside else addr
+            if jump.type == IndirectJumpType.Vtable:
+                target_func_addr = addr
+            else:
+                target_func_addr = jump.func_addr if not to_outside else addr
             func_edge = FunctionTransitionEdge(self._nodes[source_addr], addr, jump.func_addr, to_outside=to_outside,
                                                dst_func_addr=target_func_addr
                                                )
