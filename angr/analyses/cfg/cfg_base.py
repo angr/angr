@@ -2256,6 +2256,8 @@ class CFGBase(Analysis):
                 # reg and reg
                 if op0.reg == op1.reg:
                     return True
+        elif insn_name in {"ud0", "ud1", "ud2"}:
+            return True
 
         # add more types of no-op instructions here :-)
 
