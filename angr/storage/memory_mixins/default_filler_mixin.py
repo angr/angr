@@ -13,7 +13,7 @@ class DefaultFillerMixin(MemoryMixin):
                        **kwargs):
         if self.state.project and self.state.project.concrete_target:
             mem = self.state.project.concrete_target.read_memory(addr, size)
-            endness = self.state.project.arch.memory_endness
+            endness = kwargs["endness"]
             bvv = self.state.solver.BVV(mem)
             return bvv if endness == 'Iend_BE' else bvv.reversed
 
