@@ -1,6 +1,8 @@
 from typing import Optional
 import logging
 
+import claripy
+
 from ..knowledge_plugins.cfg import CFGModel
 from ..analyses.cfg import CFGUtils
 from . import Analysis, register_analysis
@@ -45,7 +47,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 # if it's a normal function, we attempt to perform variable recovery
                 if self._recover_variables and self.function_needs_variable_recovery(func):
                     _l.info("Performing variable recovery on %r...", func)
-                    _ = self.project.analyses.VariableRecoveryFast(func, kb=self.kb, low_priority=self._low_priority)
+                    try:
+                        _ = self.project.analyses.VariableRecoveryFast(func, kb=self.kb, low_priority=self._low_priority)
+                    except claripy.ClaripyError:
+                        _l.warning("An claripy exception occurred during variable recovery analysis on function %#x.",
+                                   func.addr,
+                                   exc_info=True,
+                                   )
+                        continue
 
                 # determine the calling convention of each function
                 cc_analysis = self.project.analyses.CallingConvention(func, cfg=self._cfg,
