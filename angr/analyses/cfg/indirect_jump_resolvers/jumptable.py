@@ -1326,6 +1326,9 @@ class JumpTableResolver(IndirectJumpResolver):
         all_targets = [ ]
         jumptable_addr_vsa = jumptable_addr._model_vsa
 
+        if not isinstance(jumptable_addr_vsa, claripy.vsa.StridedInterval):
+            return None
+
         # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
         # while the read statement reads a word size at a time.
         # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
