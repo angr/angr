@@ -22,6 +22,7 @@ from .binary_optimizer import BinaryOptimizer
 from .disassembly import Disassembly
 from .variable_recovery import VariableRecovery, VariableRecoveryFast
 from .identifier import Identifier
+from .insight import Insights
 from .callee_cleanup_finder import CalleeCleanupFinder
 from .reaching_definitions import ReachingDefinitionsAnalysis
 from .calling_convention import CallingConventionAnalysis, FactCollector
@@ -85,6 +86,7 @@ __all__ = (
     "ForwardAnalysis",
     "Identifier",
     "InitializationFinder",
+    "Insights",
     "LoopFinder",
     "PackingDetector",
     "PatchFinderAnalysis",
