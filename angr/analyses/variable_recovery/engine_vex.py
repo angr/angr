@@ -240,7 +240,10 @@ class SimEngineVRVEX(
         result_size = expr.result_size(self.tyenv)
         if r0.data.concrete and r1.data.concrete:
             # constants
-            return RichR(r0.data / r1.data)
+            try:
+                return RichR(r0.data / r1.data)
+            except ZeroDivisionError:
+                pass
 
         r = self.state.top(result_size)
         return RichR(r)
