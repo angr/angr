@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .knowledge_plugins import TypesStore
     from .knowledge_plugins import PropagationManager
     from .knowledge_plugins import XRefManager
+    from .knowledge_plugins import InsightManager
 
 
 l = logging.getLogger(name=__name__)
@@ -42,6 +43,7 @@ class KnowledgeBase:
     propagations: PropagationManager
     xrefs: XRefManager
     decompilations: StructuredCodeManager
+    insights: InsightManager
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
