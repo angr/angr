@@ -839,27 +839,36 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
+    def _update_local_blocks(self, node: CodeNode):
+        self._local_blocks[node.addr] = node
+        self._local_block_addrs.add(node.addr)
+
+    def _update_addr_to_block_cache(self, node: BlockNode):
+        if node.addr not in self._addr_to_block_node:
+            self._addr_to_block_node[node.addr] = node
+
     def _register_nodes(self, is_local, *nodes):
         if not isinstance(is_local, bool):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
-            self.transition_graph.add_node(node)
+            if node.addr not in self:
+                # only add each node once
+                self.transition_graph.add_node(node)
+
             if not isinstance(node, CodeNode):
                 continue
             node._graph = self.transition_graph
-            if node.addr not in self or self._block_sizes[node.addr] == 0:
+            if self._block_sizes.get(node.addr, 0) == 0:
                 self._block_sizes[node.addr] = node.size
             if node.addr == self.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
-            if is_local:
-                self._local_blocks[node.addr] = node
-                self._local_block_addrs.add(node.addr)
+            if is_local and node.addr not in self._local_blocks:
+                self._update_local_blocks(node)
             # add BlockNodes to the addr_to_block_node cache if not already there
             if isinstance(node, BlockNode):
-                if node.addr not in self._addr_to_block_node:
-                    self._addr_to_block_node[node.addr] = node
+                self._update_addr_to_block_cache(node)
                 #else:
                 #    # checks that we don't have multiple block nodes at a single address
                 #    assert node == self._addr_to_block_node[node.addr]
