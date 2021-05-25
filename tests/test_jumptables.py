@@ -1,10 +1,16 @@
 
 # Test cases for jump table resolver
 
+from typing import TYPE_CHECKING
+
 import os
 import logging
 
 import angr
+from angr.knowledge_plugins.cfg import IndirectJumpType
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.cfg import IndirectJump
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
@@ -266,6 +272,27 @@ def test_jumptable_occupied_as_data():
     assert len(cfg.model.get_any_node(0x402e4d).successors) == 10
 
 
+#
+# Some jump tables are in fact vtables
+#
+
+def test_vtable_amd64_libc_ubuntu_2004():
+
+    p = angr.Project(os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"),
+                     auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+
+    assert 0x46d710 in cfg.indirect_jumps
+    ij: 'IndirectJump' = cfg.indirect_jumps[0x46d710]
+    assert ij.type == IndirectJumpType.Vtable
+    assert len(ij.jumptable_entries) == 213
+
+    # all non-zere entries in a vtable should be made functions
+    for entry in ij.jumptable_entries:
+        if entry != 0:
+            assert entry in cfg.functions
+
+
 if __name__ == "__main__":
     test_amd64_chmod_gcc_O1()
     test_amd64_dir_gcc_O0()
@@ -279,3 +306,4 @@ if __name__ == "__main__":
     test_s390x_cfgswitches()
     test_arm_libsoap()
     test_jumptable_occupied_as_data()
+    test_vtable_amd64_libc_ubuntu_2004()
