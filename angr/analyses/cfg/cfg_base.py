@@ -1714,7 +1714,7 @@ class CFGBase(Analysis):
                                                blockaddr_to_function) -> Set[int]:
         """
         Sometimes compilers will optimize "cold" code regions, make them separate functions, mark them as cold, which
-        conflicts with how angr handles jumps to these functions (becuase they weren't functions to start with). Here
+        conflicts with how angr handles jumps to these functions (because they weren't functions to start with). Here
         is an example (in function version_etc_arn() from gllib)::
 
         switch (n_authors) {

@@ -816,8 +816,13 @@ class JumpTableResolver(IndirectJumpResolver):
                     if ret is None:
                         # Try the next state
                         continue
-                    jump_table, jumptable_addr, entry_size, jumptable_size, all_targets = ret
-                    ij_type = IndirectJumpType.Jumptable_AddressLoadedFromMemory
+                    jump_table, jumptable_addr, entry_size, jumptable_size, all_targets, sort = ret
+                    if sort == "jumptable":
+                        ij_type = IndirectJumpType.Jumptable_AddressLoadedFromMemory
+                    elif sort == "vtable":
+                        ij_type = IndirectJumpType.Vtable
+                    else:
+                        ij_type = IndirectJumpType.Unknown
                 elif ite_stmt is not None:
                     ret = self._try_resolve_targets_ite(r, addr, cfg, annotatedcfg, ite_stmt)
                     if ret is None:
@@ -838,7 +843,10 @@ class JumpTableResolver(IndirectJumpResolver):
                 ij: IndirectJump = cfg.indirect_jumps[addr]
                 if len(all_targets) > 1:
                     # It can be considered a jump table only if there are more than one jump target
-                    ij.jumptable = True
+                    if ij_type in (IndirectJumpType.Jumptable_AddressComputed, IndirectJumpType.Jumptable_AddressLoadedFromMemory):
+                        ij.jumptable = True
+                    else:
+                        ij.jumptable = False
                     ij.jumptable_addr = jumptable_addr
                     ij.jumptable_size = jumptable_size
                     ij.jumptable_entry_size = entry_size
@@ -1247,7 +1255,7 @@ class JumpTableResolver(IndirectJumpResolver):
     def _try_resolve_targets_load(self, r, addr, cfg, annotatedcfg, load_stmt, load_size, stmts_adding_base_addr,
                                   all_addr_holders):
         """
-        Try loading all jump targets from a jump table.
+        Try loading all jump targets from a jump table or a vtable.
         """
 
         # shorthand
@@ -1316,7 +1324,20 @@ class JumpTableResolver(IndirectJumpResolver):
                 jump_base_addr.base_addr = state.solver.eval(state.scratch.temps[jump_base_addr.tmp_1])
 
         all_targets = [ ]
-        total_cases = jumptable_addr._model_vsa.cardinality
+        jumptable_addr_vsa = jumptable_addr._model_vsa
+
+        # we may resolve a vtable (in C, e.g., the IO_JUMPS_FUNC in libc), but the stride of this load is usually 1
+        # while the read statement reads a word size at a time.
+        # we use this to differentiate between traditional jump tables (where each entry is some blocks that belong to
+        # the current function) and vtables (where each entry is a function).
+        if jumptable_addr_vsa.stride < load_size:
+            stride = load_size
+            total_cases = jumptable_addr_vsa.cardinality // load_size
+            sort = 'vtable'  # it's probably a vtable!
+        else:
+            stride = jumptable_addr_vsa.stride
+            total_cases = jumptable_addr_vsa.cardinality
+            sort = 'jumptable'
 
         if total_cases > self._max_targets:
             # We resolved too many targets for this indirect jump. Something might have gone wrong.
@@ -1349,9 +1370,11 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # Load the jump table from memory
         should_skip = False
-        for idx, a in enumerate(state.solver.eval_upto(jumptable_addr, total_cases)):
+        for idx, a in enumerate(range(min_jumptable_addr, max_jumptable_addr, stride)):
             if idx % 100 == 0 and idx != 0:
                 l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
+            if idx >= total_cases:
+                break
             target = cfg._fast_memory_load_pointer(a, size=load_size)
             if target is None:
                 l.debug("Cannot load pointer from address %#x. Skip.", a)
@@ -1421,7 +1444,7 @@ class JumpTableResolver(IndirectJumpResolver):
         if illegal_target_found:
             return None
 
-        return jump_table, min_jumptable_addr, load_size, total_cases * load_size, all_targets
+        return jump_table, min_jumptable_addr, load_size, total_cases * load_size, all_targets, sort
 
     def _try_resolve_targets_ite(self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp):  # pylint:disable=unused-argument
         """
