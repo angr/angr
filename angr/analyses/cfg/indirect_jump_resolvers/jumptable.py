@@ -1370,7 +1370,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         # Load the jump table from memory
         should_skip = False
-        for idx, a in enumerate(range(min_jumptable_addr, max_jumptable_addr, stride)):
+        for idx, a in enumerate(range(min_jumptable_addr, max_jumptable_addr + 1, stride)):
             if idx % 100 == 0 and idx != 0:
                 l.debug("%d targets have been resolved for the indirect jump at %#x...", idx, addr)
             if idx >= total_cases:
