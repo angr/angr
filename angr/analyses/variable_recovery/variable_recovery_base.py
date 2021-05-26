@@ -1,5 +1,5 @@
 import weakref
-from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict
+from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -13,6 +13,10 @@ from ...sim_variable import SimVariable
 from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
 from ..typehoon.typevars import TypeVariables
+
+if TYPE_CHECKING:
+    from angr.storage import SimMemoryObject
+
 
 l = logging.getLogger(name=__name__)
 
@@ -125,7 +129,8 @@ class VariableRecoveryStateBase:
             self.stack_region._phi_maker = self._make_phi_variable
         else:
             self.stack_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
-                                                                     phi_maker=self._make_phi_variable)
+                                                                     phi_maker=self._make_phi_variable,
+                                                                     page_kwargs={'mo_cmp': self._mo_cmp})
         self.stack_region.set_state(self)
 
         if register_region is not None:
@@ -133,7 +138,8 @@ class VariableRecoveryStateBase:
             self.register_region._phi_maker = self._make_phi_variable
         else:
             self.register_region: MultiValuedMemory = MultiValuedMemory(memory_id="reg", top_func=self.top,
-                                                                        phi_maker=self._make_phi_variable)
+                                                                        phi_maker=self._make_phi_variable,
+                                                                        page_kwargs={'mo_cmp': self._mo_cmp})
         self.register_region.set_state(self)
 
         if global_region is not None:
@@ -141,7 +147,8 @@ class VariableRecoveryStateBase:
             self.global_region._phi_maker = self._make_phi_variable
         else:
             self.global_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
-                                                                      phi_maker=self._make_phi_variable)
+                                                                      phi_maker=self._make_phi_variable,
+                                                                      page_kwargs={'mo_cmp': self._mo_cmp})
         self.global_region.set_state(self)
 
         # Used during merging
@@ -277,6 +284,13 @@ class VariableRecoveryStateBase:
     #
     # Private methods
     #
+
+    @staticmethod
+    def _mo_cmp(mos_self: Set['SimMemoryObject'], mos_other: Set['SimMemoryObject'], addr: int, size: int):  # pylint:disable=unused-argument
+        # comparing bytes from two sets of memory objects
+        # we don't need to resort to byte-level comparison. object-level is good enough.
+
+        return mos_self == mos_other
 
     def _make_phi_variable(self, values: Set[claripy.ast.Base]) -> Optional[claripy.ast.Base]:
         # we only create a new phi variable if the there is at least one variable involved
