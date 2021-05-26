@@ -1,6 +1,5 @@
-from claripy.utils.orderedset import OrderedSet
-
 from ....misc.ux import deprecated
+from ....utils.algo import binary_insert
 
 
 class GraphVisitor:
@@ -9,7 +8,8 @@ class GraphVisitor:
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
     """
     def __init__(self):
-        self._sorted_nodes = OrderedSet()
+        self._sorted_nodes = [ ]
+        self._nodes_set = set()
         self._node_to_index = { }
         self._reached_fixedpoint = set()
 
@@ -82,12 +82,14 @@ class GraphVisitor:
         """
 
         self._sorted_nodes.clear()
+        self._nodes_set.clear()
         self._node_to_index.clear()
         self._reached_fixedpoint.clear()
 
         for i, n in enumerate(self.sort_nodes()):
             self._node_to_index[n] = i
-            self._sorted_nodes.add(n)
+            binary_insert(self._sorted_nodes, n, lambda elem: self._node_to_index[elem])
+            self._nodes_set.add(n)
 
     def next_node(self):
         """
@@ -99,7 +101,9 @@ class GraphVisitor:
         if not self._sorted_nodes:
             return None
 
-        return self._sorted_nodes.pop(last=False)
+        node = self._sorted_nodes.pop(0)
+        self._nodes_set.remove(node)
+        return node
 
     def all_successors(self, node, skip_reached_fixedpoint=False):
         """
@@ -134,12 +138,14 @@ class GraphVisitor:
         successors = self.successors(node) #, skip_reached_fixedpoint=True)
 
         if include_self:
-            self._sorted_nodes.add(node)
+            if node not in self._nodes_set:
+                binary_insert(self._sorted_nodes, node, lambda elem: self._node_to_index[elem])
+                self._nodes_set.add(node)
 
         for succ in successors:
-            self._sorted_nodes.add(succ)
-
-        self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
+            if succ not in self._nodes_set:
+                binary_insert(self._sorted_nodes, succ, lambda elem: self._node_to_index[elem])
+                self._nodes_set.add(succ)
 
     def revisit_node(self, node):
         """
@@ -149,8 +155,9 @@ class GraphVisitor:
         :return:        None
         """
 
-        self._sorted_nodes.add(node)
-        self._sorted_nodes = OrderedSet(sorted(self._sorted_nodes, key=lambda n: self._node_to_index[n]))
+        if node not in self._nodes_set:
+            binary_insert(self._sorted_nodes, node, lambda elem: self._node_to_index[elem])
+            self._nodes_set.add(node)
 
     def reached_fixedpoint(self, node):
         """
