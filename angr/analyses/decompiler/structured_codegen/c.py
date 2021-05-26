@@ -1912,7 +1912,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.variable is not None:
             var_thing = self._handle(expr.variable)
             var_thing.tags = dict(expr.tags)
-            var_thing.tags['ins_addr'] = var_thing.tags['def_at'].ins_addr
+            if 'def_at' in var_thing.tags and 'ins_addr' not in var_thing.tags:
+                var_thing.tags['ins_addr'] = var_thing.tags['def_at'].ins_addr
             return CUnaryOp('Reference', expr, variable=var_thing, codegen=self)
 
         # FIXME
