@@ -39,68 +39,94 @@ class CConstruct:
     def __init__(self, codegen):
         self.codegen: 'StructuredCodeGenerator' = codegen
 
-    def c_repr(self, indent=0, posmap=None, stmt_posmap=None, insmap=None):
+    def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
         Creates the C reperesentation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
-        The posmap and stmt_posmap act as position maps for the location of each variable and statment to be
-        tracked for later GUI operations. The stmt_posmap also contains expressions that are nested inside of
+        The map_pos_to_node and map_pos_to_addr act as position maps for the location of each variable and statment to be
+        tracked for later GUI operations. The map_pos_to_addr also contains expressions that are nested inside of
         statments.
 
         :param indent:  # of indents (int)
-        :param posmap:
+        :param pos_to_nodemap_pos_to_ast:
         :return:
         """
 
-        def mapper(chunks, posmap: PositionMapping, stmt_posmap, insmap):
+        pending_stmt_comments = dict(self.codegen.stmt_comments)
+        pending_expr_comments = dict(self.codegen.expr_comments)
+
+        def mapper(chunks):
             # start all positions at beginning of document
             pos = 0
 
-            # track all CVariables to assure they are only used in definitions for tabbing
-            used_cvars = set()
+            last_insn_addr = None
 
             # track all Function Calls for highlighting
             used_func_calls = set()
+
+            # track all variables so we can tell if this is a declaration or not
+            used_vars = set()
 
             # get each string and object representation of the chunks
             for s, obj in chunks:
                 # filter out anything that is not a statement or expression object
                 if isinstance(obj, (CStatement, CExpression)):
-                    # only add statements/expressions that can be address tracked into stmt_posmap
+                    # only add statements/expressions that can be address tracked into map_pos_to_addr
                     if hasattr(obj, 'tags') and obj.tags is not None and 'ins_addr' in obj.tags:
-
-                        # filter CVariables to make sure only first variable definitions are added to stmt_posmap
-                        if isinstance(obj, CVariable):
-                            if obj not in used_cvars:
-                                used_cvars.add(obj)
-                                stmt_posmap.add_mapping(pos, len(s), obj)
-
-                        # any other valid statement or expression should be added to stmt_posmap and
-                        # tracked for instruction mapping from disassembly
+                        if isinstance(obj, CVariable) and obj not in used_vars:
+                            used_vars.add(obj)
                         else:
-                            stmt_posmap.add_mapping(pos, len(s), obj)
-                            insmap.add_mapping(obj.tags['ins_addr'], pos)
+                            last_insn_addr = obj.tags['ins_addr']
 
-                    # add all variables, constants, and function calls to posmap for highlighting
+                            # all valid statements and expressions should be added to map_pos_to_addr and
+                            # tracked for instruction mapping from disassembly
+                            pos_to_addr.add_mapping(pos, len(s), obj)
+                            addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
+
+                    # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     if isinstance(obj, (CVariable, CConstant)):
-                        posmap.add_mapping(pos, len(s), obj)
+                        pos_to_node.add_mapping(pos, len(s), obj)
                     elif isinstance(obj, CFunctionCall):
                         if obj not in used_func_calls:
                             used_func_calls.add(obj)
-                            posmap.add_mapping(pos, len(s), obj)
+                            pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, and [] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction)):
-                    posmap.add_mapping(pos, len(s), obj)
+                    pos_to_node.add_mapping(pos, len(s), obj)
+
+                if s.endswith('\n'):
+                    text = pending_stmt_comments.pop(last_insn_addr, None)
+                    if text is not None:
+                        todo = '  // ' + text
+                        pos += len(s) - 1
+                        yield s[:-1]
+                        pos += len(todo)
+                        yield todo
+                        s = '\n'
 
                 pos += len(s)
                 yield s
+
+                if isinstance(obj, CExpression):
+                    text = pending_expr_comments.pop(last_insn_addr, None)
+                    if text is not None:
+                        todo = ' /*' + text + '*/ '
+                        pos += len(todo)
+                        yield todo
+
+            if pending_expr_comments or pending_stmt_comments:
+                yield '// Orphaned comments\n'
+                for text in pending_stmt_comments.values():
+                    yield '// ' + text + '\n'
+                for text in pending_expr_comments.values():
+                    yield '/* ' + text + '*/\n'
 
         # A special note about this line:
         # Polymorphism allows that the c_repr_chunks() call will be called
         # by the CFunction class, which will then call each statement within it and construct
         # the chunks that get printed in qccode_edit in angr-management.
-        return ''.join(mapper(self.c_repr_chunks(indent), posmap, stmt_posmap, insmap))
+        return ''.join(mapper(self.c_repr_chunks(indent)))
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         raise NotImplementedError()
@@ -1365,7 +1391,8 @@ class CClosingObject:
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
-                 show_casts=True, braces_on_own_lines=True, flavor=None):
+                 show_casts=True, braces_on_own_lines=True, flavor=None,
+                 stmt_comments=None, expr_comments=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1414,12 +1441,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._indent = indent
         self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
+        self.expr_comments = expr_comments if expr_comments is not None else {}
+        self.stmt_comments = stmt_comments if stmt_comments is not None else {}
 
         self.text = None
-        self.posmap = None
-        self.stmt_posmap = None
-        self.insmap = None
-        self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
+        self.map_pos_to_node = None
+        self.map_pos_to_addr = None
+        self.map_addr_to_pos = None
+        self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.cfunc = None
 
         self._analyze()
@@ -1461,10 +1490,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         """
         Remove existing rendering results.
         """
-        self.posmap = None
-        self.stmt_posmap = None
-        self.insmap = None
-        self.nodemap = None
+        self.map_pos_to_node = None
+        self.map_pos_to_addr = None
+        self.map_addr_to_pos = None
+        self.map_ast_to_pos = None
         self.text = None
 
     def regenerate_text(self) -> None:
@@ -1472,37 +1501,37 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         Re-render text and re-generate all sorts of mapping information.
         """
         self.cleanup()
-        self.text, self.posmap, self.stmt_posmap, self.insmap, self.nodemap = self.render_text(self.cfunc)
+        self.text, self.map_pos_to_node, self.map_pos_to_addr, self.map_addr_to_pos, self.map_ast_to_pos = self.render_text(self.cfunc)
 
     def render_text(self, cfunc: CFunction) -> Tuple[str,PositionMapping,PositionMapping,InstructionMapping,Dict[Any,Set[Any]]]:
 
-        posmap = PositionMapping()
-        stmt_posmap = PositionMapping()
-        insmap = InstructionMapping()
-        nodemap = defaultdict(set)
+        pos_to_node = PositionMapping()
+        pos_to_addr = PositionMapping()
+        addr_to_pos = InstructionMapping()
+        ast_to_pos = defaultdict(set)
 
-        text = cfunc.c_repr(indent=self._indent, posmap=posmap, stmt_posmap=stmt_posmap, insmap=insmap)
+        text = cfunc.c_repr(indent=self._indent, pos_to_node=pos_to_node, pos_to_addr=pos_to_addr, addr_to_pos=addr_to_pos)
 
-        for elem, node in posmap.items():
+        for elem, node in pos_to_node.items():
             if isinstance(node.obj, CConstant):
-                nodemap[node.obj.value].add(elem)
+                ast_to_pos[node.obj.value].add(elem)
             elif isinstance(node.obj, CVariable):
                 if node.obj.unified_variable is not None:
-                    nodemap[node.obj.unified_variable].add(elem)
+                    ast_to_pos[node.obj.unified_variable].add(elem)
                 else:
-                    nodemap[node.obj.variable].add(elem)
+                    ast_to_pos[node.obj.variable].add(elem)
             elif isinstance(node.obj, CFunctionCall):
                 if node.obj.callee_func is not None:
-                    nodemap[node.obj.callee_func].add(elem)
+                    ast_to_pos[node.obj.callee_func].add(elem)
                 else:
-                    nodemap[node.obj.callee_target].add(elem)
+                    ast_to_pos[node.obj.callee_target].add(elem)
             elif isinstance(node.obj, CStructField):
                 key = (node.obj.struct_type, node.obj.offset)
-                nodemap[key].add(elem)
+                ast_to_pos[key].add(elem)
             else:
-                nodemap[node.obj].add(elem)
+                ast_to_pos[node.obj].add(elem)
 
-        return text, posmap, stmt_posmap, insmap, nodemap
+        return text, pos_to_node, pos_to_addr, addr_to_pos, ast_to_pos
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
@@ -1735,9 +1764,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     offset = None
 
             if base is not None and offset is not None:
-                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type)
+                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type, tags=stmt.tags)
             else:
-                cvariable = self._cvariable(cvariable, offset=None)
+                cvariable = self._cvariable(cvariable, offset=None, tags=stmt.tags)
         else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
@@ -1805,7 +1834,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ret_expr = None
         if stmt.ret_expr is not None:
             if stmt.ret_expr.variable is not None:
-                ret_expr = self._cvariable(stmt.ret_expr.variable, offset=stmt.ret_expr.variable_offset)
+                ret_expr = self._cvariable(stmt.ret_expr.variable, offset=stmt.ret_expr.variable_offset, tags=stmt.ret_expr.tags)
             else:
                 ret_expr = self._handle(stmt.ret_expr)
 
@@ -1879,7 +1908,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 
         l.warning("FIXME: Leftover Tmp expressions are found.")
-        return self._cvariable(SimTemporaryVariable(expr.tmp_idx))
+        return self._cvariable(SimTemporaryVariable(expr.tmp_idx), tags=expr.tags)
 
     def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
 
@@ -1937,7 +1966,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
         if expr.variable is not None:
-            return CUnaryOp('Reference', expr, variable=self._handle(expr.variable), tags=expr.tags, codegen=self)
+            var_thing = self._handle(expr.variable)
+            var_thing.tags = dict(expr.tags)
+            if 'def_at' in var_thing.tags and 'ins_addr' not in var_thing.tags:
+                var_thing.tags['ins_addr'] = var_thing.tags['def_at'].ins_addr
+            return CUnaryOp('Reference', expr, variable=var_thing, codegen=self)
 
         # FIXME
         r = CUnaryOp('Reference', expr, variable=None, tags=expr.tags, codegen=self)

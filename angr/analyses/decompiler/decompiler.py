@@ -91,6 +91,8 @@ class Decompiler(Analysis):
                                                                 func_args=clinic.arg_list,
                                                                 kb=self.kb,
                                                                 variable_kb=clinic.variable_kb,
+                                                                expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
+                                                                stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                                                                 **self.options_to_params(options_by_class['codegen']))
         self._update_progress(90., text='Finishing up')
 

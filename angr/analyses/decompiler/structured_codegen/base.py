@@ -121,10 +121,10 @@ class BaseStructuredCodeGenerator:
     def __init__(self, flavor=None):
         self.flavor = flavor
         self.text = None
-        self.posmap = None
-        self.stmt_posmap = None
-        self.insmap = None
-        self.nodemap: Optional[Dict[SimVariable,Set[PositionMappingElement]]] = None
+        self.map_pos_to_node = None
+        self.map_pos_to_addr = None
+        self.map_addr_to_pos = None
+        self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
 
     def reapply_options(self, options):
         pass
