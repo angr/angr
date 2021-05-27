@@ -144,7 +144,7 @@ class MemoryObjectSetMixin(CooperationBase):
             return MultiValues(offset_to_values={0: {claripy.BVV(0, 0)}})
 
         if len(elements) == 1:
-            return MultiValues(offset_to_values={0: {elements[0]}})
+            return MultiValues(offset_to_values={0: elements[0]})
 
         if endness == 'Iend_LE':
             elements = list(reversed(elements))
