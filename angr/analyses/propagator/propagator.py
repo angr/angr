@@ -1,3 +1,4 @@
+# pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
 from typing import Set, Optional, Any, Tuple, TYPE_CHECKING
 from collections import defaultdict
@@ -261,10 +262,10 @@ class PropagatorAILState(PropagatorState):
         return rd
 
     def merge(self, *others) -> Tuple['PropagatorAILState',bool]:
-        state, reached_fixpoint = super().merge(*others)
+        state, merge_occurred = super().merge(*others)
         state: 'PropagatorAILState'
 
-        merge_occurred = state._registers.merge([o._registers for o in others], None)
+        merge_occurred |= state._registers.merge([o._registers for o in others], None)
         merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
 
         return state, merge_occurred
