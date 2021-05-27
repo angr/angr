@@ -1084,24 +1084,27 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
     # State widening, merging, and narrowing
     #
 
-    def _merge_states(self, old_state, new_state):
+    def _merge_states(self, *states):
         """
         Merge two given states, and return a new one.
 
-        :param old_state:
-        :param new_state:
+        :param states:  All states to merge.
         :returns: The merged state, and whether a merging has occurred
         """
 
         # print old_state.dbg_print_stack()
         # print new_state.dbg_print_stack()
 
-        merged_state, _, merging_occurred = old_state.merge(new_state, plugin_whitelist=self._mergeable_plugins)
+        merged = states[0]
+        merging_occurred = False
+        for state in states[1:]:
+            merged, _, merging_occurred_ = merged.merge(state, plugin_whitelist=self._mergeable_plugins)
+            merging_occurred |= merging_occurred
 
         # print "Merged: "
         # print merged_state.dbg_print_stack()
 
-        return merged_state, merging_occurred
+        return merged, merging_occurred
 
     @staticmethod
     def _widen_states(old_state, new_state):

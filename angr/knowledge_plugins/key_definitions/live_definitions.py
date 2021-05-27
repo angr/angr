@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, TYPE_CHECKING
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple, TYPE_CHECKING
 import logging
 
 import claripy
@@ -248,24 +248,24 @@ class LiveDefinitions:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
         return (base_v + offset) & mask
 
-    def merge(self, *others):
+    def merge(self, *others) -> Tuple['LiveDefinitions',bool]:
 
         state = self.copy()
 
-        state.register_definitions.merge([ other.register_definitions for other in others ], None)
-        state.heap_definitions.merge([other.heap_definitions for other in others], None)
-        state.memory_definitions.merge([other.memory_definitions for other in others], None)
-        state.stack_definitions.merge([other.stack_definitions for other in others], None)
+        merge_occurred = state.register_definitions.merge([ other.register_definitions for other in others ], None)
+        merge_occurred |= state.heap_definitions.merge([other.heap_definitions for other in others], None)
+        merge_occurred |=state.memory_definitions.merge([other.memory_definitions for other in others], None)
+        merge_occurred |=state.stack_definitions.merge([other.stack_definitions for other in others], None)
 
         for other in others:
             other: LiveDefinitions
 
-            state.register_uses.merge(other.register_uses)
-            state.stack_uses.merge(other.stack_uses)
-            state.heap_uses.merge(other.heap_uses)
-            state.memory_uses.merge(other.memory_uses)
+            merge_occurred |= state.register_uses.merge(other.register_uses)
+            merge_occurred |= state.stack_uses.merge(other.stack_uses)
+            merge_occurred |= state.heap_uses.merge(other.heap_uses)
+            merge_occurred |= state.memory_uses.merge(other.memory_uses)
 
-        return state
+        return state, merge_occurred
 
     def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[MultiValues]=None, dummy=True,
                          tags: Set[Tag]=None, annotated=False) -> None:

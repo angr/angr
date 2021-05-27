@@ -224,13 +224,14 @@ def _dict_merge(d1, d2):
     merged = {}
     for k in all_keys:
         if k not in d1 or d1[k] is TOP:
-            # don't add it to the dict, which is the same as top
-            pass
+            merged[k] = TOP
         elif k not in d2 or d2[k] is TOP:
             # don't add it to the dict, which is the same as top
-            pass
+            merged[k] = TOP
         elif d1[k] == d2[k]:
             merged[k] = d1[k]
+        else: # d1[k] != d2[k]
+            merged[k] = TOP
     return merged
 
 
@@ -357,7 +358,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _set_pre_state(self, addr, new_val):
         self._set_state(addr, new_val, 'pre')
 
-    def _run_on_node(self, node : BlockNode, state):
+    def _run_on_node(self, node: BlockNode, state):
 
         block = self.project.factory.block(node.addr, size=node.size)
         self._blocks[node.addr] = block
@@ -444,10 +445,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
         return merged
 
-    def _merge_states(self, node, *states):
+    def _merge_states(self, node, *states: StackPointerTrackerState):
 
-        assert len(states) == 2
-        merged_state = states[0].merge(states[1])
+        merged_state = states[0]
+        for other in states[1:]:
+            merged_state = merged_state.merge(other)
         return merged_state, merged_state == states[0]
 
 

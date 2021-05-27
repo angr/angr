@@ -1,6 +1,7 @@
-import networkx
+from collections import defaultdict
+from typing import Dict, Any, List
 
-from functools import reduce
+import networkx
 
 from ...errors import AngrForwardAnalysisError
 from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
@@ -61,8 +62,10 @@ class ForwardAnalysis:
         # A map between job key to job. Jobs with the same key will be merged by calling _merge_jobs()
         self._job_map = { }
 
-        # A mapping between node and abstract state
-        self._state_map = { }
+        # A mapping between node and its input states
+        self._input_states: Dict[Any,List[Any]] = defaultdict(list)
+        # A mapping between node and its output state
+        self._output_state: Dict[Any,Any] = {}
 
         # The graph!
         # Analysis results (nodes) are stored here
@@ -233,28 +236,40 @@ class ForwardAnalysis:
             if n is None:
                 break
 
-            job_state = self._get_input_state(n)
+            job_state = self._get_and_update_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
             changed, output_state = self._run_on_node(n, job_state)
 
-            # output state of node n is input state for successors to node n
-            successors_to_visit = self._add_input_state(n, output_state)
-
             if changed is False:
                 # no change is detected
+                self._output_state[n] = output_state
                 continue
             elif changed is True:
                 # changes detected
+
+                # output state of node n is input state for successors to node n
+                self._add_input_state(n, output_state)
+
                 # revisit all its successors
                 self._graph_visitor.revisit_successors(n, include_self=False)
             else:
                 # the change of states are determined during state merging (_add_input_state()) instead of during
                 # simulated execution (_run_on_node()).
-                # revisit all successors in the `successors_to_visit` list
-                for succ in successors_to_visit:
-                    self._graph_visitor.revisit_node(succ)
+
+                if n not in self._output_state:
+                    reached_fixedpoint = False
+                else:
+                    # is the output state the same as the old one?
+                    _, reached_fixedpoint = self._merge_states(n, self._output_state[n], output_state)
+                self._output_state[n] = output_state
+
+                if not reached_fixedpoint:
+                    successors_to_visit = self._add_input_state(n, output_state)
+                    # revisit all successors in the `successors_to_visit` list
+                    for succ in successors_to_visit:
+                        self._graph_visitor.revisit_node(succ)
 
     def _add_input_state(self, node, input_state):
         """
@@ -265,29 +280,15 @@ class ForwardAnalysis:
         :return:            None
         """
 
-        successors = self._graph_visitor.successors(node)
-        successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
+        successors = set(self._graph_visitor.successors(node))
+        # successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
         for succ in successors:
-            if succ in self._state_map:
-                to_merge = [ self._state_map[succ], input_state ]
-                r = self._merge_states(succ, *to_merge)
-                if type(r) is tuple and len(r) == 2:
-                    merged_state, reached_fixedpoint = r
-                else:
-                    # compatibility concerns
-                    merged_state, reached_fixedpoint = r, False
-                self._state_map[succ] = merged_state
-            else:
-                self._state_map[succ] = input_state
-                reached_fixedpoint = False
+            self._input_states[succ].append(input_state)
 
-            if not reached_fixedpoint:
-                successors_to_visit.add(succ)
+        return successors
 
-        return successors_to_visit
-
-    def _pop_input_state(self, node):
+    def _get_and_update_input_state(self, node):
         """
         Get the input abstract state for this node, and remove it from the state map.
 
@@ -295,8 +296,10 @@ class ForwardAnalysis:
         :return:     A merged state, or None if there is no input state for this node available.
         """
 
-        if node in self._state_map:
-            return self._state_map.pop(node)
+        if node in self._input_states:
+            input_state = self._get_input_state(node)
+            self._input_states[node] = [ input_state ]
+            return input_state
         return None
 
     def _get_input_state(self, node):
@@ -307,24 +310,14 @@ class ForwardAnalysis:
         :return:        A merged state, or None if there is no input state for this node available.
         """
 
-        return self._state_map.get(node, None)
-
-    def _merge_state_from_predecessors(self, node):
-        """
-        Get abstract states for all predecessors of the node, merge them, and return the merged state.
-
-        :param node: The node in graph.
-        :return:     A merged state, or None if no predecessor is available.
-        """
-
-        preds = self._graph_visitor.predecessors(node)
-
-        states = [ self._state_map[n] for n in preds if n in self._state_map ]
-
-        if not states:
+        if node not in self._input_states:
             return None
 
-        return reduce(lambda s0, s1: self._merge_states(node, s0, s1), states[1:], states[0])
+        all_input_states = self._input_states.get(node)
+        if len(all_input_states) == 1:
+            return all_input_states[0]
+        merged_state, _ = self._merge_states(node, *all_input_states)
+        return merged_state
 
     def _analysis_core_baremetal(self):
 

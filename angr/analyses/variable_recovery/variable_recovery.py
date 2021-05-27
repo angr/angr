@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from functools import reduce
+from typing import Tuple
 
 import claripy
 import angr # type annotations; pylint: disable=unused-import
@@ -93,13 +93,13 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                                                   )
             concrete_state.inspect.add_breakpoint('mem_write', BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, other, successor=None):
+    def merge(self, others: Tuple['VariableRecoveryState'], successor=None) -> Tuple['VariableRecoveryState',bool]:
         """
         Merge two abstract states.
 
-        :param VariableRecoveryState other: The other abstract state to merge.
-        :return:                            The merged abstract state.
-        :rtype:                             VariableRecoveryState
+        :param others:  Other abstract states to merge.
+        :return:        The merged abstract state.
+        :rtype:         VariableRecoveryState, and a boolean that indicates if any merge has happened.
         """
 
         self.phi_variables = {}
@@ -109,11 +109,11 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         new_stack_region = self.stack_region.copy()
         new_stack_region.set_state(self)
-        new_stack_region.merge([ other.stack_region ], None)
+        merge_occurred = new_stack_region.merge([ other.stack_region for other in others ], None)
 
         new_register_region = self.register_region.copy()
         new_register_region.set_state(self)
-        new_register_region.merge([ other.register_region ], None)
+        merge_occurred |= new_register_region.merge([ other.register_region for other in others ], None)
 
         self.phi_variables = {}
         self.successor_block_addr = None
@@ -121,7 +121,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
         return VariableRecoveryState(successor, self._analysis, self.arch, self.function, merged_concrete_states,
                                      stack_region=new_stack_region,
                                      register_region=new_register_region
-                                     )
+                                     ), merge_occurred
 
     def _merge_concrete_states(self, other):
         """
@@ -379,7 +379,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 if first_annotated is False:
                     # the first argument is not annotated. we don't support it.
                     raise ValueError()
-                if any([ annotated for annotated, _ in parsed[1:] ]):
+                if any(annotated for annotated, _ in parsed[1:]):
                     # more than one argument is annotated. we don't support it.
                     raise ValueError()
 
@@ -471,12 +471,13 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
 
         return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [ concrete_state ])
 
-    def _merge_states(self, node, *states):
+    def _merge_states(self, node, *states: VariableRecoveryState):
 
         if len(states) == 1:
-            return states[0]
+            return states[0], True
 
-        return reduce(lambda s_0, s_1: s_0.merge(s_1, successor=node.addr), states[1:], states[0])
+        merged_state, merge_occurred = states[0].merge(states[1:], successor=node.addr)
+        return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state):
         """
