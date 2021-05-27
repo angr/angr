@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import logging
 from collections import defaultdict
 
@@ -62,7 +62,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         return state
 
-    def merge(self, others: List['VariableRecoveryFastState'], successor=None) -> 'VariableRecoveryFastState':
+    def merge(self, others: Tuple['VariableRecoveryFastState'], successor=None) -> Tuple['VariableRecoveryFastState',bool]:
         """
         Merge two abstract states.
 
@@ -79,15 +79,15 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         merged_stack_region = self.stack_region.copy()
         merged_stack_region.set_state(self)
-        merged_stack_region.merge([other.stack_region for other in others], None)
+        merge_occurred = merged_stack_region.merge([other.stack_region for other in others], None)
 
         merged_register_region = self.register_region.copy()
         merged_register_region.set_state(self)
-        merged_register_region.merge([other.register_region for other in others], None)
+        merge_occurred |= merged_register_region.merge([other.register_region for other in others], None)
 
         merged_global_region = self.global_region.copy()
         merged_global_region.set_state(self)
-        merged_global_region.merge([other.global_region for other in others], None)
+        merge_occurred |= merged_global_region.merge([other.global_region for other in others], None)
 
         merged_typevars = self.typevars
         merged_typeconstraints = self.type_constraints.copy()
@@ -97,6 +97,10 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             merged_typeconstraints |= other.type_constraints
             for v, cons in other.delayed_type_constraints.items():
                 delayed_typeconstraints[v] |= cons
+
+        merge_occurred |= self.typevars != merged_typevars
+        merge_occurred |= self.type_constraints != merged_typeconstraints
+        merge_occurred |= self.delayed_type_constraints != self.delayed_type_constraints
 
         # add subtype constraints for all replacements
         for v0, v1 in self.phi_variables.items():
@@ -135,7 +139,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             project=self.project,
         )
 
-        return state
+        return state, merge_occurred
 
     #
     # Util methods
@@ -270,9 +274,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         return state
 
-    def _merge_states(self, node, *states):
-
-        return states[0].merge(states[1:], successor=node.addr)
+    def _merge_states(self, node, *states: VariableRecoveryFastState):
+        merged_state, merge_occurred = states[0].merge(states[1:], successor=node.addr)
+        return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state):
         """
@@ -292,14 +296,14 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             # VEX mode, get the block again
             block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
 
-        if node.addr in self._instates:
-            prev_state = self._instates[node.addr]
-            if input_state == prev_state:
-                l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
-                return False, input_state
-            else:
-                l.debug('Merging input state of node %#x with the previous state.', node.addr)
-                input_state = prev_state.merge([input_state], successor=node.addr)
+        # if node.addr in self._instates:
+        #     prev_state: VariableRecoveryFastState = self._instates[node.addr]
+        #     if input_state == prev_state:
+        #         l.debug('Skip node %#x as we have reached a fixed-point', node.addr)
+        #         return False, input_state
+        #     else:
+        #         l.debug('Merging input state of node %#x with the previous state.', node.addr)
+        #         input_state, _ = prev_state.merge((input_state,), successor=node.addr)
 
         state = input_state.copy()
         state.block_addr = node.addr

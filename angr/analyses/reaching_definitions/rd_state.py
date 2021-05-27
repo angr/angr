@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Generator, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Generator, Tuple, TYPE_CHECKING
 import logging
 
 import archinfo
@@ -281,15 +281,15 @@ class ReachingDefinitionsState:
 
         return rd
 
-    def merge(self, *others):
+    def merge(self, *others) -> Tuple['ReachingDefinitionsState',bool]:
 
         state = self.copy()
         others: Iterable['ReachingDefinitionsState']
 
-        state.live_definitions = state.live_definitions.merge(*[other.live_definitions for other in others])
-        state._environment = state.environment.merge(*[other.environment for other in others])
+        state.live_definitions, merged_0 = state.live_definitions.merge(*[other.live_definitions for other in others])
+        state._environment, merged_1 = state.environment.merge(*[other.environment for other in others])
 
-        return state
+        return state, merged_0 or merged_1
 
     def _cycle(self, code_loc: CodeLocation) -> None:
         if code_loc != self.current_codeloc:

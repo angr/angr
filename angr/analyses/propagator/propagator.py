@@ -1,5 +1,5 @@
 import weakref
-from typing import Set, Optional, Any, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -92,25 +92,33 @@ class PropagatorState:
     def merge(self, *others):
 
         state = self.copy()
+        merge_occurred = False
 
         for o in others:
             for loc, vars_ in o._replacements.items():
                 if loc not in state._replacements:
                     state._replacements[loc] = vars_.copy()
+                    merge_occurred = True
                 else:
                     for var, repl in vars_.items():
                         if var not in state._replacements[loc]:
                             state._replacements[loc][var] = repl
+                            merge_occurred = True
                         else:
-                            if self.is_top(repl) or self.is_top(self._replacements[loc][var]):
+                            if self.is_top(repl) or self.is_top(state._replacements[loc][var]):
                                 t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
                                 state._replacements[loc][var] = t
+                                merge_occurred = True
                             elif state._replacements[loc][var] != repl:
                                 t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
                                 state._replacements[loc][var] = t
+                                merge_occurred = True
+
+            if state._equivalence != o._equivalence:
+                merge_occurred = True
             state._equivalence |= o._equivalence
 
-        return state
+        return state, merge_occurred
 
     def add_replacement(self, codeloc, old, new):
         """
@@ -163,11 +171,11 @@ class PropagatorVEXState(PropagatorState):
 
         return cp
 
-    def merge(self, *others: 'PropagatorVEXState') -> 'PropagatorVEXState':
+    def merge(self, *others: 'PropagatorVEXState') -> Tuple['PropagatorVEXState',bool]:
         state = self.copy()
-        state._registers.merge([o._registers for o in others], None)
-        state._stack_variables.merge([o._stack_variables for o in others], None)
-        return state
+        merge_occurred = state._registers.merge([o._registers for o in others], None)
+        merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
+        return state, merge_occurred
 
     def store_local_variable(self, offset, size, value, endness):  # pylint:disable=unused-argument
         # TODO: Handle size
@@ -252,13 +260,14 @@ class PropagatorAILState(PropagatorState):
 
         return rd
 
-    def merge(self, *others) -> 'PropagatorAILState':
-        # TODO:
-        state: 'PropagatorAILState' = super().merge(*others)
+    def merge(self, *others) -> Tuple['PropagatorAILState',bool]:
+        state, reached_fixpoint = super().merge(*others)
+        state: 'PropagatorAILState'
 
-        state._registers.merge([o._registers for o in others], None)
-        state._stack_variables.merge([o._stack_variables for o in others], None)
-        return state
+        merge_occurred = state._registers.merge([o._registers for o in others], None)
+        merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
+
+        return state, merge_occurred
 
     def store_variable(self, variable, value, def_at) -> None:
         if variable is None or value is None:
@@ -559,7 +568,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         return state
 
     def _merge_states(self, node, *states: PropagatorState):
-        return states[0].merge(*states[1:])
+        merged_state, merge_occurred = states[0].merge(*states[1:])
+        return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state):
 

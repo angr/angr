@@ -1,4 +1,3 @@
-from functools import reduce
 from collections import defaultdict
 from typing import Dict, Any, List
 
@@ -65,6 +64,8 @@ class ForwardAnalysis:
 
         # A mapping between node and its input states
         self._input_states: Dict[Any,List[Any]] = defaultdict(list)
+        # A mapping between node and its output state
+        self._output_state: Dict[Any,Any] = {}
 
         # The graph!
         # Analysis results (nodes) are stored here
@@ -235,28 +236,40 @@ class ForwardAnalysis:
             if n is None:
                 break
 
-            job_state = self._pop_input_state(n)
+            job_state = self._get_and_update_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
             changed, output_state = self._run_on_node(n, job_state)
 
-            # output state of node n is input state for successors to node n
-            successors_to_visit = self._add_input_state(n, output_state)
-
             if changed is False:
                 # no change is detected
+                self._output_state[n] = output_state
                 continue
             elif changed is True:
                 # changes detected
+
+                # output state of node n is input state for successors to node n
+                self._add_input_state(n, output_state)
+
                 # revisit all its successors
                 self._graph_visitor.revisit_successors(n, include_self=False)
             else:
                 # the change of states are determined during state merging (_add_input_state()) instead of during
                 # simulated execution (_run_on_node()).
-                # revisit all successors in the `successors_to_visit` list
-                for succ in successors_to_visit:
-                    self._graph_visitor.revisit_node(succ)
+
+                if n not in self._output_state:
+                    reached_fixedpoint = False
+                else:
+                    # is the output state the same as the old one?
+                    _, reached_fixedpoint = self._merge_states(n, self._output_state[n], output_state)
+                self._output_state[n] = output_state
+
+                if not reached_fixedpoint:
+                    successors_to_visit = self._add_input_state(n, output_state)
+                    # revisit all successors in the `successors_to_visit` list
+                    for succ in successors_to_visit:
+                        self._graph_visitor.revisit_node(succ)
 
     def _add_input_state(self, node, input_state):
         """
@@ -275,7 +288,7 @@ class ForwardAnalysis:
 
         return successors
 
-    def _pop_input_state(self, node):
+    def _get_and_update_input_state(self, node):
         """
         Get the input abstract state for this node, and remove it from the state map.
 
@@ -285,7 +298,7 @@ class ForwardAnalysis:
 
         if node in self._input_states:
             input_state = self._get_input_state(node)
-            self._input_states.pop(node)
+            self._input_states[node] = [ input_state ]
             return input_state
         return None
 
@@ -303,7 +316,8 @@ class ForwardAnalysis:
         all_input_states = self._input_states.get(node)
         if len(all_input_states) == 1:
             return all_input_states[0]
-        return self._merge_states(node, *all_input_states)
+        merged_state, _ = self._merge_states(node, *all_input_states)
+        return merged_state
 
     def _analysis_core_baremetal(self):
 

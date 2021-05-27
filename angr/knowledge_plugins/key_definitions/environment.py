@@ -56,7 +56,7 @@ class Environment:
         assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
         return self._environment == other._environment
 
-    def merge(self, *others: 'Environment'):
+    def merge(self, *others: 'Environment') -> Tuple['Environment',bool]:
 
         new_env = self._environment
 
@@ -77,4 +77,5 @@ class Environment:
                 keys
             ))
 
-        return Environment(environment=new_env)
+        merge_occurred = new_env != self._environment
+        return Environment(environment=new_env), merge_occurred

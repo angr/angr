@@ -1,5 +1,5 @@
 import weakref
-from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict, TYPE_CHECKING
+from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict, Any, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -76,7 +76,7 @@ class VariableRecoveryBase(Analysis):
         self._max_iterations = max_iterations
 
         self._outstates = {}
-        self._instates = {}
+        self._instates: Dict[Any,VariableRecoveryStateBase] = {}
         self._dominance_frontiers = None
 
     #

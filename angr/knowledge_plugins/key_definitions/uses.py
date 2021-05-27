@@ -83,21 +83,30 @@ class Uses:
 
         return u
 
-    def merge(self, other):
+    def merge(self, other) -> bool:
         """
         Merge an instance of <Uses> into the current instance.
 
         :param angr.angr.analyses.reaching_definitions.uses.Uses other: The other <Uses> from which the data will be added
                                                                         to the current instance.
+        :return: True if any merge occurred, False otherwise
         """
+        merge_occurred = False
+
         for k, v in other._uses_by_definition.items():
             if k not in self._uses_by_definition:
                 self._uses_by_definition[k] = v
-            else:
+                merge_occurred = True
+            elif not v.issubset(self._uses_by_definition[k]):
+                merge_occurred = True
                 self._uses_by_definition[k] |= v
 
         for k, v in other._uses_by_location.items():
             if k not in self._uses_by_location:
                 self._uses_by_location[k] = v
-            else:
+                merge_occurred = True
+            elif not v.issubset(self._uses_by_location[k]):
+                merge_occurred = True
                 self._uses_by_location[k] |= v
+
+        return merge_occurred
