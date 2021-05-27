@@ -558,7 +558,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                  )
         return state
 
-    def _merge_states(self, node, *states):
+    def _merge_states(self, node, *states: PropagatorState):
         return states[0].merge(*states[1:])
 
     def _run_on_node(self, node, state):

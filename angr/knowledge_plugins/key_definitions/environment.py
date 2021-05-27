@@ -1,4 +1,3 @@
-from itertools import chain
 from typing import Dict, Tuple, Union, Set
 
 import claripy
@@ -57,21 +56,25 @@ class Environment:
         assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
         return self._environment == other._environment
 
-    def merge(self, other: 'Environment'):
-        if not isinstance(other, Environment):
-            raise TypeError("Cannot merge Environment with %s" % type(other).__name__)
+    def merge(self, *others: 'Environment'):
 
-        keys = self._environment.keys() | other._environment.keys()
+        new_env = self._environment
 
-        def _dataset_from_key(key, environment1, environment2):
-            v = environment1.get(key, None)
-            w = environment2.get(key, None)
-            # Because the key is coming from one of them, they cannot be both `None`.
-            if v is None: return w
-            if w is None: return v
-            return v | w
+        for other in others:
+            keys = set(new_env.keys())
+            keys |= other._environment.keys()
 
-        return Environment(environment=dict(map(
-            lambda k: (k, _dataset_from_key(k, self._environment, other._environment)),
-            keys
-        )))
+            def _dataset_from_key(key, environment1, environment2):
+                v = environment1.get(key, None)
+                w = environment2.get(key, None)
+                # Because the key is coming from one of them, they cannot be both `None`.
+                if v is None: return w
+                if w is None: return v
+                return v | w
+
+            new_env = dict(map(
+                lambda k: (k, _dataset_from_key(k, new_env, other._environment)),
+                keys
+            ))
+
+        return Environment(environment=new_env)

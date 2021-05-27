@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from functools import reduce
+from typing import List
 
 import claripy
 import angr # type annotations; pylint: disable=unused-import
@@ -93,7 +93,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                                                   )
             concrete_state.inspect.add_breakpoint('mem_write', BP(enabled=True, action=self._hook_memory_write))
 
-    def merge(self, other, successor=None):
+    def merge(self, others: List['VariableRecoveryState'], successor=None):
         """
         Merge two abstract states.
 
@@ -109,11 +109,11 @@ class VariableRecoveryState(VariableRecoveryStateBase):
 
         new_stack_region = self.stack_region.copy()
         new_stack_region.set_state(self)
-        new_stack_region.merge([ other.stack_region ], None)
+        new_stack_region.merge([ other.stack_region for other in others ], None)
 
         new_register_region = self.register_region.copy()
         new_register_region.set_state(self)
-        new_register_region.merge([ other.register_region ], None)
+        new_register_region.merge([ other.register_region for other in others ], None)
 
         self.phi_variables = {}
         self.successor_block_addr = None
@@ -471,12 +471,12 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
 
         return VariableRecoveryState(node.addr, self, self.project.arch, self.function, [ concrete_state ])
 
-    def _merge_states(self, node, *states):
+    def _merge_states(self, node, *states: VariableRecoveryState):
 
         if len(states) == 1:
             return states[0]
 
-        return reduce(lambda s_0, s_1: s_0.merge(s_1, successor=node.addr), states[1:], states[0])
+        return states[0].merge(states[1:], successor=node.addr)
 
     def _run_on_node(self, node, state):
         """

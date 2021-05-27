@@ -284,11 +284,10 @@ class ReachingDefinitionsState:
     def merge(self, *others):
 
         state = self.copy()
+        others: Iterable['ReachingDefinitionsState']
 
-        for other in others:
-            other: 'ReachingDefinitionsState'
-            state.live_definitions = state.live_definitions.merge(other.live_definitions)
-            state._environment = state.environment.merge(other.environment)
+        state.live_definitions = state.live_definitions.merge(*[other.live_definitions for other in others])
+        state._environment = state.environment.merge(*[other.environment for other in others])
 
         return state
 

@@ -62,7 +62,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         return state
 
-    def merge(self, other, successor=None):
+    def merge(self, others: List['VariableRecoveryFastState'], successor=None) -> 'VariableRecoveryFastState':
         """
         Merge two abstract states.
 
@@ -70,9 +70,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
         create a phi variable V' for each variable V that is defined in A, and then replace all existence of V with V'
         in the merged abstract state.
 
-        :param VariableRecoveryState other: The other abstract state to merge.
-        :return:                            The merged abstract state.
-        :rtype:                             VariableRecoveryState
+        :param others: Other abstract states to merge.
+        :return:       The merged abstract state.
         """
 
         self.phi_variables = {}  # A mapping from original variable and its corresponding phi variable
@@ -80,21 +79,24 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         merged_stack_region = self.stack_region.copy()
         merged_stack_region.set_state(self)
-        merged_stack_region.merge([other.stack_region], None)
+        merged_stack_region.merge([other.stack_region for other in others], None)
 
         merged_register_region = self.register_region.copy()
         merged_register_region.set_state(self)
-        merged_register_region.merge([other.register_region], None)
+        merged_register_region.merge([other.register_region for other in others], None)
 
         merged_global_region = self.global_region.copy()
         merged_global_region.set_state(self)
-        merged_global_region.merge([other.global_region], None)
+        merged_global_region.merge([other.global_region for other in others], None)
 
-        merged_typevars = self.typevars.merge(other.typevars)
-        merged_typeconstraints = self.type_constraints.copy() | other.type_constraints
+        merged_typevars = self.typevars
+        merged_typeconstraints = self.type_constraints.copy()
         delayed_typeconstraints = self.delayed_type_constraints.copy()
-        for v, cons in other.delayed_type_constraints.items():
-            delayed_typeconstraints[v] |= cons
+        for other in others:
+            merged_typevars = merged_typevars.merge(other.typevars)
+            merged_typeconstraints |= other.type_constraints
+            for v, cons in other.delayed_type_constraints.items():
+                delayed_typeconstraints[v] |= cons
 
         # add subtype constraints for all replacements
         for v0, v1 in self.phi_variables.items():
@@ -270,7 +272,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
     def _merge_states(self, node, *states):
 
-        return states[0].merge(states[1], successor=node.addr)
+        return states[0].merge(states[1:], successor=node.addr)
 
     def _run_on_node(self, node, state):
         """
@@ -297,7 +299,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                 return False, input_state
             else:
                 l.debug('Merging input state of node %#x with the previous state.', node.addr)
-                input_state = prev_state.merge(input_state, successor=node.addr)
+                input_state = prev_state.merge([input_state], successor=node.addr)
 
         state = input_state.copy()
         state.block_addr = node.addr
