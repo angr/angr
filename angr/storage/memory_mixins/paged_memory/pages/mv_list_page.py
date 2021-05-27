@@ -1,5 +1,8 @@
+# pylint:disable=abstract-method
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
+
+from sortedcontainers import SortedSet
 
 from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
@@ -26,8 +29,7 @@ class MVListPage(
         super().__init__(**kwargs)
 
         self.content: List[Optional[Set[_MOTYPE]]] = content
-        self._min_stored_offset: Optional[int] = None
-        self._max_stored_offset: Optional[int] = None
+        self.stored_offset = SortedSet()
         self._mo_cmp: Optional[Callable] = mo_cmp
 
         if content is None:
@@ -36,22 +38,11 @@ class MVListPage(
 
         self.sinkhole: Optional[_MOTYPE] = sinkhole
 
-    def _update_boundaries(self, min_offset: int, max_offset: int) -> None:
-        if self._min_stored_offset is None:
-            self._min_stored_offset = min_offset
-        else:
-            self._min_stored_offset = min(self._min_stored_offset, min_offset)
-        if self._max_stored_offset is None:
-            self._max_stored_offset = max_offset
-        else:
-            self._max_stored_offset = max(self._max_stored_offset, max_offset)
-
     def copy(self, memo) -> 'MVListPage':
         o = super().copy(memo)
         o.content = list(self.content)
         o.sinkhole = self.sinkhole
-        o._min_stored_offset = self._min_stored_offset
-        o._max_stored_offset = self._max_stored_offset
+        o.stored_offset = self.stored_offset.copy()
         o._mo_cmp = self._mo_cmp
         return o
 
@@ -96,7 +87,7 @@ class MVListPage(
         subaddr_start = global_start_addr - page_addr
         for subaddr in range(subaddr_start, addr):
             self.content[subaddr] = { new_item }
-        self._update_boundaries(subaddr_start, addr)
+            self.stored_offset.add(subaddr)
         result[-1] = (global_start_addr, new_item)
 
     def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, weak=False, **kwargs):
@@ -108,19 +99,19 @@ class MVListPage(
         if size == len(self.content) and addr == 0:
             self.sinkhole = data
             self.content = [None] * len(self.content)
-            self._min_stored_offset = None
-            self._max_stored_offset = None
+            self.stored_offset = SortedSet()
         else:
             if not weak:
                 for subaddr in range(addr, addr + size):
                     self.content[subaddr] = set(data)
+                    self.stored_offset.add(subaddr)
             else:
                 for subaddr in range(addr, addr + size):
                     if self.content[subaddr] is None:
                         self.content[subaddr] = set(data)
                     else:
                         self.content[subaddr] |= data
-            self._update_boundaries(addr, addr + size)
+                    self.stored_offset.add(subaddr)
 
     def merge(self, others: List['MVListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
               memory=None, changed_offsets: Optional[Set[int]]=None):
@@ -236,28 +227,21 @@ class MVListPage(
                     first_value = False
                 merged_offsets.add(b)
 
-        if merged_offsets:
-            self._update_boundaries(min(merged_offsets), max(merged_offsets) + 1)
+        self.stored_offset |= merged_offsets
         return merged_offsets
 
     def changed_bytes(self, other: 'MVListPage', page_addr: int = None):
 
         candidates: Set[int] = set()
         if self.sinkhole is None:
-            if self._min_stored_offset is not None and self._max_stored_offset is not None:
-                for i in range(self._min_stored_offset, self._max_stored_offset):
-                    if self._contains(i, page_addr):
-                        candidates.add(i)
+            candidates |= self.stored_offset
         else:
             for i in range(len(self.content)):
                 if self._contains(i, page_addr):
                     candidates.add(i)
 
         if other.sinkhole is None:
-            if other._min_stored_offset is not None and other._max_stored_offset is not None:
-                for i in range(other._min_stored_offset, other._max_stored_offset):
-                    if other._contains(i, page_addr):
-                        candidates.add(i)
+            candidates |= other.stored_offset
         else:
             for i in range(len(other.content)):
                 if other._contains(i, page_addr):
