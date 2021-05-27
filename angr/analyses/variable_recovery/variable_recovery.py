@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import List, Tuple
+from typing import Tuple
 
 import claripy
 import angr # type annotations; pylint: disable=unused-import
@@ -379,7 +379,7 @@ class VariableRecoveryState(VariableRecoveryStateBase):
                 if first_annotated is False:
                     # the first argument is not annotated. we don't support it.
                     raise ValueError()
-                if any([ annotated for annotated, _ in parsed[1:] ]):
+                if any(annotated for annotated, _ in parsed[1:]):
                     # more than one argument is annotated. we don't support it.
                     raise ValueError()
 
