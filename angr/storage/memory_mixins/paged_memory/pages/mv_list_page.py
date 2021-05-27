@@ -1,3 +1,4 @@
+# pylint:disable=abstract-method
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
 
@@ -28,7 +29,7 @@ class MVListPage(
         super().__init__(**kwargs)
 
         self.content: List[Optional[Set[_MOTYPE]]] = content
-        self.stored_offset: SortedSet[int] = SortedSet()
+        self.stored_offset = SortedSet()
         self._mo_cmp: Optional[Callable] = mo_cmp
 
         if content is None:

@@ -1,5 +1,6 @@
+# pylint:disable=abstract-method
 import logging
-from typing import Optional, List, Set, Tuple, Any
+from typing import Optional, List, Set, Tuple
 
 from sortedcontainers import SortedSet
 
@@ -16,7 +17,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         super().__init__(**kwargs)
 
         self.content: List[Optional[SimMemoryObject]] = content
-        self.stored_offset: SortedSet[int] = SortedSet()
+        self.stored_offset = SortedSet()
         if content is None:
             if memory is not None:
                 self.content: List[Optional[SimMemoryObject]] = [None] * memory.page_size  # TODO: this isn't the best
