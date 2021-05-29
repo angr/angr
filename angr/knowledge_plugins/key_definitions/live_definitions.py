@@ -397,9 +397,25 @@ class LiveDefinitions:
     def get_definitions_from_atoms(self, atoms: Iterable[Atom]) -> Iterable[Definition]:
         result = set()
         for atom in atoms:
-            result |= self.get_definitions(atom)
+            result |= set(self.get_definitions(atom))
         return result
 
+    def get_value_from_definition(self, definition: Definition) -> MultiValues:
+        return self.get_value_from_atom(definition.atom)
+
+    def get_value_from_atom(self, atom: Atom) -> MultiValues:
+        if isinstance(atom, Register):
+            return self.register_definitions.load(atom.reg_offset, size=atom.size)
+        elif isinstance(atom, MemoryLocation):
+            if isinstance(atom.addr, SpOffset):
+                return self.stack_definitions.load(atom.addr, size=atom.size)
+            elif isinstance(atom.addr, HeapAddress):
+                return self.heap_definitions.load(atom.addr, size=atom.size)
+            elif isinstance(atom.addr, int):
+                return self.memory_definitions.load(atom.addr, size=atom.size)
+            else:
+                # ignore RegisterOffset
+                return None
     #
     # Private methods
     #
