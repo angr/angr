@@ -46,10 +46,12 @@ class ConditionProcessor:
     def __init__(self, condition_mapping=None):
         self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
         self.reaching_conditions = {}
+        self.guarding_conditions = {}
 
     def clear(self):
         self._condition_mapping.clear()
         self.reaching_conditions.clear()
+        self.guarding_conditions.clear()
 
     def recover_reaching_conditions(self, region, with_successors=False, jump_tables=None):
 
@@ -85,8 +87,8 @@ class ConditionProcessor:
         else:
             _g = region.graph
         end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
+        inverted_graph = shallow_reverse(_g)
         if end_nodes:
-            inverted_graph = shallow_reverse(_g)
             if len(end_nodes) > 1:
                 # make sure there is only one end node
                 dummy_node = "DUMMY_NODE"
@@ -148,18 +150,27 @@ class ConditionProcessor:
                 l.warning("Marking node %r as trivially reachable. Disable this optimization in condition_processor.py "
                           "if it leads to incorrect decompilation result.", node_with_greatest_indegree)
 
-        # Another hypothesis: for nodes where two paths come together, we are better off using their "guarding
-        # conditions" instead of reaching conditions. see my super long chatlog with rhelmot on 5/14/2021.
+        # Another hypothesis: for nodes where two paths come together *and* those that cannot be further structured into
+        # another if-else construct (we take the short-cut by testing if the operator is an "Or" after running our
+        # condition simplifiers previously), we are better off using their "guarding conditions" instead of their
+        # reaching conditions for if-else. see my super long chatlog with rhelmot on 5/14/2021.
+        guarding_conditions = {}
         for the_node in sorted_nodes:
 
             preds = list(_g.predecessors(the_node))
             if len(preds) != 2:
                 continue
+            # generate a graph slice that goes from the region head to this node
+            slice_nodes = list(networkx.dfs_tree(inverted_graph, the_node))
+            subgraph = networkx.subgraph(_g, slice_nodes)
             # figure out which paths cause the divergence from this node
             nodes_do_not_reach_the_node = set()
-            for node_ in _g:
-                if not networkx.has_path(_g, node_, the_node):
-                    nodes_do_not_reach_the_node.add(node_)
+            for node_ in subgraph:
+                if node_ is the_node:
+                    continue
+                for succ in _g.successors(node_):
+                    if not networkx.has_path(_g, succ, the_node):
+                        nodes_do_not_reach_the_node.add(succ)
 
             diverging_conditions = [ ]
 
@@ -177,10 +188,10 @@ class ConditionProcessor:
             if diverging_conditions:
                 # the negation of the union of diverging conditions is the guarding condition for this node
                 cond = claripy.Or(*map(claripy.Not, diverging_conditions))
-                if the_node not in reaching_conditions or cond.depth < reaching_conditions[the_node].depth:
-                    reaching_conditions[the_node] = cond
+                guarding_conditions[the_node] = cond
 
         self.reaching_conditions = reaching_conditions
+        self.guarding_conditions = guarding_conditions
 
     def recover_reaching_conditions_for_jumptables(self, region, jump_tables, edge_conditions):
 
