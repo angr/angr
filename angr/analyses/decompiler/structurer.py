@@ -476,6 +476,7 @@ class Structurer(Analysis):
         self._merge_same_conditioned_nodes(seq)
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
+        self._replace_complex_reaching_conditions(seq)
         self._make_condition_nodes(seq)
 
         while True:
@@ -975,6 +976,20 @@ class Structurer(Analysis):
 
         new_node = CodeNode(SequenceNode(nodes=new_nodes), common_subexpr)
         return new_node
+
+    def _replace_complex_reaching_conditions(self, seq: SequenceNode):
+        for i in range(len(seq.nodes)):
+            node = seq.nodes[i]
+
+            if isinstance(node, CodeNode) and \
+                    node.reaching_condition is not None and \
+                    node.reaching_condition.op == "Or" and \
+                    node.node in self.cond_proc.guarding_conditions:
+                guarding_condition = self.cond_proc.guarding_conditions[node.node]
+                # the op of guarding condition is always "Or"
+                if len(guarding_condition.args) < len(node.reaching_condition.args) or \
+                        guarding_condition.depth < node.reaching_condition.depth:
+                    node.reaching_condition = guarding_condition
 
     def _make_condition_nodes(self, seq):
 
