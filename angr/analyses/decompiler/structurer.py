@@ -982,6 +982,7 @@ class Structurer(Analysis):
             node = seq.nodes[i]
 
             if isinstance(node, CodeNode) and \
+                    node.reaching_condition is not None and \
                     node.reaching_condition.op == "Or" and \
                     node.node in self.cond_proc.guarding_conditions:
                 guarding_condition = self.cond_proc.guarding_conditions[node.node]
