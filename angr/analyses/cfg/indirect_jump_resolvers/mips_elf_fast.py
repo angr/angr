@@ -67,9 +67,11 @@ class MipsElfFastResolver(IndirectJumpResolver):
         state = project.factory.blank_state(addr=source_addr, mode="fastpath",
                                             remove_options=options.refs,
                                             # suppress unconstrained stack reads for `gp`
-                                            add_options={options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
-                                                         options.NO_CROSS_INSN_OPT
-                                                         },
+                                            add_options={
+                                                options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+                                                options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                                                options.NO_CROSS_INSN_OPT,
+                                            },
                                             )
         state.regs._t9 = func_addr
         func = cfg.kb.functions.function(addr=func_addr)
