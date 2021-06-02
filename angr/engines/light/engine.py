@@ -637,7 +637,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_32HLto64(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            if r is not None:
+                # the size of r should be 32 but we need to return a 64-bit expression
+                assert r.size() == 32
+                r = claripy.ZeroExt(32, r)
+            return r
 
         return None
 
