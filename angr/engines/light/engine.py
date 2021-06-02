@@ -299,6 +299,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_Sub'
         elif expr.op.startswith('Iop_Mul'):
             handler = "_handle_Mul"
+        elif expr.op.startswith('Iop_DivMod'):
+            handler = "_handle_DivMod"
         elif expr.op.startswith('Iop_Div'):
             handler = "_handle_Div"
         elif expr.op.startswith('Iop_Xor'):
@@ -470,6 +472,36 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         return expr_0 * expr_1
 
+    def _handle_DivMod(self, expr):
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
+
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr.result_size(self.tyenv))
+
+        signed = "U" in expr.op  # Iop_DivModU64to32 vs Iop_DivMod
+        from_size = expr_0.size()
+        to_size = expr_1.size()
+        if signed:
+            quotient = (expr_0.SDiv(claripy.SignExt(from_size - to_size, expr_1)))
+            remainder = (expr_1.SMod(claripy.SignExt(from_size - to_size, expr_1)))
+            quotient_size = to_size
+            remainder_size = to_size
+            return claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+        else:
+            quotient = (expr_0 // claripy.ZeroExt(from_size - to_size, expr_1))
+            remainder = (expr_0 % claripy.ZeroExt(from_size - to_size, expr_1))
+            quotient_size = to_size
+            remainder_size = to_size
+            return claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+
     def _handle_Div(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
@@ -637,7 +669,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_32HLto64(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            if r is not None:
+                # the size of r should be 32 but we need to return a 64-bit expression
+                assert r.size() == 32
+                r = claripy.ZeroExt(32, r)
+            return r
 
         return None
 
