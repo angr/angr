@@ -232,6 +232,44 @@ class SimEngineVRVEX(
         r = self.state.top(result_size)
         return RichR(r)
 
+    def _handle_DivMod(self, expr):
+        arg0, arg1 = expr.args
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        result_size = expr.result_size(self.tyenv)
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            try:
+                signed = "U" in expr.op  # Iop_DivModU64to32 vs Iop_DivMod
+                from_size = r0.data.size()
+                to_size = r1.data.size()
+                if signed:
+                    quotient = (r0.data.SDiv(claripy.SignExt(from_size - to_size, r1.data)))
+                    remainder = (r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data)))
+                    quotient_size = to_size
+                    remainder_size = to_size
+                    result = claripy.Concat(
+                        claripy.Extract(remainder_size - 1, 0, remainder),
+                        claripy.Extract(quotient_size - 1, 0, quotient)
+                    )
+                else:
+                    quotient = (r0.data // claripy.ZeroExt(from_size - to_size, r1.data))
+                    remainder = (r0.data % claripy.ZeroExt(from_size - to_size, r1.data))
+                    quotient_size = to_size
+                    remainder_size = to_size
+                    result = claripy.Concat(
+                        claripy.Extract(remainder_size - 1, 0, remainder),
+                        claripy.Extract(quotient_size - 1, 0, quotient)
+                    )
+
+                return RichR(result)
+            except ZeroDivisionError:
+                pass
+
+        r = self.state.top(result_size)
+        return RichR(r)
+
     def _handle_Div(self, expr):
         arg0, arg1 = expr.args
         r0 = self._expr(arg0)
