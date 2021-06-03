@@ -259,7 +259,15 @@ class Function(Serializable):
 
         return self._local_block_addrs
 
-    def get_block(self, addr, size=None, byte_string=None):
+    def get_block(self, addr: int, size: Optional[int]=None, byte_string: Optional[bytes]=None):
+        """
+        Getting a block out of the current function.
+
+        :param int addr:    The address of the block.
+        :param int size:    The size of the block. This is optional. If not provided, angr will load
+        :param byte_string:
+        :return:
+        """
         if addr in self._block_cache:
             b = self._block_cache[addr]
             if size is None or b.size == size:
