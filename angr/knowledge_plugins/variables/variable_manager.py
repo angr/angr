@@ -14,7 +14,10 @@ from .variable_access import VariableAccess
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
-
+    from cle.backends.elf.compilation_unit import CompilationUnit
+    from cle.backends.elf.variable import Variable
+    from cle.backends.elf.variable_type import VariableType as DW_VariableType
+    from cle.backends.elf.subprogram import Subprogram
 
 l = logging.getLogger(name=__name__)
 
@@ -640,5 +643,28 @@ class VariableManager(KnowledgeBasePlugin):
     def copy(self):
         raise NotImplementedError
 
+    def convert_variable_list(start:int, vlist: List[Variable], manager: VariableManagerInternal ):
+        for v in vlist:
+            simv = None
+            if v.sort == "global":
+                simv = SimMemoryVariable(v.addr,v.type.byte_size)
+            elif v.sort == "register":
+                simv = SimRegisterVariable(v.addr,v.type.byte_size)
+            elif v.sort == "stack":
+                simv = SimStackVariable(v.addr, v.type.byte_size)
+            else:
+                l.warn("undefined variable sort %s for %s", v.sort, v.addr)
+                continue
+            manager.add_variable(v.sort, start, simv)
+
+    def load_form_dwarf(self, cu: CompilationUnit = None):
+        cu = cu or self._kb._project.loader.elfcore_object.compilation_units
+        if cu is None:
+            l.warn("no CompilationUnit found")
+            return
+        self.convert_variable_list(cu.low_pc, cu.global_variables, self.global_manager)
+        for low_pc, subp in cu.functions.items():
+            manager = self.get_function_manager(low_pc)
+            self.convert_variable_list(low_pc, subp.local_variables, manager)
 
 KnowledgeBasePlugin.register_default('variables', VariableManager)
