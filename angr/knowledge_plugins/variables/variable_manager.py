@@ -642,7 +642,7 @@ class VariableManager(KnowledgeBasePlugin):
         raise NotImplementedError
 
     @staticmethod
-    def convert_variable_list(start:int, vlist: 'List[Variable]', manager: VariableManagerInternal ):
+    def convert_variable_list(start:int, vlist: List[Variable], manager: VariableManagerInternal ):
         for v in vlist:
             simv = None
             if v.sort == "global":
@@ -656,7 +656,7 @@ class VariableManager(KnowledgeBasePlugin):
                 continue
             manager.add_variable(v.sort, start, simv)
 
-    def load_form_dwarf(self, cu: 'CompilationUnit' = None):
+    def load_form_dwarf(self, cu: CompilationUnit = None):
         cu = cu or self._kb._project.loader.elfcore_object.compilation_units
         if cu is None:
             l.warning("no CompilationUnit found")
