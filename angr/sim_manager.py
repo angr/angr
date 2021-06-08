@@ -7,6 +7,14 @@ from typing import List, Tuple, DefaultDict
 import claripy
 import mulpyplexer
 
+try:
+    from slacrs import Slacrs
+    from slacrs.model import Commander
+except ImportError as ex:
+    print(str(ex))
+    Slacrs = None  # type: Optional[type]
+    HumanFatigue = None  # type: Optional[type]
+
 from .misc.hookset import HookSet
 from .misc.ux import once
 
@@ -69,6 +77,7 @@ class SimulationManager:
             errored=None,
             completion_mode=any,
             techniques=None,
+            commander_log=None,
             **kwargs):
         super(SimulationManager, self).__init__()
 
@@ -121,6 +130,12 @@ class SimulationManager:
         if techniques:
             for t in techniques:
                 self.use_technique(t)
+
+        if commander_log is not None:
+            self._commander_log = commander_log
+            self._commander_data = {}
+        else:
+            self._commander_log = None
 
     def __repr__(self):
         stashes_repr = ', '.join(("%d %s" % (len(v), k)) for k, v in self._stashes.items() if len(v) != 0)
@@ -278,6 +293,8 @@ class SimulationManager:
         for _ in (itertools.count() if n is None else range(0, n)):
             if not self.complete() and self._stashes[stash]:
                 self.step(stash=stash, **kwargs)
+                if self._commander_log is not None:
+                    self.commander_log(stash)
                 if not (until and until(self)):
                     continue
             break
@@ -621,6 +638,28 @@ class SimulationManager:
         self._store_states(from_stash, keep)
         self._store_states(to_stash, split)
         return self
+
+    def commander_log(self, stash):
+        """
+             To Log stashes into slacrs database for Chess-Coach.
+        """
+
+        if 'stashes' in self._commander_data:
+            stashes = self._commander_data['stashes']
+        else:
+            stashes = {}
+        stashes[stash] = len(self.stashes[stash])
+
+        self._commander_data['stashes'] = stashes
+
+        slacrs = Slacrs()
+        if slacrs:
+            session = slacrs.session()
+            commander = Commander()
+            commander.stashes = self._commander_data['stashes']['active']
+            session.add(commander)
+            session.commit()
+            session.close()
 
     @staticmethod
     def _merge_key(state):
