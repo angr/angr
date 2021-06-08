@@ -42,7 +42,7 @@ def do_trace(proj, test_name, input_data, **kwargs):
         pickle.dump((r, TRACE_VERSION), f, -1)
     return r
 
-def load_cgc_pov(pov_file: str) -> tracer.TracerPoV:
+def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
     if tracer is None:
         raise Exception("Cannot load PoV because tracer is not installed")
 
