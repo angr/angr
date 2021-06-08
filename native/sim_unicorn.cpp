@@ -1858,10 +1858,6 @@ void State::continue_propagating_taint() {
 
 std::vector<std::pair<address_t, uint64_t>> State::find_symbolic_mem_deps(const instr_details_t &instr) const {
 	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
-	for (auto &dep_instr: instr.instr_deps) {
-		auto result = find_symbolic_mem_deps(dep_instr);
-		symbolic_mem_deps.insert(symbolic_mem_deps.end(), result.begin(), result.end());
-	}
 	if (instr.has_symbolic_memory_dep) {
 		for (auto &mem_value: mem_reads_map.at(instr.instr_addr).memory_values) {
 			if (mem_value.is_value_symbolic) {
