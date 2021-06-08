@@ -8,6 +8,8 @@ from common import slow_test, bin_location
 
 
 class TestStrtol(unittest.TestCase):
+    # pylint: disable=no-self-use
+
     @slow_test
     @unittest.skipUnless(sys.platform.startswith("linux"), "linux-only")
     def test_strtol(self, threads=None):
@@ -31,8 +33,8 @@ class TestStrtol(unittest.TestCase):
             expected_outputs.remove(test_output)
 
             # check the output works as expected
-            p = subprocess.Popen(test_bin, stdout=pipe, stderr=pipe, stdin=pipe)
-            ret = p.communicate(test_input)[0]
+            with subprocess.Popen(test_bin, stdout=pipe, stderr=pipe, stdin=pipe) as p:
+                ret = p.communicate(test_input)[0]
             assert ret == test_output
 
         # check that all of the outputs were seen
