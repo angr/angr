@@ -13,7 +13,7 @@ try:
 except ImportError as ex:
     print(str(ex))
     Slacrs = None  # type: Optional[type]
-    HumanFatigue = None  # type: Optional[type]
+    Commander = None  # type: Optional[type]
 
 from .misc.hookset import HookSet
 from .misc.ux import once
