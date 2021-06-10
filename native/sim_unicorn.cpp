@@ -111,15 +111,6 @@ uc_err State::start(address_t pc, uint64_t step) {
 		return UC_ERR_MAP;
 	}
 
-	// Initialize slice tracker for registers and flags
-	for (auto &reg_entry: vex_to_unicorn_map) {
-		reg_instr_slice.emplace(reg_entry.first, std::vector<instr_details_t>());
-	}
-
-	for (auto &cpu_flag_entry: cpu_flags) {
-		reg_instr_slice.emplace(cpu_flag_entry.first, std::vector<instr_details_t>());
-	}
-
 	uc_err out = uc_emu_start(uc, unicorn_next_instr_addr, 0, 0, 0);
 	if (out == UC_ERR_OK && stop_details.stop_reason == STOP_NOSTART && get_instruction_pointer() == 0) {
 		// handle edge case where we stop because we reached our bogus stop address (0)
@@ -252,7 +243,7 @@ void State::commit() {
 	}
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
-			compute_slice_of_instrs_for_vex_temps(symbolic_instr);
+			compute_slice_of_instr(symbolic_instr);
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
 		}
@@ -261,8 +252,8 @@ void State::commit() {
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
+	block_instr_concrete_regs.clear();
 	curr_block_details.reset();
-	instr_slice_details_map.clear();
 	mem_reads_map.clear();
 	mem_writes_taint_map.clear();
 	return;
@@ -704,42 +695,37 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	mem_writes.push_back(record);
 }
 
-void State::compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry) {
-	instr_slice_details_t instr_slice_details;
-	for (auto &dependency: instr_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
-		auto dep_reg_slice_entry = reg_instr_slice.find(dependency.reg_offset);
-		if (dep_reg_slice_entry == reg_instr_slice.end()) {
-			// We don't care about slice of this register because it's artificial, blacklisted or something else.
-			continue;
-		}
-		if (!is_symbolic_register(dependency.reg_offset, dependency.value_size)) {
-			auto dep_reg_slice_instrs = dep_reg_slice_entry->second;
-			if (dep_reg_slice_instrs.size() == 0) {
-				// The register was not modified in this block by any preceding instruction
-				// and so it's value at start of block is a dependency of the block
-				instr_slice_details.concrete_registers.emplace(dependency.reg_offset, dependency.value_size);
-			}
-			else {
-				// The register was modified by some instructions in the block. We add those
-				// instructions to the slice of this instruction and also any instructions
-				// they depend on
-				for (auto &dep_reg_slice_instr: dep_reg_slice_instrs) {
-					auto& dep_instr_slice_details = instr_slice_details_map.at(dep_reg_slice_instr.instr_addr);
-					instr_slice_details.concrete_registers.insert(dep_instr_slice_details.concrete_registers.begin(), dep_instr_slice_details.concrete_registers.end());
-					instr_slice_details.dependent_instrs.insert(dep_instr_slice_details.dependent_instrs.begin(), dep_instr_slice_details.dependent_instrs.end());
-					instr_slice_details.dependent_instrs.emplace(dep_reg_slice_instr);
-				}
-			}
-		}
-	}
-	instr_slice_details_map.emplace(instr_addr, instr_slice_details);
-	return;
-}
-
-void State::compute_slice_of_instrs_for_vex_temps(instr_details_t &instr) {
-	std::queue<std::pair<taint_entity_t, address_t>> temps_to_process;
+void State::compute_slice_of_instr(instr_details_t &instr) {
+	// Compute block slice of instruction needed to setup concrete registers needed by it and also save values of
+	// registers not changed from start of the block
+	std::unordered_set<address_t> instrs_to_process;
 	auto &block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 	auto &instr_taint_entry = block_taint_entry.block_instrs_taint_data_map.at(instr.instr_addr);
+
+	// Save values of registers not modified from start of block till instruction
+	auto &instr_concrete_regs = block_instr_concrete_regs.at(instr.instr_addr);
+	for (auto &dependency: instr_taint_entry.unmodified_dep_regs) {
+		if (!is_valid_dependency_register(dependency.first) || instr_concrete_regs.count(dependency.first) == 0) {
+			// Register is not a valid dependency or was not concrete before instruction was executed. Do not save value.
+			continue;
+		}
+		auto reg_offset = dependency.first;
+		auto reg_size = dependency.second;
+		auto reg_val = block_start_reg_values.at(reg_offset);
+		reg_val.size = reg_size;
+		instr.reg_deps.insert(reg_val);
+	}
+
+	// List of instructions modifying a register dependency. Their slice needs to be computed.
+	for (auto &dep_reg_modifier: instr_taint_entry.dep_reg_modifier_addr) {
+		if (instr_concrete_regs.count(dep_reg_modifier.first) == 0) {
+			// Register was not concrete before instruction was executed. Do not compute slice.
+			continue;
+		}
+		instrs_to_process.emplace(dep_reg_modifier.second);
+	}
+
+	// List of instructions modifying a VEX temp dependency. Their slice needs to be computed.
 	for (auto &dependency: instr_taint_entry.dependencies.at(TAINT_ENTITY_TMP)) {
 		auto vex_temp_deps_entry = block_taint_entry.vex_temp_deps.find(dependency);
 		if (vex_temp_deps_entry == block_taint_entry.vex_temp_deps.end()) {
@@ -747,44 +733,19 @@ void State::compute_slice_of_instrs_for_vex_temps(instr_details_t &instr) {
 			continue;
 		}
 		address_t vex_setter_instr = vex_temp_deps_entry->second.first;
-		if (!is_symbolic_temp(dependency.tmp_id)) {
-			temps_to_process.emplace(std::make_pair(dependency, vex_setter_instr));
+		if ((vex_setter_instr != instr.instr_addr) && !is_symbolic_temp(dependency.tmp_id)) {
+			instrs_to_process.emplace(vex_setter_instr);
 		}
 	}
-	std::vector<instr_details_t> new_dep_instrs(instr.instr_deps.begin(), instr.instr_deps.end());
-	instr.instr_deps.clear();
-	while (!temps_to_process.empty()) {
-		auto &vex_tmp = temps_to_process.front();
-		if (vex_tmp.second != instr.instr_addr) {
-			auto &tmp_instr_slice = instr_slice_details_map.at(vex_tmp.second);
-			auto &tmp_instr_details = block_taint_entry.block_instrs_taint_data_map.at(vex_tmp.second);
-			for (auto &reg: tmp_instr_slice.concrete_registers) {
-				auto reg_offset = reg.first;
-				auto reg_val = block_start_reg_values.at(reg_offset);
-				reg_val.size = reg.second;
-				instr.reg_deps.insert(reg_val);
-			}
-			new_dep_instrs.insert(new_dep_instrs.end(), tmp_instr_slice.dependent_instrs.begin(), tmp_instr_slice.dependent_instrs.end());
-			new_dep_instrs.emplace_back(compute_instr_details(vex_tmp.second, tmp_instr_details));
-		}
-		temps_to_process.pop();
-		for (auto &dep_vex_tmp: block_taint_entry.vex_temp_deps.at(vex_tmp.first).second) {
-			auto vex_temp_deps_entry = block_taint_entry.vex_temp_deps.find(dep_vex_tmp);
-			if (vex_temp_deps_entry == block_taint_entry.vex_temp_deps.end()) {
-				// No dependency entries for this VEX temp
-				continue;
-			}
-			address_t vex_setter_instr = vex_temp_deps_entry->second.first;
-			temps_to_process.push(std::make_pair(dep_vex_tmp, vex_setter_instr));
-		}
-	}
-	for (auto &dep_instr: new_dep_instrs) {
-		compute_slice_of_instrs_for_vex_temps(dep_instr);
-		instr.reg_deps.insert(dep_instr.reg_deps.begin(), dep_instr.reg_deps.end());
-		instr.instr_deps.insert(dep_instr.instr_deps.begin(), dep_instr.instr_deps.end());
-		dep_instr.reg_deps.clear();
-		dep_instr.instr_deps.clear();
-		instr.instr_deps.insert(dep_instr);
+	for (auto &instr_to_process_addr: instrs_to_process) {
+		auto &instr_to_process_taint_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_to_process_addr);
+		instr_details_t instr_details = compute_instr_details(instr_to_process_addr, instr_to_process_taint_entry);
+		compute_slice_of_instr(instr_details);
+		instr.reg_deps.insert(instr_details.reg_deps.begin(), instr_details.reg_deps.end());
+		instr.instr_deps.insert(instr_details.instr_deps.begin(), instr_details.instr_deps.end());
+		instr_details.reg_deps.clear();
+		instr_details.instr_deps.clear();
+		instr.instr_deps.insert(instr_details);
 	}
 	return;
 }
@@ -794,6 +755,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 	instruction_taint_entry_t instruction_taint_entry;
 	bool started_processing_instructions;
 	address_t curr_instr_addr;
+	std::unordered_map<vex_reg_offset_t, address_t> last_reg_modifier_instr;
 
 	started_processing_instructions = false;
 	block_taint_entry.has_unsupported_stmt_or_expr_type = false;
@@ -804,13 +766,10 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 			{
 				taint_entity_t sink;
 				std::unordered_set<taint_entity_t> srcs;
-				std::pair<vex_reg_offset_t, std::pair<int64_t, bool>> modified_reg_data;
 
 				sink.entity_type = TAINT_ENTITY_REG;
 				sink.instr_addr = curr_instr_addr;
 				sink.reg_offset = stmt->Ist.Put.offset;
-				modified_reg_data.first = stmt->Ist.Put.offset;
-				modified_reg_data.second.second = false;
 				auto result = process_vex_expr(stmt->Ist.Put.data, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
@@ -818,7 +777,6 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 					break;
 				}
 				sink.value_size = result.value_size;
-				modified_reg_data.second.first = sink.value_size;
 				// Flatten list of taint sources and also save them as dependencies of instruction
 				// TODO: Should we not save dependencies if sink is an artificial register?
 				for (auto &entry: result.taint_sources) {
@@ -828,17 +786,18 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
 				instruction_taint_entry.mem_read_size += result.mem_read_size;
 				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
-				// Check if sink is also source of taint
-				if (result.taint_sources.at(sink.entity_type).count(sink)) {
-					modified_reg_data.second.second = true;
-				}
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
 					instruction_taint_entry.ite_cond_entity_list.insert(entry.second.begin(), entry.second.end());
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
-				if ((modified_reg_data.first != arch_pc_reg_vex_offset()) && reg_instr_slice.count(modified_reg_data.first) != 0) {
-					instruction_taint_entry.modified_regs.emplace_back(modified_reg_data);
+				// Save last modified instruction address for the register
+				auto last_modifier_entry = last_reg_modifier_instr.find(sink.reg_offset);
+				if (last_modifier_entry == last_reg_modifier_instr.end()) {
+					last_reg_modifier_instr.emplace(sink.reg_offset, curr_instr_addr);
+				}
+				else {
+					last_modifier_entry->second = curr_instr_addr;
 				}
 				break;
 			}
@@ -956,6 +915,15 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 			{
 				// Save dependencies of previous instruction and clear it
 				if (started_processing_instructions) {
+					for (auto &dep: instruction_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
+						auto entry = last_reg_modifier_instr.find(dep.reg_offset);
+						if ((entry != last_reg_modifier_instr.end()) && (entry->second != curr_instr_addr)) {
+							instruction_taint_entry.dep_reg_modifier_addr.emplace(dep.reg_offset, entry->second);
+						}
+						else {
+							instruction_taint_entry.unmodified_dep_regs.emplace(dep.reg_offset, dep.value_size);
+						}
+					}
 					// TODO: Many instructions will not have dependencies. Can we save memory by not storing info for them?
 					block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 				}
@@ -1555,6 +1523,15 @@ void State::propagate_taints() {
 	for (; instr_taint_data_entries_it != instr_taint_data_stop_it && !stopped; ++instr_taint_data_entries_it) {
 		address_t curr_instr_addr = instr_taint_data_entries_it->first;
 		auto& curr_instr_taint_entry = instr_taint_data_entries_it->second;
+		std::unordered_map<vex_reg_offset_t, int64_t> concrete_reg_deps;
+
+		// Save list of register dependencies of current instruction which are concrete for slice computation later
+		for (auto &reg_dep: curr_instr_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
+			if (!is_symbolic_register(reg_dep.reg_offset, reg_dep.value_size)) {
+				concrete_reg_deps.emplace(std::make_pair(reg_dep.reg_offset, reg_dep.value_size));
+			}
+		}
+		block_instr_concrete_regs.emplace(curr_instr_addr, concrete_reg_deps);
 		if (curr_instr_taint_entry.has_memory_read) {
 			// Pause taint propagation to process the memory read and continue from instruction
 			// after the memory read.
@@ -1569,13 +1546,9 @@ void State::propagate_taints() {
 			if (curr_instr_taint_entry.has_memory_write) {
 				mem_writes_taint_map.emplace(curr_instr_addr, false);
 			}
-			compute_slice_of_instrs(curr_instr_addr, curr_instr_taint_entry);
-			update_register_slice(curr_instr_addr, curr_instr_taint_entry);
 			continue;
 		}
-		compute_slice_of_instrs(curr_instr_addr, curr_instr_taint_entry);
 		propagate_taint_of_one_instr(curr_instr_addr, curr_instr_taint_entry);
-		update_register_slice(curr_instr_addr, curr_instr_taint_entry);
 	}
 	// If we reached here, execution has reached the end of the block
 	if (!stopped) {
@@ -1611,9 +1584,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 		}
 		else {
 			// We cannot propagate taint since VEX lift failed and so we stop here. But, since
-			// there are no symbolic values, we do need need to propagate taint. Of course,
-			// the register slices cannot be updated but those won't be needed since this
-			// block will never be executed partially concretely and rest in VEX engine.
+			// there are no symbolic values, we do need need to propagate taint.
 			return;
 		}
 	}
@@ -1636,13 +1607,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(const address_t instr
 			stop(block_taint_entry.unsupported_stmt_stop_reason);
 			return;
 		}
-		compute_slice_of_instrs(instr_addr, instr_taint_data_entry);
 		propagate_taint_of_one_instr(instr_addr, instr_taint_data_entry);
 	}
-	if (instr_slice_details_map.count(instr_addr) == 0) {
-		compute_slice_of_instrs(instr_addr, instr_taint_data_entry);
-	}
-	update_register_slice(instr_addr, instr_taint_data_entry);
 	if (!stopped) {
 		continue_propagating_taint();
 	}
@@ -1710,7 +1676,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 				}
 			}
 			else if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset != arch_pc_reg_vex_offset())) {
-				// Mark register as concrete since none of it's dependencies are symbolic. Also update it's slice.
+				// Mark register as concrete since none of it's dependencies are symbolic.
 				mark_register_concrete(taint_sink.reg_offset, taint_sink.value_size);
 			}
 		}
@@ -1721,17 +1687,13 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 	}
 	if (is_instr_symbolic) {
-		auto &instr_slice_details = instr_slice_details_map.at(instr_addr);
-		for (auto &reg: instr_slice_details.concrete_registers) {
-			auto reg_offset = reg.first;
-			auto reg_size = reg.second;
-			auto reg_val = block_start_reg_values.at(reg_offset);
-			reg_val.size = reg_size;
-			instr_details.reg_deps.insert(reg_val);
+		if (instr_details.has_symbolic_memory_dep) {
+			for (auto &mem_value: mem_reads_map.at(instr_addr).memory_values) {
+				if (mem_value.is_value_symbolic) {
+					instr_details.symbolic_mem_deps.emplace_back(std::make_pair(mem_value.address, mem_value.size));
+				}
+			}
 		}
-		instr_details.instr_deps.insert(instr_slice_details.dependent_instrs.begin(), instr_slice_details.dependent_instrs.end());
-		auto result = find_symbolic_mem_deps(instr_details);
-		instr_details.symbolic_mem_deps.insert(instr_details.symbolic_mem_deps.end(), result.begin(), result.end());
 		curr_block_details.symbolic_instrs.emplace_back(instr_details);
 	}
 	return;
@@ -1815,17 +1777,13 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 	taint_engine_next_instr_address = block_address;
 	block_symbolic_temps.clear();
 	block_start_reg_values.clear();
-	for (auto &reg_instr_slice_entry: reg_instr_slice) {
-		// Clear slice for register
-		reg_instr_slice_entry.second.clear();
+	for (auto &reg_offset: vex_to_unicorn_map) {
 		// Save value of all registers
 		register_value_t reg_value;
-		reg_value.offset = reg_instr_slice_entry.first;
+		reg_value.offset = reg_offset.first;
 		memset(reg_value.value, 0, MAX_REGISTER_BYTE_SIZE);
 		get_register_value(reg_value.offset, reg_value.value);
 		block_start_reg_values.emplace(reg_value.offset, reg_value);
-		// Reset the slice of register
-		reg_instr_slice_entry.second.clear();
 	}
 	for (auto &cpu_flag: cpu_flags) {
 		register_value_t flag_value;
@@ -1856,18 +1814,6 @@ void State::continue_propagating_taint() {
 	return;
 }
 
-std::vector<std::pair<address_t, uint64_t>> State::find_symbolic_mem_deps(const instr_details_t &instr) const {
-	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
-	if (instr.has_symbolic_memory_dep) {
-		for (auto &mem_value: mem_reads_map.at(instr.instr_addr).memory_values) {
-			if (mem_value.is_value_symbolic) {
-				symbolic_mem_deps.emplace_back(std::make_pair(mem_value.address, mem_value.size));
-			}
-		}
-	}
-	return symbolic_mem_deps;
-}
-
 void State::save_concrete_memory_deps(instr_details_t &instr) {
 	if (instr.has_concrete_memory_dep) {
 		archived_memory_values.emplace_back(mem_reads_map.at(instr.instr_addr).memory_values);
@@ -1889,26 +1835,6 @@ void State::save_concrete_memory_deps(instr_details_t &instr) {
 		for (auto it = curr_instr->instr_deps.begin(); it != curr_instr->instr_deps.end(); *it++) {
 			instrs_to_process.push(it);
 		}
-	}
-	return;
-}
-
-void State::update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry) {
-	instr_details_t instr_details = compute_instr_details(instr_addr, curr_instr_taint_entry);
-	for (auto &reg_entry: curr_instr_taint_entry.modified_regs) {
-		vex_reg_offset_t reg_offset = reg_entry.first;
-		auto reg_size = reg_entry.second.first;
-		if ((reg_offset == arch_pc_reg_vex_offset()) || is_symbolic_register(reg_offset, reg_size)) {
-			continue;
-		}
-		if (reg_instr_slice.find(reg_offset) == reg_instr_slice.end()) {
-			continue;
-		}
-		// Check if register's new value depends on it's previous value
-		if (!reg_entry.second.second) {
-			reg_instr_slice.at(reg_offset).clear();
-		}
-		reg_instr_slice.at(reg_offset).emplace_back(instr_details);
 	}
 	return;
 }

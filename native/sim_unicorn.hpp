@@ -308,12 +308,15 @@ struct instruction_taint_entry_t {
 	// List of dependencies a taint sink depends on
 	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> dependencies;
 
+	// Address of last instruction that modified a register dependency prior to this instruction. Used for computing
+	// block slice needed to setup concrete registers needed by the instruction
+	std::unordered_map<vex_reg_offset_t, address_t> dep_reg_modifier_addr;
+
+	// List of registers not modified after start of current basic block till current instruction
+	std::unordered_map<vex_reg_offset_t, int64_t> unmodified_dep_regs;
+
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
-
-	// List of registers modified by instruction, their size and whether register's final value depends on
-	// it's previous value
-	std::vector<std::pair<vex_reg_offset_t, std::pair<int64_t, bool>>> modified_regs;
 
 	// Count number of bytes read from memory by the instruction
 	uint32_t mem_read_size;
@@ -333,12 +336,13 @@ struct instruction_taint_entry_t {
 		dependencies.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
 		dependencies.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
 		dependencies.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
+		dep_reg_modifier_addr.clear();
 		ite_cond_entity_list.clear();
 		taint_sink_src_map.clear();
-		modified_regs.clear();
 		has_memory_read = false;
 		has_memory_write = false;
 		mem_read_size = 0;
+		unmodified_dep_regs.clear();
 		return;
 	}
 };
@@ -389,11 +393,6 @@ struct processed_vex_expr_t {
 		mem_read_size = 0;
 		value_size = -1;
 	}
-};
-
-struct instr_slice_details_t {
-	std::set<instr_details_t> dependent_instrs;
-	std::unordered_map<vex_reg_offset_t, int64_t> concrete_registers;
 };
 
 struct CachedPage {
@@ -457,12 +456,6 @@ class State {
 	// memory writes in a single instruction
 	std::unordered_map<address_t, bool> mem_writes_taint_map;
 
-	// Slice of current block to set the value of a register
-	std::unordered_map<vex_reg_offset_t, std::vector<instr_details_t>> reg_instr_slice;
-
-	// Slice of current block for an instruction
-
-	std::unordered_map<address_t, instr_slice_details_t> instr_slice_details_map;
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
 	block_details_t curr_block_details;
@@ -475,6 +468,9 @@ class State {
 	// a symbolic address
 	RegisterSet block_symbolic_registers, block_concrete_registers;
 	TempSet block_symbolic_temps;
+
+	// Set of register dependencies that were concrete before an instruction was executed
+	std::unordered_map<address_t, std::unordered_map<vex_reg_offset_t, int64_t>> block_instr_concrete_regs;
 
 	// List of instructions that should be executed symbolically
 	std::vector<block_details_t> blocks_with_symbolic_instrs;
@@ -501,8 +497,7 @@ class State {
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
 
-	void compute_slice_of_instrs(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
-	void compute_slice_of_instrs_for_vex_temps(instr_details_t &instr);
+	void compute_slice_of_instr(instr_details_t &instr);
 	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
 	// Return list of all dependent instructions including dependencies of those dependent instructions
@@ -537,9 +532,6 @@ class State {
 
 	// Save values of concrete memory reads performed by an instruction and it's dependencies
 	void save_concrete_memory_deps(instr_details_t &instr);
-	// Find address and size of all symbolic memory reads performed by an instruction and it's dependencies
-	std::vector<std::pair<address_t, uint64_t>> find_symbolic_mem_deps(const instr_details_t &instr) const;
-	void update_register_slice(address_t instr_addr, const instruction_taint_entry_t &curr_instr_taint_entry);
 
 	// Inline functions
 
