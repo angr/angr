@@ -212,8 +212,8 @@ class UnaryOp(Op):
     def __eq__(self, other):
         return type(other) is UnaryOp and \
                self.op == other.op and \
-               self.operand == other.operand and \
-               self.bits == other.bits
+               self.bits == other.bits and \
+               self.operand == other.operand
 
     __hash__ = TaggedObject.__hash__
 
@@ -267,11 +267,11 @@ class Convert(UnaryOp):
 
     def __eq__(self, other):
         return type(other) is Convert and \
-               self.operand == other.operand and \
                self.from_bits == other.from_bits and \
                self.to_bits == other.to_bits and \
                self.bits == other.bits and \
-               self.is_signed == other.is_signed
+               self.is_signed == other.is_signed and \
+               self.operand == other.operand
 
     __hash__ = TaggedObject.__hash__
 
@@ -371,10 +371,10 @@ class BinaryOp(Op):
 
     def __eq__(self, other):
         return type(other) is BinaryOp and \
-               self.operands == other.operands and \
                self.op == other.op and \
                self.bits == other.bits and \
-               self.signed == other.signed
+               self.signed == other.signed and \
+               self.operands == other.operands
 
     __hash__ = TaggedObject.__hash__
 
