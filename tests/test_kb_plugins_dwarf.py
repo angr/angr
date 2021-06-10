@@ -1,6 +1,5 @@
 import nose.tools
 import angr
-import networkx
 
 import os
 location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
@@ -23,4 +22,4 @@ def test_kb_plugins_dwarf():
 
 
 if __name__ == '__main__':
-    test_kb_pluginsz_dwarf()
+    test_kb_plugins_dwarf()
