@@ -646,7 +646,7 @@ class VariableManager(KnowledgeBasePlugin):
         for v in vlist:
             simv = None
             if v.type is None:
-                l.warn("skipped unknown type for %s", v.name)
+                l.warning("skipped unknown type for %s", v.name)
                 continue
             if v.sort == "global":
                 simv = SimMemoryVariable(v.addr,v.type.byte_size)
