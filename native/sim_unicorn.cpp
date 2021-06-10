@@ -756,6 +756,7 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 	bool started_processing_instructions;
 	address_t curr_instr_addr;
 	std::unordered_map<vex_reg_offset_t, address_t> last_reg_modifier_instr;
+	std::unordered_set<vex_reg_offset_t> modified_regs;
 
 	started_processing_instructions = false;
 	block_taint_entry.has_unsupported_stmt_or_expr_type = false;
@@ -791,14 +792,8 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 					instruction_taint_entry.ite_cond_entity_list.insert(entry.second.begin(), entry.second.end());
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
-				// Save last modified instruction address for the register
-				auto last_modifier_entry = last_reg_modifier_instr.find(sink.reg_offset);
-				if (last_modifier_entry == last_reg_modifier_instr.end()) {
-					last_reg_modifier_instr.emplace(sink.reg_offset, curr_instr_addr);
-				}
-				else {
-					last_modifier_entry->second = curr_instr_addr;
-				}
+				// Mark this register as modified by this instruction for updating register setter later
+				modified_regs.emplace(sink.reg_offset);
 				break;
 			}
 			case Ist_WrTmp:
@@ -917,13 +912,24 @@ block_taint_entry_t State::process_vex_block(IRSB *vex_block, address_t address)
 				if (started_processing_instructions) {
 					for (auto &dep: instruction_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
 						auto entry = last_reg_modifier_instr.find(dep.reg_offset);
-						if ((entry != last_reg_modifier_instr.end()) && (entry->second != curr_instr_addr)) {
+						if (entry != last_reg_modifier_instr.end()) {
 							instruction_taint_entry.dep_reg_modifier_addr.emplace(dep.reg_offset, entry->second);
 						}
 						else {
 							instruction_taint_entry.unmodified_dep_regs.emplace(dep.reg_offset, dep.value_size);
 						}
 					}
+					// Update last modified instruction address for registers modified by this instruction
+					for (auto &modified_reg: modified_regs) {
+						auto last_modifier_entry = last_reg_modifier_instr.find(modified_reg);
+						if (last_modifier_entry == last_reg_modifier_instr.end()) {
+							last_reg_modifier_instr.emplace(modified_reg, curr_instr_addr);
+						}
+						else {
+							last_modifier_entry->second = curr_instr_addr;
+						}
+					}
+					modified_regs.clear();
 					// TODO: Many instructions will not have dependencies. Can we save memory by not storing info for them?
 					block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 				}
