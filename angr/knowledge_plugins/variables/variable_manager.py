@@ -642,9 +642,12 @@ class VariableManager(KnowledgeBasePlugin):
         raise NotImplementedError
 
     @staticmethod
-    def convert_variable_list(start:int, vlist: List[Variable], manager: VariableManagerInternal ):
+    def convert_variable_list(vlist: List[Variable], manager: VariableManagerInternal ):
         for v in vlist:
             simv = None
+            if v.type is None:
+                l.warn("skipped unknown type for %s", v.name)
+                continue
             if v.sort == "global":
                 simv = SimMemoryVariable(v.addr,v.type.byte_size)
             elif v.sort == "register":
@@ -654,17 +657,18 @@ class VariableManager(KnowledgeBasePlugin):
             else:
                 l.warning("undefined variable sort %s for %s", v.sort, v.addr)
                 continue
-            manager.add_variable(v.sort, start, simv)
+            simv.name = v.name
+            manager.add_variable(v.sort, v.addr, simv)
 
     def load_from_dwarf(self, cu_list: List[CompilationUnit] = None):
-        cu_list = cu_list or self._kb._project.loader.elfcore_object.compilation_units
+        cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
         if cu_list is None:
             l.warning("no CompilationUnit found")
             return
         for cu in cu_list:
-            self.convert_variable_list(cu.low_pc, cu.global_variables, self.global_manager)
+            self.convert_variable_list(cu.global_variables, self.global_manager)
             for low_pc, subp in cu.functions.items():
                 manager = self.get_function_manager(low_pc)
-                self.convert_variable_list(low_pc, subp.local_variables, manager)
+                self.convert_variable_list(subp.local_variables, manager)
 
 KnowledgeBasePlugin.register_default('variables', VariableManager)
