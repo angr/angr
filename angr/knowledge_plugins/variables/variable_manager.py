@@ -11,10 +11,11 @@ from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, Si
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
 from .variable_access import VariableAccess
+from cle.backends.elf.compilation_unit import CompilationUnit
+from cle.backends.elf.variable import Variable
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
-
 
 l = logging.getLogger(name=__name__)
 
@@ -640,5 +641,34 @@ class VariableManager(KnowledgeBasePlugin):
     def copy(self):
         raise NotImplementedError
 
+    @staticmethod
+    def convert_variable_list(vlist: List[Variable], manager: VariableManagerInternal ):
+        for v in vlist:
+            simv = None
+            if v.type is None:
+                l.warning("skipped unknown type for %s", v.name)
+                continue
+            if v.sort == "global":
+                simv = SimMemoryVariable(v.addr,v.type.byte_size)
+            elif v.sort == "register":
+                simv = SimRegisterVariable(v.addr,v.type.byte_size)
+            elif v.sort == "stack":
+                simv = SimStackVariable(v.addr, v.type.byte_size)
+            else:
+                l.warning("undefined variable sort %s for %s", v.sort, v.addr)
+                continue
+            simv.name = v.name
+            manager.add_variable(v.sort, v.addr, simv)
+
+    def load_from_dwarf(self, cu_list: List[CompilationUnit] = None):
+        cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
+        if cu_list is None:
+            l.warning("no CompilationUnit found")
+            return
+        for cu in cu_list:
+            self.convert_variable_list(cu.global_variables, self.global_manager)
+            for low_pc, subp in cu.functions.items():
+                manager = self.get_function_manager(low_pc)
+                self.convert_variable_list(subp.local_variables, manager)
 
 KnowledgeBasePlugin.register_default('variables', VariableManager)
