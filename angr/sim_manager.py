@@ -7,7 +7,6 @@ from typing import List, Tuple, DefaultDict
 import claripy
 import mulpyplexer
 
-
 from .misc.hookset import HookSet
 from .misc.ux import once
 
@@ -70,7 +69,6 @@ class SimulationManager:
             errored=None,
             completion_mode=any,
             techniques=None,
-            commander_log=None,
             **kwargs):
         super(SimulationManager, self).__init__()
 
