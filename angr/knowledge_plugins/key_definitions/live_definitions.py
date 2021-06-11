@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, TYPE_CHECKING
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple
 import logging
 
 import claripy
@@ -413,7 +413,7 @@ class LiveDefinitions:
     def get_value_from_definition(self, definition: Definition) -> MultiValues:
         return self.get_value_from_atom(definition.atom)
 
-    def get_value_from_atom(self, atom: Atom) -> MultiValues:
+    def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
             return self.register_definitions.load(atom.reg_offset, size=atom.size)
         elif isinstance(atom, MemoryLocation):
