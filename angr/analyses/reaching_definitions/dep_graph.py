@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set, Iterable, Union, TYPE_CHECKING
+from typing import Optional, Dict, Set, Iterable, Union
 from functools import reduce
 
 import networkx
