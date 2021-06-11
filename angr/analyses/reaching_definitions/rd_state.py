@@ -355,7 +355,7 @@ class ReachingDefinitionsState:
                     )
                     is_using_spbp_to_define_memory_location_on_stack = (
                         isinstance(atom, MemoryLocation) and
-                        atom.is_on_stack and
+                        (atom.is_on_stack or self.is_stack_address(atom.addr)) and
                         isinstance(used.atom, Register) and
                         used.atom.reg_offset in (sp_offset, bp_offset)
                     )
