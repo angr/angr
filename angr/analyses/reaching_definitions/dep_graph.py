@@ -145,7 +145,7 @@ class DepGraph:
             )
         ))
 
-        #concretize ddresses where possible
+        # concretize addresses where possible
         concrete_known_pred_addresses = []
         for address in known_predecessor_addresses:
             if isinstance(address, claripy.ast.Base):
