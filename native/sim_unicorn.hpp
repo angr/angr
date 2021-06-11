@@ -137,6 +137,12 @@ struct mem_read_result_t {
 	std::vector<memory_value_t> memory_values;
 	bool is_mem_read_symbolic;
 	uint32_t read_size;
+
+	mem_read_result_t() {
+		memory_values.clear();
+		is_mem_read_symbolic = false;
+		read_size = 0;
+	}
 };
 
 struct register_value_t {
@@ -205,12 +211,16 @@ struct block_details_t {
 	uint64_t block_size;
 	std::vector<instr_details_t> symbolic_instrs;
 	bool vex_lift_failed;
+	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
+	// if they end in syscall. Remove it after syscalls are correctly setup on ARM in native interface itself.
+	VEXLiftResult *vex_lift_result;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
 		symbolic_instrs.clear();
 		vex_lift_failed = false;
+		vex_lift_result = NULL;
 	}
 };
 
@@ -521,11 +531,13 @@ class State {
 	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 
+	VEXLiftResult* lift_block(address_t block_address, int32_t block_size);
+
 	void mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size);
 	void mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size);
 	void mark_temp_symbolic(vex_tmp_id_t temp_id);
 
-	block_taint_entry_t process_vex_block(IRSB *vex_block, address_t address);
+	void process_vex_block(IRSB *vex_block, address_t address);
 
 	void propagate_taints();
 	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
@@ -628,8 +640,11 @@ class State {
 		int64_t cpu_flags_register;
 		stop_details_t stop_details;
 
+		// List of all values read from memory in current block
+		std::vector<memory_value_t> block_mem_reads_data;
+
 		// Result of all memory reads executed. Instruction address -> memory read result
-		std::unordered_map<address_t, mem_read_result_t> mem_reads_map;
+		std::unordered_map<address_t, mem_read_result_t> block_mem_reads_map;
 
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;
@@ -712,7 +727,7 @@ class State {
 
 		void handle_write(address_t address, int size, bool is_interrupt);
 
-		void propagate_taint_of_mem_read_instr_and_continue(const address_t instr_addr);
+		void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
@@ -738,10 +753,6 @@ class State {
 
 		inline bool is_symbolic_taint_propagation_disabled() const {
 			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
-		}
-
-		inline address_t get_taint_engine_stop_mem_read_instr_addr() const {
-			return taint_engine_stop_mem_read_instruction;
 		}
 
 		inline void update_previous_stack_top() {
