@@ -426,6 +426,8 @@ class LiveDefinitions:
             else:
                 # ignore RegisterOffset
                 return None
+        else:
+            return None
     #
     # Private methods
     #
