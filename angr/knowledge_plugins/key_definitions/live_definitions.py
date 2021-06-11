@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple, TYPE_CHECKING
 import logging
 
 import claripy
