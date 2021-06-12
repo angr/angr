@@ -1605,7 +1605,14 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	memory_value_t memory_read_value;
 	address_t curr_instr_addr;
 
+	auto tainted = find_tainted(read_address, read_size);
 	if (is_symbolic_tracking_disabled()) {
+		if (tainted != -1) {
+			// Symbolic register tracking is disabled but memory location has symbolic data.
+			// We switch to VEX engine then.
+			stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
+			return;
+		}
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
 	}
@@ -1614,14 +1621,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	memory_read_value.reset();
 	memory_read_value.address = read_address;
 	memory_read_value.size = read_size;
-	auto tainted = find_tainted(read_address, read_size);
 	if (tainted != -1) {
-		if (is_symbolic_tracking_disabled()) {
-			// Symbolic register tracking is disabled but memory location has symbolic data.
-			// We switch to VEX engine then.
-			stop(STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED);
-			return;
-		}
 		memory_read_value.is_value_symbolic = true;
 	}
 	else {
