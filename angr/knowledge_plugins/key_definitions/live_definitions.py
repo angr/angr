@@ -46,7 +46,7 @@ class DefinitionAnnotation(Annotation):
     def eliminatable(self):
         return False
 
-
+# pylint: disable=W1116
 class LiveDefinitions:
     """
     A LiveDefinitions instance contains definitions and uses for register, stack, memory, and temporary variables,
