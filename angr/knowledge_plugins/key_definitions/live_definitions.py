@@ -46,7 +46,7 @@ class DefinitionAnnotation(Annotation):
     def eliminatable(self):
         return False
 
-
+# pylint: disable=W1116
 class LiveDefinitions:
     """
     A LiveDefinitions instance contains definitions and uses for register, stack, memory, and temporary variables,
@@ -232,10 +232,13 @@ class LiveDefinitions:
             if len(sp_values.values) == 1:
                 values = next(iter(sp_values.values.values()))
                 if len(set(map(self.get_stack_offset, values))) == 1:
-                    return self.stack_offset_to_stack_addr(self.get_stack_offset(next(iter(values))))
+                    return self.get_stack_address(next(iter(values)))
             assert False
 
-        return self.stack_offset_to_stack_addr(self.get_stack_offset(sp_v))
+        return self.get_stack_address(sp_v)
+
+    def get_stack_address(self, offset: claripy.ast.Base) -> int:
+        return self.stack_offset_to_stack_addr(self.get_stack_offset(offset))
 
     def stack_offset_to_stack_addr(self, offset) -> int:
         if self.arch.bits == 32:
@@ -308,6 +311,13 @@ class LiveDefinitions:
                 self.heap_definitions.store(atom.addr.value, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, int):
                 self.memory_definitions.store(atom.addr, d, size=atom.size, endness=endness)
+            elif isinstance(atom.addr, claripy.ast.Base):
+                if atom.addr.concrete:
+                    self.memory_definitions.store(atom.addr._model_concrete.value, d, size=atom.size, endness=endness)
+                elif self.is_stack_address(atom.addr):
+                    self.stack_definitions.store(self.get_stack_address(atom.addr), d, size=atom.size, endness=endness)
+                else:
+                    return None
             else:
                 return None
         elif isinstance(atom, Tmp):
@@ -397,9 +407,27 @@ class LiveDefinitions:
     def get_definitions_from_atoms(self, atoms: Iterable[Atom]) -> Iterable[Definition]:
         result = set()
         for atom in atoms:
-            result |= self.get_definitions(atom)
+            result |= set(self.get_definitions(atom))
         return result
 
+    def get_value_from_definition(self, definition: Definition) -> MultiValues:
+        return self.get_value_from_atom(definition.atom)
+
+    def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
+        if isinstance(atom, Register):
+            return self.register_definitions.load(atom.reg_offset, size=atom.size)
+        elif isinstance(atom, MemoryLocation):
+            if isinstance(atom.addr, SpOffset):
+                return self.stack_definitions.load(atom.addr, size=atom.size)
+            elif isinstance(atom.addr, HeapAddress):
+                return self.heap_definitions.load(atom.addr, size=atom.size)
+            elif isinstance(atom.addr, int):
+                return self.memory_definitions.load(atom.addr, size=atom.size)
+            else:
+                # ignore RegisterOffset
+                return None
+        else:
+            return None
     #
     # Private methods
     #
