@@ -511,6 +511,8 @@ class VMDeobfuscation(Analysis):
             # This is to check if the node was deleted or not
             if node in new_model.graph.nodes():
                 if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
+                    if node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
+                        continue
                     succ = list(new_model.graph.successors(node))[0]
                     if len(list(new_model.graph.predecessors(succ))) == 1 and not succ.is_simprocedure:
                         new_stmts = []
@@ -660,12 +662,15 @@ class VMDeobfuscation(Analysis):
 
     def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
-        flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
-        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
+        # flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
+        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
         # flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
         #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
+        flag = claripy.BVV(b'5\n')
+        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+                                       concrete_fs=True, chroot="/media/sf_PhD/tigress_tests", stdin=flag)
 
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
@@ -674,6 +679,7 @@ class VMDeobfuscation(Analysis):
             succs = new_cfg.model.get_successors(node)
             if len(succs) == 0:
                 final_state = node.input_state
+                print(final_state.posix.dumps(1))
 
         import ipdb;ipdb.set_trace()
 
@@ -1735,6 +1741,20 @@ class VMDeobfuscation(Analysis):
                         if match_result:
                             x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov byte ptr [" + match_result.group(1) +"], "+match_result.group(2) +"</FONT>"
                             continue
+                        ###### This is a regex for converting
+                        # ------ IMark(0x40085f, 0, 0) ------
+                        # t20 = Add64(t17,0xffffffffffffffd8)
+                        # STle(t20) = 0x0000000000602320
+                        # to
+                        # mov byte ptr [rbp - 9], 0x0000000000602320
+                        match_result = re.match("\nt\d+\s=\sAdd64\(t\d+,0x\w+\)\nSTle\((\w+)\)\s=\s(\w+)",cur_ins_str)
+                        if match_result:
+                            second_arg = original_instructions[original_addresses.index(curr_ins_addr)].insn.op_str.split(',')[1]
+                            is_reg = re.match("\s[a-z]+", second_arg)
+                            is_tmp = re.match("\st*", second_arg)
+                            if is_reg and not is_tmp:
+                                x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ")[:-3]+match_result.group(2) + "</FONT>"
+                                continue
 
                         match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\s64to32\(t\d+\)\nt\d+\s=\st\d+\nt\d+\s=\sAdd32\((\w+),t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
                         if match_result:
