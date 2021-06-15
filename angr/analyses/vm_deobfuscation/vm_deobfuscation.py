@@ -53,6 +53,12 @@ class DataSensitiveRdTmp(pyvex.expr.RdTmp):
         super(DataSensitiveRdTmp, self).__init__(tmp)
         self.block_id = block_id
 
+class DataSensitiveIMark(pyvex.stmt.IMark):
+    def __init__(self, addr, length, delta, block_id):
+        super(DataSensitiveIMark, self).__init__(addr, length, delta)
+        self.block_id = block_id
+
+
 
 class CLibFunctionHandler(FunctionHandler):
     def hook(self, analysis):
@@ -497,6 +503,21 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
+        new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        for i in range(2):
+            print("DCE round "+str(i))
+            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
+        for i in range(3):
+            print("DCE round "+str(i))
+            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+
+        for i in range(2):
+            new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+
         self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr)
 
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
@@ -627,6 +648,9 @@ class VMDeobfuscation(Analysis):
                     block_id_for_next = succs[0].block_id
 
 
+            # for ind, stmt in new_stmts:
+            #     if isinstance(stmt, pyvex.stmt.IMark):
+            #         new_stmts[ind] = DataSensitiveIMark(stmt.addr, stmt.length, stmt.delta, node.block_id)
 
             if isinstance(node.irsb.next, pyvex.expr.RdTmp):
                 new_next = DataSensitiveRdTmp(node.irsb.next.tmp, block_id_for_next)
@@ -680,9 +704,6 @@ class VMDeobfuscation(Analysis):
             if len(succs) == 0:
                 final_state = node.input_state
                 print(final_state.posix.dumps(1))
-
-        import ipdb;ipdb.set_trace()
-
 
     def convert_to_atom(self, vex_inst, tyenv, byte_width):
         if isinstance(vex_inst, pyvex.expr.RdTmp):
@@ -742,6 +763,143 @@ class VMDeobfuscation(Analysis):
             return claripy.BVS(f'reg_{expr.offset}', expr.result_size(tyenv))
         elif isinstance(expr, pyvex.expr.Const):
             return expr.con.value
+
+    def remove_redundant_assignment(self, cfg, proj, start_state=None):
+        # This looks like
+        # t33 = t27
+        # e.g. resulting after the `remove_redundant_store_load` simplification
+        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'redun_assignment')
+        for node in dsa_new_model.nodes():
+            if node.addr == self.vm_start_addr:
+                start_node = node
+                break
+
+        for node in dsa_new_model.nodes():
+            if node.is_simprocedure:
+                continue
+
+            tmp_replace_dict = {}
+            new_statements = []
+            for stmt in node.irsb.statements:
+                if isinstance(stmt, pyvex.stmt.WrTmp) and isinstance(stmt.data, pyvex.expr.RdTmp):
+                    to_be_replaced_with = stmt.data
+                    while to_be_replaced_with in tmp_replace_dict:
+                        # This is for the recursive replacements
+                        to_be_replaced_with = tmp_replace_dict[stmt.data]
+                    tmp_replace_dict[pyvex.expr.RdTmp(stmt.tmp)] = to_be_replaced_with
+                    continue
+                else:
+                    if not isinstance(stmt, pyvex.stmt.IMark):
+                        for tmp in tmp_replace_dict:
+                            for expr in stmt.expressions:
+                                if expr == tmp:
+                                    stmt.replace_expression(expr, tmp_replace_dict[tmp])
+                new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_statements,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+        # Returning a new CFGVMDeobfuscation object with the updated graph
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        return new_cfg
+
+    def remove_redundant_store_load(self, cfg, proj, start_state=None):
+        # removing redundant store and loads in a block that look like this
+        #------ IMark(0x401212, 0, 0) ------
+        # t29 = Add64(t12,0xfffffffffffffe80)
+        # STle(t29) = t27
+        # ....
+        # ....
+        # ------ IMark(0x4016bf, 0, 0) ------
+        # t31 = Add64(t23,0xfffffffffffffe80)
+        # t33 = LDle:I64(t31)
+        # the last LDle can be replaced directly with the first t27 giving t33 = t27
+        # only doing this block wise to be conservative
+
+
+        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'redun_store_load')
+        for node in dsa_new_model.nodes():
+            if node.addr == self.vm_start_addr:
+                start_node = node
+                break
+
+        for node in dsa_new_model.nodes():
+            if node.is_simprocedure:
+                continue
+            cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+            rd = self.project.analyses.ReachingDefinitions(cur_block,
+                                                           track_tmps=True,
+                                                           function_handler=CLibFunctionHandler(),
+                                                           observation_points=[('node', node.addr, OP_AFTER)]
+                                                           )
+
+            # Find redundant loads
+            replace_stle_dict = {}
+            all_defs = rd.all_definitions
+            for d in all_defs:
+                if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                    continue
+                uses = rd.all_uses.get_uses(d)
+
+                if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                    for use in uses:
+                        if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
+                            replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+
+            new_statements = []
+            # Remove dead assignments
+            for idx, stmt in enumerate(cur_block.vex.statements):
+                # if isinstance(stmt, pyvex.stmt.WrTmp):
+                #     if stmt.tmp not in used_tmp_indices:
+                #         continue
+
+                # is it a dead virgin?
+                if idx in replace_stle_dict:
+                    replaced_stmt = pyvex.stmt.WrTmp(stmt.tmp, replace_stle_dict[idx])
+                    new_statements.append(replaced_stmt)
+                else:
+                    new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_statements,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+        # Returning a new CFGVMDeobfuscation object with the updated graph
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        return new_cfg
 
     def _eliminate_dead_assignments(self, cfg, proj, start_state=None):
 
@@ -1109,6 +1267,7 @@ class VMDeobfuscation(Analysis):
                         if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
                             continue
                         #simplified_statements.append(cur_stmt_node.stmt)
+                        import ipdb;ipdb.set_trace()
                         if cur_stmt_node.codeloc.ins_addr not in inst_grouped_simp_stmts:
                             inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr] = []
                         inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr].append(cur_stmt_node.stmt)
@@ -1134,9 +1293,9 @@ class VMDeobfuscation(Analysis):
                                                    size=node.irsb.size)
                 print(node.irsb.pp())
 
-                if simp_flag == 1:
-                    import ipdb;ipdb.set_trace()
-                    pass
+                # if simp_flag == 1:
+                #     import ipdb;ipdb.set_trace()
+                #     pass
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         if start_state:
