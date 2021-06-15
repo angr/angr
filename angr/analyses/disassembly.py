@@ -1,6 +1,8 @@
-
 import logging
 from collections import defaultdict
+from typing import Union
+
+import pyvex
 
 from . import Analysis
 
@@ -11,8 +13,13 @@ from .disassembly_utils import decode_instruction
 
 try:
     from ..engines import pcode
+    import pypcode
+    IRSBType = Union[pyvex.IRSB, pcode.lifter.IRSB]
+    IROpObjType = Union[pyvex.stmt.IRStmt, pypcode.PcodeOp]
 except ImportError:
     pcode = None
+    IRSBType = pyvex.IRSB
+    IROpObjType = pyvex.stmt
 
 l = logging.getLogger(name=__name__)
 
@@ -96,6 +103,33 @@ class Label(DisassemblyPiece):
 
     def _render(self, formatting):  # pylint:disable=unused-argument
         return [self.name + ':']
+
+
+class IROp(DisassemblyPiece):
+
+    __slots__ = (
+        'addr',
+        'seq',
+        'obj',
+        'irsb',
+        )
+
+    addr: int
+    seq: int
+    obj: IROpObjType
+    irsb: IRSBType
+
+    def __init__(self, addr: int, seq: int, obj: IROpObjType, irsb: IRSBType):
+        self.addr = addr
+        self.seq = seq
+        self.obj = obj
+        self.irsb = irsb
+
+    def __str__(self):
+        return str(self.obj)
+
+    def _render(self, formatting):  # pylint:disable=unused-argument
+        return [str(self)]
 
 
 class BlockStart(DisassemblyPiece):
@@ -769,7 +803,7 @@ class FuncComment(DisassemblyPiece):
 
 
 class Disassembly(Analysis):
-    def __init__(self, function=None, ranges=None):  # pylint:disable=unused-argument
+    def __init__(self, function=None, ranges=None, include_ir=False):  # pylint:disable=unused-argument
 
         # TODO: support ranges
 
@@ -780,9 +814,11 @@ class Disassembly(Analysis):
             'labels': {},
             'instructions': {},
             'hooks': {},
+            'ir': defaultdict(list)
         }
         self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
+        self._include_ir = include_ir
 
         if function is not None:
             # sort them by address, put hooks before nonhooks
@@ -816,6 +852,29 @@ class Disassembly(Analysis):
         self.raw_result.append(instruction)
         self.raw_result_map['instructions'][instruction.addr] = instruction
         self.block_to_insn_addrs[block.addr].append(insn.address)
+
+    def _add_block_ir_to_results(self, block: BlockNode, irsb: IRSBType) -> None:
+        """
+        Add lifter IR for this block
+        """
+        addr_to_ops_map = self.raw_result_map['ir']
+        addr = block.addr
+        ops = addr_to_ops_map[addr]
+
+        if irsb.statements is not None:
+            if (pcode is not None and
+                isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin)):
+                for ins in irsb._instructions:
+                    addr = ins.address.offset
+                    addr_to_ops_map[addr].extend([
+                        IROp(addr, op.seq.uniq, op, irsb) for op in ins.ops])
+            else:
+                for seq, stmt in enumerate(irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        addr = stmt.addr
+                        ops = addr_to_ops_map[addr]
+                    else:
+                        ops.append(IROp(addr, seq, stmt, irsb))
 
     def parse_block(self, block: BlockNode) -> None:
         """
@@ -863,6 +922,10 @@ class Disassembly(Analysis):
                 self.block_to_insn_addrs[block.addr].append(stmt.addr)
         else:
             raise TypeError("")
+
+        if self._include_ir:
+            b = self.project.factory.block(block.addr, size=block.size)
+            self._add_block_ir_to_results(block, b.vex)
 
     def render(self, formatting=None):
         if formatting is None: formatting = {}
