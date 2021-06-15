@@ -492,6 +492,7 @@ class State {
 
 	address_t taint_engine_next_instr_address, taint_engine_stop_mem_read_instruction;
 	uint32_t taint_engine_stop_mem_read_size;
+	bool symbolic_read_in_progress;
 
 	address_t unicorn_next_instr_addr;
 	address_t prev_stack_top_addr;

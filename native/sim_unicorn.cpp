@@ -51,6 +51,7 @@ State::State(uc_engine *_uc, uint64_t cache_key):uc(_uc) {
 	arch = *((uc_arch*)uc); // unicorn hides all its internals...
 	mode = *((uc_mode*)((uc_arch*)uc + 1));
 	curr_block_details.reset();
+	symbolic_read_in_progress = false;
 }
 
 /*
@@ -1629,7 +1630,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		read_memory_value(read_address, read_size, memory_read_value.value, MAX_MEM_ACCESS_SIZE);
 	}
 
-	if (!memory_read_value.is_value_symbolic && (symbolic_registers.size() == 0) &&
+	if (!memory_read_value.is_value_symbolic && !symbolic_read_in_progress && (symbolic_registers.size() == 0) &&
 	    (block_symbolic_registers.size() == 0) && (block_symbolic_temps.size() == 0)) {
 		// The value read from memory is concrete and there are no symbolic registers or VEX temps. No need to propagate
 		// taint. Since we cannot rely on the unicorn engine to find out current instruction correctly, we simply save
@@ -1756,6 +1757,9 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	if (mem_read_result.read_size < taint_engine_stop_mem_read_size) {
 		// There are more bytes to be read by this instruction. We do not propagate taint until bytes are read
 		// Sometimes reads are split across multiple reads hooks in unicorn.
+		// Also, remember that a symbolic value has been partially read from memory so that even if the rest of the
+		// bytes to be read are concrete, taint will be propagated.
+		symbolic_read_in_progress = true;
 		return;
 	}
 	else if (mem_read_result.read_size > taint_engine_stop_mem_read_size) {
@@ -1763,6 +1767,9 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		// Likely a bug.
 		assert(false && "Memory read operation has read more bytes than expected. This should not happen!");
 	}
+
+	// Mark read as complete
+	symbolic_read_in_progress = false;
 
 	// There are no more pending reads at this instruction. Now we can propagate taint.
 	// This allows us to also handle cases when only some of the memory reads are symbolic: we treat all as symbolic
