@@ -306,7 +306,7 @@ class SimTypeInt(SimTypeReg):
     SimTypeInt is a type that specifies a signed or unsigned C integer.
     """
 
-    _fields = SimTypeReg._fields + ('signed',)
+    _fields = tuple(x for x in SimTypeReg._fields if x != 'size') + ('signed',)
     _base_name = 'int'
 
     def __init__(self, signed=True, label=None):
@@ -500,7 +500,7 @@ class SimTypePointer(SimTypeReg):
     def __init__(self, pts_to, label=None, offset=0):
         """
         :param label:   The type label.
-        :param pts_to:  The type to which this pointer points to.
+        :param pts_to:  The type to which this pointer points.
         """
         super(SimTypePointer, self).__init__(None, label=label)
         self.pts_to = pts_to
@@ -1310,6 +1310,7 @@ BASIC_TYPES = {
     'long int': SimTypeLong(True),
     'signed long int': SimTypeLong(True),
     'unsigned long int': SimTypeLong(False),
+    'long unsigned int': SimTypeLong(False),
 
     'long long': SimTypeLongLong(True),
     'signed long long': SimTypeLongLong(True),
@@ -1468,14 +1469,15 @@ def register_types(types):
         ALL_TYPES.update(types)
 
 
-def do_preprocess(defn):
+def do_preprocess(defn, include_path=()):
     """
     Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
     """
     from pycparser.ply import lex, cpp  # pylint:disable=import-outside-toplevel
     lexer = lex.lex(cpp)
     p = cpp.Preprocessor(lexer)
-    # p.add_path(dir) will add dir to the include search path
+    for included in include_path:
+        p.add_path(included)
     p.parse(defn)
     return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
 
@@ -1588,10 +1590,12 @@ def _decl_to_type(decl, extra_types=None):
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
-        argtyps = () if decl.args is None else [_decl_to_type(x.type, extra_types) if type(x) is not pycparser.c_ast.EllipsisParam else ... for x in decl.args.params]
+        argtyps = () if decl.args is None else [... if type(x) is pycparser.c_ast.EllipsisParam else \
+                                                SimTypeBottom() if type(x) is pycparser.c_ast.ID else \
+                                                _decl_to_type(x.type, extra_types) for x in decl.args.params]
         arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] if decl.args else None
         # special handling: func(void) is func()
-        if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom):
+        if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom) and arg_names[0] is None:
             argtyps = ()
             arg_names = None
         if argtyps and argtyps[-1] is ...:
@@ -1684,7 +1688,7 @@ def _decl_to_type(decl, extra_types=None):
         elif key in ALL_TYPES:
             return ALL_TYPES[key]
         else:
-            raise TypeError("Unknown type '%s'" % ' '.join(key))
+            raise TypeError("Unknown type '%s'" % key)
 
     elif isinstance(decl, pycparser.c_ast.Enum):
         # See C99 at 6.7.2.2
