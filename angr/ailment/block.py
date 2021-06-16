@@ -31,7 +31,7 @@ class Block:
             block_str = "## Block %x\n" % self.addr
         else:
             block_str = "## Block %x.%d\n" % (self.addr, self.idx)
-        stmts_str = "\n".join([ ("%02d | %x | " % (i, stmt.ins_addr)) + str(stmt) for i, stmt in enumerate(self.statements)])
+        stmts_str = "\n".join([ ("%02d | %s | " % (i, hex(getattr(stmt, 'ins_addr', 0)))) + str(stmt) for i, stmt in enumerate(self.statements)])
         block_str += stmts_str
         return block_str
 
