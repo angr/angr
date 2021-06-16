@@ -48,6 +48,9 @@ class SimCGC(SimUserland):
         # Create the CGC plugin
         s.get_plugin('cgc')
 
+        # Set maximum bytes a single receive syscall should read
+        s.cgc.max_receive_size = kwargs.get("cgc_max_recv_size", 0)
+
         # Set up the flag page
         if flag_page is None:
             flag_page = [s.solver.BVS("cgc-flag-byte-%d" % i, 8, key=('flag', i), eternal=True) for i in range(0x1000)]
