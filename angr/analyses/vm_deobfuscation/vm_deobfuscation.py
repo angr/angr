@@ -515,7 +515,7 @@ class VMDeobfuscation(Analysis):
             print("DCE round "+str(i))
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
-        for i in range(4):
+        for i in range(15):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
 
@@ -686,12 +686,12 @@ class VMDeobfuscation(Analysis):
         # flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
         #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
-        # flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
-        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
-        flag = claripy.BVV(b'5\n')
+        flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
         new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-                                       concrete_fs=True, chroot="/media/sf_PhD/tigress_tests", stdin=flag)
+                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
+        # flag = claripy.BVV(b'5\n')
+        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+        #                                concrete_fs=True, chroot="/media/sf_PhD/tigress_tests", stdin=flag)
 
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
@@ -1042,11 +1042,11 @@ class VMDeobfuscation(Analysis):
                                                    resolve_indirect_jumps=True, max_iterations=1,
                                                    vm_vpc_addr=self.vm_vpc_addr)
         return new_cfg
-    def find_index_of_IMark(self, imark_stmt, statements, stmt_idx):
+    def find_index_of_IMark(self, imark_addr, statements, stmt_idx):
         imark_ind = None
         min_gap = len(statements)+1
         for ind, cur_stmt in enumerate(statements):
-            if isinstance(imark_stmt, pyvex.stmt.IMark) and cur_stmt.addr == imark_stmt.addr:
+            if isinstance(cur_stmt, pyvex.stmt.IMark) and cur_stmt.addr == imark_addr:
                 if 0 < stmt_idx - ind < min_gap:
                     imark_ind = ind
         return imark_ind
@@ -1115,9 +1115,6 @@ class VMDeobfuscation(Analysis):
                     to_simplify_sub_graph = nx.DiGraph(copy.deepcopy(sub_graph.graph))
                     stmt_node_queue = []
                     for stmt_node in to_simplify_sub_graph.nodes():
-                        if stmt_node.codeloc.ins_addr == 0x401502:
-                            import ipdb;
-                            ipdb.set_trace()
                         if to_simplify_sub_graph.out_degree(stmt_node) == 0:
                             stmt_node_queue.append(stmt_node)
                             print(stmt_node)
