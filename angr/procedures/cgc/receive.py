@@ -42,6 +42,9 @@ class receive(angr.SimProcedure):
 
         if CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
             count = self.state.solver.eval(count)
+            if self.state.cgc.max_receive_size > 0:
+                count = min(count, self.state.cgc.max_receive_size)
+
             read_length = simfd.read(buf, count, short_reads=False)
             if type(read_length) is int:
                 read_length = self.state.solver.BVV(read_length, 32)

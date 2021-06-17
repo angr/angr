@@ -35,6 +35,8 @@ class SimStateCGC(SimStatePlugin):
 
         self.flag_bytes = None
 
+        self.max_receive_size = 0
+
     @SimStatePlugin.memo
     def copy(self, memo): # pylint: disable=unused-argument
         c = super().copy(memo)
@@ -46,6 +48,7 @@ class SimStateCGC(SimStatePlugin):
         c.input_size = self.input_size
         c.sinkholes = set(self.sinkholes)
         c.flag_bytes = self.flag_bytes
+        c.max_receive_size = self.max_receive_size
 
         return c
 
