@@ -53,11 +53,12 @@ class DataSensitiveRdTmp(pyvex.expr.RdTmp):
         super(DataSensitiveRdTmp, self).__init__(tmp)
         self.block_id = block_id
 
-class DataSensitiveIMark(pyvex.stmt.IMark):
-    def __init__(self, addr, length, delta, block_id):
-        super(DataSensitiveIMark, self).__init__(addr, length, delta)
-        self.block_id = block_id
-
+class IndSensitiveCodeLocation(CodeLocation):
+    def __init__(self, block_addr: int, stmt_idx: int, ins_ind=None, block_id=None, sim_procedure=None, ins_addr=None,
+                 context=None, block_idx=None, **kwargs):
+        super(IndSensitiveCodeLocation, self).__init__(block_addr, stmt_idx, block_id, sim_procedure, ins_addr,
+                 context, block_idx, **kwargs)
+        self.ins_ind = ins_ind
 
 
 class CLibFunctionHandler(FunctionHandler):
@@ -514,7 +515,7 @@ class VMDeobfuscation(Analysis):
             print("DCE round "+str(i))
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
-        for i in range(2):
+        for i in range(4):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
 
@@ -647,10 +648,6 @@ class VMDeobfuscation(Analysis):
                 else:
                     block_id_for_next = succs[0].block_id
 
-
-            # for ind, stmt in new_stmts:
-            #     if isinstance(stmt, pyvex.stmt.IMark):
-            #         new_stmts[ind] = DataSensitiveIMark(stmt.addr, stmt.length, stmt.delta, node.block_id)
 
             if isinstance(node.irsb.next, pyvex.expr.RdTmp):
                 new_next = DataSensitiveRdTmp(node.irsb.next.tmp, block_id_for_next)
@@ -1045,7 +1042,14 @@ class VMDeobfuscation(Analysis):
                                                    resolve_indirect_jumps=True, max_iterations=1,
                                                    vm_vpc_addr=self.vm_vpc_addr)
         return new_cfg
-
+    def find_index_of_IMark(self, imark_stmt, statements, stmt_idx):
+        imark_ind = None
+        min_gap = len(statements)+1
+        for ind, cur_stmt in enumerate(statements):
+            if isinstance(imark_stmt, pyvex.stmt.IMark) and cur_stmt.addr == imark_stmt.addr:
+                if 0 < stmt_idx - ind < min_gap:
+                    imark_ind = ind
+        return imark_ind
     def block_arithmetic_simplifications(self, cfg, proj, start_state=None):
         # Naming this this CFGEmulated so that certain other analysis can uses the results from this
         new_model = self.new_model_graph(cfg.graph, proj, 'CFGEmulated')
@@ -1058,12 +1062,15 @@ class VMDeobfuscation(Analysis):
                 ## create stmt dependency graph
                 stmt_graph = StatementGraph()
                 cur_ins_addr = None
+                cur_ins_ind = None
                 for ind, stmt in enumerate(node.irsb.statements):
                     if isinstance(stmt, pyvex.stmt.IMark):
                         cur_ins_addr = stmt.addr
+                        cur_ins_ind = ind
                         continue
 
                     code_loc = CodeLocation(node.addr, ind, ins_addr=cur_ins_addr)
+                    ins_ind_sens_code_loc = IndSensitiveCodeLocation(node.addr, ind, ins_addr=cur_ins_addr, ins_ind=cur_ins_ind)
                     if code_loc in result.all_uses_by_code_loc:
                         for use in result.all_uses_by_code_loc[code_loc]:
                             use_stmt = node.irsb.statements[use.codeloc.stmt_idx]
@@ -1071,14 +1078,20 @@ class VMDeobfuscation(Analysis):
                             if isinstance(use.codeloc, ExternalCodeLocation):
                                 use_node = StatementNode(None, use.codeloc, def_atom=use.atom)
                             else:
-                                use_node = StatementNode(use_stmt, use.codeloc, def_atom=tmp_atom)
+                                imark_ins_ind = self.find_index_of_IMark(use.codeloc.ins_addr, node.irsb.statements,
+                                                                         use.codeloc.stmt_idx)
+                                new_ins_ind_sens_codeloc = IndSensitiveCodeLocation(use.codeloc.block_addr,
+                                                                                    use.codeloc.stmt_idx,
+                                                                                    ins_addr=use.codeloc.ins_addr,
+                                                                                    ins_ind=imark_ins_ind)
+                                use_node = StatementNode(use_stmt, new_ins_ind_sens_codeloc, def_atom=tmp_atom)
                             stmt_atom = self.convert_to_atom(stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
-                            stmt_node = StatementNode(stmt, code_loc, def_atom=stmt_atom)
+                            stmt_node = StatementNode(stmt, ins_ind_sens_code_loc, def_atom=stmt_atom)
                             stmt_graph.add_edge(stmt_node, use_node)
                     else:
                         ## These are leaf nodes or independent statements
                         stmt_atom = self.convert_to_atom(stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
-                        stmt_node = StatementNode(stmt, code_loc, def_atom=stmt_atom)
+                        stmt_node = StatementNode(stmt, ins_ind_sens_code_loc, def_atom=stmt_atom)
                         stmt_graph.add_node(stmt_node)
 
                 ## split the graph into connected components
@@ -1102,6 +1115,9 @@ class VMDeobfuscation(Analysis):
                     to_simplify_sub_graph = nx.DiGraph(copy.deepcopy(sub_graph.graph))
                     stmt_node_queue = []
                     for stmt_node in to_simplify_sub_graph.nodes():
+                        if stmt_node.codeloc.ins_addr == 0x401502:
+                            import ipdb;
+                            ipdb.set_trace()
                         if to_simplify_sub_graph.out_degree(stmt_node) == 0:
                             stmt_node_queue.append(stmt_node)
                             print(stmt_node)
@@ -1220,10 +1236,15 @@ class VMDeobfuscation(Analysis):
                                 new_simpl_stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add" + cur_stmt.data.op[-2:],
                                                                                 [pyvex.expr.RdTmp(tmp_to_keep),
                                                                                  pyvex.expr.Const(cur_stmt_const_class(((const_0+const_1)&(1<<64)-1)))]))
-                                new_simpl_stmt_node = StatementNode(new_simpl_stmt, successor.codeloc)
+                                tmp_codeloc = IndSensitiveCodeLocation(successor.codeloc.block_addr,
+                                                                       successor.codeloc.stmt_idx,
+                                                                       ins_addr=cur_stmt_node.codeloc.ins_addr,
+                                                                       ins_ind=cur_stmt_node.codeloc.ins_ind
+                                                                       )
+
+                                new_simpl_stmt_node = StatementNode(new_simpl_stmt, tmp_codeloc)
                                 # This map is to ensure that if the two VEX insts are from two different x86 insts then after this simp we should treat them as one...... to make our life easier while mapping VEX back to x86
-                                if successor.codeloc.ins_addr != cur_stmt_node.codeloc.ins_addr:
-                                    new_address_map[successor.codeloc.ins_addr] = cur_stmt_node.codeloc.ins_addr
+                                # new_address_map[new_simpl_stmt_node] = (cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)
                                 #successor.stmt = pyvex.stmt.WrTmp(cur_stmt.tmp, pyvex.expr.Binop("Iop_Add"+cur_stmt.data.op[-2:], [pyvex.expr.RdTmp(tmp_to_keep), pyvex.expr.Const(cur_stmt.data.args[1].__class__(pyvex.expr.U64(const_0+const_1 if const_0 + const_1 >= 0 else (1<<64)+const_1+const_0)))]))
                                 for pred_node in pred_nodes_to_join:
                                     to_simplify_sub_graph.add_edge(pred_node, new_simpl_stmt_node)
@@ -1242,8 +1263,11 @@ class VMDeobfuscation(Analysis):
                     # insert the leaf nodes into the queue and update the addresses of the modified instructions
                     for stmt_node in to_simplify_sub_graph.nodes():
                         # Updating the new code locs for the stmts
-                        if stmt_node.codeloc.ins_addr in new_address_map:
-                            stmt_node.codeloc.ins_addr = new_address_map[stmt_node.codeloc.ins_addr]
+                        # if not isinstance(stmt_node.codeloc, ExternalCodeLocation) and stmt_node in new_address_map:
+                        #     ins_tuple = new_address_map[stmt_node]
+                        #     new_stmt_node = StatementNode(stmt_node.stmt, )
+                        #     stmt_node.codeloc.ins_addr = ins_tuple[0]
+                        #     stmt_node.codeloc.ins_ind = ins_tuple[1]
                         if to_simplify_sub_graph.out_degree(stmt_node) == 0:
                             stmt_node_queue.append(stmt_node)
                             print(stmt_node)
@@ -1267,20 +1291,21 @@ class VMDeobfuscation(Analysis):
                         if isinstance(cur_stmt_node.codeloc, ExternalCodeLocation):
                             continue
                         #simplified_statements.append(cur_stmt_node.stmt)
-                        import ipdb;ipdb.set_trace()
-                        if cur_stmt_node.codeloc.ins_addr not in inst_grouped_simp_stmts:
-                            inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr] = []
-                        inst_grouped_simp_stmts[cur_stmt_node.codeloc.ins_addr].append(cur_stmt_node.stmt)
+                        if (cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind) not in inst_grouped_simp_stmts:
+                            inst_grouped_simp_stmts[(cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)] = []
+                        inst_grouped_simp_stmts[(cur_stmt_node.codeloc.ins_addr, cur_stmt_node.codeloc.ins_ind)].append(cur_stmt_node.stmt)
 
                 # Making sure that the order of instructions is same as the original binary, though does not necessarily mean the best
                 ordered_ins_addrs = []
-                for stmt in node.irsb.statements:
-                    if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in inst_grouped_simp_stmts:
-                        ordered_ins_addrs.append(stmt.addr)
+                for ind, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark) and (stmt.addr, ind) in inst_grouped_simp_stmts:
+                        ordered_ins_addrs.append((stmt.addr, ind))
 
-                for ins_addr in ordered_ins_addrs:
+                for ins_tuple in ordered_ins_addrs:
+                    ins_addr = ins_tuple[0]
+                    ins_ind = ins_tuple[1]
                     simplified_statements.append(pyvex.stmt.IMark(ins_addr, length=0, delta=0))
-                    for simp_stmt in inst_grouped_simp_stmts[ins_addr]:
+                    for simp_stmt in inst_grouped_simp_stmts[(ins_addr, ins_ind)]:
                         simplified_statements.append(simp_stmt)
 
                 node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
