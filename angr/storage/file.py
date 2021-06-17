@@ -663,6 +663,7 @@ class SimFileDescriptorBase(SimStatePlugin):
         if self.state.solver.symbolic(size):
             try:
                 passed_max_size = self.state.solver.max(size, extra_constraints=(size < self.state.libc.max_packet_size,))
+                self.state.add_constraints(size <= passed_max_size)
             except SimSolverError:
                 passed_max_size = self.state.solver.min(size)
                 l.warning("Symbolic write size is too large for threshold - concretizing to min (%d)", passed_max_size)
