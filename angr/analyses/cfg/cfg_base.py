@@ -12,7 +12,6 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...sim_options import SYMBOL_FILL_UNCONSTRAINED_REGISTERS, SYMBOL_FILL_UNCONSTRAINED_MEMORY
 from ...knowledge_plugins.functions import FunctionManager, Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
@@ -1584,7 +1583,7 @@ class CFGBase(Analysis):
                 if f_addr == func_addr:
                     continue
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and \
-                        all([max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs]):
+                        all(max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs):
                     if f_addr in functions_to_remove:
                         # this function has already been merged with other functions before... it cannot be merged with
                         # this function anymore
