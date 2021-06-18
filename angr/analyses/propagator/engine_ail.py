@@ -383,6 +383,29 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'Shr', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
+    def _ail_handle_Mul(self, expr):
+
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
+        elif self.state.is_top(operand_1):
+            return self.state.top(expr.bits)
+
+        return Expr.BinaryOp(expr.idx, 'Mul', [operand_0, operand_1, ], expr.signed, bits=expr.bits, **expr.tags)
+
+    def _ail_handle_Mull(self, expr):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
+        elif self.state.is_top(operand_1):
+            return self.state.top(expr.bits)
+
+        return Expr.BinaryOp(expr.idx, 'Mull', [operand_0, operand_1, ], expr.signed, bits=expr.bits, **expr.tags)
+
     def _ail_handle_Div(self, expr):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])

@@ -312,6 +312,35 @@ class SimEngineVRAIL(
                      typevar=r0.typevar,
                      )
 
+    def _ail_handle_Mull(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            result_size = expr.bits
+            if r0.data.size() < result_size:
+                if expr.signed:
+                    r0.data = claripy.SignExt(result_size - r0.data.size(), r0.data)
+                else:
+                    r0.data = claripy.ZeroExt(result_size - r0.data.size(), r0.data)
+            if r1.data.size() < result_size:
+                if expr.signed:
+                    r1.data = claripy.SignExt(result_size - r1.data.size(), r1.data)
+                else:
+                    r1.data = claripy.ZeroExt(result_size - r1.data.size(), r1.data)
+            return RichR(r0.data * r1.data,
+                         typevar=typeconsts.int_type(result_size),
+                         type_constraints=None)
+
+        r = self.state.top(expr.bits)
+        return RichR(r,
+                     typevar=r0.typevar,  # FIXME: the size is probably changed
+                     )
+
     def _ail_handle_Div(self, expr):
 
         arg0, arg1 = expr.operands
