@@ -1,11 +1,12 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
 import claripy
 import ailment
+import pyvex
 
 from ... import sim_options
 from ...storage.memory_mixins import LabeledMemory
@@ -28,9 +29,13 @@ _l = logging.getLogger(name=__name__)
 
 class PropagatorState:
 
+    __slots__ = ('arch', 'gpr_size', '_prop_count', '_only_consts', '_replacements', '_equivalence', 'project',
+                 '_store_tops', '__weakref__', )
+
     _tops = {}
 
-    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None):
+    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
+                 store_tops=True):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -39,6 +44,7 @@ class PropagatorState:
         self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
+        self._store_tops = store_tops
 
         self.project = project
 
@@ -147,9 +153,14 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
+
+    __slots__ = ('_registers', '_stack_variables', 'do_binops', )
+
     def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
-                 prop_count=None):
-        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
+                 prop_count=None, do_binops=True, store_tops=True):
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
+                         prop_count=prop_count, store_tops=store_tops)
+        self.do_binops = do_binops
         self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if registers is None else registers
         self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if local_variables is None else local_variables
 
@@ -167,7 +178,9 @@ class PropagatorVEXState(PropagatorState):
             local_variables=self._stack_variables.copy(),
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
-            only_consts=self._only_consts
+            only_consts=self._only_consts,
+            do_binops=self.do_binops,
+            store_tops=self._store_tops,
         )
 
         return cp
@@ -229,6 +242,9 @@ class Equivalence:
 
 
 class PropagatorAILState(PropagatorState):
+
+    __slots__ = ('_registers', '_stack_variables', '_tmps', )
+
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
@@ -506,7 +522,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None):
+                 load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None,
+                 do_binops=True, store_tops=True, vex_cross_insn_opt=False):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -528,6 +545,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
         self._only_consts = only_consts
         self._completed_funcs = completed_funcs
+        self._do_binops = do_binops
+        self._store_tops = store_tops
+        self._vex_cross_insn_opt = vex_cross_insn_opt
 
         self._node_iterations = defaultdict(int)
         self._states = {}
@@ -542,11 +562,22 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             propagate_tmps=block is not None,
         )
 
+        # optimization: skip state copying for the initial state
+        self._initial_state = None
+
         self._analyze()
 
     #
     # Main analysis routines
     #
+
+    def _node_key(self, node: Union[ailment.Block,pyvex.IRSB]) -> Any:
+        if type(node) is ailment.Block:
+            return node.addr, node.idx
+        elif type(node) is pyvex.IRSB:
+            return node.addr
+        # fallback
+        return node
 
     def _pre_analysis(self):
         pass
@@ -560,12 +591,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts,
+                                       do_binops=self._do_binops, store_tops=self._store_tops)
             spoffset_var = self._engine_vex.sp_offset(0)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  spoffset_var,
                                  )
+        self._initial_state = state
         return state
 
     def _merge_states(self, node, *states: PropagatorState):
@@ -579,14 +612,21 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             block_key = (node.addr, node.idx)
             engine = self._engine_ail
         else:
-            block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
+            block = self.project.factory.block(node.addr, node.size, opt_level=1,
+                                               cross_insn_opt=self._vex_cross_insn_opt)
             block_key = node.addr
             engine = self._engine_vex
             if block.size == 0:
                 # maybe the block is not decodeable
                 return False, state
 
-        state = state.copy()
+        if state is not self._initial_state:
+            # make a copy of the state if it's not the initial state
+            state = state.copy()
+        else:
+            # clear self._initial_state so that we *do not* run this optimization again!
+            self._initial_state = None
+
         # Suppress spurious output
         if self._base_state is not None:
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)

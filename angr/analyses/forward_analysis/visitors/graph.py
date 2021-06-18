@@ -7,6 +7,9 @@ class GraphVisitor:
     A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
     """
+
+    __slots__ = ('_sorted_nodes', '_nodes_set', '_node_to_index', '_reached_fixedpoint', )
+
     def __init__(self):
         self._sorted_nodes = [ ]
         self._nodes_set = set()

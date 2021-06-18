@@ -1,4 +1,4 @@
-
+from typing import TYPE_CHECKING
 import logging
 
 import claripy
@@ -10,6 +10,9 @@ from .engine_base import SimEnginePropagatorBase
 from .top_checker_mixin import TopCheckerMixin
 from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 
+if TYPE_CHECKING:
+    from angr.analyses.propagator.propagator import PropagatorVEXState
+
 
 _l = logging.getLogger(name=__name__)
 
@@ -19,6 +22,9 @@ class SimEnginePropagatorVEX(
     SimEngineLightVEXMixin,
     SimEnginePropagatorBase,
 ):
+
+    state: 'PropagatorVEXState'
+
     #
     # Private methods
     #
@@ -118,7 +124,7 @@ class SimEnginePropagatorVEX(
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
 
-        if data is not None and type(data) is not Bottom:
+        if data is not None and (self.state._store_tops or not self.state.is_top(data)):
             self.state.store_register(stmt.offset, size, data)
 
     def _store_data(self, addr, data, size, endness):
@@ -136,11 +142,12 @@ class SimEnginePropagatorVEX(
 
     def _handle_Store(self, stmt):
         addr = self._expr(stmt.addr)
-        if addr is None:
+        if self.state.is_top(addr):
             return
         size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         data = self._expr(stmt.data)
-        if data is not None:
+
+        if data is not None and (self.state._store_tops or not self.state.is_top(data)):
             self._store_data(addr, data, size, self.arch.memory_endness)
 
     def _handle_LoadG(self, stmt):
@@ -217,3 +224,11 @@ class SimEnginePropagatorVEX(
 
     def _handle_CCall(self, expr):
         return None
+
+    def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
+        if not self.state.do_binops:
+            return self.state.top(expr.result_size(self.tyenv))
+
+        r = super()._handle_Binop(expr)
+        # print(expr.op, r)
+        return r

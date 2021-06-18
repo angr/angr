@@ -151,6 +151,12 @@ class ForwardAnalysis:
     def _initial_abstract_state(self, node):
         raise NotImplementedError('_initial_abstract_state() is not implemented.')
 
+    def _node_key(self, node) -> Any:  # pylint:disable=no-self-use
+        """
+        Override this method if hash(node) is slow for the type of node that are in use.
+        """
+        return node
+
     def _run_on_node(self, node, state):
         """
         The analysis routine that runs on each node in the graph.
@@ -244,7 +250,7 @@ class ForwardAnalysis:
 
             if changed is False:
                 # no change is detected
-                self._output_state[n] = output_state
+                self._output_state[self._node_key(n)] = output_state
                 continue
             elif changed is True:
                 # changes detected
@@ -258,12 +264,12 @@ class ForwardAnalysis:
                 # the change of states are determined during state merging (_add_input_state()) instead of during
                 # simulated execution (_run_on_node()).
 
-                if n not in self._output_state:
+                if self._node_key(n) not in self._output_state:
                     reached_fixedpoint = False
                 else:
                     # is the output state the same as the old one?
-                    _, reached_fixedpoint = self._merge_states(n, self._output_state[n], output_state)
-                self._output_state[n] = output_state
+                    _, reached_fixedpoint = self._merge_states(n, self._output_state[self._node_key(n)], output_state)
+                self._output_state[self._node_key(n)] = output_state
 
                 if not reached_fixedpoint:
                     successors_to_visit = self._add_input_state(n, output_state)
@@ -284,7 +290,7 @@ class ForwardAnalysis:
         # successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
         for succ in successors:
-            self._input_states[succ].append(input_state)
+            self._input_states[self._node_key(succ)].append(input_state)
 
         return successors
 
@@ -296,9 +302,9 @@ class ForwardAnalysis:
         :return:     A merged state, or None if there is no input state for this node available.
         """
 
-        if node in self._input_states:
+        if self._node_key(node) in self._input_states:
             input_state = self._get_input_state(node)
-            self._input_states[node] = [ input_state ]
+            self._input_states[self._node_key(node)] = [ input_state ]
             return input_state
         return None
 
@@ -310,10 +316,10 @@ class ForwardAnalysis:
         :return:        A merged state, or None if there is no input state for this node available.
         """
 
-        if node not in self._input_states:
+        if self._node_key(node) not in self._input_states:
             return None
 
-        all_input_states = self._input_states.get(node)
+        all_input_states = self._input_states.get(self._node_key(node))
         if len(all_input_states) == 1:
             return all_input_states[0]
         merged_state, _ = self._merge_states(node, *all_input_states)
