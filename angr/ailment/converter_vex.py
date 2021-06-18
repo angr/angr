@@ -126,7 +126,7 @@ class VEXExprConverter(Converter):
             operands[1] = Const(operands[1].idx, None, (1 << op1_bits) - op1_val, op1_bits)
 
         signed = False
-        if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT', 'Div', 'DivMod'}:
+        if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT', 'Div', 'DivMod', 'Mul', 'Mull'}:
             if vexop_to_simop(expr.op).is_signed:
                 signed = True
 
@@ -137,6 +137,8 @@ class VEXExprConverter(Converter):
                 # Concatenating the two arguments and form a new value
                 op_name = "Concat"
 
+        bits = op._output_size_bits
+
         return BinaryOp(manager.next_atom(),
                         op_name,
                         operands,
@@ -144,6 +146,7 @@ class VEXExprConverter(Converter):
                         ins_addr=manager.ins_addr,
                         vex_block_addr=manager.block_addr,
                         vex_stmt_idx=manager.vex_stmt_idx,
+                        bits=bits,
                         )
 
     @staticmethod

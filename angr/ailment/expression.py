@@ -338,7 +338,7 @@ class BinaryOp(Op):
         'CmpGTs': 'CmpLEs',
     }
 
-    def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, **kwargs):
+    def __init__(self, idx, op, operands, signed, variable=None, variable_offset=None, bits=None, **kwargs):
         depth = max(
             operands[0].depth if isinstance(operands[0], Expression) else 0,
             operands[1].depth if isinstance(operands[1], Expression) else 0,
@@ -347,7 +347,10 @@ class BinaryOp(Op):
 
         assert len(operands) == 2
         self.operands = operands
-        if self.op == 'Cmp':
+
+        if bits is not None:
+            self.bits = bits
+        elif self.op == 'Cmp':
             self.bits = 32  # floating point comparison
         elif self.op.startswith("Cmp"):
             self.bits = 1
@@ -413,6 +416,7 @@ class BinaryOp(Op):
 
         if r0 or r1:
             return True, BinaryOp(self.idx, self.op, [ replaced_operand_0, replaced_operand_1 ], self.signed,
+                                  bits=self.bits,
                                   **self.tags)
         else:
             return False, self
@@ -430,7 +434,7 @@ class BinaryOp(Op):
 
     def copy(self) -> 'BinaryOp':
         return BinaryOp(self.idx, self.op, self.operands[::], self.signed, variable=self.variable,
-                        variable_offset=self.variable_offset, **self.tags)
+                        variable_offset=self.variable_offset, bits=self.bits, **self.tags)
 
 
 class Load(Expression):
