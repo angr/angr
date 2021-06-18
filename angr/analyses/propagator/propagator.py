@@ -1,11 +1,12 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
 import claripy
 import ailment
+import pyvex
 
 from ... import sim_options
 from ...storage.memory_mixins import LabeledMemory
@@ -547,6 +548,14 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     #
     # Main analysis routines
     #
+
+    def _node_key(self, node: Union[ailment.Block,pyvex.IRSB]) -> Any:
+        if type(node) is ailment.Block:
+            return node.addr, node.idx
+        elif type(node) is pyvex.IRSB:
+            return node.addr
+        # fallback
+        return node
 
     def _pre_analysis(self):
         pass
