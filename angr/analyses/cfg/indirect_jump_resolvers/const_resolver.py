@@ -62,7 +62,8 @@ class ConstantResolver(IndirectJumpResolver):
                 prop = self.project.analyses.Propagator(func=func, only_consts=True,
                                                         completed_funcs=cfg._completed_functions)
             else:
-                prop = self.project.analyses.Propagator(block=block)
+                prop = self.project.analyses.Propagator(block=block, do_binops=False, store_tops=False,
+                                                        vex_cross_insn_opt=True)
 
             replacements = prop.replacements
             if replacements:

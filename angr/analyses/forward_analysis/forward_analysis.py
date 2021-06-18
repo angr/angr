@@ -151,7 +151,7 @@ class ForwardAnalysis:
     def _initial_abstract_state(self, node):
         raise NotImplementedError('_initial_abstract_state() is not implemented.')
 
-    def _node_key(self, node) -> Any:
+    def _node_key(self, node) -> Any:  # pylint:disable=no-self-use
         """
         Override this method if hash(node) is slow for the type of node that are in use.
         """
