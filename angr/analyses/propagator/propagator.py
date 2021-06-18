@@ -562,6 +562,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             propagate_tmps=block is not None,
         )
 
+        # optimization: skip state copying for the initial state
+        self._initial_state = None
+
         self._analyze()
 
     #
@@ -595,6 +598,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                  self.project.arch.bytes,
                                  spoffset_var,
                                  )
+        self._initial_state = state
         return state
 
     def _merge_states(self, node, *states: PropagatorState):
@@ -616,7 +620,10 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 # maybe the block is not decodeable
                 return False, state
 
-        state = state.copy()
+        if state is not self._initial_state:
+            # make a copy of the state if it's not the initial state
+            state = state.copy()
+
         # Suppress spurious output
         if self._base_state is not None:
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
