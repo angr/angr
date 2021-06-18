@@ -903,10 +903,24 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, bits=expr.bits, **expr.tags)
 
     def _ail_handle_Mull(self, expr):
-        return self._ail_handle_Mul(expr)
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 * expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Mull', [expr_0, expr_1], expr.signed, bits=expr.bits, **expr.tags)
 
     def _ail_handle_And(self, expr):
 
