@@ -9,7 +9,7 @@ from ..knowledge_plugins import Function
 from ..block import BlockNode
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-
+from ..errors import SimTranslationError
 
 _l = logging.getLogger(name=__name__)
 
@@ -403,29 +403,35 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException
 
+        vex_block = None
+        try:
+            vex_block = block.vex
+        except SimTranslationError:
+            pass
 
-        for stmt in block.vex.statements:
-            if type(stmt) is pyvex.IRStmt.IMark:
-                if curr_stmt_start_addr is not None:
-                    # we've reached a new instruction. Time to store the post state
-                    self._set_post_state(curr_stmt_start_addr, state.freeze())
-                curr_stmt_start_addr = stmt.addr + stmt.delta
-                self._set_pre_state(curr_stmt_start_addr, state.freeze())
-            else:
+        if vex_block is not None:
+            for stmt in vex_block.statements:
+                if type(stmt) is pyvex.IRStmt.IMark:
+                    if curr_stmt_start_addr is not None:
+                        # we've reached a new instruction. Time to store the post state
+                        self._set_post_state(curr_stmt_start_addr, state.freeze())
+                    curr_stmt_start_addr = stmt.addr + stmt.delta
+                    self._set_pre_state(curr_stmt_start_addr, state.freeze())
+                else:
+                    try:
+                        resolve_stmt(stmt)
+                    except CouldNotResolveException:
+                        pass
+
+            # stack pointer adjustment
+            if self.project.arch.sp_offset in self.reg_offsets \
+                    and vex_block.jumpkind == 'Ijk_Call' \
+                    and self.project.arch.call_pushes_ret:
                 try:
-                    resolve_stmt(stmt)
+                    incremented = state.get(self.project.arch.sp_offset) + Constant(self.project.arch.bytes)
+                    state.put(self.project.arch.sp_offset, incremented)
                 except CouldNotResolveException:
                     pass
-
-        # stack pointer adjustment
-        if self.project.arch.sp_offset in self.reg_offsets \
-                and block.vex.jumpkind == 'Ijk_Call' \
-                and self.project.arch.call_pushes_ret:
-            try:
-                incremented = state.get(self.project.arch.sp_offset) + Constant(self.project.arch.bytes)
-                state.put(self.project.arch.sp_offset, incremented)
-            except CouldNotResolveException:
-                pass
 
         if curr_stmt_start_addr is not None:
             self._set_post_state(curr_stmt_start_addr, state.freeze())
