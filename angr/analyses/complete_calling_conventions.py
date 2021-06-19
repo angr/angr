@@ -41,7 +41,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
             if func.calling_convention is None or self._force:
                 if func.alignment:
-                    # skil all alignments
+                    # skip all alignments
                     continue
 
                 # if it's a normal function, we attempt to perform variable recovery
