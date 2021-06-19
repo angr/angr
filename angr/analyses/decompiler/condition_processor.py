@@ -584,6 +584,11 @@ class ConditionProcessor:
             operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
             return op(conv(operand0), conv(operand1))
 
+        def _dummy_bvs(condition):
+            var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var.args[0]] = condition
+            return var
+
         _mapping = {
             'LogicalAnd': lambda expr, conv: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
             'LogicalOr': lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
@@ -600,6 +605,7 @@ class ConditionProcessor:
             'Add': lambda expr, conv: conv(expr.operands[0]) + conv(expr.operands[1]),
             'Sub': lambda expr, conv: conv(expr.operands[0]) - conv(expr.operands[1]),
             'Mul': lambda expr, conv: conv(expr.operands[0]) * conv(expr.operands[1]),
+            'Div': lambda expr, conv: conv(expr.operands[0]) / conv(expr.operands[1]),
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
@@ -607,13 +613,14 @@ class ConditionProcessor:
             'Shr': lambda expr, conv: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
             'Shl': lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
             'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
+
+            # There is no claripy operation for DivMod
+            'DivMod': lambda expr, _: _dummy_bvs(expr),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
                                   ailment.Expr.ITE, ailment.Stmt.Call)):
-            var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
-            self._condition_mapping[var.args[0]] = condition
-            return var
+            return _dummy_bvs(condition)
         elif isinstance(condition, ailment.Expr.Register):
             var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
