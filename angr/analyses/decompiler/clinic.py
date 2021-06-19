@@ -34,7 +34,7 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
     def __init__(self, func,
-                 remove_dead_memdefs=True,
+                 remove_dead_memdefs=False,
                  exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
