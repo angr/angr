@@ -303,6 +303,90 @@ class VEXStmtConverter(Converter):
                      vex_stmt_idx=manager.vex_stmt_idx,
                      )
 
+    @staticmethod
+    def CAS(idx, stmt: pyvex.IRStmt.CAS, manager):
+        # compare-and-swap is translated into multiple statements. the atomic property is lost.
+
+        stmts = []
+
+        double = stmt.dataHi is not None
+        ty = stmt.expdLo.result_type(manager.tyenv)
+        if double:
+            ty, narrow_to_bits, widen_from_bits, widen_to_bits = {
+                'Ity_I8': ('Ity_I16', 8, 8, 16),
+                'Ity_I16': ('Ity_I32', 16, 16, 32),
+                'Ity_I32': ('Ity_I64', 32, 32, 64),
+                'Ity_I64': ('Ity_V128', 64, 64, 128),
+            }[ty]
+            dataHi = VEXExprConverter.convert(stmt.dataHi, manager)
+            dataLo = VEXExprConverter.convert(stmt.dataLo, manager)
+            data = BinaryOp(idx, "Concat", (dataHi, dataLo), False)
+
+            expdHi = Convert(idx, widen_from_bits, widen_to_bits, False, VEXExprConverter.convert(stmt.dataHi, manager))
+            expdLo = Convert(idx, widen_from_bits, widen_to_bits, False, VEXExprConverter.convert(stmt.dataLo, manager))
+            expd = BinaryOp(idx, "Concat", (expdHi, expdLo), False)
+        else:
+            narrow_to_bits = widen_to_bits = None
+            data = VEXExprConverter.convert(stmt.dataLo, manager)
+            expd = VEXExprConverter.convert(stmt.expdLo, manager)
+
+        size = {
+            'Ity_I8': 1,
+            'Ity_I16': 2,
+            'Ity_I32': 4,
+            'Ity_I64': 8,
+            'Ity_V128': 16,
+        }[ty]
+
+        # load value from memory
+        addr = VEXExprConverter.convert(stmt.addr, manager)
+        val = Load(
+            idx,
+            addr,
+            size,
+            stmt.endness,
+        )
+        cmp = BinaryOp(idx, 'CmpEQ', (val, expd), False)
+        store = Store(
+            idx,
+            addr.copy(),
+            data,
+            size,
+            stmt.endness,
+            guard=cmp,
+            ins_addr=manager.ins_addr,
+            vex_block_addr=manager.block_addr,
+            vex_stmt_idx=manager.vex_stmt_idx,
+        )
+        stmts.append(store)
+
+        if double:
+            val_shifted = BinaryOp(idx, "Shr", (val, narrow_to_bits), False)
+            valHi = Convert(idx, widen_to_bits, narrow_to_bits, False, val_shifted)
+            valLo = Convert(idx, widen_to_bits, narrow_to_bits, False, val)
+
+            wrtmp_0 = Assignment(idx, Tmp(idx, None, stmt.oldLo, narrow_to_bits), valLo,
+                                 ins_addr=manager.ins_addr,
+                                 vex_block_addr=manager.block_addr,
+                                 vex_stmt_idx=manager.vex_stmt_idx,
+                                 )
+            wrtmp_1 = Assignment(idx, Tmp(idx, None, stmt.oldHi, narrow_to_bits), valHi,
+                                 ins_addr=manager.ins_addr,
+                                 vex_block_addr=manager.block_addr,
+                                 vex_stmt_idx=manager.vex_stmt_idx,
+                                 )
+            stmts.append(wrtmp_0)
+            stmts.append(wrtmp_1)
+        else:
+            wrtmp = Assignment(idx,  Tmp(idx, None, stmt.oldLo, size), val,
+                               ins_addr=manager.ins_addr,
+                               vex_block_addr=manager.block_addr,
+                               vex_stmt_idx=manager.vex_stmt_idx,
+                               )
+            stmts.append(wrtmp)
+
+        return stmts
+
 
 STATEMENT_MAPPINGS = {
     pyvex.IRStmt.Put: VEXStmtConverter.Put,
@@ -311,6 +395,7 @@ STATEMENT_MAPPINGS = {
     pyvex.IRStmt.Exit: VEXStmtConverter.Exit,
     pyvex.IRStmt.StoreG: VEXStmtConverter.StoreG,
     pyvex.IRStmt.LoadG: VEXStmtConverter.LoadG,
+    pyvex.IRStmt.CAS: VEXStmtConverter.CAS,
 }
 
 class VEXIRSBConverter(Converter):
@@ -351,13 +436,18 @@ class VEXIRSBConverter(Converter):
             manager.vex_stmt_idx = vex_stmt_idx
             try:
                 converted = VEXStmtConverter.convert(idx, stmt, manager)
-                statements.append(converted)
-                if type(converted) is ConditionalJump:
-                    conditional_jumps.append(converted)
+                if type(converted) is list:
+                    # got multiple statements
+                    statements.extend(converted)
+                    idx += len(converted)
+                else:
+                    # got one statement
+                    statements.append(converted)
+                    if type(converted) is ConditionalJump:
+                        conditional_jumps.append(converted)
+                    idx += 1
             except SkipConversionNotice:
                 pass
-
-            idx += 1
 
         manager.vex_stmt_idx = DEFAULT_STATEMENT
         if irsb.jumpkind == 'Ijk_Call':
