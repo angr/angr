@@ -305,7 +305,10 @@ class SimEngineRDAIL(
 
         self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
 
-        return super()._ail_handle_Tmp(expr)
+        tmp = super()._ail_handle_Tmp(expr)
+        if tmp is None:
+            return MultiValues(offset_to_values={0: {self.state.top(expr.bits)}})
+        return tmp
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> MultiValues:
         self._handle_Call_base(expr, is_expr=True)
