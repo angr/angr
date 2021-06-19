@@ -5,6 +5,7 @@ import logging
 import archinfo
 import claripy
 import ailment
+import pyvex
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
@@ -281,19 +282,17 @@ class SimEngineRDAIL(
 
     def _ail_handle_DirtyStatement(self, stmt: ailment.Stmt.DirtyStatement):
         # TODO: The logic below is subject to change when ailment.Stmt.DirtyStatement is changed
-        tmp = stmt.dirty_stmt.dst
-        cvt_sizes = {
-            'ILGop_IdentV128': 16,
-            'ILGop_Ident64': 8,
-            'ILGop_Ident32': 4,
-            'ILGop_16Uto32': 4,
-            'ILGop_16Sto32': 4,
-            'ILGop_8Uto32': 4,
-            'ILGop_8Sto32': 4,
-        }
-        size = cvt_sizes[stmt.dirty_stmt.cvt]
-        self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
-        self.tmps[tmp] = None
+
+        if isinstance(stmt.dirty_stmt, pyvex.stmt.Dirty):
+            # TODO: We need dirty helpers for a more complete understanding of clobbered registers
+            tmp = stmt.dirty_stmt.tmp
+            if tmp in (-1, 0xffffffff):
+                return
+            size = 32  # FIXME: We don't know the size.
+            self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
+            self.tmps[tmp] = None
+        else:
+            l.warning("Unexpected type of dirty statement %s.", type(stmt.dirty_stmt))
 
     #
     # AIL expression handlers
