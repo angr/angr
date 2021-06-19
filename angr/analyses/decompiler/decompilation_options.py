@@ -21,15 +21,16 @@ O = DecompilationOption
 
 options = [
     O(
-        "Remove dead memdefs",
-        "Allow the decompiler to remove memory definitions (such as stack variables) that are deemed dead. Generally, "
-        "enabling this option will generate cleaner pseudocode; But when prior analyses go wrong, angr may miss "
-        "certain uses to a memory definition, which may cause the removal of a memory definition that is in use.",
+        "Aggressively remove dead memdefs",
+        "Allow the decompiler to aggressively remove memory definitions (such as stack variables) that are deemed dead."
+        " Generally, enabling this option will generate cleaner pseudocode; However, due to limitations of static "
+        "analysis, angr may miss certain uses to a memory definition, which may cause the removal of a memory "
+        "definition that is actually in use, and consequently lead to incorrect decompilation output.",
         bool,
         "clinic",
         "remove_dead_memdefs",
         category="Data flows",
-        default_value=True,
+        default_value=False,
     ),
     O(
         "Display exception edges (experimental)",

@@ -5,7 +5,6 @@ from ailment import Stmt, Expr
 
 from ...errors import SimMemoryMissingError
 from ...sim_type import SimTypeBottom
-from ...sim_variable import SimStackVariable
 from ...calling_conventions import SimRegArg, SimStackArg
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...knowledge_plugins.key_definitions.definition import Definition
@@ -101,7 +100,7 @@ class CallSiteMaker(Analysis):
             if len(new_stmts) >= 1:
                 the_stmt = new_stmts[-1]
                 if isinstance(the_stmt, Stmt.Store) and isinstance(the_stmt.data, Expr.Const):
-                    if isinstance(the_stmt.variable, SimStackVariable) and \
+                    if isinstance(the_stmt.addr, Expr.StackBaseOffset) and \
                             the_stmt.data.value == self.block.addr + self.block.original_size:
                         # yes it is!
                         new_stmts = new_stmts[:-1]
