@@ -308,7 +308,8 @@ def test_decompiling_true_x86_64_1():
     code: str = dec.codegen.text
 
     # constant propagation was failing. see https://github.com/angr/angr/issues/2659
-    assert code.count("32") == 1
+    assert code.count("32 <=") == 0
+    assert code.count("32") == 2
 
 
 def test_decompiling_true_a_x86_64_0():
@@ -486,7 +487,8 @@ def test_decompilation_call_expr_folding():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     func_0 = cfg.functions['strlen_should_fold']
-    dec = p.analyses.Decompiler(func_0, cfg=cfg.model)
+    opt = [ o for o in angr.analyses.decompiler.decompilation_options.options if o.param == "remove_dead_memdefs" ][0]
+    dec = p.analyses.Decompiler(func_0, cfg=cfg.model, options=[(opt, True)])
     code = dec.codegen.text
     print(code)
     m = re.search(r"v(\d+) = \(int\)strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
@@ -521,7 +523,7 @@ def test_decompilation_excessive_condition_removal():
 
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
-    assert "}v2=v2+1;}" in code
+    assert "}v4=v4+1;}" in code
 
 
 def test_decompilation_excessive_goto_removal():
