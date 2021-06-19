@@ -1803,30 +1803,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 else:
                     type_ = None
 
-                reference_values = { }
                 if isinstance(arg, Expr.Const):
-                    if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
-                        # char*
-                        # Try to get a string
-                        if self._cfg is not None:
-                            if arg.value in self._cfg.memory_data and self._cfg.memory_data[arg.value].sort == 'string':
-                                reference_values[type_] = self._cfg.memory_data[arg.value]
-                    elif isinstance(type_, SimTypeInt):
-                        # int
-                        reference_values[type_] = arg.value
-                    elif type_ is None:
-                        # we don't know the type of this argument
-                        # pure guessing: is it possible that it's a string?
-                        if self._cfg is not None and \
-                                arg.bits == self.project.arch.bits and \
-                                arg.value > 0x10000 and \
-                                arg.value in self._cfg.memory_data and \
-                                self._cfg.memory_data[arg.value].sort == 'string':
-                            type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
-                            reference_values[type_] = self._cfg.memory_data[arg.value]
-                    new_arg = CConstant(arg, type_, reference_values=reference_values if reference_values else None,
-                                        variable=self._handle(arg.variable) if arg.variable is not None else None,
-                                        tags=arg.tags, codegen=self)
+                    new_arg = self._handle_Expr_Const(arg, type_=type_)
                 else:
                     new_arg = self._handle(arg)
                 args.append(new_arg)
@@ -1910,10 +1888,40 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         l.warning("FIXME: Leftover Tmp expressions are found.")
         return self._cvariable(SimTemporaryVariable(expr.tmp_idx), tags=expr.tags)
 
-    def _handle_Expr_Const(self, expr):  # pylint:disable=no-self-use
+    def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None):  # pylint:disable=no-self-use
 
-        return CConstant(expr.value, int,
-                         variable=self._handle(expr.variable) if expr.variable is not None else None,
+        if reference_values is None:
+            reference_values = { }
+            if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
+                # char*
+                # Try to get a string
+                if self._cfg is not None:
+                    if expr.value in self._cfg.memory_data and self._cfg.memory_data[expr.value].sort == 'string':
+                        reference_values[type_] = self._cfg.memory_data[expr.value]
+            elif isinstance(type_, SimTypeInt):
+                # int
+                reference_values[type_] = expr.value
+            elif type_ is None:
+                # we don't know the type of this argument
+                # pure guessing: is it possible that it's a string?
+                if self._cfg is not None and \
+                        expr.bits == self.project.arch.bits and \
+                        expr.value > 0x10000 and \
+                        expr.value in self._cfg.memory_data and \
+                        self._cfg.memory_data[expr.value].sort == 'string':
+                    type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                    reference_values[type_] = self._cfg.memory_data[expr.value]
+
+        if type_ is None:
+            # default to int
+            type_ = int
+
+        if variable is None and expr.variable is not None:
+            variable = self._handle(expr.variable)
+
+        return CConstant(expr.value, type_,
+                         reference_values=reference_values,
+                         variable=variable,
                          tags=expr.tags,
                          codegen=self)
 
