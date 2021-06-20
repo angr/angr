@@ -154,7 +154,7 @@ class __libc_start_main(angr.SimProcedure):
         # Execute each block
         state = blank_state
         for b in blocks:
-            irsb = self.project.factory.default_engine.process(state, b, force_addr=b.addr)
+            irsb = self.project.factory.default_engine.process(state, irsb=b, force_addr=b.addr)
             if irsb.successors:
                 state = irsb.successors[0]
             else:
