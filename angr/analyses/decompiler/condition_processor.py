@@ -614,8 +614,9 @@ class ConditionProcessor:
             'Shl': lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
             'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
 
-            # There is no claripy operation for DivMod
+            # There is no claripy operation for the following operations
             'DivMod': lambda expr, _: _dummy_bvs(expr),
+            'CmpF': lambda expr, _: _dummy_bvs(expr),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
