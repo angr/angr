@@ -90,7 +90,7 @@ class SimEngineRDAIL(
         dst = stmt.dst
 
         if src is None:
-            src = self.state.top(dst.bits)
+            src = MultiValues(offset_to_values={0: {self.state.top(dst.bits)}})
 
         if isinstance(dst, ailment.Tmp):
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), self._codeloc(), src)
