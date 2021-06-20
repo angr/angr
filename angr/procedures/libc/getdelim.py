@@ -54,6 +54,8 @@ class __getdelim(angr.SimProcedure):
                 if count == size:
                     size = count + size + 1
                     dst = self.inline_call(realloc, dst, size).ret_expr
+                if delim.size() > data.size():
+                    data = data.zero_extend(delim.size() - data.size())
                 if self.state.solver.is_true(data == delim):
                     break
 
