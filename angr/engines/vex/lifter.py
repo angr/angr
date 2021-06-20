@@ -71,6 +71,7 @@ class VEXLifter(SimEngineBase):
              state=None,
              clemory=None,
              insn_bytes=None,
+             offset=None,
              arch=None,
              size=None,
              num_inst=None,
@@ -105,6 +106,7 @@ class VEXLifter(SimEngineBase):
                                 - opt_level is set to 1 if OPTIMIZE_IR exists in state options
                                 - self._default_opt_level
         :param insn_bytes:      A string of bytes to use as a data source.
+        :param offset:          If using insn_bytes, the number of bytes in it to skip over.
         :param size:            The maximum size of the block, in bytes.
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      traceflags to be passed to VEX. (default: 0)
@@ -157,6 +159,8 @@ class VEXLifter(SimEngineBase):
                     state.options.remove(o.OPTIMIZE_IR)
         if skip_stmts is not True:
             skip_stmts = False
+        if offset is None:
+            offset = 0
 
         use_cache = self._use_cache
         if skip_stmts or collect_data_refs:
@@ -217,9 +221,9 @@ class VEXLifter(SimEngineBase):
         # phase 4: get bytes
         if buff is NO_OVERRIDE:
             if insn_bytes is not None:
-                buff, size = insn_bytes, len(insn_bytes)
+                buff, size, offset = insn_bytes, len(insn_bytes), offset
             else:
-                buff, size = self._load_bytes(addr, size, state, clemory)
+                buff, size, offset = self._load_bytes(addr, size, state, clemory)
 
         if isinstance(buff, claripy.ast.BV):
             if len(buff) == 0:
@@ -235,7 +239,7 @@ class VEXLifter(SimEngineBase):
                 irsb = pyvex.lift(buff, addr + thumb, arch,
                                   max_bytes=size,
                                   max_inst=num_inst,
-                                  bytes_offset=thumb,
+                                  bytes_offset=offset + thumb,
                                   traceflags=traceflags,
                                   opt_level=opt_level,
                                   strict_block_end=strict_block_end,
@@ -270,7 +274,7 @@ class VEXLifter(SimEngineBase):
         if clemory is None and state is None:
             raise SimEngineError('state and clemory cannot both be None in _load_bytes().')
 
-        buff, size = b"", 0
+        buff, size, offset = b"", 0, 0
 
         # Load from the clemory if we can
         smc = self._support_selfmodifying_code
@@ -292,7 +296,7 @@ class VEXLifter(SimEngineBase):
                     if start <= addr:
                         offset = addr - start
                         if isinstance(backer, (bytes, bytearray)):
-                            buff = pyvex.ffi.from_buffer(backer) + offset
+                            buff = pyvex.ffi.from_buffer(backer)
                             size = len(backer) - offset
                         elif isinstance(backer, list):
                             raise SimTranslationError("Cannot lift block for arch with strange byte width. If you think you ought to be able to, open an issue.")
@@ -336,7 +340,7 @@ class VEXLifter(SimEngineBase):
                 size = len(buff)
 
         size = min(max_size, size)
-        return buff, size
+        return buff, size, offset
 
     def _first_stoppoint(self, irsb, extra_stop_points=None):
         """

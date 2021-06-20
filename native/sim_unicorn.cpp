@@ -1441,7 +1441,8 @@ VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
 		lift_address = block_address;
 	}
 	uc_mem_read(this->uc, lift_address, instructions.get(), block_size);
-	return vex_lift(vex_guest, vex_archinfo, instructions.get(), lift_address, 99, block_size, 1, 0, 1, 1, 0, pxControl);
+	return vex_lift(vex_guest, vex_archinfo, instructions.get(), lift_address, 99, block_size, 1, 0, 1, 1, 0,
+	    pxControl, 0);
 }
 
 void State::mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size) {
