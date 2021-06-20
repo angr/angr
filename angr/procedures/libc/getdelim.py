@@ -31,6 +31,10 @@ class __getdelim(angr.SimProcedure):
         # case 1: the data is concrete. we should read it a byte at a time since we can't seek for
         # the newline and we don't have any notion of buffering in-memory
         if simfd.read_storage.concrete:
+            if self.state.solver.is_true(simfd.eof()):
+                # End-of-file reached
+                return -1
+
             realloc = angr.SIM_PROCEDURES['libc']['realloc']
 
             # #dereference the destination buffer
@@ -50,6 +54,8 @@ class __getdelim(angr.SimProcedure):
                 if count == size:
                     size = count + size + 1
                     dst = self.inline_call(realloc, dst, size).ret_expr
+                if delim.size() > data.size():
+                    data = data.zero_extend(delim.size() - data.size())
                 if self.state.solver.is_true(data == delim):
                     break
 
