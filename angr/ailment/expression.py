@@ -312,6 +312,7 @@ class BinaryOp(Op):
         'Shl': '<<',
         'Shr': '>>',
         'Sar': '>>a',
+        'CmpF': '==f',
         'CmpEQ': '==',
         'CmpNE': '!=',
         'CmpLT': '<',
@@ -350,7 +351,7 @@ class BinaryOp(Op):
 
         if bits is not None:
             self.bits = bits
-        elif self.op == 'Cmp':
+        elif self.op == 'CmpF':
             self.bits = 32  # floating point comparison
         elif self.op.startswith("Cmp"):
             self.bits = 1

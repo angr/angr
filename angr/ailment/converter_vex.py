@@ -129,6 +129,9 @@ class VEXExprConverter(Converter):
         if op_name in {'CmpLE', 'CmpLT', 'CmpGE', 'CmpGT', 'Div', 'DivMod', 'Mul', 'Mull'}:
             if vexop_to_simop(expr.op).is_signed:
                 signed = True
+        if op_name == "Cmp" and op._float:
+            # Rename Cmp to CmpF
+            op_name = "CmpF"
 
         if op_name is None and op._conversion:
             # conversion
