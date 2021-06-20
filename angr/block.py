@@ -184,7 +184,8 @@ class Block(Serializable):
 
         if byte_string is None:
             if backup_state is not None:
-                self._bytes = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)[0]
+                buffer, _, offset = self._vex_engine._load_bytes(addr - thumb, size, state=backup_state)
+                self._bytes = buffer[offset:]
                 if type(self._bytes) is memoryview:
                     self._bytes = bytes(self._bytes)
                 elif type(self._bytes) is not bytes:
