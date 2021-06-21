@@ -14,6 +14,8 @@ from .remove_redundant_shifts import RemoveRedundantShifts
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .basepointeroffset_add_n import BasePointerOffsetAddN
 from .basepointeroffset_and_mask import BasePointerOffsetAndMask
+from .remove_redundant_conversions import RemoveRedundantConversions
+from .remove_cascading_conversions import RemoveCascadingConversions
 from .conv_shl_shr import ConvShlShr
 
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
