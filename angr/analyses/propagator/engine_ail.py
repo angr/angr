@@ -248,6 +248,14 @@ class SimEnginePropagatorAIL(
 
         return expr
 
+    def _ail_handle_Reinterpret(self, expr: Expr.Reinterpret):
+        arg = self._expr(expr.operand)
+
+        if self.state.is_top(arg):
+            arg = expr.operand
+
+        return Expr.Reinterpret(expr.idx, expr.from_bits, expr.from_type, expr.to_bits, expr.to_type, arg, **expr.tags)
+
     def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call):  # pylint:disable=useless-return
         _ = self._expr(expr_stmt.target)
 
@@ -273,6 +281,7 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, expr.op, [operand_0, operand_1], expr.signed, **expr.tags)
 
+    _ail_handle_CmpF = _ail_handle_Cmp
     _ail_handle_CmpLE = _ail_handle_Cmp
     _ail_handle_CmpLEs = _ail_handle_Cmp
     _ail_handle_CmpLT = _ail_handle_Cmp

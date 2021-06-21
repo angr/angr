@@ -433,6 +433,18 @@ class ConvertTo(BaseLabel):
         return "conv(%d)" % self.to_bits
 
 
+class ReinterpretAs(BaseLabel):
+
+    __slots__ = ('to_type', 'to_bits', )
+
+    def __init__(self, to_type, to_bits):
+        self.to_type = to_type
+        self.to_bits = to_bits
+
+    def __repr__(self):
+        return f"reinterpret({self.to_type}{self.to_bits})"
+
+
 class HasField(BaseLabel):
 
     __slots__ = ('bits', 'offset', )
