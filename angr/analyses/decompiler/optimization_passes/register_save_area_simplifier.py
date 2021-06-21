@@ -64,7 +64,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
         info: Dict[int,Dict[str,List[Tuple[int,CodeLocation]]]] = cache['info']
         updated_blocks = {}
 
-        for reg_offset, data in info.items():
+        for data in info.values():
             # remove storing statements
             for _, codeloc in data['stored']:
                 old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
