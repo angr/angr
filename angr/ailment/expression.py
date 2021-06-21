@@ -294,6 +294,59 @@ class Convert(UnaryOp):
         return Convert(self.idx, self.from_bits, self.to_bits, self.is_signed, self.operand, **self.tags)
 
 
+class Reinterpret(UnaryOp):
+
+    __slots__ = ('from_bits', 'from_type', 'to_bits', 'to_type', )
+
+    def __init__(self, idx, from_bits: int, from_type: str, to_bits: int, to_type: str, operand, **kwargs):
+        super().__init__(idx, 'Reinterpret', operand, **kwargs)
+
+        assert (from_type == "I" and to_type == "F") or (from_type == "F" and to_type == "I")
+
+        self.from_bits = from_bits
+        self.from_type = from_type
+        self.to_bits = to_bits
+        self.to_type = to_type
+
+        self.bits = self.to_bits
+
+    def __str__(self):
+        return f"Reinterpret({self.from_type}{self.from_bits}->{self.to_type}{self.to_bits}, {self.operand})"
+
+    def __repr__(self):
+        return str(self)
+
+    def __eq__(self, other):
+        return type(other) is Reinterpret and \
+               self.from_bits == other.from_bits and \
+               self.from_type == other.from_type and \
+               self.to_bits == other.to_bits and \
+               self.to_type == other.to_type and \
+               self.operand == other.operand
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return hash((self.operand, self.from_bits, self.from_type, self.to_bits, self.to_type, ))
+
+    def replace(self, old_expr, new_expr):
+        if self.operand.likes(old_expr):
+            r = True
+            replaced_operand = new_expr
+        else:
+            r, replaced_operand = self.operand.replace(old_expr, new_expr)
+
+        if r:
+            return True, Reinterpret(self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type,
+                                     replaced_operand, **self.tags)
+        else:
+            return False, self
+
+    def copy(self) -> 'Reinterpret':
+        return Reinterpret(self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, self.operand,
+                           **self.tags)
+
+
 class BinaryOp(Op):
 
     __slots__ = ('operands', 'bits', 'signed', 'variable', 'variable_offset', )

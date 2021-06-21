@@ -6,7 +6,7 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 
 from .block import Block
 from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
-from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE
+from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE, Reinterpret
 from .converter_common import SkipConversionNotice, Converter
 
 
@@ -88,8 +88,20 @@ class VEXExprConverter(Converter):
     @staticmethod
     def Unop(expr, manager):
         op_name = VEXExprConverter.generic_name_from_vex_op(expr.op)
-        if op_name is None:
-            # is it a convertion?
+        if op_name == "Reinterp":
+            simop = vexop_to_simop(expr.op)
+            return Reinterpret(manager.next_atom(),
+                               simop._from_size,
+                               simop._from_type,
+                               simop._to_size,
+                               simop._to_type,
+                               VEXExprConverter.convert(expr.args[0], manager),
+                               ins_addr=manager.ins_addr,
+                               vex_block_addr=manager.block_addr,
+                               vex_stmt_idx=manager.vex_stmt_idx,
+                               )
+        elif op_name is None:
+            # is it a conversion?
             simop = vexop_to_simop(expr.op)
             if simop._conversion:
                 return Convert(manager.next_atom(),
