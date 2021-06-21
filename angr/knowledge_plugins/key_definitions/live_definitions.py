@@ -13,7 +13,7 @@ from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, Register, MemoryLocation, Tmp
+from .atoms import Atom, Register, MemoryLocation, Tmp, FunctionCall
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
@@ -430,6 +430,9 @@ class LiveDefinitions:
                 pass
         elif type(definition.atom) is Tmp:
             self._add_tmp_use_by_def(definition, code_loc)
+        elif type(definition.atom) is FunctionCall:
+            # ignore function calls
+            pass
         else:
             raise TypeError()
 

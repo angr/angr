@@ -42,16 +42,17 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     """
 
     def __init__(self, subject: Union[Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=3,
-                 track_tmps=False, observation_points=None, init_state: ReachingDefinitionsState=None, cc=None,
-                 function_handler=None, call_stack: Optional[List[int]]=None, maximum_local_call_depth=5,
+                 track_tmps=False, track_calls=None, observation_points=None, init_state: ReachingDefinitionsState=None,
+                 cc=None, function_handler=None, call_stack: Optional[List[int]]=None, maximum_local_call_depth=5,
                  observe_all=False, visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None,
                  canonical_size=8):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
         :param int max_iterations:              The maximum number of iterations before the analysis is terminated.
-        :param Boolean track_tmps:              Whether or not temporary variables should be taken into consideration
+        :param bool track_tmps:                 Whether or not temporary variables should be taken into consideration
                                                 during the analysis.
+        :param bool track_calls:                Whether or not calls will show up as elements in the def-use graph.
         :param iterable observation_points:     A collection of tuples of ("node"|"insn", ins_addr, OP_TYPE) defining
                                                 where reaching definitions should be copied and stored. OP_TYPE can be
                                                 OP_BEFORE or OP_AFTER.
@@ -87,6 +88,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                                  graph_visitor=self._graph_visitor)
 
         self._track_tmps = track_tmps
+        self._track_calls = track_calls
         self._max_iterations = max_iterations
         self._observation_points = observation_points
         self._init_state = init_state
@@ -294,8 +296,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             return self._init_state
         else:
             return ReachingDefinitionsState(
-                self.project.arch, self.subject, track_tmps=self._track_tmps, analysis=self,
-                canonical_size=self._canonical_size,
+                self.project.arch, self.subject, track_tmps=self._track_tmps, track_calls=self._track_calls,
+                analysis=self, canonical_size=self._canonical_size,
             )
 
     def _merge_states(self, node, *states: ReachingDefinitionsState):

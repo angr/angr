@@ -49,6 +49,25 @@ class GuardUse(Atom):
         raise NotImplementedError()
 
 
+class FunctionCall(Atom):
+    def __init__(self, target, callsite):
+        self.target = target
+        self.callsite = callsite
+
+    def __repr__(self):
+        return '<Call %s (%s)>' % (self.target, self.callsite)
+
+    def __eq__(self, other):
+        return type(other) is FunctionCall and self.callsite == other.callsite
+
+    def __hash__(self):
+        return hash(self.callsite)
+
+    @property
+    def size(self):
+        raise NotImplementedError
+
+
 class Tmp(Atom):
     """
     Represents a variable used by the IR to store intermediate values.
