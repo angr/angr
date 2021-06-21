@@ -1,6 +1,7 @@
 from typing import Optional, List, Tuple, Any, TYPE_CHECKING
 import logging
 
+import archinfo
 from ailment import Stmt, Expr
 
 from ...procedures.stubs.format_parser import FormatParser, FormatSpecifier
@@ -118,6 +119,24 @@ class CallSiteMaker(Analysis):
                             the_stmt.data.value == self.block.addr + self.block.original_size:
                         # yes it is!
                         new_stmts = new_stmts[:-1]
+        else:
+            # if there is an lr register...
+            lr_offset = None
+            if archinfo.arch_arm.is_arm_arch(self.project.arch) or self.project.arch.name in {'PPC32', 'PPC64'}:
+                lr_offset = self.project.arch.registers['lr'][0]
+            elif self.project.arch.name in {'MIPS32', 'MIPS64'}:
+                lr_offset = self.project.arch.registers['ra'][0]
+            if lr_offset is not None:
+                # remove the assignment to the lr register
+                if len(new_stmts) >= 1:
+                    the_stmt = new_stmts[-1]
+                    if (isinstance(the_stmt, Stmt.Assignment)
+                            and isinstance(the_stmt.dst, Expr.Register)
+                            and the_stmt.dst.reg_offset == lr_offset
+                    ):
+                        # found it
+                        new_stmts = new_stmts[:-1]
+
 
         # remove statements that stores arguments on the stack
         if stack_arg_locs:

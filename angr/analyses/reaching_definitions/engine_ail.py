@@ -250,30 +250,41 @@ class SimEngineRDAIL(
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
+        # TODO: Get the calling convention of the current function
+        codeloc = self._codeloc()
+        size = self.project.arch.bits // 8
+        cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
+        if cc_cls is None:
+            l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
+            cc = None
+        else:
+            cc = cc_cls(self.project.arch)
+            # callee-saved args
+            for reg in self.arch.register_list:
+                if (reg.general_purpose
+                        and reg.name not in cc.CALLER_SAVED_REGS
+                        and reg.name not in cc.ARG_REGS
+                        and reg.vex_offset not in {self.arch.sp_offset, self.arch.bp_offset, self.arch.ip_offset, }
+                        and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
+                ):
+                    self.state.add_use(Register(reg.vex_offset, reg.size), codeloc)
+
         if stmt.ret_exprs:
             # Handle return expressions
             for ret_expr in stmt.ret_exprs:
                 self._expr(ret_expr)
-
             return
 
         # No return expressions are available.
         # consume registers that are potentially useful
         # TODO: Consider the calling convention of the current function
 
-        cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
-        if cc_cls is None:
-            l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
-            return
-
-        cc = cc_cls(self.project.arch)
-        codeloc = self._codeloc()
-        size = self.project.arch.bits // 8
         # return value
-        if cc.RETURN_VAL is not None:
+        if cc is not None and cc.RETURN_VAL is not None:
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
                 self.state.add_use(Register(offset, size), codeloc)
+
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
         self.state.add_use(Register(self.project.arch.bp_offset, self.project.arch.bits // 8), codeloc)
