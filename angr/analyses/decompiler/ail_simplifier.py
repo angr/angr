@@ -415,8 +415,15 @@ class AILSimplifier(Analysis):
                 if idx in stmts_to_remove:
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
-                        # if this statement triggers a call, it should not be removed
-                        if not self._statement_has_call_exprs(stmt):
+                        # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
+                        if self._statement_has_call_exprs(stmt):
+                            codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                            if codeloc in self._calls_to_remove:
+                                # it has a call and must be removed
+                                simplified = True
+                                continue
+                        else:
+                            # no calls. remove it
                             simplified = True
                             continue
                     elif isinstance(stmt, Call):
