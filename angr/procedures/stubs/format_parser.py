@@ -1,4 +1,4 @@
-from typing import List, TYPE_CHECKING
+from typing import List, Dict, TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
 import math
@@ -251,7 +251,7 @@ class FormatString:
                         max_sym_bytes = fmt_spec.length_spec
 
                     # TODO: look for limits on other characters which scanf is sensitive to, '\x00', '\x20'
-                    ohr, _, match_indices = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len,
+                    _, _, match_indices = region.find(position, self.parser.state.solver.BVV(b'\n'), max_str_len,
                                             max_symbolic_bytes=max_sym_bytes)
 
                     if not match_indices:
@@ -426,7 +426,7 @@ class FormatParser(SimProcedure):
         return FormatParser._MOD_SPEC
 
     @property
-    def _all_spec(self):
+    def _all_spec(self) -> Dict[bytes,'SimType']:
         """
         All specifiers and their lengths.
         """
