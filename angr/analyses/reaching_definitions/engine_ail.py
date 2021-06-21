@@ -444,6 +444,15 @@ class SimEngineRDAIL(
 
         return MultiValues(offset_to_values={0: converted})
 
+    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret) -> MultiValues:
+        _: MultiValues = self._expr(expr.operand)
+        bits = expr.to_bits
+
+        # we currently do not support floating-point operations. therefore, we return TOP directly
+        reinterpreted = self.state.top(bits)
+
+        return MultiValues(offset_to_values={0: {reinterpreted}})
+
     def _ail_handle_ITE(self, expr: ailment.Expr.ITE) -> MultiValues:
         _: MultiValues = self._expr(expr.cond)
         iftrue: MultiValues = self._expr(expr.iftrue)
@@ -754,6 +763,7 @@ class SimEngineRDAIL(
         top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
 
+    _ail_handle_CmpF = _ail_handle_Cmp
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
     _ail_handle_CmpLE = _ail_handle_Cmp

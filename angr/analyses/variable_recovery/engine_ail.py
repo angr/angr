@@ -191,6 +191,18 @@ class SimEngineVRAIL(
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
+    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
+        r = self._expr(expr.operand)
+        typevar = None
+        if r.typevar is not None:
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ReinterpretAs):
+                # there is already a reinterpretas - overwrite it
+                typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+            else:
+                typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+
+        return RichR(self.state.top(expr.to_bits), typevar=typevar)
+
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
         try:
             values: MultiValues = self.state.stack_region.load(self.state.stack_addr_from_offset(expr.offset),
@@ -241,6 +253,7 @@ class SimEngineVRAIL(
         self._expr(expr.operands[1])
         return RichR(self.state.top(1))
 
+    _ail_handle_CmpF = _ail_handle_Cmp
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
     _ail_handle_CmpLT = _ail_handle_Cmp

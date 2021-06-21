@@ -1,5 +1,6 @@
 # pylint:disable=no-self-use,isinstance-second-argument-not-valid-type
 from typing import Tuple, Optional, Union, Any
+import struct
 import logging
 
 import ailment
@@ -788,6 +789,22 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _ail_handle_CallExpr(self, expr):
         raise NotImplementedError('Please implement the CallExpr handler with your own logic.')
+
+    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
+        arg = self._expr(expr.operand)
+
+        if isinstance(arg, int) and expr.from_bits == 32 and expr.from_type == "I" and expr.to_bits == 32 and expr.to_type == "F":
+            # int -> float
+            b = struct.pack("<I", arg)
+            f = struct.unpack("<f", b)[0]
+            return f
+        elif isinstance(arg, float) and expr.from_bits == 32 and expr.from_type == "F" and expr.to_bits == 32 and expr.to_type == "I":
+            # float -> int
+            b = struct.pack("<f", arg)
+            v = struct.unpack("<I", b)[0]
+            return v
+
+        return expr
 
     def _ail_handle_UnaryOp(self, expr):
         handler_name = '_ail_handle_%s' % expr.op

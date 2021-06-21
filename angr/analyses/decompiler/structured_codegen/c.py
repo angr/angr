@@ -5,7 +5,7 @@ import logging
 from ailment import Block, Expr, Stmt
 
 from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
-    SimTypeBottom, SimTypeArray, SimTypeFunction)
+    SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble)
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
@@ -1423,6 +1423,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
+            Expr.Reinterpret: self._handle_Reinterpret,
             # SimVariables
             SimStackVariable: self._handle_Variable_SimStackVariable,
             SimRegisterVariable: self._handle_Variable_SimRegisterVariable,
@@ -1970,6 +1971,29 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_ITE(self, expr: Expr.ITE):
         return CITE(self._handle(expr.cond), self._handle(expr.iftrue), self._handle(expr.iffalse), tags=expr.tags,
                     codegen=self)
+
+    def _handle_Reinterpret(self, expr: Expr.Reinterpret):
+
+        def _to_type(bits, typestr):
+            if typestr == "I":
+                if bits == 32:
+                    return SimTypeInt()
+                elif bits == 64:
+                    return SimTypeLongLong()
+                else:
+                    raise TypeError(f"Unsupported integer type with bits {bits} in Reinterpret")
+            elif typestr == "F":
+                if bits == 32:
+                    return SimTypeFloat()
+                elif bits == 64:
+                    return SimTypeDouble()
+                else:
+                    raise TypeError(f"Unsupported floating-point type with bits {bits} in Reinterpret")
+            raise TypeError(f"Unexpected reinterpret type {typestr}")
+
+        src_type = _to_type(expr.from_bits, expr.from_type)
+        dst_type = _to_type(expr.to_bits, expr.to_type)
+        return CTypeCast(src_type, dst_type, self._handle(expr.operand), tags=expr.tags, codegen=self)
 
     def _handle_Expr_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
 
