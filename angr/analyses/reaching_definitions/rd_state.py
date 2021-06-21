@@ -368,8 +368,10 @@ class ReachingDefinitionsState:
                         # "uses" are actually the definitions that we're using and the "definition" is the
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
+                        self.dep_graph.add_node(used)
                         for def_ in defs:
-                            self.dep_graph.add_edge(used, def_)
+                            if not def_.dummy:
+                                self.dep_graph.add_edge(used, def_)
                         self.dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,
