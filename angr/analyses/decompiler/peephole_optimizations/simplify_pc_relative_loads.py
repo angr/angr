@@ -1,5 +1,5 @@
 import archinfo
-from ailment.expression import Convert, BinaryOp, Const, UnaryOp, Load
+from ailment.expression import BinaryOp, Const, Load
 
 from .base import PeepholeOptimizationExprBase
 
