@@ -1981,14 +1981,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 elif bits == 64:
                     return SimTypeLongLong()
                 else:
-                    raise TypeError(f"Unsupported integer type with bits {bits} in Reinterpret.")
+                    raise TypeError(f"Unsupported integer type with bits {bits} in Reinterpret")
             elif typestr == "F":
                 if bits == 32:
                     return SimTypeFloat()
                 elif bits == 64:
                     return SimTypeDouble()
                 else:
-                    raise TypeError(f"Unsupported floating-point type with bits {bits} in Reinterpret.")
+                    raise TypeError(f"Unsupported floating-point type with bits {bits} in Reinterpret")
+            raise TypeError(f"Unexpected reinterpret type {typestr}")
 
         src_type = _to_type(expr.from_bits, expr.from_type)
         dst_type = _to_type(expr.to_bits, expr.to_type)
