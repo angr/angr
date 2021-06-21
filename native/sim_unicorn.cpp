@@ -1979,7 +1979,7 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 	if ((arch == UC_ARCH_X86) && is_cpuid_in_block(block_address, block_size)) {
 		// Check if emulation was stopped; could be if VEX lift failed
 		if (!stopped) {
-			stop(STOP_CPUID);
+			stop(STOP_X86_CPUID);
 		}
 		return;
 	}

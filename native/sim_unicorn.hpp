@@ -307,7 +307,7 @@ enum stop_t {
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE,
 	STOP_SYSCALL_ARM,
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK,
-	STOP_CPUID,
+	STOP_X86_CPUID,
 };
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
