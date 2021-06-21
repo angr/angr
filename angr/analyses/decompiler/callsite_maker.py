@@ -122,17 +122,21 @@ class CallSiteMaker(Analysis):
         # remove statements that stores arguments on the stack
         if stack_arg_locs:
             sp_offset = self._stack_pointer_tracker.offset_before(last_stmt.ins_addr, self.project.arch.sp_offset)
-            stack_arg_offsets = set((arg.stack_offset + sp_offset) for arg in stack_arg_locs)
-            old_stmts = new_stmts
-            new_stmts = [ ]
-            for stmt in old_stmts:
-                if isinstance(stmt, Stmt.Store) and isinstance(stmt.addr, Expr.StackBaseOffset):
-                    offset = stmt.addr.offset
-                    if offset < 0:
-                        offset &= (1 << self.project.arch.bits) - 1
-                    if offset in stack_arg_offsets:
-                        continue
-                new_stmts.append(stmt)
+            if sp_offset is None:
+                l.warning("Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
+                          "statements.", last_stmt.ins_addr)
+            else:
+                stack_arg_offsets = set((arg.stack_offset + sp_offset) for arg in stack_arg_locs)
+                old_stmts = new_stmts
+                new_stmts = [ ]
+                for stmt in old_stmts:
+                    if isinstance(stmt, Stmt.Store) and isinstance(stmt.addr, Expr.StackBaseOffset):
+                        offset = stmt.addr.offset
+                        if offset < 0:
+                            offset &= (1 << self.project.arch.bits) - 1
+                        if offset in stack_arg_offsets:
+                            continue
+                    new_stmts.append(stmt)
 
         ret_expr = last_stmt.ret_expr
         if ret_expr is None:
@@ -275,7 +279,7 @@ class CallSiteMaker(Analysis):
         return s
 
     def _determine_variadic_arguments(self, func, cc: 'SimCC', call_stmt) -> Optional[int]:
-        if "printf" in func.name:
+        if "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
         return None
 

@@ -12,7 +12,7 @@ l = logging.getLogger(name=__name__)
 
 class fprintf(FormatParser):
 
-    def run(self, file_ptr):
+    def run(self, file_ptr, fmt):  # pylint:disable=unused-argument
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fileno = self.state.mem[file_ptr + fd_offset:].int.resolved
         simfd = self.state.posix.get_fd(fileno)

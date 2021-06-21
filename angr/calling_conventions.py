@@ -268,7 +268,7 @@ class ArgSession:
         arg_size = arg.size
         locations = [arg]
         while arg_size < size:
-            next_arg = self.next_arg(is_fp, None)
+            next_arg = self.next_arg(is_fp, size=None)
             arg_size += next_arg.size
             locations.append(next_arg)
 
@@ -496,10 +496,12 @@ class SimCC:
         If you've customized this CC, this will sanity-check the provided locations with the given list.
         """
         session = self.arg_session
+        ignore_real_args = False
         if self.func_ty is None and self.args is None:
             # No function prototype is provided, no args is provided. `is_fp` must be provided.
             if is_fp is None:
                 raise ValueError('"is_fp" must be provided when no function prototype is available.')
+            ignore_real_args = True
         else:
             # let's rely on the func_ty or self.args for the number of arguments and whether each argument is FP or not
             if self.func_ty is not None:
@@ -508,6 +510,8 @@ class SimCC:
                 args = self.args
             if is_fp is None:
                 is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
+            else:
+                ignore_real_args = True
             if sizes is None:
                 # initialize sizes from args
                 sizes = [ ]
@@ -522,9 +526,11 @@ class SimCC:
                     else:
                         # fallback to use self.arch.bytes
                         sizes.append(self.arch.bytes)
+            else:
+                ignore_real_args = True
 
         if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
-        return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
+        return [session.next_arg(ifp, size=sz, ignore_real_args=ignore_real_args) for ifp, sz in zip(is_fp, sizes)]
 
     def arg(self, state, index, stack_base=None):
         """

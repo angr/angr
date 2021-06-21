@@ -12,7 +12,7 @@ class sprintf(FormatParser):
 
     #pylint:disable=arguments-differ
 
-    def run(self, dst_ptr):
+    def run(self, dst_ptr, fmt):  # pylint:disable=unused-argument
         # The format str is at index 1
         fmt_str = self._parse(1)
         out_str = fmt_str.replace(2, self.arg)
