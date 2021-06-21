@@ -444,7 +444,10 @@ class Clinic(Analysis):
                                                        observe_callback=self._make_callsites_rd_observe_callback)
 
         def _handler(block):
-            csm = self.project.analyses.AILCallSiteMaker(block, reaching_definitions=rd)
+            csm = self.project.analyses.AILCallSiteMaker(block,
+                                                         reaching_definitions=rd,
+                                                         stack_pointer_tracker=stack_pointer_tracker,
+                                                         )
             if csm.result_block:
                 if csm.result_block != block:
                     ail_block = csm.result_block

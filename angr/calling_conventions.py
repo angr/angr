@@ -506,7 +506,8 @@ class SimCC:
                 args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
-            is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
+            if is_fp is None:
+                is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
             if sizes is None:
                 # initialize sizes from args
                 sizes = [ ]

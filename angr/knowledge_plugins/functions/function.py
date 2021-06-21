@@ -331,12 +331,11 @@ class Function(Serializable):
         return [const.value for block in self.blocks for const in block.vex.constants]
 
     @property
-    def calling_convention(self):
+    def calling_convention(self) -> Optional[SimCC]:
         """
         Get the calling convention of this function.
 
         :return:    The calling convention of this function.
-        :rtype:     Optional[SimCC]
         """
         return self._cc
 
@@ -365,12 +364,11 @@ class Function(Serializable):
                 self._prototype = None
 
     @property
-    def prototype(self):
+    def prototype(self) -> Optional[SimTypeFunction]:
         """
         Get the prototype of this function. We prioritize the function prototype that is set in self.calling_convention.
 
         :return:    The function prototype.
-        :rtype:     Optional[SimTypeFunction]
         """
         if self._cc:
             return self._cc.func_ty

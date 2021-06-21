@@ -1,3 +1,4 @@
+from typing import List, TYPE_CHECKING
 from string import digits as ascii_digits
 import logging
 import math
@@ -7,8 +8,13 @@ from ... import sim_type
 from ...sim_procedure import SimProcedure
 from ...storage.file import SimPackets
 
+if TYPE_CHECKING:
+    from angr.sim_type import SimType
+
+
 l = logging.getLogger(name=__name__)
 ascii_digits = ascii_digits.encode()
+
 
 class FormatString:
     """
@@ -315,6 +321,8 @@ class FormatSpecifier:
     Describes a format specifier within a format string.
     """
 
+    __slots__ = ('string', 'size', 'signed', 'length_spec', 'pad_chr', )
+
     def __init__(self, string, length_spec, pad_chr, size, signed):
         self.string = string
         self.size = size
@@ -344,24 +352,24 @@ class FormatParser(SimProcedure):
     # TODO: support for C and S that are deprecated.
     # TODO: We only consider POSIX locales here.
     basic_spec = {
-        b'd': 'int',
-        b'i': 'int',
-        b'o': 'unsigned int',
-        b'u': 'unsigned int',
-        b'x': 'unsigned int',
-        b'X': 'unsigned int',
-        b'e': 'double',
-        b'E': 'double',
-        b'f': 'double',
-        b'F': 'double',
-        b'g': 'double',
-        b'G': 'double',
-        b'a': 'double',
-        b'A': 'double',
-        b'c': 'char',
-        b's': 'char*',
-        b'p': 'uintptr_t',
-        b'n': 'uintptr_t', # pointer to num bytes written so far
+        b'd': sim_type.SimTypeInt(),  # 'int',
+        b'i': sim_type.SimTypeInt(),  # 'int',
+        b'o': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'u': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'x': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'X': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'e': sim_type.SimTypeDouble(),  # 'double',
+        b'E': sim_type.SimTypeDouble(),  # 'double',
+        b'f': sim_type.SimTypeDouble(),  # 'double',
+        b'F': sim_type.SimTypeDouble(),  # 'double',
+        b'g': sim_type.SimTypeDouble(),  # 'double',
+        b'G': sim_type.SimTypeDouble(),  # 'double',
+        b'a': sim_type.SimTypeDouble(),  # 'double',
+        b'A': sim_type.SimTypeDouble(),  # 'double',
+        b'c': sim_type.SimTypeChar(),  # 'char',
+        b's': sim_type.SimTypePointer(sim_type.SimTypeChar()),  # 'char*',
+        b'p': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
+        b'n': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t', # pointer to num bytes written so far
         #b'm': None, # Those don't expect any argument
         #b'%': None, # Those don't expect any argument
     }
@@ -374,16 +382,16 @@ class FormatParser(SimProcedure):
 
     # Length modifiers and how they apply to integer conversion (signed / unsigned).
     int_len_mod = {
-        b'hh': ('char', 'uint8_t'),
-        b'h' : ('int16_t', 'uint16_t'),
-        b'l' : ('long', 'unsigned long'),
+        b'hh': (sim_type.SimTypeChar(), sim_type.SimTypeChar(signed=False)),  # ('char', 'uint8_t'),
+        b'h' : (sim_type.SimTypeShort(), sim_type.SimTypeShort(signed=False)),  # ('int16_t', 'uint16_t'),
+        b'l' : (sim_type.SimTypeLong(), sim_type.SimTypeLong(signed=False)),  # ('long', 'unsigned long'),
         # FIXME: long long is 64bit according to stdint.h on Linux,  but that might not always be the case
-        b'll' : ('int64_t', 'uint64_t'),
+        b'll' : (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
 
         # FIXME: intmax_t seems to be always 64 bit, but not too sure
-        b'j' : ('int64_t', 'uint64_t'),
-        b'z' : ('ssize', 'size_t'),
-        b't' : ('ptrdiff_t', 'ptrdiff_t'),
+        b'j' : (sim_type.SimTypeLongLong(), sim_type.SimTypeLongLong(signed=False)),  # ('int64_t', 'uint64_t'),
+        b'z' : (sim_type.SimTypeLength(signed=True), sim_type.SimTypeLength(signed=False)),  # ('ssize', 'size_t'),
+        b't' : (sim_type.SimTypeLong(), sim_type.SimTypeLong()),  # ('ptrdiff_t', 'ptrdiff_t'),
     }
 
     # Types that are not known by sim_types
@@ -395,23 +403,27 @@ class FormatParser(SimProcedure):
     # Those flags affect the formatting the output string
     flags = ['#', '0', r'\-', r' ', r'\+', r'\'', 'I']
 
+    _MOD_SPEC = None
+    _ALL_SPEC = None
+
     @property
     def _mod_spec(self):
         """
         Modified length specifiers: mapping between length modifiers and conversion specifiers. This generates all the
         possibilities, i.e. hhd, etc.
         """
-        mod_spec={}
+        if FormatParser._MOD_SPEC is None:
+            mod_spec = { }
 
-        for mod, sizes in self.int_len_mod.items():
+            for mod, sizes in self.int_len_mod.items():
+                for conv in self.int_sign['signed']:
+                    mod_spec[mod + conv] = sizes[0]
+                for conv in self.int_sign['unsigned']:
+                    mod_spec[mod + conv] = sizes[1]
 
-            for conv in self.int_sign['signed']:
-                mod_spec[mod + conv] = sizes[0]
+            FormatParser._MOD_SPEC = mod_spec
 
-            for conv in self.int_sign['unsigned']:
-                mod_spec[mod + conv] = sizes[1]
-
-        return mod_spec
+        return FormatParser._MOD_SPEC
 
     @property
     def _all_spec(self):
@@ -419,12 +431,15 @@ class FormatParser(SimProcedure):
         All specifiers and their lengths.
         """
 
-        base = self._mod_spec
+        if FormatParser._ALL_SPEC is None:
+            base = dict(self._mod_spec)
 
-        for spec in self.basic_spec:
-            base[spec] = self.basic_spec[spec]
+            for spec in self.basic_spec:
+                base[spec] = self.basic_spec[spec]
 
-        return base
+            FormatParser._ALL_SPEC = base
+
+        return FormatParser._ALL_SPEC
 
     # Tricky stuff
     # Note that $ is not C99 compliant (but posix specific).
@@ -471,20 +486,20 @@ class FormatParser(SimProcedure):
                 # this is gross coz sim_type is gross..
                 nugget = nugget[:len(spec)]
                 original_nugget = original_nugget[:(length_spec_str_len + len(spec))]
-                nugtype = all_spec[nugget]
+                nugtype: 'SimType' = all_spec[nugget]
                 try:
-                    typeobj = sim_type.parse_type(nugtype).with_arch(self.state.arch)
-                except:
+                    typeobj = nugtype.with_arch(self.state.arch if self.state is not None else self.project.arch)
+                except Exception:
                     raise SimProcedureError("format specifier uses unknown type '%s'" % repr(nugtype))
                 return FormatSpecifier(original_nugget, length_spec, pad_chr, typeobj.size // 8, typeobj.signed)
 
         return None
 
-    def _get_fmt(self, fmt):
+    def extract_components(self, fmt: List) -> List:
         """
         Extract the actual formats from the format string `fmt`.
 
-        :param list fmt: A list of format chars.
+        :param fmt: A list of format chars.
         :returns: a FormatString object
         """
 
@@ -518,6 +533,16 @@ class FormatParser(SimProcedure):
                 components.append(fmt[i])
             i += 1
 
+        return components
+
+    def _get_fmt(self, fmt):
+        """
+        Extract the actual formats from the format string `fmt`.
+
+        :param list fmt: A list of format chars.
+        :returns: a FormatString object
+        """
+        components = self.extract_components(fmt)
         return FormatString(self, components)
 
     def _sim_atoi_inner(self, str_addr, region, base=10, read_length=None):
