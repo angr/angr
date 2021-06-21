@@ -6,7 +6,7 @@ import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions import LiveDefinitions
-from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation
+from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, FunctionCall
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.environment import Environment
 from ...knowledge_plugins.key_definitions.tag import InitialValueTag, ParameterTag, Tag
@@ -50,9 +50,9 @@ class ReachingDefinitionsState:
     """
 
     __slots__ = ('arch', '_subject', '_track_tmps', 'analysis', 'current_codeloc', 'codeloc_uses', 'live_definitions',
-                 'all_definitions', '_canonical_size', 'heap_allocator', '_environment', )
+                 'all_definitions', '_canonical_size', 'heap_allocator', '_environment', '_track_calls', )
 
-    def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False,
+    def __init__(self, arch: archinfo.Arch, subject: Subject, track_tmps: bool=False, track_calls: bool=False,
                  analysis: Optional['ReachingDefinitionsAnalysis']=None, rtoc_value=None,
                  live_definitions: Optional[LiveDefinitions]=None, canonical_size: int=8,
                  heap_allocator: HeapAllocator=None,
@@ -62,6 +62,7 @@ class ReachingDefinitionsState:
         self.arch = arch
         self._subject = subject
         self._track_tmps = track_tmps
+        self._track_calls = track_calls
         self.analysis = analysis
         self._canonical_size: int = canonical_size
 
@@ -289,6 +290,7 @@ class ReachingDefinitionsState:
             self.arch,
             self._subject,
             track_tmps=self._track_tmps,
+            track_calls=self._track_calls,
             analysis=self.analysis,
             live_definitions=self.live_definitions.copy(),
             canonical_size=self._canonical_size,
@@ -418,3 +420,16 @@ class ReachingDefinitionsState:
         if self.dep_graph is not None:
             for used in self.codeloc_uses:
                 self.dep_graph.add_edge(used, kinda_definition)
+
+    def mark_call(self, code_loc: CodeLocation, target):
+        self._cycle(code_loc)
+        atom = FunctionCall(target, code_loc)
+        kinda_definition = Definition(atom, code_loc)
+
+        if self.dep_graph is not None and self._track_calls:
+            for used in self.codeloc_uses:
+                self.dep_graph.add_edge(used, kinda_definition)
+            self.codeloc_uses.clear()
+            self.codeloc_uses.add(kinda_definition)
+            self.live_definitions.uses_by_codeloc[code_loc].clear()
+            self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)

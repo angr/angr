@@ -201,6 +201,8 @@ class SimEngineRDAIL(
         for expr in used_exprs:
             self._expr(expr)
 
+        self.state.mark_call(codeloc, target)
+
         # Add definition
         return_reg_offset = None
         if not is_expr:
@@ -211,6 +213,10 @@ class SimEngineRDAIL(
                     reg_atom = Register(return_reg_offset, return_reg_size)
                     top = self.state.top(return_reg_size * self.arch.byte_width)
                     self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(offset_to_values={0: {top}}))
+                if isinstance(stmt.ret_expr, ailment.Expr.Tmp):
+                    tmp_atom = Tmp(stmt.ret_expr.tmp_idx, stmt.ret_expr.size)
+                    top = self.state.top(stmt.ret_expr.bits)
+                    self.state.kill_and_add_definition(tmp_atom, codeloc, MultiValues(offset_to_values={0: {top}}))
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
