@@ -1,5 +1,6 @@
 from typing import Optional, Dict, List, Tuple, Set, Any, TYPE_CHECKING, Callable
 from collections import defaultdict
+import re
 import logging
 
 from ailment import Block, Expr, Stmt
@@ -23,6 +24,23 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 INDENT_DELTA = 4
+
+
+def split_type_str(raw_type_str: str) -> Tuple[str,Optional[str]]:
+    spans = [ ]
+    for m in re.finditer(r"(\[\d+\])", raw_type_str):
+        spans.append(m.span())
+
+    if spans:
+        type_post = ""
+        for span in reversed(spans):
+            type_post = raw_type_str[span[0]:span[1]] + type_post
+            raw_type_str = raw_type_str[:span[0]] + raw_type_str[span[1]:]
+        type_pre = raw_type_str
+    else:
+        type_pre = raw_type_str
+        type_post = None
+    return type_pre, type_post
 
 #
 #   C Representation Classes
@@ -197,14 +215,26 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 # this should never happen, but pylint complains
                 continue
 
-            for i, var_type in enumerate(set(typ for _, typ in cvar_and_vartypes)):
-                if i:
-                    yield "|", None
-
+            if len(cvar_and_vartypes) == 1:
+                # a single type. let's be as C as possible
+                _, var_type = next(iter(cvar_and_vartypes))
                 if isinstance(var_type, SimType):
-                    yield var_type.c_repr(), None
+                    raw_type_str = var_type.c_repr()
+                    type_pre, type_post = split_type_str(raw_type_str)
                 else:
-                    yield str(var_type), None
+                    type_pre, type_post = str(var_type), None
+                yield type_pre, None
+            else:
+                # multiple types...
+                type_post = None
+                for i, var_type in enumerate(set(typ for _, typ in cvar_and_vartypes)):
+                    if i:
+                        yield "|", None
+
+                    if isinstance(var_type, SimType):
+                        yield var_type.c_repr(), None
+                    else:
+                        yield str(var_type), None
 
             yield " ", None
             if variable.name:
@@ -213,13 +243,14 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield "tmp_%d" % variable.tmp_id, cvariable
             else:
                 yield str(variable), cvariable
+            if type_post:
+                yield type_post, None
             yield ";", None
 
             loc_repr = variable.loc_repr(self.codegen.project.arch)
             yield "  // ", None
             yield loc_repr, None
             yield "\n", None
-
 
     def c_repr_chunks(self, indent=0, asexpr=False):
 
@@ -240,7 +271,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         brace = CClosingObject("{")
         yield "(", paren
         for i, (arg_type, arg) in enumerate(zip(self.functy.args, self.arg_list)):
-            yield arg_type.c_repr(), None
+            raw_type_str = arg_type.c_repr()
+            type_pre, _ = split_type_str(raw_type_str)
+
+            yield type_pre, None
             yield " ", None
             yield from arg.c_repr_chunks()
             if i != len(self.arg_list) - 1:
