@@ -399,8 +399,11 @@ class LiveDefinitions:
             else:
                 return
         elif isinstance(atom, Tmp):
-            for tmp in self.tmps[atom.tmp_idx]:
-                yield tmp
+            if atom.tmp_idx in self.tmps:
+                for tmp in self.tmps[atom.tmp_idx]:
+                    yield tmp
+            else:
+                return
         else:
             raise TypeError()
 
@@ -489,14 +492,16 @@ class LiveDefinitions:
     def _add_tmp_use(self, atom: Tmp, code_loc: CodeLocation) -> None:
 
         if self.track_tmps:
-            defs = self.tmps[atom.tmp_idx]
-            for def_ in defs:
-                self._add_tmp_use_by_def(def_, code_loc)
+            if atom.tmp_idx in self.tmps:
+                defs = self.tmps[atom.tmp_idx]
+                for def_ in defs:
+                    self._add_tmp_use_by_def(def_, code_loc)
         else:
-            defs = self.tmps[atom.tmp_idx]
-            for d in defs:
-                assert not type(d.atom) is Tmp
-                self.add_use_by_def(d, code_loc)
+            if atom.tmp_idx in self.tmps:
+                defs = self.tmps[atom.tmp_idx]
+                for d in defs:
+                    assert not type(d.atom) is Tmp
+                    self.add_use_by_def(d, code_loc)
 
     def _add_tmp_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
 

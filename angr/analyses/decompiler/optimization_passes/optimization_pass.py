@@ -81,7 +81,7 @@ class OptimizationPass(Analysis):
             if idx is None:
                 blocks = self._blocks_by_addr.get(addr, None)
             else:
-                blocks = self._blocks_by_addr_and_idx.get((addr, idx), None)
+                blocks = [ self._blocks_by_addr_and_idx.get((addr, idx), None) ]
             if not blocks:
                 return None
             if len(blocks) == 1:
