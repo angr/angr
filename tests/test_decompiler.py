@@ -363,8 +363,8 @@ def test_decompiling_1after909():
         code = dec.codegen.text
         print(code)
         assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(v0, &v4, 0x40)" in code
-        assert "strncmp(v0, &v4, 0x40);" not in code, "Call expressions folding failed for strncmp()"
+        assert "strncmp(v0, &v3, 0x40)" in code
+        assert "strncmp(v0, &v3, 0x40);" not in code, "Call expressions folding failed for strncmp()"
     else:
         print("Failed to decompile function %r." % f)
         assert False

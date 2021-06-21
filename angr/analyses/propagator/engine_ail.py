@@ -200,7 +200,7 @@ class SimEnginePropagatorAIL(
         if sp_offset is not None:
             # Stack variable.
             var = self.state.get_stack_variable(sp_offset, expr.size, endness=expr.endness)
-            if var is not None:
+            if var is not None and not self.state.is_top(var):
                 # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                 # replacing stack variables.
                 #

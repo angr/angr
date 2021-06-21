@@ -408,7 +408,7 @@ class PropagatorAILState(PropagatorState):
             offset, size, label = labels[0]
             expr: Optional[ailment.Expr.Expression] = label['expr']
             def_at = label['def_at']
-            if expr is not None:
+            if expr is not None and expr.depth <= 3:
                 if expr.bits > size * self.arch.byte_width:
                     # we are loading a chunk of the original expression
                     expr = self._extract_ail_expression(
@@ -422,6 +422,8 @@ class PropagatorAILState(PropagatorState):
                         size * self.arch.byte_width - expr.bits,
                         expr,
                     )
+            else:
+                expr = None
         else:
             # Multiple definitions and expressions
             expr = None

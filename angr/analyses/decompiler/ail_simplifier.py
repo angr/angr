@@ -5,6 +5,7 @@ from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call
 from ailment.expression import Register, Convert, Load, StackBaseOffset
 
+from ...engines.light import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...code_location import CodeLocation
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
@@ -36,6 +37,7 @@ class AILSimplifier(Analysis):
         self._unify_vars = unify_variables
 
         self._calls_to_remove: Set[CodeLocation] = set()
+        self._assignments_to_remove: Set[CodeLocation] = set()
         self.blocks = {}  # Mapping nodes to simplified blocks
 
         self.simplified: bool = False
@@ -202,18 +204,68 @@ class AILSimplifier(Analysis):
 
             if the_def is None:
                 continue
-            if isinstance(the_def.codeloc, ExternalCodeLocation):
-                continue
 
-            # find all uses of this definition
-            # we make a copy of the set since we may touch the set (uses) when replacing expressions
-            all_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(the_def))
+            if isinstance(the_def.codeloc, ExternalCodeLocation):
+                # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
+                # argument if
+                # (a) the on-stack copy of it has never been modified in this function
+                # (b) the function argument register has never been updated.
+                #     TODO: we may loosen requirement (b) once we have real register versioning in AIL.
+                defs = [ def_ for def_ in rd.all_definitions if def_.codeloc == eq.codeloc ]
+                all_uses_with_def = None
+                to_replace, replace_with = None, None
+                remove_initial_assignment = None
+
+                if defs and len(defs) == 1:
+                    stackvar_def = defs[0]
+                    if isinstance(stackvar_def.atom, atoms.MemoryLocation) and isinstance(stackvar_def.atom.addr, SpOffset):
+                        # found the stack variable
+                        # Make sure there is no other write to this location
+                        if any((def_ != stackvar_def and def_.atom == stackvar_def.atom) for def_ in rd.all_definitions if isinstance(def_.atom, atoms.MemoryLocation)):
+                            continue
+
+                        # Make sure the register is never updated across this function
+                        if any((def_ != the_def and def_.atom == the_def.atom) for def_ in rd.all_definitions if isinstance(def_.atom, atoms.Register)):
+                            continue
+
+                        # find all its uses
+                        all_stackvar_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(stackvar_def))
+                        all_uses_with_def = set()
+                        for use in all_stackvar_uses:
+                            all_uses_with_def.add((stackvar_def, use))
+
+                        to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
+                                          endness=self.project.arch.memory_endness)
+                        replace_with = eq.atom1
+                        remove_initial_assignment = True
+
+                if all_uses_with_def is None:
+                    continue
+
+            else:
+                # find all uses of this definition
+                # we make a copy of the set since we may touch the set (uses) when replacing expressions
+                all_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(the_def))
+                all_uses_with_def = set((the_def, use) for use in all_uses)
+
+                remove_initial_assignment = False  # expression folding will take care of it
+                if isinstance(eq.atom0, SimStackVariable):
+                    # create the memory loading expression
+                    to_replace = eq.atom1
+                    replace_with = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
+                               endness=self.project.arch.memory_endness)
+                elif isinstance(eq.atom0, Register):
+                    to_replace = eq.atom1
+                    replace_with = eq.atom0
+                else:
+                    raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
 
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
             # TODO: re-assigned of a new value. Perform this check.
 
             # replace all uses
-            for u in all_uses:
+            all_uses_replaced = True
+            for def_, u in all_uses_with_def:
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
@@ -225,20 +277,18 @@ class AILSimplifier(Analysis):
                 the_block = self.blocks.get(old_block, old_block)
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
-                if isinstance(eq.atom0, SimStackVariable):
-                    # create the memory loading expression
-                    dst = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
-                               endness=self.project.arch.memory_endness)
-                elif isinstance(eq.atom0, Register):
-                    dst = eq.atom0
-                else:
-                    raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
-
-                r, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, the_def, u, eq.atom1,
-                                                                   dst)
+                r, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, def_, u, to_replace,
+                                                                   replace_with)
                 if r:
                     self.blocks[old_block] = new_block
+                else:
+                    # failed to replace a use - we need to keep the initial assignment!
+                    all_uses_replaced = False
                 simplified |= r
+
+            if all_uses_replaced and remove_initial_assignment:
+                # the initial statement can be removed
+                self._assignments_to_remove.add(eq.codeloc)
 
         # no need to clear cache at the end of this function
         return simplified
@@ -387,7 +437,7 @@ class AILSimplifier(Analysis):
             if not uses:
                 stmts_to_remove_per_block[(def_.codeloc.block_addr, def_.codeloc.block_idx)].add(def_.codeloc.stmt_idx)
 
-        for codeloc in self._calls_to_remove:
+        for codeloc in self._calls_to_remove | self._assignments_to_remove:
             # this call can be removed. make sure it exists in stmts_to_remove_per_block
             stmts_to_remove_per_block[codeloc.block_addr, codeloc.block_idx].add(codeloc.stmt_idx)
 
@@ -416,8 +466,13 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt, (Assignment, Store)):
                         # Skip Assignment and Store statements
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
+                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
+                        if codeloc in self._assignments_to_remove:
+                            # it should be removed
+                            simplified = True
+                            continue
+
                         if self._statement_has_call_exprs(stmt):
-                            codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr)
                             if codeloc in self._calls_to_remove:
                                 # it has a call and must be removed
                                 simplified = True
