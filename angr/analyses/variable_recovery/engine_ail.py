@@ -234,6 +234,8 @@ class SimEngineVRAIL(
         r0 = self._expr(expr.iftrue)
         r1 = self._expr(expr.iffalse)
 
+        return RichR(self.state.top(expr.bits))
+
     def _ail_handle_Cmp(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])

@@ -350,6 +350,17 @@ class SimEnginePropagatorAIL(
 
         return Expr.BinaryOp(expr.idx, 'And', [ operand_0, operand_1 ], expr.signed, **expr.tags)
 
+    def _ail_handle_Or(self, expr: Expr.BinaryOp):
+        operand_0 = self._expr(expr.operands[0])
+        operand_1 = self._expr(expr.operands[1])
+
+        if self.state.is_top(operand_0):
+            return self.state.top(expr.bits)
+        elif self.state.is_top(operand_1):
+            return self.state.top(expr.bits)
+
+        return Expr.BinaryOp(expr.idx, 'Or', [ operand_0, operand_1 ], expr.signed, **expr.tags)
+
     def _ail_handle_Xor(self, expr: Expr.BinaryOp):
         operand_0 = self._expr(expr.operands[0])
         operand_1 = self._expr(expr.operands[1])
