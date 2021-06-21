@@ -264,7 +264,7 @@ class SimEngineRDAIL(
                 if (reg.general_purpose
                         and reg.name not in cc.CALLER_SAVED_REGS
                         and reg.name not in cc.ARG_REGS
-                        and reg.vex_offset not in (self.arch.sp_offset, self.arch.bp_offset)
+                        and reg.vex_offset not in {self.arch.sp_offset, self.arch.bp_offset, self.arch.ip_offset, }
                         and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
                 ):
                     self.state.add_use(Register(reg.vex_offset, reg.size), codeloc)
