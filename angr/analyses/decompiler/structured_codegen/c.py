@@ -161,7 +161,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
     __slots__ = ('name', 'functy', 'arg_list', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
 
-    def __init__(self, name, functy: SimTypeFunction, arg_list: List['CExpression'], statements, variables_in_use,
+    def __init__(self, name, functy: SimTypeFunction, arg_list: List['CVariable'], statements, variables_in_use,
                  variable_manager, demangled_name=None, **kwargs):
 
         super().__init__(**kwargs)
@@ -178,13 +178,20 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         unified_to_var_and_types: Dict[SimVariable,Set[Tuple[CVariable,SimType]]] = defaultdict(set)
 
+        arg_set: Set[SimVariable] = set()
+        for arg in self.arg_list:
+            if arg.unified_variable is not None:
+                arg_set.add(arg.unified_variable)
+            else:
+                arg_set.add(arg.variable)
+
         # output each variable and its type
         for var, cvar in self.variables_in_use.items():
             if isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
                 # Skip all memory variables
                 continue
 
-            if cvar in self.arg_list:
+            if cvar.unified_variable in arg_set:
                 continue
 
             unified_var = self.variable_manager.unified_variable(var)
