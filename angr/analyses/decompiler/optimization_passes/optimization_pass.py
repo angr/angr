@@ -1,10 +1,13 @@
-from typing import Optional, Dict, Set, Tuple, Generator  # pylint:disable=unused-import
+from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING  # pylint:disable=unused-import
 
 import networkx  # pylint:disable=unused-import
 
 import ailment
 
 from ...analysis import Analysis
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions import Function
 
 
 class MultipleBlocksException(Exception):
@@ -24,7 +27,7 @@ class OptimizationPass(Analysis):
 
     def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None):
 
-        self._func = func
+        self._func: 'Function' = func
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[Tuple[int,Optional[int]],Set[ailment.Block]] = blocks_by_addr
         self._blocks_by_addr_and_idx: Dict[int,ailment.Block] = blocks_by_addr_and_idx

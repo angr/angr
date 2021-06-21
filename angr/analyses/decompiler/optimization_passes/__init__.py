@@ -11,9 +11,11 @@ from .div_simplifier import DivSimplifier
 from .mod_simplifier import ModSimplifier
 from .eager_returns import EagerReturnsSimplifier
 from .const_derefs import ConstantDereferencesSimplifier
+from .register_save_area_simplifier import RegisterSaveAreaSimplifier
 
 
 _all_optimization_passes = [
+    (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
     (BasePointerSaveSimplifier, True),
     (EagerReturnsSimplifier, True),

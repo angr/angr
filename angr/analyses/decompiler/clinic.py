@@ -152,7 +152,7 @@ class Clinic(Analysis):
             ail_graph = self._make_returns(ail_graph)
 
         # Simplify blocks
-        self._update_progress(35., text="Simplifying blocks")
+        self._update_progress(35., text="Simplifying blocks 1")
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Run simplification passes
@@ -176,20 +176,25 @@ class Clinic(Analysis):
         self._update_progress(55., text="Simplifying function 2")
         self._simplify_function(ail_graph, unify_variables=True)
 
+        # After global optimization, there might be more chances for peephole optimizations.
+        # Simplify blocks for the second time
+        self._update_progress(60., text="Simplifying blocks 2")
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
+
         # Make function arguments
-        self._update_progress(60., text="Making argument list")
+        self._update_progress(65., text="Making argument list")
         arg_list = self._make_argument_list()
 
         # Recover variables on AIL blocks
-        self._update_progress(65., text="Recovering variables")
+        self._update_progress(70., text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
         # Make function prototype
-        self._update_progress(70., text="Making function prototype")
+        self._update_progress(75., text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
-        self._update_progress(75., text="Running simplifications 2")
+        self._update_progress(80., text="Running simplifications 2")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         self.graph = ail_graph
