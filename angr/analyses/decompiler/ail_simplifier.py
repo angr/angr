@@ -471,10 +471,12 @@ class AILSimplifier(Analysis):
                             # it should be removed
                             simplified = True
                             continue
-                        elif self._statement_has_call_exprs(stmt) and codeloc in self._calls_to_remove:
-                            # it has a call and must be removed
-                            simplified = True
-                            continue
+
+                        if self._statement_has_call_exprs(stmt):
+                            if codeloc in self._calls_to_remove:
+                                # it has a call and must be removed
+                                simplified = True
+                                continue
                         else:
                             # no calls. remove it
                             simplified = True
