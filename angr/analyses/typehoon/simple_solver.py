@@ -4,7 +4,7 @@ from typing import Union, Type
 
 import networkx
 
-from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add
+from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add, ConvertTo
 from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer, Pointer32,
                          Pointer64, Struct, int_type, TypeVariableReference)
 
@@ -290,6 +290,23 @@ class SimpleSolver:
     def _get_upper_bound(self, v):
         if isinstance(v, TypeConstant):
             return v
+        if v in self._upper_bounds:
+            return self._upper_bounds[v]
+
+        # try to compute it
+        if isinstance(v, DerivedTypeVariable):
+            if isinstance(v.label, ConvertTo):
+                # after integer conversion,
+                ub = int_type(v.label.to_bits)
+                if ub is not None:
+                    self._upper_bounds[v] = ub
+            elif isinstance(v.label, HasField):
+                ub = int_type(v.label.bits)
+                if ub is not None:
+                    self._upper_bounds[v] = ub
+
+        if v not in self._upper_bounds:
+            self._upper_bounds[v] = TopType()
         return self._upper_bounds[v]
 
     def _compute_lower_upper_bounds(self, subtypevars, supertypevars):
