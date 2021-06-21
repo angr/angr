@@ -1976,12 +1976,15 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 			return;
 		}
 	}
-	if ((arch == UC_ARCH_X86) && is_cpuid_in_block(block_address, block_size)) {
-		// Check if emulation was stopped; could be if VEX lift failed
-		if (!stopped) {
-			stop(STOP_X86_CPUID);
+	if ((arch == UC_ARCH_X86) && block_taint_cache.find(block_address) != block_taint_cache.end()) {
+		// This is a block not previously executed so it could be execute cpuid instruction
+		if (is_cpuid_in_block(block_address, block_size)) {
+			// Check if emulation was stopped; could be if VEX lift failed
+			if (!stopped) {
+				stop(STOP_X86_CPUID);
+			}
+			return;
 		}
-		return;
 	}
 	block_symbolic_temps.clear();
 	block_start_reg_values.clear();
