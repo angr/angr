@@ -323,15 +323,24 @@ class Clinic(Analysis):
         :return:                        None
         """
 
-        blocks_by_addr_and_size = {}
+        blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = { }
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
-            key = ail_block.addr, ail_block.original_size
-            blocks_by_addr_and_size[key] = simplified
+            key = ail_block.addr, ail_block.idx
+            blocks_by_addr_and_idx[key] = simplified
 
-        graph = self._function_graph_to_ail_graph(self._func_graph, blocks_by_addr_and_size=blocks_by_addr_and_size)
-        return graph
+        # update blocks_map to allow node_addr to node lookup
+        def _replace_node_handler(node):
+            key = node.addr, node.idx
+            if key in blocks_by_addr_and_idx:
+                return blocks_by_addr_and_idx[key]
+            return None
+
+        AILGraphWalker(ail_graph, _replace_node_handler, replace_nodes=True).walk()
+
+        return ail_graph
+
 
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
         """
