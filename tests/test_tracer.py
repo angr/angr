@@ -36,11 +36,11 @@ def trace_cgc_with_pov_file(binary: str, test_name: str, pov_file: str, output_i
     nose.tools.assert_true(stdout_dump.startswith(output_initial_bytes))
 
 
-def tracer_linux(filename, test_name, stdin):
+def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=None):
     p = angr.Project(filename)
 
     trace, _, crash_mode, crash_addr = do_trace(p, test_name, stdin, ld_linux=p.loader.linux_loader_object.binary, library_path=set(os.path.dirname(obj.binary) for obj in p.loader.all_elf_objects), record_stdout=True)
-    s = p.factory.full_init_state(mode='tracing', stdin=angr.SimFileStream)
+    s = p.factory.full_init_state(mode='tracing', stdin=angr.SimFileStream, add_options=add_options, remove_options=remove_options)
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(s, hierarchy=False, save_unconstrained=crash_mode)
@@ -177,7 +177,7 @@ def test_fauxware():
         raise nose.SkipTest()
 
     b = os.path.join(bin_location, "tests", "x86_64", "fauxware")
-    simgr, _ = tracer_linux(b, 'tracer_fauxware', b'A'*18)
+    simgr, _ = tracer_linux(b, 'tracer_fauxware', b'A'*18, remove_options={angr.options.CPUID_SYMBOLIC})
     simgr.run()
 
     nose.tools.assert_true('traced' in simgr.stashes)

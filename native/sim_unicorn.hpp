@@ -307,6 +307,7 @@ enum stop_t {
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE,
 	STOP_SYSCALL_ARM,
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK,
+	STOP_X86_CPUID,
 };
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
@@ -363,13 +364,24 @@ struct block_taint_entry_t {
 	// Track instruction that sets a VEX temp and list of VEX temps on which its value depends on
 	std::unordered_map<taint_entity_t, std::pair<address_t, std::unordered_set<taint_entity_t>>> vex_temp_deps;
 	address_t exit_stmt_instr_addr;
+	bool has_cpuid_instr;
 	bool has_unsupported_stmt_or_expr_type;
 	stop_t unsupported_stmt_stop_reason;
 	std::unordered_set<taint_entity_t> block_next_entities;
 
+	block_taint_entry_t() {
+		block_instrs_taint_data_map.clear();
+		exit_stmt_guard_expr_deps.clear();
+		exit_stmt_instr_addr = 0;
+		vex_temp_deps.clear();
+		has_cpuid_instr = false;
+		has_unsupported_stmt_or_expr_type = false;
+		block_next_entities.clear();
+	}
+
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
-			   (vex_temp_deps == other_entry.vex_temp_deps) &&
+			   (vex_temp_deps == other_entry.vex_temp_deps) && (has_cpuid_instr == other_entry.has_cpuid_instr) &&
 			   (exit_stmt_instr_addr == other_entry.exit_stmt_instr_addr) &&
 			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps) &&
 			   (block_next_entities == other_entry.block_next_entities);
@@ -532,6 +544,7 @@ class State {
 	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 
+	bool is_cpuid_in_block(address_t block_address, int32_t block_size);
 	VEXLiftResult* lift_block(address_t block_address, int32_t block_size);
 
 	void mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size);

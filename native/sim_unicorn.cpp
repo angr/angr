@@ -990,6 +990,9 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 				// TODO
 				block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 				block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_DIRTY;
+				if (strcasestr(stmt->Ist.Dirty.details->cee->name, "cpuid")) {
+					block_taint_entry.has_cpuid_instr = true;
+				}
 				break;
 			}
 			case Ist_MBE:
@@ -1427,6 +1430,58 @@ int32_t State::get_vex_expr_result_size(IRExpr *expr, IRTypeEnv* tyenv) const {
 		return 0;
 	}
 	return sizeofIRType(expr_type);
+}
+
+bool State::is_cpuid_in_block(address_t block_address, int32_t block_size) {
+	bool found_cpuid_bytes = false;
+	bool has_cpuid_instr = false;
+	int32_t real_size;
+	int32_t i;
+	const uint8_t cpuid_bytes[] = {0xf, 0xa2};
+
+	auto block_entry = block_taint_cache.find(block_address);
+	if (block_entry != block_taint_cache.end()) {
+		// VEX statements of block have been processed already.
+		return block_entry->second.has_cpuid_instr;
+	}
+
+	// Assume block size is MAX_BB_SIZE if block size is report as 0.
+	// See State::step
+	real_size = block_size == 0 ? MAX_BB_SIZE : block_size;
+	std::unique_ptr<uint8_t[]> instructions(new uint8_t[real_size]);
+	uc_mem_read(this->uc, block_address, instructions.get(), real_size);
+	// Test 1: Look for bytes corresponding to the cpuid instruction(0fa2) in the block. Naive linear search for two
+	// byte pattern
+	i = 0;
+	while (i < real_size) {
+		if (instructions[i] == cpuid_bytes[0]) {
+			if (instructions[i + 1] == cpuid_bytes[1]) {
+				found_cpuid_bytes = true;
+				break;
+			}
+			i ++;
+		}
+		i++;
+	}
+	if (!found_cpuid_bytes) {
+		return false;
+	}
+	// Test 2: Verify using VEX statements of the block. If we reached here, then block is certainly not already lifted
+	// to VEX. Let's process them.
+	auto vex_lift_result = lift_block(block_address, real_size);
+	if ((vex_lift_result == NULL) || (vex_lift_result->size == 0)) {
+		// Since VEX lift failed, we cannot verify if cpuid is present. Assume it could exit and stop emulation.
+		stop(STOP_VEX_LIFT_FAILED);
+		return true;
+	}
+	process_vex_block(vex_lift_result->irsb, block_address);
+	block_entry = block_taint_cache.find(block_address);
+	has_cpuid_instr = block_entry->second.has_cpuid_instr;
+	if (block_size == 0) {
+		// Remove block from block taint cache since size reported by unicorn is 0
+		block_taint_cache.erase(block_entry);
+	}
+	return has_cpuid_instr;
 }
 
 VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
@@ -1923,6 +1978,13 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 			stop(STOP_SYSCALL_ARM);
 			return;
 		}
+	}
+	if ((arch == UC_ARCH_X86) && is_cpuid_in_block(block_address, block_size)) {
+		// Check if emulation was stopped; could be if VEX lift failed
+		if (!stopped) {
+			stop(STOP_X86_CPUID);
+		}
+		return;
 	}
 	block_symbolic_temps.clear();
 	block_start_reg_values.clear();
