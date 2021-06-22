@@ -100,7 +100,7 @@ class SimEngineVRBase(SimEngineLight):
         # find the correct variable
         existing_vars: List[Tuple[SimVariable,int]] = [ ]
         for candidate, offset in var_candidates:
-            if isinstance(candidate, SimStackVariable) and candidate.offset == -stack_offset:
+            if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
                 existing_vars.append((candidate, offset))
         variable = None
         if existing_vars:
