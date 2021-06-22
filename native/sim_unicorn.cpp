@@ -1439,6 +1439,12 @@ bool State::is_cpuid_in_block(address_t block_address, int32_t block_size) {
 	int32_t i;
 	const uint8_t cpuid_bytes[] = {0xf, 0xa2};
 
+	auto block_entry = block_taint_cache.find(block_address);
+	if (block_entry != block_taint_cache.end()) {
+		// VEX statements of block have been processed already.
+		return block_entry->second.has_cpuid_instr;
+	}
+
 	// Assume block size is MAX_BB_SIZE if block size is report as 0.
 	// See State::step
 	real_size = block_size == 0 ? MAX_BB_SIZE : block_size;
@@ -1460,19 +1466,16 @@ bool State::is_cpuid_in_block(address_t block_address, int32_t block_size) {
 	if (!found_cpuid_bytes) {
 		return false;
 	}
-	// Test 2: Verify using VEX statements of the block
-	auto block_entry = block_taint_cache.find(block_address);
-	if (block_entry == block_taint_cache.end()) {
-		// Process VEX block
-		auto vex_lift_result = lift_block(block_address, real_size);
-		if ((vex_lift_result == NULL) || (vex_lift_result->size == 0)) {
-			// Since VEX lift failed, we cannot verify if cpuid is present. Assume it could exit and stop emulation.
-			stop(STOP_VEX_LIFT_FAILED);
-			return true;
-		}
-		process_vex_block(vex_lift_result->irsb, block_address);
-		block_entry = block_taint_cache.find(block_address);
+	// Test 2: Verify using VEX statements of the block. If we reached here, then block is certainly not already lifted
+	// to VEX. Let's process them.
+	auto vex_lift_result = lift_block(block_address, real_size);
+	if ((vex_lift_result == NULL) || (vex_lift_result->size == 0)) {
+		// Since VEX lift failed, we cannot verify if cpuid is present. Assume it could exit and stop emulation.
+		stop(STOP_VEX_LIFT_FAILED);
+		return true;
 	}
+	process_vex_block(vex_lift_result->irsb, block_address);
+	block_entry = block_taint_cache.find(block_address);
 	has_cpuid_instr = block_entry->second.has_cpuid_instr;
 	if (block_size == 0) {
 		// Remove block from block taint cache since size reported by unicorn is 0
@@ -1976,15 +1979,12 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 			return;
 		}
 	}
-	if ((arch == UC_ARCH_X86) && block_taint_cache.find(block_address) != block_taint_cache.end()) {
-		// This is a block not previously executed so it could be execute cpuid instruction
-		if (is_cpuid_in_block(block_address, block_size)) {
-			// Check if emulation was stopped; could be if VEX lift failed
-			if (!stopped) {
-				stop(STOP_X86_CPUID);
-			}
-			return;
+	if ((arch == UC_ARCH_X86) && is_cpuid_in_block(block_address, block_size)) {
+		// Check if emulation was stopped; could be if VEX lift failed
+		if (!stopped) {
+			stop(STOP_X86_CPUID);
 		}
+		return;
 	}
 	block_symbolic_temps.clear();
 	block_start_reg_values.clear();
