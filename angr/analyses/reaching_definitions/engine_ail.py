@@ -228,7 +228,7 @@ class SimEngineRDAIL(
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
-            else:
+            elif cc.RETURN_VAL is not None:
                 # Return value is redefined here, so it is not a dummy value
                 return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                 self.state.kill_definitions(Register(return_reg_offset, return_reg_size), codeloc, dummy=False)
