@@ -4,7 +4,7 @@ from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
 
 from .sim_state import SimState
-from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper
+from .calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
 from .callable import Callable
 from .errors import AngrAssemblyError
 from .engines import UberEngine, ProcedureEngine, SimEngineConcrete
@@ -22,7 +22,7 @@ class AngrObjectFactory:
             default_engine = UberEngine
 
         self.project = project
-        self._default_cc = DEFAULT_CC[project.arch.name]
+        self._default_cc = DEFAULT_CC.get(project.arch.name, SimCCUnknown)
         self.default_engine = default_engine(project)
         self.procedure_engine = ProcedureEngine(project)
 
