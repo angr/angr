@@ -90,7 +90,9 @@ class SimEngineVRAIL(
                 else:
                     l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
-                ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
+
+                if ret_expr is not None:
+                    ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
