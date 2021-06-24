@@ -474,13 +474,18 @@ class Tracer(ExplorationTechnique):
             # ^ this means we will see desyncs of the form unicorn suddenly skips a bunch of qemu blocks
             assert state.history.recent_block_count == len(state.history.recent_bbl_addrs)
 
-            if sync is not None:
-                raise Exception("TODO")
-
             for addr_idx, addr in enumerate(state.history.recent_bbl_addrs):
                 if addr == state.unicorn.transmit_addr:
                     continue
 
+                if sync is not None and sync != 'entry':
+                    if self._compare_addr(self._trace[sync], addr):
+                        # Found the address in trace. Start normal trace checks from next address
+                        idx = sync + 1
+                        state.globals['sync_idx'] = None
+                        sync = None
+
+                    continue
 
                 if self._compare_addr(self._trace[idx], addr) or self._check_qemu_unicorn_large_block_split(state, idx, addr_idx):
                     idx += 1
