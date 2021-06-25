@@ -427,7 +427,7 @@ def test_decompiling_strings_local_strlen():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strlen(char* a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
+    assert "local_strlen(char *a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
 
 
 def test_decompiling_strings_local_strcat():
@@ -448,7 +448,7 @@ def test_decompiling_strings_local_strcat():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strcat(char* a0, char* a1)" in lines[0], \
+    assert "local_strcat(char *a0, char *a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
 
@@ -476,7 +476,7 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strcat(char* a0, char* a1)" in lines[0], \
+    assert "local_strcat(char *a0, char *a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
 
