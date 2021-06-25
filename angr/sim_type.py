@@ -1536,6 +1536,13 @@ def parse_file(defn, preprocess=True):
         del extra_types[ty]
     return out, extra_types
 
+if pycparser is not None:
+    _type_parser_singleton = pycparser.CParser()
+    _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(module=_type_parser_singleton,
+                                                             start='parameter_declaration',
+                                                             debug=False,
+                                                             optimize=False,
+                                                             errorlog=errorlog)
 
 def parse_type(defn, preprocess=True):  # pylint:disable=unused-argument
     """
@@ -1548,15 +1555,7 @@ def parse_type(defn, preprocess=True):  # pylint:disable=unused-argument
 
     defn = re.sub(r"/\*.*?\*/", r"", defn)
 
-    parser = pycparser.CParser()
-
-    parser.cparser = pycparser.ply.yacc.yacc(module=parser,
-                                             start='parameter_declaration',
-                                             debug=False,
-                                             optimize=False,
-                                             errorlog=errorlog)
-
-    node = parser.parse(text=defn, scope_stack=_make_scope())
+    node = _type_parser_singleton.parse(text=defn, scope_stack=_make_scope())
     if not isinstance(node, pycparser.c_ast.Typename) and \
             not isinstance(node, pycparser.c_ast.Decl):
         raise ValueError("Something went horribly wrong using pycparser")
