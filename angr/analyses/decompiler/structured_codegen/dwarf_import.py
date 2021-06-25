@@ -162,6 +162,10 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
                 result[(filename, line)] = None
 
         obj = self.project.loader.find_object_containing(self.function.addr)
+        if obj is None:
+            l.error("There is a function whose address does not correspond to any loaded object")
+            return result
+
         for addr, filename_line in obj.addr_to_line.items():
             if filename_line in result:
                 result[filename_line] = addr
