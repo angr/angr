@@ -255,7 +255,7 @@ class SimTypeNum(SimType):
         :param signed:      Whether the integer is signed or not
         :param label:       A label for the type
         """
-        super(SimTypeNum, self).__init__(label)
+        super().__init__(label)
         self._size = size
         self.signed = signed
 
@@ -303,7 +303,7 @@ class SimTypeInt(SimTypeReg):
         :param signed:  True if signed, False if unsigned
         :param label:   The type label
         """
-        super(SimTypeInt, self).__init__(None, label=label)
+        super().__init__(None, label=label)
         self.signed = signed
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
@@ -400,11 +400,11 @@ class SimTypeChar(SimTypeReg):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
         try:
-            super(SimTypeChar, self).store(state, addr, value)
+            super().store(state, addr, value)
         except TypeError:
             if isinstance(value, bytes) and len(value) == 1:
                 value = state.solver.BVV(value[0], state.arch.byte_width)
-                super(SimTypeChar, self).store(state, addr, value)
+                super().store(state, addr, value)
             else:
                 raise
 
@@ -412,7 +412,7 @@ class SimTypeChar(SimTypeReg):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width
 
-        out = super(SimTypeChar, self).extract(state, addr, concrete)
+        out = super().extract(state, addr, concrete)
         if concrete:
             return bytes([out])
         return out
@@ -432,10 +432,10 @@ class SimTypeBool(SimTypeChar):
         return 'bool'
 
     def store(self, state, addr, value):
-        return super(SimTypeBool, self).store(state, addr, int(value))
+        return super().store(state, addr, int(value))
 
     def extract(self, state, addr, concrete=False):
-        ver = super(SimTypeBool, self).extract(state, addr, concrete)
+        ver = super().extract(state, addr, concrete)
         if concrete:
             return ver != b'\0'
         return ver != 0
@@ -457,7 +457,7 @@ class SimTypeFd(SimTypeReg):
         """
         # file descriptors are always 32 bits, right?
         # TODO: That's so closed-minded!
-        super(SimTypeFd, self).__init__(32, label=label)
+        super().__init__(32, label=label)
 
     def __repr__(self):
         return 'fd_t'
@@ -484,7 +484,7 @@ class SimTypePointer(SimTypeReg):
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
         """
-        super(SimTypePointer, self).__init__(None, label=label)
+        super().__init__(None, label=label)
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
@@ -572,7 +572,7 @@ class SimTypeFixedSizeArray(SimType):
     """
 
     def __init__(self, elem_type, length):
-        super(SimTypeFixedSizeArray, self).__init__()
+        super().__init__()
         self.elem_type = elem_type
         self.length = length
 
@@ -635,7 +635,7 @@ class SimTypeArray(SimType):
         :param elem_type:   The type of each element in the array.
         :param length:      An expression of the length of the array, if known.
         """
-        super(SimTypeArray, self).__init__(label=label)
+        super().__init__(label=label)
         self.elem_type = elem_type
         self.length = length
 
@@ -798,7 +798,7 @@ class SimTypeFunction(SimType):
         :param returnty: The return type of the function, or none for void
         :param variadic: Whether the function accepts varargs
         """
-        super(SimTypeFunction, self).__init__(label=label)
+        super().__init__(label=label)
         self.args = args
         self.returnty: Optional[SimType] = returnty
         self.arg_names = arg_names if arg_names else ()
@@ -907,7 +907,7 @@ class SimTypeLength(SimTypeLong):
         :param addr:    The memory address (expression).
         :param length:  The length (expression).
         """
-        super(SimTypeLength, self).__init__(signed=signed, label=label)
+        super().__init__(signed=signed, label=label)
         self.addr = addr
         self.length = length
 
@@ -935,13 +935,13 @@ class SimTypeFloat(SimTypeReg):
     An IEEE754 single-precision floating point number
     """
     def __init__(self, size=32):
-        super(SimTypeFloat, self).__init__(size)
+        super().__init__(size)
 
     sort = claripy.FSORT_FLOAT
     signed = True
 
     def extract(self, state, addr, concrete=False):
-        itype = claripy.fpToFP(super(SimTypeFloat, self).extract(state, addr, False), self.sort)
+        itype = claripy.fpToFP(super().extract(state, addr, False), self.sort)
         if concrete:
             return state.solver.eval(itype)
         return itype
@@ -949,7 +949,7 @@ class SimTypeFloat(SimTypeReg):
     def store(self, state, addr, value):
         if type(value) in (int, float):
             value = claripy.FPV(float(value), self.sort)
-        return super(SimTypeFloat, self).store(state, addr, value)
+        return super().store(state, addr, value)
 
     def __repr__(self):
         return 'float'
@@ -970,7 +970,7 @@ class SimTypeDouble(SimTypeFloat):
     """
     def __init__(self, align_double=True):
         self.align_double = align_double
-        super(SimTypeDouble, self).__init__(64)
+        super().__init__(64)
 
     sort = claripy.FSORT_DOUBLE
 

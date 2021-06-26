@@ -1,6 +1,5 @@
 from typing import Optional, Dict, List, Tuple, Set, Any, TYPE_CHECKING, Callable
 from collections import defaultdict
-import re
 import logging
 
 from ailment import Block, Expr, Stmt
@@ -214,7 +213,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             if len(cvar_and_vartypes) == 1:
                 # a single type. let's be as C as possible
-                _, var_type = next(iter(cvar_and_vartypes))
+                _, var_type = next(iter(cvar_and_vartypes), (None, None))
                 if isinstance(var_type, SimType):
                     raw_type_str = var_type.c_repr(name=name)
                 else:
