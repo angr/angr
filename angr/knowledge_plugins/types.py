@@ -4,6 +4,10 @@ from .plugin import KnowledgeBasePlugin
 from ..sim_type import ALL_TYPES
 
 class TypesStore(KnowledgeBasePlugin, UserDict):
+    """
+    A kb plugin that stores a mapping from name to SimType. It will return types from angr.sim_type.ALL_TYPES as
+    a default.
+    """
     def __init__(self, kb):
         super().__init__()
         self.kb = kb
