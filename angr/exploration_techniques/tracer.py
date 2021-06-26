@@ -21,10 +21,12 @@ class TracingMode:
                         to input that will later be used in exploit generation. But, it might work magically sometimes.
     :ivar CatchDesync:  CatchDesync mode, catch desync because of sim_procedures. It might be a sign of something
                         interesting.
+    :ivar YOLO:         Follow trace by whatever means necessary
     """
     Strict = 'strict'
     Permissive = 'permissive'
     CatchDesync = 'catch_desync'
+    YOLO = 'yolo'
 
 
 class TracerDesyncError(AngrTracerError):
@@ -498,6 +500,17 @@ class Tracer(ExplorationTechnique):
                             idx += 1
                             continue
 
+                    if self._mode == TracingMode.YOLO:
+                        # Future trace matching will likely fail. Assume remaining blocks in history and make execution
+                        # continue from correct block after them
+                        state.globals['trace_idx'] += len(state.history.recent_bbl_addrs) - addr_idx - 1
+                        state.regs.ip = self._trace[idx + 1]
+                        state.history.jumpkind = "Ijk_Boring"
+                        if not state.satisfiable():
+                            raise Exception("TODO: Make state's constraints satisfiable")
+
+                        return
+
                     raise TracerDesyncError('Oops! angr did not follow the trace',
                                             deviating_addr=addr,
                                             deviating_trace_idx=idx)
@@ -575,6 +588,12 @@ class Tracer(ExplorationTechnique):
         elif self._analyze_misfollow(state, idx):
             # misfollow analysis will set a sync point somewhere if it succeeds
             pass
+        elif self._mode == TracingMode.YOLO:
+            state.regs.ip = self._trace[idx + 1]
+            state.history.jumpkind = "Ijk_Boring"
+            state.globals['trace_idx'] += 1
+            if not state.satisfiable():
+                raise Exception("TODO: Make state's constraints satisfiable")
         else:
             raise TracerDesyncError("Oops! angr did not follow the trace",
                                     deviating_addr=state.addr,
@@ -616,6 +635,8 @@ class Tracer(ExplorationTechnique):
         elif ((trace_addr - state_addr) & 0xfff) == 0:
             self._aslr_slides[current_bin] = self._current_slide = trace_addr - state_addr
             return True
+        elif self._mode == TracingMode.YOLO:
+            return False
         # error handling
         elif current_bin:
             raise AngrTracerError("Trace desynced on jumping into %s. Did you load the right version of this library?" % current_bin.provides)
@@ -759,6 +780,9 @@ class Tracer(ExplorationTechnique):
         angr_addr = state.addr
         obj = self.project.loader.find_object_containing(angr_addr)
         if obj not in self._aslr_slides: # this SHOULD be an invariant given the way _compare_addrs works
+            if self._mode == TracingMode.YOLO:
+                return False
+
             raise Exception("BUG: misfollow analysis initiated when jumping into a new object")
 
         slide = self._aslr_slides[obj]
