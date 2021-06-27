@@ -6,6 +6,7 @@ import archinfo
 import claripy
 import ailment
 import pyvex
+from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
@@ -811,7 +812,15 @@ class SimEngineRDAIL(
     _ail_handle_CmpGTs = _ail_handle_Cmp
 
     def _ail_handle_Const(self, expr) -> MultiValues:
-        return MultiValues(offset_to_values={0: {claripy.BVV(expr.value, expr.bits)}})
+        if isinstance(expr.value, float):
+            sort = None
+            if expr.bits == 64:
+                sort = FSORT_DOUBLE
+            elif expr.bits == 32:
+                sort = FSORT_FLOAT
+            return MultiValues(offset_to_values={0: {claripy.FPV(expr.value, sort)}})
+        else:
+            return MultiValues(offset_to_values={0: {claripy.BVV(expr.value, expr.bits)}})
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset) -> MultiValues:
         stack_addr = self.state.stack_address(expr.offset)
