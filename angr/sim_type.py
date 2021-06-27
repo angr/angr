@@ -4,7 +4,7 @@ from .misc.ux import deprecated
 import copy
 import re
 import logging
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Dict, Any, Tuple, List, Union
 
 import claripy
 
@@ -65,19 +65,6 @@ class SimType:
             out ^= hash(getattr(self, attr))
         return out
 
-    @property
-    def name(self):
-        return repr(self)
-
-    @name.setter
-    def name(self, v):
-        raise NotImplementedError("Please implement name setter for %s or consider subclassing NamedTypeMixin."
-                                  % self.__class__)
-
-    def unqualified_name(self, lang: str="c++") -> str:
-        raise NotImplementedError("Please implement unqualified_name for %s or consider subclassing NamedTypeMixin."
-                                  % self.__class__)
-
     def _refine_dir(self): # pylint: disable=no-self-use
         return []
 
@@ -127,6 +114,58 @@ class SimType:
     def copy(self):
         raise NotImplementedError()
 
+class TypeRef(SimType):
+    """
+    A TypeRef is a reference to a type with a name. This allows for interactivity in type analysis, by storing a type
+    and having the option to update it later and have all references to it automatically update as well.
+    """
+
+    def __init__(self, name, ty):
+        super().__init__()
+
+        self.type = ty
+        self._name = name
+
+    @property
+    def name(self):
+        """
+        This is a read-only property because it is desirable to store typerefs in a mapping from name to type, and we
+        want the mapping to be in the loop for any updates.
+        """
+        return self._name
+
+    def __eq__(self, other):
+        return type(other) is TypeRef and self.type == other.type
+
+    def __hash__(self):
+        return hash(self.type)
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def size(self):
+        return self.type.size
+
+    @property
+    def alignment(self):
+        return self.type.alignment
+
+    def with_arch(self, arch):
+        self.type = self.type.with_arch(arch)
+        return self
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0):
+        if not full:
+            if name is not None:
+                return f'{self.name} {name}'
+            else:
+                return self.name
+        else:
+            return self.type.c_repr(name=name, full=full, memo=memo, indent=indent)
+
+    def copy(self):
+        raise NotImplementedError("copy() for TypeRef is ill-defined. What do you want this to do?")
 
 class NamedTypeMixin:
     """
@@ -994,7 +1033,7 @@ class SimTypeDouble(SimTypeFloat):
 class SimStruct(NamedTypeMixin, SimType):
     _fields = ('name', 'fields')
 
-    def __init__(self, fields: Optional[Dict[str,SimType]], name=None, pack=False, align=None):
+    def __init__(self, fields: Union[Dict[str,SimType], OrderedDict], name=None, pack=False, align=None):
         super().__init__(None, name='<anon>' if name is None else name)
         self._pack = pack
         self._align = align
@@ -1522,7 +1561,7 @@ def parse_file(defn, preprocess=True):
             # Don't forget to update typedef types
             if (isinstance(ty, SimStruct) or isinstance(ty, SimUnion)) and ty.name != '<anon>':
                 for _, i in extra_types.items():
-                    if i.name == ty.name:
+                    if type(i) is type(ty) and i.name == ty.name:
                         if isinstance(ty, SimStruct):
                             i.fields = ty.fields
                         else:
@@ -1550,19 +1589,28 @@ def parse_type(defn, preprocess=True):  # pylint:disable=unused-argument
 
     >>> parse_type('int *')
     """
+    return parse_type_with_name(defn, preprocess=preprocess)[0]
+
+def parse_type_with_name(defn, preprocess=True):  # pylint:disable=unused-argument
+    """
+    Parse a simple type expression into a SimType, returning the a tuple of the type object and any associated name
+    that might be found in the place a name would go in a type declaration.
+
+    >>> parse_type_with_name('int *foo')
+    """
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
-    defn = re.sub(r"/\*.*?\*/", r"", defn)
+    if preprocess:
+        defn = re.sub(r"/\*.*?\*/", r"", defn)
 
     node = _type_parser_singleton.parse(text=defn, scope_stack=_make_scope())
     if not isinstance(node, pycparser.c_ast.Typename) and \
             not isinstance(node, pycparser.c_ast.Decl):
-        raise ValueError("Something went horribly wrong using pycparser")
+        raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
-    return _decl_to_type(decl)
-
+    return _decl_to_type(decl), node.name
 
 def _accepts_scope_stack():
     """
