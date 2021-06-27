@@ -82,7 +82,10 @@ class Const(Atom):
         return str(self)
 
     def __str__(self):
-        return "%#x<%d>" % (self.value, self.bits)
+        try:
+            return "%#x<%d>" % (self.value, self.bits)
+        except TypeError:
+            return "%f<%d>" % (self.value, self.bits)
 
     def __eq__(self, other):
         return type(self) is type(other) and \
