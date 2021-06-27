@@ -1,5 +1,5 @@
 # pylint:disable=abstract-method
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, defaultdict, ChainMap
 from .misc.ux import deprecated
 import copy
 import re
@@ -1397,7 +1397,7 @@ ALL_TYPES.update(BASIC_TYPES)
 
 
 # this is a hack, pending https://github.com/eliben/pycparser/issues/187
-def make_preamble():
+def make_preamble(predefined_types=None):
     out = ['typedef int TOP;',
            'typedef void BOT;',
            'typedef struct FILE_t FILE;',
@@ -1420,14 +1420,17 @@ def make_preamble():
            'typedef unsigned long off_t;',
            'typedef struct va_list {} va_list;',
            ]
+    all_types = ChainMap(predefined_types or {}, ALL_TYPES)
     types_out = []
-    for ty in ALL_TYPES:
+    for ty in all_types:
         if ty in BASIC_TYPES:
             continue
         if ' ' in ty:
             continue
 
-        typ = ALL_TYPES[ty]
+        typ = all_types[ty]
+        if type(typ) is TypeRef:
+            typ = typ.type
         if isinstance(typ, (SimTypeFunction, SimTypeString, SimTypeWString)):
             continue
 
@@ -1449,18 +1452,21 @@ def make_preamble():
 
     return '\n'.join(out) + '\n', types_out
 
-def _make_scope():
+def _make_scope(predefined_types=None):
     """
     Generate CParser scope_stack argument to parse method
     """
+    all_types = ChainMap(predefined_types or {}, ALL_TYPES)
     scope = dict()
-    for ty in ALL_TYPES:
+    for ty in all_types:
         if ty in BASIC_TYPES:
             continue
         if ' ' in ty:
             continue
 
-        typ = ALL_TYPES[ty]
+        typ = all_types[ty]
+        if type(typ) is TypeRef:
+            typ = typ.type
         if isinstance(typ, (SimTypeFunction,SimTypeString, SimTypeWString)):
             continue
 
@@ -1516,22 +1522,22 @@ def do_preprocess(defn, include_path=()):
     return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
 
 
-def parse_defns(defn, preprocess=True):
+def parse_defns(defn, preprocess=True, predefined_types=None):
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
-    return parse_file(defn, preprocess=preprocess)[0]
+    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types)[0]
 
 
-def parse_types(defn, preprocess=True):
+def parse_types(defn, preprocess=True, predefined_types=None):
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
-    return parse_file(defn, preprocess=preprocess)[1]
+    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types)[1]
 
 
 _include_re = re.compile(r'^\s*#include')
-def parse_file(defn, preprocess=True):
+def parse_file(defn, preprocess=True, predefined_types=None):
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
@@ -1544,7 +1550,7 @@ def parse_file(defn, preprocess=True):
     if preprocess:
         defn = do_preprocess(defn)
 
-    preamble, ignoreme = make_preamble()
+    preamble, ignoreme = make_preamble(predefined_types)
     node = pycparser.c_parser.CParser().parse(preamble + defn)
     if not isinstance(node, pycparser.c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
@@ -1583,15 +1589,15 @@ if pycparser is not None:
                                                              optimize=False,
                                                              errorlog=errorlog)
 
-def parse_type(defn, preprocess=True):  # pylint:disable=unused-argument
+def parse_type(defn, preprocess=True, predefined_types=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
     >>> parse_type('int *')
     """
-    return parse_type_with_name(defn, preprocess=preprocess)[0]
+    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types)[0]
 
-def parse_type_with_name(defn, preprocess=True):  # pylint:disable=unused-argument
+def parse_type_with_name(defn, preprocess=True, predefined_types=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning the a tuple of the type object and any associated name
     that might be found in the place a name would go in a type declaration.
@@ -1604,7 +1610,7 @@ def parse_type_with_name(defn, preprocess=True):  # pylint:disable=unused-argume
     if preprocess:
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
-    node = _type_parser_singleton.parse(text=defn, scope_stack=_make_scope())
+    node = _type_parser_singleton.parse(text=defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, pycparser.c_ast.Typename) and \
             not isinstance(node, pycparser.c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
