@@ -1,0 +1,40 @@
+
+syntax = "proto3";
+
+package angr.protos;
+
+
+message VariableBase {
+    string      ident = 1;
+    string      name = 2;
+    string      region = 3;
+    string      category = 4;
+    bool        renamed = 5;
+}
+
+
+message TemporaryVariable {
+    VariableBase    base = 1;
+    uint32          tmp_id = 2;
+}
+
+
+message RegisterVariable {
+    VariableBase    base = 1;
+    uint32          reg = 2;
+    uint32          size = 3;
+}
+
+
+message MemoryVariable {
+    VariableBase    base = 1;
+    uint64          addr = 2;
+    uint32          size = 3;
+}
+
+
+message StackVariable {
+    VariableBase    base = 1;
+    bool            sp_base = 2;  // SP-base if sp_base is true, or BP-base if sp_base is false
+    uint32          offset = 3;
+}

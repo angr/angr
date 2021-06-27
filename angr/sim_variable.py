@@ -2,8 +2,12 @@ import collections.abc
 import claripy
 from typing import TYPE_CHECKING
 
+from .protos import variables_pb2 as pb2
+from .serializable import Serializable
+
 if TYPE_CHECKING:
     import archinfo
+
 
 class SimVariable:
 
@@ -29,6 +33,20 @@ class SimVariable:
         The representation that shows up in a GUI
         """
         raise NotImplementedError()
+
+    def _set_base(self, obj):
+        obj.base.ident = self.ident
+        obj.base.name = self.name
+        obj.base.region = self.region
+        obj.base.category = self.category
+        obj.base.renamed = self.renamed
+
+    def _from_base(self, obj):
+        self.ident = obj.base.ident
+        self.name = obj.base.name
+        self.region = obj.base.region
+        self.category = obj.base.category
+        self.renamed = obj.renamed
 
     #
     # Operations
@@ -83,7 +101,7 @@ class SimConstantVariable(SimVariable):
         return r
 
 
-class SimTemporaryVariable(SimVariable):
+class SimTemporaryVariable(SimVariable, Serializable):
 
     __slots__ = ['tmp_id', '_hash']
 
@@ -116,8 +134,24 @@ class SimTemporaryVariable(SimVariable):
         r._hash = self._hash
         return r
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.TemporaryVariable()
 
-class SimRegisterVariable(SimVariable):
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.tmp_id = self.tmp_id
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.tmp_id)
+        obj._from_base(cmsg)
+        return obj
+
+
+class SimRegisterVariable(SimVariable, Serializable):
 
     __slots__ = ['reg', 'size', '_hash']
 
@@ -164,8 +198,27 @@ class SimRegisterVariable(SimVariable):
         s._hash = self._hash
         return s
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.RegisterVariable()
 
-class SimMemoryVariable(SimVariable):
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.reg = self.reg
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.reg,
+                  cmsg.size,
+                  )
+        obj._from_base(cmsg)
+        return obj
+
+
+class SimMemoryVariable(SimVariable, Serializable):
 
     __slots__ = ['addr', 'size', '_hash']
 
@@ -235,6 +288,25 @@ class SimMemoryVariable(SimVariable):
         r._hash = self._hash
         return r
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.MemoryVariable()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.addr = self.addr
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.addr,
+                  cmsg.size,
+                  )
+        obj._from_base(cmsg)
+        return obj
+
 
 class SimStackVariable(SimMemoryVariable):
 
@@ -303,6 +375,27 @@ class SimStackVariable(SimMemoryVariable):
                              ident=self.ident, name=self.name, region=self.region, category=self.category)
         s._hash = self._hash
         return s
+
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.StackVariable()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.sp_base = self.base == "sp"
+        obj.offset = self.offset
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.offset,
+                  cmsg.size,
+                  base='sp' if cmsg.sp_base else "bp",
+                  )
+        obj._from_base(cmsg)
+        return obj
 
 
 class SimVariableSet(collections.abc.MutableSet):
@@ -434,5 +527,6 @@ class SimVariableSet(collections.abc.MutableSet):
         else:
             __import__('ipdb').set_trace()
             raise Exception("WTF is this variable?")
+
 
 from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper
