@@ -1432,7 +1432,7 @@ class SimCCUnknown(SimCC):
         return True
 
     def __repr__(self):
-        return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
+        return f"<SimCCUnknown - {self.arch.name} {self.args} sp_delta={self.sp_delta}>"
 
 
 class SimCCS390X(SimCC):
