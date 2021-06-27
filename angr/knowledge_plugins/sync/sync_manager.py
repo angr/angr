@@ -1,6 +1,7 @@
 
 from functools import wraps
 from typing import Set, Optional, List
+import time
 
 try:
     import binsync
@@ -11,9 +12,8 @@ except ImportError:
     binsync_available = False
 
 from ... import knowledge_plugins
+from ...knowledge_plugins.plugin import KnowledgeBasePlugin
 from ...sim_variable import SimStackVariable
-from ...knowledge_base.knowledge_base import KnowledgeBase
-from ..plugin import KnowledgeBasePlugin
 from ..variables.variable_manager import VariableManagerInternal
 
 
@@ -42,7 +42,7 @@ def last_push(f):
 
             # push [comment]
             elif isinstance(arg, int):
-                func_addr = self._get_func_addr_from_addr(ard)
+                func_addr = self._get_func_addr_from_addr(arg)
 
             return func_addr
 
@@ -160,7 +160,6 @@ class SyncController(KnowledgeBasePlugin):
     #
     # Fillers
     #
-
     def fill_function(self, func, user=None):
         """
         Grab all relevant information from the specified user and fill the @func.
@@ -311,7 +310,7 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
-    def pull_comments(self, start_addr, end_addr=None, user=None):
+    def pull_comments(self, func_addr, user=None, state=None):
         """
         Pull comments downwards.
 
@@ -321,7 +320,7 @@ class SyncController(KnowledgeBasePlugin):
         :rtype:                 Iterable
         """
 
-        return state.get_comments(start_addr, end_addr=end_addr)
+        return state.get_comments(func_addr)
 
     @init_checker
     @make_ro_state
