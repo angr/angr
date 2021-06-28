@@ -144,6 +144,10 @@ class TypeRef(SimType):
         return self.name
 
     @property
+    def _arch(self):
+        return self.type._arch
+
+    @property
     def size(self):
         return self.type.size
 

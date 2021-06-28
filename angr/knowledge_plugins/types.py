@@ -35,9 +35,10 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
 
     def iter_own(self):
         """
-        Iterate over all the names which are stored in this object - i.e. ``__iter__`` without ``ALL_TYPES``
+        Iterate over all the names which are stored in this object - i.e. ``values()`` without ``ALL_TYPES``
         """
-        return super().__iter__()
+        for key in super().__iter__():
+            yield self[key]
 
     def rename(self, old, new):
         value = self.pop(old)
