@@ -1400,62 +1400,6 @@ ALL_TYPES = {
 ALL_TYPES.update(BASIC_TYPES)
 
 
-# this is a hack, pending https://github.com/eliben/pycparser/issues/187
-def make_preamble(predefined_types=None):
-    out = ['typedef int TOP;',
-           'typedef void BOT;',
-           'typedef struct FILE_t FILE;',
-           'typedef int pid_t;',
-           'typedef int sigset_t;',
-           'typedef int intmax_t;',
-           'typedef unsigned int uintmax_t;',
-           'typedef unsigned int uid_t;',
-           'typedef unsigned int gid_t;',
-           'typedef unsigned int sem_t;',
-           'typedef unsigned short wchar_t;',
-           'typedef unsigned short wctrans_t;',
-           'typedef unsigned short wctype_t;',
-           'typedef unsigned int wint_t;',
-           'typedef unsigned int pthread_key_t;',
-           'typedef long clock_t;',
-           'typedef unsigned int speed_t;',
-           'typedef int socklen_t;',
-           'typedef unsigned short mode_t;',
-           'typedef unsigned long off_t;',
-           'typedef struct va_list {} va_list;',
-           ]
-    all_types = ChainMap(predefined_types or {}, ALL_TYPES)
-    types_out = []
-    for ty in all_types:
-        if ty in BASIC_TYPES:
-            continue
-        if ' ' in ty:
-            continue
-
-        typ = all_types[ty]
-        if type(typ) is TypeRef:
-            typ = typ.type
-        if isinstance(typ, (SimTypeFunction, SimTypeString, SimTypeWString)):
-            continue
-
-        if isinstance(typ, (SimTypeNum, SimTypeInt)) and str(typ) not in BASIC_TYPES:
-            try:
-                # TODO: Investigate whether this needs to be re-imagined using byte_width
-                styp = {8: 'char', 16: 'short', 32: 'int', 64: 'long long'}[typ._size]
-            except KeyError:
-                styp = 'long' # :(
-            if not typ.signed:
-                styp = 'unsigned ' + styp
-            typ = styp
-
-        if isinstance(typ, (SimStruct,)):
-            types_out.append(str(typ))
-
-        out.append('typedef %s %s;' % (typ, ty))
-        types_out.append(ty)
-
-    return '\n'.join(out) + '\n', types_out
-
 def _make_scope(predefined_types=None):
     """
     Generate CParser scope_stack argument to parse method
@@ -1554,8 +1498,7 @@ def parse_file(defn, preprocess=True, predefined_types=None):
     if preprocess:
         defn = do_preprocess(defn)
 
-    preamble, ignoreme = make_preamble(predefined_types)
-    node = pycparser.c_parser.CParser().parse(preamble + defn)
+    node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, pycparser.c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
@@ -1581,8 +1524,6 @@ def parse_file(defn, preprocess=True, predefined_types=None):
             extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types))
             extra_types[piece.name].label = piece.name
 
-    for ty in ignoreme:
-        del extra_types[ty]
     return out, extra_types
 
 if pycparser is not None:
