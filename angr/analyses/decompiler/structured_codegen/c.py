@@ -176,7 +176,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 # Skip all memory variables
                 continue
 
-            if cvar.unified_variable in arg_set:
+            if var in arg_set or cvar.unified_variable in arg_set:
                 continue
 
             unified_var = self.variable_manager.unified_variable(var)
