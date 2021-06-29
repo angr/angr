@@ -18,6 +18,9 @@ def s2u(s, bits):
 
 
 class StackCanarySimplifier(OptimizationPass):
+    """
+    Removes stack canary checks from AIL graphs.
+    """
 
     ARCHES = ["X86", "AMD64", ] # TODO: fs is x86 only. Figure out how stack canary is loaded in other architectures
     PLATFORMS = ["cgc", "linux"]
@@ -62,7 +65,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         # The function should have at least one end point with an if-else statement
         # Find all nodes with 0 out-degrees
-        all_endpoint_addrs = [ node.addr for node in self._func.graph.nodes() if self._func.graph.out_degree(node) == 0 ]
+        all_endpoint_addrs = [node.addr for node in self._func.graph.nodes() if self._func.graph.out_degree(node) == 0]
 
         # Before node duplication, each pair of canary-check-success and canary-check-failure nodes have a common
         # predecessor.
@@ -198,7 +201,7 @@ class StackCanarySimplifier(OptimizationPass):
                         not negated and condition.op == "CmpEQ" or
                         negated and condition.op == "CmpNE"
                 ):
-                   pass
+                    pass
                 else:
                     continue
 
