@@ -106,6 +106,12 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             file_lines = self._open_file(filename, cache=cache)
             if file_lines is None:
                 continue
+            if line - 1 >= len(file_lines) or line - 1 < 0:
+                # a non-existent line number is specified. skip this record
+                l.warning("Line number %d does not exist in file %s. It might be the wrong source code file.",
+                          line,
+                          filename)
+                continue
             range_start = line
             range_end = line
 
