@@ -1,4 +1,4 @@
-
+# pylint:disable=line-too-long
 import logging
 
 from ...sim_type import SimTypeFunction, \
