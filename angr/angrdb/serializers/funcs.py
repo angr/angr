@@ -1,7 +1,11 @@
-# pylint:disable=unused-import
-from ...knowledge_base import KnowledgeBase
+from typing import TYPE_CHECKING
+
 from ...knowledge_plugins import FunctionManager, Function
-from ..models import DbFunction, DbKnowledgeBase
+from ..models import DbFunction
+
+if TYPE_CHECKING:
+    from angr.knowledge_base import KnowledgeBase
+    from angr.angrdb.models import DbKnowledgeBase
 
 
 class FunctionManagerSerializer:
@@ -10,7 +14,7 @@ class FunctionManagerSerializer:
     """
 
     @staticmethod
-    def dump(session, db_kb, func_manager):
+    def dump(session, db_kb: 'DbKnowledgeBase', func_manager: FunctionManager):
         """
 
         :param session:
@@ -31,7 +35,7 @@ class FunctionManagerSerializer:
             session.add(db_func)
 
     @staticmethod
-    def load(session, db_kb, kb):
+    def load(session, db_kb: 'DbKnowledgeBase', kb: 'KnowledgeBase'):
         """
 
         :param session:

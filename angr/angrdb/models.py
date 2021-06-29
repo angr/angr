@@ -79,6 +79,21 @@ class DbFunction(Base):
     blob = Column(BLOB)
 
 
+class DbVariable(Base):
+    """
+    Models a SimVariable instance.
+    """
+    __tablename__ = "variables"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(Integer,
+                   ForeignKey("knowledgebases.id"),
+                   nullable=False,
+                   )
+    func_addr = Column(Integer)
+    blob = Column(BLOB)
+
+
 class DbXRefs(Base):
     """
     Models an XRefManager instance.
