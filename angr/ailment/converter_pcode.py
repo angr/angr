@@ -3,11 +3,10 @@ import logging
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.pcode.lifter import IRSB
 from pypcode import OpCode, Varnode
-from claripy.ast.bv import BV
 
 from .block import Block
 from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, Call
-from .expression import Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load
+from .expression import Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
 # FIXME: Convert, ITE
 from .manager import Manager
 from .converter_common import Converter
@@ -112,8 +111,7 @@ class PCodeIRSBConverter(Converter):
 
         self._special_op_handlers = {
             OpCode.COPY:       self._convert_copy,
-            OpCode.INT_ZEXT:   self._convert_copy,
-
+            OpCode.INT_ZEXT:   self._convert_zext,
             OpCode.LOAD:       self._convert_load,
             OpCode.STORE:      self._convert_store,
             OpCode.BRANCH:     self._convert_branch,
@@ -178,7 +176,8 @@ class PCodeIRSBConverter(Converter):
             out = DirtyExpression(self._manager.next_atom(), opcode.name,
                                   bits=self._current_op.output.size*8)
         else:
-            out = UnaryOp(self._manager.next_atom(), op, in1)
+            out = UnaryOp(self._manager.next_atom(), op, in1,
+                          ins_addr=self._manager.ins_addr)
 
         stmt = self._set_value(self._current_op.output, out)
         self._statements.append(stmt)
@@ -198,7 +197,20 @@ class PCodeIRSBConverter(Converter):
             out = DirtyExpression(self._manager.next_atom(), opcode.name,
                                   bits=self._current_op.output.size*8)
         else:
-            out = BinaryOp(self._manager.next_atom(), op, [in1, in2], signed)
+            out = BinaryOp(self._manager.next_atom(), op, [in1, in2], signed,
+                           ins_addr=self._manager.ins_addr)
+
+        # Zero-extend 1-bit results
+        zextend_ops = [
+            OpCode.INT_EQUAL,
+            OpCode.INT_NOTEQUAL,
+            OpCode.INT_SLESS,
+            OpCode.INT_SLESSEQUAL,
+            OpCode.INT_LESS,
+            OpCode.INT_LESSEQUAL,
+            ]
+        if opcode in zextend_ops:
+            out = Convert(self._manager.next_atom(), 1, self._current_op.output.size*8, False, out)
 
         stmt = self._set_value(self._current_op.output, out)
         self._statements.append(stmt)
@@ -234,7 +246,7 @@ class PCodeIRSBConverter(Converter):
             self._unique_tracker[offset] = self._unique_counter
             self._unique_counter += 1
         else:
-            assert(offset in self._unique_tracker)
+            assert offset in self._unique_tracker
         return self._unique_tracker[offset]
 
     def _convert_varnode(self, varnode: Varnode, is_write: bool) -> Expression:
@@ -258,7 +270,7 @@ class PCodeIRSBConverter(Converter):
             offset = self._remap_temp(varnode.offset, is_write)
             return Tmp(self._manager.next_atom(), None, offset, size)
         elif space_name in ["ram", "mem"]:
-            assert(not is_write)
+            assert not is_write
             addr = Const(self._manager.next_atom(),
                 None, varnode.offset, self._manager.arch.bits)
             # Note: Load takes bytes, not bits, for size
@@ -269,7 +281,7 @@ class PCodeIRSBConverter(Converter):
         else:
             raise NotImplementedError()
 
-    def _set_value(self, varnode: Varnode, value: BV) -> Statement:
+    def _set_value(self, varnode: Varnode, value: Expression) -> Statement:
         """
         Create the appropriate assignment statement to store to a varnode
 
@@ -318,6 +330,19 @@ class PCodeIRSBConverter(Converter):
         stmt = self._set_value(out, inp)
         self._statements.append(stmt)
 
+    def _convert_zext(self) -> None:
+        """
+        Convert zext operation
+        """
+        out = self._current_op.output
+        inp = Convert(self._manager.next_atom(),
+                      self._current_op.inputs[0].size*8,
+                      out.size*8,
+                      False,
+                      self._get_value(self._current_op.inputs[0]))
+        stmt = self._set_value(out, inp)
+        self._statements.append(stmt)
+
     def _convert_negate(self) -> None:
         """
         Convert bool negate operation
@@ -328,7 +353,8 @@ class PCodeIRSBConverter(Converter):
         cval = Const(self._manager.next_atom(),
                 None, 0, self._current_op.inputs[0].size*8)
 
-        expr = BinaryOp(self._manager.next_atom(), 'CmpEQ', [inp, cval], signed=False)
+        expr = BinaryOp(self._manager.next_atom(), 'CmpEQ', [inp, cval], signed=False,
+                        ins_addr=self._manager.ins_addr)
 
         stmt = self._set_value(out, expr)
         self._statements.append(stmt)
@@ -342,7 +368,7 @@ class PCodeIRSBConverter(Converter):
         off = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
         res = Load(self._manager.next_atom(),
-                   off, self._current_op.inputs[1].size, # FIMXE: Check if this is right size
+                   off, self._current_op.output.size,
                    self._manager.arch.memory_endness,
                    ins_addr=self._manager.ins_addr)
         stmt = self._set_value(out, res)
@@ -359,7 +385,7 @@ class PCodeIRSBConverter(Converter):
         l.debug("Storing %s at offset %s", data, off)
         #self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
         stmt = Store(self._statement_idx,
-                     off, data, self._current_op.inputs[1].size, # FIMXE: Check if this is right size
+                     off, data, self._current_op.inputs[2].size,
                      self._manager.arch.memory_endness,
                      ins_addr=self._manager.ins_addr)
         self._statements.append(stmt)
@@ -426,7 +452,10 @@ class PCodeIRSBConverter(Converter):
         Convert a p-code call operation
         """
         ret_reg_offset = self._manager.arch.ret_offset
-        ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits) # ???
+        if ret_reg_offset is not None:
+            ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits) # ???
+        else:
+            ret_expr = None
         dest = Const(self._manager.next_atom(),
                     None, self._irsb.next, self._manager.arch.bits)
         stmt = Call(self._manager.next_atom(),
