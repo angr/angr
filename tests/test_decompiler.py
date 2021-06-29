@@ -561,6 +561,23 @@ def test_decompiling_fauxware_mipsel():
     assert '"Password: "' in code
 
 
+def test_stack_canary_removal_x8664_extra_exits():
+
+    # Test stack canary removal on functions with extra exit nodes (e.g., assert(false);) without stack canary checks
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    # We should not find "__stack_chk_fail" in the code
+    assert "__stack_chk_fail" not in code
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
