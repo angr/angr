@@ -176,6 +176,8 @@ class ReachingDefinitionsState:
     @property
     def uses_by_codeloc(self): return self.live_definitions.uses_by_codeloc
 
+    def stack_offset_to_stack_addr(self, addr): return self.live_definitions.stack_offset_to_stack_addr(addr)
+
     def get_sp(self) -> int: return self.live_definitions.get_sp()
 
     @property
