@@ -18,6 +18,7 @@ from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMappi
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from angr.knowledge_plugins.functions import Function
 
 
 l = logging.getLogger(name=__name__)
@@ -141,13 +142,15 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     Represents a function in C.
     """
 
-    __slots__ = ('name', 'functy', 'arg_list', 'statements', 'variables_in_use', 'variable_manager', 'demangled_name', )
+    __slots__ = ('addr', 'name', 'functy', 'arg_list', 'statements', 'variables_in_use', 'variable_manager',
+                 'demangled_name', )
 
-    def __init__(self, name, functy: SimTypeFunction, arg_list: List['CVariable'], statements, variables_in_use,
+    def __init__(self, addr, name, functy: SimTypeFunction, arg_list: List['CVariable'], statements, variables_in_use,
                  variable_manager, demangled_name=None, **kwargs):
 
         super().__init__(**kwargs)
 
+        self.addr = addr
         self.name = name
         self.functy = functy
         self.arg_list = arg_list
@@ -745,7 +748,7 @@ class CFunctionCall(CStatement, CExpression):
         super().__init__(**kwargs)
 
         self.callee_target = callee_target
-        self.callee_func = callee_func
+        self.callee_func: Optional['Function'] = callee_func
         self.args = args if args is not None else [ ]
         self.returning = returning
         self.ret_expr = ret_expr
@@ -1509,9 +1512,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._memo = None  # clear the memo since it's useless now
 
-        self.cfunc = CFunction(self._func.name, self._func.prototype, arg_list, obj, self._variables_in_use,
-                          self._variable_kb.variables[self._func.addr], demangled_name=self._func.demangled_name,
-                          codegen=self)
+        self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
+                               self._variables_in_use, self._variable_kb.variables[self._func.addr],
+                               demangled_name=self._func.demangled_name, codegen=self)
         self._variables_in_use = None
 
         self.regenerate_text()
