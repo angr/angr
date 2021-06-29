@@ -409,6 +409,27 @@ def test_decompiling_libsoap():
         assert False
 
 
+def test_decompiling_no_arguments_in_variable_list():
+
+    # function arguments should never appear in the variable list
+    bin_path = os.path.join(test_location, "x86_64", "test_arrays")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    _ = p.analyses.CompleteCallingConventions(recover_variables=True)
+
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    argc_name = " a0"  # update this variable once the decompiler picks up argument names from the common definition of
+                       # main()
+    assert argc_name in code
+    assert code.count(argc_name) == 1  # it should only appear once
+
+
 def test_decompiling_strings_local_strlen():
     bin_path = os.path.join(test_location, "x86_64", "types", "strings")
     p = angr.Project(bin_path, auto_load_libs=False)
