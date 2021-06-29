@@ -1,4 +1,5 @@
-from typing import Set
+from typing import Set, Dict
+from collections import defaultdict
 import logging
 
 import ailment
@@ -17,6 +18,9 @@ def s2u(s, bits):
 
 
 class StackCanarySimplifier(OptimizationPass):
+    """
+    Removes stack canary checks from AIL graphs.
+    """
 
     ARCHES = ["X86", "AMD64", ] # TODO: fs is x86 only. Figure out how stack canary is loaded in other architectures
     PLATFORMS = ["cgc", "linux"]
@@ -59,95 +63,105 @@ class StackCanarySimplifier(OptimizationPass):
         if not isinstance(store_offset, int):
             _l.debug("Unsupported canary storing offset %s. Expects an int.", store_offset)
 
-        # The function should end with an if-else statement
+        # The function should have at least one end point with an if-else statement
         # Find all nodes with 0 out-degrees
-        endpoint_addrs = [ node.addr for node in self._func.graph.nodes() if self._func.graph.out_degree(node) == 0 ]
-        if len(endpoint_addrs) != 2:
-            _l.debug("This function has more than two end nodes. Maybe we can add support to it in the future.")
-            return
+        all_endpoint_addrs = [node.addr for node in self._func.graph.nodes() if self._func.graph.out_degree(node) == 0]
 
-        # All end nodes have one common predecessor (before node duplication)
-        pred_addrs: Set[int] = set()
-        for node_addr in endpoint_addrs:
-            pred_addrs |= set(pred.addr for pred in self._func.graph.predecessors(self._func.get_node(node_addr)))
+        # Before node duplication, each pair of canary-check-success and canary-check-failure nodes have a common
+        # predecessor.
+        # map endpoint addrs to their common predecessors
+        pred_addr_to_endpoint_addrs: Dict[int,Set[int]] = defaultdict(set)
+        for node_addr in all_endpoint_addrs:
+            preds = self._func.graph.predecessors(self._func.get_node(node_addr))
+            for pred in preds:
+                pred_addr_to_endpoint_addrs[pred.addr].add(node_addr)
 
-        # because other optimization passes may duplicate nodes, we may have more than one node for each function
-        # endpoint.
-        endnodes_0 = list(self._get_blocks(endpoint_addrs[0]))
-        endnodes_1 = list(self._get_blocks(endpoint_addrs[1]))
+        found_endpoints = False
+        for pred_addr in pred_addr_to_endpoint_addrs:
+            endpoint_addrs = pred_addr_to_endpoint_addrs[pred_addr]
 
-        if not endnodes_0 or not endnodes_1:
-            _l.warning("Unexpected situation: endnodes_0 or endnodes_1 is empty.")
-            return
+            if len(endpoint_addrs) != 2:
+                # we expect there to be only two nodes: one for canary-check-success, and the other for
+                # canary-check-failure. if not, we check the next predecessor
+                continue
 
-        # One of the end nodes calls __stack_chk_fail
-        stack_chk_fail_callers = None
-        for endnodes in [ endnodes_0, endnodes_1 ]:
-            if self._calls_stack_chk_fail(endnodes[0]):
-                stack_chk_fail_callers = endnodes
-                break
-        else:
-            _l.debug("Cannot find the node that calls __stack_chk_fail().")
-            return
+            # because other optimization passes may duplicate nodes, we may have more than one node for each function
+            # endpoint.
+            endpoint_addrs_list = list(endpoint_addrs)
+            endnodes_0 = list(self._get_blocks(endpoint_addrs_list[0]))
+            endnodes_1 = list(self._get_blocks(endpoint_addrs_list[1]))
 
-        if len(pred_addrs) != 1:
-            _l.debug("End nodes have %d predecessors. Expects 1.", len(pred_addrs))
-            return
+            if not endnodes_0 or not endnodes_1:
+                _l.warning("Unexpected situation: endnodes_0 or endnodes_1 is empty.")
+                continue
 
-        # Match stack_chk_fail_caller, ret_node, and predecessor
-        nodes_to_process = [ ]
-        for stack_chk_fail_caller in stack_chk_fail_callers:
-            preds = list(self._graph.predecessors(stack_chk_fail_caller))
-            if len(preds) != 1:
-                _l.debug("Expect 1 predecessor. Found %d.", len(preds))
-                return
-            pred = preds[0]
-
-            # More sanity checks
-            if len(pred.statements) < 1:
-                _l.debug("The predecessor node is empty.")
-                return
-
-            # Check the last statement
-            if not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
-                _l.debug("The predecessor does not end with a conditional jump.")
-                return
-
-            # Find the statement that computes real canary value xor stored canary value
-            canary_check_stmt_idx = self._find_canary_xor_stmt(pred, store_offset)
-            if canary_check_stmt_idx is None:
-                _l.debug("Cannot find the canary check statement in the predecessor.")
-                return
-
-            succs = list(self._graph.successors(pred))
-            if len(succs) != 2:
-                _l.debug("Expect 2 successors. Found %d.", len(succs))
-                return
-            if stack_chk_fail_caller is succs[0]:
-                ret_node = succs[1]
+            # One of the end nodes calls __stack_chk_fail
+            stack_chk_fail_callers = None
+            for endnodes in [ endnodes_0, endnodes_1 ]:
+                if self._calls_stack_chk_fail(endnodes[0]):
+                    stack_chk_fail_callers = endnodes
+                    break
             else:
-                ret_node = succs[0]
-            nodes_to_process.append((pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node))
+                _l.debug("Cannot find the node that calls __stack_chk_fail().")
+                continue
 
-        # Awesome. Now patch this function.
-        for pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node in nodes_to_process:
-            # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
-            pred_copy = pred.copy()
-            pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
-                                                         ailment.Expr.Const(None, None, ret_node.addr,
-                                                                            self.project.arch.bits),
-                                                         ins_addr=pred_copy.statements[-1].ins_addr,
-                                                         )
+            # Match stack_chk_fail_caller, ret_node, and predecessor
+            nodes_to_process = [ ]
+            for stack_chk_fail_caller in stack_chk_fail_callers:
+                preds = list(self._graph.predecessors(stack_chk_fail_caller))
+                if len(preds) != 1:
+                    _l.debug("Expect 1 predecessor. Found %d.", len(preds))
+                    continue
+                pred = preds[0]
 
-            self._update_block(pred, pred_copy)
+                # More sanity checks
+                if len(pred.statements) < 1:
+                    _l.debug("The predecessor node is empty.")
+                    continue
 
-            # Remove the block that calls stack_chk_fail_caller
-            self._remove_block(stack_chk_fail_caller)
+                # Check the last statement
+                if not isinstance(pred.statements[-1], ailment.Stmt.ConditionalJump):
+                    _l.debug("The predecessor does not end with a conditional jump.")
+                    continue
 
-        # Remove the statement that loads the stack canary from fs
-        first_block_copy = first_block.copy()
-        first_block_copy.statements.pop(stmt_idx)
-        self._update_block(first_block, first_block_copy)
+                # Find the statement that computes real canary value xor stored canary value
+                canary_check_stmt_idx = self._find_canary_xor_stmt(pred, store_offset)
+                if canary_check_stmt_idx is None:
+                    _l.debug("Cannot find the canary check statement in the predecessor.")
+                    continue
+
+                succs = list(self._graph.successors(pred))
+                if len(succs) != 2:
+                    _l.debug("Expect 2 successors. Found %d.", len(succs))
+                    continue
+                if stack_chk_fail_caller is succs[0]:
+                    ret_node = succs[1]
+                else:
+                    ret_node = succs[0]
+                nodes_to_process.append((pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node))
+
+            # Awesome. Now patch this function.
+            for pred, canary_check_stmt_idx, stack_chk_fail_caller, ret_node in nodes_to_process:
+                # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
+                pred_copy = pred.copy()
+                pred_copy.statements[-1] = ailment.Stmt.Jump(len(pred_copy.statements) - 1,
+                                                             ailment.Expr.Const(None, None, ret_node.addr,
+                                                                                self.project.arch.bits),
+                                                             ins_addr=pred_copy.statements[-1].ins_addr,
+                                                             )
+
+                self._update_block(pred, pred_copy)
+
+                # Remove the block that calls stack_chk_fail_caller
+                self._remove_block(stack_chk_fail_caller)
+
+                found_endpoints = True
+
+        if found_endpoints:
+            # Remove the statement that loads the stack canary from fs
+            first_block_copy = first_block.copy()
+            first_block_copy.statements.pop(stmt_idx)
+            self._update_block(first_block, first_block_copy)
 
         # Done!
 
@@ -187,7 +201,7 @@ class StackCanarySimplifier(OptimizationPass):
                         not negated and condition.op == "CmpEQ" or
                         negated and condition.op == "CmpNE"
                 ):
-                   pass
+                    pass
                 else:
                     continue
 
