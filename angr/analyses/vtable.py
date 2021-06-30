@@ -1,5 +1,4 @@
 from . import Analysis
-from . import register_analysis
 
 
 class Vtable:
@@ -33,7 +32,7 @@ class VtableFinder(Analysis):
         # taken from - Reconstruction of Class Hierarchies for Decompilation of C++ Programs
         list_vtables = []
         for sec in self.project.loader.main_object.sections:
-            if sec.name in ['.data.rel.ro', '.rodata', '.data']:
+            if sec.name in ['.data.rel.ro', '.rodata', '.data.rel.ro.local']:
                 for offset in range(0, sec.memsize, self.project.arch.bytes):
                     cur_addr = sec.vaddr + offset
                     possible_func_addr = self.project.loader.memory.unpack_word(cur_addr)
