@@ -11,7 +11,7 @@ class Vtable:
 class VtableFinder(Analysis):
     def __init__(self):
         self.cfg = self.project.analyses.CFGFast(cross_references=True)
-        self.analyze()
+        self.vtables_list = self.analyze()
 
     def is_cross_referenced(self, addr):
         if addr in self.cfg.kb.xrefs.xrefs_by_dst:
@@ -44,7 +44,6 @@ class VtableFinder(Analysis):
                             list_vtables.append(new_vtable)
 
         print(list_vtables)
-        import ipdb;ipdb.set_trace()
         return list_vtables
 
     def create_extract_vtable(self, start_addr, sec_size):
