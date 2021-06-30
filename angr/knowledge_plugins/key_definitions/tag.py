@@ -63,3 +63,8 @@ class InitialValueTag(Tag):
     """
     A tag for a definiton of an initial value
     """
+
+class UnknownSizeTag(Tag):
+    """
+    A tag for a definiton of an initial value
+    """
