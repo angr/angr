@@ -1,0 +1,122 @@
+###
+### This file was automatically generated
+###
+
+from archinfo.arch import register_arch, Endness, Register
+
+from .common import ArchPcode
+
+
+class ArchPcode_68000_BE_32_MC68030(ArchPcode):
+    name = '68000:BE:32:MC68030'
+    pcode_arch = '68000:BE:32:MC68030'
+    description = 'Motorola 32-bit 68030'
+    bits = 32
+    ip_offset = 0x50
+    sp_offset = 0x3c
+    bp_offset = sp_offset
+    instruction_endness = Endness.BE
+    register_list = [
+        Register('d0', 4, 0x0),
+        Register('d0w', 2, 0x2),
+        Register('d0b', 1, 0x3),
+        Register('d1', 4, 0x4),
+        Register('d1w', 2, 0x6),
+        Register('d1b', 1, 0x7),
+        Register('d2', 4, 0x8),
+        Register('d2w', 2, 0xa),
+        Register('d2b', 1, 0xb),
+        Register('d3', 4, 0xc),
+        Register('d3w', 2, 0xe),
+        Register('d3b', 1, 0xf),
+        Register('d4', 4, 0x10),
+        Register('d4w', 2, 0x12),
+        Register('d4b', 1, 0x13),
+        Register('d5', 4, 0x14),
+        Register('d5w', 2, 0x16),
+        Register('d5b', 1, 0x17),
+        Register('d6', 4, 0x18),
+        Register('d6w', 2, 0x1a),
+        Register('d6b', 1, 0x1b),
+        Register('d7', 4, 0x1c),
+        Register('d7w', 2, 0x1e),
+        Register('d7b', 1, 0x1f),
+        Register('a0', 4, 0x20),
+        Register('a0w', 2, 0x22),
+        Register('a0b', 1, 0x23),
+        Register('a1', 4, 0x24),
+        Register('a1w', 2, 0x26),
+        Register('a1b', 1, 0x27),
+        Register('a2', 4, 0x28),
+        Register('a2w', 2, 0x2a),
+        Register('a2b', 1, 0x2b),
+        Register('a3', 4, 0x2c),
+        Register('a3w', 2, 0x2e),
+        Register('a3b', 1, 0x2f),
+        Register('a4', 4, 0x30),
+        Register('a4w', 2, 0x32),
+        Register('a4b', 1, 0x33),
+        Register('a5', 4, 0x34),
+        Register('a5w', 2, 0x36),
+        Register('a5b', 1, 0x37),
+        Register('a6', 4, 0x38),
+        Register('a6w', 2, 0x3a),
+        Register('a6b', 1, 0x3b),
+        Register('sp', 4, 0x3c),
+        Register('a7w', 2, 0x3e),
+        Register('a7b', 1, 0x3f),
+        Register('tf', 1, 0x40),
+        Register('svf', 1, 0x41),
+        Register('ipl', 1, 0x42),
+        Register('xf', 1, 0x43),
+        Register('nf', 1, 0x44),
+        Register('zf', 1, 0x45),
+        Register('vf', 1, 0x46),
+        Register('cf', 1, 0x47),
+        Register('pc', 4, 0x50, alias_names=('ip',)),
+        Register('fpcr', 4, 0xb0),
+        Register('fpsr', 4, 0xb4),
+        Register('fpiar', 4, 0xb8),
+        Register('crp', 8, 0xe0),
+        Register('isp', 4, 0x100),
+        Register('msp', 4, 0x104),
+        Register('vbr', 4, 0x108),
+        Register('cacr', 4, 0x10c),
+        Register('caar', 4, 0x110),
+        Register('ac0', 4, 0x114),
+        Register('ac1', 4, 0x118),
+        Register('usp', 4, 0x11c),
+        Register('tt0', 4, 0x120),
+        Register('tt1', 4, 0x124),
+        Register('sfc', 4, 0x140),
+        Register('dfc', 4, 0x144),
+        Register('tc', 4, 0x148),
+        Register('itt0', 4, 0x14c),
+        Register('itt1', 4, 0x150),
+        Register('dtt0', 4, 0x154),
+        Register('dtt1', 4, 0x158),
+        Register('mmusr', 4, 0x15c),
+        Register('urp', 4, 0x160),
+        Register('srp', 4, 0x164),
+        Register('pcr', 4, 0x168),
+        Register('cac', 4, 0x16c),
+        Register('buscr', 4, 0x180),
+        Register('mbb', 4, 0x184),
+        Register('rambar0', 4, 0x188),
+        Register('rambar1', 4, 0x18c),
+        Register('sr', 2, 0x200),
+        Register('acusr', 2, 0x202),
+        Register('glbdenom', 4, 0x300),
+        Register('movemptr', 4, 0x304),
+        Register('contextreg', 4, 0x400),
+        Register('fp0', 12, 0x700),
+        Register('fp1', 12, 0x70c),
+        Register('fp2', 12, 0x718),
+        Register('fp3', 12, 0x724),
+        Register('fp4', 12, 0x730),
+        Register('fp5', 12, 0x73c),
+        Register('fp6', 12, 0x748),
+        Register('fp7', 12, 0x754)
+    ]
+
+register_arch(['68000:be:32:mc68030'], 32, Endness.BE, ArchPcode_68000_BE_32_MC68030)

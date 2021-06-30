@@ -18,6 +18,7 @@ from cachetools import LRUCache
 # should be refactored to use common error classes.
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException, NeedStatementsNotification
 
+from .arch import ArchPcode
 from .behavior import BehaviorFactory
 from ..engine import SimEngineBase
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
@@ -869,18 +870,24 @@ class PcodeBasicBlockLifter:
     behaviors: BehaviorFactory
 
     def __init__(self, arch: archinfo.Arch):
-        archinfo_to_lang_map = {
-            'X86':   'x86:LE:32:default',
-            'AMD64': 'x86:LE:64:default'
-        }
-        if arch.name not in archinfo_to_lang_map:
-            raise NotImplementedError()
+        if isinstance(arch, ArchPcode):
+            langid = arch.name
+        else:
+            archinfo_to_lang_map = {
+                'X86':   'x86:LE:32:default',
+                'AMD64': 'x86:LE:64:default',
+                'AVR8':  'avr8:LE:16:atmega256',
+            }
+            if arch.name not in archinfo_to_lang_map:
+                l.error('Unknown mapping of %s to pcode languge id', arch.name)
+                raise NotImplementedError()
+            langid = archinfo_to_lang_map[arch.name]
 
         langs = {l.id:l
             for a in pypcode.Arch.enumerate()
                 for l in a.languages}
 
-        lang = langs[archinfo_to_lang_map[arch.name]]
+        lang = langs[langid]
 
         self.context = pypcode.Context(lang)
         self.behaviors = BehaviorFactory()
@@ -970,6 +977,10 @@ class PcodeLifter(Lifter):
 
 register(PcodeLifter, "X86")
 register(PcodeLifter, "AMD64")
+register(PcodeLifter, "AVR8")
+for _arch in archinfo.all_arches:
+    if isinstance(_arch, ArchPcode):
+        register(PcodeLifter, _arch.name)
 
 
 class PcodeLifterEngineMixin(SimEngineBase):
