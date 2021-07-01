@@ -121,7 +121,7 @@ class SyncController(KnowledgeBasePlugin):
         super().__init__()
 
         self._kb: KnowledgeBasePlugin = kb
-        self.client: Optional[binsync.client.Client] = None
+        self.client: Optional['binsync.client.Client'] = None
 
     #
     # Public methods
