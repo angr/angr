@@ -41,11 +41,26 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
     * Some more documentation and examples would be nice.
     """
 
-    def __init__(self, subject: Union[Subject,ailment.Block,Block,Function]=None, func_graph=None, max_iterations=3,
-                 track_tmps=False, track_calls=None, observation_points=None, init_state: ReachingDefinitionsState=None,
-                 cc=None, function_handler=None, call_stack: Optional[List[int]]=None, maximum_local_call_depth=5,
-                 observe_all=False, visited_blocks=None, dep_graph: Optional['DepGraph']=None, observe_callback=None,
-                 canonical_size=8):
+    def __init__(
+            self,
+            subject: Union[Subject,ailment.Block,Block,Function]=None,
+            func_graph=None,
+            max_iterations=3,
+            track_tmps=False,
+            track_calls=None,
+            track_consts=False,
+            observation_points=None,
+            init_state: ReachingDefinitionsState=None,
+            cc=None,
+            function_handler=None,
+            call_stack: Optional[List[int]]=None,
+            maximum_local_call_depth=5,
+            observe_all=False,
+            visited_blocks=None,
+            dep_graph: Optional['DepGraph']=None,
+            observe_callback=None,
+            canonical_size=8
+    ):
         """
         :param subject:                         The subject of the analysis: a function, or a single basic block
         :param func_graph:                      Alternative graph for function.graph.
@@ -89,6 +104,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
 
         self._track_tmps = track_tmps
         self._track_calls = track_calls
+        self._track_consts = track_consts
         self._max_iterations = max_iterations
         self._observation_points = observation_points
         self._init_state = init_state
@@ -297,7 +313,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         else:
             return ReachingDefinitionsState(
                 self.project.arch, self.subject, track_tmps=self._track_tmps, track_calls=self._track_calls,
-                analysis=self, canonical_size=self._canonical_size,
+                track_consts=self._track_consts, analysis=self, canonical_size=self._canonical_size,
             )
 
     def _merge_states(self, node, *states: ReachingDefinitionsState):

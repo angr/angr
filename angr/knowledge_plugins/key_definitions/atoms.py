@@ -55,7 +55,7 @@ class FunctionCall(Atom):
         self.callsite = callsite
 
     def __repr__(self):
-        return '<Call %s (%s)>' % (self.target, self.callsite)
+        return '<Call %s>' % self.target
 
     def __eq__(self, other):
         return type(other) is FunctionCall and self.callsite == other.callsite
@@ -66,6 +66,24 @@ class FunctionCall(Atom):
     @property
     def size(self):
         raise NotImplementedError
+
+
+class ConstantSrc(Atom):
+    def __init__(self, const):
+        self.const = const
+
+    def __repr__(self):
+        return repr(self.const)
+
+    def __eq__(self, other):
+        return type(other) is ConstantSrc and self.const == other.const
+
+    def __hash__(self):
+        return hash(self.const)
+
+    @property
+    def size(self):
+        return self.const.size
 
 
 class Tmp(Atom):
