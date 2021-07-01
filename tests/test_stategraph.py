@@ -2,6 +2,7 @@ import os
 import struct
 from typing import TYPE_CHECKING
 
+import pickle
 import networkx
 import sys
 import json
@@ -203,8 +204,6 @@ def test_find_violations():
     sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on,
                                            config_vars=set(config_vars.values()), printstate=printstate)
     state_graph = sgr.state_graph
-
-    import pickle
     pickle.dumps(sgr, -1)
 
     finder = RuleVerifier(state_graph)
