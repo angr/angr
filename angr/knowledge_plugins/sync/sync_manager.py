@@ -42,19 +42,19 @@ def last_push(f):
 
             # push [comment]
             elif isinstance(arg, int):
-                func_addr = self._get_func_addr_from_addr(arg)
+                func_addr = arg #self.get_func_addr_from_addr(arg)
 
             return func_addr
 
-        attr_func_addr = parse_push_args_func_addr(args[0])
+        attr_func_addr = parse_push_args_func_addr(args)
         attr_func_addr = attr_func_addr if attr_func_addr else -1
 
         last_push_time = int(time.time())
         last_push_func = attr_func_addr
-        func_name = self._kb.functions[attr_func_addr].name if self._kb.functions[attr_func_addr] else ""
+        #func_name = self._kb.functions[attr_func_addr].name if attr_func_addr in self._kb.functions else ""
 
         f(self, *args, **kwargs)
-        self._client.last_push(last_push_func, last_push_time, func_name)
+        self.client.last_push(last_push_func, last_push_time)
 
     return set_last_push
 
@@ -70,7 +70,7 @@ def make_state(f):
         state = kwargs.pop('state', None)
         user = kwargs.pop('user', None)
         if state is None:
-            state = self._client.get_state(user=user)
+            state = self.client.get_state(user=user)
             kwargs['state'] = state
             r = f(self, *args, **kwargs)
             state.save()
@@ -94,7 +94,7 @@ def make_ro_state(f):
         state = kwargs.pop('state', None)
         user = kwargs.pop('user', None)
         if state is None:
-            state = self._client.get_state(user=user)
+            state = self.client.get_state(user=user)
         kwargs['state'] = state
         kwargs['user'] = user
         return f(self, *args, **kwargs)
@@ -105,7 +105,7 @@ def make_ro_state(f):
 def init_checker(f):
     @wraps(f)
     def initcheck(self, *args, **kwargs):
-        if self._client is None:
+        if self.client is None:
             raise ValueError("Please initialize SyncController by calling initialize(client).")
         return f(self, *args, **kwargs)
     return initcheck
@@ -115,47 +115,54 @@ class SyncController(KnowledgeBasePlugin):
     """
     SyncController interfaces with a binsync client to push changes upwards and pull changes downwards.
 
-    :ivar binsync.Client _client:   The binsync client.
+    :ivar binsync.Client client:   The binsync client.
     """
     def __init__(self, kb):
         super().__init__()
 
         self._kb: KnowledgeBasePlugin = kb
-        self._client: Optional[binsync.client.Client] = None
+        self.client: Optional[binsync.client.Client] = None
 
     #
     # Public methods
     #
 
     def connect(self, user, path, bin_hash="", init_repo=False, remote_url=None, ssh_agent_pid=None, ssh_auth_sock=None):
-        self._client = Client(user, path, bin_hash,
-                              init_repo=init_repo,
-                              ssh_agent_pid=ssh_agent_pid,
-                              ssh_auth_sock=ssh_auth_sock)
+        self.client = Client(user, path, bin_hash,
+                             init_repo=init_repo,
+                             ssh_agent_pid=ssh_agent_pid,
+                             ssh_auth_sock=ssh_auth_sock)
 
     @property
     def connected(self):
-        return self._client is not None
+        return self.client is not None
 
     def commit(self):
-        self._client.save_state()
+        self.client.save_state()
 
     def update(self):
-        self._client.update()
+        self.client.update()
 
     def copy(self):
         raise NotImplementedError
 
+    def pull(self):
+        return self.client.pull()
+
+    @property
+    def has_remote(self):
+        return self.client.has_remote
+
     @init_checker
     def users(self):
-        return self._client.users()
+        return self.client.users()
 
     @init_checker
     def status(self):
-        return self._client.status()
+        return self.client.status()
 
     def tally(self, users=None):
-        return self._client.tally(users=users)
+        return self.client.tally(users=users)
 
     #
     # Fillers
@@ -207,17 +214,9 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
-    def push_comment(self, addr, comment, decompiled=False, user=None, state=None):
-        """
-        Push a comment at a certain address upwards.
-
-        :param int addr:    Address of the comment.
-        :param str comment: The comment itself.
-        :return:            bool
-        """
-        func_addr = self._get_func_addr_from_addr(addr)
-        func_addr = func_addr if func_addr else -1
-
+    def push_comment(self, func_addr, addr, comment, decompiled=False, user=None, state=None):
+        #func_addr = self.get_func_addr_from_addr(addr)
+        #func_addr = func_addr if func_addr else -1
         sync_cmt = binsync.data.Comment(func_addr, addr, comment, decompiled)
 
         return state.set_comment(sync_cmt)
@@ -263,6 +262,13 @@ class SyncController(KnowledgeBasePlugin):
         # return true only if all pushed worked
         return r
 
+    @init_checker
+    @make_state
+    @last_push
+    def push_stack_variable(self, func_addr, offset, name, type_, size_, user=None, state=None):
+        sync_var = StackVariable(offset, StackOffsetType.ANGR, name, type_, size_, func_addr)
+        return state.set_stack_variable(func_addr, offset, sync_var)
+
     #
     # Pullers
     #
@@ -279,7 +285,7 @@ class SyncController(KnowledgeBasePlugin):
         :rtype:             binsync.data.Function
         """
 
-        func_addr = self._get_func_addr_from_addr(addr)
+        func_addr = self.get_func_addr_from_addr(addr)
         func_addr = func_addr if func_addr else -1
 
         try:
@@ -300,7 +306,7 @@ class SyncController(KnowledgeBasePlugin):
         :rtype:             str or None
         """
 
-        func_addr = self._get_func_addr_from_addr(addr)
+        func_addr = self.get_func_addr_from_addr(addr)
         func_addr = func_addr if func_addr else -1
         try:
             comment = state.get_comment(func_addr, addr)
@@ -357,9 +363,9 @@ class SyncController(KnowledgeBasePlugin):
     #   Utils
     #
 
-    def _get_func_addr_from_addr(self, addr):
+    def get_func_addr_from_addr(self, addr):
         try:
-            func_addr = self._kb.cfgs.get_most_accurate().get_any_node(addr).function_address
+            func_addr = self._kb.cfgs.get_most_accurate().get_any_node(addr, anyaddr=True).function_address
         except AttributeError:
             func_addr = None
 
