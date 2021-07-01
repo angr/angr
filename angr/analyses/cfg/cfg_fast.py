@@ -1213,6 +1213,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         # load 8 bytes and test with THUMB-mode prologues
                         bytes_prefix = self._fast_memory_load_bytes(addr, 8)
+                        if bytes_prefix is None:
+                            # we are out of the mapped memory range - just return
+                            return
                         if any(re.match(prolog, bytes_prefix) for prolog in self.project.arch.thumb_prologs):
                             addr |= 1
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)

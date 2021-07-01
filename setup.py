@@ -165,7 +165,7 @@ setup(
     setup_requires=[_UNICORN, 'pyvex'],
     extras_require={
         'AngrDB': ['sqlalchemy'],
-        'pcode': ['pypcode==1.0.1'],
+        'pcode': ['pypcode==1.0.2'],
     },
     cmdclass=cmdclass,
     include_package_data=True,

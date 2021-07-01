@@ -990,7 +990,7 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 				// TODO
 				block_taint_entry.has_unsupported_stmt_or_expr_type = true;
 				block_taint_entry.unsupported_stmt_stop_reason = STOP_UNSUPPORTED_STMT_DIRTY;
-				if (strcasestr(stmt->Ist.Dirty.details->cee->name, "cpuid")) {
+				if (strstr(stmt->Ist.Dirty.details->cee->name, "CPUID")) {
 					block_taint_entry.has_cpuid_instr = true;
 				}
 				break;

@@ -12,6 +12,12 @@ class UnderconstrainedMixin(MemoryMixin):
 
         self._unconstrained_range = 1024
 
+    @MemoryMixin.memo
+    def copy(self, memo):
+        out = super().copy(memo)
+        out._unconstrained_range = self._unconstrained_range
+        return out
+
     def load(self, addr, **kwargs):
         self._constrain_underconstrained_index(addr)
         return super().load(addr, **kwargs)
@@ -46,4 +52,3 @@ class UnderconstrainedMixin(MemoryMixin):
                 if self.state.solver.solution(addr, mem_region):
                     self.state.add_constraints(addr == mem_region)
                 l.debug('Under-constrained symbolic execution: assigned a new memory region @ %s to %s', mem_region, addr)
-

@@ -106,6 +106,12 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             file_lines = self._open_file(filename, cache=cache)
             if file_lines is None:
                 continue
+            if line - 1 >= len(file_lines) or line - 1 < 0:
+                # a non-existent line number is specified. skip this record
+                l.warning("Line number %d does not exist in file %s. It might be the wrong source code file.",
+                          line,
+                          filename)
+                continue
             range_start = line
             range_end = line
 
@@ -162,6 +168,10 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
                 result[(filename, line)] = None
 
         obj = self.project.loader.find_object_containing(self.function.addr)
+        if obj is None:
+            l.error("There is a function whose address does not correspond to any loaded object")
+            return {}
+
         for addr, filename_line in obj.addr_to_line.items():
             if filename_line in result:
                 result[filename_line] = addr
