@@ -2,6 +2,7 @@ import os
 import struct
 from typing import TYPE_CHECKING
 
+import pickle
 import networkx
 import sys
 import json
@@ -100,6 +101,15 @@ def printstate(abs_state):
     print("CAR LIGHTS     ", colored(RED_LIGHT, 'red'), colored(ORANGE_LIGHT, 'yellow'), colored(GREEN_LIGHT, 'green'))
     print("PED LIGHTS     ", colored(PEDESTRIAN_RED_LIGHT, 'red'), colored(PEDESTRIAN_GREEN_LIGHT, 'green'))
 
+def switch_on(state):
+    # switch on
+    base_addr = int(data['variable_base_addr'], 16)
+    switch = next(x for x in data['variables'] if x['name'] == "SWITCH_BUTTON")
+    switch_value_addr = base_addr + int(switch['address'], 16)
+    switch_flag_addr = switch_value_addr + 1
+    state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=state.memory.endness)  # value
+    state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=state.memory.endness)  # flag
+
 
 def _hook_py_extensions(proj, cfg):
     proj.hook(cfg.kb.functions['PYTHON_EVAL_body__'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
@@ -149,6 +159,7 @@ def test_find_violations():
     
     proj = angr.Project(binary_path, auto_load_libs=False)
 
+    global data
     with open(variable_path) as f:
         data = json.load(f)
     # print(data)
@@ -167,14 +178,6 @@ def test_find_violations():
 
     base_addr = int(data['variable_base_addr'], 16)
     time_addr = int(data['time_addr'], 16)
-
-    def switch_on(state):
-        # switch on
-        switch = next(x for x in data['variables'] if x['name'] == "SWITCH_BUTTON")
-        switch_value_addr = base_addr + int(switch['address'], 16)
-        switch_flag_addr = switch_value_addr + 1
-        state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=proj.arch.memory_endness)  # value
-        state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=proj.arch.memory_endness)  # flag
 
     # define abstract fields
     fields_desc, config_fields = _generate_field_desc(data, base_addr)
@@ -201,6 +204,7 @@ def test_find_violations():
     sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on,
                                            config_vars=set(config_vars.values()), printstate=printstate)
     state_graph = sgr.state_graph
+    pickle.dumps(sgr, -1)
 
     finder = RuleVerifier(state_graph)
     rule = MinDelayRule_Orange(2.0)
