@@ -6,7 +6,7 @@ import re
 import logging
 from typing import Optional, Dict, Any, Tuple, List
 
-import claripy
+import claripy  # :)
 
 l = logging.getLogger(name=__name__)
 
