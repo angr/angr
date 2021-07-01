@@ -177,7 +177,7 @@ class SyncController(KnowledgeBasePlugin):
         :return:                None
         """
 
-        _func = self.pull_function(func.addr, user=user)  # type: binsync.data.Function
+        _func: 'binsync.data.Function' = self.pull_function(func.addr, user=user)
         if _func is None:
             # the function does not exist for that user's state
             return
@@ -224,7 +224,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
-    def push_comments(self, comments: List[binsync.data.Comment], user=None, state=None):
+    def push_comments(self, comments: List['binsync.data.Comment'], user=None, state=None):
         """
         Push a bunch of comments upwards.
 
@@ -275,14 +275,13 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
-    def pull_function(self, addr, user=None, state=None) -> binsync.data.Function:
+    def pull_function(self, addr, user=None, state=None) -> Optional['binsync.data.Function']:
         """
         Pull a function downwards.
 
         :param int addr:    Address of the function.
         :param str user:    Name of the user.
         :return:            The binsync.data.Function object if pulling succeeds, or None if pulling fails.
-        :rtype:             binsync.data.Function
         """
 
         func_addr = self.get_func_addr_from_addr(addr)
@@ -296,14 +295,13 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
-    def pull_comment(self, addr, user=None, state=None) -> binsync.data.Comment:
+    def pull_comment(self, addr, user=None, state=None) -> Optional['binsync.data.Comment']:
         """
         Pull a comment downwards.
 
         :param int addr:    Address of the comment.
         :param str user:    Name of the user.
-        :return:            The comment it self, or None if there is no comment.
-        :rtype:             str or None
+        :return:            a Comment object from BinSync, or None
         """
 
         func_addr = self.get_func_addr_from_addr(addr)
