@@ -802,6 +802,7 @@ class SimEngineRDAIL(
     _ail_handle_CmpGTs = _ail_handle_Cmp
 
     def _ail_handle_Const(self, expr) -> MultiValues:
+        self.state.mark_const(self._codeloc(), expr)
         if isinstance(expr.value, float):
             sort = None
             if expr.bits == 64:
