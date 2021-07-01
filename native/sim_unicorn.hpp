@@ -162,12 +162,14 @@ struct register_value_t {
 	}
 };
 
-template <>
-struct std::hash<register_value_t> {
-	std::size_t operator()(const register_value_t &value) const {
-		return value.operator()(value);
-	}
-};
+namespace std{
+	template <>
+	struct hash<register_value_t> {
+		std::size_t operator()(const register_value_t &value) const {
+			return value.operator()(value);
+		}
+	};
+}
 
 struct instr_details_t {
 	address_t instr_addr;
