@@ -86,7 +86,7 @@ class SimEngineVRBase(SimEngineLight):
     def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data: claripy.ast.Base = richr.data
         # extract stack offset
-        if self.state.is_stack_address(data):
+        if data is not None and self.state.is_stack_address(data):
             # this is a stack address
             stack_offset: Optional[int] = self.state.get_stack_offset(data)
         else:
