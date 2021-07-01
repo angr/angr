@@ -1,6 +1,6 @@
 
 from functools import wraps
-from typing import Set, Optional, List
+from typing import Optional, List
 import time
 
 try:
@@ -127,7 +127,7 @@ class SyncController(KnowledgeBasePlugin):
     # Public methods
     #
 
-    def connect(self, user, path, bin_hash="", init_repo=False, remote_url=None, ssh_agent_pid=None, ssh_auth_sock=None):
+    def connect(self, user, path, bin_hash="", init_repo=False, ssh_agent_pid=None, ssh_auth_sock=None):
         self.client = Client(user, path, bin_hash,
                              init_repo=init_repo,
                              ssh_agent_pid=ssh_agent_pid,
@@ -199,6 +199,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
+    # pylint:disable=unused-argument,no-self-use
     def push_function(self, func: knowledge_plugins.Function, user=None, state=None):
         """
         Push a function upwards.
@@ -214,6 +215,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
+    # pylint:disable=unused-argument,no-self-use
     def push_comment(self, func_addr, addr, comment, decompiled=False, user=None, state=None):
         #func_addr = self.get_func_addr_from_addr(addr)
         #func_addr = func_addr if func_addr else -1
@@ -224,6 +226,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
+    # pylint:disable=unused-argument,no-self-use
     def push_comments(self, comments: List['binsync.data.Comment'], user=None, state=None):
         """
         Push a bunch of comments upwards.
@@ -240,6 +243,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
+    # pylint:disable=unused-argument,no-self-use
     def push_stack_variables(self, stack_variables: List[SimStackVariable], var_manager: VariableManagerInternal,
                              user=None, state=None):
         """
@@ -265,6 +269,7 @@ class SyncController(KnowledgeBasePlugin):
     @init_checker
     @make_state
     @last_push
+    # pylint:disable=unused-argument,no-self-use
     def push_stack_variable(self, func_addr, offset, name, type_, size_, user=None, state=None):
         sync_var = StackVariable(offset, StackOffsetType.ANGR, name, type_, size_, func_addr)
         return state.set_stack_variable(func_addr, offset, sync_var)
@@ -275,6 +280,7 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
+    # pylint:disable=unused-argument
     def pull_function(self, addr, user=None, state=None) -> Optional['binsync.data.Function']:
         """
         Pull a function downwards.
@@ -295,6 +301,7 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
+    # pylint:disable=unused-argument
     def pull_comment(self, addr, user=None, state=None) -> Optional['binsync.data.Comment']:
         """
         Pull a comment downwards.
@@ -314,6 +321,7 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
+    # pylint:disable=unused-argument,no-self-use
     def pull_comments(self, func_addr, user=None, state=None):
         """
         Pull comments downwards.
@@ -328,6 +336,7 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
+    # pylint:disable=unused-argument,no-self-use
     def pull_patches(self, user=None, state=None):
         """
         Pull patches.
@@ -341,6 +350,7 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_ro_state
+    # pylint:disable=unused-argument,no-self-use
     def pull_stack_variables(self, func_addr, user=None, state=None):
         """
         Pull stack variables from a function.
