@@ -162,7 +162,7 @@ struct register_value_t {
 	}
 };
 
-namespace std{
+namespace std {
 	template <>
 	struct hash<register_value_t> {
 		std::size_t operator()(const register_value_t &value) const {
