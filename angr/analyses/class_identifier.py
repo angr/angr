@@ -3,6 +3,7 @@ from ..sim_type import SimCppClass, SimTypeCppFunction, SimTypePointer
 
 
 class ClassIdentifier(Analysis):
+    # This is a class identifier for non stripped or partially stripped binaries
     def __init__(self):
         self.cfg = self.project.analyses.CFGFast(cross_references=True)
         self.classes = {}
@@ -37,15 +38,14 @@ class ClassIdentifier(Analysis):
                     cur_class = self.classes[class_name]
                     cur_class.function_members[func.demangled_name] = SimTypeCppFunction([],None, label=func.demangled_name, ctor=ctor)
 
-        for func_addr, func in self.cfg.kb.functions.items():
-            for vtable in self.vtables_list:
-                if func.addr == vtable.func_addrs[0]:
-                    for ref in self.cfg.kb.xrefs.xrefs_by_dst[vtable.vaddr]:
-                        vtable_calling_func = self.cfg.kb.functions.floor_func(ref.ins_addr)
-                        tmp_col_ind = vtable_calling_func.demangled_name.rfind("::")
-                        possible_constructor_class_name = vtable_calling_func.demangled_name[:tmp_col_ind]
-                        if "ctor" in vtable_calling_func.demangled_name and possible_constructor_class_name in self.classes:
-                            self.classes[possible_constructor_class_name].vtable_ptrs.append(vtable.vaddr)
+        # Assigning a vtable to a class
+        for vtable in self.vtables_list:
+            for ref in self.cfg.kb.xrefs.xrefs_by_dst[vtable.vaddr]:
+                vtable_calling_func = self.cfg.kb.functions.floor_func(ref.ins_addr)
+                tmp_col_ind = vtable_calling_func.demangled_name.rfind("::")
+                possible_constructor_class_name = vtable_calling_func.demangled_name[:tmp_col_ind]
+                if "ctor" in vtable_calling_func.demangled_name and possible_constructor_class_name in self.classes:
+                    self.classes[possible_constructor_class_name].vtable_ptrs.append(vtable.vaddr)
 
         for class_name, class_iden in self.classes.items():
             print(str(class_name) + "------>" + str(class_iden))
