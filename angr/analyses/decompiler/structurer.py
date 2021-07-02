@@ -953,7 +953,7 @@ class Structurer(Analysis):
                     # remove all old nodes and replace them with the new node
                     for idx, _, _ in candidates:
                         seq.nodes[idx] = None
-                    seq.nodes[i] = new_node
+                    seq.nodes[i] = CodeNode(new_node, common_subexpr)
                     seq.nodes = [ n for n in seq.nodes if n is not None ]
                     structured = True
                     break
