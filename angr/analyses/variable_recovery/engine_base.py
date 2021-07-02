@@ -314,13 +314,19 @@ class SimEngineVRBase(SimEngineLight):
                                        endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
 
         codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-        values: MultiValues = self.state.global_region.load(addr,
-                                                            size=size,
-                                                            endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
-        for vs in values.values.values():
-            for v in vs:
-                for var_offset, var in self.state.extract_variables(v):
-                    variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
+        try:
+            values: MultiValues = self.state.global_region.load(
+                addr,
+                size=size,
+                endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
+        except SimMemoryMissingError:
+            values = None
+
+        if values is not None:
+            for vs in values.values.values():
+                for v in vs:
+                    for var_offset, var in self.state.extract_variables(v):
+                        variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
 
         # create type constraints
         if data.typevar is not None:
