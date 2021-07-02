@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 import logging
 from collections import defaultdict
 
@@ -763,6 +763,40 @@ class Structurer(Analysis):
         # not sure what's going on... give up on this case
         return False, None
 
+    def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: Dict[int,Any]) -> Optional[Any]:
+        """
+        Find the correct node for a given jump table entry address in addr2nodes.
+
+        This method is needed because prior optimization steps may remove some blocks (e.g., empty blocks or blocks that
+        only have branch instructions). If the given jump table entry address corresponds to a removed block, it will
+        not be found inside addr2nodes dict. In such cases, we need to follow graph edges in the CFG and find the first
+        block whose address is inside addr2nodes dict.
+
+        :param entry_addr:  Address of the jump table entry.
+        :return:            The correct node if we can find it, or None if we fail to find one.
+        """
+
+        if entry_addr in addr2nodes:
+            return addr2nodes[entry_addr]
+        # magic
+        cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            return None
+
+        addr = entry_addr
+        cfgnode = cfg.get_any_node(addr)
+        for _ in range(5):  # we try at most five steps
+            if cfgnode is None:
+                return None
+            if len(cfgnode.successors) != 1:
+                return None
+            successor = cfgnode.successors[0]
+            if successor.addr in addr2nodes:
+                # found it!
+                return addr2nodes[successor.addr]
+            # keep looking
+            cfgnode = successor
+
     def _switch_build_cases(self, seq, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
@@ -786,7 +820,13 @@ class Structurer(Analysis):
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
 
-            entry_node = addr2nodes[entry_addr]
+            entry_node = self._switch_find_jumptable_entry_node(entry_addr, addr2nodes)
+            if entry_node is None:
+                l.warning("Missing jump table entry %#x for jump table %#x. Please report it to GitHub.",
+                          entry_addr,
+                          seq.addr,
+                          )
+                continue
             case_node = SequenceNode(nodes=[CodeNode(entry_node.node, claripy.true)])
             to_remove.add(entry_node)
             entry_node_idx = seq.nodes.index(entry_node)
