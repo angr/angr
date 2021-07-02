@@ -1,2 +1,2 @@
 
-from .sync_manager import SynchronizationManager
+from .sync_controller import SyncController
