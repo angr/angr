@@ -12,7 +12,7 @@ from ...utils.graph import dominates, shallow_reverse
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
-                               ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode)
+                               ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode, CascadingConditionNode)
 from .utils import extract_jump_targets, switch_extract_cmp_bounds
 
 l = logging.getLogger(__name__)
@@ -276,6 +276,20 @@ class ConditionProcessor:
                                  self.remove_claripy_bool_asts(node.false_node, memo=memo),
                                  )
 
+        elif isinstance(node, CascadingConditionNode):
+
+            cond_and_nodes = [ ]
+            for cond, child_node in node.condition_and_nodes:
+                cond_and_nodes.append((
+                    self.convert_claripy_bool_ast(cond, memo=memo),
+                    self.remove_claripy_bool_asts(child_node, memo=memo))
+                )
+            else_node = None if node.else_node is None else self.remove_claripy_bool_asts(node.else_node, memo=memo)
+            return CascadingConditionNode(node.addr,
+                                          cond_and_nodes,
+                                          else_node=else_node,
+                                          )
+
         elif isinstance(node, LoopNode):
 
             result = node.copy()
@@ -337,6 +351,16 @@ class ConditionProcessor:
             if s is None and block.false_node:
                 s = cls.get_last_statement(block.false_node)
             return s
+        if type(block) is CascadingConditionNode:
+            s = None
+            if block.else_node is not None:
+                s = cls.get_last_statement(block.else_node)
+            else:
+                for _, node in reversed(block.condition_and_nodes):
+                    s = cls.get_last_statement(node)
+                    if s is not None:
+                        break
+            return s
         if type(block) is BreakNode:
             return None
         if type(block) is ContinueNode:
@@ -395,6 +419,18 @@ class ConditionProcessor:
                     pass
             if block.false_node:
                 last_stmts = cls.get_last_statements(block.false_node)
+                s.extend(last_stmts)
+            return s
+        if type(block) is CascadingConditionNode:
+            s = [ ]
+            if block.else_node is not None:
+                try:
+                    last_stmts = cls.get_last_statements(block.else_node)
+                    s.extend(last_stmts)
+                except EmptyBlockNotice:
+                    pass
+            for _, node in block.condition_and_nodes:
+                last_stmts = cls.get_last_statements(node)
                 s.extend(last_stmts)
             return s
         if type(block) is BreakNode:

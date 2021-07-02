@@ -599,6 +599,22 @@ def test_stack_canary_removal_x8664_extra_exits():
     assert "__stack_chk_fail" not in code
 
 
+def test_ifelseif_x8664():
+
+    # nested if-else should be transformed to cascading if-elseif constructs
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    assert code.count("else if") == 3
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
