@@ -1725,7 +1725,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         condition_and_nodes = [(self._handle(cond), self._handle(node, is_expr=False))
                                for cond, node in cond_node.condition_and_nodes]
-        else_node = self._handle(cond_node.else_node if cond_node.else_node is not None else None)
+        else_node = self._handle(cond_node.else_node) if cond_node.else_node is not None else None
 
         code = CIfElse(condition_and_nodes,
                        else_node=else_node,
