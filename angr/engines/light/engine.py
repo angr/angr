@@ -9,7 +9,7 @@ import claripy
 import archinfo
 
 from ...engines.vex.claripy.datalayer import value as claripy_value
-from ...engines.vex.claripy.irop import UnsupportedIROpError, vexop_to_simop
+from ...engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from ...code_location import CodeLocation
 from ...utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
@@ -269,7 +269,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         simop = None
         try:
             simop = vexop_to_simop(expr.op)
-        except UnsupportedIROpError:
+        except (UnsupportedIROpError, SimOperationError):
             pass
 
         if simop is not None and simop.op_attrs.get('conversion', None):
