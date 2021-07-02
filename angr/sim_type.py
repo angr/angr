@@ -1275,12 +1275,17 @@ class SimUnionValue:
 
 
 class SimCppClass(SimStruct):
-    def __init__(self, members: Dict[str,SimType], name: Optional[str]=None, pack: bool=False, align=None):
+    def __init__(self, members: Optional[Dict[str,SimType]]=None, function_members: Optional[Dict[str,SimTypeCppFunction]]=None, vtable_ptrs=None, name: Optional[str]=None, pack: bool=False, align=None):
         super().__init__(members, name=name, pack=pack, align=align)
+        self.function_members = function_members
+        self.vtable_ptrs = [] if vtable_ptrs is None else vtable_ptrs
 
     @property
     def members(self):
         return self.fields
+
+    def __repr__(self):
+        return 'class %s' % self.name
 
     def copy(self):
         return SimCppClass(dict(self.fields), name=self.name, pack=self._pack, align=self._align)

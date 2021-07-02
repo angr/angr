@@ -6,22 +6,22 @@ from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, Forw
 from angr.engines.vex.heavy.heavy import HeavyVEXMixin
 import claripy
 
-class SymbolicDefinition(Definition):
-    def __init__(self, atom, codeloc, dummy, tags, symbolic_value=None):
-        super().__init__(atom, codeloc, dummy, tags)
-        self.symbolic_value = symbolic_value
-
-    def __eq__(self, other):
-        return self.atom == other.atom and self.codeloc == other.codeloc and self.symbolic_value == other.symbolic_value
-
-    def __repr__(self):
-        if not self.tags:
-            return '<Definition {Atom:%s, Symbolic value:%s, Codeloc:%s}%s>' % (self.atom, self.symbolic_value, self.codeloc, "" if not self.dummy else "dummy")
-        else:
-            return '<Definition {Tags:%s, Atom:%s, Symbolic value:%s, Codeloc:%s}%s>' % (repr(self.tags), self.atom, self.symbolic_value, self.codeloc,
-                                                                    "" if not self.dummy else " dummy")
-    def __hash__(self):
-        return hash((self.atom, self.codeloc, self.symbolic_value))
+# class SymbolicDefinition(Definition):
+#     def __init__(self, atom, codeloc, dummy, tags, symbolic_value=None):
+#         super().__init__(atom, codeloc, dummy, tags)
+#         self.symbolic_value = symbolic_value
+#
+#     def __eq__(self, other):
+#         return self.atom == other.atom and self.codeloc == other.codeloc and self.symbolic_value == other.symbolic_value
+#
+#     def __repr__(self):
+#         if not self.tags:
+#             return '<Definition {Atom:%s, Symbolic value:%s, Codeloc:%s}%s>' % (self.atom, self.symbolic_value, self.codeloc, "" if not self.dummy else "dummy")
+#         else:
+#             return '<Definition {Tags:%s, Atom:%s, Symbolic value:%s, Codeloc:%s}%s>' % (repr(self.tags), self.atom, self.symbolic_value, self.codeloc,
+#                                                                     "" if not self.dummy else " dummy")
+#     def __hash__(self):
+#         return hash((self.atom, self.codeloc, self.symbolic_value))
 
 
 class PossibleObject:
@@ -36,7 +36,7 @@ class ObjectFinder(ForwardAnalysis, Analysis):
         self.possible_class_instance_pointers = {}
         vtable_analysis = self.project.analyses.VtableFinder()
         self.vtables_list = vtable_analysis.vtables_list
-        self.possible_objects = []
+        self.possible_objects = {}
         self._analyze()
 
 
@@ -88,16 +88,23 @@ class ObjectFinder(ForwardAnalysis, Analysis):
                         codeloc = CodeLocation(state.scratch.irsb.addr, stmt_idx=state.scratch.stmt_idx, ins_addr=state.scratch.ins_addr)
                         self.possible_class_instance_pointers[codeloc] = state.inspect.mem_write_address
                         members = {arg: vtable.vaddr}
-                        self.possible_objects.append(PossibleObject(state.inspect.mem_write_address, members))
+                        if arg not in self.possible_objects:
+                            self.possible_objects[arg] = PossibleObject(state.inspect.mem_write_address, members)
+                        else:
+                            # make assumptions about class hierarchy
+                            self.possible_objects[arg].members[arg] = vtable.vaddr
             elif arg is not None and isinstance(arg, claripy.ast.bv.BV) and arg.symbolic:
                 for sub_arg in arg.args:
                     if isinstance(sub_arg, str) and sub_arg.startswith("this_pointer_"):
-                        for obj in self.possible_objects:
-                            if obj.obj_addr == state.solver.eval(arg):
-                                obj.members[arg] = state.inspect.mem_write_expr
+                        if sub_arg in self.possible_objects:
+                            if arg not in self.possible_objects[sub_arg].members:
+                                self.possible_objects[sub_arg].members[arg] = state.inspect.mem_write_expr
+                            else:
+                                # make assumptions about class hierarchy
+                                self.possible_objects[sub_arg].members[arg] = state.inspect.mem_write_expr
+
         import ipdb;
         ipdb.set_trace()
-
 
     def _analyze(self):
         self.cfg = self.project.analyses.CFGFast(cross_references=True)

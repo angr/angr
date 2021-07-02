@@ -38,3 +38,4 @@ from .typehoon import Typehoon
 from .proximity_graph import ProximityGraphAnalysis
 from .vtable import VtableFinder
 from .find_objects import ObjectFinder
+from .class_identifier import ClassIdentifier
