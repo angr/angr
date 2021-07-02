@@ -1429,7 +1429,7 @@ class Structurer(Analysis):
                 node = seq_node.nodes[i]
                 r, cond_node = _condnode_truenode_only(node)
                 if r:
-                    r, cond_node_inner = _condnode_truenode_only(node.true_node)
+                    r, cond_node_inner = _condnode_truenode_only(cond_node.true_node)
                     if r:
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
@@ -1446,7 +1446,7 @@ class Structurer(Analysis):
                         i += 1
                         continue
                     # else:
-                    r, condbreak_node = _condbreaknode(node.true_node)
+                    r, condbreak_node = _condbreaknode(cond_node.true_node)
                     if r:
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
