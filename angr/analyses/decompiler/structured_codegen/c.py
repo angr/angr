@@ -13,7 +13,7 @@ from ....errors import UnsupportedNodeTypeError
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
 from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
-                         SwitchCaseNode, ContinueNode)
+                         SwitchCaseNode, ContinueNode, CascadingConditionNode)
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
@@ -515,24 +515,25 @@ class CForLoop(CStatement):
         yield "}", brace
         yield '\n', None
 
+
 class CIfElse(CStatement):
     """
     Represents an if-else construct in C.
     """
 
-    __slots__ = ('condition', 'true_node', 'false_node', 'tags')
+    __slots__ = ('condition_and_nodes', 'else_node', 'tags')
 
-    def __init__(self, condition, true_node=None, false_node=None, tags=None, **kwargs):
+    def __init__(self, condition_and_nodes: List[Tuple[CExpression,Optional[CStatement]]], else_node=None, tags=None,
+                 **kwargs):
 
         super().__init__(**kwargs)
 
-        self.condition = condition
-        self.true_node = true_node
-        self.false_node = false_node
+        self.condition_and_nodes = condition_and_nodes
+        self.else_node = else_node
         self.tags = tags
 
-        if self.true_node is None and self.false_node is None:
-            raise ValueError("'true_node' and 'false_node' cannot be both unspecified.")
+        if not self.condition_and_nodes:
+            raise ValueError("You must specify at least one condition")
 
     def c_repr_chunks(self, indent=0, asexpr=False):
 
@@ -540,24 +541,38 @@ class CIfElse(CStatement):
         paren = CClosingObject("(")
         brace = CClosingObject("{")
 
-        yield indent_str, None
-        yield "if ", self
-        yield "(", paren
-        yield from self.condition.c_repr_chunks()
-        yield ")", paren
-        if self.codegen.braces_on_own_lines:
+        first_node = True
+
+        for condition, node in self.condition_and_nodes:
+
+            if first_node:
+                first_node = False
+                yield indent_str, None
+            else:
+                if self.codegen.braces_on_own_lines:
+                    yield "\n", None
+                    yield indent_str, None
+                else:
+                    yield " "
+                yield "else ", self
+
+            yield "if ", self
+            yield "(", paren
+            yield from condition.c_repr_chunks()
+            yield ")", paren
+            if self.codegen.braces_on_own_lines:
+                yield "\n", self
+                yield indent_str, None
+            else:
+                yield " ", None
+            yield "{", brace
             yield "\n", self
+            if node is not None:
+                yield from node.c_repr_chunks(indent=indent + INDENT_DELTA)
             yield indent_str, None
-        else:
-            yield " ", None
-        yield "{", brace
-        yield "\n", self
-        yield from self.true_node.c_repr_chunks(indent=indent + INDENT_DELTA)
-        yield indent_str, None
-        yield "}", brace
+            yield "}", brace
 
-
-        if self.false_node is not None:
+        if self.else_node is not None:
             brace = CClosingObject("{")
 
             if self.codegen.braces_on_own_lines:
@@ -573,11 +588,10 @@ class CIfElse(CStatement):
                 yield " ", None
             yield "{", brace
             yield "\n", self
-            yield from self.false_node.c_repr_chunks(indent=indent + INDENT_DELTA)
+            yield from self.else_node.c_repr_chunks(indent=indent + INDENT_DELTA)
             yield indent_str, None
             yield "}", brace
         yield "\n", self
-
 
 
 class CIfBreak(CStatement):
@@ -1432,6 +1446,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             SequenceNode: self._handle_Sequence,
             LoopNode: self._handle_Loop,
             ConditionNode: self._handle_Condition,
+            CascadingConditionNode: self._handle_CascadingCondition,
             ConditionalBreakNode: self._handle_ConditionalBreak,
             MultiNode: self._handle_MultiNode,
             Block: self._handle_AILBlock,
@@ -1688,14 +1703,32 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             raise NotImplementedError()
 
-    def _handle_Condition(self, condition_node):
+    def _handle_Condition(self, condition_node: ConditionNode):
         tags = {'ins_addr': condition_node.addr}
 
-        code = CIfElse(self._handle(condition_node.condition),
-                       true_node=self._handle(condition_node.true_node, is_expr=False)
-                       if condition_node.true_node else None,
-                       false_node=self._handle(condition_node.false_node, is_expr=False)
-                       if condition_node.false_node else None,
+        condition_and_nodes = [
+            (self._handle(condition_node.condition),
+             self._handle(condition_node.true_node, is_expr=False) if condition_node.true_node else None)
+        ]
+
+        else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
+
+        code = CIfElse(condition_and_nodes,
+                       else_node=else_node,
+                       tags=tags,
+                       codegen=self,
+                       )
+        return code
+
+    def _handle_CascadingCondition(self, cond_node: CascadingConditionNode):
+        tags = {'ins_addr': cond_node.addr}
+
+        condition_and_nodes = [(self._handle(cond), self._handle(node, is_expr=False))
+                               for cond, node in cond_node.condition_and_nodes]
+        else_node = self._handle(cond_node.else_node if cond_node.else_node is not None else None)
+
+        code = CIfElse(condition_and_nodes,
+                       else_node=else_node,
                        tags=tags,
                        codegen=self,
                        )

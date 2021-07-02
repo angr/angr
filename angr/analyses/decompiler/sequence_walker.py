@@ -3,7 +3,7 @@ import ailment
 
 from ...errors import UnsupportedNodeTypeError
 from .region_identifier import MultiNode
-from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode
+from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode, CascadingConditionNode
 
 
 class SequenceWalker:
@@ -18,6 +18,7 @@ class SequenceWalker:
             CodeNode: self._handle_Code,
             SequenceNode: self._handle_Sequence,
             ConditionNode: self._handle_Condition,
+            CascadingConditionNode: self._handle_CascadingCondition,
             SwitchCaseNode: self._handle_SwitchCase,
             LoopNode: self._handle_Loop,
             MultiNode: self._handle_MultiNode,
@@ -76,6 +77,13 @@ class SequenceWalker:
     def _handle_Condition(self, node, **kwargs):
         self._handle(node.true_node, parent=node, index=0)
         self._handle(node.false_node, parent=node, index=1)
+        return None
+
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+        for index, (_, child_node) in enumerate(node.condition_and_nodes):
+            self._handle(child_node, parent=node, index=index)
+        if node.else_node is not None:
+            self._handle(node.else_node, parent=node, index=-1)
         return None
 
     @staticmethod
