@@ -127,11 +127,13 @@ class SyncController(KnowledgeBasePlugin):
     # Public methods
     #
 
-    def connect(self, user, path, bin_hash="", init_repo=False, ssh_agent_pid=None, ssh_auth_sock=None):
+    def connect(self, user, path,
+                bin_hash="", init_repo=False, ssh_agent_pid=None, ssh_auth_sock=None, remote_url=None):
         self.client = Client(user, path, bin_hash,
                              init_repo=init_repo,
                              ssh_agent_pid=ssh_agent_pid,
-                             ssh_auth_sock=ssh_auth_sock)
+                             ssh_auth_sock=ssh_auth_sock,
+                             remote_url=remote_url)
 
     @property
     def connected(self):
@@ -163,34 +165,6 @@ class SyncController(KnowledgeBasePlugin):
 
     def tally(self, users=None):
         return self.client.tally(users=users)
-
-    #
-    # Fillers
-    #
-    def fill_function(self, func, user=None):
-        """
-        Grab all relevant information from the specified user and fill the @func.
-
-        :param Function func:   The Function object to work on.
-        :param str user:        Name of the user where we are going to pull information from. If None, information will
-                                be pulled from the current user.
-        :return:                None
-        """
-
-        _func: 'binsync.data.Function' = self.pull_function(func.addr, user=user)
-        if _func is None:
-            # the function does not exist for that user's state
-            return
-        func.name = _func.name
-
-        # comments
-        for block in func.blocks:
-            for ins_addr in block.instruction_addrs:
-                _comment = self.pull_comment(ins_addr, user=user)
-                if _comment is not None:
-                    self._kb.comments[ins_addr] = _comment
-
-        # stack vars done in angr-management
 
     #
     # Pushers
@@ -331,8 +305,11 @@ class SyncController(KnowledgeBasePlugin):
         :return:                An iterator.
         :rtype:                 Iterable
         """
-
-        return state.get_comments(func_addr)
+        try:
+            comments = state.get_comments(func_addr)
+            return comments
+        except KeyError:
+            return {}
 
     @init_checker
     @make_ro_state
