@@ -6,22 +6,6 @@ from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, Forw
 from angr.engines.vex.heavy.heavy import HeavyVEXMixin
 import claripy
 
-# class SymbolicDefinition(Definition):
-#     def __init__(self, atom, codeloc, dummy, tags, symbolic_value=None):
-#         super().__init__(atom, codeloc, dummy, tags)
-#         self.symbolic_value = symbolic_value
-#
-#     def __eq__(self, other):
-#         return self.atom == other.atom and self.codeloc == other.codeloc and self.symbolic_value == other.symbolic_value
-#
-#     def __repr__(self):
-#         if not self.tags:
-#             return '<Definition {Atom:%s, Symbolic value:%s, Codeloc:%s}%s>' % (self.atom, self.symbolic_value, self.codeloc, "" if not self.dummy else "dummy")
-#         else:
-#             return '<Definition {Tags:%s, Atom:%s, Symbolic value:%s, Codeloc:%s}%s>' % (repr(self.tags), self.atom, self.symbolic_value, self.codeloc,
-#                                                                     "" if not self.dummy else " dummy")
-#     def __hash__(self):
-#         return hash((self.atom, self.codeloc, self.symbolic_value))
 
 
 class PossibleObject:

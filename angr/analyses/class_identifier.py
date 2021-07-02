@@ -26,7 +26,7 @@ class ClassIdentifier(Analysis):
                     ctor = False
                     if func.demangled_name.find("{ctor}"):
                         ctor = True
-                    function_members = {func.demangled_name:SimTypeCppFunction([], None, label=func.demangled_name, ctor=ctor)}
+                    function_members = {func.addr: SimTypeCppFunction([], None, label=func.demangled_name, ctor=ctor)}
                     new_class = SimCppClass(name=class_name, function_members=function_members)
                     self.classes[class_name] = new_class
 
@@ -36,7 +36,7 @@ class ClassIdentifier(Analysis):
                     if func.demangled_name.find("{ctor}"):
                         ctor = True
                     cur_class = self.classes[class_name]
-                    cur_class.function_members[func.demangled_name] = SimTypeCppFunction([],None, label=func.demangled_name, ctor=ctor)
+                    cur_class.function_members[func.addr] = SimTypeCppFunction([], None, label=func.demangled_name, ctor=ctor)
 
         # Assigning a vtable to a class
         for vtable in self.vtables_list:
@@ -46,9 +46,6 @@ class ClassIdentifier(Analysis):
                 possible_constructor_class_name = vtable_calling_func.demangled_name[:tmp_col_ind]
                 if "ctor" in vtable_calling_func.demangled_name and possible_constructor_class_name in self.classes:
                     self.classes[possible_constructor_class_name].vtable_ptrs.append(vtable.vaddr)
-
-        for class_name, class_iden in self.classes.items():
-            print(str(class_name) + "------>" + str(class_iden))
 
         import ipdb;ipdb.set_trace()
 
