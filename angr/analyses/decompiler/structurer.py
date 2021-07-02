@@ -1,3 +1,4 @@
+# pylint:disable=multiple-statements
 from typing import Dict, Optional, Any
 import logging
 from collections import defaultdict
@@ -422,7 +423,7 @@ class Structurer(Analysis):
             return walker._handle(node)
 
         def _handle_Sequence(node, **kwargs):  # pylint:disable=unused-argument
-            for i in range(len(node.nodes)):
+            for i in range(len(node.nodes)):  # pylint:disable=consider-using-enumerate
                 node.nodes[i] = walker._handle(node.nodes[i])
             return node
 
@@ -796,6 +797,7 @@ class Structurer(Analysis):
                 return addr2nodes[successor.addr]
             # keep looking
             cfgnode = successor
+        return None
 
     def _switch_build_cases(self, seq, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
         """
