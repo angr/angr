@@ -1274,14 +1274,6 @@ class SimUnionValue:
         return SimUnionValue(self._union, values=self._values)
 
 
-class SimTypeVtablePointer(SimTypeArray):
-    def __init__(self, length=None, label=None):
-        super().__init__(SimTypeCppFunction, length=length, label=label)
-
-    def copy(self):
-        return SimTypeVtablePointer(SimTypeCppFunction, length=self.length, label=self.label)
-
-
 class SimCppClass(SimStruct):
     def __init__(self, members: Optional[Dict[str,SimType]]=None, function_members: Optional[Dict[str,SimTypeCppFunction]]=None, vtable_ptrs=None, name: Optional[str]=None, pack: bool=False, align=None):
         super().__init__(members, name=name, pack=pack, align=align)
