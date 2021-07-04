@@ -37,6 +37,5 @@ from .complete_calling_conventions import CompleteCallingConventionsAnalysis
 from .typehoon import Typehoon
 from .proximity_graph import ProximityGraphAnalysis
 from .vtable import VtableFinder
-from .find_objects import ObjectFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier

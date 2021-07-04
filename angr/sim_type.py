@@ -1360,7 +1360,7 @@ class SimCppClassValue:
         return self._values[k]
 
     def copy(self):
-        return SimCppValue(self._class, values=defaultdict(lambda: None, self._values))
+        return SimCppClassValue(self._class, values=defaultdict(lambda: None, self._values))
 
 
 BASIC_TYPES = {

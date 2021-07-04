@@ -47,7 +47,6 @@ class ClassIdentifier(Analysis):
                 if "ctor" in vtable_calling_func.demangled_name and possible_constructor_class_name in self.classes:
                     self.classes[possible_constructor_class_name].vtable_ptrs.append(vtable.vaddr)
 
-        import ipdb;ipdb.set_trace()
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('ClassIdentifier', ClassIdentifier)
