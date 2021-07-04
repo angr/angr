@@ -1,17 +1,35 @@
 # pylint:disable=unused-argument,arguments-differ
 import logging
-from typing import Dict, List
+from typing import Dict, List, Set
 from collections import defaultdict
 
 import ailment
 
 from ..analysis import Analysis
 from .sequence_walker import SequenceWalker
-from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice, ContinueNode
+from .structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice, \
+    ContinueNode, CascadingConditionNode
 from .condition_processor import ConditionProcessor
 from .utils import insert_node
 
 l = logging.getLogger(name=__name__)
+
+
+class NodeAddressFinder(SequenceWalker):
+    """
+    Walk the entire node and collect all addresses of nodes.
+    """
+    def __init__(self, node):
+        handlers = {
+            ailment.Block: self._handle_Block,
+        }
+        super().__init__(handlers=handlers)
+        self.addrs: Set[int] = set()
+
+        self.walk(node)
+
+    def _handle_Block(self, node: ailment.Block, **kwargs):
+        self.addrs.add(node.addr)
 
 
 class GotoSimplifier(SequenceWalker):
@@ -25,10 +43,13 @@ class GotoSimplifier(SequenceWalker):
             MultiNode: self._handle_multinode,
             LoopNode: self._handle_loopnode,
             ConditionNode: self._handle_conditionnode,
+            CascadingConditionNode: self._handle_cascadingconditionnode,
             ailment.Block: self._handle_block,
         }
 
         super().__init__(handlers)
+        self._node_addrs: Set[int] = NodeAddressFinder(node).addrs
+
         self.walk(node)
 
     def _handle_sequencenode(self, node, successor=None, **kwargs):
@@ -63,6 +84,13 @@ class GotoSimplifier(SequenceWalker):
         if node.false_node is not None:
             self._handle(node.false_node, successor=successor)
 
+    def _handle_cascadingconditionnode(self, node: CascadingConditionNode, successor=None, **kwargs):
+
+        for _, child_node in node.condition_and_nodes:
+            self._handle(child_node, successor=successor)
+        if node.else_node is not None:
+            self._handle(node.else_node)
+
     def _handle_loopnode(self, node, successor=None, **kwargs):
         """
 
@@ -71,7 +99,9 @@ class GotoSimplifier(SequenceWalker):
         :return:
         """
 
-        self._handle(node.sequence_node, successor=successor)
+        self._handle(node.sequence_node,
+                     successor=node,  # the end of a loop always jumps to the beginning of its body
+                     )
 
     def _handle_multinode(self, node, successor=None, **kwargs):
         """
@@ -92,10 +122,19 @@ class GotoSimplifier(SequenceWalker):
 
         if block.statements and isinstance(block.statements[-1], ailment.Stmt.Jump):
             goto_stmt = block.statements[-1]  # ailment.Stmt.Jump
-            if successor and isinstance(goto_stmt.target, ailment.Expr.Const) \
-                    and goto_stmt.target.value == successor.addr:
-                # we can remove this statement
-                block.statements = block.statements[:-1]
+            if isinstance(goto_stmt.target, ailment.Expr.Const):
+                goto_target = goto_stmt.target.value
+                if successor and goto_target == successor.addr:
+                    can_remove = True
+                elif goto_target not in self._node_addrs:
+                    # the target block has been removed and is no longer exist. we assume this goto is useless
+                    can_remove = True
+                else:
+                    can_remove = False
+
+                if can_remove:
+                    # we can remove this statement
+                    block.statements = block.statements[:-1]
 
 
 class LoopSimplifier(SequenceWalker):
@@ -106,6 +145,7 @@ class LoopSimplifier(SequenceWalker):
             MultiNode: self._handle_multinode,
             LoopNode: self._handle_loopnode,
             ConditionNode: self._handle_conditionnode,
+            CascadingConditionNode: self._handle_cascadingconditionnode,
             ailment.Block: self._handle_block,
         }
 
@@ -125,6 +165,16 @@ class LoopSimplifier(SequenceWalker):
             self._handle(node.true_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
         if node.false_node is not None:
             self._handle(node.false_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
+
+    def _handle_cascadingconditionnode(self, node: CascadingConditionNode, predecessor=None, successor=None, loop=None,
+                                       loop_successor=None, **kwargs):
+
+        for _, child_node in node.condition_and_nodes:
+            self._handle(child_node, predecessor=predecessor, successor=successor, loop=loop,
+                         loop_successor=loop_successor)
+        if node.else_node is not None:
+            self._handle(node.else_node, predecessor=predecessor, successor=successor, loop=loop,
+                         loop_successor=loop_successor)
 
     def _handle_loopnode(self, node: LoopNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         self._handle(node.sequence_node, predecessor=predecessor, successor=successor, loop=node, loop_successor=successor)
@@ -168,6 +218,7 @@ class IfSimplifier(SequenceWalker):
             MultiNode: self._handle_multinode,
             LoopNode: self._handle_loopnode,
             ConditionNode: self._handle_conditionnode,
+            CascadingConditionNode: self._handle_cascadingconditionnode,
             ailment.Block: self._handle_block,
         }
 
@@ -205,6 +256,13 @@ class IfSimplifier(SequenceWalker):
             self._handle(node.true_node, successor=successor)
         if node.false_node is not None:
             self._handle(node.false_node, successor=successor)
+
+    def _handle_cascadingconditionnode(self, node: CascadingConditionNode, successor=None, **kwargs):
+
+        for _, child_node in node.condition_and_nodes:
+            self._handle(child_node, successor=successor)
+        if node.else_node is not None:
+            self._handle(node.else_node,successor=successor)
 
     def _handle_loopnode(self, node, successor=None, **kwargs):
         """
@@ -282,6 +340,7 @@ class IfElseFlattener(SequenceWalker):
             MultiNode: self._handle_MultiNode,
             LoopNode: self._handle_Loop,
             ConditionNode: self._handle_Condition,
+            CascadingConditionNode: self._handle_CascadingCondition,
         }
 
         super().__init__(handlers)
@@ -352,6 +411,7 @@ class CascadingIfsRemover(SequenceWalker):
             MultiNode: self._handle_MultiNode,
             LoopNode: self._handle_Loop,
             ConditionNode: self._handle_Condition,
+            CascadingConditionNode: self._handle_CascadingCondition,
         }
 
         super().__init__(handlers)

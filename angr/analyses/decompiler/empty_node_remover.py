@@ -5,7 +5,7 @@ import ailment
 from .sequence_walker import SequenceWalker
 from .region_identifier import MultiNode
 from .structurer_nodes import SequenceNode, CodeNode, ConditionNode, SwitchCaseNode, ConditionalBreakNode, \
-    BreakNode, LoopNode
+    BreakNode, LoopNode, CascadingConditionNode
 from .condition_processor import ConditionProcessor
 
 
@@ -23,10 +23,11 @@ class EmptyNodeRemover:
             SequenceNode: self._handle_Sequence,
             CodeNode: self._handle_Code,
             ConditionNode: self._handle_Condition,
+            CascadingConditionNode: self._handle_CascadingCondition,
             SwitchCaseNode: self._handle_SwitchCase,
             LoopNode: self._handle_Loop,
 
-            MultiNode: self._handle_Default,
+            MultiNode: self._handle_MultiNode,
             BreakNode: self._handle_Default,
             ConditionalBreakNode: self._handle_Default,
 
@@ -37,6 +38,9 @@ class EmptyNodeRemover:
         if r is None:
             self.result = SequenceNode(nodes=[])
         else:
+            # Make sure it's still a sequence node
+            if not isinstance(r, SequenceNode):
+                r = SequenceNode(nodes=[r])
             self.result = r
 
     #
@@ -56,12 +60,36 @@ class EmptyNodeRemover:
 
         if not new_nodes:
             return None
+        if len(new_nodes) == 1:
+            # Remove the unnecessary sequence node
+            return new_nodes[0]
         return SequenceNode(nodes=new_nodes)
+
+    def _handle_MultiNode(self, node: MultiNode, **kwargs):
+
+        new_nodes = [ ]
+        for node_ in node.nodes:
+            new_node = self._walker._handle(node_)
+            if new_node is not None:
+                if isinstance(new_node, MultiNode):
+                    new_nodes.extend(new_node.nodes)
+                else:
+                    new_nodes.append(new_node)
+
+        if not new_nodes:
+            return None
+        if len(new_nodes) == 1:
+            # Remove the unnecessary MultiNode
+            return new_nodes[0]
+        return MultiNode(new_nodes)
 
     def _handle_Code(self, node, **kwargs):
         inner_node = self._walker._handle(node.node)
         if inner_node is None:
             return None
+        if claripy.is_true(node.reaching_condition):
+            # Remove the unnecessary CodeNode
+            return inner_node
         return CodeNode(inner_node, node.reaching_condition)
 
     def _handle_Condition(self, node, **kwargs):
@@ -80,6 +108,21 @@ class EmptyNodeRemover:
                                  false_node,
                                  false_node=None)
         return ConditionNode(node.addr, node.reaching_condition, node.condition, true_node, false_node=false_node)
+
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+
+        new_cond_and_nodes = [ ]
+        for cond, child_node in node.condition_and_nodes:
+            new_node = self._walker._handle(child_node)
+            if new_node is not None:
+                new_cond_and_nodes.append((cond, new_node))
+
+        new_else_node = None if node.else_node is None else self._walker._handle(node.else_node)
+
+        if not new_cond_and_nodes and new_else_node is None:
+            # empty node
+            return None
+        return CascadingConditionNode(node.addr, new_cond_and_nodes, else_node=new_else_node)
 
     def _handle_Loop(self, node, **kwargs):
         new_seq = self._walker._handle(node.sequence_node)

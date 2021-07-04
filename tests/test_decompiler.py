@@ -409,6 +409,27 @@ def test_decompiling_libsoap():
         assert False
 
 
+def test_decompiling_no_arguments_in_variable_list():
+
+    # function arguments should never appear in the variable list
+    bin_path = os.path.join(test_location, "x86_64", "test_arrays")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    _ = p.analyses.CompleteCallingConventions(recover_variables=True)
+
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    argc_name = " a0"  # update this variable once the decompiler picks up argument names from the common definition of
+                       # main()
+    assert argc_name in code
+    assert code.count(argc_name) == 1  # it should only appear once
+
+
 def test_decompiling_strings_local_strlen():
     bin_path = os.path.join(test_location, "x86_64", "types", "strings")
     p = angr.Project(bin_path, auto_load_libs=False)
@@ -427,7 +448,7 @@ def test_decompiling_strings_local_strlen():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strlen(char* a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
+    assert "local_strlen(char *a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
 
 
 def test_decompiling_strings_local_strcat():
@@ -448,7 +469,7 @@ def test_decompiling_strings_local_strcat():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strcat(char* a0, char* a1)" in lines[0], \
+    assert "local_strcat(char *a0, char *a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
 
@@ -476,7 +497,7 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strcat(char* a0, char* a1)" in lines[0], \
+    assert "local_strcat(char *a0, char *a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
 
@@ -559,6 +580,39 @@ def test_decompiling_fauxware_mipsel():
     # The string references must be correctly recovered
     assert '"Username: "' in code
     assert '"Password: "' in code
+
+
+def test_stack_canary_removal_x8664_extra_exits():
+
+    # Test stack canary removal on functions with extra exit nodes (e.g., assert(false);) without stack canary checks
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    # We should not find "__stack_chk_fail" in the code
+    assert "__stack_chk_fail" not in code
+
+
+def test_ifelseif_x8664():
+
+    # nested if-else should be transformed to cascading if-elseif constructs
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    assert code.count("else if") == 3
 
 
 if __name__ == "__main__":

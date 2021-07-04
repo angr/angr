@@ -493,7 +493,7 @@ class PropagatorAILState(PropagatorState):
         if start == 0:
             return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
         else:
-            a = ailment.Expr.BinaryOp(None, "Shr", (expr, bits), False)
+            a = ailment.Expr.BinaryOp(None, "Shr", (expr, ailment.Expr.Const(None, None, bits, expr.bits)), False)
             return ailment.Expr.Convert(None, a.bits, bits, False, a)
 
     @staticmethod

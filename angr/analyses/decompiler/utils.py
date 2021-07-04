@@ -2,7 +2,8 @@ from typing import Optional, Tuple, Any
 
 import ailment
 
-from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode
+from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
+    CascadingConditionNode
 
 
 def remove_last_statement(node):
@@ -163,6 +164,12 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
             # false node
             parent.false_node = SequenceNode(nodes=[parent.false_node])
             insert_node(parent.false_node, insert_idx - node_idx, node, 0)
+    elif isinstance(parent, CascadingConditionNode):
+        cond, child_node = parent.condition_and_nodes[node_idx]
+        if not isinstance(child_node, SequenceNode):
+            child_node = SequenceNode(nodes=[child_node])
+            parent.condition_and_nodes[node_idx] = (cond, child_node)
+        insert_node(child_node, insert_idx - node_idx, node, 0)
     elif isinstance(parent, SwitchCaseNode):
         # note that this case will be hit only when the parent node is not a container, such as SequenceNode or
         # MultiNode. we always need to create a new SequenceNode and replace the original node in place.

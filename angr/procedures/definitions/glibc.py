@@ -1,4 +1,4 @@
-
+# pylint:disable=line-too-long
 import logging
 
 from ...sim_type import SimTypeFunction, \
@@ -693,14 +693,20 @@ _libc_decls = \
         "printf_size": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="printf_info", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="void"), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["fp", "info", "args"]),
         # int printf_size_info (const struct printf_info *INFO, size_t N, int *ARGTYPES);
         "printf_size_info": SimTypeFunction([SimTypePointer(SimStruct({}, name="printf_info", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["info", "n", "argtypes"]),
+        # int __isoc99_scanf (const char *TEMPLATE, ...);
+        "__isoc99_scanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int scanf (const char *TEMPLATE, ...);
         "scanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int wscanf (const wchar_t *TEMPLATE, ...);
         "wscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
+        # int __isoc99_fscanf (FILE *STREAM, const char *TEMPLATE, ...);
+        "__isoc99_fscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int fscanf (FILE *STREAM, const char *TEMPLATE, ...);
         "fscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int fwscanf (FILE *STREAM, const wchar_t *TEMPLATE, ...);
         "fwscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        # int __isoc99_sscanf (const char *S, const char *TEMPLATE, ...);
+        "__isoc99_sscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "template"], variadic=True),
         # int sscanf (const char *S, const char *TEMPLATE, ...);
         "sscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "template"], variadic=True),
         # int swscanf (const wchar_t *WS, const wchar_t *TEMPLATE, ...);
@@ -3418,10 +3424,13 @@ _libc_c_decls = \
         "int register_printf_function (int SPEC, printf_function HANDLER_FUNCTION, printf_arginfo_function ARGINFO_FUNCTION);",
         "int printf_size (FILE *FP, const struct printf_info *INFO, const void *const *ARGS);",
         "int printf_size_info (const struct printf_info *INFO, size_t N, int *ARGTYPES);",
+        "int __isoc99_scanf (const char *TEMPLATE, ...);",
         "int scanf (const char *TEMPLATE, ...);",
         "int wscanf (const wchar_t *TEMPLATE, ...);",
+        "int __isoc99_fscanf (FILE *STREAM, const char *TEMPLATE, ...);",
         "int fscanf (FILE *STREAM, const char *TEMPLATE, ...);",
         "int fwscanf (FILE *STREAM, const wchar_t *TEMPLATE, ...);",
+        "int __isoc99_sscanf (const char *S, const char *TEMPLATE, ...);",
         "int sscanf (const char *S, const char *TEMPLATE, ...);",
         "int swscanf (const wchar_t *WS, const wchar_t *TEMPLATE, ...);",
         "int vscanf (const char *TEMPLATE, va_list AP);",

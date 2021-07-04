@@ -178,6 +178,8 @@ class ReachingDefinitionsState:
 
     def get_sp(self) -> int: return self.live_definitions.get_sp()
 
+    def get_stack_address(self, offset: claripy.ast.Base) -> int: return self.live_definitions.get_stack_address(offset)
+
     @property
     def environment(self): return self._environment
 

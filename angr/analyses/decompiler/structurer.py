@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+# pylint:disable=multiple-statements
+from typing import Dict, Optional, Any
 import logging
 from collections import defaultdict
 
@@ -12,7 +13,7 @@ from .. import Analysis, register_analysis
 from ..cfg.cfg_utils import CFGUtils
 from .region_identifier import GraphRegion
 from .structurer_nodes import BaseNode, SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, \
-    SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode
+    SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode, CascadingConditionNode
 from .empty_node_remover import EmptyNodeRemover
 from .condition_processor import ConditionProcessor
 from .utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
@@ -422,7 +423,7 @@ class Structurer(Analysis):
             return walker._handle(node)
 
         def _handle_Sequence(node, **kwargs):  # pylint:disable=unused-argument
-            for i in range(len(node.nodes)):
+            for i in range(len(node.nodes)):  # pylint:disable=consider-using-enumerate
                 node.nodes[i] = walker._handle(node.nodes[i])
             return node
 
@@ -431,6 +432,16 @@ class Structurer(Analysis):
                 node.true_node = walker._handle(node.true_node)
             if node.false_node is not None:
                 node.false_node = walker._handle(node.false_node)
+            return node
+
+        def _handle_CascadingConditionNode(node: CascadingConditionNode, **kwargs):  # pylint:disable=unused-argument
+            new_cond_and_nodes = [ ]
+            for cond, child_node in node.condition_and_nodes:
+                new_cond_and_nodes.append((cond, walker._handle(child_node)))
+            node.condition_and_nodes = new_cond_and_nodes
+
+            if node.else_node is not None:
+                node.else_node = walker._handle(node.else_node)
             return node
 
         def _handle_SwitchCaseNode(node, **kwargs):  # pylint:disable=unused-argument
@@ -447,6 +458,7 @@ class Structurer(Analysis):
             CodeNode: _handle_Code,
             SequenceNode: _handle_Sequence,
             ConditionNode: _handle_ConditionNode,
+            CascadingConditionNode: _handle_CascadingConditionNode,
             SwitchCaseNode: _handle_SwitchCaseNode,
             # don't do anything
             LoopNode: _handle_Default,
@@ -476,8 +488,16 @@ class Structurer(Analysis):
         self._merge_same_conditioned_nodes(seq)
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
+        self._remove_redundant_jumps(seq)
+        self._remove_conditional_jumps(seq)
+
+        new_seq = EmptyNodeRemover(seq).result
+        # we need to do it in-place
+        seq.nodes = new_seq.nodes
+
         self._replace_complex_reaching_conditions(seq)
         self._make_condition_nodes(seq)
+        self._make_cascading_condition_nodes(seq)
 
         while True:
             r, seq = self._merge_conditional_breaks(seq)
@@ -744,6 +764,41 @@ class Structurer(Analysis):
         # not sure what's going on... give up on this case
         return False, None
 
+    def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: Dict[int,Any]) -> Optional[Any]:
+        """
+        Find the correct node for a given jump table entry address in addr2nodes.
+
+        This method is needed because prior optimization steps may remove some blocks (e.g., empty blocks or blocks that
+        only have branch instructions). If the given jump table entry address corresponds to a removed block, it will
+        not be found inside addr2nodes dict. In such cases, we need to follow graph edges in the CFG and find the first
+        block whose address is inside addr2nodes dict.
+
+        :param entry_addr:  Address of the jump table entry.
+        :return:            The correct node if we can find it, or None if we fail to find one.
+        """
+
+        if entry_addr in addr2nodes:
+            return addr2nodes[entry_addr]
+        # magic
+        cfg = self.kb.cfgs.get_most_accurate()
+        if cfg is None:
+            return None
+
+        addr = entry_addr
+        cfgnode = cfg.get_any_node(addr)
+        for _ in range(5):  # we try at most five steps
+            if cfgnode is None:
+                return None
+            if len(cfgnode.successors) != 1:
+                return None
+            successor = cfgnode.successors[0]
+            if successor.addr in addr2nodes:
+                # found it!
+                return addr2nodes[successor.addr]
+            # keep looking
+            cfgnode = successor
+        return None
+
     def _switch_build_cases(self, seq, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
@@ -767,7 +822,13 @@ class Structurer(Analysis):
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
 
-            entry_node = addr2nodes[entry_addr]
+            entry_node = self._switch_find_jumptable_entry_node(entry_addr, addr2nodes)
+            if entry_node is None:
+                l.warning("Missing jump table entry %#x for jump table %#x. Please report it to GitHub.",
+                          entry_addr,
+                          seq.addr,
+                          )
+                continue
             case_node = SequenceNode(nodes=[CodeNode(entry_node.node, claripy.true)])
             to_remove.add(entry_node)
             entry_node_idx = seq.nodes.index(entry_node)
@@ -929,12 +990,12 @@ class Structurer(Analysis):
                     candidates.insert(0,
                                       (i, node_0, subexprs_0))
                     new_node = self._create_seq_node_guarded_by_common_subexpr(common_subexpr, candidates)
-                    self._new_sequences.append(new_node.node)
+                    self._new_sequences.append(new_node)
 
                     # remove all old nodes and replace them with the new node
                     for idx, _, _ in candidates:
                         seq.nodes[idx] = None
-                    seq.nodes[i] = new_node
+                    seq.nodes[i] = CodeNode(new_node, common_subexpr)
                     seq.nodes = [ n for n in seq.nodes if n is not None ]
                     structured = True
                     break
@@ -974,7 +1035,7 @@ class Structurer(Analysis):
             )
             new_nodes.append(new_node)
 
-        new_node = CodeNode(SequenceNode(nodes=new_nodes), common_subexpr)
+        new_node = SequenceNode(nodes=new_nodes)
         return new_node
 
     def _replace_complex_reaching_conditions(self, seq: SequenceNode):
@@ -1011,6 +1072,79 @@ class Structurer(Analysis):
                                                  None)
                     seq.nodes[i] = new_node
 
+    def _make_cascading_condition_nodes(self, seq: SequenceNode):
+        """
+        Convert nested condition nodes into a CascadingConditionNode.
+        """
+
+        for i in range(len(seq.nodes)):
+            node = seq.nodes[i]
+
+            if isinstance(node, ConditionNode):
+                new_node = self._make_cascading_condition_nodes_core(node)
+                if new_node is not None:
+                    seq.nodes[i] = new_node
+
+    def _make_cascading_condition_nodes_core(self, cond_node: ConditionNode) -> Optional[CascadingConditionNode]:
+        if cond_node.false_node is not None \
+                and isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode)) \
+                and not isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode)):
+
+            cond_0 = cond_node.condition
+            node_0 = cond_node.true_node
+            remaining_node = cond_node.false_node
+
+        elif cond_node.true_node is not None \
+                and isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode)) \
+                and not isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode)):
+            cond_0 = claripy.Not(cond_node.condition)
+            node_0 = cond_node.false_node
+            remaining_node = cond_node.true_node
+
+        else:
+            return None
+
+        # structure else_node
+        if not isinstance(remaining_node, CascadingConditionNode):
+            structured = self._make_cascading_condition_nodes_core(remaining_node)
+            if structured is None:
+                structured = remaining_node
+        else:
+            structured = remaining_node
+
+        if isinstance(structured, ConditionNode):
+            if structured.true_node is None and structured.false_node is not None:
+                cond_and_nodes = [
+                    (cond_0, node_0),
+                    (claripy.Not(structured.condition), structured.false_node),
+                ]
+                else_node = None
+            elif structured.true_node is not None and structured.false_node is None:
+                cond_and_nodes = [
+                    (cond_0, node_0),
+                    (structured.condition, structured.true_node),
+                ]
+                else_node = None
+            else:
+                cond_and_nodes = [
+                    (cond_0, node_0),
+                    (structured.condition, structured.true_node),
+                ]
+                else_node = structured.false_node
+
+        elif isinstance(structured, CascadingConditionNode):
+            # merge two nodes
+            cond_and_nodes = [
+                (cond_0, node_0)
+            ] + structured.condition_and_nodes
+            else_node = structured.else_node
+
+        else:
+            # unexpected!
+            raise RuntimeError("Impossible happened")
+
+        return CascadingConditionNode(cond_node.addr, cond_and_nodes, else_node=else_node)
+
     def _make_ite(self, seq, node_0, node_1):
 
         node_0_pos = seq.node_position(node_0)
@@ -1032,8 +1166,8 @@ class Structurer(Analysis):
         new_node_1 = self._create_seq_node_guarded_by_common_subexpr(node_1.reaching_condition,
                                                                      node_1_kids)
 
-        self._new_sequences.append(new_node_0.node)
-        self._new_sequences.append(new_node_1.node)
+        self._new_sequences.append(new_node_0)
+        self._new_sequences.append(new_node_1)
 
         seq_addr = seq.addr
 
@@ -1297,7 +1431,7 @@ class Structurer(Analysis):
                 node = seq_node.nodes[i]
                 r, cond_node = _condnode_truenode_only(node)
                 if r:
-                    r, cond_node_inner = _condnode_truenode_only(node.true_node)
+                    r, cond_node_inner = _condnode_truenode_only(cond_node.true_node)
                     if r:
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(
@@ -1314,7 +1448,7 @@ class Structurer(Analysis):
                         i += 1
                         continue
                     # else:
-                    r, condbreak_node = _condbreaknode(node.true_node)
+                    r, condbreak_node = _condbreaknode(cond_node.true_node)
                     if r:
                         # amazing!
                         merged_cond = ConditionProcessor.simplify_condition(

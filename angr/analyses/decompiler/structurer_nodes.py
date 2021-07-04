@@ -1,3 +1,4 @@
+from typing import List, Tuple, Any
 
 import claripy
 import ailment
@@ -11,6 +12,9 @@ class EmptyBlockNotice(Exception):
 
 
 class MultiNode:
+
+    __slots__ = ('nodes', )
+
     def __init__(self, nodes):
 
         # delayed import
@@ -47,6 +51,8 @@ class MultiNode:
 
 class BaseNode:
 
+    __slots__ = ()
+
     @staticmethod
     def test_empty_node(node):
         # pylint:disable=simplifiable-if-statement
@@ -76,6 +82,9 @@ class BaseNode:
 
 
 class SequenceNode(BaseNode):
+
+    __slots__ = ('nodes',)
+
     def __init__(self, nodes=None):
         self.nodes = nodes if nodes is not None else [ ]
 
@@ -117,6 +126,9 @@ class SequenceNode(BaseNode):
 
 
 class CodeNode(BaseNode):
+
+    __slots__ = ('node', 'reaching_condition', )
+
     def __init__(self, node, reaching_condition):
         self.node = node
         self.reaching_condition = reaching_condition
@@ -153,6 +165,9 @@ class CodeNode(BaseNode):
 
 
 class ConditionNode(BaseNode):
+
+    __slots__ = ('addr', 'node', 'reaching_condition', 'condition', 'true_node', 'false_node', )
+
     def __init__(self, addr, reaching_condition, condition, true_node, false_node=None):
         self.addr = addr
         self.reaching_condition = reaching_condition
@@ -185,7 +200,20 @@ class ConditionNode(BaseNode):
             return "<ConditionNode (%r|%r)>" % (self.true_node, self.false_node)
 
 
+class CascadingConditionNode(BaseNode):
+
+    __slots__ = ('addr', 'condition_and_nodes', 'else_node', )
+
+    def __init__(self, addr, condition_and_nodes: List[Tuple[Any,BaseNode]], else_node: BaseNode=None):
+        self.addr = addr
+        self.condition_and_nodes = condition_and_nodes
+        self.else_node = else_node
+
+
 class LoopNode(BaseNode):
+
+    __slots__ = ('sort', 'condition', 'sequence_node', 'initializer', 'iterator', '_addr', '_continue_addr', )
+
     def __init__(self, sort, condition, sequence_node, addr=None, continue_addr=None, initializer=None, iterator=None):
         self.sort = sort
         self.condition = condition
@@ -225,18 +253,27 @@ class LoopNode(BaseNode):
 
 
 class BreakNode(BaseNode):
+
+    __slots__ = ('addr', 'target',)
+
     def __init__(self, addr, target):
         self.addr = addr
         self.target = target
 
 
 class ContinueNode(BaseNode):
+
+    __slots__ = ('addr', 'target',)
+
     def __init__(self, addr, target):
         self.addr = addr
         self.target = target
 
 
 class ConditionalBreakNode(BreakNode):
+
+    __slots__ = ('condition',)
+
     def __init__(self, addr, condition, target):
         super(ConditionalBreakNode, self).__init__(addr, target)
         self.condition = condition
@@ -246,6 +283,9 @@ class ConditionalBreakNode(BreakNode):
 
 
 class SwitchCaseNode(BaseNode):
+
+    __slots__ = ('switch_expr', 'cases', 'default_node', 'addr', )
+
     def __init__(self, switch_expr, cases, default_node, addr=None):
         self.switch_expr = switch_expr
         self.cases = cases
