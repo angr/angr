@@ -98,13 +98,23 @@ class VariableManagerInternal:
 
     def add_variable(self, sort, start, variable):
         if sort == 'stack':
-            self._stack_region.add_variable(start, variable)
+            region = self._stack_region
         elif sort == 'register':
-            self._register_region.add_variable(start, variable)
+            region = self._register_region
         elif sort == 'global':
-            self._global_region.add_variable(start, variable)
+            region = self._global_region
         else:
             raise ValueError('Unsupported sort %s in add_variable().' % sort)
+        existing = [x for x in region.get_variables_by_offset(start) if x.ident == variable.ident]
+        if len(existing) == 1:
+            var = existing[0]
+            if var.name is not None and not variable.renamed:
+                variable.name = var.name
+                variable.renamed = var.renamed
+        else:
+            # implicitly overwrite or add I guess
+            pass
+        region.add_variable(start, variable)
 
     def set_variable(self, sort, start, variable: SimVariable):
         if sort == 'stack':
