@@ -85,7 +85,7 @@ class CConstruct:
                             addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
-                    if isinstance(obj, (CVariable, CConstant)):
+                    if isinstance(obj, (CVariable, CConstant, CStructField)):
                         pos_to_node.add_mapping(pos, len(s), obj)
                     elif isinstance(obj, CFunctionCall):
                         if obj not in used_func_calls:
