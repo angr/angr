@@ -142,7 +142,7 @@ class NewFunctionHandler(FunctionHandler):
 
 class StaticObjectFinder(ForwardAnalysis, Analysis):
     # This analysis tries to find objects on the heap
-    def __init__(self, func=None, func_graph=None, block=None, max_iterations=1):
+    def __init__(self):
         vtable_analysis = self.project.analyses.VtableFinder()
         self.vtables_list = vtable_analysis.vtables_list
         self.possible_objects = {}
@@ -160,7 +160,7 @@ class StaticObjectFinder(ForwardAnalysis, Analysis):
         ):
             return True
         else:
-            False
+            return False
 
     def _analyze(self):
         if "CFGFast" not in self.project.kb.cfgs:
