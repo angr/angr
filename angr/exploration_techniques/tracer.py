@@ -589,11 +589,7 @@ class Tracer(ExplorationTechnique):
             # misfollow analysis will set a sync point somewhere if it succeeds
             pass
         elif self._mode == TracingMode.YOLO:
-            state.regs.ip = self._trace[idx + 1]
-            state.history.jumpkind = "Ijk_Boring"
-            state.globals['trace_idx'] += 1
-            if not state.satisfiable():
-                raise Exception("TODO: Make state's constraints satisfiable")
+            self._yolo_resync(state, idx)
         else:
             raise TracerDesyncError("Oops! angr did not follow the trace",
                                     deviating_addr=state.addr,
@@ -887,6 +883,13 @@ class Tracer(ExplorationTechnique):
             raise AngrTracerError("Trace failed to synchronize during fast forward? You might want to unhook %s." % (self.project.hooked_by(state.history.addr).display_name)) from e
         else:
             state.globals['trace_idx'] = target_idx
+
+    def _yolo_resync(self, state, trace_idx):
+        state.regs.ip = self._trace[trace_idx + 1]
+        state.history.jumpkind = "Ijk_Boring"
+        state.globals['trace_idx'] = trace_idx + 1
+        if not state.satisfiable():
+            raise Exception("TODO: Make state's constraints satisfiable")
 
     @classmethod
     def crash_windup(cls, state, crash_addr):
