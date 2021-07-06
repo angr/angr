@@ -17,7 +17,8 @@ class Vtable:
 
 class VtableFinder(Analysis):
     """
-    This analysis locates Vtables in a binary based on heuristics taken from - "Reconstruction of Class Hierarchies for Decompilation of C++ Programs"
+    This analysis locates Vtables in a binary based on heuristics taken from - "Reconstruction of Class Hierarchies
+    for Decompilation of C++ Programs"
     """
 
     def __init__(self):

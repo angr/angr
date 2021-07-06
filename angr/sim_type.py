@@ -1313,7 +1313,9 @@ class SimUnionValue:
 
 
 class SimCppClass(SimStruct):
-    def __init__(self, members: Optional[Dict[str,SimType]]=None, function_members: Optional[Dict[str,SimTypeCppFunction]]=None, vtable_ptrs=None, name: Optional[str]=None, pack: bool=False, align=None):
+    def __init__(self, members: Optional[Dict[str,SimType]]=None,
+                 function_members: Optional[Dict[str,SimTypeCppFunction]]=None,
+                 vtable_ptrs=None, name: Optional[str]=None, pack: bool=False, align=None):
         super().__init__(members, name=name, pack=pack, align=align)
         # these are actually addresses in the binary
         self.function_members = function_members
@@ -1355,10 +1357,14 @@ class SimCppClass(SimStruct):
             ty.store(state, addr + offset, value[field])
 
     def copy(self):
-        return SimCppClass(dict(self.fields), name=self.name, pack=self._pack, align=self._align, function_members=self.function_members, vtable_ptrs=self.vtable_ptrs)
+        return SimCppClass(dict(self.fields), name=self.name, pack=self._pack, align=self._align,
+                           function_members=self.function_members, vtable_ptrs=self.vtable_ptrs)
 
 
 class SimCppClassValue:
+    """
+    A SimCppClass type paired with some real values
+    """
     def __init__(self, class_type, values):
         self._class = class_type
         self._values = defaultdict(lambda: None, values or ())
