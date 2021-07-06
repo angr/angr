@@ -19,4 +19,3 @@ def test_vtable_extraction_x86_64():
 
 if __name__ == "__main__":
     test_vtable_extraction_x86_64()
-

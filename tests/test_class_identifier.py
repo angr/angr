@@ -33,5 +33,3 @@ def test_class_identification_x86_64():
 
 if __name__ == "__main__":
     test_class_identification_x86_64()
-
-

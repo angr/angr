@@ -23,5 +23,3 @@ def test_object_identification_x86_64():
 
 if __name__ == "__main__":
     test_object_identification_x86_64()
-
-
