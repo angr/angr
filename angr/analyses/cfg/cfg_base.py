@@ -2005,13 +2005,18 @@ class CFGBase(Analysis):
 
                 n = self.model.get_any_node(returning_target)
                 if n is None:
-                    returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                    try:
+                        returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                    except SimEngineError:
+                        # it may not exist
+                        returning_snippet = None
                 else:
                     returning_snippet = self._to_snippet(cfg_node=n)
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
-                                                  to_outside=to_outside
-                                                  )
+                if returning_snippet is not None:
+                    self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
+                                                      to_outside=to_outside
+                                                      )
 
         elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache', 'Ijk_Exception'):
 
