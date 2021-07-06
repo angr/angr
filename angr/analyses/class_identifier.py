@@ -1,9 +1,18 @@
 from . import Analysis
-from ..sim_type import SimCppClass, SimTypeCppFunction, SimTypePointer
+from ..sim_type import SimCppClass, SimTypeCppFunction
 
 
 class ClassIdentifier(Analysis):
-    # This is a class identifier for non stripped or partially stripped binaries
+    """
+    This is a class identifier for non stripped or partially stripped binaries, it identifies classes based on the
+    demangled function names, and also assigns functions to their respective classes based on their names. It also uses
+    the results from the VtableFinder analysis to assign the corresponding vtable to the classes.
+
+     self.classes contains a mapping between class names and SimCppClass objects
+
+     e.g. A::tool() and A::qux() belong to the class A
+    """
+
     def __init__(self):
         if "CFGFast" not in self.project.kb.cfgs:
             self.project.analyses.CFGFast(cross_references=True)
@@ -14,7 +23,7 @@ class ClassIdentifier(Analysis):
 
     def _analyze(self):
         # Assigning function to classes
-        for func_addr, func in self.project.kb.functions.items():
+        for func in self.project.kb.functions.values():
             if func.is_plt:
                 continue
             col_ind = func.demangled_name.rfind("::")
@@ -63,5 +72,4 @@ class ClassIdentifier(Analysis):
 
 
 from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default("ClassIdentifier", ClassIdentifier)

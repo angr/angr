@@ -1,10 +1,14 @@
-from . import Analysis
 import logging
+from . import Analysis
 
 l = logging.getLogger(name=__name__)
 
 
 class Vtable:
+    """
+    This contains the addr, size and function addresses of a Vtable
+    """
+
     def __init__(self, vaddr, size, func_addrs=None):
         self.vaddr = vaddr
         self.size = size
@@ -12,6 +16,10 @@ class Vtable:
 
 
 class VtableFinder(Analysis):
+    """
+    This analysis locates Vtables in a binary based on heuristics taken from - "Reconstruction of Class Hierarchies for Decompilation of C++ Programs"
+    """
+
     def __init__(self):
         if "CFGFast" not in self.project.kb.cfgs:
             # populate knowledge base
@@ -29,16 +37,10 @@ class VtableFinder(Analysis):
             l.warning("VtableFinder analysis is skipped")
 
     def is_cross_referenced(self, addr):
-        if addr in self.project.kb.xrefs.xrefs_by_dst:
-            return True
-        else:
-            return False
+        return addr in self.project.kb.xrefs.xrefs_by_dst
 
     def is_function(self, addr):
-        if addr in self.project.kb.functions:
-            return True
-        else:
-            return False
+        return addr in self.project.kb.functions
 
     def analyze(self):
         # finding candidate starting vtable addresses
@@ -67,7 +69,8 @@ class VtableFinder(Analysis):
     def create_extract_vtable(self, start_addr, sec_size):
         # using the starting address extracting the vtable
         # "Other elements of vtable must be unreferenced pointers to function"
-        # "Vtable ends with the first location that is either referenced from the program code, or is not a pointer to a function"
+        # "Vtable ends with the first location that is either referenced from the program code,
+        # or is not a pointer to a function"
         # taken from - Reconstruction of Class Hierarchies for Decompilation of C++ Programs
         first_func_addr = self.project.loader.memory.unpack_word(start_addr)
         cur_vtable = Vtable(start_addr, self.project.arch.bytes, [first_func_addr])
@@ -89,5 +92,4 @@ class VtableFinder(Analysis):
 
 
 from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default("VtableFinder", VtableFinder)

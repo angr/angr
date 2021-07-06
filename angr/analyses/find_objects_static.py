@@ -1,17 +1,21 @@
 from collections import defaultdict
 
 import claripy
-from .forward_analysis import ForwardAnalysis
 
 from . import Analysis
 from ..analyses.reaching_definitions.function_handler import FunctionHandler
-from ..knowledge_plugins.key_definitions.atoms import Tmp, Register, MemoryLocation
+from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from ..storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from ..calling_conventions import DefaultCC
 
 
 class PossibleObject:
+    """
+    This holds the address and class name of possible class instances.
+    The address that it holds in mapped outside the binary so it is only valid in this analysis.
+    TO DO: map the address to its uses in the registers/memory locations in the instructions
+    """
+
     def __init__(self, size, addr, class_name=None):
         self.size = size
         # This address is only valid during RDA as we map new objects outside the already mapped region
@@ -30,6 +34,14 @@ class PossibleObject:
 
 
 class NewFunctionHandler(FunctionHandler):
+    """
+    This handles calls to the function new(), by recording the size parameter passed to it and also assigns a new
+     address outside the mapped binary to the newly created space(possible object).
+
+     It also tracks if the function called right after new() is passed the same 'this' pointer and is a constructor,
+     if so we mark it as an instance of the class the constructor belongs to.(only for non stripped binaries)
+    """
+
     def __init__(self, max_addr=None, new_func_addr=None, project=None):
         self.max_addr = max_addr
 
@@ -119,7 +131,7 @@ class NewFunctionHandler(FunctionHandler):
         elif "ctor" in self.project.kb.functions[function_address].demangled_name:
             # check if rdi has a possible this pointer/ object address, if so then we can assign this object this class
             # also if the func is a constructor(not stripped binaries)
-            for addr in self.possible_objects_dict:
+            for addr, possible_object in self.possible_objects_dict.items():
                 obj_addr = (
                     state.register_definitions.load(
                         72, state.arch.bits // state.arch.byte_width
@@ -135,13 +147,17 @@ class NewFunctionHandler(FunctionHandler):
                     class_name = self.project.kb.functions[
                         function_address
                     ].demangled_name[:col_ind]
-                    self.possible_objects_dict[addr].class_name = class_name
+                    possible_object.class_name = class_name
         executed_rda = True
         return executed_rda, state, visited_blocks, dep_graph
 
 
-class StaticObjectFinder(ForwardAnalysis, Analysis):
-    # This analysis tries to find objects on the heap
+class StaticObjectFinder(Analysis):
+    """
+    This analysis tries to find objects on the heap based on calls to new(), and subsequent calls to constructors with
+     the 'this' pointer
+    """
+
     def __init__(self):
         vtable_analysis = self.project.analyses.VtableFinder()
         self.vtables_list = vtable_analysis.vtables_list
@@ -152,15 +168,6 @@ class StaticObjectFinder(ForwardAnalysis, Analysis):
         self.possible_constructors = defaultdict(list)
 
         self._analyze()
-
-    def is_new_func(self, state):
-        if (
-            state.solver.eval(state.inspect.function_address)
-            in self.possible_new_functions
-        ):
-            return True
-        else:
-            return False
 
     def _analyze(self):
         if "CFGFast" not in self.project.kb.cfgs:
@@ -184,7 +191,8 @@ class StaticObjectFinder(ForwardAnalysis, Analysis):
             for addr, pos_obj in newhandler.possible_objects_dict.items():
                 self.possible_objects[addr] = pos_obj
 
-            # for stripped binary we check if the first function called after new(), is passed the this pointer(returned by new)...
+            # for stripped binary we check if the first function called after new(),
+            # is passed the this pointer(returned by new)...
             # if so then we say that it is possibly a constructor
             for node in all_functions[func].graph.nodes():
                 if all_functions[func].get_call_target(node.addr) == new_func_addr:
@@ -241,5 +249,4 @@ class StaticObjectFinder(ForwardAnalysis, Analysis):
 
 
 from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default("StaticObjectFinder", StaticObjectFinder)
