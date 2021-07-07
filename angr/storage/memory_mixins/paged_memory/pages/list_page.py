@@ -82,7 +82,8 @@ class ListPage(MemoryObjectMixin, PageBase):
             self.sinkhole = data
             self.content = [None]*len(self.content)
         else:
-            for subaddr in range(addr, addr + size):
+            max_addr = min(addr + size, len(self.content))
+            for subaddr in range(addr, max_addr):
                 self.content[subaddr] = data
                 self.stored_offset.add(subaddr)
 
