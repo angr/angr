@@ -10,6 +10,11 @@ from collections import defaultdict
 import angr
 
 
+UNIQUE_STRING_COUNT = 20
+# strings longer than MAX_UNIQUE_STRING_LEN will be truncated
+MAX_UNIQUE_STRING_LEN = 70
+
+
 def get_basic_info(ar_path: str) -> Dict[str,str]:
     """
     Get basic information of the archive file.
@@ -31,7 +36,7 @@ def get_basic_info(ar_path: str) -> Dict[str,str]:
 
     return {
             'arch': arch_name,
-            'os': os_name,
+            'platform': os_name,
             }
 
 
@@ -100,10 +105,10 @@ def get_unique_strings(ar_path: str) -> List[str]:
     for s in sorted_strings:
         if s[:5] in picked:
             continue
-        unique_strings.append(s)
+        unique_strings.append(s[:MAX_UNIQUE_STRING_LEN])
         picked.add(s[:5])
         ctr += 1
-        if ctr >= 8:
+        if ctr >= UNIQUE_STRING_COUNT:
             break
     return unique_strings
 
@@ -113,7 +118,12 @@ def run_pelf(pelf_path: str, ar_path: str, output_path: str):
 
 
 def run_sigmake(sigmake_path: str, sig_name: str, pat_path: str, sig_path: str):
-    proc = subprocess.Popen([sigmake_path, f"-n\"{sig_name}\"", pat_path, sig_path],
+    if " " not in sig_name:
+        sig_name_arg = f"-n{sig_name}"
+    else:
+        sig_name_arg = f"-n\"{sig_name}\""
+
+    proc = subprocess.Popen([sigmake_path, sig_name_arg, pat_path, sig_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             )
@@ -191,6 +201,9 @@ def main():
     parser.add_argument("sig_path", help="File name of the generated signature")
     parser.add_argument("--compiler", help="Name of the compiler (e.g., gcc, clang). It will be stored in the meta data file.")
     parser.add_argument("--compiler_version", help="Version of the compiler (e.g., 6). It will be stored in the meta data file.")
+    # parser.add_argument("--platform", help="Name of the platform (e.g., windows/linux/macos). It will be stored in the meta data file.")
+    parser.add_argument("--os", help="Name of the operating system (e.g., ubuntu/debian). It will be stored in the meta data file.")
+    parser.add_argument("--os_version", help="Version of the operating system (e.g., 20.04). It will be stored in the meta data file.")
     parser.add_argument("--pelf_path", help="Path of pelf")
     parser.add_argument("--sigmake_path", help="Path of sigmake")
     args = parser.parse_args()
@@ -217,6 +230,15 @@ def main():
     if compiler_version:
         compiler_version = compiler_version.lower()
 
+    os_name = args.os
+    if os_name:
+        os_name = os_name.lower()
+
+    os_version = args.os_version
+    if os_version:
+        os_version = os_version.lower()
+
+    # Get basic information
     # Get basic information
     basic_info = get_basic_info(args.ar_path)
 
@@ -278,6 +300,10 @@ def main():
             metadata['compiler_version'] = compiler_version
         if compiler:
             metadata['compiler'] = compiler
+        if os_name:
+            metadata['os'] = os_name
+        if os_version:
+            metadata['os_version'] = os_version
         f.write(json.dumps(metadata, indent=2))
 
 
