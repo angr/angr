@@ -1,3 +1,4 @@
+# pylint:disable=wrong-import-position
 from .analysis import Analysis, AnalysesHub
 from ..misc.ux import deprecated
 
@@ -39,3 +40,4 @@ from .proximity_graph import ProximityGraphAnalysis
 from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
+from .flirt import FlirtAnalysis

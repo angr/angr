@@ -19,11 +19,33 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='angr.protos',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=b'\n\x15protos/function.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"\xaf\x02\n\x08\x46unction\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x15\n\ris_entrypoint\x18\x03 \x01(\x08\x12\"\n\x06\x62locks\x18\x02 \x03(\x0b\x32\x12.angr.protos.Block\x12\x0c\n\x04name\x18\x04 \x01(\t\x12\x0e\n\x06is_plt\x18\x07 \x01(\x08\x12\x12\n\nis_syscall\x18\x08 \x01(\x08\x12\x17\n\x0fis_simprocedure\x18\t \x01(\x08\x12\x11\n\treturning\x18\n \x01(\x08\x12\x13\n\x0b\x62inary_name\x18\x0b \x01(\t\x12&\n\x05graph\x18\x0c \x01(\x0b\x32\x17.angr.protos.BlockGraph\x12\x1a\n\x12\x65xternal_functions\x18\r \x03(\x04\x12\x11\n\talignment\x18\x0e \x01(\x08\x12\x12\n\nnormalized\x18\x0f \x01(\x08\x62\x06proto3'
+  serialized_pb=b'\n\x15protos/function.proto\x12\x0b\x61ngr.protos\x1a\x17protos/primitives.proto\"\x99\x03\n\x08\x46unction\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x15\n\ris_entrypoint\x18\x03 \x01(\x08\x12\"\n\x06\x62locks\x18\x02 \x03(\x0b\x32\x12.angr.protos.Block\x12\x0c\n\x04name\x18\x04 \x01(\t\x12\x0e\n\x06is_plt\x18\x07 \x01(\x08\x12\x12\n\nis_syscall\x18\x08 \x01(\x08\x12\x17\n\x0fis_simprocedure\x18\t \x01(\x08\x12\x11\n\treturning\x18\n \x01(\x08\x12\x13\n\x0b\x62inary_name\x18\x0b \x01(\t\x12&\n\x05graph\x18\x0c \x01(\x0b\x32\x17.angr.protos.BlockGraph\x12\x1a\n\x12\x65xternal_functions\x18\r \x03(\x04\x12\x11\n\talignment\x18\x0e \x01(\x08\x12\x12\n\nnormalized\x18\x0f \x01(\x08\x12;\n\x0cmatched_from\x18\x10 \x01(\x0e\x32%.angr.protos.Function.SignatureSource\"+\n\x0fSignatureSource\x12\r\n\tUNMATCHED\x10\x00\x12\t\n\x05\x46LIRT\x10\x01\x62\x06proto3'
   ,
   dependencies=[protos_dot_primitives__pb2.DESCRIPTOR,])
 
 
+
+_FUNCTION_SIGNATURESOURCE = _descriptor.EnumDescriptor(
+  name='SignatureSource',
+  full_name='angr.protos.Function.SignatureSource',
+  filename=None,
+  file=DESCRIPTOR,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='UNMATCHED', index=0, number=0,
+      serialized_options=None,
+      type=None),
+    _descriptor.EnumValueDescriptor(
+      name='FLIRT', index=1, number=1,
+      serialized_options=None,
+      type=None),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=430,
+  serialized_end=473,
+)
+_sym_db.RegisterEnumDescriptor(_FUNCTION_SIGNATURESOURCE)
 
 
 _FUNCTION = _descriptor.Descriptor(
@@ -124,11 +146,19 @@ _FUNCTION = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='matched_from', full_name='angr.protos.Function.matched_from', index=13,
+      number=16, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
   nested_types=[],
   enum_types=[
+    _FUNCTION_SIGNATURESOURCE,
   ],
   serialized_options=None,
   is_extendable=False,
@@ -137,11 +167,13 @@ _FUNCTION = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=64,
-  serialized_end=367,
+  serialized_end=473,
 )
 
 _FUNCTION.fields_by_name['blocks'].message_type = protos_dot_primitives__pb2._BLOCK
 _FUNCTION.fields_by_name['graph'].message_type = protos_dot_primitives__pb2._BLOCKGRAPH
+_FUNCTION.fields_by_name['matched_from'].enum_type = _FUNCTION_SIGNATURESOURCE
+_FUNCTION_SIGNATURESOURCE.containing_type = _FUNCTION
 DESCRIPTOR.message_types_by_name['Function'] = _FUNCTION
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 

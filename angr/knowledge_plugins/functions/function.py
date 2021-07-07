@@ -35,7 +35,8 @@ class Function(Serializable):
 
     __slots__ = ('transition_graph', '_local_transition_graph', 'normalized', '_ret_sites', '_jumpout_sites',
                  '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
-                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'binary_name',
+                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'is_default_name',
+                 'from_signature', 'binary_name',
                  '_argument_registers', '_argument_stack_variables',
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', '_cc', '_prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
@@ -160,7 +161,9 @@ class Function(Serializable):
         if name is None:
             self._name = self._get_initial_name()
         else:
+            self.is_default_name = False
             self._name = name
+        self.from_signature = None
 
         # Determine the name the binary where this function is.
         if binary_name is not None:
@@ -667,6 +670,7 @@ class Function(Serializable):
         name = None
         addr = self.addr
 
+        self.is_default_name = False
         # Try to get a name from existing labels
         if self._function_manager is not None:
             if addr in self._function_manager._kb.labels:
@@ -684,6 +688,7 @@ class Function(Serializable):
 
         # generate an IDA-style sub_X name
         if name is None:
+            self.is_default_name = True
             name = 'sub_%x' % addr
 
         return name

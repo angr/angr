@@ -13,13 +13,14 @@ _l = logging.getLogger(name=__name__)
 class CompleteCallingConventionsAnalysis(Analysis):
 
     def __init__(self, recover_variables=False, low_priority=False, force=False, cfg: Optional[CFGModel]=None,
-                 analyze_callsites: bool=False):
+                 analyze_callsites: bool=False, skip_signature_matched_functions: bool=False):
 
         self._recover_variables = recover_variables
         self._low_priority = low_priority
         self._force = force
         self._cfg = cfg
         self._analyze_callsites = analyze_callsites
+        self._skip_signature_matched_functions = skip_signature_matched_functions
 
         self._analyze()
 
@@ -42,6 +43,10 @@ class CompleteCallingConventionsAnalysis(Analysis):
             if func.calling_convention is None or self._force:
                 if func.alignment:
                     # skip all alignments
+                    continue
+
+                if self._skip_signature_matched_functions and func.from_signature:
+                    # this function matches against a known library function. skip it.
                     continue
 
                 # if it's a normal function, we attempt to perform variable recovery
