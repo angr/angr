@@ -51,13 +51,11 @@ def load_signatures(path: str) -> None:
     :param path:    Location of FLIRT signatures.
     """
 
-    global FLIRT_SIGNATURES_BY_ARCH, LIBRARY_TO_SIGNATURES, STRING_TO_LIBRARIES
-
     FLIRT_SIGNATURES_BY_ARCH.clear()
     LIBRARY_TO_SIGNATURES.clear()
     STRING_TO_LIBRARIES.clear()
 
-    for root, dirname, filenames in os.walk(path):
+    for root, _, filenames in os.walk(path):
         for filename in filenames:
             if filename.endswith(".sig"):
                 # parse it

@@ -5,6 +5,7 @@ import logging
 
 import nampa
 
+from ..analyses import AnalysesHub
 from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
 
@@ -19,6 +20,13 @@ MAX_UNIQUE_STRING_LEN = 70
 
 
 class FlirtAnalysis(Analysis):
+    """
+    FlirtAnalysis accomplishes two purposes:
+    - If a FLIRT signature file is specified, it will match the given signature file against the current binary and
+      rename recognized functions accordingly.
+    - If no FLIRT signature file is specified, it will use strings to determine possible libraries embedded in the
+      current binary, and then match all possible signatures for the architecture.
+    """
     def __init__(self, sig: Optional[Union[FlirtSignature,str]]=None):
 
         if sig:
@@ -48,8 +56,8 @@ class FlirtAnalysis(Analysis):
             self.signatures = list(self._find_hits_by_strings(all_strings))
             _l.debug("Identified %d signatures to apply.", len(self.signatures))
 
-        for sig in self.signatures:
-            self._match_all_against_one_signature(sig)
+        for sig_ in self.signatures:
+            self._match_all_against_one_signature(sig_)
 
     def _find_hits_by_strings(self, s: Set[str]) -> List[FlirtSignature]:
         common_strings = s.intersection(STRING_TO_LIBRARIES.keys())
@@ -114,5 +122,4 @@ class FlirtAnalysis(Analysis):
             func.from_signature = "flirt"
 
 
-from angr.analyses import AnalysesHub
 AnalysesHub.register_default('Flirt', FlirtAnalysis)

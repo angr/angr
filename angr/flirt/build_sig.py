@@ -1,3 +1,4 @@
+# pylint:disable=consider-using-with
 from typing import List, Dict
 import json
 import subprocess
@@ -97,7 +98,7 @@ def get_unique_strings(ar_path: str) -> List[str]:
     grouped_strings = defaultdict(set)
     for s in all_strings:
         grouped_strings[s[:5]].add(s)
-    sorted_strings = list(sorted(all_strings, key=lambda x: len(x), reverse=True))
+    sorted_strings = list(sorted(all_strings, key=len, reverse=True))
 
     ctr = 0
     picked = set()
@@ -127,7 +128,7 @@ def run_sigmake(sigmake_path: str, sig_name: str, pat_path: str, sig_path: str):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             )
-    stdout, stderr = proc.communicate()
+    _, stderr = proc.communicate()
 
     if b"COLLISIONS:" in stderr:
         return False
@@ -179,7 +180,7 @@ def process_exc_file(exc_path: str):
             non_cold_names.append(func_name)
 
         # sort it
-        non_cold_names = list(sorted(non_cold_names, key=lambda x: len(x)))
+        non_cold_names = list(sorted(non_cold_names, key=len))
 
         # pick the top one
         the_chosen_one = non_cold_names[0]
@@ -199,11 +200,16 @@ def main():
     parser.add_argument("ar_path", help="Path of the .a file to build signatures for")
     parser.add_argument("sig_name", help="Name of the signature (a string inside the signature file)")
     parser.add_argument("sig_path", help="File name of the generated signature")
-    parser.add_argument("--compiler", help="Name of the compiler (e.g., gcc, clang). It will be stored in the meta data file.")
-    parser.add_argument("--compiler_version", help="Version of the compiler (e.g., 6). It will be stored in the meta data file.")
-    # parser.add_argument("--platform", help="Name of the platform (e.g., windows/linux/macos). It will be stored in the meta data file.")
-    parser.add_argument("--os", help="Name of the operating system (e.g., ubuntu/debian). It will be stored in the meta data file.")
-    parser.add_argument("--os_version", help="Version of the operating system (e.g., 20.04). It will be stored in the meta data file.")
+    parser.add_argument("--compiler", help="Name of the compiler (e.g., gcc, clang). It will be stored in the meta "
+                                           "data file.")
+    parser.add_argument("--compiler_version", help="Version of the compiler (e.g., 6). It will be stored in the meta "
+                                                   "data file.")
+    # parser.add_argument("--platform", help="Name of the platform (e.g., windows/linux/macos). It will be stored in
+    # the meta data file.")
+    parser.add_argument("--os", help="Name of the operating system (e.g., ubuntu/debian). It will be stored in the "
+                                     "meta data file.")
+    parser.add_argument("--os_version", help="Version of the operating system (e.g., 20.04). It will be stored in the "
+                                             "meta data file.")
     parser.add_argument("--pelf_path", help="Path of pelf")
     parser.add_argument("--sigmake_path", help="Path of sigmake")
     args = parser.parse_args()
@@ -309,4 +315,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

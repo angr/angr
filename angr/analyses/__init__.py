@@ -1,3 +1,4 @@
+# pylint:disable=wrong-import-position
 from .analysis import Analysis, AnalysesHub
 from ..misc.ux import deprecated
 

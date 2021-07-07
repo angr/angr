@@ -1,8 +1,7 @@
 import os.path
 
-import angr
-
 from common import bin_location
+import angr
 
 
 def test_amd64_elf_static_libc_ubuntu_2004():
