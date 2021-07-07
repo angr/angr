@@ -911,7 +911,7 @@ class SimTypeCppFunction(SimTypeFunction):
         argstrs = [str(a) for a in self.args]
         if self.variadic:
             argstrs.append('...')
-        return '({}) -> {}'.format(', '.join(argstrs), self.returnty)
+        return str(self.label)+'({}) -> {}'.format(', '.join(argstrs), self.returnty)
 
     def _init_str(self):
         return "%s([%s], %s%s%s%s)" % (
@@ -1313,15 +1313,98 @@ class SimUnionValue:
 
 
 class SimCppClass(SimStruct):
-    def __init__(self, members: Dict[str,SimType], name: Optional[str]=None, pack: bool=False, align=None):
+    def __init__(self, members: Optional[Dict[str,SimType]]=None,
+                 function_members: Optional[Dict[str,SimTypeCppFunction]]=None,
+                 vtable_ptrs=None, name: Optional[str]=None, pack: bool=False, align=None):
         super().__init__(members, name=name, pack=pack, align=align)
+        # these are actually addresses in the binary
+        self.function_members = function_members
+        # this should also be added to the fields once we know the offsets of the members of this object
+        self.vtable_ptrs = [] if vtable_ptrs is None else vtable_ptrs
 
     @property
     def members(self):
         return self.fields
 
+    def __repr__(self):
+        return 'class %s' % self.name
+
+    def extract(self, state, addr, concrete=False):
+        values = {}
+        for name, offset in self.offsets.items():
+            ty = self.fields[name]
+            v = SimMemView(ty=ty, addr=addr+offset, state=state)
+            if concrete:
+                values[name] = v.concrete
+            else:
+                values[name] = v.resolved
+
+        return SimCppClassValue(self, values=values)
+
+    def store(self, state, addr, value):
+        if type(value) is dict:
+            pass
+        elif type(value) is SimCppClassValue:
+            value = value._values
+        else:
+            raise TypeError("Can't store struct of type %s" % type(value))
+
+        if len(value) != len(self.fields):
+            raise ValueError("Passed bad values for %s; expected %d, got %d" % (self, len(self.offsets), len(value)))
+
+        for field, offset in self.offsets.items():
+            ty = self.fields[field]
+            ty.store(state, addr + offset, value[field])
+
     def copy(self):
-        return SimCppClass(dict(self.fields), name=self.name, pack=self._pack, align=self._align)
+        return SimCppClass(dict(self.fields), name=self.name, pack=self._pack, align=self._align,
+                           function_members=self.function_members, vtable_ptrs=self.vtable_ptrs)
+
+
+class SimCppClassValue:
+    """
+    A SimCppClass type paired with some real values
+    """
+    def __init__(self, class_type, values):
+        self._class = class_type
+        self._values = defaultdict(lambda: None, values or ())
+
+    def __indented_repr__(self, indent=0):
+        fields = []
+        for name in self._class.fields:
+            value = self._values[name]
+            try:
+                f = getattr(value, '__indented_repr__')
+                s = f(indent=indent+2)
+            except AttributeError:
+                s = repr(value)
+            fields.append(' ' * (indent + 2) + '.{} = {}'.format(name, s))
+
+        return '{{\n{}\n{}}}'.format(',\n'.join(fields), ' ' * indent)
+
+    def __repr__(self):
+        return self.__indented_repr__()
+
+    def __getattr__(self, k):
+        return self[k]
+
+    def __getitem__(self, k):
+        if type(k) is int:
+            k = self._class.fields[k]
+        if k not in self._values:
+            for f in self._class.fields:
+                if isinstance(f, NamedTypeMixin) and f.name is None:
+                    try:
+                        return f[k]
+                    except:
+                        continue
+            else:
+                return self._values[k]
+
+        return self._values[k]
+
+    def copy(self):
+        return SimCppClassValue(self._class, values=defaultdict(lambda: None, self._values))
 
 
 BASIC_TYPES = {
