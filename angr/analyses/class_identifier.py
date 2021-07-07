@@ -1,5 +1,7 @@
-from . import Analysis
 from ..sim_type import SimCppClass, SimTypeCppFunction
+from ..analyses import AnalysesHub
+from . import Analysis
+
 
 
 class ClassIdentifier(Analysis):
@@ -71,5 +73,4 @@ class ClassIdentifier(Analysis):
                     )
 
 
-from angr.analyses import AnalysesHub
 AnalysesHub.register_default("ClassIdentifier", ClassIdentifier)

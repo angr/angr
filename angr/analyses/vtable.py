@@ -1,4 +1,6 @@
 import logging
+
+from ..analyses import AnalysesHub
 from . import Analysis
 
 l = logging.getLogger(name=__name__)
@@ -63,7 +65,8 @@ class VtableFinder(Analysis):
                             new_vtable = self.create_extract_vtable(
                                 cur_addr, sec.memsize
                             )
-                            list_vtables.append(new_vtable)
+                            if new_vtable is not None:
+                                list_vtables.append(new_vtable)
 
         return list_vtables
 
@@ -91,6 +94,7 @@ class VtableFinder(Analysis):
             ):
                 return cur_vtable
 
+        return None
 
-from angr.analyses import AnalysesHub
+
 AnalysesHub.register_default("VtableFinder", VtableFinder)
