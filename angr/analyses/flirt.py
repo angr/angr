@@ -22,6 +22,7 @@ MAX_UNIQUE_STRING_LEN = 70
 class FlirtAnalysis(Analysis):
     """
     FlirtAnalysis accomplishes two purposes:
+
     - If a FLIRT signature file is specified, it will match the given signature file against the current binary and
       rename recognized functions accordingly.
     - If no FLIRT signature file is specified, it will use strings to determine possible libraries embedded in the
