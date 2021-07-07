@@ -460,11 +460,16 @@ class SimIROp:
         return claripy.Concat(*(self._op_mapped(ca) for ca in chopped_args))
 
     def _op_vector_float_mapped(self, args):
-        rm_part = [] if self._generic_name in self.NO_RM else [args[0]]
+        no_rm_arg = self._generic_name in self.NO_RM
+        rm_part = [] if no_rm_arg else [args[0]]
+        if not no_rm_arg and self.name in {'Iop_Add32Fx2', 'Iop_Sub32Fx2'}:  # wtf is up with these guys
+            no_rm_arg = True
+            rm_part = [claripy.BVV(0, 8)]
+
         chopped_args = (
                 [
                     claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a).raw_to_fp()
-                    for a in (args if self._generic_name in self.NO_RM else args[1:])
+                    for a in (args if no_rm_arg else args[1:])
                 ] for i in reversed(range(self._vector_count))
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
