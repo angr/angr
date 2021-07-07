@@ -7,16 +7,17 @@ from collections import defaultdict
 from itertools import count
 
 import capstone
-import cffi
 import cle
 import networkx
 import pyvex
-from . import Analysis
 
+from . import Analysis
+from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 
 l = logging.getLogger(name=__name__)
+
 
 #
 # Exceptions
@@ -1221,11 +1222,11 @@ class Data(object):
         """
         self.size = new_size
 
-        if self.sort == 'string':
+        if self.sort == MemoryDataSort.String:
             self.null_terminated = False # string without the null byte terminator
             self._content[0] = self._content[0][ : self.size]
 
-        elif self.sort == 'pointer-array':
+        elif self.sort == MemoryDataSort.PointerArray:
             pointer_size = self.binary.project.arch.bytes
 
             if self.size % pointer_size != 0:
@@ -1250,7 +1251,7 @@ class Data(object):
         :return: None
         """
 
-        self.sort = 'unknown'
+        self.sort = MemoryDataSort.Unknown
         content = self.binary.fast_memory_load(self.addr, self.size, bytes)
         self.content = [ content ]
 
@@ -1269,7 +1270,7 @@ class Data(object):
                 labels = self.binary.symbol_manager.addr_to_label[addr]
 
                 for label in labels:
-                    if self.sort == 'pointer-array' and addr % (self.project.arch.bytes) != 0:
+                    if self.sort == MemoryDataSort.PointerArray and addr % (self.project.arch.bytes) != 0:
                         # we need to modify the base address of the label
                         base_addr = addr - (addr % (self.project.arch.bytes))
                         label.base_addr = base_addr
@@ -1293,7 +1294,7 @@ class Data(object):
         if self.skip:
             return s
 
-        if self.sort == 'string':
+        if self.sort == MemoryDataSort.String:
 
             if symbolized:
                 ss = [ ]
@@ -1339,7 +1340,7 @@ class Data(object):
                 s += "\t.{directive} \"{str}\"".format(directive=directive, str=string_escape(self.content[0]))
             s += '\n'
 
-        elif self.sort == 'pointer-array':
+        elif self.sort == MemoryDataSort.PointerArray:
 
             if self.binary.project.arch.bits == 32:
                 directive = '.long'
@@ -1378,13 +1379,13 @@ class Data(object):
                 for label in self.content:
                     s += "\t%s %s\n" % (directive, label.operand_str)
 
-        elif self.sort == 'segment-boundary':
+        elif self.sort == MemoryDataSort.SegmentBoundary:
 
             if symbolized:
                 for _, label in self.labels:
                     s += "\t%s\n" % str(label)
 
-        elif self.sort == 'integer':
+        elif self.sort == MemoryDataSort.Integer:
             # display it as bytes only when there are references pointing to the middle
             content = [ ]
 
@@ -1455,7 +1456,7 @@ class Data(object):
             s += "\n".join(content)
             s += "\n"
 
-        elif self.sort == 'fp':
+        elif self.sort == MemoryDataSort.FloatingPoint:
             # we have to display it as bytes...
             # TODO: switch to "ten byes" whenever time permits
             content = []
@@ -1526,8 +1527,7 @@ class Data(object):
             if self.size is None or self._initial_content is None and self.sort is None:
                 raise BinaryError('You must at least specify size, initial_content, and sort.')
 
-
-            if self.sort == 'pointer-array':
+            if self.sort == MemoryDataSort.PointerArray:
 
                 lbl = DataLabel(self.binary, -1, name=self.name)
                 self.labels.append((0, lbl))
@@ -1566,14 +1566,14 @@ class Data(object):
                         label = addr
                     self._content.append(label)
 
-            elif self.sort in ('string', 'unknown', 'integer'):
+            elif self.sort in {MemoryDataSort.String, MemoryDataSort.Unknown, MemoryDataSort.Integer}:
 
                 lbl = DataLabel(self.binary, -1, name=self.name)
                 self.labels.append((0, lbl))
 
                 self._content = [ self._initial_content ]
 
-            elif self.sort == 'segment-boundary':
+            elif self.sort == MemoryDataSort.SegmentBoundary:
                 label = self.binary.symbol_manager.new_label(self.addr)
                 self.labels.append((self.addr, label))
                 self._content = []
@@ -1587,7 +1587,7 @@ class Data(object):
             self.sort = self.memory_data.sort
 
             # Symbolize the content
-            if self.sort == 'pointer-array':
+            if self.sort == MemoryDataSort.PointerArray:
                 # read out the address
                 pointer_size = self.project.arch.bytes
                 pointers = self.size // pointer_size
@@ -1616,7 +1616,7 @@ class Data(object):
                         # it's a static pointer. we should use the original pointer value.
                         self._content.append(addr)
 
-            elif self.sort == 'string':
+            elif self.sort == MemoryDataSort.String:
                 data = self.binary.fast_memory_load(self.addr, self.size, bytes)
                 if data[-1] == 0:
                     self.null_terminated = True
@@ -1626,17 +1626,17 @@ class Data(object):
 
                 self._content = [data]
 
-            elif self.sort == 'integer':
+            elif self.sort == MemoryDataSort.Integer:
                 data = self.binary.fast_memory_load(self.addr, self.size, bytes)
                 self._content = [ data ]
 
-            elif self.sort == 'segment-boundary':
+            elif self.sort == MemoryDataSort.SegmentBoundary:
                 label = self.binary.symbol_manager.new_label(self.addr)
                 self.labels.append((self.addr, label))
 
                 self._content = [ ]
 
-            elif self.sort == 'fp':
+            elif self.sort == MemoryDataSort.FloatingPoint:
                 # floating-point integers
                 # Python has some trouble in dealing with floating point numbers
                 # just store them as bytes
@@ -1652,7 +1652,7 @@ class Data(object):
                     self._content = []
 
 
-class Relocation(object):
+class Relocation:
     def __init__(self, addr, ref_addr, sort):
         self.addr = addr
         self.ref_addr = ref_addr

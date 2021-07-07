@@ -31,6 +31,7 @@ message MemoryData {
         CodeReference = 7;
         GOTPLTEntry = 8;
         ELFHeader = 9;
+        FloatingPoint = 10;
     }
 
     uint64          ea = 1; // Address of the data

@@ -34,6 +34,16 @@ class FunctionParser():
         obj.binary_name = function.binary_name
         obj.normalized = function.normalized
 
+        # signature matched?
+        if not function.from_signature:
+            obj.matched_from = Function.SignatureSource.UNMATCHED
+        else:
+            if function.from_signature == "flirt":
+                obj.matched_from = Function.SignatureSource.FLIRT
+            else:
+                raise ValueError(f"Cannot convert from_signature {function.from_signature} into a SignatureSource "
+                                 f"enum.")
+
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in function.blocks ]
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
@@ -96,6 +106,14 @@ class FunctionParser():
         )
         obj._project = project
         obj.normalized = cmsg.normalized
+
+        # signature matched?
+        if cmsg.matched_from == Function.SignatureSource.UNMATCHED:
+            obj.from_signature = None
+        elif cmsg.matched_from == Function.SignatureSource.FLIRT:
+            obj.from_signature = "flirt"
+        else:
+            raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
         # blocks
         blocks = {}
