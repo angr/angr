@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from ...codenode import BlockNode, HookNode
 from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
-from ...protos import primitives_pb2
+from ...protos import primitives_pb2, function_pb2
 
 l = logging.getLogger(name=__name__)
 
@@ -36,10 +36,10 @@ class FunctionParser():
 
         # signature matched?
         if not function.from_signature:
-            obj.matched_from = Function.SignatureSource.UNMATCHED
+            obj.matched_from = function_pb2.Function.UNMATCHED
         else:
             if function.from_signature == "flirt":
-                obj.matched_from = Function.SignatureSource.FLIRT
+                obj.matched_from = function_pb2.Function.FLIRT
             else:
                 raise ValueError(f"Cannot convert from_signature {function.from_signature} into a SignatureSource "
                                  f"enum.")
@@ -108,9 +108,9 @@ class FunctionParser():
         obj.normalized = cmsg.normalized
 
         # signature matched?
-        if cmsg.matched_from == Function.SignatureSource.UNMATCHED:
+        if cmsg.matched_from == function_pb2.Function.UNMATCHED:
             obj.from_signature = None
-        elif cmsg.matched_from == Function.SignatureSource.FLIRT:
+        elif cmsg.matched_from == function_pb2.Function.FLIRT:
             obj.from_signature = "flirt"
         else:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
