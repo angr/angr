@@ -1,10 +1,11 @@
+from typing import Union, List, Set, Dict, TYPE_CHECKING, Optional
 from functools import partial
-from typing import Union, TYPE_CHECKING
+from collections import defaultdict
 import logging
 
 import nampa
 
-from ..flirt import FlirtSignature
+from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
 from .analysis import Analysis
 
 if TYPE_CHECKING:
@@ -14,20 +15,61 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
+MAX_UNIQUE_STRING_LEN = 70
+
+
 class FlirtAnalysis(Analysis):
-    def __init__(self, sig: Union[FlirtSignature,str]):
-        if isinstance(sig, str):
-            # this is a file path
-            self.sig = FlirtSignature(self.project.arch.name.lower(), self.project.simos.name.lower(), "Temporary",
-                                      sig, None)
+    def __init__(self, sig: Optional[Union[FlirtSignature,str]]=None):
+
+        if sig:
+            if isinstance(sig, str):
+                # this is a file path
+                sig = FlirtSignature(self.project.arch.name.lower(), self.project.simos.name.lower(), "Temporary",
+                                          sig, None)
+
+                self.signatures = [sig]
+
         else:
-            self.sig = sig
+            if not FLIRT_SIGNATURES_BY_ARCH:
+                raise RuntimeError("No FLIRT signatures exist. Please load FLIRT signatures by calling "
+                                   "load_signatures() before running FlirtAnalysis.")
 
-        self._match_all()
+            # determine all signatures to match against using strings in the CFG
+            cfg = self.kb.cfgs.get_most_accurate()
+            if cfg is None:
+                raise RuntimeError("Please generate a CFG before using FlirtAnalysis.")
 
-    def _match_all(self):
+            all_strings = set()
+            for v in cfg.memory_data.values():
+                if v.sort == "string" and v.content:
+                    s = v.content.decode("utf-8")[:MAX_UNIQUE_STRING_LEN]
+                    all_strings.add(s)
+
+            self.signatures = list(self._find_hits_by_strings(all_strings))
+            _l.debug("Identified %d signatures to apply.", len(self.signatures))
+
+        for sig in self.signatures:
+            self._match_all_against_one_signature(sig)
+
+    def _find_hits_by_strings(self, s: Set[str]) -> List[FlirtSignature]:
+        common_strings = s.intersection(STRING_TO_LIBRARIES.keys())
+        library_hits: Dict[str,int] = defaultdict(int)
+        for hit_string in common_strings:
+            for lib in STRING_TO_LIBRARIES[hit_string]:
+                library_hits[lib] += 1
+
+        # sort libraries based on the number of hits
+        sorted_libraries = sorted(library_hits.keys(), key=lambda lib: library_hits[lib], reverse=True)
+        arch_lowercase = self.project.arch.name.lower()
+
+        for lib in sorted_libraries:
+            for sig in LIBRARY_TO_SIGNATURES[lib]:
+                if sig.arch == arch_lowercase:
+                    yield sig
+
+    def _match_all_against_one_signature(self, sig: FlirtSignature):
         # match each function
-        with open(self.sig.sig_path, "rb") as sigfile:
+        with open(sig.sig_path, "rb") as sigfile:
             flirt = nampa.parse_flirt_file(sigfile)
             for func in self.project.kb.functions.values():
                 func: 'Function'
@@ -67,7 +109,7 @@ class FlirtAnalysis(Analysis):
             if flirt_func.name != "?":
                 func.name = flirt_func.name
             else:
-                func.name = "unknown_func"
+                func.name = f"unknown_function_{func.addr:x}"
             func.is_default_name = False
             func.from_signature = "flirt"
 
