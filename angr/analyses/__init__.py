@@ -1,3 +1,4 @@
+# pylint:disable=wrong-import-position
 from .analysis import Analysis, AnalysesHub
 from ..misc.ux import deprecated
 
@@ -36,3 +37,4 @@ from .init_finder import InitializationFinder
 from .complete_calling_conventions import CompleteCallingConventionsAnalysis
 from .typehoon import Typehoon
 from .proximity_graph import ProximityGraphAnalysis
+from .flirt import FlirtAnalysis

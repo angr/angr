@@ -1,3 +1,4 @@
+from typing import Optional
 from functools import reduce
 
 from ..plugin import KnowledgeBasePlugin
@@ -49,7 +50,7 @@ class CFGManager(KnowledgeBasePlugin):
         ))
         return cm
 
-    def get_most_accurate(self):
+    def get_most_accurate(self) -> Optional[CFGModel]:
         """
         :return: The most accurate CFG present in the CFGManager, or None if it does not hold any.
         """
