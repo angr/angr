@@ -62,31 +62,36 @@ class CFGFastSoot(CFGFast):
 
         obj = self.project.loader.main_object
 
-        if entry_func is not None:
-            method_inst = obj.get_soot_method(
-                entry_func.name, class_name=entry_func.class_name, params=entry_func.params)
-        else:
-            l.warning('The entry method is unknown. Try to find a main method.')
-            method_inst = next(obj.main_methods, None)
-            if method_inst is not None:
-                entry_func = SootMethodDescriptor(method_inst.class_name, method_inst.name, method_inst.params)
+        if self._start_at_entry:
+            if entry_func is not None:
+                method_inst = obj.get_soot_method(
+                    entry_func.name, class_name=entry_func.class_name, params=entry_func.params)
             else:
-                l.warning('Cannot find any main methods. Start from the first method of the first class.')
-                for cls in obj.classes.values():
-                    method_inst = next(iter(cls.methods), None)
-                    if method_inst is not None:
-                        break
+                l.warning('The entry method is unknown. Try to find a main method.')
+                method_inst = next(obj.main_methods, None)
                 if method_inst is not None:
-                    entry_func = SootMethodDescriptor(method_inst.class_name, method_inst.name,
-                                                      method_inst.params)
+                    entry_func = SootMethodDescriptor(method_inst.class_name, method_inst.name, method_inst.params)
                 else:
-                    raise AngrCFGError('There is no method in the Jar file.')
+                    l.warning('Cannot find any main methods. Start from the first method of the first class.')
+                    for cls in obj.classes.values():
+                        method_inst = next(iter(cls.methods), None)
+                        if method_inst is not None:
+                            break
 
-        # project.entry is a method
-        # we should get the first block
-        if method_inst.blocks:
-            block_idx = method_inst.blocks[0].idx
-            self._insert_job(CFGJob(SootAddressDescriptor(entry_func, block_idx, 0), entry_func, 'Ijk_Boring'))
+                    if method_inst is not None:
+                        entry_func = SootMethodDescriptor(method_inst.class_name, method_inst.name,
+                                                          method_inst.params)
+                    else:
+                        raise AngrCFGError('There is no method in the Jar file.')
+
+            # project.entry is a method
+            # we should get the first block
+            if method_inst.blocks:
+                block_idx = method_inst.blocks[0].idx
+                self._insert_job(CFGJob(SootAddressDescriptor(entry_func, block_idx, 0), entry_func, 'Ijk_Boring'))
+
+        for soot_addr in self._extra_function_starts:
+            self._insert_job(CFGJob(soot_addr, soot_addr.method, 'Ijk_Boring'))
 
         total_methods = 0
 
