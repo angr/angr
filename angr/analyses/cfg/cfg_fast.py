@@ -2216,7 +2216,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             elif type(stmt) is pyvex.IRStmt.Dirty:
 
-                _process(stmt_idx, stmt.mAddr, instr_addr, next_instr_addr, data_size=stmt.mSize, data_type='fp')
+                _process(stmt_idx, stmt.mAddr, instr_addr, next_instr_addr, data_size=stmt.mSize,
+                         data_type=MemoryDataSort.FloatingPoint)
 
             elif type(stmt) is pyvex.IRStmt.LoadG:
 

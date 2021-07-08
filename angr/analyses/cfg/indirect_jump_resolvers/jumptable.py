@@ -283,9 +283,9 @@ class JumpTableProcessor(
 
     def _handle_Get(self, expr):
         if expr.offset == self.arch.bp_offset:
-            return self._get_spoffset_expr(SpOffset(self.arch.bits, self._bp_sp_diff))
+            v = self._get_spoffset_expr(SpOffset(self.arch.bits, self._bp_sp_diff))
         elif expr.offset == self.arch.sp_offset:
-            return self._get_spoffset_expr(SpOffset(self.arch.bits, 0))
+            v = self._get_spoffset_expr(SpOffset(self.arch.bits, 0))
         else:
             if expr.offset in self.state._registers:
                 self._tsrc |= set(self.state._registers[expr.offset][0])
@@ -299,17 +299,17 @@ class JumpTableProcessor(
                 self._tsrc.add(src)
                 self.state._registers[expr.offset] = ([src], v)
 
-            # make sure the size matches
-            # note that this is sometimes incorrect. for example, we do not differentiate between reads at ah and al...
-            # but it should be good enough for now (without switching state._registers to a real SimMemory, which will
-            # surely slow down stuff quite a bit)
-            if v is not None:
-                bits = expr.result_size(self.tyenv)
-                if v.size() > bits:
-                    v = v[bits - 1:0]
-                elif v.size() < bits:
-                    v = claripy.ZeroExt(bits - v.size(), v)
-            return v
+        # make sure the size matches
+        # note that this is sometimes incorrect. for example, we do not differentiate between reads at ah and al...
+        # but it should be good enough for now (without switching state._registers to a real SimMemory, which will
+        # surely slow down stuff quite a bit)
+        if v is not None:
+            bits = expr.result_size(self.tyenv)
+            if v.size() > bits:
+                v = v[bits - 1:0]
+            elif v.size() < bits:
+                v = claripy.ZeroExt(bits - v.size(), v)
+        return v
 
     def _handle_function(self, expr):  # pylint:disable=unused-argument,no-self-use
         return None  # This analysis is not interprocedural

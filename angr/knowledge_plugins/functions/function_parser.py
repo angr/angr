@@ -1,3 +1,4 @@
+# pylint:disable=no-member,raise-missing-from
 import logging
 import pickle
 
@@ -5,7 +6,7 @@ from collections import defaultdict
 
 from ...codenode import BlockNode, HookNode
 from ...utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
-from ...protos import primitives_pb2
+from ...protos import primitives_pb2, function_pb2
 
 l = logging.getLogger(name=__name__)
 
@@ -33,6 +34,16 @@ class FunctionParser():
         obj.alignment = function.alignment
         obj.binary_name = function.binary_name
         obj.normalized = function.normalized
+
+        # signature matched?
+        if not function.from_signature:
+            obj.matched_from = function_pb2.Function.UNMATCHED
+        else:
+            if function.from_signature == "flirt":
+                obj.matched_from = function_pb2.Function.FLIRT
+            else:
+                raise ValueError(f"Cannot convert from_signature {function.from_signature} into a SignatureSource "
+                                 f"enum.")
 
         # blocks
         blocks_list = [ b.serialize_to_cmessage() for b in function.blocks ]
@@ -96,6 +107,14 @@ class FunctionParser():
         )
         obj._project = project
         obj.normalized = cmsg.normalized
+
+        # signature matched?
+        if cmsg.matched_from == function_pb2.Function.UNMATCHED:
+            obj.from_signature = None
+        elif cmsg.matched_from == function_pb2.Function.FLIRT:
+            obj.from_signature = "flirt"
+        else:
+            raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
 
         # blocks
         blocks = {}
