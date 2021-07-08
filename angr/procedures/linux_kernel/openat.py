@@ -1,5 +1,3 @@
-import os
-
 import angr
 
 ######################################
@@ -22,7 +20,7 @@ class openat(angr.SimProcedure):
         # simply check the unsigned value.
         # TODO: Is above described way to check dirfd okay?
         dirfd_val = self.state.solver.eval(dirfd)
-        if os.path.isabs(path) or dirfd_val == 0xffffff9c:
+        if path.startswith(b'/') or dirfd_val == 0xffffff9c:
             fd = self.state.posix.open(path, flags)
         else:
             # TODO: Implement support for opening path relative to directory corresponding to dirfd
