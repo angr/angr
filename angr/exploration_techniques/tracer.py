@@ -585,7 +585,10 @@ class Tracer(ExplorationTechnique):
                 self.project.loader.find_symbol(self.project.hooked_by(state.addr).display_name) is not None and \
                 self.project.loader.find_symbol(self.project.hooked_by(state.addr).display_name).subtype.value[0] == 10:  # STT_GNU_IFUNC
             if not self._sync_return(state, idx):
-                raise AngrTracerError("Could not synchronize at ifunc return address")
+                if self._mode == TracingMode.YOLO:
+                    self._yolo_resync(state, idx)
+                else:
+                    raise AngrTracerError("Could not synchronize at ifunc return address")
         elif self._analyze_misfollow(state, idx):
             # misfollow analysis will set a sync point somewhere if it succeeds
             pass
@@ -851,7 +854,12 @@ class Tracer(ExplorationTechnique):
         return self._sync(state, idx, ret_addr)
 
     def _sync(self, state, idx, addr):
-        addr_translated = self._translate_state_addr(addr)
+        try:
+            addr_translated = self._translate_state_addr(addr)
+        except Exception as e:
+            if self._mode == TracingMode.YOLO:
+                return False
+            raise e
         try:
             sync_idx = self._trace.index(addr_translated, idx)
         except ValueError:
