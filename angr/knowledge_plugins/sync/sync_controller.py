@@ -28,7 +28,7 @@ def last_push(f):
 
         def parse_push_args_func_addr(push_args):
             arg = args[0]
-            func_addr = None
+            func_addr = -1
             # push func
             if isinstance(arg, knowledge_plugins.Function):
                 func_addr = arg.addr
@@ -42,19 +42,17 @@ def last_push(f):
 
             # push [comment]
             elif isinstance(arg, int):
-                func_addr = arg #self.get_func_addr_from_addr(arg)
+                func_addr = self.get_func_addr_from_addr(arg)
 
             return func_addr
 
         attr_func_addr = parse_push_args_func_addr(args)
-        attr_func_addr = attr_func_addr if attr_func_addr else -1
-
         last_push_time = int(time.time())
         last_push_func = attr_func_addr
-        #func_name = self._kb.functions[attr_func_addr].name if attr_func_addr in self._kb.functions else ""
+        func_name = self._kb.functions[attr_func_addr].name if attr_func_addr in self._kb.functions else ""
 
         f(self, *args, **kwargs)
-        self.client.last_push(last_push_func, last_push_time)
+        self.client.set_last_push(last_push_func, last_push_time, func_name)
 
     return set_last_push
 
@@ -190,9 +188,8 @@ class SyncController(KnowledgeBasePlugin):
     @make_state
     @last_push
     # pylint:disable=unused-argument,no-self-use
-    def push_comment(self, func_addr, addr, comment, decompiled=False, user=None, state=None):
-        #func_addr = self.get_func_addr_from_addr(addr)
-        #func_addr = func_addr if func_addr else -1
+    def push_comment(self, addr, comment, decompiled=False, user=None, state=None):
+        func_addr = self.get_func_addr_from_addr(addr)
         sync_cmt = binsync.data.Comment(func_addr, addr, comment, decompiled)
 
         return state.set_comment(sync_cmt)
@@ -265,8 +262,6 @@ class SyncController(KnowledgeBasePlugin):
         """
 
         func_addr = self.get_func_addr_from_addr(addr)
-        func_addr = func_addr if func_addr else -1
-
         try:
             func = state.get_function(func_addr)
             return func
@@ -286,7 +281,6 @@ class SyncController(KnowledgeBasePlugin):
         """
 
         func_addr = self.get_func_addr_from_addr(addr)
-        func_addr = func_addr if func_addr else -1
         try:
             comment = state.get_comment(func_addr, addr)
             return comment
@@ -352,7 +346,7 @@ class SyncController(KnowledgeBasePlugin):
         try:
             func_addr = self._kb.cfgs.get_most_accurate().get_any_node(addr, anyaddr=True).function_address
         except AttributeError:
-            func_addr = None
+            func_addr = -1
 
         return func_addr
 
