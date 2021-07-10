@@ -476,6 +476,7 @@ class Tracer(ExplorationTechnique):
             # ^ this means we will see desyncs of the form unicorn suddenly skips a bunch of qemu blocks
             assert state.history.recent_block_count == len(state.history.recent_bbl_addrs)
 
+            state_history_sync = None
             for addr_idx, addr in enumerate(state.history.recent_bbl_addrs):
                 if addr == state.unicorn.transmit_addr:
                     continue
@@ -489,6 +490,10 @@ class Tracer(ExplorationTechnique):
 
                     continue
 
+                if self._mode == TracingMode.YOLO and state_history_sync is not None and addr_idx != state_history_sync:
+                    continue
+
+                state_history_sync = None
                 if self._compare_addr(self._trace[idx], addr) or self._check_qemu_unicorn_large_block_split(state, idx, addr_idx):
                     idx += 1
                 else:
@@ -501,15 +506,34 @@ class Tracer(ExplorationTechnique):
                             continue
 
                     if self._mode == TracingMode.YOLO:
-                        # Future trace matching will likely fail. Assume remaining blocks in history and make execution
-                        # continue from correct block after them
-                        state.globals['trace_idx'] += len(state.history.recent_bbl_addrs) - addr_idx - 1
-                        state.regs.ip = self._trace[idx + 1]
-                        state.history.jumpkind = "Ijk_Boring"
-                        if not state.satisfiable():
-                            raise Exception("TODO: Make state's constraints satisfiable")
+                        # Check if state's history resyncs with trace at some future point in a window of same size as
+                        # current state history
+                        match_found = False
+                        trace_slice_end = state.globals['trace_idx'] + state.history.recent_block_count
+                        for tmp_trace_idx, tmp_trace_addr in enumerate(self._trace[idx:trace_slice_end + 1], start=idx):
+                            for tmp_addr_idx in range(addr_idx + 1, state.history.recent_block_count):
+                                if self._compare_addr(tmp_trace_addr, state.history.recent_bbl_addrs[tmp_addr_idx]):
+                                    # Found a point where resync occurs. Perform regular sync checks from there.
+                                    idx = tmp_trace_idx + 1
+                                    state_history_sync = tmp_addr_idx + 1
+                                    match_found = True
+                                    break
 
-                        return
+                            if match_found:
+                                break
+                        else:
+                            # No match found => assume execution fully desync'd from trace. Deem blocks in state's
+                            # history match and make execution continue from block after them in trace
+                            state.globals['trace_idx'] += state.history.recent_block_count
+                            state.regs.ip = self._trace[state.globals['trace_idx']]
+                            state.history.jumpkind = "Ijk_Boring"
+                            if not state.satisfiable():
+                                raise Exception("TODO: Make state's constraints satisfiable")
+
+                            return
+
+                        if match_found:
+                            continue
 
                     raise TracerDesyncError('Oops! angr did not follow the trace',
                                             deviating_addr=addr,
