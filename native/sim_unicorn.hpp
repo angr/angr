@@ -305,7 +305,7 @@ enum stop_t {
 	STOP_UNSUPPORTED_STMT_UNKNOWN,
 	STOP_UNSUPPORTED_EXPR_GETI,
 	STOP_UNSUPPORTED_EXPR_UNKNOWN,
-	STOP_UNKNOWN_MEMORY_WRITE,
+	STOP_UNKNOWN_MEMORY_WRITE_SIZE,
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE,
 	STOP_SYSCALL_ARM,
 	STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK,
@@ -448,6 +448,18 @@ struct mem_write_t {
 	std::vector<taint_t> previous_taint;
 };
 
+struct mem_write_taint_t {
+	address_t instr_addr;
+	bool is_symbolic;
+	uint32_t size;
+
+	mem_write_taint_t(address_t write_instr, bool symbolic, uint32_t write_size) {
+		instr_addr = write_instr;
+		is_symbolic = symbolic;
+		size = write_size;
+	}
+};
+
 struct mem_update_t {
 	address_t address;
 	uint64_t length;
@@ -480,7 +492,7 @@ class State {
 	// Memory write instruction address -> is_symbolic
 	// TODO: Need to modify memory write taint handling for architectures that perform multiple
 	// memory writes in a single instruction
-	std::unordered_map<address_t, bool> mem_writes_taint_map;
+	std::vector<mem_write_taint_t> block_mem_writes_taint_data;
 
 	// List of instructions in a block that should be executed symbolically. These are stored
 	// separately for easy rollback in case of errors.
