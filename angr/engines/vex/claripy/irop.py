@@ -918,7 +918,7 @@ class SimIROp:
                 if self._float:
                     # HACK HACK HACK
                     # this is such a weird divergence. why do the fp generics take several args and the int generics take a list?
-                    result.append(f(*lane_args))
+                    result.append(f(*lane_args).raw_to_bv())
                 else:
                     result.append(f(lane_args))
             return claripy.Concat(*result)
