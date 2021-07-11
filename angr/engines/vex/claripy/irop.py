@@ -464,7 +464,8 @@ class SimIROp:
     def _op_vector_float_mapped(self, args):
         no_rm_arg = self._generic_name in self.NO_RM
         rm_part = [] if no_rm_arg else [args[0]]
-        if not no_rm_arg and self.name in {'Iop_Add32Fx2', 'Iop_Sub32Fx2'}:  # wtf is up with these guys
+        # wtf is up with these guys
+        if not no_rm_arg and self.name in {'Iop_Add32Fx2', 'Iop_Sub32Fx2', 'Iop_Mul32Fx2', 'Iop_PwAdd32Fx2'}:
             no_rm_arg = True
             rm_part = [claripy.BVV(0, 8)]
 
