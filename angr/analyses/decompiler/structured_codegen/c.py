@@ -1489,8 +1489,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._indent = indent
         self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
-        self.expr_comments = expr_comments if expr_comments is not None else {}
-        self.stmt_comments = stmt_comments if stmt_comments is not None else {}
+        self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
+        self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
 
         self.text = None
         self.map_pos_to_node = None

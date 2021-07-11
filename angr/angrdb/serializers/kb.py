@@ -7,6 +7,7 @@ from .xrefs import XRefsSerializer
 from .comments import CommentsSerializer
 from .labels import LabelsSerializer
 from .variables import VariableManagerSerializer
+from .structured_code import StructuredCodeManagerSerializer
 
 
 class KnowledgeBaseSerializer:
@@ -39,6 +40,7 @@ class KnowledgeBaseSerializer:
         CommentsSerializer.dump(session, db_kb, kb.comments)
         LabelsSerializer.dump(session, db_kb, kb.labels)
         VariableManagerSerializer.dump(session, db_kb, kb.variables)
+        StructuredCodeManagerSerializer.dump(session, db_kb, kb.structured_code)
 
     @staticmethod
     def load(session, project, name):
@@ -83,6 +85,11 @@ class KnowledgeBaseSerializer:
         variables = VariableManagerSerializer.load(session, db_kb, kb)
         if variables is not None:
             kb.variables = variables
+
+        # Load structured code
+        structured_code = StructuredCodeManagerSerializer.load(session, db_kb, kb)
+        if structured_code is not None:
+            kb.structured_code = structured_code
 
         # fill in CFGNode.function_address
         for func in funcs.values():

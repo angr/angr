@@ -19,6 +19,8 @@ class Decompiler(Analysis):
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  vars_must_struct: Optional[Set[str]]=None,
                  flavor='pseudocode',
+                 expr_comments=None,
+                 stmt_comments=None,
                  ):
         self.func = func
         self._cfg = cfg
@@ -29,6 +31,8 @@ class Decompiler(Analysis):
         self._vars_must_struct = vars_must_struct
         self._flavor = flavor
         self._variable_kb = variable_kb
+        self._expr_comments = expr_comments
+        self._stmt_comments = stmt_comments
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -61,11 +65,16 @@ class Decompiler(Analysis):
             if old_codegen is not None:
                 variable_kb = old_codegen._variable_kb
 
+        if variable_kb is None:
+            reset_variable_names = True
+        else:
+            reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
+
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
                                               variable_kb=variable_kb,
-                                              reset_variable_names=self.func.addr not in variable_kb.variables.function_managers,
+                                              reset_variable_names=reset_variable_names,
                                               optimization_passes=self._optimization_passes,
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
                                               cfg=self._cfg,

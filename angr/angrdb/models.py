@@ -46,6 +46,7 @@ class DbKnowledgeBase(Base):
     comments = relationship('DbComment', back_populates="kb")
     labels = relationship('DbLabel', back_populates="kb")
     var_collections = relationship('DbVariableCollection', back_populates='kb')
+    structured_code = relationship('DbStructuredCode', back_populates='kb')
 
 
 class DbCFGModel(Base):
@@ -95,6 +96,25 @@ class DbVariableCollection(Base):
     func_addr = Column(Integer)
     ident = Column(String, nullable=True)
     blob = Column(BLOB)
+
+
+class DbStructuredCode(Base):
+    """
+    Models a StructuredCode instance.
+    """
+    __tablename__ = "structured_code"
+
+    id = Column(Integer, primary_key=True)
+    kb_id = Column(Integer,
+                   ForeignKey("knowledgebases.id"),
+                   nullable=False,
+                   )
+    kb = relationship('DbKnowledgeBase', uselist=False, back_populates="structured_code")
+    func_addr = Column(Integer)
+    flavor = Column(String)
+    expr_comments = Column(BLOB, nullable=True)
+    stmt_comments = Column(BLOB, nullable=True)
+    configuration = Column(BLOB, nullable=True)
 
 
 class DbXRefs(Base):
