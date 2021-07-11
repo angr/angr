@@ -335,13 +335,15 @@ struct instruction_taint_entry_t {
 	uint32_t mem_read_size;
 
 	bool has_memory_read;
-	bool has_memory_write;
+
+	// Count number of bytes written to memory by the instruction
+	uint32_t mem_write_size;
 
 	bool operator==(const instruction_taint_entry_t &other_instr_deps) const {
 		return (taint_sink_src_map == other_instr_deps.taint_sink_src_map) &&
 			   (dependencies == other_instr_deps.dependencies) &&
 			   (has_memory_read == other_instr_deps.has_memory_read) &&
-			   (has_memory_write == other_instr_deps.has_memory_write);
+			   (mem_write_size == other_instr_deps.mem_write_size);
 	}
 
 	void reset() {
@@ -353,8 +355,8 @@ struct instruction_taint_entry_t {
 		ite_cond_entity_list.clear();
 		taint_sink_src_map.clear();
 		has_memory_read = false;
-		has_memory_write = false;
 		mem_read_size = 0;
+		mem_write_size = 0;
 		unmodified_dep_regs.clear();
 		return;
 	}

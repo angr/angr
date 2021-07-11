@@ -864,7 +864,6 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 
 				sink.entity_type = TAINT_ENTITY_MEM;
 				sink.instr_addr = curr_instr_addr;
-				instruction_taint_entry.has_memory_write = true;
 				auto result = process_vex_expr(stmt->Ist.Store.addr, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
@@ -886,6 +885,7 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					break;
 				}
 				sink.value_size = result.value_size;
+				instruction_taint_entry.mem_write_size += result.value_size;
 				// Flatten list of taint sources and also save them as dependencies of instruction
 				for (auto &entry: result.taint_sources) {
 					srcs.insert(entry.second.begin(), entry.second.end());
@@ -1633,7 +1633,7 @@ void State::propagate_taints() {
 		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0) && (block_symbolic_temps.size() == 0)) {
 			// There are no symbolic registers so no taint to propagate. Mark any memory writes
 			// as concrete and update slice of registers.
-			if (curr_instr_taint_entry.has_memory_write) {
+			if (curr_instr_taint_entry.mem_write_size != 0) {
 				mem_writes_taint_map.emplace(curr_instr_addr, false);
 			}
 			continue;
