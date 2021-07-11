@@ -581,6 +581,35 @@ class SimEngineRDVEX(
 
         return r
 
+    def _handle_Div(self, expr):
+        expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            # we do not support multiplication between two real multivalues
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # multiplying a single value to a multivalue
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                vs = {v / expr1_v for v in expr0.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # multiplying a single value to a multivalue
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                vs = {v / expr0_v for v in expr1.values[0]}
+                r = MultiValues(offset_to_values={0: vs})
+        else:
+            # multiplying two single values together
+            r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
 
     def _handle_And(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
