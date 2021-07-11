@@ -4,7 +4,7 @@ except ImportError:
     claripy = None
 
 from .tagged_object import TaggedObject
-from .utils import get_bits
+from .utils import get_bits, stable_hash
 
 
 class Expression(TaggedObject):
@@ -95,7 +95,7 @@ class Const(Atom):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((self.value, self.bits))
+        return stable_hash((self.value, self.bits))
 
     @property
     def sign_bit(self):
@@ -133,7 +133,7 @@ class Tmp(Atom):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash(('tmp', self.tmp_idx, self.bits))
+        return stable_hash(('tmp', self.tmp_idx, self.bits))
 
     def copy(self) -> 'Tmp':
         return Tmp(self.idx, self.variable, self.tmp_idx, self.bits, **self.tags)
@@ -175,7 +175,7 @@ class Register(Atom):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash(('reg', self.reg_offset, self.bits, self.idx))
+        return stable_hash(('reg', self.reg_offset, self.bits, self.idx))
 
     def copy(self) -> 'Register':
         return Register(self.idx, self.variable, self.reg_offset, self.bits, **self.tags)
@@ -221,7 +221,7 @@ class UnaryOp(Op):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((self.op, self.operand, self.bits))
+        return stable_hash((self.op, self.operand, self.bits))
 
     def replace(self, old_expr, new_expr):
         r, replaced_operand = self.operand.replace(old_expr, new_expr)
@@ -279,7 +279,7 @@ class Convert(UnaryOp):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
+        return stable_hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
 
     def replace(self, old_expr, new_expr):
         if self.operand.likes(old_expr):
@@ -330,7 +330,7 @@ class Reinterpret(UnaryOp):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((self.operand, self.from_bits, self.from_type, self.to_bits, self.to_type, ))
+        return stable_hash((self.operand, self.from_bits, self.from_type, self.to_bits, self.to_type, ))
 
     def replace(self, old_expr, new_expr):
         if self.operand.likes(old_expr):
@@ -439,7 +439,7 @@ class BinaryOp(Op):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((self.op, tuple(self.operands), self.bits, self.signed))
+        return stable_hash((self.op, tuple(self.operands), self.bits, self.signed))
 
     def has_atom(self, atom, identity=True):
         if super().has_atom(atom, identity=identity):
@@ -547,7 +547,7 @@ class Load(Expression):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash(('Load', self.addr, self.size, self.endness))
+        return stable_hash(('Load', self.addr, self.size, self.endness))
 
     def copy(self) -> 'Load':
         return Load(self.idx, self.addr, self.size, self.endness, variable=self.variable,
@@ -579,7 +579,7 @@ class ITE(Expression):
         return "((%s) ? (%s) : (%s))" % (self.cond, self.iftrue, self.iffalse)
 
     def _hash_core(self):
-        return hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
+        return stable_hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
 
     def has_atom(self, atom, identity=True):
         if super().has_atom(atom, identity=identity):
@@ -625,7 +625,7 @@ class DirtyExpression(Expression):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((DirtyExpression, self.dirty_expr))
+        return stable_hash((DirtyExpression, self.dirty_expr))
 
     def __repr__(self):
         return "DirtyExpression (%s)" % type(self.dirty_expr)
@@ -681,7 +681,7 @@ class BasePointerOffset(Expression):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((self.bits, self.base, self.offset))
+        return stable_hash((self.bits, self.base, self.offset))
 
     def replace(self, old_expr, new_expr):
         if isinstance(self.base, Expression):

@@ -5,6 +5,7 @@ try:
 except ImportError:
     claripy = None
 
+from .utils import stable_hash
 from .tagged_object import TaggedObject
 from .expression import Expression
 
@@ -59,7 +60,7 @@ class Assignment(Statement):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((Assignment, self.idx, self.dst, self.src))
+        return stable_hash((Assignment, self.idx, self.dst, self.src))
 
     def __repr__(self):
         return "Assignment (%s, %s)" % (self.dst, self.src)
@@ -117,7 +118,7 @@ class Store(Statement):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
+        return stable_hash((Store, self.idx, self.addr, self.data, self.size, self.endness, self.guard))
 
     def __repr__(self):
         return "Store (%s, %s[%d])%s" % (self.addr, str(self.data), self.size,
@@ -180,7 +181,7 @@ class Jump(Statement):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((Jump, self.idx, self.target))
+        return stable_hash((Jump, self.idx, self.target))
 
     def __repr__(self):
         return "Jump (%s)" % self.target
@@ -225,7 +226,7 @@ class ConditionalJump(Statement):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
+        return stable_hash((ConditionalJump, self.idx, self.condition, self.true_target, self.false_target))
 
     def __repr__(self):
         return "ConditionalJump (condition: %s, true: %s, false: %s)" % (self.condition, self.true_target,
@@ -290,7 +291,7 @@ class Call(Expression, Statement):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((Call, self.idx, self.target))
+        return stable_hash((Call, self.idx, self.target))
 
     def __repr__(self):
         return "Call (target: %s, prototype: %s, args: %s)" % (self.target, self.prototype, self.args)
@@ -389,7 +390,7 @@ class Return(Statement):
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return hash((Return, self.idx, self.target, tuple(self.ret_exprs)))
+        return stable_hash((Return, self.idx, self.target, tuple(self.ret_exprs)))
 
     def __repr__(self):
         return "Return to %r (%s)" % (self.target, ",".join(repr(x) for x in self.ret_exprs))
@@ -450,7 +451,7 @@ class DirtyStatement(Statement):
         self.dirty_stmt = dirty_stmt
 
     def _hash_core(self):
-        return hash((DirtyStatement, self.dirty_stmt))
+        return stable_hash((DirtyStatement, self.dirty_stmt))
 
     def __repr__(self):
         return "DirtyStatement (%s)" % (type(self.dirty_stmt))
