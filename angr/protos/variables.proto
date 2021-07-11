@@ -7,8 +7,8 @@ package angr.protos;
 message VariableBase {
     string      ident = 1;
     string      name = 2;
-    string      region = 3;
-    string      category = 4;
+    optional uint64 region = 3;
+    optional string category = 4;
     bool        renamed = 5;
 }
 
@@ -35,6 +35,42 @@ message MemoryVariable {
 
 message StackVariable {
     VariableBase    base = 1;
-    bool            sp_base = 2;  // SP-base if sp_base is true, or BP-base if sp_base is false
-    uint32          offset = 3;
+    uint64          addr = 2;
+    uint32          size = 3;
+    bool            sp_base = 4;  // SP-base if sp_base is true, or BP-base if sp_base is false
+    int32           offset = 5;
+}
+
+
+message VariableAccess {
+    enum VariableAccessSort {
+        WRITE = 0;
+        READ = 1;
+        REFERENCE = 2;
+    }
+
+    string          ident = 1;
+    uint64          block_addr = 2;
+    int32           stmt_idx = 3;
+    uint64          ins_addr = 4;
+    optional int64  offset = 5;
+    VariableAccessSort access_type = 6;
+}
+
+message VariableType {
+    string          ident = 1;
+    string          var_type = 2;  // FIXME: Use a better solution than a string!
+}
+
+
+message VariableManagerInternal {
+    // Variables of each type
+    repeated TemporaryVariable tempvars = 1;
+    repeated RegisterVariable regvars = 2;
+    repeated MemoryVariable memvars = 3;
+    repeated StackVariable stackvars = 4;
+    // Variable accesses
+    repeated VariableAccess accesses = 5;
+    // Types
+    repeated VariableType types = 6;
 }

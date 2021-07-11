@@ -45,6 +45,7 @@ class DbKnowledgeBase(Base):
     xrefs = relationship('DbXRefs', uselist=False, back_populates="kb")
     comments = relationship('DbComment', back_populates="kb")
     labels = relationship('DbLabel', back_populates="kb")
+    var_collections = relationship('DbVariableCollection', back_populates='kb')
 
 
 class DbCFGModel(Base):
@@ -79,9 +80,9 @@ class DbFunction(Base):
     blob = Column(BLOB)
 
 
-class DbVariable(Base):
+class DbVariableCollection(Base):
     """
-    Models a SimVariable instance.
+    Models a VariableManagerInternal instance.
     """
     __tablename__ = "variables"
 
@@ -90,7 +91,9 @@ class DbVariable(Base):
                    ForeignKey("knowledgebases.id"),
                    nullable=False,
                    )
+    kb = relationship('DbKnowledgeBase', uselist=False, back_populates="var_collections")
     func_addr = Column(Integer)
+    ident = Column(String, nullable=True)
     blob = Column(BLOB)
 
 

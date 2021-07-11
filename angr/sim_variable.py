@@ -1,6 +1,6 @@
 import collections.abc
 import claripy
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from .protos import variables_pb2 as pb2
 from .serializable import Serializable
@@ -9,19 +9,19 @@ if TYPE_CHECKING:
     import archinfo
 
 
-class SimVariable:
+class SimVariable(Serializable):
 
     __slots__ = ['ident', 'name', 'region', 'category', 'renamed', 'candidate_names']
 
-    def __init__(self, ident=None, name=None, region=None, category=None):
+    def __init__(self, ident=None, name=None, region: Optional[int]=None, category=None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
         """
         self.ident = ident
         self.name = name
-        self.region = region if region is not None else ""
-        self.category = category
+        self.region: Optional[int] = region
+        self.category: Optional[str] = category
         self.renamed = False
         self.candidate_names = None
 
@@ -36,17 +36,23 @@ class SimVariable:
 
     def _set_base(self, obj):
         obj.base.ident = self.ident
+        if self.category is not None:
+            obj.base.category = self.category
+        if self.region is not None:
+            obj.base.region = self.region
         obj.base.name = self.name
-        obj.base.region = self.region
-        obj.base.category = self.category
         obj.base.renamed = self.renamed
 
     def _from_base(self, obj):
         self.ident = obj.base.ident
+        if obj.base.HasField("category"):
+            self.category = obj.base.category
+        else:
+            self.category = None
+        if obj.base.HasField("region"):
+            self.region = obj.base.region
         self.name = obj.base.name
-        self.region = obj.base.region
-        self.category = obj.base.category
-        self.renamed = obj.renamed
+        self.renamed = obj.base.renamed
 
     #
     # Operations
@@ -101,7 +107,7 @@ class SimConstantVariable(SimVariable):
         return r
 
 
-class SimTemporaryVariable(SimVariable, Serializable):
+class SimTemporaryVariable(SimVariable):
 
     __slots__ = ['tmp_id', '_hash']
 
@@ -151,7 +157,7 @@ class SimTemporaryVariable(SimVariable, Serializable):
         return obj
 
 
-class SimRegisterVariable(SimVariable, Serializable):
+class SimRegisterVariable(SimVariable):
 
     __slots__ = ['reg', 'size', '_hash']
 
@@ -218,7 +224,7 @@ class SimRegisterVariable(SimVariable, Serializable):
         return obj
 
 
-class SimMemoryVariable(SimVariable, Serializable):
+class SimMemoryVariable(SimVariable):
 
     __slots__ = ['addr', 'size', '_hash']
 

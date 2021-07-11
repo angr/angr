@@ -6,6 +6,7 @@ from .funcs import FunctionManagerSerializer
 from .xrefs import XRefsSerializer
 from .comments import CommentsSerializer
 from .labels import LabelsSerializer
+from .variables import VariableManagerSerializer
 
 
 class KnowledgeBaseSerializer:
@@ -37,6 +38,7 @@ class KnowledgeBaseSerializer:
         XRefsSerializer.dump(session, db_kb, kb.xrefs)
         CommentsSerializer.dump(session, db_kb, kb.comments)
         LabelsSerializer.dump(session, db_kb, kb.labels)
+        VariableManagerSerializer.dump(session, db_kb, kb.variables)
 
     @staticmethod
     def load(session, project, name):
@@ -76,6 +78,11 @@ class KnowledgeBaseSerializer:
         labels = LabelsSerializer.load(session, db_kb, kb)
         if labels is not None:
             kb.labels = labels
+
+        # Load variables
+        variables = VariableManagerSerializer.load(session, db_kb, kb)
+        if variables is not None:
+            kb.variables = variables
 
         # fill in CFGNode.function_address
         for func in funcs.values():
