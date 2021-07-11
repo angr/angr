@@ -433,6 +433,8 @@ class SimIROp:
         if o == '__floordiv__' and self.is_signed:
             # yikes!!!!!!!
             return claripy.SDiv(*sized_args)
+        if o == 'Abs':
+            return claripy.If(sized_args[0].SLT(0), -sized_args[0], sized_args[0])
 
         return getattr(claripy.ast.BV, o)(*sized_args)
 
