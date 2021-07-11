@@ -55,11 +55,18 @@ message VariableAccess {
     uint64          ins_addr = 4;
     optional int64  offset = 5;
     VariableAccessSort access_type = 6;
+    optional uint32 atom_hash = 7;
 }
+
 
 message VariableType {
     string          ident = 1;
     string          var_type = 2;  // FIXME: Use a better solution than a string!
+}
+
+message Var2Unified {
+    string          var_ident = 1;
+    string          unified_var_ident = 2;
 }
 
 
@@ -71,6 +78,12 @@ message VariableManagerInternal {
     repeated StackVariable stackvars = 4;
     // Variable accesses
     repeated VariableAccess accesses = 5;
+    // Unified variables
+    repeated TemporaryVariable unified_tempvars = 6;
+    repeated RegisterVariable unified_regvars = 7;
+    repeated MemoryVariable unified_memvars = 8;
+    repeated StackVariable unified_stackvars = 9;
+    repeated Var2Unified var2unified = 10;
     // Types
-    repeated VariableType types = 6;
+    repeated VariableType types = 11;
 }

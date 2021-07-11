@@ -48,7 +48,7 @@ class VariableManagerSerializer:
         db_varcolls = session.query(DbVariableCollection).filter_by(kb=db_kb, ident=ident)
         for db_varcoll in db_varcolls:
             internal = VariableManagerSerializer.load_internal(db_varcoll, variable_manager)
-            if internal.func_addr == -1:
+            if internal.func_addr is None:
                 variable_manager.global_manager = internal
             else:
                 variable_manager.function_managers[internal.func_addr] = internal

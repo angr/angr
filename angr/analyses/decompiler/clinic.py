@@ -42,6 +42,7 @@ class Clinic(Analysis):
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  must_struct: Optional[Set[str]]=None,
                  variable_kb=None,
+                 reset_variable_names=False,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -62,6 +63,7 @@ class Clinic(Analysis):
         self._cfg: Optional['CFGModel'] = cfg
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
+        self._reset_variable_names = reset_variable_names
 
         # sanity checks
         if not self.kb.functions:
@@ -341,7 +343,6 @@ class Clinic(Analysis):
 
         return ail_graph
 
-
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
         """
         Simplify a single AIL block.
@@ -591,7 +592,7 @@ class Clinic(Analysis):
         tmp_kb.variables[self.function.addr].unify_variables()
         tmp_kb.variables[self.function.addr].assign_unified_variable_names(
             labels=self.kb.labels,
-            reset=self.variable_kb is None
+            reset=self._reset_variable_names,
         )
 
         # Link variables to each statement

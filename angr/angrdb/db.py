@@ -1,4 +1,4 @@
-
+from typing import List, Dict, Optional, TYPE_CHECKING
 import time
 from contextlib import contextmanager
 
@@ -10,6 +10,9 @@ from ..errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
 from ..project import Project
 from .models import Base, DbInformation
 from .serializers import LoaderSerializer, KnowledgeBaseSerializer
+
+if TYPE_CHECKING:
+    from angr.knowledge_base import KnowledgeBase
 
 
 class AngrDB:
@@ -131,7 +134,7 @@ class AngrDB:
 
         return version == self.VERSION
 
-    def dump(self, db_path):
+    def dump(self, db_path, kbs: Optional[List['KnowledgeBase']]=None):
 
         db_str = "sqlite:///%s" % db_path
 
@@ -140,11 +143,17 @@ class AngrDB:
                 # Dump the loader
                 LoaderSerializer.dump(session, self.project.loader)
                 # Dump the knowledge base
-                KnowledgeBaseSerializer.dump(session, self.project.kb)
+
+                if kbs is None:
+                    kbs = [self.project.kb]
+
+                for kb in kbs:
+                    KnowledgeBaseSerializer.dump(session, kb)
+
                 # Update the information
                 self.update_dbinfo(session)
 
-    def load(self, db_path):
+    def load(self, db_path, kb_names: Optional[List[str]]=None, other_kbs: Optional[Dict[str,'KnowledgeBase']]=None):
 
         db_str = "sqlite:///%s" % db_path
 
@@ -161,9 +170,21 @@ class AngrDB:
                 # Create the project
                 proj = Project(loader)
 
-                # Load the kb
-                kb = KnowledgeBaseSerializer.load(session, proj, "global")
-                if kb is not None:
-                    proj.kb = kb
+                if kb_names is None:
+                    kb_names = ["global"]
+
+                if len(kb_names) != 1 or kb_names[0] != "global":
+                    if other_kbs is None:
+                        raise ValueError("You must provide a dict via \"other_kbs\" to collect angr KnowledgeBases "
+                                         "that are not the global one.")
+
+                # Load knowledgebases
+                for kb_name in kb_names:
+                    kb = KnowledgeBaseSerializer.load(session, proj, kb_name)
+                    if kb is not None:
+                        if kb_name == "global":
+                            proj.kb = kb
+                        else:
+                            other_kbs[kb_name] = kb
 
                 return proj

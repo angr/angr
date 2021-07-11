@@ -16,13 +16,14 @@ class VariableAccessSort:
 
 class VariableAccess(Serializable):
 
-    __slots__ = ('variable', 'access_type', 'location', 'offset', )
+    __slots__ = ('variable', 'access_type', 'location', 'offset', 'atom_hash', )
 
-    def __init__(self, variable, access_type, location, offset):
+    def __init__(self, variable, access_type, location, offset, atom_hash=None):
         self.variable: 'SimVariable' = variable
         self.access_type: int = access_type
         self.location: CodeLocation = location
         self.offset: Optional[int] = offset
+        self.atom_hash: Optional[int] = atom_hash
 
     def __repr__(self):
         return "%s %s @ %s (offset %d)" % (self.access_type, self.variable, self.location, self.offset)
@@ -51,6 +52,8 @@ class VariableAccess(Serializable):
         cmsg.ins_addr = self.location.ins_addr
         if self.offset is not None:
             cmsg.offset = self.offset
+        if self.atom_hash is not None:
+            cmsg.atom_hash = self.atom_hash
 
         if self.access_type == VariableAccessSort.READ:
             cmsg.access_type = variables_pb2.VariableAccess.READ
@@ -78,5 +81,8 @@ class VariableAccess(Serializable):
             access_type = VariableAccessSort.REFERENCE
         else:
             raise NotImplementedError()
-        model = VariableAccess(variable, access_type, location, cmsg.offset if cmsg.HasField("offset") else None)
+        model = VariableAccess(variable, access_type, location,
+                               cmsg.offset if cmsg.HasField("offset") else None,
+                               atom_hash=cmsg.atom_hash if cmsg.HasField("atom_hash") else None,
+                               )
         return model

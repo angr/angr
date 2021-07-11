@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x16protos/variables.proto\x12\x0b\x61ngr.protos\"\x80\x01\n\x0cVariableBase\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x06region\x18\x03 \x01(\x04H\x00\x88\x01\x01\x12\x15\n\x08\x63\x61tegory\x18\x04 \x01(\tH\x01\x88\x01\x01\x12\x0f\n\x07renamed\x18\x05 \x01(\x08\x42\t\n\x07_regionB\x0b\n\t_category\"L\n\x11TemporaryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0e\n\x06tmp_id\x18\x02 \x01(\r\"V\n\x10RegisterVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0b\n\x03reg\x18\x02 \x01(\r\x12\x0c\n\x04size\x18\x03 \x01(\r\"U\n\x0eMemoryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\"u\n\rStackVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\x12\x0f\n\x07sp_base\x18\x04 \x01(\x08\x12\x0e\n\x06offset\x18\x05 \x01(\x05\"\xf6\x01\n\x0eVariableAccess\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x12\n\nblock_addr\x18\x02 \x01(\x04\x12\x10\n\x08stmt_idx\x18\x03 \x01(\x05\x12\x10\n\x08ins_addr\x18\x04 \x01(\x04\x12\x13\n\x06offset\x18\x05 \x01(\x03H\x00\x88\x01\x01\x12\x43\n\x0b\x61\x63\x63\x65ss_type\x18\x06 \x01(\x0e\x32..angr.protos.VariableAccess.VariableAccessSort\"8\n\x12VariableAccessSort\x12\t\n\x05WRITE\x10\x00\x12\x08\n\x04READ\x10\x01\x12\r\n\tREFERENCE\x10\x02\x42\t\n\x07_offset\"/\n\x0cVariableType\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x10\n\x08var_type\x18\x02 \x01(\t\"\xb1\x02\n\x17VariableManagerInternal\x12\x30\n\x08tempvars\x18\x01 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12.\n\x07regvars\x18\x02 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12,\n\x07memvars\x18\x03 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12-\n\tstackvars\x18\x04 \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12-\n\x08\x61\x63\x63\x65sses\x18\x05 \x03(\x0b\x32\x1b.angr.protos.VariableAccess\x12(\n\x05types\x18\x06 \x03(\x0b\x32\x19.angr.protos.VariableTypeb\x06proto3'
+  serialized_pb=b'\n\x16protos/variables.proto\x12\x0b\x61ngr.protos\"\x80\x01\n\x0cVariableBase\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x06region\x18\x03 \x01(\x04H\x00\x88\x01\x01\x12\x15\n\x08\x63\x61tegory\x18\x04 \x01(\tH\x01\x88\x01\x01\x12\x0f\n\x07renamed\x18\x05 \x01(\x08\x42\t\n\x07_regionB\x0b\n\t_category\"L\n\x11TemporaryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0e\n\x06tmp_id\x18\x02 \x01(\r\"V\n\x10RegisterVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0b\n\x03reg\x18\x02 \x01(\r\x12\x0c\n\x04size\x18\x03 \x01(\r\"U\n\x0eMemoryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\"u\n\rStackVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\x12\x0f\n\x07sp_base\x18\x04 \x01(\x08\x12\x0e\n\x06offset\x18\x05 \x01(\x05\"\x9c\x02\n\x0eVariableAccess\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x12\n\nblock_addr\x18\x02 \x01(\x04\x12\x10\n\x08stmt_idx\x18\x03 \x01(\x05\x12\x10\n\x08ins_addr\x18\x04 \x01(\x04\x12\x13\n\x06offset\x18\x05 \x01(\x03H\x00\x88\x01\x01\x12\x43\n\x0b\x61\x63\x63\x65ss_type\x18\x06 \x01(\x0e\x32..angr.protos.VariableAccess.VariableAccessSort\x12\x16\n\tatom_hash\x18\x07 \x01(\rH\x01\x88\x01\x01\"8\n\x12VariableAccessSort\x12\t\n\x05WRITE\x10\x00\x12\x08\n\x04READ\x10\x01\x12\r\n\tREFERENCE\x10\x02\x42\t\n\x07_offsetB\x0c\n\n_atom_hash\"/\n\x0cVariableType\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x10\n\x08var_type\x18\x02 \x01(\t\";\n\x0bVar2Unified\x12\x11\n\tvar_ident\x18\x01 \x01(\t\x12\x19\n\x11unified_var_ident\x18\x02 \x01(\t\"\xbf\x04\n\x17VariableManagerInternal\x12\x30\n\x08tempvars\x18\x01 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12.\n\x07regvars\x18\x02 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12,\n\x07memvars\x18\x03 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12-\n\tstackvars\x18\x04 \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12-\n\x08\x61\x63\x63\x65sses\x18\x05 \x03(\x0b\x32\x1b.angr.protos.VariableAccess\x12\x38\n\x10unified_tempvars\x18\x06 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12\x36\n\x0funified_regvars\x18\x07 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12\x34\n\x0funified_memvars\x18\x08 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12\x35\n\x11unified_stackvars\x18\t \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12-\n\x0bvar2unified\x18\n \x03(\x0b\x32\x18.angr.protos.Var2Unified\x12(\n\x05types\x18\x0b \x03(\x0b\x32\x19.angr.protos.VariableTypeb\x06proto3'
 )
 
 
@@ -49,8 +49,8 @@ _VARIABLEACCESS_VARIABLEACCESSSORT = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=722,
-  serialized_end=778,
+  serialized_start=746,
+  serialized_end=802,
 )
 _sym_db.RegisterEnumDescriptor(_VARIABLEACCESS_VARIABLEACCESSSORT)
 
@@ -366,6 +366,13 @@ _VARIABLEACCESS = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='atom_hash', full_name='angr.protos.VariableAccess.atom_hash', index=6,
+      number=7, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -383,9 +390,14 @@ _VARIABLEACCESS = _descriptor.Descriptor(
       index=0, containing_type=None,
       create_key=_descriptor._internal_create_key,
     fields=[]),
+    _descriptor.OneofDescriptor(
+      name='_atom_hash', full_name='angr.protos.VariableAccess._atom_hash',
+      index=1, containing_type=None,
+      create_key=_descriptor._internal_create_key,
+    fields=[]),
   ],
   serialized_start=543,
-  serialized_end=789,
+  serialized_end=827,
 )
 
 
@@ -423,8 +435,47 @@ _VARIABLETYPE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=791,
-  serialized_end=838,
+  serialized_start=829,
+  serialized_end=876,
+)
+
+
+_VAR2UNIFIED = _descriptor.Descriptor(
+  name='Var2Unified',
+  full_name='angr.protos.Var2Unified',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='var_ident', full_name='angr.protos.Var2Unified.var_ident', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='unified_var_ident', full_name='angr.protos.Var2Unified.unified_var_ident', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=878,
+  serialized_end=937,
 )
 
 
@@ -472,8 +523,43 @@ _VARIABLEMANAGERINTERNAL = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='types', full_name='angr.protos.VariableManagerInternal.types', index=5,
+      name='unified_tempvars', full_name='angr.protos.VariableManagerInternal.unified_tempvars', index=5,
       number=6, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='unified_regvars', full_name='angr.protos.VariableManagerInternal.unified_regvars', index=6,
+      number=7, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='unified_memvars', full_name='angr.protos.VariableManagerInternal.unified_memvars', index=7,
+      number=8, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='unified_stackvars', full_name='angr.protos.VariableManagerInternal.unified_stackvars', index=8,
+      number=9, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='var2unified', full_name='angr.protos.VariableManagerInternal.var2unified', index=9,
+      number=10, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='types', full_name='angr.protos.VariableManagerInternal.types', index=10,
+      number=11, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -490,8 +576,8 @@ _VARIABLEMANAGERINTERNAL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=841,
-  serialized_end=1146,
+  serialized_start=940,
+  serialized_end=1515,
 )
 
 _VARIABLEBASE.oneofs_by_name['_region'].fields.append(
@@ -509,11 +595,19 @@ _VARIABLEACCESS_VARIABLEACCESSSORT.containing_type = _VARIABLEACCESS
 _VARIABLEACCESS.oneofs_by_name['_offset'].fields.append(
   _VARIABLEACCESS.fields_by_name['offset'])
 _VARIABLEACCESS.fields_by_name['offset'].containing_oneof = _VARIABLEACCESS.oneofs_by_name['_offset']
+_VARIABLEACCESS.oneofs_by_name['_atom_hash'].fields.append(
+  _VARIABLEACCESS.fields_by_name['atom_hash'])
+_VARIABLEACCESS.fields_by_name['atom_hash'].containing_oneof = _VARIABLEACCESS.oneofs_by_name['_atom_hash']
 _VARIABLEMANAGERINTERNAL.fields_by_name['tempvars'].message_type = _TEMPORARYVARIABLE
 _VARIABLEMANAGERINTERNAL.fields_by_name['regvars'].message_type = _REGISTERVARIABLE
 _VARIABLEMANAGERINTERNAL.fields_by_name['memvars'].message_type = _MEMORYVARIABLE
 _VARIABLEMANAGERINTERNAL.fields_by_name['stackvars'].message_type = _STACKVARIABLE
 _VARIABLEMANAGERINTERNAL.fields_by_name['accesses'].message_type = _VARIABLEACCESS
+_VARIABLEMANAGERINTERNAL.fields_by_name['unified_tempvars'].message_type = _TEMPORARYVARIABLE
+_VARIABLEMANAGERINTERNAL.fields_by_name['unified_regvars'].message_type = _REGISTERVARIABLE
+_VARIABLEMANAGERINTERNAL.fields_by_name['unified_memvars'].message_type = _MEMORYVARIABLE
+_VARIABLEMANAGERINTERNAL.fields_by_name['unified_stackvars'].message_type = _STACKVARIABLE
+_VARIABLEMANAGERINTERNAL.fields_by_name['var2unified'].message_type = _VAR2UNIFIED
 _VARIABLEMANAGERINTERNAL.fields_by_name['types'].message_type = _VARIABLETYPE
 DESCRIPTOR.message_types_by_name['VariableBase'] = _VARIABLEBASE
 DESCRIPTOR.message_types_by_name['TemporaryVariable'] = _TEMPORARYVARIABLE
@@ -522,6 +616,7 @@ DESCRIPTOR.message_types_by_name['MemoryVariable'] = _MEMORYVARIABLE
 DESCRIPTOR.message_types_by_name['StackVariable'] = _STACKVARIABLE
 DESCRIPTOR.message_types_by_name['VariableAccess'] = _VARIABLEACCESS
 DESCRIPTOR.message_types_by_name['VariableType'] = _VARIABLETYPE
+DESCRIPTOR.message_types_by_name['Var2Unified'] = _VAR2UNIFIED
 DESCRIPTOR.message_types_by_name['VariableManagerInternal'] = _VARIABLEMANAGERINTERNAL
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -573,6 +668,13 @@ VariableType = _reflection.GeneratedProtocolMessageType('VariableType', (_messag
   # @@protoc_insertion_point(class_scope:angr.protos.VariableType)
   })
 _sym_db.RegisterMessage(VariableType)
+
+Var2Unified = _reflection.GeneratedProtocolMessageType('Var2Unified', (_message.Message,), {
+  'DESCRIPTOR' : _VAR2UNIFIED,
+  '__module__' : 'protos.variables_pb2'
+  # @@protoc_insertion_point(class_scope:angr.protos.Var2Unified)
+  })
+_sym_db.RegisterMessage(Var2Unified)
 
 VariableManagerInternal = _reflection.GeneratedProtocolMessageType('VariableManagerInternal', (_message.Message,), {
   'DESCRIPTOR' : _VARIABLEMANAGERINTERNAL,
