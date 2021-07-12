@@ -89,7 +89,8 @@ class ReachingDefinitionsState:
     def top(self, bits: int):
         return self.live_definitions.top(bits)
 
-    def is_top(self, *args): return self.live_definitions.is_top(*args)
+    def is_top(self, *args):
+        return self.live_definitions.is_top(*args)
 
     def heap_address(self, offset: int) -> claripy.ast.Base:
         base = claripy.BVS("heap_base", self.arch.bits, explicit_name=True)
@@ -144,44 +145,58 @@ class ReachingDefinitionsState:
     #
 
     @property
-    def tmp_definitions(self): return self.live_definitions.tmps
+    def tmp_definitions(self):
+        return self.live_definitions.tmps
 
     @property
-    def tmp_uses(self): return self.live_definitions.tmp_uses
+    def tmp_uses(self):
+        return self.live_definitions.tmp_uses
 
     @property
-    def register_uses(self): return self.live_definitions.register_uses
+    def register_uses(self):
+        return self.live_definitions.register_uses
 
     @property
-    def register_definitions(self): return self.live_definitions.register_definitions
+    def register_definitions(self):
+        return self.live_definitions.register_definitions
 
     @property
-    def stack_definitions(self): return self.live_definitions.stack_definitions
+    def stack_definitions(self):
+        return self.live_definitions.stack_definitions
 
     @property
-    def stack_uses(self): return self.live_definitions.stack_uses
+    def stack_uses(self):
+        return self.live_definitions.stack_uses
 
     @property
-    def heap_definitions(self): return self.live_definitions.heap_definitions
+    def heap_definitions(self):
+        return self.live_definitions.heap_definitions
 
     @property
-    def heap_uses(self): return self.live_definitions.heap_uses
+    def heap_uses(self):
+        return self.live_definitions.heap_uses
 
     @property
-    def memory_uses(self): return self.live_definitions.memory_uses
+    def memory_uses(self):
+        return self.live_definitions.memory_uses
 
     @property
-    def memory_definitions(self): return self.live_definitions.memory_definitions
+    def memory_definitions(self):
+        return self.live_definitions.memory_definitions
 
     @property
-    def uses_by_codeloc(self): return self.live_definitions.uses_by_codeloc
+    def uses_by_codeloc(self):
+        return self.live_definitions.uses_by_codeloc
 
-    def get_sp(self) -> int: return self.live_definitions.get_sp()
+    def get_sp(self) -> int:
+        return self.live_definitions.get_sp()
 
-    def get_stack_address(self, offset: claripy.ast.Base) -> int: return self.live_definitions.get_stack_address(offset)
+    def get_stack_address(self, offset: claripy.ast.Base) -> int:
+        return self.live_definitions.get_stack_address(offset)
 
     @property
-    def environment(self): return self._environment
+    def environment(self):
+        return self._environment
 
     @property
     def dep_graph(self):
@@ -357,7 +372,8 @@ class ReachingDefinitionsState:
                     )
                     is_using_spbp_to_define_memory_location_on_stack = (
                         isinstance(atom, MemoryLocation) and
-                        (atom.is_on_stack or self.is_stack_address(atom.addr)) and
+                        (atom.is_on_stack or
+                        (isinstance(atom.addr, claripy.ast.Base) and self.is_stack_address(atom.addr))) and
                         isinstance(used.atom, Register) and
                         used.atom.reg_offset in (sp_offset, bp_offset)
                     )
