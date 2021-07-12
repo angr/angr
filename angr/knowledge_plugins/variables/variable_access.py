@@ -26,7 +26,12 @@ class VariableAccess(Serializable):
         self.atom_hash: Optional[int] = atom_hash
 
     def __repr__(self):
-        return "%s %s @ %s (offset %d)" % (self.access_type, self.variable, self.location, self.offset)
+        access_type = {
+            VariableAccessSort.WRITE: "write",
+            VariableAccessSort.READ: "read",
+            VariableAccessSort.REFERENCE: "reference",
+        }[self.access_type]
+        return "%s %s @ %s (offset %s)" % (access_type, self.variable, self.location, self.offset)
 
     def __eq__(self, other):
         return type(other) is VariableAccess and \
