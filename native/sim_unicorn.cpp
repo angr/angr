@@ -257,7 +257,7 @@ void State::commit() {
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
-	mem_writes_taint_map.clear();
+	block_mem_writes_taint_data.clear();
 	taint_engine_next_instr_address = 0;
 	taint_engine_stop_mem_read_instruction = 0;
 	taint_engine_stop_mem_read_size = 0;
@@ -561,7 +561,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
 	short clean;
-	address_t curr_instr_addr;
+	address_t curr_instr_addr = 0;
 	bool is_dst_symbolic;
 
 	if (!bitmap) {
@@ -578,21 +578,47 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 		// if no symbolic data is present
 		is_dst_symbolic = false;
 	}
+	else if (size == 0) {
+		// unicorn was unable to determine size of the memory write. Treat as failure since we cannot determine final
+		// taint status
+		stop(STOP_UNKNOWN_MEMORY_WRITE_SIZE);
+		return;
+	}
+	else if ((block_mem_writes_taint_data.size() == 0) && (symbolic_registers.size() == 0) &&
+	  (block_symbolic_registers.size() == 0) && (block_symbolic_temps.size() == 0)) {
+		// No write taint info saved and there are no symbolic registers/VEX temps => write is concrete
+		is_dst_symbolic = false;
+	}
 	else {
-		curr_instr_addr = get_instruction_pointer();
-		auto mem_writes_taint_map_entry = mem_writes_taint_map.find(curr_instr_addr);
-		if (mem_writes_taint_map_entry != mem_writes_taint_map.end()) {
-			is_dst_symbolic = mem_writes_taint_map_entry->second;
-		}
-		// We did not find a memory write at this instruction when processing the VEX statements.
-		// This likely means unicorn reported the current PC register value wrong.
-		// If there are no symbolic registers, assume write is concrete and continue concrete execution else stop.
-		else if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0)) {
-			is_dst_symbolic = false;
-		}
-		else {
-			stop(STOP_UNKNOWN_MEMORY_WRITE);
-			return;
+		// Determine destination's taint using block's memory writes taint info
+		is_dst_symbolic = false;
+		uint32_t size_of_writes_processed = 0;
+		while (size_of_writes_processed != size) {
+			if (block_mem_writes_taint_data.size() == 0) {
+				// All writes have been processed but there should be more. Likely a bug.
+				printf("All memory writes have been processed but more expected. This should not happen!\n");
+				abort();
+			}
+			auto &next_mem_write = block_mem_writes_taint_data.front();
+			is_dst_symbolic |= next_mem_write.is_symbolic;
+			if (curr_instr_addr == 0) {
+				curr_instr_addr = next_mem_write.instr_addr;
+			}
+			else if (curr_instr_addr != next_mem_write.instr_addr) {
+				printf("Memory writes from two instructions being processed as part of one instruction. This should not happen!\n");
+				abort();
+			}
+			if (size_of_writes_processed + next_mem_write.size > size) {
+				// Including current write entry exceeds size of current write reported by unicorn. Update size of write
+				// entry instead of erasing it completely
+				block_mem_writes_taint_data[0].size = size_of_writes_processed + next_mem_write.size - size;
+				break;
+			}
+			else {
+				// Size of all writes so far does not exceed current write. Erase current write entry.
+				size_of_writes_processed += next_mem_write.size;
+				block_mem_writes_taint_data.erase(block_mem_writes_taint_data.begin());
+			}
 		}
 	}
 	if (is_dst_symbolic) {
@@ -864,7 +890,6 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 
 				sink.entity_type = TAINT_ENTITY_MEM;
 				sink.instr_addr = curr_instr_addr;
-				instruction_taint_entry.has_memory_write = true;
 				auto result = process_vex_expr(stmt->Ist.Store.addr, vex_block->tyenv, curr_instr_addr, false);
 				if (result.has_unsupported_expr) {
 					block_taint_entry.has_unsupported_stmt_or_expr_type = true;
@@ -886,6 +911,7 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					break;
 				}
 				sink.value_size = result.value_size;
+				instruction_taint_entry.mem_write_size += result.value_size;
 				// Flatten list of taint sources and also save them as dependencies of instruction
 				for (auto &entry: result.taint_sources) {
 					srcs.insert(entry.second.begin(), entry.second.end());
@@ -1633,8 +1659,8 @@ void State::propagate_taints() {
 		if ((symbolic_registers.size() == 0) && (block_symbolic_registers.size() == 0) && (block_symbolic_temps.size() == 0)) {
 			// There are no symbolic registers so no taint to propagate. Mark any memory writes
 			// as concrete and update slice of registers.
-			if (curr_instr_taint_entry.has_memory_write) {
-				mem_writes_taint_map.emplace(curr_instr_addr, false);
+			if (curr_instr_taint_entry.mem_write_size != 0) {
+				block_mem_writes_taint_data.emplace_back(curr_instr_addr, false, curr_instr_taint_entry.mem_write_size);
 			}
 			continue;
 		}
@@ -1873,15 +1899,14 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			}
 			if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 				// Save the memory location written to be marked as symbolic in write hook
-				// If memory write already exists, we overtaint and mark all writes as symbolic
-				mem_writes_taint_map[taint_sink.instr_addr] = true;
+				block_mem_writes_taint_data.emplace_back(taint_sink.instr_addr, true, taint_sink.value_size);
 				// Mark instruction as needing symbolic execution
 				is_instr_symbolic = true;
 			}
 			else {
 				// Save the memory location(s) written to be marked as concrete in the write
 				// hook only if it is not a previously seen write
-				mem_writes_taint_map.emplace(taint_sink.instr_addr, false);
+				block_mem_writes_taint_data.emplace_back(taint_sink.instr_addr, false, taint_sink.value_size);
 			}
 		}
 		else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
