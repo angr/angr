@@ -561,7 +561,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	int start = address & 0xFFF;
 	int end = (address + size - 1) & 0xFFF;
 	short clean;
-	address_t curr_instr_addr;
+	address_t curr_instr_addr = 0;
 	bool is_dst_symbolic;
 
 	if (!bitmap) {
@@ -601,6 +601,13 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 			}
 			auto &next_mem_write = block_mem_writes_taint_data.front();
 			is_dst_symbolic |= next_mem_write.is_symbolic;
+			if (curr_instr_addr == 0) {
+				curr_instr_addr = next_mem_write.instr_addr;
+			}
+			else if (curr_instr_addr != next_mem_write.instr_addr) {
+				printf("Memory writes from two instructions being processed as part of one instruction. This should not happen!\n");
+				abort();
+			}
 			if (size_of_writes_processed + next_mem_write.size > size) {
 				// Including current write entry exceeds size of current write reported by unicorn. Update size of write
 				// entry instead of erasing it completely
