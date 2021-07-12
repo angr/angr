@@ -491,7 +491,7 @@ class SimEngineVRBase(SimEngineLight):
             addr_v: int = addr._model_concrete.value
             variables = global_variables.get_global_variables(addr_v)
             if not variables:
-                var = SimMemoryVariable(addr_v, size)
+                var = SimMemoryVariable(addr_v, size, ident=global_variables.next_variable_ident('global'))
                 global_variables.add_variable('global', addr_v, var)
                 variables = [var]
             for var in variables:

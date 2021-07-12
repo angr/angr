@@ -242,11 +242,14 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         # give it enough stack space
         state.register_region.store(self.project.arch.bp_offset, initial_sp + 0x100000)
 
+        internal_manager = self.variable_manager[self.function.addr]
+
         # put a return address on the stack if necessary
         if self.project.arch.call_pushes_ret:
             ret_addr_offset = self.project.arch.bytes
             ret_addr_var = SimStackVariable(ret_addr_offset, self.project.arch.bytes, base='bp', name='ret_addr',
                                             region=self.function.addr, category='return_address',
+                                            ident=internal_manager.next_variable_ident('stack')
                                             )
             ret_addr = claripy.BVS("ret_addr", self.project.arch.bits)
             ret_addr = state.annotate_with_variables(ret_addr, [(0, ret_addr_var)])
@@ -260,7 +263,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                     v = claripy.BVS("reg_arg", arg.bits)
                     v = state.annotate_with_variables(v, [(0, arg)])
                     state.register_region.store(arg.reg, v)
-                    self.variable_manager[self.function.addr].add_variable('register', arg.reg, arg)
+                    internal_manager.add_variable('register', arg.reg, arg)
                 elif isinstance(arg, SimStackVariable):
                     v = claripy.BVS("stack_arg", arg.bits)
                     v = state.annotate_with_variables(v, [(0, arg)])
@@ -268,7 +271,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                                              v,
                                              endness=self.project.arch.memory_endness,
                                              )
-                    self.variable_manager[self.function.addr].add_variable('stack', arg.offset, arg)
+                    internal_manager.add_variable('stack', arg.offset, arg)
                 else:
                     raise TypeError("Unsupported function argument type %s." % type(arg))
 

@@ -5,14 +5,16 @@ from itertools import count, chain
 
 import networkx
 
+from cle.backends.elf.compilation_unit import CompilationUnit
+from cle.backends.elf.variable import Variable
 from claripy.utils.orderedset import OrderedSet
 
+from ...protos import variables_pb2
+from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
-from .variable_access import VariableAccess
-from cle.backends.elf.compilation_unit import CompilationUnit
-from cle.backends.elf.variable import Variable
+from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
@@ -21,6 +23,9 @@ l = logging.getLogger(name=__name__)
 
 
 class VariableType:
+    """
+    Describes variable types.
+    """
     REGISTER = 0
     MEMORY = 1
 
@@ -38,7 +43,7 @@ def _defaultdict_set():
     return defaultdict(set)
 
 
-class VariableManagerInternal:
+class VariableManagerInternal(Serializable):
     """
     Manage variables for a function. It is meant to be used internally by VariableManager.
     """
@@ -47,17 +52,18 @@ class VariableManagerInternal:
 
         self.func_addr = func_addr
 
-        self._variables = OrderedSet()  # all variables that are added to any region
+        self._variables: Set[SimVariable] = OrderedSet()  # all variables that are added to any region
         self._global_region = KeyedRegion()
         self._stack_region = KeyedRegion()
         self._register_region = KeyedRegion()
         self._live_variables = { }  # a mapping between addresses of program points and live variable collections
 
-        self._variable_accesses = defaultdict(set)
-        self._insn_to_variable = defaultdict(set)
-        self._block_to_variable = defaultdict(set)
-        self._stmt_to_variable = defaultdict(set)
-        self._atom_to_variable = defaultdict(_defaultdict_set)
+        self._variable_accesses: Dict[SimVariable,Set[VariableAccess]] = defaultdict(set)
+        self._insn_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
+        self._block_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
+        self._stmt_to_variable: Dict[Tuple[int,int],Set[Tuple[SimVariable,int]]] = defaultdict(set)
+        self._atom_to_variable: Dict[Tuple[int,int],Dict[int,Set[Tuple[SimVariable,int]]]] = \
+            defaultdict(_defaultdict_set)
         self._variable_counters = {
             'register': count(),
             'stack': count(),
@@ -73,6 +79,136 @@ class VariableManagerInternal:
         self._phi_variables_by_block = defaultdict(set)
 
         self.types = { }
+
+    #
+    # Serialization
+    #
+
+    @classmethod
+    def _get_cmsg(cls):
+        return variables_pb2.VariableManagerInternal()
+
+    def serialize_to_cmessage(self):
+        # pylint:disable=no-member,unused-variable
+        cmsg = self._get_cmsg()
+
+        # variables
+        temp_variables = [ ]
+        register_variables = [ ]
+        stack_variables = [ ]
+        memory_variables = [ ]
+
+        for variable in self._variables:
+            if isinstance(variable, SimRegisterVariable):
+                register_variables.append(variable.serialize_to_cmessage())
+            elif isinstance(variable, SimStackVariable):
+                stack_variables.append(variable.serialize_to_cmessage())
+            elif isinstance(variable, SimMemoryVariable):
+                memory_variables.append(variable.serialize_to_cmessage())
+            else:
+                raise NotImplementedError()
+
+        cmsg.regvars.extend(register_variables)
+        cmsg.stackvars.extend(stack_variables)
+        cmsg.memvars.extend(memory_variables)
+
+        # accesses
+        accesses = [ ]
+        for variable_accesses in self._variable_accesses.values():
+            for variable_access in variable_accesses:
+                accesses.append(variable_access.serialize_to_cmessage())
+        cmsg.accesses.extend(accesses)
+
+        # unified variables
+        unified_temp_variables = [ ]
+        unified_register_variables = [ ]
+        unified_stack_variables = [ ]
+        unified_memory_variables = [ ]
+
+        for variable in self._unified_variables:
+            if isinstance(variable, SimRegisterVariable):
+                unified_register_variables.append(variable.serialize_to_cmessage())
+            elif isinstance(variable, SimStackVariable):
+                unified_stack_variables.append(variable.serialize_to_cmessage())
+            elif isinstance(variable, SimMemoryVariable):
+                unified_memory_variables.append(variable.serialize_to_cmessage())
+            else:
+                raise NotImplementedError()
+
+        cmsg.unified_regvars.extend(unified_register_variables)
+        cmsg.unified_stackvars.extend(unified_stack_variables)
+        cmsg.unified_memvars.extend(unified_memory_variables)
+
+        relations = [ ]
+        for variable, unified in self._variables_to_unified_variables.items():
+            relation = variables_pb2.Var2Unified()
+            relation.var_ident = variable.ident
+            relation.unified_var_ident = unified.ident
+            relations.append(relation)
+        cmsg.var2unified.extend(relations)
+
+        # TODO: Types
+
+        return cmsg
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, variable_manager=None, func_addr=None, **kwargs) -> 'VariableManagerInternal':  # pylint:disable=arguments-differ
+        model = VariableManagerInternal(variable_manager, func_addr=func_addr)
+
+        variable_by_ident = {}
+
+        # variables
+        for regvar_pb2 in cmsg.regvars:
+            regvar = SimRegisterVariable.parse_from_cmessage(regvar_pb2)
+            variable_by_ident[regvar.ident] = regvar
+            model._variables.add(regvar)
+        for stackvar_pb2 in cmsg.stackvars:
+            stackvar = SimStackVariable.parse_from_cmessage(stackvar_pb2)
+            variable_by_ident[stackvar.ident] = stackvar
+            model._variables.add(stackvar)
+        for memvar_pb2 in cmsg.memvars:
+            memvar = SimMemoryVariable.parse_from_cmessage(memvar_pb2)
+            variable_by_ident[memvar.ident] = memvar
+            model._variables.add(memvar)
+
+        # variable accesses
+        for varaccess_pb2 in cmsg.accesses:
+            variable_access = VariableAccess.parse_from_cmessage(varaccess_pb2, variable_by_ident=variable_by_ident)
+            variable = variable_access.variable
+            offset = variable_access.offset
+            tpl = (variable, offset)
+
+            model._variable_accesses[variable_access.variable].add(variable_access)
+            model._insn_to_variable[variable_access.location.ins_addr].add(tpl)
+            model._block_to_variable[variable_access.location.block_addr].add(tpl)
+            loc = (variable_access.location.block_addr, variable_access.location.stmt_idx)
+            model._stmt_to_variable[loc].add(tpl)
+            if variable_access.atom_hash is not None:
+                model._atom_to_variable[loc][variable_access.atom_hash].add(tpl)
+
+        # unified variables
+        unified_variable_by_ident = {}
+        for regvar_pb2 in cmsg.unified_regvars:
+            regvar = SimRegisterVariable.parse_from_cmessage(regvar_pb2)
+            unified_variable_by_ident[regvar.ident] = regvar
+            model._unified_variables.add(regvar)
+        for stackvar_pb2 in cmsg.unified_stackvars:
+            stackvar = SimStackVariable.parse_from_cmessage(stackvar_pb2)
+            unified_variable_by_ident[stackvar.ident] = stackvar
+            model._unified_variables.add(stackvar)
+        for memvar_pb2 in cmsg.unified_memvars:
+            memvar = SimMemoryVariable.parse_from_cmessage(memvar_pb2)
+            unified_variable_by_ident[memvar.ident] = memvar
+            model._unified_variables.add(memvar)
+
+        for var2unified in cmsg.var2unified:
+            variable = variable_by_ident[var2unified.var_ident]
+            unified = unified_variable_by_ident[var2unified.unified_var_ident]
+            model._variables_to_unified_variables[variable] = unified
+
+        # TODO: Types
+
+        return model
 
     #
     # Public methods
@@ -137,31 +273,35 @@ class VariableManagerInternal:
         region.set_variable(start, variable)
 
     def write_to(self, variable, offset, location, overwrite=False, atom=None):
-        self._record_variable_access('write', variable, offset, location, overwrite=overwrite, atom=atom)
+        self._record_variable_access(VariableAccessSort.WRITE, variable, offset, location, overwrite=overwrite,
+                                     atom=atom)
 
     def read_from(self, variable, offset, location, overwrite=False, atom=None):
-        self._record_variable_access('read', variable, offset, location, overwrite=overwrite, atom=atom)
+        self._record_variable_access(VariableAccessSort.READ, variable, offset, location, overwrite=overwrite,
+                                     atom=atom)
 
     def reference_at(self, variable, offset, location, overwrite=False, atom=None):
-        self._record_variable_access('reference', variable, offset, location, overwrite=overwrite, atom=atom)
+        self._record_variable_access(VariableAccessSort.REFERENCE, variable, offset, location, overwrite=overwrite,
+                                     atom=atom)
 
-    def _record_variable_access(self, sort, variable, offset, location, overwrite=False, atom=None):
+    def _record_variable_access(self, sort: int, variable, offset, location, overwrite=False, atom=None):
         self._variables.add(variable)
         var_and_offset = variable, offset
+        atom_hash = (hash(atom) & 0xffff_ffff) if atom is not None else None
         if overwrite:
-            self._variable_accesses[variable] = {VariableAccess(variable, sort, location)}
+            self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}
             self._block_to_variable[location.block_addr] = {var_and_offset}
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {var_and_offset}
-            if atom is not None:
-                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom] = var_and_offset
+            if atom_hash is not None:
+                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash] = { var_and_offset }
         else:
-            self._variable_accesses[variable].add(VariableAccess(variable, sort, location))
+            self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
             self._insn_to_variable[location.ins_addr].add(var_and_offset)
             self._block_to_variable[location.block_addr].add(var_and_offset)
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add(var_and_offset)
-            if atom is not None:
-                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom].add(var_and_offset)
+            if atom_hash is not None:
+                self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash].add(var_and_offset)
 
     def make_phi_node(self, block_addr, *variables):
         """
@@ -264,10 +404,11 @@ class VariableManagerInternal:
         if key not in self._atom_to_variable:
             return set()
 
-        if atom not in self._atom_to_variable[key]:
+        atom_hash = hash(atom) & 0xffff_ffff
+        if atom_hash not in self._atom_to_variable[key]:
             return set()
 
-        return self._atom_to_variable[key][atom]
+        return self._atom_to_variable[key][atom_hash]
 
     def get_variable_accesses(self, variable: SimVariable, same_name: bool=False) -> List[VariableAccess]:
 
@@ -372,10 +513,10 @@ class VariableManagerInternal:
         """
 
         def has_write_access(accesses):
-            return any(acc for acc in accesses if acc.access_type == 'write')
+            return any(acc for acc in accesses if acc.access_type == VariableAccessSort.WRITE)
 
         def has_read_access(accesses):
-            return any(acc for acc in accesses if acc.access_type == 'read')
+            return any(acc for acc in accesses if acc.access_type == VariableAccessSort.READ)
 
         input_variables = [ ]
 
@@ -507,6 +648,9 @@ class VariableManagerInternal:
 
         # unify stack variables based on their locations
         for v in self.get_variables():
+            if v in self._variables_to_unified_variables:
+                # do not unify twice
+                continue
             if isinstance(v, SimStackVariable):
                 stack_vars[v.offset].append(v)
             elif isinstance(v, SimRegisterVariable):

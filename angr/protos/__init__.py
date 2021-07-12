@@ -11,3 +11,4 @@ from . import primitives_pb2
 from . import function_pb2
 from . import cfg_pb2
 from . import xrefs_pb2
+from . import variables_pb2
