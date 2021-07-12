@@ -5,6 +5,8 @@ from itertools import count, chain
 
 import networkx
 
+from cle.backends.elf.compilation_unit import CompilationUnit
+from cle.backends.elf.variable import Variable
 from claripy.utils.orderedset import OrderedSet
 
 from ...protos import variables_pb2
@@ -13,8 +15,6 @@ from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, Si
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
 from .variable_access import VariableAccess, VariableAccessSort
-from cle.backends.elf.compilation_unit import CompilationUnit
-from cle.backends.elf.variable import Variable
 
 if TYPE_CHECKING:
     from ...knowledge_base import KnowledgeBase
@@ -23,6 +23,9 @@ l = logging.getLogger(name=__name__)
 
 
 class VariableType:
+    """
+    Describes variable types.
+    """
     REGISTER = 0
     MEMORY = 1
 
@@ -59,7 +62,8 @@ class VariableManagerInternal(Serializable):
         self._insn_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
         self._block_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
         self._stmt_to_variable: Dict[Tuple[int,int],Set[Tuple[SimVariable,int]]] = defaultdict(set)
-        self._atom_to_variable: Dict[Tuple[int,int],Dict[int,Set[Tuple[SimVariable,int]]]] = defaultdict(_defaultdict_set)
+        self._atom_to_variable: Dict[Tuple[int,int],Dict[int,Set[Tuple[SimVariable,int]]]] = \
+            defaultdict(_defaultdict_set)
         self._variable_counters = {
             'register': count(),
             'stack': count(),
@@ -85,7 +89,7 @@ class VariableManagerInternal(Serializable):
         return variables_pb2.VariableManagerInternal()
 
     def serialize_to_cmessage(self):
-        # pylint:disable=no-member
+        # pylint:disable=no-member,unused-variable
         cmsg = self._get_cmsg()
 
         # variables
@@ -148,7 +152,7 @@ class VariableManagerInternal(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg, variable_manager=None, func_addr=None, **kwargs) -> 'VariableManagerInternal':
+    def parse_from_cmessage(cls, cmsg, variable_manager=None, func_addr=None, **kwargs) -> 'VariableManagerInternal':  # pylint:disable=arguments-differ
         model = VariableManagerInternal(variable_manager, func_addr=func_addr)
 
         variable_by_ident = {}

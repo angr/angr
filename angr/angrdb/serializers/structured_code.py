@@ -2,7 +2,7 @@ from typing import Dict, Any, TYPE_CHECKING
 import json
 
 from ...analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
-from ...knowledge_plugins import StructuredCodeManager, Function
+from ...knowledge_plugins import StructuredCodeManager
 from ..models import DbStructuredCode
 
 if TYPE_CHECKING:

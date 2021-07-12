@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ,no-member
 from typing import Dict, Optional, TYPE_CHECKING
 
 from ...code_location import CodeLocation
@@ -9,12 +10,18 @@ if TYPE_CHECKING:
 
 
 class VariableAccessSort:
+    """
+    Provides enums for variable access types.
+    """
     WRITE = 0
     READ = 1
     REFERENCE = 2
 
 
 class VariableAccess(Serializable):
+    """
+    Describes a variable access.
+    """
 
     __slots__ = ('variable', 'access_type', 'location', 'offset', 'atom_hash', )
 
