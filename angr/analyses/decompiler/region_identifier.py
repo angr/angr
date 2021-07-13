@@ -71,12 +71,16 @@ class RegionIdentifier(Analysis):
 
         self.region = self._make_regions(graph)
 
-    @staticmethod
-    def _get_start_node(graph):
+    def _get_start_node(self, graph):
         try:
             return next(n for n in graph.nodes() if graph.in_degree(n) == 0)
         except StopIteration:
-            return None
+            pass
+
+        try:
+            return next(n for n in graph.nodes() if n.addr == self.function.addr)
+        except StopIteration:
+            raise RuntimeError("Cannot find the start node from the graph!")
 
     def _test_reducibility(self):
 
