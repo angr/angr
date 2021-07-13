@@ -3,7 +3,7 @@ import copy
 
 import pycparser
 
-from angr.sim_type import make_preamble, _decl_to_type, SimStruct, SimUnion
+from angr.sim_type import _make_scope, _decl_to_type, SimStruct, SimUnion
 
 
 class PatchAnalysis:
@@ -68,8 +68,7 @@ class PatchAnalysis:
         return all_defs, all_extra_types
 
     def attempt_parsing(self, content: str):
-        preamble, ignoreme = make_preamble()
-        ast = pycparser.CParser().parse(preamble + content)
+        ast = pycparser.CParser().parse(content, scope_stack=_make_scope(None))
         defs = { }
         extra_types = { }
 
@@ -93,8 +92,5 @@ class PatchAnalysis:
             elif isinstance(piece, pycparser.c_ast.Typedef):
                 extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types))
                 extra_types[piece.name].label = piece.name
-
-        for ty in ignoreme:
-            del extra_types[ty]
 
         return defs, extra_types
