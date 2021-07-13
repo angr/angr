@@ -2054,7 +2054,7 @@ class CFGBase(Analysis):
             else:
                 is_known_function_addr = dst_addr in known_functions
 
-            if is_known_function_addr or (
+            if (is_known_function_addr and dst_addr != src_function.addr) or (
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
             ):
                 # yes it is
