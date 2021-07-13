@@ -253,7 +253,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         yield indent_str, None
         # return type
-        yield self.functy.returnty.c_repr(), None
+        yield self.functy.returnty.c_repr(name="").strip(" "), None
         yield " ", None
         # function name
         if self.demangled_name:
