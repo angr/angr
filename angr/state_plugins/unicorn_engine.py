@@ -56,7 +56,8 @@ class MemoryValue(ctypes.Structure): # memory_value_t
     _fields_ = [
         ('address', ctypes.c_uint64),
         ('value', ctypes.c_uint8 * _MAX_MEM_ACCESS_SIZE),
-        ('size', ctypes.c_uint64)
+        ('size', ctypes.c_uint64),
+        ('is_value_symbolic', ctypes.c_bool)
     ]
 
 class RegisterValue(ctypes.Structure): # register_value_t
