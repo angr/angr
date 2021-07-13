@@ -536,8 +536,10 @@ class SimTypePointer(SimTypeReg):
         return '{}*'.format(self.pts_to)
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
-        name = '*' if name is None else '*%s' % name
-        return self.pts_to.c_repr(name, full, memo, indent)
+        # if it points to an array, we do not need to add a *
+        deref_chr = '*' if not isinstance(self.pts_to, SimTypeArray) else ''
+        name_with_deref = deref_chr if name is None else '%s%s' % (deref_chr, name)
+        return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
         new = type(self)(pts_to)
