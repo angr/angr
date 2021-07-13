@@ -71,7 +71,9 @@ class SimEngineVRVEX(
             size = self.tyenv.sizeof(stmt.storedata.tmp) // self.arch.byte_width
 
             self._store(addr, storedata, size)
-            self.tmps[stmt.result] = RichR(1)
+
+            result_size = self.tyenv.sizeof(stmt.result)
+            self.tmps[stmt.result] = RichR(claripy.BVV(1, result_size))
 
     def _handle_NoOp(self, stmt):
         pass
