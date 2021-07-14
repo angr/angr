@@ -365,7 +365,7 @@ class CAILBlock(CStatement):
         indent_str = self.indent_str(indent=indent)
         r = str(self.block)
         for stmt in r.split("\n"):
-            yield indent_str
+            yield indent_str, None
             yield stmt, None
             yield "\n", None
 
@@ -553,7 +553,7 @@ class CIfElse(CStatement):
                     yield "\n", None
                     yield indent_str, None
                 else:
-                    yield " "
+                    yield " ", None
                 yield "else ", self
 
             yield "if ", self
