@@ -58,7 +58,7 @@ class CFGFastSoot(CFGFast):
         self._function_exits = defaultdict(set)
 
         entry = self.project.entry  # type:SootAddressDescriptor
-        entry_func = entry.method
+        entry_func = entry.method if entry else None
 
         obj = self.project.loader.main_object
 
@@ -86,7 +86,7 @@ class CFGFastSoot(CFGFast):
 
             # project.entry is a method
             # we should get the first block
-            if method_inst.blocks:
+            if method_inst.blocks and entry_func:
                 block_idx = method_inst.blocks[0].idx
                 self._insert_job(CFGJob(SootAddressDescriptor(entry_func, block_idx, 0), entry_func, 'Ijk_Boring'))
 
