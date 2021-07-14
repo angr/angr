@@ -1657,6 +1657,9 @@ class CFGBase(Analysis):
 
             if len(func_0.block_addrs) == 1:
                 block = next(func_0.blocks)
+                if block.size == 0:
+                    # skip empty blocks (that are usually caused by lifting failures)
+                    continue
                 if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                     continue
                 # Skip alignment blocks
