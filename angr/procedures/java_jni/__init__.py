@@ -152,8 +152,9 @@ class JNISimProcedure(SimProcedure):
                             If not set, native memory is allocated.
         :return:            Native address of the string.
         """
+        str_len_bits = len(string) if string is not None else 0
         if addr is None:
-            addr = self._allocate_native_memory(size=len(string)+1)
+            addr = self._allocate_native_memory(size=str_len_bits+8)
         else:
             # check if addr is symbolic
             if self.state.solver.symbolic(addr):
@@ -167,13 +168,12 @@ class JNISimProcedure(SimProcedure):
                       'String will get concretized after `ReleaseStringUTFChars` is called.')
 
         # store chars one by one
-        str_len = len(string) // 8
-        for idx in range(str_len):
+        for idx in range(str_len_bits // 8):
             str_byte = StrSubstr(idx, 1, string)
             self.state.memory.store(addr+idx, str_byte)
 
         # store terminating zero
-        self.state.memory.store(len(string), BVV(0, 8))
+        self.state.memory.store(str_len_bits, BVV(0, 8))
 
         return addr
 
