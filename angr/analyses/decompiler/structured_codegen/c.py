@@ -1300,9 +1300,12 @@ class CTypeCast(CExpression):
         if self.codegen.show_casts:
             paren = CClosingObject("(")
             yield "(", paren
+            yield "(", paren
             yield "{}".format(self.dst_type), self
             yield ")", paren
         yield from CExpression._try_c_repr_chunks(self.expr)
+        if self.codegen.show_casts:
+            yield ")", paren
 
 
 class CConstant(CExpression):
