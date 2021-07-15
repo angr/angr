@@ -1297,12 +1297,21 @@ class CTypeCast(CExpression):
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        leading_paren = False
+        paren = CClosingObject("(")
         if self.codegen.show_casts:
-            paren = CClosingObject("(")
+            # look ahead to detect if a leading paren is required
+            if isinstance(self.expr, CFunctionCall):
+                leading_paren = False
+            else:
+                leading_paren = True
+                yield "(", paren
             yield "(", paren
             yield "{}".format(self.dst_type), self
             yield ")", paren
         yield from CExpression._try_c_repr_chunks(self.expr)
+        if self.codegen.show_casts and leading_paren:
+            yield ")", paren
 
 
 class CConstant(CExpression):

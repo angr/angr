@@ -74,12 +74,14 @@ class MemoryObjectMixin(CooperationBase):
         else:
             # we need to extract labels for SimLabeledMemoryObjects
             elements = [ ]
+            offset = 0
             for i, (a, o) in enumerate(c_objects):
                 length: int = ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask)
                 byts = o.bytes_at(a, length, endness=endness)
                 elements.append(byts)
                 if isinstance(o, SimLabeledMemoryObject):
-                    labels.append((a - o.base, length, o.label))
+                    labels.append((offset, a - o.base, length, o.label))
+                offset += length
         if len(elements) == 0:
             # nothing is read out
             return claripy.BVV(0, 0)
