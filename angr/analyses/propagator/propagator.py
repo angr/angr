@@ -26,9 +26,10 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-# The base state
-
 class PropagatorState:
+    """
+    Describes the base state used in Propagator.
+    """
 
     __slots__ = ('arch', 'gpr_size', '_prop_count', '_only_consts', '_replacements', '_equivalence', 'project',
                  '_store_tops', '__weakref__', )
@@ -154,6 +155,9 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
+    """
+    Describes the state used in the VEX engine of Propagator.
+    """
 
     __slots__ = ('_registers', '_stack_variables', 'do_binops', )
 
@@ -162,8 +166,16 @@ class PropagatorVEXState(PropagatorState):
         super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
                          prop_count=prop_count, store_tops=store_tops)
         self.do_binops = do_binops
-        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if registers is None else registers
-        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if local_variables is None else local_variables
+        self._registers = LabeledMemory(
+            memory_id='reg',
+            top_func=self.top,
+            page_kwargs={'mo_cmp': self._mo_cmp}) \
+            if registers is None else registers
+        self._stack_variables = LabeledMemory(
+            memory_id='mem',
+            top_func=self.top,
+            page_kwargs={'mo_cmp': self._mo_cmp}) \
+            if local_variables is None else local_variables
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -222,6 +234,10 @@ class PropagatorVEXState(PropagatorState):
 
 
 class Equivalence:
+    """
+    Describes an equivalence relationship between two atoms.
+    """
+
     __slots__ = ('codeloc', 'atom0', 'atom1',)
 
     def __init__(self, codeloc, atom0, atom1):
@@ -243,15 +259,21 @@ class Equivalence:
 
 
 class PropagatorAILState(PropagatorState):
+    """
+    Describes the state used in the AIL engine of Propagator.
+    """
 
     __slots__ = ('_registers', '_stack_variables', '_tmps', )
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
-        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
+                         prop_count=prop_count,
                          equivalence=equivalence)
 
-        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self._stack_variables = LabeledMemory(memory_id='mem',
+                                              top_func=self.top,
+                                              page_kwargs={'mo_cmp': self._mo_cmp}) \
             if stack_variables is None else stack_variables
         self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if registers is None else registers
