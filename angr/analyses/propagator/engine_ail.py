@@ -101,7 +101,7 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
-        if target.one_expr == stmt.target:
+        if target is None or  target.one_expr == stmt.target:
             return
 
         if target.one_expr is not None:
