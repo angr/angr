@@ -130,7 +130,7 @@ class PropValue:
         offset_and_details = {}
         for offset, offset_in_expr, size, label in labels:
             expr = label['expr']
-            if offset_in_expr is not 0:
+            if offset_in_expr != 0:
                 expr = PropValue.extract_ail_expression(offset_in_expr * 8, size * 8, expr)
             elif size < expr.size:
                 expr = PropValue.extract_ail_expression(0, size * 8, expr)
