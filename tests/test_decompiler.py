@@ -347,9 +347,7 @@ def test_decompiling_true_a_x86_64_1():
     print(dec.codegen.text)
 
 
-def test_decompiling_1after909():
-
-    # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
+def test_decompiling_1after909_verify_password():
 
     bin_path = os.path.join(test_location, "x86_64", "1after909")
     p = angr.Project(bin_path, auto_load_libs=False)
@@ -363,12 +361,24 @@ def test_decompiling_1after909():
         code = dec.codegen.text
         print(code)
         assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(v0, &v3, 0x40)" in code
-        assert "strncmp(v0, &v3, 0x40);" not in code, "Call expressions folding failed for strncmp()"
+        m = re.search(r"strncmp\(v0, \S+, 0x40\)", code)
+        assert m is not None
+        strncmp_expr = m.group(0)
+        strncmp_stmt = strncmp_expr + ";"
+        assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
     else:
         print("Failed to decompile function %r." % f)
         assert False
 
+
+def test_decompiling_1after909_doit():
+
+    # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
+
+    bin_path = os.path.join(test_location, "x86_64", "1after909")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
     # doit
     f = cfg.functions['doit']
     optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(

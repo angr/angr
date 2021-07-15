@@ -125,11 +125,18 @@ class PropValue:
     @staticmethod
     def from_value_and_labels(value: claripy.ast.Bits,
                               labels: Iterable[Tuple[int,int,Dict[str,Any]]]) -> 'PropValue':
+        if not labels:
+            return PropValue(value)
         offset_and_details = {}
-        for offset, size, label in labels:
-            offset_and_details[offset] = Detail(size, label['expr'], label['def_at'])
-        if 0 not in offset_and_details:
-            raise RuntimeError("Details at offset 0 is not provided in labels")
+        for offset, offset_in_expr, size, label in labels:
+            expr = label['expr']
+            if offset_in_expr is not 0:
+                expr = PropValue.extract_ail_expression(offset_in_expr * 8, size * 8, expr)
+            elif size < expr.size:
+                expr = PropValue.extract_ail_expression(0, size * 8, expr)
+            elif size > expr.size:
+                expr = PropValue.extend_ail_expression((size - expr.size) * 8, expr)
+            offset_and_details[offset] = Detail(size, expr, label['def_at'])
         return PropValue(value, offset_and_details=offset_and_details)
 
     @staticmethod
@@ -139,3 +146,24 @@ class PropValue:
                                def_at: 'CodeLocation'):
         d = Detail(size, expr, def_at)
         return PropValue(value, offset_and_details={0: d})
+
+    @staticmethod
+    def extract_ail_expression(start: int, bits: int,
+                                expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+        if isinstance(expr, ailment.Expr.Const):
+            mask = (1 << bits) - 1
+            return ailment.Expr.Const(expr.idx, expr.variable, (expr.value >> start) & mask, bits, **expr.tags)
+
+        if start == 0:
+            return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
+        else:
+            a = ailment.Expr.BinaryOp(None, "Shr", (expr, ailment.Expr.Const(None, None, bits, expr.bits)), False)
+            return ailment.Expr.Convert(None, a.bits, bits, False, a)
+
+    @staticmethod
+    def extend_ail_expression(bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+        if isinstance(expr, ailment.Expr.Const):
+            return ailment.Expr.Const(expr.idx, expr.variable, expr.value, bits + expr.bits, **expr.tags)
+        elif isinstance(expr, ailment.Expr.Convert):
+            return ailment.Expr.Convert(None, expr.from_bits, bits + expr.to_bits, False, expr.operand, **expr.tags)
+        return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr)

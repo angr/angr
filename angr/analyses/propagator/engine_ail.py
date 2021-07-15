@@ -167,7 +167,7 @@ class SimEnginePropagatorAIL(
                 if len(non_zero_subexprs) == 1 and non_zero_subexprs[0] is tmp.offset_and_details[0].expr:
                     # we will use the zero-extended version as the replacement
                     subexpr = non_zero_subexprs[0]
-                    subexpr = Expr.Convert(subexpr.idx, subexpr.bits, expr.bits, False, subexpr)
+                    subexpr = PropValue.extend_ail_expression(expr.bits - subexpr.bits, subexpr)
                     l.debug("Add a replacement: %s with %s", expr, subexpr)
                     self.state.add_replacement(self._codeloc(), expr, subexpr)
             return tmp
@@ -208,8 +208,9 @@ class SimEnginePropagatorAIL(
             if not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs) and \
                     len(all_subexprs) == 1:
                 subexpr = all_subexprs[0]
-                l.debug("Add a replacement: %s with %s", expr, subexpr)
-                self.state.add_replacement(self._codeloc(), expr, subexpr)
+                if subexpr.size == expr.size:
+                    l.debug("Add a replacement: %s with %s", expr, subexpr)
+                    self.state.add_replacement(self._codeloc(), expr, subexpr)
             return new_expr
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
@@ -304,12 +305,13 @@ class SimEnginePropagatorAIL(
             start_offset = 0
             end_offset = expr.to_bits // self.arch.byte_width
             offset_and_details = {}
+            max_offset = max(o_value.offset_and_details.keys())
             for offset_, detail_ in o_value.offset_and_details.items():
                 if offset_ < start_offset and offset_ + detail_.size > start_offset:
                     # we start here
                     off = 0
                     siz = min(end_offset, offset_ + detail_.size) - start_offset
-                    expr_ = self._extract_ail_expression(
+                    expr_ = PropValue.extract_ail_expression(
                         (start_offset - offset_) * self.arch.byte_width,
                         siz * self.arch.byte_width,
                         detail_.expr
@@ -319,7 +321,16 @@ class SimEnginePropagatorAIL(
                     # we include the whole thing
                     off = offset_ - start_offset
                     siz = detail_.size
-                    offset_and_details[off] = Detail(siz, detail_.expr, detail_.def_at)
+                    if off == max_offset and off + siz < end_offset:
+                        # extend the expr
+                        expr_ = PropValue.extend_ail_expression(
+                            (end_offset - (off + siz)) * self.arch.byte_width,
+                            detail_.expr
+                        )
+                        siz = end_offset - off
+                    else:
+                        expr_ = detail_.expr
+                    offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
                 elif offset_ < end_offset and offset_ + detail_.size >= end_offset:
                     # we include all the way until end_offset
                     if offset_ < start_offset:
@@ -328,7 +339,7 @@ class SimEnginePropagatorAIL(
                     else:
                         off = offset_ - start_offset
                         siz = end_offset - offset_
-                    expr_ = self._extract_ail_expression(0, siz * self.arch.byte_width, detail_.expr)
+                    expr_ = PropValue.extract_ail_expression(0, siz * self.arch.byte_width, detail_.expr)
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
 
             return PropValue(
@@ -384,6 +395,20 @@ class SimEnginePropagatorAIL(
             self.state.top(expr_stmt.bits),
             expr_stmt.size, expr_stmt, self._codeloc()
         )
+
+    def _ail_handle_Not(self, expr):
+        o_value = self._expr(expr.operand)
+
+        value = self.state.top(expr.bits)
+        if o_value is None:
+            new_expr = expr
+        else:
+            o_expr = o_value.one_expr
+            new_expr = Expr.UnaryOp(expr.idx,
+                                    'Not',
+                                     o_expr if o_expr is not None else expr.operands[0],
+                                     **expr.tags)
+        return PropValue.from_value_and_details(value, expr.size, new_expr, self._codeloc())
 
     def _ail_handle_Cmp(self, expr: Expr.BinaryOp) -> PropValue:
         operand_0_value = self._expr(expr.operands[0])
@@ -712,15 +737,3 @@ class SimEnginePropagatorAIL(
         walker = OutdatedDefinitionWalker(self.state)
         walker.walk_expression(expr)
         return walker.out_dated
-
-    @staticmethod
-    def _extract_ail_expression(start: int, bits: int, expr: Expr.Expression) -> Optional[Expr.Expression]:
-        if start == 0:
-            return Expr.Convert(None, expr.bits, bits, False, expr)
-        else:
-            a = Expr.BinaryOp(None, "Shr", (expr, Expr.Const(None, None, bits, expr.bits)), False)
-            return Expr.Convert(None, a.bits, bits, False, a)
-
-    @staticmethod
-    def _extend_ail_expression(bits: int, expr: Expr.Expression) -> Optional[Expr.Expression]:
-        return Expr.Convert(None, expr.bits, bits + expr.bits, False, expr)

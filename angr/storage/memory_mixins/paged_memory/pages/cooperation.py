@@ -80,7 +80,7 @@ class MemoryObjectMixin(CooperationBase):
                 byts = o.bytes_at(a, length, endness=endness)
                 elements.append(byts)
                 if isinstance(o, SimLabeledMemoryObject):
-                    labels.append((a - o.base + offset, length, o.label))
+                    labels.append((offset, a - o.base, length, o.label))
                 offset += length
         if len(elements) == 0:
             # nothing is read out
