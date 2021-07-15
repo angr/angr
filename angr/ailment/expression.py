@@ -636,6 +636,10 @@ class DirtyExpression(Expression):
     def copy(self) -> 'DirtyExpression':
         return DirtyExpression(self.idx, self.dirty_expr, **self.tags)
 
+    @property
+    def size(self):
+        return self.bits // 8
+
 
 #
 # Special (Dummy) expressions
