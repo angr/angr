@@ -165,6 +165,10 @@ class CallSiteMaker(Analysis):
                     # it has a return value
                     if func.calling_convention is not None:
                         ret_expr_size = func.prototype.returnty._with_arch(self.project.arch).size
+                        if ret_expr_size == 0:
+                            l.warning("Size of the return expression of function %r is 0, which is incorrect. "
+                                       "Force it to word size.", func)
+                            ret_expr_size = self.project.arch.bytes
                         reg_offset = func.calling_convention.RETURN_VAL._fix_offset(
                             None,
                             ret_expr_size,
