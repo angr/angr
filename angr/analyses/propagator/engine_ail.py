@@ -119,14 +119,17 @@ class SimEnginePropagatorAIL(
                 _ = self._expr(arg)
 
         if expr_stmt.ret_expr is not None:
-            # it has a return expression. awesome - treat it as an assignment
-            v = PropValue.from_value_and_details(
-                self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
-                expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
-            )
-            self.state.store_register(expr_stmt.ret_expr.offset, v)
-            # set equivalence
-            self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
+            if isinstance(expr_stmt.ret_expr, Expr.Register):
+                # it has a return expression. awesome - treat it as an assignment
+                v = PropValue.from_value_and_details(
+                    self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
+                    expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
+                )
+                self.state.store_register(expr_stmt.ret_expr, v)
+                # set equivalence
+                self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
+            else:
+                l.warning("Unsupported ret_expr type %s.", expr_stmt.ret_expr.__class__)
 
     def _ail_handle_ConditionalJump(self, stmt):
         _ = self._expr(stmt.condition)
