@@ -1183,8 +1183,7 @@ class Function(Serializable):
         :return int: Size of the instruction in bytes, or None if the instruction is not found.
         """
 
-        for b in self.blocks:
-            block = self.get_block(b.addr, size=b.size, byte_string=b.bytestr)
+        for block in self.blocks:
             if insn_addr in block.instruction_addrs:
                 index = block.instruction_addrs.index(insn_addr)
                 if index == len(block.instruction_addrs) - 1:
