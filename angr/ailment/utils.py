@@ -1,8 +1,12 @@
 from typing import Union, Tuple, Optional, TYPE_CHECKING
-import _md5
 import struct
 
 import claripy
+
+try:
+    import _md5 as md5lib
+except ImportError:
+    import hashlib as md5lib
 
 if TYPE_CHECKING:
     from .expression import Expression
@@ -27,7 +31,7 @@ md5_unpacker = struct.Struct('4I')
 
 def stable_hash(t: Tuple) -> int:
     cnt = _dump_tuple(t)
-    hd = _md5.md5(cnt).digest()
+    hd = md5lib.md5(cnt).digest()
     v = md5_unpacker.unpack(hd)[0]
     return md5_unpacker.unpack(hd)[0]  # 32 bits
 
