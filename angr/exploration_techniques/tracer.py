@@ -1,4 +1,5 @@
 from typing import List, Dict
+import itertools
 import logging
 import cle
 
@@ -508,19 +509,22 @@ class Tracer(ExplorationTechnique):
                     if self._mode == TracingMode.YOLO:
                         # Check if state's history resyncs with trace at some future point in a window of same size as
                         # current state history
-                        match_found = False
                         trace_slice_end = state.globals['trace_idx'] + state.history.recent_block_count
-                        for tmp_trace_idx, tmp_trace_addr in enumerate(self._trace[idx:trace_slice_end + 1], start=idx):
-                            for tmp_addr_idx in range(addr_idx + 1, state.history.recent_block_count):
-                                if self._compare_addr(tmp_trace_addr, state.history.recent_bbl_addrs[tmp_addr_idx]):
-                                    # Found a point where resync occurs. Perform regular sync checks from there.
-                                    idx = tmp_trace_idx + 1
-                                    state_history_sync = tmp_addr_idx + 1
-                                    match_found = True
-                                    break
+                        state_history_idxs = range(addr_idx + 1, state.history.recent_block_count)
+                        trace_idxs = range(idx, trace_slice_end + 1)
+                        matches_found = []
+                        for tmp_addr_idx, tmp_trace_idx in itertools.product(state_history_idxs, trace_idxs):
+                            if self._compare_addr(self._trace[tmp_trace_idx], state.history.recent_bbl_addrs[tmp_addr_idx]):
+                                # Found a point where resync occurs. Add as potential point to force resync to
+                                matches_found.append((tmp_addr_idx, tmp_trace_idx))
 
-                            if match_found:
-                                break
+                        if matches_found != []:
+                            # There are multiple possible matches. Let's find the earliest point in both state's history
+                            # and trace where resync happens
+                            match_addr_idx, match_trace_idx = min(matches_found, key=sum)
+                            idx = match_trace_idx + 1
+                            state_history_sync = match_addr_idx + 1
+                            continue
                         else:
                             # No match found => assume execution fully desync'd from trace. Deem blocks in state's
                             # history match and make execution continue from block after them in trace
@@ -531,9 +535,6 @@ class Tracer(ExplorationTechnique):
                                 raise Exception("TODO: Make state's constraints satisfiable")
 
                             return
-
-                        if match_found:
-                            continue
 
                     raise TracerDesyncError('Oops! angr did not follow the trace',
                                             deviating_addr=addr,
