@@ -17,22 +17,25 @@ class Flags: # pylint: disable=W0232,
     O_WRONLY = 1
     O_RDWR = 2
     O_ACCMODE = 3 # bitmask for read/write mode
-    O_APPEND = 4096
-    O_ASYNC = 64
-    O_CLOEXEC = 512
+    O_APPEND = 0o2000
+    O_ASYNC = 0o20000
+    O_CLOEXEC = 0o2000000
     # TODO mode for this flag
-    O_CREAT = 256
-    O_DIRECT = 262144
-    O_DIRECTORY = 2097152
-    O_EXCL = 2048
-    O_LARGEFILE = 1048576
-    O_NOATIME = 16777216
-    O_NOCTTY = 1024
-    O_NOFOLLOW = 4194304
-    O_NONBLOCK = 8192
-    O_NODELAY = 8192
-    O_SYNC = 67174400
-    O_TRUNC = 1024
+    O_CREAT = 0o100
+    O_DIRECT = 0o40000
+    O_DIRECTORY = 0o200000
+    O_DSYNC = 0o10000
+    O_EXCL = 0o200
+    O_LARGEFILE = 0o100000
+    O_NOATIME = 0o1000000
+    O_NOCTTY = 0o400
+    O_NOFOLLOW = 0o400000
+    O_NONBLOCK = 0o4000
+    O_NDELAY = 0o4000
+    O_PATH = 0o10000000
+    O_SYNC = 0o4010000
+    O_TMPFILE = 0o20200000
+    O_TRUNC = 0o1000
 
 
 def _deps_unpack(a):
