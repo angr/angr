@@ -866,13 +866,33 @@ class SimIROp:
         return arg.raw_to_fp().to_fp(claripy.fp.FSort.from_size(self._output_size_bits), rm=rm)
 
     def _op_fp_to_int(self, args):
-        rm = self._translate_rm(args[0])
-        arg = args[1].raw_to_fp()
-
-        if self._to_signed == 'S':
-            return claripy.fpToSBV(rm, arg, self._to_size)
+        if self.name.endswith("_RZ"):
+            rm = claripy.fp.RM_TowardsZero
+            arg = args[0]
+        elif self.name.endswith("_RN"):
+            rm = claripy.fp.RM_NearestTiesEven
+            arg = args[0]
+        elif self.name.endswith("_RM"):
+            rm = claripy.fp.RM_TowardsNegativeInf
+            arg = args[0]
+        elif self.name.endswith("_RP"):
+            rm = claripy.fp.RM_TowardsPositiveInf
+            arg = args[0]
         else:
-            return claripy.fpToUBV(rm, arg, self._to_size)
+            rm = self._translate_rm(args[0])
+            arg = args[1]
+
+        if not self._vector_size:
+            return self._compute_fp_to_int(rm, arg.raw_to_fp(), self._to_size)
+        else:
+            vector_args = arg.chop(self._vector_size)
+            return claripy.Concat(*[self._compute_fp_to_int(rm, varg.raw_to_fp(), self._vector_size) for varg in vector_args])
+
+    def _compute_fp_to_int(self, rm, arg, to_size):
+        if self._to_signed == 'S':
+            return claripy.fpToSBV(rm, arg, to_size)
+        else:
+            return claripy.fpToUBV(rm, arg, to_size)
 
     def _op_fgeneric_Cmp(self, args): #pylint:disable=no-self-use
 
