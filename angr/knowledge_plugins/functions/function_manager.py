@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 import logging
 import collections.abc
 from sortedcontainers import SortedDict
@@ -69,7 +69,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self._kb = kb
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map = FunctionDict(self, key_types=self.function_address_types)
+        self._function_map: Dict[int,Function] = FunctionDict(self, key_types=self.function_address_types)
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
 
@@ -375,5 +375,14 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         for func_addr, func in self._function_map.items():
             filename = "%s%#08x.png" % (prefix, func_addr)
             func.dbg_draw(filename)
+
+    def rebuild_callgraph(self):
+        self.callgraph = networkx.MultiDiGraph()
+        for func in self._function_map.values():
+            if func.block_addrs_set:
+                for node in func.transition_graph.nodes():
+                    if isinstance(node, Function):
+                        self.callgraph.add_edge(func.addr, node.addr)
+
 
 KnowledgeBasePlugin.register_default('functions', FunctionManager)
