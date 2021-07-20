@@ -1,5 +1,7 @@
 from typing import Dict, Tuple, Union, Optional
 
+import claripy
+
 from ...calling_conventions import SimFunctionArgument, SimRegArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
@@ -124,7 +126,7 @@ class MemoryLocation(Atom):
         """
         super(MemoryLocation, self).__init__()
 
-        self.addr: Union[SpOffset,int] = addr
+        self.addr: Union[SpOffset,int,claripy.ast.BV] = addr
         self._size: int = size
         self.endness = endness
 
@@ -160,7 +162,9 @@ class MemoryLocation(Atom):
 
     def __eq__(self, other):
         return type(other) is MemoryLocation and \
-               self.addr == other.addr and \
+               (
+                    self.addr is other.addr if isinstance(self.addr, (claripy.ast.BV)) else self.addr == other.addr
+               ) and \
                self.size == other.size and \
                self.endness == other.endness
 

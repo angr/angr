@@ -83,10 +83,13 @@ class DepGraph:
             Returns a joint graph that comprises the transitive closure of all defs that `def_` depends on and the
             current graph `result`. `result` is updated.
             """
-            if def_ in self._transitive_closures.keys():
+            if def_ in self._transitive_closures:
                 closure = self._transitive_closures[def_]
                 # merge closure into result
                 result.add_edges_from(closure.edges())
+                return result
+
+            if def_ not in graph:
                 return result
 
             predecessors = list(graph.predecessors(def_))
