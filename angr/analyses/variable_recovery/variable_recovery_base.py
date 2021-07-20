@@ -225,6 +225,8 @@ class VariableRecoveryStateBase:
                 # convert it to a signed integer
                 if r >= 2 ** (self.arch.bits - 1):
                     return r - 2 ** self.arch.bits
+                if r < -2 ** (self.arch.bits - 1):
+                    return 2 ** self.arch.bits + r
                 return r
 
         return None
