@@ -8,7 +8,7 @@ import archinfo
 
 from collections import defaultdict
 
-from ...errors import SimMemoryMissingError
+from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
@@ -236,8 +236,11 @@ class LiveDefinitions:
 
         return self.get_stack_address(sp_v)
 
-    def get_stack_address(self, offset: claripy.ast.Base) -> int:
-        return self.stack_offset_to_stack_addr(self.get_stack_offset(offset))
+    def get_stack_address(self, offset: claripy.ast.Base) -> Optional[int]:
+        offset = self.get_stack_offset(offset)
+        if offset is None:
+            return None
+        return self.stack_offset_to_stack_addr(offset)
 
     def stack_offset_to_stack_addr(self, offset) -> int:
         if self.arch.bits == 32:
@@ -256,8 +259,8 @@ class LiveDefinitions:
 
         merge_occurred = state.register_definitions.merge([ other.register_definitions for other in others ], None)
         merge_occurred |= state.heap_definitions.merge([other.heap_definitions for other in others], None)
-        merge_occurred |=state.memory_definitions.merge([other.memory_definitions for other in others], None)
-        merge_occurred |=state.stack_definitions.merge([other.stack_definitions for other in others], None)
+        merge_occurred |= state.memory_definitions.merge([other.memory_definitions for other in others], None)
+        merge_occurred |= state.stack_definitions.merge([other.stack_definitions for other in others], None)
 
         for other in others:
             other: LiveDefinitions
@@ -301,11 +304,17 @@ class LiveDefinitions:
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
-            self.register_definitions.store(atom.reg_offset, d, size=atom.size, endness=endness)
+            try:
+                self.register_definitions.store(atom.reg_offset, d, size=atom.size, endness=endness)
+            except SimMemoryError:
+                l.warning("Failed to store register definition %s at %d.", d, atom.reg_offset, exc_info=True)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
-                stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
-                self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
+                if atom.addr.offset is not None:
+                    stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                    self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
+                else:
+                    l.warning("Skip stack storing since the stack offset is None.")
             elif isinstance(atom.addr, HeapAddress):
                 self.heap_definitions.store(atom.addr.value, d, size=atom.size, endness=endness)
             elif isinstance(atom.addr, int):
@@ -314,7 +323,12 @@ class LiveDefinitions:
                 if atom.addr.concrete:
                     self.memory_definitions.store(atom.addr._model_concrete.value, d, size=atom.size, endness=endness)
                 elif self.is_stack_address(atom.addr):
-                    self.stack_definitions.store(self.get_stack_address(atom.addr), d, size=atom.size, endness=endness)
+                    stack_addr = self.get_stack_address(atom.addr)
+                    if stack_addr is None:
+                        l.warning("Failed to convert stack address %s to a concrete stack address. Skip the store.",
+                                  atom.addr)
+                    else:
+                        self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
                 else:
                     return None
             else:

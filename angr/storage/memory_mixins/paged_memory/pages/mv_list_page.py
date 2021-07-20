@@ -143,10 +143,14 @@ class MVListPage(
                 if sm._contains(b, page_addr):
                     l.info("... present in %s", fv)
                     for mo in sm.content[b]:
-                        memory_objects.append((mo, fv))
+                        if mo.includes(page_addr + b):
+                            memory_objects.append((mo, fv))
                 else:
                     l.info("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
+
+            if not memory_objects:
+                continue
 
             mos = set(mo for mo, _ in memory_objects)
             mo_bases = set(mo.base for mo, _ in memory_objects)

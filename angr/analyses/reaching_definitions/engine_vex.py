@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Optional, Iterable, Set, Type, Union, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -33,6 +33,10 @@ class SimEngineRDVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
+    """
+    Implements the VEX execution engine for reaching definition analysis.
+    """
+
     def __init__(self, project, call_stack, maximum_local_call_depth, functions=None,
                  function_handler=None):
         super().__init__()
@@ -266,7 +270,8 @@ class SimEngineRDVEX(
                 size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
                 load_result = self._load_core(addrs, size, stmt.endness)
                 self.tmps[stmt.result] = load_result
-                self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                self.state.kill_and_add_definition(Tmp(stmt.result,
+                                                       self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
                                                    self._codeloc(),
                                                    load_result)
         else:
@@ -279,7 +284,8 @@ class SimEngineRDVEX(
 
                 self._store_core(addrs, size, storedata)
                 self.tmps[stmt.result] = MultiValues(offset_to_values={0: {claripy.BVV(1, 1)}})
-                self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                self.state.kill_and_add_definition(Tmp(stmt.result,
+                                                       self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
                                                    self._codeloc(),
                                                    self.tmps[stmt.result])
 
@@ -367,15 +373,16 @@ class SimEngineRDVEX(
             elif self.state.is_stack_address(addr):
                 # Load data from a local variable
                 stack_offset = self.state.get_stack_offset(addr)
-                stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
-                try:
-                    vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
-                except SimMemoryMissingError:
-                    continue
+                if stack_offset is not None:
+                    stack_addr = self.state.live_definitions.stack_offset_to_stack_addr(stack_offset)
+                    try:
+                        vs: MultiValues = self.state.stack_definitions.load(stack_addr, size=size, endness=endness)
+                    except SimMemoryMissingError:
+                        continue
 
-                memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=endness)
-                self.state.add_use(memory_location, self._codeloc())
-                result = result.merge(vs) if result is not None else vs
+                    memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=endness)
+                    self.state.add_use(memory_location, self._codeloc())
+                    result = result.merge(vs) if result is not None else vs
 
             elif self.state.is_heap_address(addr):
                 # Load data from the heap
@@ -467,25 +474,23 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-                return MultiValues(offset_to_values={0: {
-                        claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1)
-                    }})
+            return MultiValues(offset_to_values={0: {
+                    claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1)
+                }})
 
         return MultiValues(offset_to_values={0: {self.state.top(1)}})
-
 
     def _handle_Not(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
+        bits = expr.result_size(self.tyenv)
 
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-                return MultiValues(offset_to_values={0: {
-                        claripy.BVV(1, 1) if e0._model_concrete.value == 0 else claripy.BVV(0, 1)
-                    }})
+            return MultiValues(offset_to_values={0: {~e0}})  # pylint:disable=invalid-unary-operand-type
 
-        return MultiValues(offset_to_values={0: {self.state.top(1)}})
+        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
     #
     # Binary operation handlers
@@ -590,24 +595,31 @@ class SimEngineRDVEX(
         expr1_v = expr1.one_value()
 
         if expr0_v is None and expr1_v is None:
-            # we do not support multiplication between two real multivalues
+            # we do not support division between two real multivalues
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         elif expr0_v is None and expr1_v is not None:
-            # multiplying a single value to a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
                 vs = {v / expr1_v for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
-            # multiplying a single value to a multivalue
             if len(expr1.values) == 1 and 0 in expr1.values:
                 vs = {v / expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
-            # multiplying two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                # dividing two single values
+                r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _handle_DivMod(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
         return r
 
@@ -633,8 +645,9 @@ class SimEngineRDVEX(
                 vs = {v & expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
-            # bitwise-and two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                # bitwise-and two single values together
+                r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -663,8 +676,9 @@ class SimEngineRDVEX(
                 vs = {v ^ expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
-            # bitwise-xor two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v ^ expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                # bitwise-xor two single values together
+                r = MultiValues(offset_to_values={0: {expr0_v ^ expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -712,6 +726,8 @@ class SimEngineRDVEX(
 
         def _shift_sar(e0, e1):
             # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
+            if e1.symbolic:
+                return self.state.top(bits)
             e1 = e1._model_concrete.value
 
             if claripy.is_true(e0 >> (bits - 1) == 0):
@@ -751,6 +767,8 @@ class SimEngineRDVEX(
         expr1_v = expr1.one_value()
 
         def _shift_shr(e0, e1):
+            if e1.symbolic:
+                return self.state.top(bits)
             if e1.size() < e0.size():
                 e1 = e1.sign_extend(e0.size()-e1.size())
             else:
@@ -790,6 +808,8 @@ class SimEngineRDVEX(
 
         def _shift_shl(e0, e1):
             # convert e1 to an integer to prevent claripy from complaining "args' lengths must all be equal"
+            if e1.symbolic:
+                return self.state.top(bits)
             e1 = e1._model_concrete.value
             return e0 << e1
 
@@ -930,7 +950,10 @@ class SimEngineRDVEX(
             l.warning('Invalid type %s for IP.', type(func_addr).__name__)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(
+                    self.state,
+                    src_codeloc=self._codeloc(),
+                )
                 state: ReachingDefinitionsState
                 self.state = state
             else:
@@ -1058,11 +1081,12 @@ class SimEngineRDVEX(
                     function = func_addr_int if isinstance(func_addr_int, int) else None,
                     metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
                 )
-                self.state.kill_and_add_definition(atom,
-                                                   self._codeloc(),
-                                                   MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
-                                                   tags={tag}
-                                                   )
+                self.state.kill_and_add_definition(
+                    atom,
+                    self._codeloc(),
+                    MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                    tags={tag},
+                )
 
         if cc.CALLER_SAVED_REGS is not None:
             for reg in cc.CALLER_SAVED_REGS:
