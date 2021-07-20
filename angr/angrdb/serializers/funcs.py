@@ -54,4 +54,6 @@ class FunctionManagerSerializer:
                                   all_func_addrs=all_func_addrs)
             funcs[func.addr] = func
 
+        funcs.rebuild_callgraph()
+
         return funcs
