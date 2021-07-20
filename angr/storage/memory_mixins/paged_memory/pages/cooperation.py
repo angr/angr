@@ -133,13 +133,15 @@ class MemoryObjectSetMixin(CooperationBase):
         for i, (a, objs) in enumerate(c_objects):
             chopped_set = set()
             for o in objs:
-                chopped = o.bytes_at(
-                    a,
-                    ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
-                    endness=endness
-                )
-                chopped_set.add(chopped)
-            elements.append(chopped_set)
+                if o.includes(a):
+                    chopped = o.bytes_at(
+                        a,
+                        ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
+                        endness=endness
+                    )
+                    chopped_set.add(chopped)
+            if chopped_set:
+                elements.append(chopped_set)
 
         if len(elements) == 0:
             # nothing is read out
@@ -186,7 +188,7 @@ class MemoryObjectSetMixin(CooperationBase):
             # for MultiValues, we return sets of SimMemoryObjects
             assert label is None  # TODO: Support labels
 
-            _ = yield
+            size = yield
             offset_to_mos: Dict[int,Set[SimMemoryObject]] = {}
             for offset, vs in data.values.items():
                 offset_to_mos[offset] = set()
@@ -200,10 +202,10 @@ class MemoryObjectSetMixin(CooperationBase):
             pos = 0
             while pos < len(sorted_offsets):
                 mos = set(offset_to_mos[sorted_offsets[pos]])
-                size = next(iter(mos)).length
+                mo_length = next(iter(mos)).length
                 cur_addr += size
-                yield mos, size
-                if sorted_offsets[pos] < cur_addr - addr - page_addr:
+                size = yield mos, mo_length
+                if sorted_offsets[pos] + mo_length <= cur_addr - addr - page_addr:
                     pos += 1
 
         else:
