@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, TYPE_CHECKING
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import time
 from contextlib import contextmanager
 
@@ -88,7 +88,7 @@ class AngrDB:
             return None
         return db_info.value
 
-    def update_dbinfo(self, session):
+    def update_dbinfo(self, session, extra_info: Optional[Dict[str,str]]=None):
         """
         Update the information in database.
 
@@ -99,7 +99,11 @@ class AngrDB:
         self.save_info(session, "version", str(self.VERSION))
         self.save_info(session, "saved_at", str(int(time.time())))
 
-    def get_dbinfo(self, session):
+        if extra_info:
+            for key, value in extra_info.items():
+                self.save_info(session, str(key), str(value))
+
+    def get_dbinfo(self, session, extra_info: Optional[Dict[str,str]]=None):
         """
         Get database information.
 
@@ -121,6 +125,11 @@ class AngrDB:
             saved_at = int(saved_at)
         d['saved_at'] = saved_at
 
+        if extra_info is not None:
+            # store *everything* into the dict
+            for entry in session.query(DbInformation):
+                extra_info[entry.key] = entry.value
+
         return d
 
     def db_compatible(self, version):
@@ -134,7 +143,7 @@ class AngrDB:
 
         return version == self.VERSION
 
-    def dump(self, db_path, kbs: Optional[List['KnowledgeBase']]=None):
+    def dump(self, db_path, kbs: Optional[List['KnowledgeBase']]=None, extra_info: Optional[Dict[str,Any]]=None):
 
         db_str = "sqlite:///%s" % db_path
 
@@ -151,16 +160,20 @@ class AngrDB:
                     KnowledgeBaseSerializer.dump(session, kb)
 
                 # Update the information
-                self.update_dbinfo(session)
+                self.update_dbinfo(session, extra_info=extra_info)
 
-    def load(self, db_path, kb_names: Optional[List[str]]=None, other_kbs: Optional[Dict[str,'KnowledgeBase']]=None):
+    def load(self,
+             db_path: str,
+             kb_names: Optional[List[str]]=None,
+             other_kbs: Optional[Dict[str,'KnowledgeBase']]=None,
+             extra_info: Optional[Dict[str,Any]]=None):
 
         db_str = "sqlite:///%s" % db_path
 
         with self.open_db(db_str) as Session:
             with self.session_scope(Session) as session:
                 # Compatibility check
-                dbinfo = self.get_dbinfo(session)
+                dbinfo = self.get_dbinfo(session, extra_info=extra_info)
                 if not self.db_compatible(dbinfo.get('version', None)):
                     raise AngrIncompatibleDBError("Version %s is incompatible with the current version of angr." %
                                                    dbinfo.get('version', None))
