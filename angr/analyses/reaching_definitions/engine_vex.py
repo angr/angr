@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Optional, Iterable, Set, Type, Union, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Union, TYPE_CHECKING
 import logging
 
 import pyvex
@@ -33,6 +33,10 @@ class SimEngineRDVEX(
     SimEngineLightVEXMixin,
     SimEngineLight,
 ):  # pylint:disable=abstract-method
+    """
+    Implements the VEX execution engine for reaching definition analysis.
+    """
+
     def __init__(self, project, call_stack, maximum_local_call_depth, functions=None,
                  function_handler=None):
         super().__init__()
@@ -266,7 +270,8 @@ class SimEngineRDVEX(
                 size = self.tyenv.sizeof(stmt.result) // self.arch.byte_width
                 load_result = self._load_core(addrs, size, stmt.endness)
                 self.tmps[stmt.result] = load_result
-                self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                self.state.kill_and_add_definition(Tmp(stmt.result,
+                                                       self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
                                                    self._codeloc(),
                                                    load_result)
         else:
@@ -279,7 +284,8 @@ class SimEngineRDVEX(
 
                 self._store_core(addrs, size, storedata)
                 self.tmps[stmt.result] = MultiValues(offset_to_values={0: {claripy.BVV(1, 1)}})
-                self.state.kill_and_add_definition(Tmp(stmt.result, self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
+                self.state.kill_and_add_definition(Tmp(stmt.result,
+                                                       self.tyenv.sizeof(stmt.result) // self.arch.byte_width),
                                                    self._codeloc(),
                                                    self.tmps[stmt.result])
 
@@ -468,9 +474,9 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-                return MultiValues(offset_to_values={0: {
-                        claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1)
-                    }})
+            return MultiValues(offset_to_values={0: {
+                    claripy.BVV(1, 1) if e0._model_concrete.value != 1 else claripy.BVV(0, 1)
+                }})
 
         return MultiValues(offset_to_values={0: {self.state.top(1)}})
 
@@ -482,7 +488,7 @@ class SimEngineRDVEX(
         e0 = expr_0.one_value()
 
         if e0 is not None and not e0.symbolic:
-                return MultiValues(offset_to_values={0: {~e0}})
+            return MultiValues(offset_to_values={0: {~e0}})  # pylint:disable=invalid-unary-operand-type
 
         return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
@@ -944,7 +950,10 @@ class SimEngineRDVEX(
             l.warning('Invalid type %s for IP.', type(func_addr).__name__)
             handler_name = 'handle_unknown_call'
             if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
+                executed_rda, state = getattr(self._function_handler, handler_name)(
+                    self.state,
+                    src_codeloc=self._codeloc(),
+                )
                 state: ReachingDefinitionsState
                 self.state = state
             else:
@@ -1072,11 +1081,12 @@ class SimEngineRDVEX(
                     function = func_addr_int if isinstance(func_addr_int, int) else None,
                     metadata = {'tagged_by': 'SimEngineRDVEX._handle_function_cc'}
                 )
-                self.state.kill_and_add_definition(atom,
-                                                   self._codeloc(),
-                                                   MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
-                                                   tags={tag}
-                                                   )
+                self.state.kill_and_add_definition(
+                    atom,
+                    self._codeloc(),
+                    MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                    tags={tag},
+                )
 
         if cc.CALLER_SAVED_REGS is not None:
             for reg in cc.CALLER_SAVED_REGS:

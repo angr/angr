@@ -35,6 +35,9 @@ class Atom:
 
 
 class GuardUse(Atom):
+    """
+    Implements a guard use.
+    """
     def __init__(self, target):
         self.target = target
 
@@ -53,7 +56,7 @@ class Tmp(Atom):
     __slots__ = ('tmp_idx', '_size', )
 
     def __init__(self, tmp_idx: int, size: int):
-        super(Tmp, self).__init__()
+        super().__init__()
         self.tmp_idx = tmp_idx
         self._size = size
 
@@ -85,7 +88,7 @@ class Register(Atom):
     __slots__ = ('reg_offset', '_size', )
 
     def __init__(self, reg_offset: int, size: int):
-        super(Register, self).__init__()
+        super().__init__()
 
         self.reg_offset = reg_offset
         self._size = size
@@ -124,7 +127,7 @@ class MemoryLocation(Atom):
         :param int addr: The address of the beginning memory location slice.
         :param int size: The size of the represented memory location, in bytes.
         """
-        super(MemoryLocation, self).__init__()
+        super().__init__()
 
         self.addr: Union[SpOffset,int,claripy.ast.BV] = addr
         self._size: int = size
@@ -161,6 +164,7 @@ class MemoryLocation(Atom):
         return True
 
     def __eq__(self, other):
+        # pylint:disable=isinstance-second-argument-not-valid-type
         return type(other) is MemoryLocation and \
                (
                     self.addr is other.addr if isinstance(self.addr, (claripy.ast.BV)) else self.addr == other.addr
