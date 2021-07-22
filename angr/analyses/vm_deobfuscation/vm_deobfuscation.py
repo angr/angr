@@ -453,7 +453,7 @@ class StatementGraph:
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None):
+    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_input=None):
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
         self.start_addr = start_addr
@@ -519,7 +519,8 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
 
-        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr)
+        if verification_input is not None:
+            self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr, input=verification_input)
 
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
@@ -681,17 +682,20 @@ class VMDeobfuscation(Analysis):
 
         return new_cfg
 
-    def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None):
+    def perform_semantic_verification(self, cfg, proj, start_state=None, start_addr=None, input=None):
         new_model = self.new_model_graph(cfg.graph, proj, 'semantic_verification')
+        chroot = start_state.fs._mountpoints[b"/"].host_path
         # flag = claripy.BVV(b'X-MAS{VMs_ar3_c00l_aNd_1nt3resting}\n')
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
         #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/sample_vm_x-mas-ctf", stdin=flag)
-        flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
-        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
-                                       concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
+        # flag = claripy.BVV(b'09a71bf084a93df7ce3def3ab1bd61f6\n')
+        # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+        #                                concrete_fs=True, chroot="/media/sf_PhD/simple_vm_set/simple_vm_RCTF2018/", stdin=flag)
         # flag = claripy.BVV(b'5\n')
         # new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
         #                                concrete_fs=True, chroot="/media/sf_PhD/tigress_tests", stdin=flag)
+        new_model._nodes_by_addr[self.start_addr][0].input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+                                        concrete_fs=True, chroot=chroot, stdin=input)
 
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
