@@ -148,7 +148,12 @@ class VEXExprConverter(Converter):
         if op_name is None and op._conversion:
             # conversion
             # TODO: Finish this
-            if op._from_side == "HL":
+            if op._from_type == "I" and op._to_type == "F":
+                # integer to floating point
+                # TODO: Create an FPConvert operation
+                op_name = "FPConvert"
+                l.warning("Floating-point conversions are not supported in AIL or angr decompiler.")
+            elif op._from_side == "HL":
                 # Concatenating the two arguments and form a new value
                 op_name = "Concat"
 
