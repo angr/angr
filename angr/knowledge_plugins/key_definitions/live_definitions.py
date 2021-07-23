@@ -46,6 +46,14 @@ class DefinitionAnnotation(Annotation):
     def eliminatable(self):
         return False
 
+    def __hash__(self):
+        return hash((self.definition, self.relocatable, self.eliminatable))
+
+    def __eq__(self, other: 'DefinitionAnnotation'):
+        return  self.definition == other.definition \
+            and self.relocatable == other.relocatable \
+            and self.eliminatable == other.eliminatable
+
 # pylint: disable=W1116
 class LiveDefinitions:
     """
