@@ -178,7 +178,7 @@ class SimEngineVRAIL(
             self._expr(expr.operands[0])
             self._expr(expr.operands[1])
             # still return a RichR instance
-            r = RichR(None)
+            r = RichR(self.state.top(expr.bits))
         return r
 
     def _ail_handle_Convert(self, expr: ailment.Expr.Convert):
