@@ -585,4 +585,8 @@ class SimEngineVRBase(SimEngineLight):
                     # typevar = next(reversed(list(self.state.typevars[var].values())))
                     typevar = self.state.typevars[var]
 
-        return RichR(next(iter(value_list[0])), variable=var, typevar=typevar)
+        if len(value_list) == 1:
+            r_value = next(iter(value_list[0]))
+        else:
+            r_value = self.state.top(size * self.arch.byte_width)  # fall back to top
+        return RichR(r_value, variable=var, typevar=typevar)
