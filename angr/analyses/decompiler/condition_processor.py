@@ -524,10 +524,10 @@ class ConditionProcessor:
 
         if memo is None:
             memo = {}
-        if cond in memo:
-            return memo[cond]
+        if cond._hash in memo:
+            return memo[cond._hash]
         r = self.convert_claripy_bool_ast_core(cond, memo)
-        memo[cond] = r
+        memo[cond._hash] = r
         return r
 
     def convert_claripy_bool_ast_core(self, cond, memo):
