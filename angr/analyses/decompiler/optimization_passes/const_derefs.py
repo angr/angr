@@ -35,7 +35,7 @@ class BlockWalker(AILBlockWalker):
             return not section.is_writable
         segment = self._project.loader.find_segment_containing(addr)
         if segment is not None:
-            return not segment.is_writable()
+            return not segment.is_writable
         return False
 
     def _addr_belongs_to_got(self, addr: int) -> bool:
