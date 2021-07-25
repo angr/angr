@@ -189,7 +189,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._low_priority = low_priority
         self._job_ctr = 0
-        self._track_sp = track_sp
+        self._track_sp = track_sp and self.project.arch.sp_offset is not None
         self._func_args = func_args
 
         self._ail_engine = SimEngineVRAIL(self.project, self.kb)
@@ -238,9 +238,11 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function, project=self.project,
                                           )
         initial_sp = state.stack_address(self.project.arch.bytes if self.project.arch.call_pushes_ret else 0)
-        state.register_region.store(self.project.arch.sp_offset, initial_sp)
+        if self.project.arch.sp_offset is not None:
+            state.register_region.store(self.project.arch.sp_offset, initial_sp)
         # give it enough stack space
-        state.register_region.store(self.project.arch.bp_offset, initial_sp + 0x100000)
+        if self.project.arch.bp_offset is not None:
+            state.register_region.store(self.project.arch.bp_offset, initial_sp + 0x100000)
 
         internal_manager = self.variable_manager[self.function.addr]
 
