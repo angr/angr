@@ -445,7 +445,10 @@ class LiveDefinitions:
 
     def get_value_from_atom(self, atom: Atom) -> Optional[MultiValues]:
         if isinstance(atom, Register):
-            return self.register_definitions.load(atom.reg_offset, size=atom.size)
+            try:
+                return self.register_definitions.load(atom.reg_offset, size=atom.size)
+            except SimMemoryMissingError:
+                return None
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
                 stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
