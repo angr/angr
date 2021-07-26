@@ -408,7 +408,13 @@ class LiveDefinitions:
                     for v in vs:
                         yield from self.extract_defs(v)
             elif isinstance(atom.addr, HeapAddress):
-                yield self.heap_definitions.get_objects_by_offset(atom.addr.value)
+                try:
+                    mv: MultiValues = self.heap_definitions.load(atom.addr.value, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return
+                for vs in mv.values.values():
+                    for v in vs:
+                        yield from self.extract_defs(v)
             elif isinstance(atom.addr, int):
                 try:
                     values = self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
@@ -442,11 +448,21 @@ class LiveDefinitions:
             return self.register_definitions.load(atom.reg_offset, size=atom.size)
         elif isinstance(atom, MemoryLocation):
             if isinstance(atom.addr, SpOffset):
-                return self.stack_definitions.load(atom.addr, size=atom.size)
+                stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                try:
+                    return self.stack_definitions.load(stack_addr, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return None
             elif isinstance(atom.addr, HeapAddress):
-                return self.heap_definitions.load(atom.addr, size=atom.size)
+                try:
+                    return self.heap_definitions.load(atom.addr.value, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return None
             elif isinstance(atom.addr, int):
-                return self.memory_definitions.load(atom.addr, size=atom.size)
+                try:
+                    return self.memory_definitions.load(atom.addr, size=atom.size, endness=atom.endness)
+                except SimMemoryMissingError:
+                    return None
             else:
                 # ignore RegisterOffset
                 return None
