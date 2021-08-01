@@ -1,7 +1,6 @@
 
 from functools import wraps
 from typing import Optional, List
-import time
 
 try:
     import binsync
