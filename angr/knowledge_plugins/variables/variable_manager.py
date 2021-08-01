@@ -34,6 +34,9 @@ class LiveVariables:
     """
     A collection of live variables at a program point.
     """
+
+    __slots__ = ('register_region', 'stack_region', )
+
     def __init__(self, register_region, stack_region):
         self.register_region = register_region
         self.stack_region = stack_region

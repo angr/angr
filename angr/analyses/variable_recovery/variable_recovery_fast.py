@@ -169,7 +169,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     """
 
     def __init__(self, func, func_graph=None, max_iterations=2, low_priority=False, track_sp=True,
-                 func_args: Optional[List[SimVariable]]=None):
+                 func_args: Optional[List[SimVariable]]=None, store_live_variables=False):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -183,7 +183,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         if not func.block_addrs_set or func.startpoint is None:
             raise AngrVariableRecoveryError("Function %s is empty." % repr(func))
 
-        VariableRecoveryBase.__init__(self, func, max_iterations)
+        VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
@@ -335,11 +335,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self.variable_manager['global'].assign_variable_names(labels=self.kb.labels)
         self.variable_manager[self.function.addr].assign_variable_names()
 
-        for addr, state in self._outstates.items():
-            self.variable_manager[self.function.addr].set_live_variables(addr,
-                                                                         state.register_region,
-                                                                         state.stack_region
-                                                                         )
+        if self._store_live_variables:
+            for addr, state in self._outstates.items():
+                self.variable_manager[self.function.addr].set_live_variables(
+                    addr,
+                    state.downsize_region(state.register_region),
+                    state.downsize_region(state.stack_region),
+                )
 
     #
     # Private methods

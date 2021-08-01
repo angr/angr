@@ -430,7 +430,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
     analysis to resolve the conflicts between overlapping variables.
     """
 
-    def __init__(self, func, max_iterations=20):
+    def __init__(self, func, max_iterations=20, store_live_variables=False):
         """
 
         :param knowledge.Function func:  The function to analyze.
@@ -438,7 +438,7 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
 
         function_graph_visitor = FunctionGraphVisitor(func)
 
-        VariableRecoveryBase.__init__(self, func, max_iterations)
+        VariableRecoveryBase.__init__(self, func, max_iterations, store_live_variables)
         ForwardAnalysis.__init__(self, order_jobs=True, allow_merging=True, allow_widening=False,
                                  graph_visitor=function_graph_visitor)
 
@@ -530,11 +530,13 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  #pylint:disable=
         # TODO: only re-assign variable names to those that are newly changed
         self.variable_manager.initialize_variable_names()
 
-        for addr, state in self._outstates.items():
-            self.variable_manager[self.function.addr].set_live_variables(addr,
-                                                                         state.register_region,
-                                                                         state.stack_region
-                                                                         )
+        if self._store_live_variables:
+            for addr, state in self._outstates.items():
+                self.variable_manager[self.function.addr].set_live_variables(
+                    addr,
+                    state.downsize_region(state.register_region),
+                    state.downsize_region(state.stack_region),
+                )
 
 
 from angr.analyses import AnalysesHub

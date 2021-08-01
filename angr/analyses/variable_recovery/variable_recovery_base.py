@@ -68,12 +68,13 @@ class VariableRecoveryBase(Analysis):
     The base class for VariableRecovery and VariableRecoveryFast.
     """
 
-    def __init__(self, func, max_iterations):
+    def __init__(self, func, max_iterations, store_live_variables: bool):
 
         self.function = func
         self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
+        self._store_live_variables = store_live_variables
 
         self._outstates = {}
         self._instates: Dict[Any,VariableRecoveryStateBase] = {}
@@ -282,6 +283,18 @@ class VariableRecoveryStateBase:
         """
 
         self.type_constraints.add(constraint)
+
+    @staticmethod
+    def downsize_region(region: MultiValuedMemory) -> MultiValuedMemory:
+        """
+        Get rid of unnecessary references in region so that it won't avoid garbage collection on those referenced
+        objects.
+
+        :param region:  A MultiValuedMemory region.
+        :return:        None
+        """
+        region._phi_maker = None
+        return region
 
     #
     # Private methods
