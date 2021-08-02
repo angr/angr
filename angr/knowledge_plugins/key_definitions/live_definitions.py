@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, TYPE_CHECKING
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, TYPE_CHECKING
 import logging
 
 import claripy
@@ -131,7 +131,8 @@ class LiveDefinitions:
         return weakref.proxy(self)
 
     @staticmethod
-    def _mo_cmp(mo_self: Set['SimMemoryObject'], mo_other: Set['SimMemoryObject'], addr: int, size: int):  # pylint:disable=unused-argument
+    def _mo_cmp(mo_self: Union['SimMemoryObject', Set['SimMemoryObject']],
+                mo_other: Union['SimMemoryObject', Set['SimMemoryObject']], addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
@@ -142,10 +143,16 @@ class LiveDefinitions:
 
         values_self = set()
         values_other = set()
-        for mo in mo_self:
-            values_self.add(mo.object)
-        for mo in mo_other:
-            values_other.add(mo.object)
+        if type(mo_self) is set:
+            for mo in mo_self:
+                values_self.add(mo.object)
+        else:
+            values_self.add(mo_self)
+        if type(mo_other) is set:
+            for mo in mo_other:
+                values_other.add(mo.object)
+        else:
+            values_other.add(mo_other)
         return values_self == values_other
 
     @staticmethod
