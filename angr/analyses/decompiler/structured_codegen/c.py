@@ -94,6 +94,9 @@ class CConstruct:
 
                 # add (), {}, and [] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction)):
+                    if s is None:
+                        continue
+
                     pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith('\n'):

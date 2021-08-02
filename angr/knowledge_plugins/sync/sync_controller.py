@@ -1,7 +1,6 @@
 
 from functools import wraps
 from typing import Optional, List
-import time
 
 try:
     import binsync
@@ -15,46 +14,6 @@ from ... import knowledge_plugins
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
 from ...sim_variable import SimStackVariable
 from ..variables.variable_manager import VariableManagerInternal
-
-
-def last_push(f):
-    """
-    Once a push function has been executed, perform an update on the last push time,
-    last push function, and the local function name for the master user.
-    """
-
-    @wraps(f)
-    def set_last_push(self, *args, **kwargs):
-
-        def parse_push_args_func_addr(push_args):
-            arg = args[0]
-            func_addr = -1
-            # push func
-            if isinstance(arg, knowledge_plugins.Function):
-                func_addr = arg.addr
-
-            # push many [comments, stack_vars]
-            elif isinstance(arg, list):
-                if isinstance(arg[0], SimStackVariable):
-                    func_addr = push_args[1].func_addr
-                elif isinstance(arg[0], binsync.data.Comment):
-                    func_addr = arg[0].func_addr
-
-            # push [comment]
-            elif isinstance(arg, int):
-                func_addr = self.get_func_addr_from_addr(arg)
-
-            return func_addr
-
-        attr_func_addr = parse_push_args_func_addr(args)
-        last_push_time = int(time.time())
-        last_push_func = attr_func_addr
-        func_name = self._kb.functions[attr_func_addr].name if attr_func_addr in self._kb.functions else ""
-
-        f(self, *args, **kwargs)
-        self.client.set_last_push(last_push_func, last_push_time, func_name)
-
-    return set_last_push
 
 
 def make_state(f):
@@ -170,7 +129,6 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_state
-    @last_push
     # pylint:disable=unused-argument,no-self-use
     def push_function(self, func: knowledge_plugins.Function, user=None, state=None):
         """
@@ -186,7 +144,6 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_state
-    @last_push
     # pylint:disable=unused-argument,no-self-use
     def push_comment(self, addr, comment, decompiled=False, user=None, state=None):
         func_addr = self.get_func_addr_from_addr(addr)
@@ -196,7 +153,6 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_state
-    @last_push
     # pylint:disable=unused-argument,no-self-use
     def push_comments(self, comments: List['binsync.data.Comment'], user=None, state=None):
         """
@@ -213,7 +169,6 @@ class SyncController(KnowledgeBasePlugin):
 
     @init_checker
     @make_state
-    @last_push
     # pylint:disable=unused-argument,no-self-use
     def push_stack_variables(self, stack_variables: List[SimStackVariable], var_manager: VariableManagerInternal,
                              user=None, state=None):
@@ -232,18 +187,17 @@ class SyncController(KnowledgeBasePlugin):
             sync_stack_var = StackVariable(var.offset, StackOffsetType.ANGR, var.name,
                                            var_type, var.size, var_manager.func_addr)
 
-            r &= state.set_stack_variable(var_manager.func_addr, var.offset, sync_stack_var)
+            r &= state.set_stack_variable(sync_stack_var, var.offset, var_manager.func_addr)
 
         # return true only if all pushed worked
         return r
 
     @init_checker
     @make_state
-    @last_push
     # pylint:disable=unused-argument,no-self-use
     def push_stack_variable(self, func_addr, offset, name, type_, size_, user=None, state=None):
         sync_var = StackVariable(offset, StackOffsetType.ANGR, name, type_, size_, func_addr)
-        return state.set_stack_variable(func_addr, offset, sync_var)
+        return state.set_stack_variable(sync_var, offset, func_addr)
 
     #
     # Pullers
