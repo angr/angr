@@ -62,7 +62,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         return state
 
-    def merge(self, others: Tuple['VariableRecoveryFastState'], successor=None) -> Tuple['VariableRecoveryFastState',bool]:
+    def merge(self, others: Tuple['VariableRecoveryFastState'],
+              successor=None) -> Tuple['VariableRecoveryFastState',bool]:
         """
         Merge two abstract states.
 
