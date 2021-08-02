@@ -299,7 +299,6 @@ class VariableRecoveryStateBase:
         :return:    None
         """
         self.type_constraints = set()
-        self.typevars = TypeVariables()
         self.delayed_type_constraints = defaultdict(set)
 
     @staticmethod
