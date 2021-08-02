@@ -101,7 +101,11 @@ class MVListPage(
         else:
             if not weak:
                 for subaddr in range(addr, addr + size):
-                    self.content[subaddr] = data
+                    if len(data) == 1:
+                        # unpack
+                        self.content[subaddr] = next(iter(data))
+                    else:
+                        self.content[subaddr] = data
                     self.stored_offset.add(subaddr)
             else:
                 for subaddr in range(addr, addr + size):
@@ -110,7 +114,7 @@ class MVListPage(
                     elif type(self.content[subaddr]) is set:
                         self.content[subaddr] |= data
                     else:
-                        self.content[subaddr] = {self.content[subaddr], data}
+                        self.content[subaddr] = {self.content[subaddr]} | data
                     self.stored_offset.add(subaddr)
 
     def merge(self, others: List['MVListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
