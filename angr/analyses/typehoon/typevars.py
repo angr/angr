@@ -294,6 +294,9 @@ class DerivedTypeVariable(TypeVariable):
 
 
 class TypeVariables:
+
+    __slots__ = ('_typevars', )
+
     def __init__(self):
         self._typevars: Dict['SimVariable',TypeVariable] = { }
 

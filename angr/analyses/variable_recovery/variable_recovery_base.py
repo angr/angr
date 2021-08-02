@@ -62,6 +62,14 @@ class VariableAnnotation(Annotation):
     def eliminatable(self):
         return False
 
+    def __eq__(self, other):
+        if type(other) is VariableAnnotation:
+            return self.addr_and_variables == other.addr_and_variables
+        return False
+
+    def __hash__(self):
+        return hash(('Va', tuple(self.addr_and_variables)))
+
 
 class VariableRecoveryBase(Analysis):
     """
@@ -174,7 +182,7 @@ class VariableRecoveryStateBase:
 
     @staticmethod
     def is_top(thing) -> bool:
-        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'TOP':
+        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'top':
             return True
         return False
 
@@ -283,6 +291,16 @@ class VariableRecoveryStateBase:
         """
 
         self.type_constraints.add(constraint)
+
+    def downsize(self) -> None:
+        """
+        Remove unnecessary members.
+
+        :return:    None
+        """
+        self.type_constraints = set()
+        self.typevars = TypeVariables()
+        self.delayed_type_constraints = defaultdict(set)
 
     @staticmethod
     def downsize_region(region: MultiValuedMemory) -> MultiValuedMemory:

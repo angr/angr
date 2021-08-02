@@ -2,8 +2,6 @@
 import logging
 from typing import Optional, List, Set, Tuple
 
-from sortedcontainers import SortedSet
-
 from . import PageBase
 from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
@@ -17,7 +15,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         super().__init__(**kwargs)
 
         self.content: List[Optional[SimMemoryObject]] = content
-        self.stored_offset = SortedSet()
+        self.stored_offset = set()
         if content is None:
             if memory is not None:
                 self.content: List[Optional[SimMemoryObject]] = [None] * memory.page_size  # TODO: this isn't the best

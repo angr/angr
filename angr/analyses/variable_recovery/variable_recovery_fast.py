@@ -310,9 +310,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         #         l.debug('Merging input state of node %#x with the previous state.', node.addr)
         #         input_state, _ = prev_state.merge((input_state,), successor=node.addr)
 
-        state = input_state.copy()
         state.block_addr = node.addr
-        self._instates[node.addr] = input_state
+        # self._instates[node.addr] = state
 
         if self._node_iterations[node.addr] >= self._max_iterations:
             l.debug('Skip node %#x as we have iterated %d times on it.', node.addr, self._node_iterations[node.addr])
@@ -320,11 +319,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._process_block(state, block)
 
-        self._outstates[node.addr] = state
-
         self._node_iterations[node.addr] += 1
         self.type_constraints |= state.type_constraints
         self.var_to_typevar.update(state.typevars._typevars)
+
+        state.downsize()
+        self._outstates[node.addr] = state
 
         return True, state
 
