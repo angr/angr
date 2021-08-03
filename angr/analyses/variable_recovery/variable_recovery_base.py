@@ -8,6 +8,7 @@ from claripy.annotation import Annotation
 from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
+from ...utils.cowdict import DefaultChainMapCOW
 from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
 from ...storage.memory_mixins import MultiValuedMemory
@@ -139,6 +140,7 @@ class VariableRecoveryStateBase:
         else:
             self.stack_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
                                                                      phi_maker=self._make_phi_variable,
+                                                                     skip_missing_values_during_merging=True,
                                                                      page_kwargs={'mo_cmp': self._mo_cmp})
         self.stack_region.set_state(self)
 
@@ -148,6 +150,7 @@ class VariableRecoveryStateBase:
         else:
             self.register_region: MultiValuedMemory = MultiValuedMemory(memory_id="reg", top_func=self.top,
                                                                         phi_maker=self._make_phi_variable,
+                                                                        skip_missing_values_during_merging=True,
                                                                         page_kwargs={'mo_cmp': self._mo_cmp})
         self.register_region.set_state(self)
 
@@ -157,6 +160,7 @@ class VariableRecoveryStateBase:
         else:
             self.global_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
                                                                       phi_maker=self._make_phi_variable,
+                                                                      skip_missing_values_during_merging=True,
                                                                       page_kwargs={'mo_cmp': self._mo_cmp})
         self.global_region.set_state(self)
 
@@ -166,7 +170,7 @@ class VariableRecoveryStateBase:
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = set() if type_constraints is None else type_constraints
-        self.delayed_type_constraints = defaultdict(set) \
+        self.delayed_type_constraints = DefaultChainMapCOW(set, collapse_threshold=25) \
             if delayed_type_constraints is None else delayed_type_constraints
 
     def _get_weakref(self):
@@ -299,7 +303,6 @@ class VariableRecoveryStateBase:
         :return:    None
         """
         self.type_constraints = set()
-        self.delayed_type_constraints = defaultdict(set)
 
     @staticmethod
     def downsize_region(region: MultiValuedMemory) -> MultiValuedMemory:

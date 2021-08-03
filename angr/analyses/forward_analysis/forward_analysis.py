@@ -115,6 +115,10 @@ class ForwardAnalysis:
         job_key = self._job_key(job)
         return job_key in self._job_map
 
+    def downsize(self):
+        self._input_states = defaultdict(list)
+        self._output_state = {}
+
     #
     # Abstract interfaces
     #
@@ -290,7 +294,13 @@ class ForwardAnalysis:
         # successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
         for succ in successors:
-            self._input_states[self._node_key(succ)].append(input_state)
+            # if a node has only one predecessor, we overwrite existing input states
+            # otherwise, we add the state as a new input state
+            # this is an approximation for removing input states for all nodes that `node` dominates
+            if sum(1 for _ in self._graph_visitor.predecessors(succ)) == 1:
+                self._input_states[self._node_key(succ)] = [ input_state ]
+            else:
+                self._input_states[self._node_key(succ)].append(input_state)
 
         return successors
 

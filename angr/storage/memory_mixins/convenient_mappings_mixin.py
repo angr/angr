@@ -5,26 +5,12 @@ import logging
 import claripy
 
 from angr import sim_options as options
+from ...utils.cowdict import ChainMapCOW
 from ...errors import SimMemoryError, SimMemoryMissingError
 from . import MemoryMixin
 
 l = logging.getLogger(name=__name__)
 
-
-class ChainMapCOW(collections.ChainMap):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.dirty = False
-
-    def copy(self):
-        self.dirty = True
-        return self
-
-    def clean(self):
-        if self.dirty:
-            return self.new_child()
-        else:
-            return self
 
 class ConvenientMappingsMixin(MemoryMixin):
     def __init__(self, **kwargs):

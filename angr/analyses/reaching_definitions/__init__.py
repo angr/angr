@@ -1,4 +1,4 @@
-from typing import Set, Optional, TYPE_CHECKING
+from typing import Set, Optional, Union, TYPE_CHECKING
 
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from .. import register_analysis
@@ -21,9 +21,11 @@ def get_all_definitions(region: 'MultiValuedMemory') -> Set['Definition']:
         page: 'MVListPage'
 
         for idx in page.stored_offset:
-            cnt_set: Optional[Set['SimMemoryObject']] = page.content[idx]
+            cnt_set: Optional[Union['SimMemoryObject', Set['SimMemoryObject']]] = page.content[idx]
             if cnt_set is None:
                 continue
+            elif not type(cnt_set) is set:
+                cnt_set = { cnt_set }
             for cnt in cnt_set:
                 for def_ in LiveDefinitions.extract_defs(cnt.object):
                     all_defs.add(def_)

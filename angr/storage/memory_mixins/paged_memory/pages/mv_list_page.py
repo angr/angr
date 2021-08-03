@@ -212,12 +212,15 @@ class MVListPage(
                 # size and merge them
                 extracted = [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in
                              memory_objects] if min_size != 0 else []
-                created = [
-                    (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
-                     fv) for
-                    uc, fv in unconstrained_in
-                ]
-                to_merge = extracted + created
+                if not memory.skip_missing_values_during_merging:
+                    created = [
+                        (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
+                         fv) for
+                        uc, fv in unconstrained_in
+                    ]
+                    to_merge = extracted + created
+                else:
+                    to_merge = extracted
 
                 merged_val = self._merge_values(to_merge, min_size, memory=memory)
                 if merged_val is None:

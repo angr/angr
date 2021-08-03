@@ -81,13 +81,25 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = MultiValuedMemory(memory_id="reg", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.register_definitions = MultiValuedMemory(memory_id="reg",
+                                                      top_func=self.top,
+                                                      skip_missing_values_during_merging=False,
+                                                      page_kwargs={'mo_cmp': self._mo_cmp}) \
             if register_definitions is None else register_definitions
-        self.stack_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.stack_definitions = MultiValuedMemory(memory_id="mem",
+                                                   top_func=self.top,
+                                                   skip_missing_values_during_merging=False,
+                                                   page_kwargs={'mo_cmp': self._mo_cmp}) \
             if stack_definitions is None else stack_definitions
-        self.memory_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.memory_definitions = MultiValuedMemory(memory_id="mem",
+                                                    top_func=self.top,
+                                                    skip_missing_values_during_merging=False,
+                                                    page_kwargs={'mo_cmp': self._mo_cmp}) \
             if memory_definitions is None else memory_definitions
-        self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.heap_definitions = MultiValuedMemory(memory_id="mem",
+                                                  top_func=self.top,
+                                                  skip_missing_values_during_merging=False,
+                                                  page_kwargs={'mo_cmp': self._mo_cmp}) \
             if heap_definitions is None else heap_definitions
         self.tmps: Dict[int, Set[Definition]] = {}
 

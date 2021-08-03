@@ -92,7 +92,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         merged_typevars = self.typevars
         merged_typeconstraints = self.type_constraints.copy()
-        delayed_typeconstraints = self.delayed_type_constraints.copy()
+        delayed_typeconstraints = self.delayed_type_constraints.copy().clean()
         for other in others:
             merged_typevars = merged_typevars.merge(other.typevars)
             merged_typeconstraints |= other.type_constraints
@@ -101,7 +101,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         merge_occurred |= self.typevars != merged_typevars
         merge_occurred |= self.type_constraints != merged_typeconstraints
-        merge_occurred |= self.delayed_type_constraints != self.delayed_type_constraints
+        merge_occurred |= self.delayed_type_constraints != delayed_typeconstraints
 
         # add subtype constraints for all replacements
         for v0, v1 in self.phi_variables.items():
@@ -205,6 +205,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._analyze()
 
         # cleanup (for cpython pickle)
+        self.downsize()
         self._ail_engine = None
         self._vex_engine = None
 
@@ -292,8 +293,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         :param VariableRecoveryState state:
         :return:
         """
-
-        input_state = state  # make it more meaningful
 
         if type(node) is ailment.Block:
             # AIL mode
