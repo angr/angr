@@ -310,6 +310,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         #         l.debug('Merging input state of node %#x with the previous state.', node.addr)
         #         input_state, _ = prev_state.merge((input_state,), successor=node.addr)
 
+        state = state.copy()
         state.block_addr = node.addr
         # self._instates[node.addr] = state
 
