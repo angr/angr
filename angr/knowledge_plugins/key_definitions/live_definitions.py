@@ -148,7 +148,7 @@ class LiveDefinitions:
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
-        if len(mo_self) == 1 and len(mo_other) == 1:
+        if type(mo_self) is set and type(mo_other) is set and len(mo_self) == 1 and len(mo_other) == 1:
             a = next(iter(mo_self))
             b = next(iter(mo_other))
             return a.object is b.object and a.endness == b.endness
