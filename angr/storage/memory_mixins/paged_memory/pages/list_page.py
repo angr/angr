@@ -2,8 +2,6 @@
 import logging
 from typing import Optional, List, Set, Tuple
 
-from sortedcontainers import SortedSet
-
 from . import PageBase
 from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
@@ -17,7 +15,7 @@ class ListPage(MemoryObjectMixin, PageBase):
         super().__init__(**kwargs)
 
         self.content: List[Optional[SimMemoryObject]] = content
-        self.stored_offset = SortedSet()
+        self.stored_offset = set()
         if content is None:
             if memory is not None:
                 self.content: List[Optional[SimMemoryObject]] = [None] * memory.page_size  # TODO: this isn't the best
@@ -66,8 +64,10 @@ class ListPage(MemoryObjectMixin, PageBase):
         global_end_addr = addr + page_addr
         global_start_addr = result[-1][0]
         size = global_end_addr - global_start_addr
-        new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr), key=(self.category, global_start_addr), memory=memory, **kwargs)
-        new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness, byte_width=memory.state.arch.byte_width if memory is not None else 8)
+        new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr),
+                                      key=(self.category, global_start_addr), memory=memory, **kwargs)
+        new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness,
+                                   byte_width=memory.state.arch.byte_width if memory is not None else 8)
         subaddr_start = global_start_addr - page_addr
         for subaddr in range(subaddr_start, addr):
             self.content[subaddr] = new_item
@@ -172,7 +172,8 @@ class ListPage(MemoryObjectMixin, PageBase):
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = [(mo.bytes_at(page_addr+b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
+                extracted = [(mo.bytes_at(page_addr+b, min_size), fv) for mo, fv in memory_objects] \
+                    if min_size != 0 else []
                 created = [
                     (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
                      fv) for

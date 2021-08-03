@@ -2,8 +2,6 @@
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
 
-from sortedcontainers import SortedSet
-
 from .....storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
 from .cooperation import MemoryObjectSetMixin
@@ -28,13 +26,13 @@ class MVListPage(
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.content: List[Optional[Set[_MOTYPE]]] = content
-        self.stored_offset = SortedSet()
+        self.content: List[Optional[Union[_MOTYPE,Set[_MOTYPE]]]] = content
+        self.stored_offset = set()
         self._mo_cmp: Optional[Callable] = mo_cmp
 
         if content is None:
             if memory is not None:
-                self.content: List[Optional[Set[_MOTYPE]]] = [None] * memory.page_size
+                self.content: List[Optional[Union[_MOTYPE,Set[_MOTYPE]]]] = [None] * memory.page_size
 
         self.sinkhole: Optional[_MOTYPE] = sinkhole
 
@@ -99,18 +97,24 @@ class MVListPage(
         if size == len(self.content) and addr == 0:
             self.sinkhole = data
             self.content = [None] * len(self.content)
-            self.stored_offset = SortedSet()
+            self.stored_offset = set()
         else:
             if not weak:
                 for subaddr in range(addr, addr + size):
-                    self.content[subaddr] = set(data)
+                    if len(data) == 1:
+                        # unpack
+                        self.content[subaddr] = next(iter(data))
+                    else:
+                        self.content[subaddr] = data
                     self.stored_offset.add(subaddr)
             else:
                 for subaddr in range(addr, addr + size):
                     if self.content[subaddr] is None:
-                        self.content[subaddr] = set(data)
-                    else:
+                        self.content[subaddr] = data
+                    elif type(self.content[subaddr]) is set:
                         self.content[subaddr] |= data
+                    else:
+                        self.content[subaddr] = {self.content[subaddr]} | data
                     self.stored_offset.add(subaddr)
 
     def merge(self, others: List['MVListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
@@ -142,7 +146,7 @@ class MVListPage(
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
                     l.info("... present in %s", fv)
-                    for mo in sm.content[b]:
+                    for mo in sm.content_gen(b):
                         if mo.includes(page_addr + b):
                             memory_objects.append((mo, fv))
                 else:
@@ -208,12 +212,15 @@ class MVListPage(
                 # size and merge them
                 extracted = [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in
                              memory_objects] if min_size != 0 else []
-                created = [
-                    (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
-                     fv) for
-                    uc, fv in unconstrained_in
-                ]
-                to_merge = extracted + created
+                if not memory.skip_missing_values_during_merging:
+                    created = [
+                        (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
+                         fv) for
+                        uc, fv in unconstrained_in
+                    ]
+                    to_merge = extracted + created
+                else:
+                    to_merge = extracted
 
                 merged_val = self._merge_values(to_merge, min_size, memory=memory)
                 if merged_val is None:
@@ -262,19 +269,19 @@ class MVListPage(
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    self.content[c] = { SimMemoryObject(self.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
-                                                      byte_width=byte_width, endness='Iend_BE') }
+                    self.content[c] = SimMemoryObject(self.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
+                                                      byte_width=byte_width, endness='Iend_BE')
                 if other.content[c] is None:
-                    other.content[c] = { SimMemoryObject(other.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
-                                                       byte_width=byte_width, endness='Iend_BE') }
+                    other.content[c] = SimMemoryObject(other.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
+                                                       byte_width=byte_width, endness='Iend_BE')
                 if s_contains and self.content[c] != other.content[c]:
                     same = None
                     if self._mo_cmp is not None:
                         same = self._mo_cmp(self.content[c], other.content[c], page_addr + c, 1)
                     if same is None:
                         # Try to see if the bytes are equal
-                        self_bytes = { mo.bytes_at(page_addr + c, 1) for mo in self.content[c] }
-                        other_bytes = { mo.bytes_at(page_addr + c, 1) for mo in other.content[c] }
+                        self_bytes = { mo.bytes_at(page_addr + c, 1) for mo in self.content_gen(c) }
+                        other_bytes = { mo.bytes_at(page_addr + c, 1) for mo in other.content_gen(c) }
                         same = self_bytes == other_bytes
 
                     if same is False:
@@ -284,6 +291,14 @@ class MVListPage(
                     pass
 
         return differences
+
+    def content_gen(self, index):
+        if self.content[index] is None:
+            return
+        elif type(self.content[index]) is set:
+            yield from self.content[index]
+        else:
+            yield self.content[index]
 
     def _contains(self, off: int, page_addr: int):
         if off >= len(self.content):
@@ -319,9 +334,12 @@ class MVListPage(
         if mos is None:
             return None
         lst = [ ]
-        for mo in mos:
-            if mo.includes(start + page_addr):
-                lst.append(mo)
+        if type(mos) is set:
+            for mo in mos:
+                if mo.includes(start + page_addr):
+                    lst.append(mo)
+        else:
+            lst.append(mos)
         if lst:
             return lst
         return None

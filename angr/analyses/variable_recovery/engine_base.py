@@ -433,7 +433,8 @@ class SimEngineVRBase(SimEngineLight):
                                                 )
                     v = self.state.top(size * self.state.arch.byte_width)
                     v = self.state.annotate_with_variables(v, [(0, variable)])
-                    self.state.stack_region.store(concrete_offset, v, endness=self.state.arch.memory_endness)
+                    stack_addr = self.state.stack_addr_from_offset(concrete_offset)
+                    self.state.stack_region.store(stack_addr, v, endness=self.state.arch.memory_endness)
 
                     self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
 

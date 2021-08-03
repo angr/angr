@@ -8,6 +8,7 @@ from claripy.annotation import Annotation
 from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
+from ...utils.cowdict import DefaultChainMapCOW
 from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
 from ...storage.memory_mixins import MultiValuedMemory
@@ -61,6 +62,14 @@ class VariableAnnotation(Annotation):
     @property
     def eliminatable(self):
         return False
+
+    def __eq__(self, other):
+        if type(other) is VariableAnnotation:
+            return self.addr_and_variables == other.addr_and_variables
+        return False
+
+    def __hash__(self):
+        return hash(('Va', tuple(self.addr_and_variables)))
 
 
 class VariableRecoveryBase(Analysis):
@@ -131,6 +140,7 @@ class VariableRecoveryStateBase:
         else:
             self.stack_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
                                                                      phi_maker=self._make_phi_variable,
+                                                                     skip_missing_values_during_merging=True,
                                                                      page_kwargs={'mo_cmp': self._mo_cmp})
         self.stack_region.set_state(self)
 
@@ -140,6 +150,7 @@ class VariableRecoveryStateBase:
         else:
             self.register_region: MultiValuedMemory = MultiValuedMemory(memory_id="reg", top_func=self.top,
                                                                         phi_maker=self._make_phi_variable,
+                                                                        skip_missing_values_during_merging=True,
                                                                         page_kwargs={'mo_cmp': self._mo_cmp})
         self.register_region.set_state(self)
 
@@ -149,6 +160,7 @@ class VariableRecoveryStateBase:
         else:
             self.global_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
                                                                       phi_maker=self._make_phi_variable,
+                                                                      skip_missing_values_during_merging=True,
                                                                       page_kwargs={'mo_cmp': self._mo_cmp})
         self.global_region.set_state(self)
 
@@ -158,7 +170,7 @@ class VariableRecoveryStateBase:
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = set() if type_constraints is None else type_constraints
-        self.delayed_type_constraints = defaultdict(set) \
+        self.delayed_type_constraints = DefaultChainMapCOW(set, collapse_threshold=25) \
             if delayed_type_constraints is None else delayed_type_constraints
 
     def _get_weakref(self):
@@ -174,7 +186,7 @@ class VariableRecoveryStateBase:
 
     @staticmethod
     def is_top(thing) -> bool:
-        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'TOP':
+        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'top':
             return True
         return False
 
@@ -283,6 +295,14 @@ class VariableRecoveryStateBase:
         """
 
         self.type_constraints.add(constraint)
+
+    def downsize(self) -> None:
+        """
+        Remove unnecessary members.
+
+        :return:    None
+        """
+        self.type_constraints = set()
 
     @staticmethod
     def downsize_region(region: MultiValuedMemory) -> MultiValuedMemory:

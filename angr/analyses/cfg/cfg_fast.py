@@ -1312,6 +1312,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         CFGBase._post_analysis(self)
 
+        # Clean up
+        self._traced_addresses = None
+
         self._finish_progress()
 
     def do_full_xrefs(self, overlay_state=None):

@@ -1,5 +1,5 @@
 import claripy
-from typing import List, Tuple, Set, Dict, Optional
+from typing import List, Tuple, Set, Dict, Union, Optional
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
@@ -122,7 +122,7 @@ class MemoryObjectSetMixin(CooperationBase):
     @classmethod
     def _compose_objects(cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None,
                          memory=None, **kwargs):
-        c_objects: List[Tuple[int, Set[SimMemoryObject]]] = [ ]
+        c_objects: List[Tuple[int, Union[SimMemoryObject,Set[SimMemoryObject]]]] = [ ]
         for objlist in objects:
             for element in objlist:
                 if not c_objects or element[1] is not c_objects[-1][1]:
@@ -132,6 +132,8 @@ class MemoryObjectSetMixin(CooperationBase):
         elements: List[Set[claripy.ast.Base]] = [ ]
         for i, (a, objs) in enumerate(c_objects):
             chopped_set = set()
+            if not type(objs) is set:
+                objs = { objs }
             for o in objs:
                 if o.includes(a):
                     chopped = o.bytes_at(

@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, TYPE_CHECKING
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, TYPE_CHECKING
 import logging
 
 import claripy
@@ -81,13 +81,25 @@ class LiveDefinitions:
         self.track_tmps = track_tmps
         self._canonical_size: int = canonical_size  # TODO: Drop canonical_size
 
-        self.register_definitions = MultiValuedMemory(memory_id="reg", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.register_definitions = MultiValuedMemory(memory_id="reg",
+                                                      top_func=self.top,
+                                                      skip_missing_values_during_merging=False,
+                                                      page_kwargs={'mo_cmp': self._mo_cmp}) \
             if register_definitions is None else register_definitions
-        self.stack_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.stack_definitions = MultiValuedMemory(memory_id="mem",
+                                                   top_func=self.top,
+                                                   skip_missing_values_during_merging=False,
+                                                   page_kwargs={'mo_cmp': self._mo_cmp}) \
             if stack_definitions is None else stack_definitions
-        self.memory_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.memory_definitions = MultiValuedMemory(memory_id="mem",
+                                                    top_func=self.top,
+                                                    skip_missing_values_during_merging=False,
+                                                    page_kwargs={'mo_cmp': self._mo_cmp}) \
             if memory_definitions is None else memory_definitions
-        self.heap_definitions = MultiValuedMemory(memory_id="mem", top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self.heap_definitions = MultiValuedMemory(memory_id="mem",
+                                                  top_func=self.top,
+                                                  skip_missing_values_during_merging=False,
+                                                  page_kwargs={'mo_cmp': self._mo_cmp}) \
             if heap_definitions is None else heap_definitions
         self.tmps: Dict[int, Set[Definition]] = {}
 
@@ -131,21 +143,28 @@ class LiveDefinitions:
         return weakref.proxy(self)
 
     @staticmethod
-    def _mo_cmp(mo_self: Set['SimMemoryObject'], mo_other: Set['SimMemoryObject'], addr: int, size: int):  # pylint:disable=unused-argument
+    def _mo_cmp(mo_self: Union['SimMemoryObject', Set['SimMemoryObject']],
+                mo_other: Union['SimMemoryObject', Set['SimMemoryObject']], addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
-        if len(mo_self) == 1 and len(mo_other) == 1:
+        if type(mo_self) is set and type(mo_other) is set and len(mo_self) == 1 and len(mo_other) == 1:
             a = next(iter(mo_self))
             b = next(iter(mo_other))
             return a.object is b.object and a.endness == b.endness
 
         values_self = set()
         values_other = set()
-        for mo in mo_self:
-            values_self.add(mo.object)
-        for mo in mo_other:
-            values_other.add(mo.object)
+        if type(mo_self) is set:
+            for mo in mo_self:
+                values_self.add(mo.object)
+        else:
+            values_self.add(mo_self)
+        if type(mo_other) is set:
+            for mo in mo_other:
+                values_other.add(mo.object)
+        else:
+            values_other.add(mo_other)
         return values_self == values_other
 
     @staticmethod

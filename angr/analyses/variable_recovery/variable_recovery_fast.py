@@ -62,7 +62,8 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         return state
 
-    def merge(self, others: Tuple['VariableRecoveryFastState'], successor=None) -> Tuple['VariableRecoveryFastState',bool]:
+    def merge(self, others: Tuple['VariableRecoveryFastState'],
+              successor=None) -> Tuple['VariableRecoveryFastState',bool]:
         """
         Merge two abstract states.
 
@@ -91,7 +92,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         merged_typevars = self.typevars
         merged_typeconstraints = self.type_constraints.copy()
-        delayed_typeconstraints = self.delayed_type_constraints.copy()
+        delayed_typeconstraints = self.delayed_type_constraints.copy().clean()
         for other in others:
             merged_typevars = merged_typevars.merge(other.typevars)
             merged_typeconstraints |= other.type_constraints
@@ -100,7 +101,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
 
         merge_occurred |= self.typevars != merged_typevars
         merge_occurred |= self.type_constraints != merged_typeconstraints
-        merge_occurred |= self.delayed_type_constraints != self.delayed_type_constraints
+        merge_occurred |= self.delayed_type_constraints != delayed_typeconstraints
 
         # add subtype constraints for all replacements
         for v0, v1 in self.phi_variables.items():
@@ -204,6 +205,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._analyze()
 
         # cleanup (for cpython pickle)
+        self.downsize()
         self._ail_engine = None
         self._vex_engine = None
 
@@ -292,8 +294,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         :return:
         """
 
-        input_state = state  # make it more meaningful
-
         if type(node) is ailment.Block:
             # AIL mode
             block = node
@@ -310,9 +310,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         #         l.debug('Merging input state of node %#x with the previous state.', node.addr)
         #         input_state, _ = prev_state.merge((input_state,), successor=node.addr)
 
-        state = input_state.copy()
+        state = state.copy()
         state.block_addr = node.addr
-        self._instates[node.addr] = input_state
+        # self._instates[node.addr] = state
 
         if self._node_iterations[node.addr] >= self._max_iterations:
             l.debug('Skip node %#x as we have iterated %d times on it.', node.addr, self._node_iterations[node.addr])
@@ -320,11 +320,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._process_block(state, block)
 
-        self._outstates[node.addr] = state
-
         self._node_iterations[node.addr] += 1
         self.type_constraints |= state.type_constraints
         self.var_to_typevar.update(state.typevars._typevars)
+
+        state.downsize()
+        self._outstates[node.addr] = state
 
         return True, state
 

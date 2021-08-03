@@ -1,6 +1,8 @@
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from itertools import count
 
+from ...utils.cowdict import ChainMapCOW
+
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
 
@@ -8,11 +10,17 @@ if TYPE_CHECKING:
 # Type variables and constraints
 
 class TypeConstraint:
+
+    __slots__ = ()
+
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
         raise NotImplementedError()
 
 
 class Equivalence(TypeConstraint):
+
+    __slots__ = ('type_a', 'type_b', )
+
     def __init__(self, type_a, type_b):
         self.type_a = type_a
         self.type_b = type_b
@@ -36,6 +44,9 @@ class Equivalence(TypeConstraint):
 
 
 class Existence(TypeConstraint):
+
+    __slots__ = ('type_', )
+
     def __init__(self, type_):
         self.type_ = type_
 
@@ -64,6 +75,9 @@ class Existence(TypeConstraint):
 
 
 class Subtype(TypeConstraint):
+
+    __slots__ = ('super_type', 'sub_type', )
+
     def __init__(self, super_type, sub_type):
         self.super_type = super_type
         self.sub_type = sub_type
@@ -112,6 +126,9 @@ class Add(TypeConstraint):
     """
     Describes the constraint that type_r == type0 + type1
     """
+
+    __slots__ = ('type_0', 'type_1', 'type_r', )
+
     def __init__(self, type_0, type_1, type_r):
         self.type_0 = type_0
         self.type_1 = type_1
@@ -174,6 +191,9 @@ class Sub(TypeConstraint):
     """
     Describes the constraint that type_r == type0 - type1
     """
+
+    __slots__ = ('type_0', 'type_1', 'type_r',)
+
     def __init__(self, type_0, type_1, type_r):
         self.type_0 = type_0
         self.type_1 = type_1
@@ -235,6 +255,9 @@ _typevariable_counter = count()
 
 
 class TypeVariable:
+
+    __slots__ = ('idx', )
+
     def __init__(self, idx: Optional[int]=None):
         if idx is None:
             self.idx: int = next(_typevariable_counter)
@@ -255,6 +278,9 @@ class TypeVariable:
 
 
 class DerivedTypeVariable(TypeVariable):
+
+    __slots__ = ('type_var', 'label', )
+
     def __init__(self, type_var, label, idx=None):
         super().__init__(idx=idx)
         self.type_var = type_var
@@ -294,15 +320,20 @@ class DerivedTypeVariable(TypeVariable):
 
 
 class TypeVariables:
+
+    __slots__ = ('_typevars', )
+
     def __init__(self):
-        self._typevars: Dict['SimVariable',TypeVariable] = { }
+        self._typevars: Dict['SimVariable',TypeVariable] = ChainMapCOW(collapse_threshold=25)
 
     def merge(self, tvs):
         merged = TypeVariables()
 
         # TODO: Replace this with a real lattice-based merging
         merged._typevars = self._typevars.copy()
-        merged._typevars.update(tvs._typevars)
+        if tvs._typevars:
+            merged._typevars = merged._typevars.clean()
+            merged._typevars.update(tvs._typevars)
 
         return merged
 
@@ -325,6 +356,7 @@ class TypeVariables:
 
         # assert codeloc not in self._typevars[var]
         # self._typevars[var][codeloc] = typevar
+        self._typevars = self._typevars.clean()
         self._typevars[var] = typevar
 
     def get_type_variable(self, var, codeloc):  # pylint:disable=unused-argument
