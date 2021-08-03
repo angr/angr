@@ -1,4 +1,4 @@
-import collections
+# pylint:disable=arguments-differ,assignment-from-no-return,isinstance-second-argument-not-valid-type
 from typing import Optional, Set
 import logging
 
@@ -13,6 +13,9 @@ l = logging.getLogger(name=__name__)
 
 
 class ConvenientMappingsMixin(MemoryMixin):
+    """
+    Implements mappings between names and hashes of symbolic variables and these variables themselves.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -123,7 +126,7 @@ class ConvenientMappingsMixin(MemoryMixin):
 
         if (options.REVERSE_MEMORY_HASH_MAP not in self.state.options) and \
                 len(self.state.solver.variables(new_obj)) == 0:
-           return
+            return
 
         l.debug("Updating mappings at address %#x", actual_addr)
 
@@ -197,8 +200,14 @@ class ConvenientMappingsMixin(MemoryMixin):
         for e in self._hash_mapping[h]:
             try:
                 present = self.load(e, size=1)
-                if h == present.cache_key or (present.op == 'Extract' and present.args[0] - present.args[1] == 7 and h == present.args[2].cache_key): yield e
-                else: to_discard.add(e)
+                if h == present.cache_key or (
+                        present.op == 'Extract'
+                        and present.args[0] - present.args[1] == 7
+                        and h == present.args[2].cache_key
+                ):
+                    yield e
+                else:
+                    to_discard.add(e)
             except KeyError:
                 to_discard.add(e)
         self._hash_mapping[h] -= to_discard
