@@ -653,11 +653,15 @@ class ScanfFormatParser(FormatParser):
         Modified length specifiers: mapping between length modifiers and conversion specifiers. This generates all the
         possibilities, i.e. lf, etc.
         """
-        mod_spec = super()._mod_spec
-        for mod, size in self.float_len_mod.items():
-            for conv in self.float_spec:
-                mod_spec[mod + conv] = size
-        return mod_spec
+        if FormatParser._MOD_SPEC is None:
+            mod_spec = dict(super()._mod_spec.items())
+            for mod, size in self.float_len_mod.items():
+                for conv in self.float_spec:
+                    mod_spec[mod + conv] = size
+
+            FormatParser._MOD_SPEC = mod_spec
+
+        return FormatParser._MOD_SPEC
 
 
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
