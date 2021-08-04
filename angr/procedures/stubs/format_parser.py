@@ -343,7 +343,7 @@ class FormatSpecifier:
 
 class FormatParser(SimProcedure):
     """
-    For SimProcedures relying on format strings.
+    For SimProcedures relying on printf-style format strings.
     """
 
     ARGS_MISMATCH = True
@@ -610,5 +610,54 @@ class FormatParser(SimProcedure):
         l.debug("Fmt: %r", fmt_str)
 
         return fmt_str
+
+
+class ScanfFormatParser(FormatParser):
+    """
+    For SimProcedures relying on scanf-style format strings.
+    """
+
+    basic_spec = {
+        b'd': sim_type.SimTypeInt(),  # 'int',
+        b'i': sim_type.SimTypeInt(),  # 'int',
+        b'o': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'u': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'x': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'X': sim_type.SimTypeInt(signed=False),  # 'unsigned int',
+        b'e': sim_type.SimTypeFloat(),  # 'float',
+        b'E': sim_type.SimTypeFloat(),  # 'float',
+        b'f': sim_type.SimTypeFloat(),  # 'float',
+        b'F': sim_type.SimTypeFloat(),  # 'float',
+        b'g': sim_type.SimTypeFloat(),  # 'float',
+        b'G': sim_type.SimTypeFloat(),  # 'float',
+        b'a': sim_type.SimTypeFloat(),  # 'float',
+        b'A': sim_type.SimTypeFloat(),  # 'float',
+        b'c': sim_type.SimTypeChar(),  # 'char',
+        b's': sim_type.SimTypePointer(sim_type.SimTypeChar()),  # 'char*',
+        b'p': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),  # 'uintptr_t',
+        b'n': sim_type.SimTypePointer(sim_type.SimTypeInt(signed=False)),
+    }
+
+    # All float conversion specifiers
+    float_spec = [b'e', b'E', b'f', b'F', b'g', b'G', b'a', b'A']
+
+    # Length modifiers and how they apply to float conversion.
+    float_len_mod = {
+        b'l': sim_type.SimTypeDouble,  # 'double',
+        b'll': sim_type.SimTypeDouble,  # 'long double',
+    }
+
+    @property
+    def _mod_spec(self):
+        """
+        Modified length specifiers: mapping between length modifiers and conversion specifiers. This generates all the
+        possibilities, i.e. lf, etc.
+        """
+        mod_spec = super()._mod_spec
+        for mod, size in self.float_len_mod.items():
+            for conv in self.float_spec:
+                mod_spec[mod + conv] = size
+        return mod_spec
+
 
 from angr.errors import SimProcedureArgumentError, SimProcedureError, SimSolverError
