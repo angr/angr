@@ -414,7 +414,7 @@ class SimHeapPTMalloc(SimHeapFreelist):
         # while forward and backward (and their abbreviations) refer to the adjacent chunks in the list of free chunks
         req = ptr
         chunk = self.chunk_from_mem(ptr)
-        if chunk is None:
+        if chunk is None or chunk.is_free():
             return
         size = chunk.get_size()
 
