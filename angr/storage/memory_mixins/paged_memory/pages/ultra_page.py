@@ -224,8 +224,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 to_merge = [(mo.object, fv) for mo, fv in memory_objects]
 
                 # Update `merged_to`
-                mo_base = list(mo_bases)[0]
-                merged_to = mo_base + list(mo_lengths)[0]
+                merged_to = b + list(mo_lengths)[0]
 
                 merged_val = self._merge_values(to_merge, memory_objects[0][0].length, memory=memory)
                 if merged_val is None:
