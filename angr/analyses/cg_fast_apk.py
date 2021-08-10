@@ -1,6 +1,6 @@
-from ..project import Project
-from networkx import union
 import logging
+from networkx import union
+from ..project import Project
 from . import Analysis, register_analysis
 
 l = logging.getLogger(name=__name__)
