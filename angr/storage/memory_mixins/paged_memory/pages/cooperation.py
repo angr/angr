@@ -1,5 +1,5 @@
 import claripy
-from typing import List, Tuple, Set, Dict, Optional
+from typing import List, Tuple, Set, Dict, Union, Optional
 
 from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .multi_values import MultiValues
@@ -74,12 +74,14 @@ class MemoryObjectMixin(CooperationBase):
         else:
             # we need to extract labels for SimLabeledMemoryObjects
             elements = [ ]
+            offset = 0
             for i, (a, o) in enumerate(c_objects):
                 length: int = ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask)
                 byts = o.bytes_at(a, length, endness=endness)
                 elements.append(byts)
                 if isinstance(o, SimLabeledMemoryObject):
-                    labels.append((a - o.base, length, o.label))
+                    labels.append((offset, a - o.base, length, o.label))
+                offset += length
         if len(elements) == 0:
             # nothing is read out
             return claripy.BVV(0, 0)
@@ -120,7 +122,7 @@ class MemoryObjectSetMixin(CooperationBase):
     @classmethod
     def _compose_objects(cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None,
                          memory=None, **kwargs):
-        c_objects: List[Tuple[int, Set[SimMemoryObject]]] = [ ]
+        c_objects: List[Tuple[int, Union[SimMemoryObject,Set[SimMemoryObject]]]] = [ ]
         for objlist in objects:
             for element in objlist:
                 if not c_objects or element[1] is not c_objects[-1][1]:
@@ -130,21 +132,25 @@ class MemoryObjectSetMixin(CooperationBase):
         elements: List[Set[claripy.ast.Base]] = [ ]
         for i, (a, objs) in enumerate(c_objects):
             chopped_set = set()
+            if not type(objs) is set:
+                objs = { objs }
             for o in objs:
-                chopped = o.bytes_at(
-                    a,
-                    ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
-                    endness=endness
-                )
-                chopped_set.add(chopped)
-            elements.append(chopped_set)
+                if o.includes(a):
+                    chopped = o.bytes_at(
+                        a,
+                        ((c_objects[i+1][0] - a) & mask) if i != len(c_objects)-1 else ((c_objects[0][0] + size - a) & mask),
+                        endness=endness
+                    )
+                    chopped_set.add(chopped)
+            if chopped_set:
+                elements.append(chopped_set)
 
         if len(elements) == 0:
             # nothing is read out
-            return MultiValues({0: claripy.BVV(0, 0)})
+            return MultiValues(offset_to_values={0: {claripy.BVV(0, 0)}})
 
         if len(elements) == 1:
-            return MultiValues({0: elements[0]})
+            return MultiValues(offset_to_values={0: elements[0]})
 
         if endness == 'Iend_LE':
             elements = list(reversed(elements))
@@ -184,7 +190,7 @@ class MemoryObjectSetMixin(CooperationBase):
             # for MultiValues, we return sets of SimMemoryObjects
             assert label is None  # TODO: Support labels
 
-            _ = yield
+            size = yield
             offset_to_mos: Dict[int,Set[SimMemoryObject]] = {}
             for offset, vs in data.values.items():
                 offset_to_mos[offset] = set()
@@ -198,10 +204,10 @@ class MemoryObjectSetMixin(CooperationBase):
             pos = 0
             while pos < len(sorted_offsets):
                 mos = set(offset_to_mos[sorted_offsets[pos]])
-                size = next(iter(mos)).length
+                mo_length = next(iter(mos)).length
                 cur_addr += size
-                yield mos, size
-                if sorted_offsets[pos] < cur_addr - addr - page_addr:
+                size = yield mos, mo_length
+                if sorted_offsets[pos] + mo_length <= cur_addr - addr - page_addr:
                     pos += 1
 
         else:

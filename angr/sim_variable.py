@@ -1,23 +1,27 @@
 import collections.abc
 import claripy
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
+
+from .protos import variables_pb2 as pb2
+from .serializable import Serializable
 
 if TYPE_CHECKING:
     import archinfo
 
-class SimVariable:
+
+class SimVariable(Serializable):
 
     __slots__ = ['ident', 'name', 'region', 'category', 'renamed', 'candidate_names']
 
-    def __init__(self, ident=None, name=None, region=None, category=None):
+    def __init__(self, ident=None, name=None, region: Optional[int]=None, category=None):
         """
         :param ident: A unique identifier provided by user or the program. Usually a string.
         :param str name: Name of this variable.
         """
         self.ident = ident
         self.name = name
-        self.region = region if region is not None else ""
-        self.category = category
+        self.region: Optional[int] = region
+        self.category: Optional[str] = category
         self.renamed = False
         self.candidate_names = None
 
@@ -29,6 +33,26 @@ class SimVariable:
         The representation that shows up in a GUI
         """
         raise NotImplementedError()
+
+    def _set_base(self, obj):
+        obj.base.ident = self.ident
+        if self.category is not None:
+            obj.base.category = self.category
+        if self.region is not None:
+            obj.base.region = self.region
+        obj.base.name = self.name
+        obj.base.renamed = self.renamed
+
+    def _from_base(self, obj):
+        self.ident = obj.base.ident
+        if obj.base.HasField("category"):
+            self.category = obj.base.category
+        else:
+            self.category = None
+        if obj.base.HasField("region"):
+            self.region = obj.base.region
+        self.name = obj.base.name
+        self.renamed = obj.base.renamed
 
     #
     # Operations
@@ -116,6 +140,22 @@ class SimTemporaryVariable(SimVariable):
         r._hash = self._hash
         return r
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.TemporaryVariable()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.tmp_id = self.tmp_id
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.tmp_id)
+        obj._from_base(cmsg)
+        return obj
+
 
 class SimRegisterVariable(SimVariable):
 
@@ -163,6 +203,25 @@ class SimRegisterVariable(SimVariable):
                                 category=self.category)
         s._hash = self._hash
         return s
+
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.RegisterVariable()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.reg = self.reg
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.reg,
+                  cmsg.size,
+                  )
+        obj._from_base(cmsg)
+        return obj
 
 
 class SimMemoryVariable(SimVariable):
@@ -235,6 +294,25 @@ class SimMemoryVariable(SimVariable):
         r._hash = self._hash
         return r
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.MemoryVariable()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.addr = self.addr
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.addr,
+                  cmsg.size,
+                  )
+        obj._from_base(cmsg)
+        return obj
+
 
 class SimStackVariable(SimMemoryVariable):
 
@@ -303,6 +381,27 @@ class SimStackVariable(SimMemoryVariable):
                              ident=self.ident, name=self.name, region=self.region, category=self.category)
         s._hash = self._hash
         return s
+
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.StackVariable()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.sp_base = self.base == "sp"
+        obj.offset = self.offset
+        obj.size = self.size
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        obj = cls(cmsg.offset,
+                  cmsg.size,
+                  base='sp' if cmsg.sp_base else "bp",
+                  )
+        obj._from_base(cmsg)
+        return obj
 
 
 class SimVariableSet(collections.abc.MutableSet):
@@ -434,5 +533,6 @@ class SimVariableSet(collections.abc.MutableSet):
         else:
             __import__('ipdb').set_trace()
             raise Exception("WTF is this variable?")
+
 
 from .storage.memory_mixins.regioned_memory.region_data import AddressWrapper

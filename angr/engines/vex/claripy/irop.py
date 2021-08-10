@@ -433,6 +433,8 @@ class SimIROp:
         if o == '__floordiv__' and self.is_signed:
             # yikes!!!!!!!
             return claripy.SDiv(*sized_args)
+        if o == 'Abs':
+            return claripy.If(sized_args[0].SLT(0), -sized_args[0], sized_args[0])
 
         return getattr(claripy.ast.BV, o)(*sized_args)
 
@@ -460,11 +462,17 @@ class SimIROp:
         return claripy.Concat(*(self._op_mapped(ca) for ca in chopped_args))
 
     def _op_vector_float_mapped(self, args):
-        rm_part = [] if self._generic_name in self.NO_RM else [args[0]]
+        no_rm_arg = self._generic_name in self.NO_RM
+        rm_part = [] if no_rm_arg else [args[0]]
+        # wtf is up with these guys
+        if not no_rm_arg and self.name in {'Iop_Add32Fx2', 'Iop_Sub32Fx2', 'Iop_Mul32Fx2', 'Iop_PwAdd32Fx2'}:
+            no_rm_arg = True
+            rm_part = [claripy.BVV(0, 8)]
+
         chopped_args = (
                 [
                     claripy.Extract((i + 1) * self._vector_size - 1, i * self._vector_size, a).raw_to_fp()
-                    for a in (args if self._generic_name in self.NO_RM else args[1:])
+                    for a in (args if no_rm_arg else args[1:])
                 ] for i in reversed(range(self._vector_count))
             )
         return claripy.Concat(*(self._op_float_mapped(rm_part + ca).raw_to_bv() for ca in chopped_args))
@@ -858,13 +866,33 @@ class SimIROp:
         return arg.raw_to_fp().to_fp(claripy.fp.FSort.from_size(self._output_size_bits), rm=rm)
 
     def _op_fp_to_int(self, args):
-        rm = self._translate_rm(args[0])
-        arg = args[1].raw_to_fp()
-
-        if self._to_signed == 'S':
-            return claripy.fpToSBV(rm, arg, self._to_size)
+        if self.name.endswith("_RZ"):
+            rm = claripy.fp.RM_TowardsZero
+            arg = args[0]
+        elif self.name.endswith("_RN"):
+            rm = claripy.fp.RM_NearestTiesEven
+            arg = args[0]
+        elif self.name.endswith("_RM"):
+            rm = claripy.fp.RM_TowardsNegativeInf
+            arg = args[0]
+        elif self.name.endswith("_RP"):
+            rm = claripy.fp.RM_TowardsPositiveInf
+            arg = args[0]
         else:
-            return claripy.fpToUBV(rm, arg, self._to_size)
+            rm = self._translate_rm(args[0])
+            arg = args[1]
+
+        if not self._vector_size:
+            return self._compute_fp_to_int(rm, arg.raw_to_fp(), self._to_size)
+        else:
+            vector_args = arg.chop(self._vector_size)
+            return claripy.Concat(*[self._compute_fp_to_int(rm, varg.raw_to_fp(), self._vector_size) for varg in vector_args])
+
+    def _compute_fp_to_int(self, rm, arg, to_size):
+        if self._to_signed == 'S':
+            return claripy.fpToSBV(rm, arg, to_size)
+        else:
+            return claripy.fpToUBV(rm, arg, to_size)
 
     def _op_fgeneric_Cmp(self, args): #pylint:disable=no-self-use
 
@@ -911,7 +939,7 @@ class SimIROp:
                 if self._float:
                     # HACK HACK HACK
                     # this is such a weird divergence. why do the fp generics take several args and the int generics take a list?
-                    result.append(f(*lane_args))
+                    result.append(f(*lane_args).raw_to_bv())
                 else:
                     result.append(f(lane_args))
             return claripy.Concat(*result)

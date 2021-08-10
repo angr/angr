@@ -12,7 +12,6 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...sim_options import SYMBOL_FILL_UNCONSTRAINED_REGISTERS, SYMBOL_FILL_UNCONSTRAINED_MEMORY
 from ...knowledge_plugins.functions import FunctionManager, Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
@@ -1268,9 +1267,17 @@ class CFGBase(Analysis):
                 if block is None:
                     continue
                 if all(self._is_noop_insn(insn) for insn in block.capstone.insns):
-                    # mark this function as a function alignment
-                    l.debug('Function chunk %#x is probably used as a function alignment.', func_addr)
+                    # all nops. mark this function as a function alignment
+                    l.debug('Function chunk %#x is probably used as a function alignment (all nops).', func_addr)
                     self.kb.functions[func_addr].alignment = True
+                    continue
+                node = function.get_node(block.addr)
+                successors = list(function.graph.successors(node))
+                if len(successors) == 1 and successors[0].addr == node.addr:
+                    # self loop. mark this function as a function alignment
+                    l.debug('Function chunk %#x is probably used as a function alignment (self-loop).', func_addr)
+                    self.kb.functions[func_addr].alignment = True
+                    continue
 
     def make_functions(self):
         """
@@ -1533,7 +1540,7 @@ class CFGBase(Analysis):
             if max_unresolved_jump_addr <= startpoint_addr or max_unresolved_jump_addr >= endpoint_addr:
                 continue
 
-            # scan forward from the endpoint to include any function tail jumps
+            # scan forward from the endpoint to include any function-tail jumps
             # Here is an example:
             # loc_8049562:
             #       mov eax, ebp
@@ -1548,33 +1555,26 @@ class CFGBase(Analysis):
             #       jmp loc_8049562
             #
             last_addr = endpoint_addr
-            tmp_state = self.project.factory.blank_state(mode='fastpath', add_options={
-                SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
-                SYMBOL_FILL_UNCONSTRAINED_MEMORY,
-            })
             while True:
                 try:
                     # do not follow hooked addresses (such as SimProcedures)
                     if self.project.is_hooked(last_addr):
                         break
 
-                    # using successors is slow, but acceptable since we won't be creating millions of blocks here...
-                    tmp_state.ip = last_addr
-                    b = self.project.factory.successors(tmp_state, jumpkind='Ijk_Boring')
-                    if len(b.successors) != 1:
+                    next_block = self._lift(last_addr)
+                    next_block_irsb = next_block.vex_nostmt
+                    if next_block_irsb.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                         break
-                    if b.successors[0].history.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
+                    if not isinstance(next_block_irsb.next, pyvex.IRExpr.Const):
                         break
-                    if b.successors[0].ip.symbolic:
-                        break
-                    suc_addr = b.successors[0].ip._model_concrete
+                    suc_addr = next_block_irsb.next.con.value
                     if max(startpoint_addr, the_endpoint.addr - 0x40) <= suc_addr < the_endpoint.addr + the_endpoint.size:
                         # increment the endpoint_addr
-                        endpoint_addr = b.addr + b.artifacts['irsb_size']
+                        endpoint_addr = next_block.addr + next_block.size
                     else:
                         break
 
-                    last_addr = b.addr + b.artifacts['irsb_size']
+                    last_addr = next_block.addr + next_block.size
 
                 except (SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError):
                     break
@@ -1591,7 +1591,7 @@ class CFGBase(Analysis):
                 if f_addr == func_addr:
                     continue
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and \
-                        all([max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs]):
+                        all(max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs):
                     if f_addr in functions_to_remove:
                         # this function has already been merged with other functions before... it cannot be merged with
                         # this function anymore
@@ -1657,6 +1657,9 @@ class CFGBase(Analysis):
 
             if len(func_0.block_addrs) == 1:
                 block = next(func_0.blocks)
+                if block.size == 0:
+                    # skip empty blocks (that are usually caused by lifting failures)
+                    continue
                 if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                     continue
                 # Skip alignment blocks
@@ -1714,7 +1717,7 @@ class CFGBase(Analysis):
                                                blockaddr_to_function) -> Set[int]:
         """
         Sometimes compilers will optimize "cold" code regions, make them separate functions, mark them as cold, which
-        conflicts with how angr handles jumps to these functions (becuase they weren't functions to start with). Here
+        conflicts with how angr handles jumps to these functions (because they weren't functions to start with). Here
         is an example (in function version_etc_arn() from gllib)::
 
         switch (n_authors) {
@@ -2013,13 +2016,18 @@ class CFGBase(Analysis):
 
                 n = self.model.get_any_node(returning_target)
                 if n is None:
-                    returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                    try:
+                        returning_snippet = self._to_snippet(addr=returning_target, base_state=self._base_state)
+                    except SimEngineError:
+                        # it may not exist
+                        returning_snippet = None
                 else:
                     returning_snippet = self._to_snippet(cfg_node=n)
 
-                self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
-                                                  to_outside=to_outside
-                                                  )
+                if returning_snippet is not None:
+                    self.kb.functions._add_fakeret_to(src_function.addr, src_snippet, returning_snippet, confirmed=True,
+                                                      to_outside=to_outside
+                                                      )
 
         elif jumpkind in ('Ijk_Boring', 'Ijk_InvalICache', 'Ijk_Exception'):
 
@@ -2057,7 +2065,7 @@ class CFGBase(Analysis):
             else:
                 is_known_function_addr = dst_addr in known_functions
 
-            if is_known_function_addr or (
+            if (is_known_function_addr and dst_addr != src_function.addr) or (
                 dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
             ):
                 # yes it is
@@ -2256,6 +2264,8 @@ class CFGBase(Analysis):
                 # reg and reg
                 if op0.reg == op1.reg:
                     return True
+        elif insn_name in {"ud0", "ud1", "ud2"}:
+            return True
 
         # add more types of no-op instructions here :-)
 

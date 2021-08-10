@@ -12,7 +12,7 @@ from ...utils.graph import dominates, shallow_reverse
 from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
-                               ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode)
+                               ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode, CascadingConditionNode)
 from .utils import extract_jump_targets, switch_extract_cmp_bounds
 
 l = logging.getLogger(__name__)
@@ -46,10 +46,12 @@ class ConditionProcessor:
     def __init__(self, condition_mapping=None):
         self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
         self.reaching_conditions = {}
+        self.guarding_conditions = {}
 
     def clear(self):
         self._condition_mapping.clear()
         self.reaching_conditions.clear()
+        self.guarding_conditions.clear()
 
     def recover_reaching_conditions(self, region, with_successors=False, jump_tables=None):
 
@@ -85,8 +87,8 @@ class ConditionProcessor:
         else:
             _g = region.graph
         end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
+        inverted_graph = shallow_reverse(_g)
         if end_nodes:
-            inverted_graph = shallow_reverse(_g)
             if len(end_nodes) > 1:
                 # make sure there is only one end node
                 dummy_node = "DUMMY_NODE"
@@ -148,18 +150,27 @@ class ConditionProcessor:
                 l.warning("Marking node %r as trivially reachable. Disable this optimization in condition_processor.py "
                           "if it leads to incorrect decompilation result.", node_with_greatest_indegree)
 
-        # Another hypothesis: for nodes where two paths come together, we are better off using their "guarding
-        # conditions" instead of reaching conditions. see my super long chatlog with rhelmot on 5/14/2021.
+        # Another hypothesis: for nodes where two paths come together *and* those that cannot be further structured into
+        # another if-else construct (we take the short-cut by testing if the operator is an "Or" after running our
+        # condition simplifiers previously), we are better off using their "guarding conditions" instead of their
+        # reaching conditions for if-else. see my super long chatlog with rhelmot on 5/14/2021.
+        guarding_conditions = {}
         for the_node in sorted_nodes:
 
             preds = list(_g.predecessors(the_node))
             if len(preds) != 2:
                 continue
+            # generate a graph slice that goes from the region head to this node
+            slice_nodes = list(networkx.dfs_tree(inverted_graph, the_node))
+            subgraph = networkx.subgraph(_g, slice_nodes)
             # figure out which paths cause the divergence from this node
             nodes_do_not_reach_the_node = set()
-            for node_ in _g:
-                if not networkx.has_path(_g, node_, the_node):
-                    nodes_do_not_reach_the_node.add(node_)
+            for node_ in subgraph:
+                if node_ is the_node:
+                    continue
+                for succ in _g.successors(node_):
+                    if not networkx.has_path(_g, succ, the_node):
+                        nodes_do_not_reach_the_node.add(succ)
 
             diverging_conditions = [ ]
 
@@ -177,10 +188,10 @@ class ConditionProcessor:
             if diverging_conditions:
                 # the negation of the union of diverging conditions is the guarding condition for this node
                 cond = claripy.Or(*map(claripy.Not, diverging_conditions))
-                if the_node not in reaching_conditions or cond.depth < reaching_conditions[the_node].depth:
-                    reaching_conditions[the_node] = cond
+                guarding_conditions[the_node] = cond
 
         self.reaching_conditions = reaching_conditions
+        self.guarding_conditions = guarding_conditions
 
     def recover_reaching_conditions_for_jumptables(self, region, jump_tables, edge_conditions):
 
@@ -265,13 +276,26 @@ class ConditionProcessor:
                                  self.remove_claripy_bool_asts(node.false_node, memo=memo),
                                  )
 
+        elif isinstance(node, CascadingConditionNode):
+
+            cond_and_nodes = [ ]
+            for cond, child_node in node.condition_and_nodes:
+                cond_and_nodes.append((
+                    self.convert_claripy_bool_ast(cond, memo=memo),
+                    self.remove_claripy_bool_asts(child_node, memo=memo))
+                )
+            else_node = None if node.else_node is None else self.remove_claripy_bool_asts(node.else_node, memo=memo)
+            return CascadingConditionNode(node.addr,
+                                          cond_and_nodes,
+                                          else_node=else_node,
+                                          )
+
         elif isinstance(node, LoopNode):
 
-            return LoopNode(node.sort,
-                            self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None,
-                            self.remove_claripy_bool_asts(node.sequence_node, memo=memo),
-                            addr=node.addr,
-                            )
+            result = node.copy()
+            result.condition = self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None
+            result.sequence_node = self.remove_claripy_bool_asts(node.sequence_node, memo=memo)
+            return result
 
         elif isinstance(node, SwitchCaseNode):
             return SwitchCaseNode(self.convert_claripy_bool_ast(node.switch_expr, memo=memo),
@@ -326,6 +350,16 @@ class ConditionProcessor:
                     s = None
             if s is None and block.false_node:
                 s = cls.get_last_statement(block.false_node)
+            return s
+        if type(block) is CascadingConditionNode:
+            s = None
+            if block.else_node is not None:
+                s = cls.get_last_statement(block.else_node)
+            else:
+                for _, node in reversed(block.condition_and_nodes):
+                    s = cls.get_last_statement(node)
+                    if s is not None:
+                        break
             return s
         if type(block) is BreakNode:
             return None
@@ -385,6 +419,18 @@ class ConditionProcessor:
                     pass
             if block.false_node:
                 last_stmts = cls.get_last_statements(block.false_node)
+                s.extend(last_stmts)
+            return s
+        if type(block) is CascadingConditionNode:
+            s = [ ]
+            if block.else_node is not None:
+                try:
+                    last_stmts = cls.get_last_statements(block.else_node)
+                    s.extend(last_stmts)
+                except EmptyBlockNotice:
+                    pass
+            for _, node in block.condition_and_nodes:
+                last_stmts = cls.get_last_statements(node)
                 s.extend(last_stmts)
             return s
         if type(block) is BreakNode:
@@ -478,10 +524,10 @@ class ConditionProcessor:
 
         if memo is None:
             memo = {}
-        if cond in memo:
-            return memo[cond]
+        if cond._hash in memo:
+            return memo[cond._hash]
         r = self.convert_claripy_bool_ast_core(cond, memo)
-        memo[cond] = r
+        memo[cond._hash] = r
         return r
 
     def convert_claripy_bool_ast_core(self, cond, memo):
@@ -574,6 +620,11 @@ class ConditionProcessor:
             operand1 = ailment.Expr.Convert(None, operand1.bits, operand0.bits, False, operand1)
             return op(conv(operand0), conv(operand1))
 
+        def _dummy_bvs(condition):
+            var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
+            self._condition_mapping[var.args[0]] = condition
+            return var
+
         _mapping = {
             'LogicalAnd': lambda expr, conv: claripy.And(conv(expr.operands[0]), conv(expr.operands[1])),
             'LogicalOr': lambda expr, conv: claripy.Or(conv(expr.operands[0]), conv(expr.operands[1])),
@@ -590,6 +641,7 @@ class ConditionProcessor:
             'Add': lambda expr, conv: conv(expr.operands[0]) + conv(expr.operands[1]),
             'Sub': lambda expr, conv: conv(expr.operands[0]) - conv(expr.operands[1]),
             'Mul': lambda expr, conv: conv(expr.operands[0]) * conv(expr.operands[1]),
+            'Div': lambda expr, conv: conv(expr.operands[0]) / conv(expr.operands[1]),
             'Not': lambda expr, conv: claripy.Not(conv(expr.operand)),
             'Xor': lambda expr, conv: conv(expr.operands[0]) ^ conv(expr.operands[1]),
             'And': lambda expr, conv: conv(expr.operands[0]) & conv(expr.operands[1]),
@@ -597,13 +649,15 @@ class ConditionProcessor:
             'Shr': lambda expr, conv: _op_with_unified_size(claripy.LShR, conv, expr.operands[0], expr.operands[1]),
             'Shl': lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
             'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
+
+            # There is no claripy operation for the following operations
+            'DivMod': lambda expr, _: _dummy_bvs(expr),
+            'CmpF': lambda expr, _: _dummy_bvs(expr),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
                                   ailment.Expr.ITE, ailment.Stmt.Call)):
-            var = claripy.BVS('ailexpr_%s' % repr(condition), condition.bits, explicit_name=True)
-            self._condition_mapping[var.args[0]] = condition
-            return var
+            return _dummy_bvs(condition)
         elif isinstance(condition, ailment.Expr.Register):
             var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition

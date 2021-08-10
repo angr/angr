@@ -62,7 +62,7 @@ def test_simplify_dead_assign_0():
             ),
             ailment.Stmt.Jump(
                 next(n),
-                0x3333,
+                ailment.Expr.Const(None, None, 0x3333, 64),
                 ins_addr=0x1338
             ),
         ]

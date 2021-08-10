@@ -1,5 +1,6 @@
 # pylint:disable=no-self-use,isinstance-second-argument-not-valid-type
 from typing import Tuple, Optional, Union, Any
+import struct
 import logging
 
 import ailment
@@ -8,7 +9,7 @@ import claripy
 import archinfo
 
 from ...engines.vex.claripy.datalayer import value as claripy_value
-from ...engines.vex.claripy.irop import UnsupportedIROpError, vexop_to_simop
+from ...engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from ...code_location import CodeLocation
 from ...utils.constants import DEFAULT_STATEMENT
 from ..engine import SimEngine
@@ -268,7 +269,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         simop = None
         try:
             simop = vexop_to_simop(expr.op)
-        except UnsupportedIROpError:
+        except (UnsupportedIROpError, SimOperationError):
             pass
 
         if simop is not None and simop.op_attrs.get('conversion', None):
@@ -299,6 +300,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_Sub'
         elif expr.op.startswith('Iop_Mul'):
             handler = "_handle_Mul"
+        elif expr.op.startswith('Iop_DivMod'):
+            handler = "_handle_DivMod"
         elif expr.op.startswith('Iop_Div'):
             handler = "_handle_Div"
         elif expr.op.startswith('Iop_Xor'):
@@ -470,6 +473,36 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         return expr_0 * expr_1
 
+    def _handle_DivMod(self, expr):
+        args, r = self._binop_get_args(expr)
+        if args is None: return r
+        expr_0, expr_1 = args
+
+        if self._is_top(expr_0) or self._is_top(expr_1):
+            return self._top(expr.result_size(self.tyenv))
+
+        signed = "U" in expr.op  # Iop_DivModU64to32 vs Iop_DivMod
+        from_size = expr_0.size()
+        to_size = expr_1.size()
+        if signed:
+            quotient = (expr_0.SDiv(claripy.SignExt(from_size - to_size, expr_1)))
+            remainder = (expr_1.SMod(claripy.SignExt(from_size - to_size, expr_1)))
+            quotient_size = to_size
+            remainder_size = to_size
+            return claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+        else:
+            quotient = (expr_0 // claripy.ZeroExt(from_size - to_size, expr_1))
+            remainder = (expr_0 % claripy.ZeroExt(from_size - to_size, expr_1))
+            quotient_size = to_size
+            remainder_size = to_size
+            return claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+
     def _handle_Div(self, expr):
         args, r = self._binop_get_args(expr)
         if args is None: return r
@@ -637,7 +670,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _handle_32HLto64(self, expr):
         args, r = self._binop_get_args(expr)
-        if args is None: return r
+        if args is None:
+            if r is not None:
+                # the size of r should be 32 but we need to return a 64-bit expression
+                assert r.size() == 32
+                r = claripy.ZeroExt(32, r)
+            return r
 
         return None
 
@@ -751,6 +789,22 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _ail_handle_CallExpr(self, expr):
         raise NotImplementedError('Please implement the CallExpr handler with your own logic.')
+
+    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
+        arg = self._expr(expr.operand)
+
+        if isinstance(arg, int) and expr.from_bits == 32 and expr.from_type == "I" and expr.to_bits == 32 and expr.to_type == "F":
+            # int -> float
+            b = struct.pack("<I", arg)
+            f = struct.unpack("<f", b)[0]
+            return f
+        elif isinstance(arg, float) and expr.from_bits == 32 and expr.from_type == "F" and expr.to_bits == 32 and expr.to_type == "I":
+            # float -> int
+            b = struct.pack("<f", arg)
+            v = struct.unpack("<I", b)[0]
+            return v
+
+        return expr
 
     def _ail_handle_UnaryOp(self, expr):
         handler_name = '_ail_handle_%s' % expr.op
@@ -866,10 +920,24 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, bits=expr.bits, **expr.tags)
 
     def _ail_handle_Mull(self, expr):
-        return self._ail_handle_Mul(expr)
+
+        arg0, arg1 = expr.operands
+
+        expr_0 = self._expr(arg0)
+        expr_1 = self._expr(arg1)
+
+        if expr_0 is None:
+            expr_0 = arg0
+        if expr_1 is None:
+            expr_1 = arg1
+
+        try:
+            return expr_0 * expr_1
+        except TypeError:
+            return ailment.Expr.BinaryOp(expr.idx, 'Mull', [expr_0, expr_1], expr.signed, bits=expr.bits, **expr.tags)
 
     def _ail_handle_And(self, expr):
 

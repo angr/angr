@@ -239,7 +239,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                     break
 
         if (state.unicorn.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or
-            state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE, STOP.STOP_VEX_LIFT_FAILED)):
+            state.unicorn.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED)):
             l.info(state.unicorn.stop_message)
 
         if state.unicorn.jumpkind.startswith('Ijk_Sys'):

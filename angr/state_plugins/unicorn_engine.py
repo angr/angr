@@ -56,7 +56,8 @@ class MemoryValue(ctypes.Structure): # memory_value_t
     _fields_ = [
         ('address', ctypes.c_uint64),
         ('value', ctypes.c_uint8 * _MAX_MEM_ACCESS_SIZE),
-        ('size', ctypes.c_uint64)
+        ('size', ctypes.c_uint64),
+        ('is_value_symbolic', ctypes.c_bool)
     ]
 
 class RegisterValue(ctypes.Structure): # register_value_t
@@ -114,10 +115,11 @@ class STOP:  # stop_t
     STOP_UNSUPPORTED_EXPR_GETI    = 25
     STOP_UNSUPPORTED_STMT_UNKNOWN = 26
     STOP_UNSUPPORTED_EXPR_UNKNOWN = 27
-    STOP_UNKNOWN_MEMORY_WRITE     = 28
+    STOP_UNKNOWN_MEMORY_WRITE_SIZE = 28
     STOP_SYMBOLIC_MEM_DEP_NOT_LIVE = 29
     STOP_SYSCALL_ARM    = 30
     STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK = 31
+    STOP_X86_CPUID = 32
 
     stop_message = {}
     stop_message[STOP_NORMAL]        = "Reached maximum steps"
@@ -148,15 +150,16 @@ class STOP:  # stop_t
     stop_message[STOP_UNSUPPORTED_EXPR_GETI]   = "Symbolic taint propagation for GetI expression not yet supported"
     stop_message[STOP_UNSUPPORTED_STMT_UNKNOWN]= "Canoo propagate symbolic taint for unsupported VEX statement type"
     stop_message[STOP_UNSUPPORTED_EXPR_UNKNOWN]= "Cannot propagate symbolic taint for unsupported VEX expression"
-    stop_message[STOP_UNKNOWN_MEMORY_WRITE]    = "Cannot find a memory write at instruction; likely because unicorn reported PC value incorrectly"
+    stop_message[STOP_UNKNOWN_MEMORY_WRITE_SIZE] = "Cannot determine size of memory write; likely because unicorn didn't"
     stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE] = "A symbolic memory dependency on stack is no longer in scope"
     stop_message[STOP_SYSCALL_ARM]   = "ARM syscalls are currently not supported by SimEngineUnicorn"
     stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK] = "An instruction in current block overwrites a symbolic value needed for re-executing some instruction in same block"
+    stop_message[STOP_X86_CPUID] = "Block executes cpuid which should be handled in VEX engine"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
         STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED, STOP_SYMBOLIC_WRITE_ADDR,
         STOP_SYMBOLIC_BLOCK_EXIT_CONDITION, STOP_SYMBOLIC_BLOCK_EXIT_TARGET, STOP_SYSCALL_ARM,
-        STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK]
+        STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK, STOP_X86_CPUID]
 
     unsupported_reasons = [STOP_UNSUPPORTED_STMT_PUTI, STOP_UNSUPPORTED_STMT_STOREG, STOP_UNSUPPORTED_STMT_LOADG,
         STOP_UNSUPPORTED_STMT_CAS, STOP_UNSUPPORTED_STMT_LLSC, STOP_UNSUPPORTED_STMT_DIRTY,
@@ -1092,7 +1095,7 @@ class Unicorn(SimStatePlugin):
         self.stop_reason = self.stop_details.stop_reason
         self.stop_message = STOP.get_stop_msg(self.stop_reason)
         if self.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
-          self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE, STOP.STOP_VEX_LIFT_FAILED):
+          self.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED):
             self.stop_message += f". Block 0x{self.stop_details.block_addr:02x}(size: {self.stop_details.block_size})."
 
         # figure out why we stopped
@@ -1148,8 +1151,8 @@ class Unicorn(SimStatePlugin):
         elif self.stop_reason in STOP.unsupported_reasons:
             self.countdown_nonunicorn_blocks = 0
             self.countdown_unsupported_stop = self.cooldown_unsupported_stop
-        elif self.stop_reason == STOP.STOP_UNKNOWN_MEMORY_WRITE:
-            # Skip one block in case of unknown memory write
+        elif self.stop_reason == STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE:
+            # Skip one block in case of unknown memory write size
             self.countdown_nonunicorn_blocks = 0
             self.countdown_unsupported_stop = 2
         else:

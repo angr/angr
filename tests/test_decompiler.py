@@ -308,7 +308,8 @@ def test_decompiling_true_x86_64_1():
     code: str = dec.codegen.text
 
     # constant propagation was failing. see https://github.com/angr/angr/issues/2659
-    assert code.count("32") == 1
+    assert code.count("32 <=") == 0
+    assert code.count("32") == 2
 
 
 def test_decompiling_true_a_x86_64_0():
@@ -346,9 +347,7 @@ def test_decompiling_true_a_x86_64_1():
     print(dec.codegen.text)
 
 
-def test_decompiling_1after909():
-
-    # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
+def test_decompiling_1after909_verify_password():
 
     bin_path = os.path.join(test_location, "x86_64", "1after909")
     p = angr.Project(bin_path, auto_load_libs=False)
@@ -362,12 +361,24 @@ def test_decompiling_1after909():
         code = dec.codegen.text
         print(code)
         assert "stack_base" not in code, "Some stack variables are not recognized"
-        assert "strncmp(v0, &v3, 0x40)" in code
-        assert "strncmp(v0, &v3, 0x40);" not in code, "Call expressions folding failed for strncmp()"
+        m = re.search(r"strncmp\(v0, \S+, 0x40\)", code)
+        assert m is not None
+        strncmp_expr = m.group(0)
+        strncmp_stmt = strncmp_expr + ";"
+        assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
     else:
         print("Failed to decompile function %r." % f)
         assert False
 
+
+def test_decompiling_1after909_doit():
+
+    # the doit() function has an abnormal loop at 0x1d47 - 0x1da1 - 0x1d73
+
+    bin_path = os.path.join(test_location, "x86_64", "1after909")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
     # doit
     f = cfg.functions['doit']
     optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
@@ -408,6 +419,27 @@ def test_decompiling_libsoap():
         assert False
 
 
+def test_decompiling_no_arguments_in_variable_list():
+
+    # function arguments should never appear in the variable list
+    bin_path = os.path.join(test_location, "x86_64", "test_arrays")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    _ = p.analyses.CompleteCallingConventions(recover_variables=True)
+
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    argc_name = " a0"  # update this variable once the decompiler picks up argument names from the common definition of
+                       # main()
+    assert argc_name in code
+    assert code.count(argc_name) == 1  # it should only appear once
+
+
 def test_decompiling_strings_local_strlen():
     bin_path = os.path.join(test_location, "x86_64", "types", "strings")
     p = angr.Project(bin_path, auto_load_libs=False)
@@ -426,7 +458,7 @@ def test_decompiling_strings_local_strlen():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strlen(char* a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
+    assert "local_strlen(char *a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
 
 
 def test_decompiling_strings_local_strcat():
@@ -447,7 +479,7 @@ def test_decompiling_strings_local_strcat():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strcat(char* a0, char* a1)" in lines[0], \
+    assert "local_strcat(char *a0, char *a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
 
@@ -475,7 +507,7 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     print(code)
     # Make sure argument a0 is correctly typed to char*
     lines = code.split("\n")
-    assert "local_strcat(char* a0, char* a1)" in lines[0], \
+    assert "local_strcat(char *a0, char *a1)" in lines[0], \
         "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
 
@@ -486,7 +518,8 @@ def test_decompilation_call_expr_folding():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     func_0 = cfg.functions['strlen_should_fold']
-    dec = p.analyses.Decompiler(func_0, cfg=cfg.model)
+    opt = [ o for o in angr.analyses.decompiler.decompilation_options.options if o.param == "remove_dead_memdefs" ][0]
+    dec = p.analyses.Decompiler(func_0, cfg=cfg.model, options=[(opt, True)])
     code = dec.codegen.text
     print(code)
     m = re.search(r"v(\d+) = \(int\)strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
@@ -521,7 +554,7 @@ def test_decompilation_excessive_condition_removal():
 
     code = code.replace(" ", "").replace("\n", "")
     # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
-    assert "}v2=v2+1;}" in code
+    assert "}v4=v4+1;}" in code
 
 
 def test_decompilation_excessive_goto_removal():
@@ -557,6 +590,39 @@ def test_decompiling_fauxware_mipsel():
     # The string references must be correctly recovered
     assert '"Username: "' in code
     assert '"Password: "' in code
+
+
+def test_stack_canary_removal_x8664_extra_exits():
+
+    # Test stack canary removal on functions with extra exit nodes (e.g., assert(false);) without stack canary checks
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    # We should not find "__stack_chk_fail" in the code
+    assert "__stack_chk_fail" not in code
+
+
+def test_ifelseif_x8664():
+
+    # nested if-else should be transformed to cascading if-elseif constructs
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "babyheap_level1_teaching1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    assert code.count("else if") == 3
 
 
 if __name__ == "__main__":

@@ -113,7 +113,7 @@ def test_longinit_i386():
 def test_longinit_x86_64():
     run_longinit('x86_64')
 
-def test_fauxware_arm():
+def broken_fauxware_arm():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'armel', 'fauxware'))
     s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
     pg = p.factory.simulation_manager(s_unicorn)

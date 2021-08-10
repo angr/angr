@@ -5,7 +5,7 @@ from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 class fscanf(FormatParser):
     #pylint:disable=arguments-differ
 
-    def run(self, file_ptr):
+    def run(self, file_ptr, fmt):  # pylint:disable=unused-argument
         # TODO handle errors
 
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']

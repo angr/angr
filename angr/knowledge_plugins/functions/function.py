@@ -35,7 +35,8 @@ class Function(Serializable):
 
     __slots__ = ('transition_graph', '_local_transition_graph', 'normalized', '_ret_sites', '_jumpout_sites',
                  '_callout_sites', '_endpoints', '_call_sites', '_retout_sites', 'addr', '_function_manager',
-                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'binary_name',
+                 'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'is_default_name',
+                 'from_signature', 'binary_name',
                  '_argument_registers', '_argument_stack_variables',
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', '_cc', '_prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
@@ -160,7 +161,9 @@ class Function(Serializable):
         if name is None:
             self._name = self._get_initial_name()
         else:
+            self.is_default_name = False
             self._name = name
+        self.from_signature = None
 
         # Determine the name the binary where this function is.
         if binary_name is not None:
@@ -259,7 +262,15 @@ class Function(Serializable):
 
         return self._local_block_addrs
 
-    def get_block(self, addr, size=None, byte_string=None):
+    def get_block(self, addr: int, size: Optional[int]=None, byte_string: Optional[bytes]=None):
+        """
+        Getting a block out of the current function.
+
+        :param int addr:    The address of the block.
+        :param int size:    The size of the block. This is optional. If not provided, angr will load
+        :param byte_string:
+        :return:
+        """
         if addr in self._block_cache:
             b = self._block_cache[addr]
             if size is None or b.size == size:
@@ -323,12 +334,11 @@ class Function(Serializable):
         return [const.value for block in self.blocks for const in block.vex.constants]
 
     @property
-    def calling_convention(self):
+    def calling_convention(self) -> Optional[SimCC]:
         """
         Get the calling convention of this function.
 
         :return:    The calling convention of this function.
-        :rtype:     Optional[SimCC]
         """
         return self._cc
 
@@ -357,12 +367,11 @@ class Function(Serializable):
                 self._prototype = None
 
     @property
-    def prototype(self):
+    def prototype(self) -> Optional[SimTypeFunction]:
         """
         Get the prototype of this function. We prioritize the function prototype that is set in self.calling_convention.
 
         :return:    The function prototype.
-        :rtype:     Optional[SimTypeFunction]
         """
         if self._cc:
             return self._cc.func_ty
@@ -661,6 +670,7 @@ class Function(Serializable):
         name = None
         addr = self.addr
 
+        self.is_default_name = False
         # Try to get a name from existing labels
         if self._function_manager is not None:
             if addr in self._function_manager._kb.labels:
@@ -678,6 +688,7 @@ class Function(Serializable):
 
         # generate an IDA-style sub_X name
         if name is None:
+            self.is_default_name = True
             name = 'sub_%x' % addr
 
         return name
@@ -839,27 +850,36 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
+    def _update_local_blocks(self, node: CodeNode):
+        self._local_blocks[node.addr] = node
+        self._local_block_addrs.add(node.addr)
+
+    def _update_addr_to_block_cache(self, node: BlockNode):
+        if node.addr not in self._addr_to_block_node:
+            self._addr_to_block_node[node.addr] = node
+
     def _register_nodes(self, is_local, *nodes):
         if not isinstance(is_local, bool):
             raise AngrValueError('_register_nodes(): the "is_local" parameter must be a bool')
 
         for node in nodes:
-            self.transition_graph.add_node(node)
+            if node.addr not in self:
+                # only add each node once
+                self.transition_graph.add_node(node)
+
             if not isinstance(node, CodeNode):
                 continue
             node._graph = self.transition_graph
-            if node.addr not in self or self._block_sizes[node.addr] == 0:
+            if self._block_sizes.get(node.addr, 0) == 0:
                 self._block_sizes[node.addr] = node.size
             if node.addr == self.addr:
                 if self.startpoint is None or not self.startpoint.is_hook:
                     self.startpoint = node
-            if is_local:
-                self._local_blocks[node.addr] = node
-                self._local_block_addrs.add(node.addr)
+            if is_local and node.addr not in self._local_blocks:
+                self._update_local_blocks(node)
             # add BlockNodes to the addr_to_block_node cache if not already there
             if isinstance(node, BlockNode):
-                if node.addr not in self._addr_to_block_node:
-                    self._addr_to_block_node[node.addr] = node
+                self._update_addr_to_block_cache(node)
                 #else:
                 #    # checks that we don't have multiple block nodes at a single address
                 #    assert node == self._addr_to_block_node[node.addr]
@@ -1163,8 +1183,7 @@ class Function(Serializable):
         :return int: Size of the instruction in bytes, or None if the instruction is not found.
         """
 
-        for b in self.blocks:
-            block = self.get_block(b.addr, size=b.size, byte_string=b.bytestr)
+        for block in self.blocks:
             if insn_addr in block.instruction_addrs:
                 index = block.instruction_addrs.index(insn_addr)
                 if index == len(block.instruction_addrs) - 1:

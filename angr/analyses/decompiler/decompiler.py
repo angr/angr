@@ -15,9 +15,12 @@ if TYPE_CHECKING:
 
 class Decompiler(Analysis):
     def __init__(self, func, cfg=None, options=None, optimization_passes=None, sp_tracker_track_memory=True,
+                 variable_kb=None,
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  vars_must_struct: Optional[Set[str]]=None,
                  flavor='pseudocode',
+                 expr_comments=None,
+                 stmt_comments=None,
                  ):
         self.func = func
         self._cfg = cfg
@@ -27,6 +30,9 @@ class Decompiler(Analysis):
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
         self._flavor = flavor
+        self._variable_kb = variable_kb
+        self._expr_comments = expr_comments
+        self._stmt_comments = stmt_comments
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -53,10 +59,22 @@ class Decompiler(Analysis):
         self._set_global_variables()
         self._update_progress(5., text='Converting to AIL')
 
+        variable_kb = self._variable_kb
+        if variable_kb is None:
+            # fall back to old codegen
+            if old_codegen is not None:
+                variable_kb = old_codegen._variable_kb
+
+        if variable_kb is None:
+            reset_variable_names = True
+        else:
+            reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
+
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
-                                              variable_kb=old_codegen._variable_kb if old_codegen is not None else None,
+                                              variable_kb=variable_kb,
+                                              reset_variable_names=reset_variable_names,
                                               optimization_passes=self._optimization_passes,
                                               sp_tracker_track_memory=self._sp_tracker_track_memory,
                                               cfg=self._cfg,
@@ -87,14 +105,16 @@ class Decompiler(Analysis):
         self._update_progress(85., text='Generating code')
 
         codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,
+                                                                flavor=self._flavor,
                                                                 func_args=clinic.arg_list,
                                                                 kb=self.kb,
                                                                 variable_kb=clinic.variable_kb,
+                                                                expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
+                                                                stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                                                                 **self.options_to_params(options_by_class['codegen']))
         self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen
-        self.kb.structured_code[(self.func.addr, self._flavor)] = codegen
 
     def _set_global_variables(self):
 

@@ -5,6 +5,7 @@ from io import BytesIO, IOBase
 import pickle
 import string
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, Any
 
 import archinfo
@@ -125,12 +126,12 @@ class Project:
             l.info("Loading binary from stream")
             self.filename = None
             self.loader = cle.Loader(thing, **load_options)
-        elif not isinstance(thing, str) or not os.path.exists(thing) or not os.path.isfile(thing):
+        elif not isinstance(thing, (str, Path)) or not os.path.exists(thing) or not os.path.isfile(thing):
             raise Exception("Not a valid binary file: %s" % repr(thing))
         else:
             # use angr's loader, provided by cle
             l.info("Loading binary %s", thing)
-            self.filename = thing
+            self.filename = str(thing)
             self.loader = cle.Loader(self.filename, concrete_target=concrete_target, **load_options)
 
         # Step 2: determine its CPU architecture, ideally falling back to CLE's guess

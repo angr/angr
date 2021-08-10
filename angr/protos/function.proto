@@ -6,6 +6,11 @@ import "protos/primitives.proto";
 package angr.protos;
 
 message Function {
+    enum SignatureSource {
+        UNMATCHED = 0;
+        FLIRT = 1;
+    }
+
     uint64          ea = 1; // Effective address
     bool            is_entrypoint = 3; // Is this function the entry point of the binary
     repeated Block  blocks = 2; // Blocks in this function
@@ -19,4 +24,6 @@ message Function {
     repeated uint64 external_functions = 13; // Address of referenced functions
     bool            alignment = 14; // Whether this function is used as an alignment filling or not
     bool            normalized = 15; // Whether this function has been normalized or not
+    SignatureSource matched_from = 16; // If this function is matched to a known library function. If so, which
+                                       // signature was used during matching
 }

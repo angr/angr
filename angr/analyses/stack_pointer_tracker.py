@@ -9,7 +9,7 @@ from ..knowledge_plugins import Function
 from ..block import BlockNode
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-
+from ..errors import SimTranslationError
 
 _l = logging.getLogger(name=__name__)
 
@@ -224,13 +224,14 @@ def _dict_merge(d1, d2):
     merged = {}
     for k in all_keys:
         if k not in d1 or d1[k] is TOP:
-            # don't add it to the dict, which is the same as top
-            pass
+            merged[k] = TOP
         elif k not in d2 or d2[k] is TOP:
             # don't add it to the dict, which is the same as top
-            pass
+            merged[k] = TOP
         elif d1[k] == d2[k]:
             merged[k] = d1[k]
+        else: # d1[k] != d2[k]
+            merged[k] = TOP
     return merged
 
 
@@ -357,7 +358,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     def _set_pre_state(self, addr, new_val):
         self._set_state(addr, new_val, 'pre')
 
-    def _run_on_node(self, node : BlockNode, state):
+    def _run_on_node(self, node: BlockNode, state):
 
         block = self.project.factory.block(node.addr, size=node.size)
         self._blocks[node.addr] = block
@@ -402,29 +403,35 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             else:
                 raise CouldNotResolveException
 
+        vex_block = None
+        try:
+            vex_block = block.vex
+        except SimTranslationError:
+            pass
 
-        for stmt in block.vex.statements:
-            if type(stmt) is pyvex.IRStmt.IMark:
-                if curr_stmt_start_addr is not None:
-                    # we've reached a new instruction. Time to store the post state
-                    self._set_post_state(curr_stmt_start_addr, state.freeze())
-                curr_stmt_start_addr = stmt.addr + stmt.delta
-                self._set_pre_state(curr_stmt_start_addr, state.freeze())
-            else:
+        if vex_block is not None:
+            for stmt in vex_block.statements:
+                if type(stmt) is pyvex.IRStmt.IMark:
+                    if curr_stmt_start_addr is not None:
+                        # we've reached a new instruction. Time to store the post state
+                        self._set_post_state(curr_stmt_start_addr, state.freeze())
+                    curr_stmt_start_addr = stmt.addr + stmt.delta
+                    self._set_pre_state(curr_stmt_start_addr, state.freeze())
+                else:
+                    try:
+                        resolve_stmt(stmt)
+                    except CouldNotResolveException:
+                        pass
+
+            # stack pointer adjustment
+            if self.project.arch.sp_offset in self.reg_offsets \
+                    and vex_block.jumpkind == 'Ijk_Call' \
+                    and self.project.arch.call_pushes_ret:
                 try:
-                    resolve_stmt(stmt)
+                    incremented = state.get(self.project.arch.sp_offset) + Constant(self.project.arch.bytes)
+                    state.put(self.project.arch.sp_offset, incremented)
                 except CouldNotResolveException:
                     pass
-
-        # stack pointer adjustment
-        if self.project.arch.sp_offset in self.reg_offsets \
-                and block.vex.jumpkind == 'Ijk_Call' \
-                and self.project.arch.call_pushes_ret:
-            try:
-                incremented = state.get(self.project.arch.sp_offset) + Constant(self.project.arch.bytes)
-                state.put(self.project.arch.sp_offset, incremented)
-            except CouldNotResolveException:
-                pass
 
         if curr_stmt_start_addr is not None:
             self._set_post_state(curr_stmt_start_addr, state.freeze())
@@ -444,10 +451,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             merged = merged.unfreeze().give_up_on_memory_tracking().freeze()
         return merged
 
-    def _merge_states(self, node, *states):
+    def _merge_states(self, node, *states: StackPointerTrackerState):
 
-        assert len(states) == 2
-        merged_state = states[0].merge(states[1])
+        merged_state = states[0]
+        for other in states[1:]:
+            merged_state = merged_state.merge(other)
         return merged_state, merged_state == states[0]
 
 

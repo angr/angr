@@ -10,7 +10,7 @@ l = logging.getLogger(name=__name__)
 
 class snprintf(FormatParser):
 
-    def run(self, dst_ptr, size):  # pylint:disable=arguments-differ,unused-argument
+    def run(self, dst_ptr, size, fmt):  # pylint:disable=arguments-differ,unused-argument
 
         if self.state.solver.eval(size) == 0:
             return size
@@ -32,7 +32,7 @@ class snprintf(FormatParser):
 
 class __snprintf_chk(FormatParser):
 
-    def run(self, dst_ptr, maxlen, size):  # pylint:disable=arguments-differ,unused-argument
+    def run(self, dst_ptr, maxlen, size, fmt):  # pylint:disable=arguments-differ,unused-argument
 
         # The format str is at index 4
         fmt_str = self._parse(4)

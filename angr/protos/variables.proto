@@ -1,0 +1,89 @@
+
+syntax = "proto3";
+
+package angr.protos;
+
+
+message VariableBase {
+    string      ident = 1;
+    string      name = 2;
+    optional uint64 region = 3;
+    optional string category = 4;
+    bool        renamed = 5;
+}
+
+
+message TemporaryVariable {
+    VariableBase    base = 1;
+    uint32          tmp_id = 2;
+}
+
+
+message RegisterVariable {
+    VariableBase    base = 1;
+    uint32          reg = 2;
+    uint32          size = 3;
+}
+
+
+message MemoryVariable {
+    VariableBase    base = 1;
+    uint64          addr = 2;
+    uint32          size = 3;
+}
+
+
+message StackVariable {
+    VariableBase    base = 1;
+    uint64          addr = 2;
+    uint32          size = 3;
+    bool            sp_base = 4;  // SP-base if sp_base is true, or BP-base if sp_base is false
+    int32           offset = 5;
+}
+
+
+message VariableAccess {
+    enum VariableAccessSort {
+        WRITE = 0;
+        READ = 1;
+        REFERENCE = 2;
+    }
+
+    string          ident = 1;
+    uint64          block_addr = 2;
+    int32           stmt_idx = 3;
+    uint64          ins_addr = 4;
+    optional int64  offset = 5;
+    VariableAccessSort access_type = 6;
+    optional uint32 atom_hash = 7;
+}
+
+
+message VariableType {
+    string          ident = 1;
+    string          var_type = 2;  // FIXME: Use a better solution than a string!
+}
+
+message Var2Unified {
+    string          var_ident = 1;
+    string          unified_var_ident = 2;
+}
+
+
+message VariableManagerInternal {
+    // Variables of each type
+    repeated TemporaryVariable tempvars = 1;
+    repeated RegisterVariable regvars = 2;
+    repeated MemoryVariable memvars = 3;
+    repeated StackVariable stackvars = 4;
+    // Variable accesses
+    repeated VariableAccess accesses = 5;
+    // Unified variables
+    repeated TemporaryVariable unified_tempvars = 6;
+    repeated RegisterVariable unified_regvars = 7;
+    repeated MemoryVariable unified_memvars = 8;
+    repeated StackVariable unified_stackvars = 9;
+    repeated Var2Unified var2unified = 10;
+    // Types
+    repeated VariableType types = 11;
+}

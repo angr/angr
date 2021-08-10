@@ -103,6 +103,8 @@ class TypeTranslator:
 
             if isinstance(translated_type, sim_type.SimTypeBottom):
                 next_offset = 1 + offset
+            elif isinstance(translated_type, SimTypeTempRef):
+                next_offset = self.arch.bytes + offset
             else:
                 next_offset = translated_type.size + offset
 

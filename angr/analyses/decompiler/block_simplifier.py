@@ -83,10 +83,11 @@ class BlockSimplifier(Analysis):
         # propagator
         propagator = self.project.analyses.Propagator(block=block, stack_pointer_tracker=self._stack_pointer_tracker)
         replacements = list(propagator._states.values())[0]._replacements
-        if not replacements:
-            return block
-        _, new_block = self._replace_and_build(block, replacements)
-        new_block = self._eliminate_self_assignments(new_block)
+        if replacements:
+            _, new_block = self._replace_and_build(block, replacements)
+            new_block = self._eliminate_self_assignments(new_block)
+        else:
+            new_block = block
         new_block = self._eliminate_dead_assignments(new_block)
         new_block = self._peephole_optimize(new_block)
         return new_block

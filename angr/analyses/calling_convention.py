@@ -8,6 +8,7 @@ from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
+from ..knowledge_plugins.variables.variable_access import VariableAccessSort
 from .reaching_definitions import get_all_definitions
 from . import Analysis, register_analysis
 
@@ -311,7 +312,7 @@ class CallingConventionAnalysis(Analysis):
                     if var_.reg in reg_offsets:
                         # check if there is only a write to it
                         accesses = var_manager.get_variable_accesses(var_)
-                        if len(accesses) == 1 and accesses[0].access_type == "write":
+                        if len(accesses) == 1 and accesses[0].access_type == VariableAccessSort.WRITE:
                             found = False
                             for end_block_addr, end_block_size in end_blocks:
                                 if end_block_addr <= accesses[0].location.ins_addr < end_block_addr + end_block_size:

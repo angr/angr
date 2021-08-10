@@ -190,6 +190,7 @@ class SimStateLibc(SimStatePlugin):
         self.max_strtol_len = 11 # len(str(2**31)) + 1
         self.max_memcpy_size = 4096
         self.max_packet_size = 256
+        self.max_gets_size = 256
 
         # strtok
         self.strtok_heap = [ ]
@@ -225,6 +226,7 @@ class SimStateLibc(SimStatePlugin):
         o.max_strtol_len = self.max_strtol_len
         o.max_memcpy_size = self.max_memcpy_size
         o.max_packet_size = self.max_packet_size
+        o.max_gets_size = self.max_gets_size
         o.strtok_heap = self.strtok_heap[:]
         o.simple_strtok = self.simple_strtok
         o.strtok_token_size = self.strtok_token_size

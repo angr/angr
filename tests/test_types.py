@@ -43,7 +43,7 @@ def test_cproto_conversion():
     pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_1)  # pylint:disable=unused-variable
 
     nose.tools.assert_equal(pyproto_name, "bad")
-    nose.tools.assert_is(pyproto, None)
+    nose.tools.assert_is_not(pyproto, None)
 
     # A even worse function declaration
     # Special thanks to @schieb, see GitHub PR #958

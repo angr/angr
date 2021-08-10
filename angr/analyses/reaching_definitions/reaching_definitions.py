@@ -298,8 +298,9 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
                 canonical_size=self._canonical_size,
             )
 
-    def _merge_states(self, node, *states):
-        return states[0].merge(*states[1:])
+    def _merge_states(self, node, *states: ReachingDefinitionsState):
+        merged_state, merge_occurred = states[0].merge(*states[1:])
+        return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state: ReachingDefinitionsState):
         """

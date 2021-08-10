@@ -24,9 +24,10 @@ class SimCGC(SimUserland):
                 **kwargs)
 
     # pylint: disable=arguments-differ
-    def state_blank(self, flag_page=None, **kwargs):
+    def state_blank(self, flag_page=None, allocate_stack_page_count=0x100, **kwargs):
         """
-        :param flag_page:   Flag page content, either a string or a list of BV8s
+        :param flag_page:                   Flag page content, either a string or a list of BV8s
+        :param allocate_stack_page_count:   Number of pages to pre-allocate for stack
         """
         # default stack as specified in the cgc abi
         if kwargs.get('stack_end', None) is None:
@@ -36,9 +37,9 @@ class SimCGC(SimUserland):
 
         s = super(SimCGC, self).state_blank(**kwargs)  # pylint:disable=invalid-name
 
-        # pre-grow the stack by 20 pages. unsure if this is strictly required or just a hack around a compiler bug
+        # pre-grow the stack. unsure if this is strictly required or just a hack around a compiler bug
         if hasattr(s.memory, 'allocate_stack_pages'):
-            s.memory.allocate_stack_pages(kwargs['stack_end'] - 1, 20 * 0x1000)
+            s.memory.allocate_stack_pages(kwargs['stack_end'] - 1, allocate_stack_page_count * 0x1000)
 
         # Map the flag page
         if o.ABSTRACT_MEMORY not in s.options:
@@ -46,6 +47,9 @@ class SimCGC(SimUserland):
 
         # Create the CGC plugin
         s.get_plugin('cgc')
+
+        # Set maximum bytes a single receive syscall should read
+        s.cgc.max_receive_size = kwargs.get("cgc_max_recv_size", 0)
 
         # Set up the flag page
         if flag_page is None:

@@ -186,4 +186,6 @@ def int_type(bits):
         64: Int64,
         128: Int128,
     }
-    return mapping[bits]()
+    if bits in mapping:
+        return mapping[bits]()
+    return None

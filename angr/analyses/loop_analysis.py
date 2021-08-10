@@ -274,13 +274,11 @@ class LoopAnalysis(ForwardAnalysis, Analysis):
 
     def _merge_states(self, node, *states):
 
-        if states[0] is None:
-            return states[1].copy()
-        elif states[1] is None:
-            return states[0].copy()
-
-        return states[0].merge(states[1])
-
+        merged = states[0]
+        for other in states[1:]:
+            if other is not None:
+                merged = merged.merge(other)
+        return merged
 
     def _run_on_node(self, node, state):
 

@@ -5,6 +5,8 @@ import logging
 import archinfo
 import claripy
 import ailment
+import pyvex
+from claripy import FSORT_DOUBLE, FSORT_FLOAT
 
 from ...engines.light import SimEngineLight, SimEngineLightAILMixin, SpOffset
 from ...errors import SimEngineError, SimMemoryMissingError
@@ -89,7 +91,7 @@ class SimEngineRDAIL(
         dst = stmt.dst
 
         if src is None:
-            src = self.state.top(dst.bits)
+            src = MultiValues(offset_to_values={0: {self.state.top(dst.bits)}})
 
         if isinstance(dst, ailment.Tmp):
             self.state.kill_and_add_definition(Tmp(dst.tmp_idx, dst.size), self._codeloc(), src)
@@ -191,7 +193,7 @@ class SimEngineRDAIL(
             used_exprs = [ ]
             for arg_loc in stmt.calling_convention.arg_locs():
                 if isinstance(arg_loc, SimRegArg):
-                    used_exprs.append(Register(self.arch.registers[arg_loc.reg_name], arg_loc.size))
+                    used_exprs.append(Register(self.arch.registers[arg_loc.reg_name][0], arg_loc.size))
                 elif isinstance(arg_loc, SimStackArg):
                     used_exprs.append(SpOffset(arg_loc.size * 8, arg_loc.stack_offset, is_base=False))
                 else:
@@ -228,7 +230,7 @@ class SimEngineRDAIL(
                 else:
                     l.warning("Unsupported ret_expr type %s. Please report to GitHub.", stmt.ret_expr.__class__)
 
-            else:
+            elif cc.RETURN_VAL is not None:
                 # Return value is redefined here, so it is not a dummy value
                 return_reg_offset, return_reg_size = self.arch.registers[cc.RETURN_VAL.reg_name]
                 self.state.kill_definitions(Register(return_reg_offset, return_reg_size), codeloc, dummy=False)
@@ -249,30 +251,41 @@ class SimEngineRDAIL(
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
+        # TODO: Get the calling convention of the current function
+        codeloc = self._codeloc()
+        size = self.project.arch.bits // 8
+        cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
+        if cc_cls is None:
+            l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
+            cc = None
+        else:
+            cc = cc_cls(self.project.arch)
+            # callee-saved args
+            for reg in self.arch.register_list:
+                if (reg.general_purpose
+                        and reg.name not in cc.CALLER_SAVED_REGS
+                        and reg.name not in cc.ARG_REGS
+                        and reg.vex_offset not in {self.arch.sp_offset, self.arch.bp_offset, self.arch.ip_offset, }
+                        and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
+                ):
+                    self.state.add_use(Register(reg.vex_offset, reg.size), codeloc)
+
         if stmt.ret_exprs:
             # Handle return expressions
             for ret_expr in stmt.ret_exprs:
                 self._expr(ret_expr)
-
             return
 
         # No return expressions are available.
         # consume registers that are potentially useful
         # TODO: Consider the calling convention of the current function
 
-        cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
-        if cc_cls is None:
-            l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
-            return
-
-        cc = cc_cls(self.project.arch)
-        codeloc = self._codeloc()
-        size = self.project.arch.bits // 8
         # return value
-        if cc.RETURN_VAL is not None:
+        if cc is not None and cc.RETURN_VAL is not None:
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
                 self.state.add_use(Register(offset, size), codeloc)
+
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not
         self.state.add_use(Register(self.project.arch.bp_offset, self.project.arch.bits // 8), codeloc)
@@ -281,19 +294,17 @@ class SimEngineRDAIL(
 
     def _ail_handle_DirtyStatement(self, stmt: ailment.Stmt.DirtyStatement):
         # TODO: The logic below is subject to change when ailment.Stmt.DirtyStatement is changed
-        tmp = stmt.dirty_stmt.dst
-        cvt_sizes = {
-            'ILGop_IdentV128': 16,
-            'ILGop_Ident64': 8,
-            'ILGop_Ident32': 4,
-            'ILGop_16Uto32': 4,
-            'ILGop_16Sto32': 4,
-            'ILGop_8Uto32': 4,
-            'ILGop_8Sto32': 4,
-        }
-        size = cvt_sizes[stmt.dirty_stmt.cvt]
-        self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
-        self.tmps[tmp] = None
+
+        if isinstance(stmt.dirty_stmt, pyvex.stmt.Dirty):
+            # TODO: We need dirty helpers for a more complete understanding of clobbered registers
+            tmp = stmt.dirty_stmt.tmp
+            if tmp in (-1, 0xffffffff):
+                return
+            size = 32  # FIXME: We don't know the size.
+            self.state.kill_and_add_definition(Tmp(tmp, size), self._codeloc(), None)
+            self.tmps[tmp] = None
+        else:
+            l.warning("Unexpected type of dirty statement %s.", type(stmt.dirty_stmt))
 
     #
     # AIL expression handlers
@@ -306,7 +317,10 @@ class SimEngineRDAIL(
 
         self.state.add_use(Tmp(expr.tmp_idx, expr.size), self._codeloc())
 
-        return super()._ail_handle_Tmp(expr)
+        tmp = super()._ail_handle_Tmp(expr)
+        if tmp is None:
+            return MultiValues(offset_to_values={0: {self.state.top(expr.bits)}})
+        return tmp
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> MultiValues:
         self._handle_Call_base(expr, is_expr=True)
@@ -442,6 +456,15 @@ class SimEngineRDAIL(
 
         return MultiValues(offset_to_values={0: converted})
 
+    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret) -> MultiValues:
+        _: MultiValues = self._expr(expr.operand)
+        bits = expr.to_bits
+
+        # we currently do not support floating-point operations. therefore, we return TOP directly
+        reinterpreted = self.state.top(bits)
+
+        return MultiValues(offset_to_values={0: {reinterpreted}})
+
     def _ail_handle_ITE(self, expr: ailment.Expr.ITE) -> MultiValues:
         _: MultiValues = self._expr(expr.cond)
         iftrue: MultiValues = self._expr(expr.iftrue)
@@ -456,10 +479,10 @@ class SimEngineRDAIL(
         r = None
         operand_v = operand.one_value()
 
-        if operand_v is None or self.state.is_top(operand_v):
-            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
-        else:
+        if operand_v is not None and operand_v.concrete:
             r = MultiValues(offset_to_values={0: {~operand_v}})
+        else:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
         return r
 
@@ -485,16 +508,19 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # adding a single value to a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v + expr1_v for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {v + expr1_v for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # adding a single value to a multivalue
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v + expr0_v for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {v + expr0_v for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
-            r = MultiValues(offset_to_values={0: {expr0_v + expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {expr0_v + expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -515,15 +541,18 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # subtracting a single value from a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v - expr1_v for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {v - expr1_v for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # subtracting a single value from a multivalue
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v - v for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {expr0_v - v for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            r = MultiValues(offset_to_values={0: {expr0_v - expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {expr0_v - expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -544,15 +573,17 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            if expr1_v.concrete:
+            if expr0_v.concrete and expr1_v.concrete:
                 r = MultiValues(offset_to_values={0: {claripy.LShR(expr0_v, expr1_v._model_concrete.value)}})
 
         if r is None:
@@ -574,15 +605,17 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 >> expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            if expr1_v.concrete:
+            if expr0_v.concrete and expr1_v.concrete:
                 r = MultiValues(offset_to_values={0: {expr0_v >> expr1_v._model_concrete.value}})
 
         if r is None:
@@ -604,15 +637,17 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # each value in expr0 << expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            if expr1_v.concrete:
+            if expr0_v.concrete and expr1_v.concrete:
                 r = MultiValues(offset_to_values={0: {expr0_v << expr1_v._model_concrete.value}})
 
         if r is None:
@@ -636,19 +671,22 @@ class SimEngineRDAIL(
         if expr0_v is None and expr1_v is not None:
             # expr1_v & each value in expr0
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v & expr1_v for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {v & expr1_v for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v & each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v & v for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {expr0_v & v for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            # spcial handling for stack alignment
+            # special handling for stack alignment
             if self.state.is_stack_address(expr0_v):
                 r = MultiValues(offset_to_values={0: {expr0_v}})
             else:
-                r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
+                if expr0_v.concrete and expr1_v.concrete:
+                    r = MultiValues(offset_to_values={0: {expr0_v & expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -669,15 +707,18 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # expr1_v | each value in expr0
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v | expr1_v for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {v | expr1_v for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v | each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v | v for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {expr0_v | v for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            r = MultiValues(offset_to_values={0: {expr0_v | expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {expr0_v | expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -698,15 +739,50 @@ class SimEngineRDAIL(
         elif expr0_v is None and expr1_v is not None:
             # expr1_v ^ each value in expr0
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v ^ expr1_v for v in expr0.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {v ^ expr1_v for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v ^ each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v ^ v for v in expr1.values[0]}
-                r = MultiValues(offset_to_values={0: vs})
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {expr0_v ^ v for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
         else:
-            r = MultiValues(offset_to_values={0: {expr0_v ^ expr1_v}})
+            if expr0_v.concrete and expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {expr0_v ^ expr1_v}})
+
+        if r is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Concat(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        r = None
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is None and expr1_v is None:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        elif expr0_v is None and expr1_v is not None:
+            # concatenate expr1_v with each value in expr0
+            if len(expr0.values) == 1 and 0 in expr0.values:
+                if all(v.concrete for v in expr0.values[0]):
+                    vs = {claripy.Concat(v, expr1_v) for v in expr0.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
+        elif expr0_v is not None and expr1_v is None:
+            # concatenate expr0_v with each value in expr1
+            if len(expr1.values) == 1 and 0 in expr1.values:
+                if all(v.concrete for v in expr1.values[0]):
+                    vs = {claripy.Concat(expr0_v, v) for v in expr1.values[0]}
+                    r = MultiValues(offset_to_values={0: vs})
+        else:
+            if expr0_v.concrete and expr1_v.concrete:
+                r = MultiValues(offset_to_values={0: {claripy.Concat(expr0_v, expr1_v)}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -723,6 +799,7 @@ class SimEngineRDAIL(
         top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
 
+    _ail_handle_CmpF = _ail_handle_Cmp
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
     _ail_handle_CmpLE = _ail_handle_Cmp
@@ -735,7 +812,15 @@ class SimEngineRDAIL(
     _ail_handle_CmpGTs = _ail_handle_Cmp
 
     def _ail_handle_Const(self, expr) -> MultiValues:
-        return MultiValues(offset_to_values={0: {claripy.BVV(expr.value, expr.bits)}})
+        if isinstance(expr.value, float):
+            sort = None
+            if expr.bits == 64:
+                sort = FSORT_DOUBLE
+            elif expr.bits == 32:
+                sort = FSORT_FLOAT
+            return MultiValues(offset_to_values={0: {claripy.FPV(expr.value, sort)}})
+        else:
+            return MultiValues(offset_to_values={0: {claripy.BVV(expr.value, expr.bits)}})
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset) -> MultiValues:
         stack_addr = self.state.stack_address(expr.offset)

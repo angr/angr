@@ -1,5 +1,5 @@
 import weakref
-from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict
+from typing import List, Generator, Iterable, Tuple, Union, Set, Optional, Dict, Any, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -8,11 +8,16 @@ from claripy.annotation import Annotation
 from archinfo import Arch
 from ailment.expression import BinaryOp, StackBaseOffset
 
+from ...utils.cowdict import DefaultChainMapCOW
 from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
 from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
 from ..typehoon.typevars import TypeVariables
+
+if TYPE_CHECKING:
+    from angr.storage import SimMemoryObject
+
 
 l = logging.getLogger(name=__name__)
 
@@ -58,21 +63,30 @@ class VariableAnnotation(Annotation):
     def eliminatable(self):
         return False
 
+    def __eq__(self, other):
+        if type(other) is VariableAnnotation:
+            return self.addr_and_variables == other.addr_and_variables
+        return False
+
+    def __hash__(self):
+        return hash(('Va', tuple(self.addr_and_variables)))
+
 
 class VariableRecoveryBase(Analysis):
     """
     The base class for VariableRecovery and VariableRecoveryFast.
     """
 
-    def __init__(self, func, max_iterations):
+    def __init__(self, func, max_iterations, store_live_variables: bool):
 
         self.function = func
         self.variable_manager = self.kb.variables
 
         self._max_iterations = max_iterations
+        self._store_live_variables = store_live_variables
 
         self._outstates = {}
-        self._instates = {}
+        self._instates: Dict[Any,VariableRecoveryStateBase] = {}
         self._dominance_frontiers = None
 
     #
@@ -125,7 +139,9 @@ class VariableRecoveryStateBase:
             self.stack_region._phi_maker = self._make_phi_variable
         else:
             self.stack_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
-                                                                     phi_maker=self._make_phi_variable)
+                                                                     phi_maker=self._make_phi_variable,
+                                                                     skip_missing_values_during_merging=True,
+                                                                     page_kwargs={'mo_cmp': self._mo_cmp})
         self.stack_region.set_state(self)
 
         if register_region is not None:
@@ -133,7 +149,9 @@ class VariableRecoveryStateBase:
             self.register_region._phi_maker = self._make_phi_variable
         else:
             self.register_region: MultiValuedMemory = MultiValuedMemory(memory_id="reg", top_func=self.top,
-                                                                        phi_maker=self._make_phi_variable)
+                                                                        phi_maker=self._make_phi_variable,
+                                                                        skip_missing_values_during_merging=True,
+                                                                        page_kwargs={'mo_cmp': self._mo_cmp})
         self.register_region.set_state(self)
 
         if global_region is not None:
@@ -141,7 +159,9 @@ class VariableRecoveryStateBase:
             self.global_region._phi_maker = self._make_phi_variable
         else:
             self.global_region: MultiValuedMemory = MultiValuedMemory(memory_id="mem", top_func=self.top,
-                                                                      phi_maker=self._make_phi_variable)
+                                                                      phi_maker=self._make_phi_variable,
+                                                                      skip_missing_values_during_merging=True,
+                                                                      page_kwargs={'mo_cmp': self._mo_cmp})
         self.global_region.set_state(self)
 
         # Used during merging
@@ -150,7 +170,7 @@ class VariableRecoveryStateBase:
 
         self.typevars = TypeVariables() if typevars is None else typevars
         self.type_constraints = set() if type_constraints is None else type_constraints
-        self.delayed_type_constraints = defaultdict(set) \
+        self.delayed_type_constraints = DefaultChainMapCOW(set, collapse_threshold=25) \
             if delayed_type_constraints is None else delayed_type_constraints
 
     def _get_weakref(self):
@@ -166,7 +186,7 @@ class VariableRecoveryStateBase:
 
     @staticmethod
     def is_top(thing) -> bool:
-        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'TOP':
+        if isinstance(thing, claripy.ast.BV) and thing.op == "BVS" and thing.args[0] == 'top':
             return True
         return False
 
@@ -201,18 +221,27 @@ class VariableRecoveryStateBase:
     def is_stack_address(addr: claripy.ast.Base) -> bool:
         return "stack_base" in addr.variables
 
-    @staticmethod
-    def get_stack_offset(addr: claripy.ast.Base) -> Optional[int]:
+    def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
         if "stack_base" in addr.variables:
+            r = None
             if addr.op == "BVS":
                 return 0
             elif addr.op == "__add__":
                 if len(addr.args) == 2 and addr.args[1].op == "BVV":
-                    return addr.args[1]._model_concrete.value
+                    r = addr.args[1]._model_concrete.value
                 if len(addr.args) == 1:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return -addr.args[1]._model_concrete.value
+                r = -addr.args[1]._model_concrete.value
+
+            if r is not None:
+                # convert it to a signed integer
+                if r >= 2 ** (self.arch.bits - 1):
+                    return r - 2 ** self.arch.bits
+                if r < -2 ** (self.arch.bits - 1):
+                    return 2 ** self.arch.bits + r
+                return r
+
         return None
 
     def stack_addr_from_offset(self, offset: int) -> int:
@@ -267,9 +296,36 @@ class VariableRecoveryStateBase:
 
         self.type_constraints.add(constraint)
 
+    def downsize(self) -> None:
+        """
+        Remove unnecessary members.
+
+        :return:    None
+        """
+        self.type_constraints = set()
+
+    @staticmethod
+    def downsize_region(region: MultiValuedMemory) -> MultiValuedMemory:
+        """
+        Get rid of unnecessary references in region so that it won't avoid garbage collection on those referenced
+        objects.
+
+        :param region:  A MultiValuedMemory region.
+        :return:        None
+        """
+        region._phi_maker = None
+        return region
+
     #
     # Private methods
     #
+
+    @staticmethod
+    def _mo_cmp(mos_self: Set['SimMemoryObject'], mos_other: Set['SimMemoryObject'], addr: int, size: int):  # pylint:disable=unused-argument
+        # comparing bytes from two sets of memory objects
+        # we don't need to resort to byte-level comparison. object-level is good enough.
+
+        return mos_self == mos_other
 
     def _make_phi_variable(self, values: Set[claripy.ast.Base]) -> Optional[claripy.ast.Base]:
         # we only create a new phi variable if the there is at least one variable involved
@@ -288,7 +344,8 @@ class VariableRecoveryStateBase:
         # find existing phi variables
         phi_var = self.variable_manager[self.function.addr].make_phi_node(self.successor_block_addr, *variables)
         for var in variables:
-            self.phi_variables[var] = phi_var
+            if var is not phi_var:
+                self.phi_variables[var] = phi_var
 
         r = self.top(bits)
         r = self.annotate_with_variables(r, [(0, phi_var)])

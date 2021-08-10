@@ -1,7 +1,8 @@
-
 import logging
 
 from capstone.x86_const import X86_REG_RIP
+
+from pyvex.stmt import IMark
 
 from .resolver import IndirectJumpResolver
 
@@ -15,15 +16,30 @@ class AMD64ElfGotResolver(IndirectJumpResolver):
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         if jumpkind != "Ijk_Call":
             return False
-
-        opnd = self.project.factory.block(addr).capstone.insns[-1].insn.operands[0]
-        # Must be of the form: call [rip + 0xABCD]
-        if opnd.mem and opnd.mem.disp and opnd.mem.base == X86_REG_RIP and not opnd.mem.index:
-            return True
-        return False
+        return True
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
-        insn = self.project.factory.block(addr).capstone.insns[-1]
+
+        # Find the address and size of the last instruction
+        last_insn_addr = None
+        last_insn_size = None
+        for stmt in reversed(block.statements):
+            if isinstance(stmt, IMark):
+                last_insn_addr = stmt.addr
+                last_insn_size = stmt.len
+                break
+
+        if last_insn_addr is None:
+            # Cannot find the last instruction
+            return False, [ ]
+
+        # lift one instruction
+        insn = self.project.factory.block(last_insn_addr, size=last_insn_size).capstone.insns[-1]
+        opnd = insn.insn.operands[0]
+        # Must be of the form: call [rip + 0xABCD]
+        if not (opnd.mem and opnd.mem.disp and opnd.mem.base == X86_REG_RIP and not opnd.mem.index):
+            return False, [ ]
+
         disp = insn.insn.disp
         slot = disp + insn.address + insn.size
         target = cfg._fast_memory_load_pointer(slot)

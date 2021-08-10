@@ -12,10 +12,11 @@ import claripy
 import cle
 import pyvex
 from cle.address_translator import AT
+from archinfo import Endness
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump
+from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from ...knowledge_plugins.xrefs import XRef, XRefType
 from ...misc.ux import deprecated
 from ... import sim_options as o
@@ -1212,6 +1213,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         # load 8 bytes and test with THUMB-mode prologues
                         bytes_prefix = self._fast_memory_load_bytes(addr, 8)
+                        if bytes_prefix is None:
+                            # we are out of the mapped memory range - just return
+                            return
                         if any(re.match(prolog, bytes_prefix) for prolog in self.project.arch.thumb_prologs):
                             addr |= 1
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)
@@ -1277,7 +1281,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for function in self.kb.functions.values():
             function.mark_nonreturning_calls_endpoints()
 
-        # optional: remove functions that must be alignments
+        # optional: find and mark functions that must be alignments
         self.mark_function_alignments()
 
         # make return edges
@@ -1307,6 +1311,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             r = self._tidy_data_references()
 
         CFGBase._post_analysis(self)
+
+        # Clean up
+        self._traced_addresses = None
 
         self._finish_progress()
 
@@ -2193,10 +2200,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             elif type(stmt) is pyvex.IRStmt.Put:  # pylint: disable=unidiomatic-typecheck
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
-                if stmt.offset not in (self._initial_state.arch.ip_offset, ):
+                is_itstate = is_arm_arch(self.project.arch) and stmt.offset == self.project.arch.registers['itstate'][0]
+                if stmt.offset not in (self._initial_state.arch.ip_offset, ) and not is_itstate:
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
-                if is_arm_arch(self.project.arch):
+                if is_arm_arch(self.project.arch) and not is_itstate:
                     if type(stmt.data) is pyvex.IRExpr.RdTmp and stmt.data.tmp in tmps:
                         regs[stmt.offset] = tmps[stmt.data.tmp]
                     else:
@@ -2211,7 +2219,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
             elif type(stmt) is pyvex.IRStmt.Dirty:
 
-                _process(stmt_idx, stmt.mAddr, instr_addr, next_instr_addr, data_size=stmt.mSize, data_type='fp')
+                _process(stmt_idx, stmt.mAddr, instr_addr, next_instr_addr, data_size=stmt.mSize,
+                         data_type=MemoryDataSort.FloatingPoint)
+
+            elif type(stmt) is pyvex.IRStmt.LoadG:
+
+                _process(stmt_idx, stmt.addr, instr_addr, next_instr_addr,
+                         data_size=stmt.addr.result_size(irsb.tyenv) // self.project.arch.byte_width)
 
     def _add_data_reference(self, irsb_addr, stmt_idx, insn_addr, data_addr,  # pylint: disable=unused-argument
                             data_size=None, data_type=None):
@@ -2641,10 +2655,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         jump.resolved_targets = targets
         all_targets = set(targets)
         for addr in all_targets:
-            to_outside = jump.jumpkind == 'Ijk_Call' or addr in self.functions or not self._addrs_belong_to_same_section(jump.addr, addr)
+            to_outside = (jump.jumpkind == 'Ijk_Call'
+                          or jump.type == IndirectJumpType.Vtable
+                          or addr in self.functions
+                          or not self._addrs_belong_to_same_section(jump.addr, addr))
 
             # TODO: get a better estimate of the function address
-            target_func_addr = jump.func_addr if not to_outside else addr
+            if jump.type == IndirectJumpType.Vtable:
+                target_func_addr = addr
+            else:
+                target_func_addr = jump.func_addr if not to_outside else addr
             func_edge = FunctionTransitionEdge(self._nodes[source_addr], addr, jump.func_addr, to_outside=to_outside,
                                                dst_func_addr=target_func_addr
                                                )
@@ -3666,6 +3686,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         current_function_addr = addr_0
                     addr = addr_0
 
+            is_thumb = False
+            if is_arm_arch(self.project.arch) and addr % 2 == 1:
+                # thumb mode
+                is_thumb = True
+
             if nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode':
                 # decoding error
                 # is the current location already occupied and marked as non-code?
@@ -3686,6 +3711,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     irsb_size = 0
                 else:
                     irsb_size = irsb.size
+
+                # the default case
+                valid_ins = False
+                nodecode_size = 1
+
                 # special handling for ud, ud1, and ud2 on x86 and x86-64
                 if irsb_string[-2:] == b'\x0f\x0b' and self.project.arch.name == 'AMD64':
                     # VEX supports ud2 and make it part of the block size, only in AMD64.
@@ -3703,9 +3733,34 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     valid_ins = True
                     # VEX does not support ud0 or ud1 or ud2 under AMD64. they are not part of the block size.
                     nodecode_size = 2
-                else:
-                    valid_ins = False
-                    nodecode_size = 1
+                elif is_arm_arch(self.project.arch):
+                    # check for UND
+                    # Ref: https://developer.arm.com/documentation/dui0489/c/arm-and-thumb-instructions/pseudo-instructions/und-pseudo-instruction
+                    # load raw bytes
+                    trailing = self.project.loader.memory.load((addr & 0xffff_fffe) + irsb_size, 4)
+                    trailing = trailing.ljust(4, b"\x00")
+                    if is_thumb:
+                        if self.project.arch.instruction_endness == Endness.LE:
+                            # swap endianness
+                            trailing = bytes([trailing[1]]) + bytes([trailing[0]]) + \
+                                       bytes([trailing[3]]) + bytes([trailing[2]])
+                        if trailing[0] == 0xde:
+                            # UND xx for THUMB-16
+                            valid_ins = True
+                            nodecode_size = 2
+                        elif trailing[0] == 0xf7 and (trailing[1] & 0xf0) == 0xf0 and (trailing[2] & 0xf0) == 0xa0 and (trailing[3] & 0xf0) == 0xf0:
+                            # UND xxx for THUMB-32
+                            valid_ins = True
+                            nodecode_size = 4
+                    else:
+                        if self.project.arch.instruction_endness == Endness.LE:
+                            # swap endianness
+                            trailing = trailing[::-1]
+                        if (trailing[0] & 0xf) == 7 and (trailing[1] & 0xf0) == 0xf0 and (trailing[3] & 0xf0) == 0xf0:
+                            # UND xxxx for ARM
+                            valid_ins = True
+                            nodecode_size = 4
+
                 self._seg_list.occupy(addr, irsb_size, 'code')
                 self._seg_list.occupy(addr + irsb_size, nodecode_size, 'nodecode')
                 if not valid_ins:
@@ -3715,12 +3770,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             )
                     return None, None, None, None
 
-            is_thumb = False
             # Occupy the block in segment list
             if irsb.size > 0:
-                if is_arm_arch(self.project.arch) and addr % 2 == 1:
-                    # thumb mode
-                    is_thumb=True
+
                 self._seg_list.occupy(real_addr, irsb.size, "code")
 
             # Create a CFG node, and add it to the graph
@@ -3807,7 +3859,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Prudently search for $gp values
         state = self.project.factory.blank_state(addr=addr, mode="fastpath", remove_options=o.refs,
-                                                 add_options={o.NO_CROSS_INSN_OPT},
+                                                 add_options={o.NO_CROSS_INSN_OPT,
+                                                              o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS,
+                                                              o.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
+                                                              },
                                                  )
         state.regs._t9 = func_addr
         state.regs._gp = 0xffffffff

@@ -34,7 +34,7 @@ class Clinic(Analysis):
     A Clinic deals with AILments.
     """
     def __init__(self, func,
-                 remove_dead_memdefs=True,
+                 remove_dead_memdefs=False,
                  exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
@@ -42,6 +42,7 @@ class Clinic(Analysis):
                  peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
                  must_struct: Optional[Set[str]]=None,
                  variable_kb=None,
+                 reset_variable_names=False,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -62,6 +63,7 @@ class Clinic(Analysis):
         self._cfg: Optional['CFGModel'] = cfg
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
+        self._reset_variable_names = reset_variable_names
 
         # sanity checks
         if not self.kb.functions:
@@ -152,7 +154,7 @@ class Clinic(Analysis):
             ail_graph = self._make_returns(ail_graph)
 
         # Simplify blocks
-        self._update_progress(35., text="Simplifying blocks")
+        self._update_progress(35., text="Simplifying blocks 1")
         ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
 
         # Run simplification passes
@@ -176,20 +178,25 @@ class Clinic(Analysis):
         self._update_progress(55., text="Simplifying function 2")
         self._simplify_function(ail_graph, unify_variables=True)
 
+        # After global optimization, there might be more chances for peephole optimizations.
+        # Simplify blocks for the second time
+        self._update_progress(60., text="Simplifying blocks 2")
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
+
         # Make function arguments
-        self._update_progress(60., text="Making argument list")
+        self._update_progress(65., text="Making argument list")
         arg_list = self._make_argument_list()
 
         # Recover variables on AIL blocks
-        self._update_progress(65., text="Recovering variables")
+        self._update_progress(70., text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
         # Make function prototype
-        self._update_progress(70., text="Making function prototype")
+        self._update_progress(75., text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
-        self._update_progress(75., text="Running simplifications 2")
+        self._update_progress(80., text="Running simplifications 2")
         ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
 
         self.graph = ail_graph
@@ -318,15 +325,23 @@ class Clinic(Analysis):
         :return:                        None
         """
 
-        blocks_by_addr_and_size = {}
+        blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = { }
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
-            key = ail_block.addr, ail_block.original_size
-            blocks_by_addr_and_size[key] = simplified
+            key = ail_block.addr, ail_block.idx
+            blocks_by_addr_and_idx[key] = simplified
 
-        graph = self._function_graph_to_ail_graph(self._func_graph, blocks_by_addr_and_size=blocks_by_addr_and_size)
-        return graph
+        # update blocks_map to allow node_addr to node lookup
+        def _replace_node_handler(node):
+            key = node.addr, node.idx
+            if key in blocks_by_addr_and_idx:
+                return blocks_by_addr_and_idx[key]
+            return None
+
+        AILGraphWalker(ail_graph, _replace_node_handler, replace_nodes=True).walk()
+
+        return ail_graph
 
     def _simplify_block(self, ail_block, stack_pointer_tracker=None):
         """
@@ -444,7 +459,10 @@ class Clinic(Analysis):
                                                        observe_callback=self._make_callsites_rd_observe_callback)
 
         def _handler(block):
-            csm = self.project.analyses.AILCallSiteMaker(block, reaching_definitions=rd)
+            csm = self.project.analyses.AILCallSiteMaker(block,
+                                                         reaching_definitions=rd,
+                                                         stack_pointer_tracker=stack_pointer_tracker,
+                                                         )
             if csm.result_block:
                 if csm.result_block != block:
                     ail_block = csm.result_block
@@ -479,8 +497,13 @@ class Clinic(Analysis):
                 ret_val = self.function.calling_convention.ret_val
                 if isinstance(ret_val, SimRegArg):
                     reg = self.project.arch.registers[ret_val.reg_name]
-                    new_stmt.ret_exprs.append(ailment.Expr.Register(None, None, reg[0],
-                                                                    reg[1] * self.project.arch.byte_width))
+                    new_stmt.ret_exprs.append(ailment.Expr.Register(
+                        None,
+                        None,
+                        reg[0],
+                        reg[1] * self.project.arch.byte_width,
+                        reg_name=self.project.arch.translate_register_name(reg[0], reg[1])
+                    ))
                 else:
                     l.warning("Unsupported type of return expression %s.",
                               type(self.function.calling_convention.ret_val))
@@ -536,7 +559,7 @@ class Clinic(Analysis):
         else:
             returnty = SimTypeInt()
 
-        self.function.prototype = SimTypeFunction(func_args, returnty)
+        self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
 
     @timethis
     def _recover_and_link_variables(self, ail_graph, arg_list):
@@ -569,7 +592,7 @@ class Clinic(Analysis):
         tmp_kb.variables[self.function.addr].unify_variables()
         tmp_kb.variables[self.function.addr].assign_unified_variable_names(
             labels=self.kb.labels,
-            reset=self.variable_kb is None
+            reset=self._reset_variable_names,
         )
 
         # Link variables to each statement
@@ -653,9 +676,16 @@ class Clinic(Analysis):
         if type(expr) is ailment.Expr.Register:
             # find a register variable
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
-            # TODO: make sure it is the correct register we are looking for
-            if len(reg_vars) == 1:
-                reg_var, offset = next(iter(reg_vars))
+            final_reg_vars = set()
+            if len(reg_vars) > 1:
+                # take phi variables
+                for reg_var in reg_vars:
+                    if variable_manager.is_phi_variable(reg_var[0]):
+                        final_reg_vars.add(reg_var)
+            else:
+                final_reg_vars = reg_vars
+            if len(final_reg_vars) == 1:
+                reg_var, offset = next(iter(final_reg_vars))
                 expr.variable = reg_var
                 expr.variable_offset = offset
 

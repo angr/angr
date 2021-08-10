@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Generator, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Generator, Tuple, TYPE_CHECKING
 import logging
 
 import archinfo
@@ -89,7 +89,8 @@ class ReachingDefinitionsState:
     def top(self, bits: int):
         return self.live_definitions.top(bits)
 
-    def is_top(self, *args): return self.live_definitions.is_top(*args)
+    def is_top(self, *args):
+        return self.live_definitions.is_top(*args)
 
     def heap_address(self, offset: int) -> claripy.ast.Base:
         base = claripy.BVS("heap_base", self.arch.bits, explicit_name=True)
@@ -144,42 +145,58 @@ class ReachingDefinitionsState:
     #
 
     @property
-    def tmp_definitions(self): return self.live_definitions.tmps
+    def tmp_definitions(self):
+        return self.live_definitions.tmps
 
     @property
-    def tmp_uses(self): return self.live_definitions.tmp_uses
+    def tmp_uses(self):
+        return self.live_definitions.tmp_uses
 
     @property
-    def register_uses(self): return self.live_definitions.register_uses
+    def register_uses(self):
+        return self.live_definitions.register_uses
 
     @property
-    def register_definitions(self): return self.live_definitions.register_definitions
+    def register_definitions(self):
+        return self.live_definitions.register_definitions
 
     @property
-    def stack_definitions(self): return self.live_definitions.stack_definitions
+    def stack_definitions(self):
+        return self.live_definitions.stack_definitions
 
     @property
-    def stack_uses(self): return self.live_definitions.stack_uses
+    def stack_uses(self):
+        return self.live_definitions.stack_uses
 
     @property
-    def heap_definitions(self): return self.live_definitions.heap_definitions
+    def heap_definitions(self):
+        return self.live_definitions.heap_definitions
 
     @property
-    def heap_uses(self): return self.live_definitions.heap_uses
+    def heap_uses(self):
+        return self.live_definitions.heap_uses
 
     @property
-    def memory_uses(self): return self.live_definitions.memory_uses
+    def memory_uses(self):
+        return self.live_definitions.memory_uses
 
     @property
-    def memory_definitions(self): return self.live_definitions.memory_definitions
+    def memory_definitions(self):
+        return self.live_definitions.memory_definitions
 
     @property
-    def uses_by_codeloc(self): return self.live_definitions.uses_by_codeloc
+    def uses_by_codeloc(self):
+        return self.live_definitions.uses_by_codeloc
 
-    def get_sp(self) -> int: return self.live_definitions.get_sp()
+    def get_sp(self) -> int:
+        return self.live_definitions.get_sp()
+
+    def get_stack_address(self, offset: claripy.ast.Base) -> int:
+        return self.live_definitions.get_stack_address(offset)
 
     @property
-    def environment(self): return self._environment
+    def environment(self):
+        return self._environment
 
     @property
     def dep_graph(self):
@@ -281,16 +298,15 @@ class ReachingDefinitionsState:
 
         return rd
 
-    def merge(self, *others):
+    def merge(self, *others) -> Tuple['ReachingDefinitionsState',bool]:
 
         state = self.copy()
+        others: Iterable['ReachingDefinitionsState']
 
-        for other in others:
-            other: 'ReachingDefinitionsState'
-            state.live_definitions = state.live_definitions.merge(other.live_definitions)
-            state._environment = state.environment.merge(other.environment)
+        state.live_definitions, merged_0 = state.live_definitions.merge(*[other.live_definitions for other in others])
+        state._environment, merged_1 = state.environment.merge(*[other.environment for other in others])
 
-        return state
+        return state, merged_0 or merged_1
 
     def _cycle(self, code_loc: CodeLocation) -> None:
         if code_loc != self.current_codeloc:
@@ -356,7 +372,8 @@ class ReachingDefinitionsState:
                     )
                     is_using_spbp_to_define_memory_location_on_stack = (
                         isinstance(atom, MemoryLocation) and
-                        atom.is_on_stack and
+                        (atom.is_on_stack or
+                        (isinstance(atom.addr, claripy.ast.Base) and self.is_stack_address(atom.addr))) and
                         isinstance(used.atom, Register) and
                         used.atom.reg_offset in (sp_offset, bp_offset)
                     )
@@ -369,8 +386,10 @@ class ReachingDefinitionsState:
                         # "uses" are actually the definitions that we're using and the "definition" is the
                         # new definition; i.e. The def that the old def is used to construct so this is
                         # really a graph where nodes are defs and edges are uses.
+                        self.dep_graph.add_node(used)
                         for def_ in defs:
-                            self.dep_graph.add_edge(used, def_)
+                            if not def_.dummy:
+                                self.dep_graph.add_edge(used, def_)
                         self.dep_graph.add_dependencies_for_concrete_pointers_of(
                             values,
                             used,

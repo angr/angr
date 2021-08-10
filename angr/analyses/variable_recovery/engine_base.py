@@ -38,6 +38,8 @@ class RichR:
     @property
     def bits(self):
         if self.data is not None and not isinstance(self.data, (int, float)):
+            if isinstance(self.data, claripy.ast.Base):
+                return self.data.size()
             return self.data.bits
         if self.variable is not None:
             return self.variable.bits
@@ -84,18 +86,22 @@ class SimEngineVRBase(SimEngineLight):
     def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data: claripy.ast.Base = richr.data
         # extract stack offset
-        if self.state.is_stack_address(data):
+        if data is not None and self.state.is_stack_address(data):
             # this is a stack address
             stack_offset: Optional[int] = self.state.get_stack_offset(data)
         else:
             return
 
-        existing_vars: List[Tuple[SimVariable,int]] = self.variable_manager[self.func_addr].find_variables_by_stmt(
+        var_candidates: List[Tuple[SimVariable,int]] = self.variable_manager[self.func_addr].find_variables_by_stmt(
             self.block.addr,
             self.stmt_idx,
             'memory')
 
         # find the correct variable
+        existing_vars: List[Tuple[SimVariable,int]] = [ ]
+        for candidate, offset in var_candidates:
+            if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
+                existing_vars.append((candidate, offset))
         variable = None
         if existing_vars:
             variable, _ = existing_vars[0]
@@ -145,11 +151,9 @@ class SimEngineVRBase(SimEngineLight):
 
         # find all variables
         for var, offset in existing_vars:
-            if offset is None: offset = 0
-            offset_into_var = (stack_offset - offset) if stack_offset is not None else None  # TODO: Is this correct?
-            if offset_into_var == 0: offset_into_var = None
-            self.variable_manager[self.func_addr].reference_at(var, offset_into_var, codeloc,
-                                                               atom=src)
+            if offset == 0:
+                offset = None
+            self.variable_manager[self.func_addr].reference_at(var, offset, codeloc, atom=src)
 
     def _assign_to_register(self, offset, richr, size, src=None, dst=None):
         """
@@ -310,13 +314,19 @@ class SimEngineVRBase(SimEngineLight):
                                        endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
 
         codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-        values: MultiValues = self.state.global_region.load(addr,
-                                                            size=size,
-                                                            endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
-        for vs in values.values.values():
-            for v in vs:
-                for var_offset, var in self.state.extract_variables(v):
-                    variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
+        try:
+            values: MultiValues = self.state.global_region.load(
+                addr,
+                size=size,
+                endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
+        except SimMemoryMissingError:
+            values = None
+
+        if values is not None:
+            for vs in values.values.values():
+                for v in vs:
+                    for var_offset, var in self.state.extract_variables(v):
+                        variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
 
         # create type constraints
         if data.typevar is not None:
@@ -423,7 +433,8 @@ class SimEngineVRBase(SimEngineLight):
                                                 )
                     v = self.state.top(size * self.state.arch.byte_width)
                     v = self.state.annotate_with_variables(v, [(0, variable)])
-                    self.state.stack_region.store(concrete_offset, v, endness=self.state.arch.memory_endness)
+                    stack_addr = self.state.stack_addr_from_offset(concrete_offset)
+                    self.state.stack_region.store(stack_addr, v, endness=self.state.arch.memory_endness)
 
                     self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
 
@@ -481,11 +492,11 @@ class SimEngineVRBase(SimEngineLight):
             addr_v: int = addr._model_concrete.value
             variables = global_variables.get_global_variables(addr_v)
             if not variables:
-                var = SimMemoryVariable(addr_v, size)
+                var = SimMemoryVariable(addr_v, size, ident=global_variables.next_variable_ident('global'))
                 global_variables.add_variable('global', addr_v, var)
                 variables = [var]
             for var in variables:
-                global_variables.read_from(var, 0, codeloc, atom=expr)
+                global_variables.read_from(var, None, codeloc, atom=expr)
 
         # Loading data from a pointer
         if richr_addr.type_constraints:
@@ -575,4 +586,8 @@ class SimEngineVRBase(SimEngineLight):
                     # typevar = next(reversed(list(self.state.typevars[var].values())))
                     typevar = self.state.typevars[var]
 
-        return RichR(next(iter(value_list[0])), variable=var, typevar=typevar)
+        if len(value_list) == 1:
+            r_value = next(iter(value_list[0]))
+        else:
+            r_value = self.state.top(size * self.arch.byte_width)  # fall back to top
+        return RichR(r_value, variable=var, typevar=typevar)

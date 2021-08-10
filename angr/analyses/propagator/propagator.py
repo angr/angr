@@ -1,10 +1,12 @@
+# pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
 import claripy
 import ailment
+import pyvex
 
 from ... import sim_options
 from ...storage.memory_mixins import LabeledMemory
@@ -15,6 +17,7 @@ from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
+from .prop_value import PropValue
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject
@@ -23,13 +26,18 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-# The base state
-
 class PropagatorState:
+    """
+    Describes the base state used in Propagator.
+    """
+
+    __slots__ = ('arch', 'gpr_size', '_prop_count', '_only_consts', '_replacements', '_equivalence', 'project',
+                 '_store_tops', '__weakref__', )
 
     _tops = {}
 
-    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None):
+    def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
+                 store_tops=True):
         self.arch = arch
         self.gpr_size = arch.bits // arch.byte_width  # size of the general-purpose registers
 
@@ -38,6 +46,7 @@ class PropagatorState:
         self._only_consts = only_consts
         self._replacements = defaultdict(dict) if replacements is None else replacements
         self._equivalence: Set[Equivalence] = equivalence if equivalence is not None else set()
+        self._store_tops = store_tops
 
         self.project = project
 
@@ -92,25 +101,33 @@ class PropagatorState:
     def merge(self, *others):
 
         state = self.copy()
+        merge_occurred = False
 
         for o in others:
             for loc, vars_ in o._replacements.items():
                 if loc not in state._replacements:
                     state._replacements[loc] = vars_.copy()
+                    merge_occurred = True
                 else:
                     for var, repl in vars_.items():
                         if var not in state._replacements[loc]:
                             state._replacements[loc][var] = repl
+                            merge_occurred = True
                         else:
-                            if self.is_top(repl) or self.is_top(self._replacements[loc][var]):
+                            if self.is_top(repl) or self.is_top(state._replacements[loc][var]):
                                 t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
                                 state._replacements[loc][var] = t
+                                merge_occurred = True
                             elif state._replacements[loc][var] != repl:
                                 t = self.top(repl.bits if isinstance(repl, ailment.Expression) else repl.size())
                                 state._replacements[loc][var] = t
+                                merge_occurred = True
+
+            if state._equivalence != o._equivalence:
+                merge_occurred = True
             state._equivalence |= o._equivalence
 
-        return state
+        return state, merge_occurred
 
     def add_replacement(self, codeloc, old, new):
         """
@@ -138,11 +155,27 @@ class PropagatorState:
 # VEX state
 
 class PropagatorVEXState(PropagatorState):
+    """
+    Describes the state used in the VEX engine of Propagator.
+    """
+
+    __slots__ = ('_registers', '_stack_variables', 'do_binops', )
+
     def __init__(self, arch, project=None, registers=None, local_variables=None, replacements=None, only_consts=False,
-                 prop_count=None):
-        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count)
-        self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if registers is None else registers
-        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) if local_variables is None else local_variables
+                 prop_count=None, do_binops=True, store_tops=True):
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
+                         prop_count=prop_count, store_tops=store_tops)
+        self.do_binops = do_binops
+        self._registers = LabeledMemory(
+            memory_id='reg',
+            top_func=self.top,
+            page_kwargs={'mo_cmp': self._mo_cmp}) \
+            if registers is None else registers
+        self._stack_variables = LabeledMemory(
+            memory_id='mem',
+            top_func=self.top,
+            page_kwargs={'mo_cmp': self._mo_cmp}) \
+            if local_variables is None else local_variables
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -158,16 +191,18 @@ class PropagatorVEXState(PropagatorState):
             local_variables=self._stack_variables.copy(),
             replacements=self._replacements.copy(),
             prop_count=self._prop_count.copy(),
-            only_consts=self._only_consts
+            only_consts=self._only_consts,
+            do_binops=self.do_binops,
+            store_tops=self._store_tops,
         )
 
         return cp
 
-    def merge(self, *others: 'PropagatorVEXState') -> 'PropagatorVEXState':
+    def merge(self, *others: 'PropagatorVEXState') -> Tuple['PropagatorVEXState',bool]:
         state = self.copy()
-        state._registers.merge([o._registers for o in others], None)
-        state._stack_variables.merge([o._stack_variables for o in others], None)
-        return state
+        merge_occurred = state._registers.merge([o._registers for o in others], None)
+        merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
+        return state, merge_occurred
 
     def store_local_variable(self, offset, size, value, endness):  # pylint:disable=unused-argument
         # TODO: Handle size
@@ -199,6 +234,10 @@ class PropagatorVEXState(PropagatorState):
 
 
 class Equivalence:
+    """
+    Describes an equivalence relationship between two atoms.
+    """
+
     __slots__ = ('codeloc', 'atom0', 'atom1',)
 
     def __init__(self, codeloc, atom0, atom1):
@@ -220,12 +259,21 @@ class Equivalence:
 
 
 class PropagatorAILState(PropagatorState):
+    """
+    Describes the state used in the AIL engine of Propagator.
+    """
+
+    __slots__ = ('_registers', '_stack_variables', '_tmps', )
+
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
-        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts, prop_count=prop_count,
+        super().__init__(arch, project=project, replacements=replacements, only_consts=only_consts,
+                         prop_count=prop_count,
                          equivalence=equivalence)
 
-        self._stack_variables = LabeledMemory(memory_id='mem', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
+        self._stack_variables = LabeledMemory(memory_id='mem',
+                                              top_func=self.top,
+                                              page_kwargs={'mo_cmp': self._mo_cmp}) \
             if stack_variables is None else stack_variables
         self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if registers is None else registers
@@ -252,122 +300,47 @@ class PropagatorAILState(PropagatorState):
 
         return rd
 
-    def merge(self, *others) -> 'PropagatorAILState':
-        # TODO:
-        state: 'PropagatorAILState' = super().merge(*others)
+    def merge(self, *others) -> Tuple['PropagatorAILState',bool]:
+        state, merge_occurred = super().merge(*others)
+        state: 'PropagatorAILState'
 
-        state._registers.merge([o._registers for o in others], None)
-        state._stack_variables.merge([o._stack_variables for o in others], None)
-        return state
+        merge_occurred |= state._registers.merge([o._registers for o in others], None)
+        merge_occurred |= state._stack_variables.merge([o._stack_variables for o in others], None)
 
-    def store_variable(self, variable, value, def_at) -> None:
-        if variable is None or value is None:
+        return state, merge_occurred
+
+    def store_temp(self, tmp_idx: int, value: PropValue):
+        self._tmps[tmp_idx] = value
+
+    def load_tmp(self, tmp_idx: int) -> Optional[PropValue]:
+        return self._tmps.get(tmp_idx, None)
+
+    def store_register(self, reg: ailment.Expr.Register, value: PropValue) -> None:
+        if isinstance(value, ailment.Expr.Expression) and value.has_atom(reg, identity=False):
             return
-        if isinstance(value, ailment.Expr.Expression) and value.has_atom(variable, identity=False):
-            return
 
-        if isinstance(variable, ailment.Expr.Tmp):
-            self._tmps[variable.tmp_idx] = value
-        elif isinstance(variable, ailment.Expr.Register):
-            if isinstance(value, claripy.ast.Base):
-                # We directly store the value in memory
-                expr = None
-            elif isinstance(value, ailment.Expr.Const):
-                # convert the const expression to a claripy AST
-                expr = value
-                value = claripy.BVV(value.value, value.bits)
-            elif isinstance(value, ailment.Expr.Expression):
-                # the value is an expression. the actual value will be TOP.
-                expr = value
-                value = self.top(expr.bits)
-            else:
-                raise TypeError("Unsupported value type %s" % type(value))
+        for offset, chopped_value, size, label in value.value_and_labels():
+            self._registers.store(reg.reg_offset + offset, chopped_value, size=size, label=label)
 
-            label = {
-                'expr': expr,
-                'def_at': def_at,
-            }
-
-            self._registers.store(variable.reg_offset, value, size=variable.size, label=label)
-        else:
-            _l.warning("Unsupported old variable type %s.", type(variable))
-
-    def store_stack_variable(self, sp_offset: int, size, new, expr=None, def_at=None, endness=None) -> None:  # pylint:disable=unused-argument
+    def store_stack_variable(self, sp_offset: int, new: PropValue, endness=None) -> None:  # pylint:disable=unused-argument
         # normalize sp_offset to handle negative offsets
         sp_offset += 0x65536
         sp_offset &= (1 << self.arch.bits) - 1
 
-        label = {
-            'expr': expr,
-            'def_at': def_at,
-        }
+        for offset, value, size, label in new.value_and_labels():
+            self._stack_variables.store(sp_offset + offset, value, size=size, endness=endness, label=label)
 
-        self._stack_variables.store(sp_offset, new, size=size, endness=endness, label=label)
+    def load_register(self, reg: ailment.Expr.Register) -> Optional[PropValue]:
+        try:
+            value, labels = self._registers.load_with_labels(reg.reg_offset, size=reg.size)
+        except SimMemoryMissingError:
+            # value does not exist
+            return None
 
-    def get_variable(self, variable) -> Any:
-        if isinstance(variable, ailment.Expr.Tmp):
-            return self._tmps.get(variable.tmp_idx, None)
-        elif isinstance(variable, ailment.Expr.Register):
-            try:
-                value, labels = self._registers.load_with_labels(variable.reg_offset, size=variable.size)
-            except SimMemoryMissingError:
-                # value does not exist
-                return None
+        prop_value = PropValue.from_value_and_labels(value, labels)
+        return prop_value
 
-            if len(labels) == 1:
-                # extract labels
-                offset, size, label = labels[0]
-                if value.size() // self.arch.byte_width == size:
-                    # the label covers the entire expression
-                    expr: Optional[ailment.Expr.Expression] = label['expr']
-                    def_at = label['def_at']
-                    if expr is not None:
-                        if expr.bits > size * self.arch.byte_width:
-                            # we are loading a chunk of the original expression
-                            expr = self._extract_ail_expression(
-                                offset * self.arch.byte_width,
-                                size * self.arch.byte_width,
-                                expr,
-                            )
-                        if expr.bits < variable.size * self.arch.byte_width:
-                            # we are loading more than the expression has - extend the size of the expression
-                            expr = self._extend_ail_expression(
-                                variable.size * self.arch.byte_width - expr.bits,
-                                expr,
-                            )
-                else:
-                    expr = None
-                    def_at = None
-            else:
-                # Multiple definitions and expressions
-                expr = None
-                def_at = None
-
-            if self.is_top(value):
-                # return a non-const expression if there is one, or return a Top
-                if expr is not None:
-                    if isinstance(expr, ailment.Expr.Expression) and not isinstance(expr, ailment.Expr.Const):
-                        copied_expr = expr.copy()
-                        copied_expr.tags['def_at'] = def_at
-                        return copied_expr
-                    else:
-                        return value
-                if value.size() != variable.bits:
-                    return self.top(variable.bits)
-                return value
-
-            # value is not TOP
-            if value.size() != variable.bits:
-                raise TypeError("Incorrect sized read. Expect %d bits." % variable.bits)
-
-            if expr is None:
-                return value
-            else:
-                return expr
-
-        return None
-
-    def get_stack_variable(self, sp_offset: int, size, endness=None) -> Optional[Any]:
+    def load_stack_variable(self, sp_offset: int, size, endness=None) -> Optional[PropValue]:
         # normalize sp_offset to handle negative offsets
         sp_offset += 0x65536
         sp_offset &= (1 << self.arch.bits) - 1
@@ -377,44 +350,8 @@ class PropagatorAILState(PropagatorState):
             # the stack variable does not exist
             return None
 
-        if len(labels) == 1:
-            # extract labels
-            offset, size, label = labels[0]
-            expr: Optional[ailment.Expr.Expression] = label['expr']
-            def_at = label['def_at']
-            if expr is not None:
-                if expr.bits > size * self.arch.byte_width:
-                    # we are loading a chunk of the original expression
-                    expr = self._extract_ail_expression(
-                        offset * self.arch.byte_width,
-                        size * self.arch.byte_width,
-                        expr,
-                    )
-                if expr.bits < size * self.arch.byte_width:
-                    # we are loading more than the expression has - extend the size of the expression
-                    expr = self._extend_ail_expression(
-                        size * self.arch.byte_width - expr.bits,
-                        expr,
-                    )
-        else:
-            # Multiple definitions and expressions
-            expr = None
-            def_at = None
-
-        if self.is_top(value):
-            # return a non-const expression if there is one, or return a Top
-            if expr is not None:
-                if isinstance(expr, ailment.Expr.Expression) and not isinstance(expr, ailment.Expr.Const):
-                    copied_expr = expr.copy()
-                    copied_expr.tags['def_at'] = def_at
-                    return copied_expr
-                else:
-                    return value
-            if value.size() != size * self.arch.byte_width:
-                return self.top(size * self.arch.byte_width)
-            return value
-
-        return expr if expr is not None else value
+        prop_value = PropValue.from_value_and_labels(value, labels)
+        return prop_value
 
     def add_replacement(self, codeloc, old, new):
 
@@ -434,7 +371,7 @@ class PropagatorAILState(PropagatorState):
             self._prop_count[new] += 1
             prop_count = self._prop_count[new]
 
-        if prop_count <= 1:
+        if prop_count <= 1 or isinstance(new, ailment.Expr.StackBaseOffset):
             # we can propagate this expression
             super().add_replacement(codeloc, old, new)
         else:
@@ -460,18 +397,6 @@ class PropagatorAILState(PropagatorState):
         eq = Equivalence(codeloc, old, new)
         self._equivalence.add(eq)
 
-    @staticmethod
-    def _extract_ail_expression(start: int, bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
-        if start == 0:
-            return ailment.Expr.Convert(None, expr.bits, bits, False, expr)
-        else:
-            a = ailment.Expr.BinaryOp(None, "Shr", (expr, bits), False)
-            return ailment.Expr.Convert(None, a.bits, bits, False, a)
-
-    @staticmethod
-    def _extend_ail_expression(bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
-        return ailment.Expr.Convert(None, expr.bits, bits + expr.bits, False, expr)
-
 
 class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
     """
@@ -496,7 +421,8 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
     """
 
     def __init__(self, func=None, block=None, func_graph=None, base_state=None, max_iterations=3,
-                 load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None):
+                 load_callback=None, stack_pointer_tracker=None, only_consts=False, completed_funcs=None,
+                 do_binops=True, store_tops=True, vex_cross_insn_opt=False):
         if func is not None:
             if block is not None:
                 raise ValueError('You cannot specify both "func" and "block".')
@@ -518,6 +444,9 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._stack_pointer_tracker = stack_pointer_tracker  # only used when analyzing AIL functions
         self._only_consts = only_consts
         self._completed_funcs = completed_funcs
+        self._do_binops = do_binops
+        self._store_tops = store_tops
+        self._vex_cross_insn_opt = vex_cross_insn_opt
 
         self._node_iterations = defaultdict(int)
         self._states = {}
@@ -532,11 +461,22 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             propagate_tmps=block is not None,
         )
 
+        # optimization: skip state copying for the initial state
+        self._initial_state = None
+
         self._analyze()
 
     #
     # Main analysis routines
     #
+
+    def _node_key(self, node: Union[ailment.Block,pyvex.IRSB]) -> Any:
+        if type(node) is ailment.Block:
+            return node.addr, node.idx
+        elif type(node) is pyvex.IRSB:
+            return node.addr
+        # fallback
+        return node
 
     def _pre_analysis(self):
         pass
@@ -550,16 +490,19 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
         else:
             # VEX
-            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts,
+                                       do_binops=self._do_binops, store_tops=self._store_tops)
             spoffset_var = self._engine_vex.sp_offset(0)
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  spoffset_var,
                                  )
+        self._initial_state = state
         return state
 
-    def _merge_states(self, node, *states):
-        return states[0].merge(*states[1:])
+    def _merge_states(self, node, *states: PropagatorState):
+        merged_state, merge_occurred = states[0].merge(*states[1:])
+        return merged_state, not merge_occurred
 
     def _run_on_node(self, node, state):
 
@@ -568,14 +511,21 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             block_key = (node.addr, node.idx)
             engine = self._engine_ail
         else:
-            block = self.project.factory.block(node.addr, node.size, opt_level=1, cross_insn_opt=False)
+            block = self.project.factory.block(node.addr, node.size, opt_level=1,
+                                               cross_insn_opt=self._vex_cross_insn_opt)
             block_key = node.addr
             engine = self._engine_vex
             if block.size == 0:
                 # maybe the block is not decodeable
                 return False, state
 
-        state = state.copy()
+        if state is not self._initial_state:
+            # make a copy of the state if it's not the initial state
+            state = state.copy()
+        else:
+            # clear self._initial_state so that we *do not* run this optimization again!
+            self._initial_state = None
+
         # Suppress spurious output
         if self._base_state is not None:
             self._base_state.options.add(sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)

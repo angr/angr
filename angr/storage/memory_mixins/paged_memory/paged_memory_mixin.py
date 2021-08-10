@@ -613,6 +613,16 @@ class ListPagesMixin(PagedMemoryMixin):
 class MVListPagesMixin(PagedMemoryMixin):
     PAGE_TYPE = MVListPage
 
+    def __init__(self, *args, skip_missing_values_during_merging=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.skip_missing_values_during_merging = skip_missing_values_during_merging
+
+    @MemoryMixin.memo
+    def copy(self, memo) -> 'MVListPagesMixin':
+        r = super().copy(memo)
+        r.skip_missing_values_during_merging = self.skip_missing_values_during_merging
+        return r
+
 
 class ListPagesWithLabelsMixin(
     LabeledPagesMixin,

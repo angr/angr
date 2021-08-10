@@ -159,9 +159,6 @@ class SimOS:
         actual_brk = (last_addr - last_addr % 0x1000 + 0x1000) if brk is None else brk
         state.register_plugin('posix', SimSystemPosix(stdin=stdin, brk=actual_brk))
 
-        if state.arch.sp_offset is not None:
-            state.regs.sp = stack_end
-
         if initial_prefix is not None:
             for reg in state.arch.default_symbolic_registers:
                 state.registers.store(reg, state.solver.BVS(
@@ -170,6 +167,9 @@ class SimOS:
                     explicit_name=True,
                     key=('reg', reg),
                     eternal=True))
+
+        if state.arch.sp_offset is not None:
+            state.regs.sp = stack_end
 
         for reg, val, is_addr, mem_region in state.arch.default_register_values:
             region_base = None  # so pycharm does not complain

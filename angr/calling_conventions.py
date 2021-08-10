@@ -268,7 +268,7 @@ class ArgSession:
         arg_size = arg.size
         locations = [arg]
         while arg_size < size:
-            next_arg = self.next_arg(is_fp, None)
+            next_arg = self.next_arg(is_fp, size=None)
             arg_size += next_arg.size
             locations.append(next_arg)
 
@@ -349,12 +349,12 @@ class SimCC:
     # Here are all the things a subclass needs to specify!
     #
 
-    ARG_REGS: List[str] = None                                  # A list of all the registers used for integral args, in order (names or offsets)
-    FP_ARG_REGS: List[str] = None                               # A list of all the registers used for floating point args, in order
+    ARG_REGS: List[str] = []                                    # A list of all the registers used for integral args, in order (names or offsets)
+    FP_ARG_REGS: List[str] = []                                 # A list of all the registers used for floating point args, in order
     STACKARG_SP_BUFF = 0                                        # The amount of stack space reserved between the saved return address
                                                                 # (if applicable) and the arguments. Probably zero.
     STACKARG_SP_DIFF = 0                                        # The amount of stack space reserved for the return address
-    CALLER_SAVED_REGS: List[str] = None                         # Caller-saved registers
+    CALLER_SAVED_REGS: List[str] = []                           # Caller-saved registers
     RETURN_ADDR: SimFunctionArgument = None                     # The location where the return address is stored, as a SimFunctionArgument
     RETURN_VAL: SimFunctionArgument = None                      # The location where the return value is stored, as a SimFunctionArgument
     OVERFLOW_RETURN_VAL: Optional[SimFunctionArgument] = None   # The second half of the location where a double-length return value is stored
@@ -496,17 +496,22 @@ class SimCC:
         If you've customized this CC, this will sanity-check the provided locations with the given list.
         """
         session = self.arg_session
+        ignore_real_args = False
         if self.func_ty is None and self.args is None:
             # No function prototype is provided, no args is provided. `is_fp` must be provided.
             if is_fp is None:
                 raise ValueError('"is_fp" must be provided when no function prototype is available.')
+            ignore_real_args = True
         else:
             # let's rely on the func_ty or self.args for the number of arguments and whether each argument is FP or not
             if self.func_ty is not None:
                 args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
-            is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
+            if is_fp is None:
+                is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
+            else:
+                ignore_real_args = True
             if sizes is None:
                 # initialize sizes from args
                 sizes = [ ]
@@ -521,9 +526,11 @@ class SimCC:
                     else:
                         # fallback to use self.arch.bytes
                         sizes.append(self.arch.bytes)
+            else:
+                ignore_real_args = True
 
         if sizes is None: sizes = [self.arch.bytes] * len(is_fp)
-        return [session.next_arg(ifp, size=sz) for ifp, sz in zip(is_fp, sizes)]
+        return [session.next_arg(ifp, size=sz, ignore_real_args=ignore_real_args) for ifp, sz in zip(is_fp, sizes)]
 
     def arg(self, state, index, stack_base=None):
         """
@@ -1425,7 +1432,7 @@ class SimCCUnknown(SimCC):
         return True
 
     def __repr__(self):
-        return "<SimCCUnknown - %s %s sp_delta=%d>" % (self.arch.name, self.args, self.sp_delta)
+        return f"<SimCCUnknown - {self.arch.name} {self.args} sp_delta={self.sp_delta}>"
 
 
 class SimCCS390X(SimCC):

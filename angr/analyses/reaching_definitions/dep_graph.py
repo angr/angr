@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set, Iterable, Union, TYPE_CHECKING
+from typing import Optional, Dict, Set, Iterable, Union
 from functools import reduce
 
 import networkx
@@ -83,10 +83,13 @@ class DepGraph:
             Returns a joint graph that comprises the transitive closure of all defs that `def_` depends on and the
             current graph `result`. `result` is updated.
             """
-            if def_ in self._transitive_closures.keys():
+            if def_ in self._transitive_closures:
                 closure = self._transitive_closures[def_]
                 # merge closure into result
                 result.add_edges_from(closure.edges())
+                return result
+
+            if def_ not in graph:
                 return result
 
             predecessors = list(graph.predecessors(def_))
@@ -145,12 +148,21 @@ class DepGraph:
             )
         ))
 
+        # concretize addresses where possible
+        concrete_known_pred_addresses = []
+        for address in known_predecessor_addresses:
+            if isinstance(address, claripy.ast.Base):
+                if address.concrete:
+                    concrete_known_pred_addresses.append(address._model_concrete.value)
+            else:
+                concrete_known_pred_addresses.append(address)
+
         unknown_concrete_addresses: Set[int] = set()
         for v in values:
             if isinstance(v, claripy.ast.Base) and v.concrete:
                 v = v._model_concrete.value
             if isinstance(v, int):
-                if v not in known_predecessor_addresses:
+                if v not in concrete_known_pred_addresses:
                     unknown_concrete_addresses.add(v)
 
         for address in unknown_concrete_addresses:

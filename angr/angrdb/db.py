@@ -1,4 +1,4 @@
-
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import time
 from contextlib import contextmanager
 
@@ -10,6 +10,9 @@ from ..errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
 from ..project import Project
 from .models import Base, DbInformation
 from .serializers import LoaderSerializer, KnowledgeBaseSerializer
+
+if TYPE_CHECKING:
+    from angr.knowledge_base import KnowledgeBase
 
 
 class AngrDB:
@@ -85,7 +88,7 @@ class AngrDB:
             return None
         return db_info.value
 
-    def update_dbinfo(self, session):
+    def update_dbinfo(self, session, extra_info: Optional[Dict[str,str]]=None):
         """
         Update the information in database.
 
@@ -96,7 +99,11 @@ class AngrDB:
         self.save_info(session, "version", str(self.VERSION))
         self.save_info(session, "saved_at", str(int(time.time())))
 
-    def get_dbinfo(self, session):
+        if extra_info:
+            for key, value in extra_info.items():
+                self.save_info(session, str(key), str(value))
+
+    def get_dbinfo(self, session, extra_info: Optional[Dict[str,str]]=None):
         """
         Get database information.
 
@@ -118,6 +125,11 @@ class AngrDB:
             saved_at = int(saved_at)
         d['saved_at'] = saved_at
 
+        if extra_info is not None:
+            # store *everything* into the dict
+            for entry in session.query(DbInformation):
+                extra_info[entry.key] = entry.value
+
         return d
 
     def db_compatible(self, version):
@@ -131,7 +143,7 @@ class AngrDB:
 
         return version == self.VERSION
 
-    def dump(self, db_path):
+    def dump(self, db_path, kbs: Optional[List['KnowledgeBase']]=None, extra_info: Optional[Dict[str,Any]]=None):
 
         db_str = "sqlite:///%s" % db_path
 
@@ -140,18 +152,28 @@ class AngrDB:
                 # Dump the loader
                 LoaderSerializer.dump(session, self.project.loader)
                 # Dump the knowledge base
-                KnowledgeBaseSerializer.dump(session, self.project.kb)
-                # Update the information
-                self.update_dbinfo(session)
 
-    def load(self, db_path):
+                if kbs is None:
+                    kbs = [self.project.kb]
+
+                for kb in kbs:
+                    KnowledgeBaseSerializer.dump(session, kb)
+
+                # Update the information
+                self.update_dbinfo(session, extra_info=extra_info)
+
+    def load(self,
+             db_path: str,
+             kb_names: Optional[List[str]]=None,
+             other_kbs: Optional[Dict[str,'KnowledgeBase']]=None,
+             extra_info: Optional[Dict[str,Any]]=None):
 
         db_str = "sqlite:///%s" % db_path
 
         with self.open_db(db_str) as Session:
             with self.session_scope(Session) as session:
                 # Compatibility check
-                dbinfo = self.get_dbinfo(session)
+                dbinfo = self.get_dbinfo(session, extra_info=extra_info)
                 if not self.db_compatible(dbinfo.get('version', None)):
                     raise AngrIncompatibleDBError("Version %s is incompatible with the current version of angr." %
                                                    dbinfo.get('version', None))
@@ -161,9 +183,21 @@ class AngrDB:
                 # Create the project
                 proj = Project(loader)
 
-                # Load the kb
-                kb = KnowledgeBaseSerializer.load(session, proj, "global")
-                if kb is not None:
-                    proj.kb = kb
+                if kb_names is None:
+                    kb_names = ["global"]
+
+                if len(kb_names) != 1 or kb_names[0] != "global":
+                    if other_kbs is None:
+                        raise ValueError("You must provide a dict via \"other_kbs\" to collect angr KnowledgeBases "
+                                         "that are not the global one.")
+
+                # Load knowledgebases
+                for kb_name in kb_names:
+                    kb = KnowledgeBaseSerializer.load(session, proj, kb_name)
+                    if kb is not None:
+                        if kb_name == "global":
+                            proj.kb = kb
+                        else:
+                            other_kbs[kb_name] = kb
 
                 return proj

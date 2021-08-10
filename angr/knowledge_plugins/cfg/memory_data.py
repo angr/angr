@@ -14,6 +14,8 @@ class MemoryDataSort:
     CodeReference = "code reference"
     GOTPLTEntry = "GOT PLT Entry"
     ELFHeader = 'elf-header'
+    FloatingPoint = 'fp'  # the size is determined by the MemoryData itself
+
 
 _SORT_TO_IDX = {
     MemoryDataSort.Unspecified: cfg_pb2.MemoryData.Unspecified,
@@ -26,6 +28,7 @@ _SORT_TO_IDX = {
     MemoryDataSort.CodeReference: cfg_pb2.MemoryData.CodeReference,
     MemoryDataSort.GOTPLTEntry: cfg_pb2.MemoryData.GOTPLTEntry,
     MemoryDataSort.ELFHeader: cfg_pb2.MemoryData.ELFHeader,
+    MemoryDataSort.FloatingPoint: cfg_pb2.MemoryData.FloatingPoint,
 }
 
 _IDX_TO_SORT = dict((v, k) for k, v in _SORT_TO_IDX.items())

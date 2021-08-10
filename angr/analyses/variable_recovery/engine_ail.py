@@ -90,7 +90,9 @@ class SimEngineVRAIL(
                 else:
                     l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
-                ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
+
+                if ret_expr is not None:
+                    ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
@@ -176,7 +178,7 @@ class SimEngineVRAIL(
             self._expr(expr.operands[0])
             self._expr(expr.operands[1])
             # still return a RichR instance
-            r = RichR(None)
+            r = RichR(self.state.top(expr.bits))
         return r
 
     def _ail_handle_Convert(self, expr: ailment.Expr.Convert):
@@ -188,6 +190,18 @@ class SimEngineVRAIL(
                 typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))
             else:
                 typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ConvertTo(expr.to_bits))
+
+        return RichR(self.state.top(expr.to_bits), typevar=typevar)
+
+    def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
+        r = self._expr(expr.operand)
+        typevar = None
+        if r.typevar is not None:
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ReinterpretAs):
+                # there is already a reinterpretas - overwrite it
+                typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+            else:
+                typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
@@ -234,11 +248,14 @@ class SimEngineVRAIL(
         r0 = self._expr(expr.iftrue)
         r1 = self._expr(expr.iffalse)
 
+        return RichR(self.state.top(expr.bits))
+
     def _ail_handle_Cmp(self, expr):  # pylint:disable=useless-return
         self._expr(expr.operands[0])
         self._expr(expr.operands[1])
         return RichR(self.state.top(1))
 
+    _ail_handle_CmpF = _ail_handle_Cmp
     _ail_handle_CmpEQ = _ail_handle_Cmp
     _ail_handle_CmpNE = _ail_handle_Cmp
     _ail_handle_CmpLT = _ail_handle_Cmp
@@ -253,28 +270,25 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        try:
-            type_constraints = set()
-            if r0.typevar is not None and r1.data.concrete:
-                # addition with constants. create a derived type variable
-                typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data._model_concrete.value))
-            else:
-                # create a new type variable and add constraints accordingly
-                typevar = typevars.TypeVariable()
-                type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
+        type_constraints = set()
+        if r0.typevar is not None and r1.data.concrete:
+            # addition with constants. create a derived type variable
+            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data._model_concrete.value))
+        else:
+            # create a new type variable and add constraints accordingly
+            typevar = typevars.TypeVariable()
+            type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
 
-            sum_ = None
-            if r0.data is not None and r1.data is not None:
-                sum_ = r0.data + r1.data
+        sum_ = None
+        if r0.data is not None and r1.data is not None:
+            sum_ = r0.data + r1.data
 
-            type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
+        type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
 
-            return RichR(sum_,
-                         typevar=typevar,
-                         type_constraints=type_constraints,
-                         )
-        except TypeError:
-            return RichR(self.state.top(expr.bits))
+        return RichR(sum_,
+                     typevar=typevar,
+                     type_constraints=type_constraints,
+                     )
 
     def _ail_handle_Sub(self, expr):
 
@@ -283,21 +297,18 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        try:
-            typevar = None
-            if r0.typevar is not None and isinstance(r1.data, int):
-                typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data))
+        typevar = None
+        if r0.typevar is not None and r1.data.concrete:
+            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
 
-            sub = None
-            if r0.data is not None and r1.data is not None:
-                sub = r0.data - r1.data
+        sub = None
+        if r0.data is not None and r1.data is not None:
+            sub = r0.data - r1.data
 
-            return RichR(sub,
-                         typevar=typevar,
-                         type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) },
-                         )
-        except TypeError:
-            return RichR(self.state.top(expr.bits))
+        return RichR(sub,
+                     typevar=typevar,
+                     type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) },
+                     )
 
     def _ail_handle_Mul(self, expr):
 
@@ -306,23 +317,46 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data * r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            result_size = arg0.bits
+            return RichR(r0.data * r1.data,
+                         typevar=typeconsts.int_type(result_size),
+                         type_constraints=None)
 
-            remainder = None
-            if r0.data is not None and r1.data is not None:
-                remainder = r0.data * r1.data
+        r = self.state.top(expr.bits)
+        return RichR(r,
+                     typevar=r0.typevar,
+                     )
 
-            return RichR(remainder,
-                         typevar=r0.typevar,
-                         )
-        except TypeError:
-            return RichR(self.state.top(expr.bits))
+    def _ail_handle_Mull(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            result_size = expr.bits
+            if r0.data.size() < result_size:
+                if expr.signed:
+                    r0.data = claripy.SignExt(result_size - r0.data.size(), r0.data)
+                else:
+                    r0.data = claripy.ZeroExt(result_size - r0.data.size(), r0.data)
+            if r1.data.size() < result_size:
+                if expr.signed:
+                    r1.data = claripy.SignExt(result_size - r1.data.size(), r1.data)
+                else:
+                    r1.data = claripy.ZeroExt(result_size - r1.data.size(), r1.data)
+            return RichR(r0.data * r1.data,
+                         typevar=typeconsts.int_type(result_size),
+                         type_constraints=None)
+
+        r = self.state.top(expr.bits)
+        return RichR(r,
+                     typevar=r0.typevar,  # FIXME: the size is probably changed
+                     )
 
     def _ail_handle_Div(self, expr):
 
@@ -330,24 +364,49 @@ class SimEngineVRAIL(
 
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
+        from_size = expr.bits
+        to_size = r1.bits
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data // r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
+        if expr.signed:
+            remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+        else:
+            remainder = r0.data % claripy.ZeroExt(from_size - to_size, r1.data)
 
-            remainder = None
-            if r0.data is not None and r1.data is not None:
-                remainder = r0.data // r1.data
+        return RichR(remainder,
+                     # typevar=r0.typevar,  # FIXME: Handle typevars for Div
+                     )
 
-            return RichR(remainder,
-                         typevar=r0.typevar,
-                         )
-        except TypeError:
-            return RichR(self.state.top(expr.bits))
+    def _ail_handle_DivMod(self, expr: ailment.Expr.BinaryOp):
+
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+        from_size = expr.bits
+        to_size = r1.bits
+
+        if expr.signed:
+            quotient = r0.data.SDiv(claripy.SignExt(from_size - to_size, r1.data))
+            remainder = r0.data.SMod(claripy.SignExt(from_size - to_size, r1.data))
+            quotient_size = to_size
+            remainder_size = to_size
+            r = claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+        else:
+            quotient = (r0.data // claripy.ZeroExt(from_size - to_size, r1.data))
+            remainder = (r0.data % claripy.ZeroExt(from_size - to_size, r1.data))
+            quotient_size = to_size
+            remainder_size = to_size
+            r = claripy.Concat(
+                claripy.Extract(remainder_size - 1, 0, remainder),
+                claripy.Extract(quotient_size - 1, 0, quotient)
+            )
+
+        return RichR(r,
+                     # typevar=r0.typevar,  # FIXME: Handle typevars for DivMod
+                     )
 
     def _ail_handle_Xor(self, expr):
 
@@ -356,23 +415,17 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                # constants
-                result_size = arg0.bits
-                return RichR(r0.data ^ r1.data,
-                             typevar=typeconsts.int_type(result_size),
-                             type_constraints=None)
+        if r0.data.concrete and r1.data.concrete:
+            # constants
+            result_size = arg0.bits
+            return RichR(r0.data ^ r1.data,
+                         typevar=typeconsts.int_type(result_size),
+                         type_constraints=None)
 
-            remainder = None
-            if r0.data is not None and r1.data is not None:
-                remainder = r0.data ^ r1.data
-
-            return RichR(remainder,
-                         typevar=r0.typevar,
-                         )
-        except TypeError:
-            return RichR(self.state.top(expr.bits))
+        r = self.state.top(expr.bits)
+        return RichR(r,
+                     typevar=r0.typevar,
+                     )
 
     def _ail_handle_Shl(self, expr):
 
@@ -465,23 +518,16 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                result_size = arg0.bits
-                return RichR(
-                    r0.data & r1.data,
-                    typevar=typeconsts.int_type(result_size),
-                    type_constraints=None,
-                )
-            if r0.data is not None and r1.data is not None:
-                r = r0.data & r1.data
-            else:
-                r = self.state.top(expr.bits)
-            return RichR(r, typevar=r0.typevar)
+        if r0.data.concrete and r1.data.concrete:
+            result_size = arg0.bits
+            return RichR(
+                r0.data & r1.data,
+                typevar=typeconsts.int_type(result_size),
+                type_constraints=None,
+            )
 
-        except TypeError:
-            self.l.warning("_ail_handle_And(): TypeError.", exc_info=True)
-            return RichR(self.state.top(expr.bits))
+        r = self.state.top(expr.bits)
+        return RichR(r, typevar=r0.typevar)
 
     def _ail_handle_Or(self, expr):
 
@@ -490,23 +536,16 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        try:
-            if isinstance(r0.data, int) and isinstance(r1.data, int):
-                result_size = arg0.bits
-                return RichR(
-                    r0.data | r1.data,
-                    typevar=typeconsts.int_type(result_size),
-                    type_constraints=None,
-                )
-            if r0.data is not None and r1.data is not None:
-                r = r0.data | r1.data
-            else:
-                r = self.state.top(expr.bits)
-            return RichR(r, typevar=r0.typevar)
+        if r0.data.concrete and r1.data.concrete:
+            result_size = arg0.bits
+            return RichR(
+                r0.data | r1.data,
+                typevar=typeconsts.int_type(result_size),
+                type_constraints=None,
+            )
 
-        except TypeError:
-            self.l.warning("_ail_handle_Or(): TypeError.", exc_info=True)
-            return RichR(self.state.top(expr.bits))
+        r = self.state.top(expr.bits)
+        return RichR(r, typevar=r0.typevar)
 
     def _ail_handle_Concat(self, expr):
 
@@ -521,21 +560,16 @@ class SimEngineVRAIL(
     def _ail_handle_Not(self, expr):
         arg = expr.operands[0]
         expr = self._expr(arg)
-        try:
-            result_size = arg.bits
-            mask = (1 << result_size) - 1
-            if isinstance(expr.data, int):
-                return RichR(
-                    (~expr.data) & mask,
-                    typevar=typeconsts.int_type(result_size),
-                    type_constraints=None,
-                )
-            if expr.data is not None:
-                r = (~expr.data) & mask
-            else:
-                r = self.state.top(result_size)
-            return RichR(r, typevar=expr.typevar)
 
-        except TypeError:
-            self.l.warning("_ail_handle_Not(): TypeError.", exc_info=True)
-            return RichR(self.state.top(arg.bits))
+
+        result_size = arg.bits
+
+        if expr.data.concrete:
+            return RichR(
+                ~expr.data,
+                typevar=typeconsts.int_type(result_size),
+                type_constraints=None,
+            )
+
+        r = self.state.top(result_size)
+        return RichR(r, typevar=expr.typevar)
