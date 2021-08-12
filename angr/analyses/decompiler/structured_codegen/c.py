@@ -273,9 +273,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield ", ", None
 
             variable = arg.unified_variable if arg.unified_variable is not None else arg.variable
-            raw_type_str = arg_type.c_repr(name=variable.name)
+            raw_type_str: str = arg_type.c_repr(name=variable.name)
             assert variable.name in raw_type_str
-            type_pre, type_post = raw_type_str.split(variable.name)
+            varname_pos = raw_type_str.rfind(variable.name)
+            type_pre, type_post = raw_type_str[:varname_pos], raw_type_str[varname_pos + len(variable.name):]
 
             yield type_pre, None
             yield variable.name, arg
