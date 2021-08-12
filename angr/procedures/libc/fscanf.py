@@ -1,8 +1,8 @@
-from angr.procedures.stubs.format_parser import FormatParser
+from angr.procedures.stubs.format_parser import ScanfFormatParser
 
 from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
-class fscanf(FormatParser):
+class fscanf(ScanfFormatParser):
     #pylint:disable=arguments-differ
 
     def run(self, file_ptr, fmt):  # pylint:disable=unused-argument

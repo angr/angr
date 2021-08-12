@@ -1,10 +1,10 @@
 import logging
 
-from angr.procedures.stubs.format_parser import FormatParser
+from angr.procedures.stubs.format_parser import ScanfFormatParser
 
 l = logging.getLogger(name=__name__)
 
-class scanf(FormatParser):
+class scanf(ScanfFormatParser):
     #pylint:disable=arguments-differ,unused-argument
 
     def run(self, fmt):
