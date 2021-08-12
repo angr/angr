@@ -242,7 +242,9 @@ class SimState(PluginHub):
             p.init_state()
 
     def __getstate__(self):
-        s = { k:v for k,v in self.__dict__.items() if k not in ('inspect', 'regs', 'mem')}
+        # Don't pickle attributes for plugins. These will be pickled
+        # through self._active_plugins.
+        s = { k:v for k,v in self.__dict__.items() if k not in self._active_plugins.keys() }
         s['_active_plugins'] = { k:v for k,v in s['_active_plugins'].items() if k not in ('inspect', 'regs', 'mem') }
         return s
 
