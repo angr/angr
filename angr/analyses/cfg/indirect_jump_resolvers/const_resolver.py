@@ -44,8 +44,8 @@ class ConstantResolver(IndirectJumpResolver):
         """
         This function does the actual resolve. Our process is easy:
         Propagate all values inside the function specified, then extract
-        the tmp_var used for the indirect jump from the basic bloc   k.
-        Use the tmp var to locate the constant value stored in the replacments.
+        the tmp_var used for the indirect jump from the basic block.
+        Use the tmp var to locate the constant value stored in the replacements.
         If not present, returns False tuple.
 
         :param cfg:         CFG with specified function

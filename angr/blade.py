@@ -290,9 +290,6 @@ class Blade:
 
             for pred, _, data in in_edges:
                 if 'jumpkind' in data:
-                    if data['jumpkind'] == 'Ijk_FakeRet':
-                        # Skip fake rets
-                        continue
                     if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
                         # Skip calls
                         continue
@@ -376,9 +373,6 @@ class Blade:
 
             for pred, _, data in in_edges:
                 if 'jumpkind' in data:
-                    if data['jumpkind'] == 'Ijk_FakeRet':
-                        # skip fake rets
-                        continue
                     if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
                         # skip calls as instructed
                         continue

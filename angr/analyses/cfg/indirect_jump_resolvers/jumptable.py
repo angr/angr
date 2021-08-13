@@ -660,7 +660,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         self._max_targets = cfg._indirect_jump_target_limit
 
-        for slice_steps in range(1, 4):
+        for slice_steps in range(1, 5):
             # Perform a backward slicing from the jump target
             # Important: Do not go across function call boundaries
             b = Blade(cfg.graph, addr, -1,
