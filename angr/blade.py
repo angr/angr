@@ -2,6 +2,8 @@ import networkx
 
 import pyvex
 
+from .errors import AngrBladeError, SimTranslationError
+from .knowledge_plugins.cfg import CFGNode
 from .utils.constants import DEFAULT_STATEMENT
 from .slicer import SimSlicer
 
@@ -381,7 +383,3 @@ class Blade:
                     continue
 
                 self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
-
-
-from .errors import AngrBladeError, SimTranslationError
-from .knowledge_plugins.cfg import CFGNode
