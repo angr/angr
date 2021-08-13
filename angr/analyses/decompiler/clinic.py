@@ -586,8 +586,15 @@ class Clinic(Analysis):
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=ail_graph, kb=tmp_kb, track_sp=False,
                                                         func_args=arg_list)
+        # get ground-truth types
+        var_manager = tmp_kb.variables[self.function.addr]
+        groundtruth = {}
+        for variable in var_manager.variables_with_manual_types:
+            vartype = var_manager.types.get(variable, None)
+            if vartype is not None:
+                groundtruth[vr.var_to_typevar[variable]] = vartype
         # clean up existing types for this function
-        tmp_kb.variables[self.function.addr].remove_types()
+        var_manager.remove_types()
         # TODO: Type inference for global variables
         # run type inference
         if self._must_struct:
@@ -599,7 +606,7 @@ class Clinic(Analysis):
             must_struct = None
         try:
             tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar,
-                                                must_struct=must_struct)
+                                                must_struct=must_struct, ground_truth=groundtruth)
             tp.update_variable_types(self.function.addr, vr.var_to_typevar)
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",

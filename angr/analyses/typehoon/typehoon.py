@@ -27,6 +27,15 @@ class Typehoon(Analysis):
                  prioritize_char_array_over_struct: bool=True,
                  must_struct: Optional[Set['TypeVariable']]=None,
                  ):
+        """
+
+        :param constraints:
+        :param ground_truth:        A set of SimType-style solutions for some or all type variables. They will be
+                                    respected during type solving.
+        :param var_mapping:
+        :param prioritize_char_array_over_struct:
+        :param must_struct:
+        """
 
         self._constraints: Set['TypeConstraint'] = constraints
         self._ground_truth = ground_truth
@@ -80,6 +89,10 @@ class Typehoon(Analysis):
         self._solve()
         self._specialize()
         self._translate_to_simtypes()
+
+        # apply ground truth
+        if self._ground_truth and self.simtypes_solution is not None:
+            self.simtypes_solution.update(self._ground_truth)
 
     def _solve(self):
         solver = SimpleSolver(self.bits, self._constraints)

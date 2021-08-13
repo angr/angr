@@ -82,6 +82,7 @@ class VariableManagerInternal(Serializable):
         self._phi_variables_by_block = defaultdict(set)
 
         self.types = { }
+        self.variables_with_manual_types = set()
 
     #
     # Serialization
