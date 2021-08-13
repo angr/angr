@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Union
 from itertools import count
 
 from ... import sim_type
@@ -84,7 +84,7 @@ class TypeTranslator:
             # void *
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
-            internal = self._translate(tc.basetype)
+            internal = self._tc2simtype(tc.basetype)
         return sim_type.SimTypePointer(internal).with_arch(self.arch)
 
     def _translate_Pointer32(self, tc):
@@ -93,11 +93,11 @@ class TypeTranslator:
             # void *
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
-            internal = self._translate(tc.basetype)
+            internal = self._tc2simtype(tc.basetype)
         return sim_type.SimTypePointer(internal).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array):
-        elem_type = self._translate(tc.element)
+        elem_type = self._tc2simtype(tc.element)
         return sim_type.SimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
 
     def _translate_Struct(self, tc):
@@ -117,7 +117,7 @@ class TypeTranslator:
                     sim_type.SimTypeChar(signed=False).with_arch(self.arch), padding_size
                 ).with_arch(self.arch)
 
-            translated_type = self._translate(typ)
+            translated_type = self._tc2simtype(typ)
             s.fields["field_%x" % offset] = translated_type
 
             if isinstance(translated_type, sim_type.SimTypeBottom):
@@ -196,8 +196,19 @@ class TypeTranslator:
 
         return typeconsts.Struct(fields=fields)
 
-    def _translate_SimArray(self, st: sim_type.SimTypeArray) -> typeconsts.Struct:
-        st.elem_type
+    def _translate_SimTypeArray(self, st: sim_type.SimTypeArray) -> typeconsts.Array:
+        elem_type = self._simtype2tc(st.elem_type)
+        array_tc = typeconsts.Array(elem_type, count=st.length)
+        return array_tc
+
+    def _translate_SimTypePointer(self,
+                                  st: sim_type.SimTypePointer) -> Union[typeconsts.Pointer32, typeconsts.Pointer64]:
+        base = self._simtype2tc(st.pts_to)
+        if self.arch.bits == 32:
+            return typeconsts.Pointer32(base)
+        elif self.arch.bits == 64:
+            return typeconsts.Pointer64(base)
+        raise TypeError("Unsupported pointer size %d" % self.arch.bits)
 
 
 TypeConstHandlers = {
@@ -212,10 +223,13 @@ TypeConstHandlers = {
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
 }
 
+
 SimTypeHandlers = {
+    sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
     sim_type.SimTypeInt: TypeTranslator._translate_SimTypeInt,
     sim_type.SimTypeLong: TypeTranslator._translate_SimTypeLong,
     sim_type.SimTypeLongLong: TypeTranslator._translate_SimTypeLongLong,
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimStruct: TypeTranslator._translate_SimStruct,
+    sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
 }

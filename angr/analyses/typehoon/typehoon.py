@@ -4,9 +4,11 @@ from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, Int8
+from .typevars import Equivalence
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
+    from angr.sim_type import SimType
     from .typevars import TypeVariable, TypeConstraint
 
 
@@ -38,7 +40,7 @@ class Typehoon(Analysis):
         """
 
         self._constraints: Set['TypeConstraint'] = constraints
-        self._ground_truth = ground_truth
+        self._ground_truth: Optional[Dict['TypeVariable','SimType']] = ground_truth
         self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
         self._must_struct = must_struct
 
@@ -85,6 +87,12 @@ class Typehoon(Analysis):
     #
 
     def _analyze(self):
+
+        # convert ground truth into constraints
+        if self._ground_truth:
+            translator = TypeTranslator(arch=self.project.arch)
+            for tv, sim_type in self._ground_truth.items():
+                self._constraints.add(Equivalence(tv, translator.simtype2tc(sim_type)))
 
         self._solve()
         self._specialize()
