@@ -158,8 +158,7 @@ class Typehoon(Analysis):
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():
-            simtypes_solution[tv], has_nonexistent_ref = translator.translate(sol)
-
+            simtypes_solution[tv], has_nonexistent_ref = translator.tc2simtype(sol)
             if has_nonexistent_ref:
                 needs_backpatch.add(tv)
 

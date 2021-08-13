@@ -681,8 +681,8 @@ class SimTypeArray(SimType):
         :param length:      An expression of the length of the array, if known.
         """
         super().__init__(label=label)
-        self.elem_type = elem_type
-        self.length = length
+        self.elem_type: SimType = elem_type
+        self.length: Optional[int] = length
 
     def __repr__(self):
         return '{}[{}]'.format(self.elem_type, '' if self.length is None else self.length)
@@ -1049,7 +1049,7 @@ class SimStruct(NamedTypeMixin, SimType):
         self._arch_memo = {}
 
     @property
-    def offsets(self):
+    def offsets(self) -> Dict[str,int]:
         offsets = {}
         offset_so_far = 0
         for name, ty in self.fields.items():
