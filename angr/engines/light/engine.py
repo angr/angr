@@ -1,6 +1,7 @@
-# pylint:disable=no-self-use,isinstance-second-argument-not-valid-type
+# pylint:disable=no-self-use,isinstance-second-argument-not-valid-type,unused-argument
 from typing import Tuple, Optional, Union, Any
 import struct
+import re
 import logging
 
 import ailment
@@ -21,7 +22,7 @@ class SimEngineLightMixin:
         self.l = logger
         super().__init__(*args, **kwargs)
 
-    def _is_top(self, expr) -> bool:  # pylint:disable=unused-argument
+    def _is_top(self, expr) -> bool:
         """
         Check if a given expression is a TOP value.
 
@@ -30,7 +31,7 @@ class SimEngineLightMixin:
         """
         return False
 
-    def _top(self, size: int):  # pylint:disable=unused-argument
+    def _top(self, size: int):
         """
         Return a TOP value. It will only be called if _is_top() has been implemented.
 
@@ -97,7 +98,7 @@ class SimEngineLight(
     def _process(self, new_state, successors, *args, **kwargs):
         raise NotImplementedError()
 
-    def _check(self, state, *args, **kwargs):  # pylint:disable=unused-argument
+    def _check(self, state, *args, **kwargs):
         return True
 
     #
@@ -128,7 +129,7 @@ class SimEngineLight(
 
 class SimEngineLightVEXMixin(SimEngineLightMixin):
 
-    def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
+    def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
 
         # initialize local variables
         self.tmps = {}
@@ -333,7 +334,19 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_32HLto64'
         elif expr.op.startswith('Const'):
             handler = '_handle_Const'
+
+        vector_size, vector_count = None, None
+        if handler is not None:
+            # vector information
+            m = re.match(r"Iop_[^\d]+(\d+)x(\d+)", expr.op)
+            if m is not None:
+                vector_size = int(m.group(1))
+                vector_count = int(m.group(2))
+                handler += "_v"
+
         if handler is not None and hasattr(self, handler):
+            if vector_size is not None and vector_count is not None:
+                return getattr(self, handler)(expr, vector_size, vector_count)
             return getattr(self, handler)(expr)
         else:
             self.l.error('Unsupported Binop %s.', expr.op)
@@ -664,7 +677,31 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         return expr_0 > expr_1
 
-    def _handle_MBE(self, expr):  # pylint:disable=unused-argument
+    def _handle_CmpEQ_v(self, expr, vector_size, vector_count):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_CmpNE_v(self, expr, vector_size, vector_count):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_CmpLE_v(self, expr, vector_size, vector_count):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_CmpGE_v(self, expr, vector_size, vector_count):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_CmpLT_v(self, expr, vector_size, vector_count):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_CmpGT_v(self, expr, vector_size, vector_count):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_MBE(self, expr):
         # Yeah.... no.
         return None
 
@@ -682,7 +719,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
 class SimEngineLightAILMixin(SimEngineLightMixin):
 
-    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ,unused-argument
+    def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
 
         self.tmps = {}
         self.block: ailment.Block = block

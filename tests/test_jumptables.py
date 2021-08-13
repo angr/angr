@@ -84,6 +84,18 @@ def test_amd64_chmod_gcc_O1():
     compare(cfg.jump_tables, all_jumptables)
 
 
+def test_amd64_hostname_gcc_O2():
+    p = angr.Project(os.path.join(test_location, "x86_64", "hostname"), auto_load_libs=False)
+    cfg = p.analyses.CFGFast()
+
+    all_jumptables = {
+        J(0x4025f5, 0x40476c, [0x4027ad, 0x402739, 0x402664, 0x402739, 0x402739, 0x402739, 0x402739, 0x402658, 0x402739, 0x402739, 0x40264d, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x40260f, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402607, 0x402642, 0x402739, 0x40263a, 0x402739, 0x4025ff, 0x402739, 0x4027ad, 0x402685, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x40267a, 0x402739, 0x402739, 0x402739, 0x402739, 0x402739, 0x40266f]),
+        J(0x402d1f, 0x404744, [0x402ee0, 0x402e10, 0x402e10, 0x402ef8, 0x402e10, 0x402e10, 0x402ec8, 0x402eb0, 0x402d38, 0x402d38])
+    }
+
+    compare(cfg.jump_tables, all_jumptables)
+
+
 def test_amd64_cfgswitches_gcc():
     p = angr.Project(os.path.join(test_location, "x86_64", "cfg_switches"), auto_load_libs=False)
     cfg = p.analyses.CFGFast()
@@ -296,6 +308,7 @@ def test_vtable_amd64_libc_ubuntu_2004():
 if __name__ == "__main__":
     test_amd64_chmod_gcc_O1()
     test_amd64_dir_gcc_O0()
+    test_amd64_hostname_gcc_O2()
     test_amd64_cfgswitches_gcc()
     test_i386_cfgswitches_gcc_O0()
     test_i386_cfgswitches_gcc_O1()

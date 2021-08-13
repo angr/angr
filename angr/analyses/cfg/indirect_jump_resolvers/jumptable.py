@@ -259,9 +259,9 @@ class JumpTableProcessor(
         offset = stmt.offset
         data = self._expr(stmt.data)
         if self._tsrc is not None:
-            r = [self._tsrc, data]
+            r = (self._tsrc, data)
         else:
-            r = [(self.block.addr, self.stmt_idx), data]
+            r = ((self.block.addr, self.stmt_idx), data)
         self.state._registers[offset] = r
 
     def _handle_Store(self, stmt):
@@ -660,7 +660,7 @@ class JumpTableResolver(IndirectJumpResolver):
 
         self._max_targets = cfg._indirect_jump_target_limit
 
-        for slice_steps in range(1, 4):
+        for slice_steps in range(1, 5):
             # Perform a backward slicing from the jump target
             # Important: Do not go across function call boundaries
             b = Blade(cfg.graph, addr, -1,

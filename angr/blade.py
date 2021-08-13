@@ -2,6 +2,8 @@ import networkx
 
 import pyvex
 
+from .errors import AngrBladeError, SimTranslationError
+from .knowledge_plugins.cfg import CFGNode
 from .utils.constants import DEFAULT_STATEMENT
 from .slicer import SimSlicer
 
@@ -290,9 +292,6 @@ class Blade:
 
             for pred, _, data in in_edges:
                 if 'jumpkind' in data:
-                    if data['jumpkind'] == 'Ijk_FakeRet':
-                        # Skip fake rets
-                        continue
                     if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
                         # Skip calls
                         continue
@@ -376,9 +375,6 @@ class Blade:
 
             for pred, _, data in in_edges:
                 if 'jumpkind' in data:
-                    if data['jumpkind'] == 'Ijk_FakeRet':
-                        # skip fake rets
-                        continue
                     if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
                         # skip calls as instructed
                         continue
@@ -387,7 +383,3 @@ class Blade:
                     continue
 
                 self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
-
-
-from .errors import AngrBladeError, SimTranslationError
-from .knowledge_plugins.cfg import CFGNode
