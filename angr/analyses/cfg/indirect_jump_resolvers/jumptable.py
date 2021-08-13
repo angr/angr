@@ -259,9 +259,9 @@ class JumpTableProcessor(
         offset = stmt.offset
         data = self._expr(stmt.data)
         if self._tsrc is not None:
-            r = [self._tsrc, data]
+            r = (self._tsrc, data)
         else:
-            r = [(self.block.addr, self.stmt_idx), data]
+            r = ((self.block.addr, self.stmt_idx), data)
         self.state._registers[offset] = r
 
     def _handle_Store(self, stmt):
