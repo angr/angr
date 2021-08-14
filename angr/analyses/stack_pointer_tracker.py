@@ -1,22 +1,36 @@
-
 # pylint:disable=abstract-method
 
+from typing import Set
 import logging
 
 import pyvex
 
+from ..analyses import AnalysesHub
 from ..knowledge_plugins import Function
 from ..block import BlockNode
+from ..errors import SimTranslationError
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ..errors import SimTranslationError
 
 _l = logging.getLogger(name=__name__)
 
+
+class BottomType:
+    """
+    The bottom value for register values.
+    """
+    def __repr__(self):
+        return "<Bottom>"
+
+
 TOP = None
+BOTTOM = BottomType()
 
 
 class Constant:
+    """
+    Represents a constant value.
+    """
 
     __slots__ = ( 'val', )
 
@@ -48,6 +62,9 @@ class Constant:
 
 
 class Register:
+    """
+    Represent a register.
+    """
 
     __slots__ = ( 'offset', 'bitlen' )
 
@@ -68,6 +85,9 @@ class Register:
 
 
 class OffsetVal:
+    """
+    Represent a value with an offset added.
+    """
 
     __slots__ = ( '_reg', '_offset', )
 
@@ -114,6 +134,9 @@ class OffsetVal:
 
 
 class FrozenStackPointerTrackerState:
+    """
+    Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
+    """
 
     __slots__ = 'regs', 'memory', 'is_tracking_memory'
 
@@ -144,6 +167,9 @@ class FrozenStackPointerTrackerState:
 
 
 class StackPointerTrackerState:
+    """
+    Abstract state for StackPointerTracker analysis.
+    """
 
     __slots__ = 'regs', 'memory', 'is_tracking_memory'
 
@@ -226,8 +252,11 @@ def _dict_merge(d1, d2):
         if k not in d1 or d1[k] is TOP:
             merged[k] = TOP
         elif k not in d2 or d2[k] is TOP:
-            # don't add it to the dict, which is the same as top
             merged[k] = TOP
+        elif d1[k] is BOTTOM:
+            merged[k] = d2[k]
+        elif d2[k] is BOTTOM:
+            merged[k] = d1[k]
         elif d1[k] == d2[k]:
             merged[k] = d1[k]
         else: # d1[k] != d2[k]
@@ -236,7 +265,9 @@ def _dict_merge(d1, d2):
 
 
 class CouldNotResolveException(Exception):
-    pass
+    """
+    An exception used in StackPointerTracker analysis to represent internal resolving failures.
+    """
 
 
 class StackPointerTracker(Analysis, ForwardAnalysis):
@@ -244,7 +275,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
     Track the offset of stack pointer at the end of each basic block of a function.
     """
 
-    def __init__(self, func : Function, reg_offsets : set, track_memory=True):
+    def __init__(self, func: Function, reg_offsets: Set[int], track_memory=True):
 
         super().__init__(
             order_jobs=False,
@@ -286,6 +317,9 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         except KeyError:
             return TOP
         if regval is TOP or type(regval) is Constant:
+            return TOP
+        elif regval is BOTTOM:
+            # we don't really know what it should be. return TOP instead.
             return TOP
         else:
             return regval.offset
@@ -338,9 +372,19 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         size = self.project.arch.registers[name][1]
         return Register(offset, size * self.project.arch.byte_width)
 
-    def _initial_abstract_state(self, node : BlockNode):
-        return StackPointerTrackerState(regs={r : OffsetVal(self._get_register(r), 0)
-                                                for r in self.reg_offsets},
+    def _initial_abstract_state(self, node: BlockNode):
+        if node.addr == self._func.addr:
+            # at the beginning of the function, we set each tracking register to their "initial values"
+            initial_regs = {r: OffsetVal(self._get_register(r), 0) for r in self.reg_offsets}
+        else:
+            # if we are requesting initial states for blocks that are not the starting point of this function, we are
+            # probably dealing with dangling blocks (those without a predecessor due to CFG recovery failures). Setting
+            # register values to fresh ones will cause problems down the line when merging with normal register values
+            # happen. therefore, we set their values to BOTTOM. these BOTTOMs will be replaced once a merge with normal
+            # blocks happen.
+            initial_regs = {r: BOTTOM for r in self.reg_offsets}
+
+        return StackPointerTrackerState(regs=initial_regs,
                                         memory={},
                                         is_tracking_memory=self.track_mem).freeze()
 
@@ -374,9 +418,29 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             if type(expr) is pyvex.IRExpr.Binop:
                 arg0, arg1 = expr.args
                 if expr.op.startswith('Iop_Add'):
-                    return _resolve_expr(arg0) + _resolve_expr(arg1)
+                    arg0_expr = _resolve_expr(arg0)
+                    if arg0_expr is None:
+                        raise CouldNotResolveException()
+                    if arg0_expr is BOTTOM:
+                        return BOTTOM
+                    arg1_expr = _resolve_expr(arg1)
+                    if arg1_expr is None:
+                        raise CouldNotResolveException()
+                    if arg1_expr is BOTTOM:
+                        return BOTTOM
+                    return arg0_expr + arg1_expr
                 elif expr.op.startswith('Iop_Sub'):
-                    return _resolve_expr(arg0) - _resolve_expr(arg1)
+                    arg0_expr = _resolve_expr(arg0)
+                    if arg0_expr is None:
+                        raise CouldNotResolveException()
+                    if arg0_expr is BOTTOM:
+                        return BOTTOM
+                    arg1_expr = _resolve_expr(arg1)
+                    if arg1_expr is None:
+                        raise CouldNotResolveException()
+                    if arg1_expr is BOTTOM:
+                        return BOTTOM
+                    return arg0_expr - arg1_expr
             elif type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
                 return tmps[expr.tmp]
             elif type(expr) is pyvex.IRExpr.Const:
@@ -385,7 +449,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 return state.get(expr.offset)
             elif self.track_mem and type(expr) is pyvex.IRExpr.Load:
                 return state.load(_resolve_expr(expr.addr))
-            raise CouldNotResolveException
+            raise CouldNotResolveException()
 
         def resolve_expr(expr):
             try:
@@ -401,7 +465,7 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             elif type(stmt) is pyvex.IRStmt.Put:
                 state.put(stmt.offset, resolve_expr(stmt.data))
             else:
-                raise CouldNotResolveException
+                raise CouldNotResolveException()
 
         vex_block = None
         try:
@@ -428,7 +492,11 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     and vex_block.jumpkind == 'Ijk_Call' \
                     and self.project.arch.call_pushes_ret:
                 try:
-                    incremented = state.get(self.project.arch.sp_offset) + Constant(self.project.arch.bytes)
+                    v = state.get(self.project.arch.sp_offset)
+                    if v is BOTTOM:
+                        incremented = BOTTOM
+                    else:
+                        incremented = v + Constant(self.project.arch.bytes)
                     state.put(self.project.arch.sp_offset, incremented)
                 except CouldNotResolveException:
                     pass
@@ -459,5 +527,4 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return merged_state, merged_state == states[0]
 
 
-from ..analyses import AnalysesHub
 AnalysesHub.register_default('StackPointerTracker', StackPointerTracker)
