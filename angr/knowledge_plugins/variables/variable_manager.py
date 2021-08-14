@@ -728,6 +728,11 @@ class VariableManager(KnowledgeBasePlugin):
         self.global_manager = VariableManagerInternal(self)
         self.function_managers: Dict[int,VariableManagerInternal] = { }
 
+    def __contains__(self, key) -> bool:
+        if key == 'global':
+            return True
+        return key in self.function_managers
+
     def __getitem__(self, key) -> VariableManagerInternal:
         """
         Get the VariableManagerInternal object for a function or a region.

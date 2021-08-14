@@ -23,6 +23,7 @@ from .optimization_passes import get_default_optimization_passes, OptimizationPa
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 
@@ -43,6 +44,7 @@ class Clinic(Analysis):
                  must_struct: Optional[Set[str]]=None,
                  variable_kb=None,
                  reset_variable_names=False,
+                 cache: Optional['DecompilationCache']=None,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -64,6 +66,7 @@ class Clinic(Analysis):
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
+        self._cache = cache
 
         # sanity checks
         if not self.kb.functions:
@@ -613,8 +616,8 @@ class Clinic(Analysis):
                       exc_info=True)
 
         # Unify SSA variables
-        tmp_kb.variables[self.function.addr].unify_variables()
-        tmp_kb.variables[self.function.addr].assign_unified_variable_names(
+        var_manager.unify_variables()
+        var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
             reset=self._reset_variable_names,
         )
@@ -622,6 +625,11 @@ class Clinic(Analysis):
         # Link variables to each statement
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
+
+        if self._cache is not None:
+            self._cache.type_constraints = vr.type_constraints
+            self._cache.var_to_typevar = vr.var_to_typevar
+
         return tmp_kb
 
     def _link_variables_on_block(self, block, kb):

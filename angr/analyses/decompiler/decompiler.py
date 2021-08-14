@@ -1,16 +1,21 @@
 # pylint:disable=unused-import
+import logging
 from collections import defaultdict
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, TYPE_CHECKING
+from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, TYPE_CHECKING
 
 from cle import SymbolType
 
+from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
 from .. import Analysis, AnalysesHub
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
+from .decompilation_cache import DecompilationCache
 
 if TYPE_CHECKING:
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
+
+l = logging.getLogger(name=__name__)
 
 
 class Decompiler(Analysis):
@@ -21,6 +26,7 @@ class Decompiler(Analysis):
                  flavor='pseudocode',
                  expr_comments=None,
                  stmt_comments=None,
+                 decompile=True,
                  ):
         self.func = func
         self._cfg = cfg
@@ -36,8 +42,10 @@ class Decompiler(Analysis):
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
+        self.cache: Optional[DecompilationCache] = None
 
-        self._decompile()
+        if decompile:
+            self._decompile()
 
     def _decompile(self):
 
@@ -45,7 +53,7 @@ class Decompiler(Analysis):
             return
 
         try:
-            old_codegen = self.kb.structured_code[(self.func.addr, self._flavor)]
+            old_codegen = self.kb.structured_code[(self.func.addr, self._flavor)].codegen
         except KeyError:
             old_codegen = None
 
@@ -70,6 +78,8 @@ class Decompiler(Analysis):
         else:
             reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
 
+        cache = DecompilationCache()
+
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
@@ -80,10 +90,12 @@ class Decompiler(Analysis):
                                               cfg=self._cfg,
                                               peephole_optimizations=self._peephole_optimizations,
                                               must_struct=self._vars_must_struct,
+                                              cache=cache,
                                               progress_callback=lambda p, **kwargs: self._update_progress(p*(70-5)/100.+5, **kwargs),
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
         self.clinic = clinic
+        self.cache = cache
         self._update_progress(70., text='Identifying regions')
 
         if clinic.graph is None:
@@ -115,6 +127,7 @@ class Decompiler(Analysis):
         self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen
+        self.cache.codegen = codegen
 
     def _set_global_variables(self):
 
@@ -123,6 +136,49 @@ class Decompiler(Analysis):
             if symbol.type == SymbolType.TYPE_OBJECT:
                 global_variables.set_variable('global', symbol.rebased_addr, SimMemoryVariable(symbol.rebased_addr, 1,
                                                                                                name=symbol.name))
+
+    def reflow_variable_types(self, type_constraints: Set, var_to_typevar: Dict, codegen):
+        """
+        Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
+
+        :return:
+        """
+
+        var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
+
+        if self.func.addr not in var_kb.variables:
+            # for some reason variables for the current function don't really exist...
+            groundtruth = {}
+        else:
+            var_manager = var_kb.variables[self.func.addr]
+            # ground-truth types
+            groundtruth = {}
+            for variable in var_manager.variables_with_manual_types:
+                vartype = var_manager.types.get(variable, None)
+                if vartype is not None:
+                    groundtruth[var_to_typevar[variable]] = vartype
+
+        # variables that must be interpreted as structs
+        if self._vars_must_struct:
+            must_struct = set()
+            for var, typevar in var_to_typevar.items():
+                if var.ident in self._vars_must_struct:
+                    must_struct.add(typevar)
+        else:
+            must_struct = None
+
+        import ipdb; ipdb.set_trace()
+
+        # type inference
+        try:
+            tp = self.project.analyses.Typehoon(type_constraints, kb=var_kb, var_mapping=var_to_typevar,
+                                                must_struct=must_struct, ground_truth=groundtruth)
+            tp.update_variable_types(self.func.addr, var_to_typevar)
+        except Exception:  # pylint:disable=broad-except
+            l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
+                      exc_info=True)
+
+        return codegen
 
     @staticmethod
     def options_to_params(options):
