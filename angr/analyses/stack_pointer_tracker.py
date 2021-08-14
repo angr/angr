@@ -5,16 +5,20 @@ import logging
 
 import pyvex
 
+from ..analyses import AnalysesHub
 from ..knowledge_plugins import Function
 from ..block import BlockNode
+from ..errors import SimTranslationError
 from .analysis import Analysis
 from .forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ..errors import SimTranslationError
 
 _l = logging.getLogger(name=__name__)
 
 
 class BottomType:
+    """
+    The bottom value for register values.
+    """
     def __repr__(self):
         return "<Bottom>"
 
@@ -24,6 +28,9 @@ BOTTOM = BottomType()
 
 
 class Constant:
+    """
+    Represents a constant value.
+    """
 
     __slots__ = ( 'val', )
 
@@ -55,6 +62,9 @@ class Constant:
 
 
 class Register:
+    """
+    Represent a register.
+    """
 
     __slots__ = ( 'offset', 'bitlen' )
 
@@ -75,6 +85,9 @@ class Register:
 
 
 class OffsetVal:
+    """
+    Represent a value with an offset added.
+    """
 
     __slots__ = ( '_reg', '_offset', )
 
@@ -121,6 +134,9 @@ class OffsetVal:
 
 
 class FrozenStackPointerTrackerState:
+    """
+    Abstract state for StackPointerTracker analysis with registers and memory values being in frozensets.
+    """
 
     __slots__ = 'regs', 'memory', 'is_tracking_memory'
 
@@ -151,6 +167,9 @@ class FrozenStackPointerTrackerState:
 
 
 class StackPointerTrackerState:
+    """
+    Abstract state for StackPointerTracker analysis.
+    """
 
     __slots__ = 'regs', 'memory', 'is_tracking_memory'
 
@@ -246,7 +265,9 @@ def _dict_merge(d1, d2):
 
 
 class CouldNotResolveException(Exception):
-    pass
+    """
+    An exception used in StackPointerTracker analysis to represent internal resolving failures.
+    """
 
 
 class StackPointerTracker(Analysis, ForwardAnalysis):
@@ -506,5 +527,4 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return merged_state, merged_state == states[0]
 
 
-from ..analyses import AnalysesHub
 AnalysesHub.register_default('StackPointerTracker', StackPointerTracker)
