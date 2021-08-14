@@ -152,7 +152,10 @@ class Vault(collections.abc.MutableMapping):
         except KeyError:
             # l.debug("... cached failed")
             with self._read_context(oid) as u:
-                return VaultUnpickler(self, u).load()
+                # add newly loaded object into the object cache
+                o = VaultUnpickler(self, u).load()
+                self._object_cache[oid] = o
+                return o
 
     def store(self, o):
 
