@@ -36,7 +36,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         o = cls(**kwargs)
         o.concrete_data = data
         o.symbolic_bitmap = bytearray(memory.page_size)
-        o.refcount = 2
+        o.refcount = 2  # pylint: disable=attribute-defined-outside-init
         return o
 
     def copy(self, memo):
