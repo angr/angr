@@ -408,7 +408,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             if self.symbolic_data[k] is old:
                 self.symbolic_data[k] = new
 
-        if isinstance(new.object, claripy.ast.BV):
+        if isinstance(new.object, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
             for b in range(old.base, old.base+old.length):
                 self._update_mappings(b, old.object, new.object, memory=memory)
 
