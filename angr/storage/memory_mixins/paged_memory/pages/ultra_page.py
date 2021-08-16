@@ -217,7 +217,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             mo_bases = set(mo.base for mo, _ in memory_objects)
             mo_lengths = set(mo.length for mo, _ in memory_objects)
 
-            if not unconstrained_in and not (mos - merged_objects):
+            if not unconstrained_in and not mos - merged_objects:
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
