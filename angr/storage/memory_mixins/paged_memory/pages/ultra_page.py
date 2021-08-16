@@ -290,7 +290,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def changed_bytes(self, other, page_addr=None) -> Set[int]:
         changes = set()
-        for addr in range(len(self.symbolic_bitmap)):
+        for addr, _ in enumerate(self.symbolic_bitmap):
             if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
                 changes.add(addr)
             elif self.symbolic_bitmap[addr] == 0:
