@@ -63,7 +63,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
             global_end_addr = end
             global_start_addr = result[-1][0]
             size = global_end_addr - global_start_addr
-            new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr), key=(self.category, global_start_addr), memory=memory, endness=endness, **kwargs)
+            new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr),
+                    key=(self.category, global_start_addr), memory=memory, endness=endness, **kwargs)
             new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness)
             self.symbolic_data[global_start_addr - page_addr] = new_item
             result[-1] = (global_start_addr, new_item)
@@ -82,7 +83,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 cur_val = self.concrete_data[subaddr]
                 if last_run is concrete_run:
                     if endness == 'Iend_LE':
-                        last_run = concrete_run = concrete_run | (cur_val << (memory.state.arch.byte_width * (realaddr - result[-1][0])))
+                        last_run = concrete_run = concrete_run | (
+                                cur_val << (memory.state.arch.byte_width * (realaddr - result[-1][0])))
                     else:
                         last_run = concrete_run = (concrete_run << memory.state.arch.byte_width) | cur_val
                     result[-1] = (result[-1][0], concrete_run)
@@ -257,7 +259,10 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
-                extracted = [(mo.bytes_at(page_addr + b, min_size), fv) for mo, fv in memory_objects] if min_size != 0 else []
+                extracted = [
+                    (mo.bytes_at(page_addr + b, min_size), fv) for
+                    mo, fv in memory_objects
+                ] if min_size != 0 else []
                 created = [
                     (self._default_value(None, min_size, name="merge_uc_%s_%x" % (uc.id, b), memory=memory),
                      fv) for
@@ -393,7 +398,8 @@ class UltraPage(MemoryObjectMixin, PageBase):
         :returns: the new memory object
         """
 
-        if (old.object.size() if not old.is_bytes else len(old.object) * self.state.arch.byte_width) != new_content.size():
+        if ((old.object.size() if not old.is_bytes else len(old.object) * self.state.arch.byte_width) !=
+                new_content.size()):
             raise SimMemoryError("memory objects can only be replaced by the same length content")
 
         new = SimMemoryObject(new_content, old.base, old.endness, byte_width=old._byte_width)
