@@ -14,6 +14,9 @@ l = logging.getLogger(name=__name__)
 
 
 class UltraPage(MemoryObjectMixin, PageBase):
+    """
+    Default page implementation
+    """
     SUPPORTS_CONCRETE_LOAD = True
 
     def __init__(self, memory=None, init_zero=False, **kwargs):
