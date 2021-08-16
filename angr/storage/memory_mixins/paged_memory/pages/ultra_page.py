@@ -45,7 +45,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         o.symbolic_data = SortedDict(self.symbolic_data)
         return o
 
-    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):
+    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):  # pylint: disable=arguments-differ
         concrete_run = []
         symbolic_run = ...
         last_run = None
@@ -98,7 +98,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             result = self._force_load_cooperation(result, size, endness, page_addr=page_addr, memory=memory, **kwargs)
         return result
 
-    def store(self, addr, data: Union[int,SimMemoryObject], size: int=None, endness=None, memory=None, page_addr=None,
+    def store(self, addr, data: Union[int,SimMemoryObject], size: int=None, endness=None, memory=None, page_addr=None,  # pylint: disable=arguments-differ
               cooperate=False, **kwargs):
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, page_addr=page_addr, memory=memory,
@@ -161,7 +161,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             # set.
             self.symbolic_data[addr] = data
 
-    def merge(self, others: List['UltraPage'], merge_conditions, common_ancestor=None, page_addr: int=None,
+    def merge(self, others: List['UltraPage'], merge_conditions, common_ancestor=None, page_addr: int=None,  # pylint: disable=arguments-differ
               memory=None, changed_offsets: Optional[Set[int]]=None):
 
         all_pages = [self] + others
@@ -281,7 +281,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         return merged_offsets
 
-    def concrete_load(self, addr, size, **kwargs):
+    def concrete_load(self, addr, size, **kwargs):  # pylint: disable=arguments-differ
         if type(self.concrete_data) is bytearray:
             return memoryview(self.concrete_data)[addr:addr+size], memoryview(self.symbolic_bitmap)[addr:addr+size]
         else:
