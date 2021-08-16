@@ -1,6 +1,7 @@
-from sortedcontainers import SortedDict
-from typing import List, Set, Optional, Tuple, Union, Any, Iterable
 import logging
+from typing import List, Set, Optional, Tuple, Union, Any, Iterable
+
+from sortedcontainers import SortedDict
 
 import claripy
 
