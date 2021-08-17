@@ -1,8 +1,25 @@
+import math
+
+import claripy
 import pyvex
 
 from ..light.resilience import VEXResilienceMixin, raiseme
 from ..claripy.datalayer import ClaripyDataMixin, symbol, value
 from angr import sim_options as o
+
+# Copied from engines/vex/claripy/irop.py
+fp_rm_map = {
+    0: claripy.fp.RM.RM_NearestTiesEven,
+    1: claripy.fp.RM.RM_TowardsNegativeInf,
+    2: claripy.fp.RM.RM_TowardsPositiveInf,
+    3: claripy.fp.RM.RM_TowardsZero,
+}
+
+def _translate_rm(rm_num):
+    if not rm_num.symbolic:
+        return fp_rm_map[rm_num._model_concrete.value]
+
+    return claripy.fp.RM.default()
 
 class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     @staticmethod
@@ -35,7 +52,17 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         ty = pyvex.get_op_retty(op)
         if o.BYPASS_UNSUPPORTED_IROP not in self.state.options:
             return super()._check_unsupported_op(op, args)
+
+        force_concretizers = {"Iop_Yl2xF64": self._concretize_yl2x, "Iop_ScaleF64": self._concretize_fscale,
+                              "Iop_2xm1F64": self._concretize_2xm1}
         self.state.history.add_event('resilience', resilience_type='irop', op=op, message='unsupported IROp')
+        if o.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
+            try:
+                concretizer = force_concretizers[op]
+                return concretizer(args)
+            except KeyError:
+                pass
+
         return self.__make_default(ty, o.UNSUPPORTED_BYPASS_ZERO_DEFAULT not in self.state.options, 'unsupported_' + op)
 
     def _check_errored_op(self, op, args):
@@ -66,3 +93,26 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
                 stmt=type(stmt).__name__,
                 message='errored IRStmt')
         return None
+
+    def _concretize_2xm1(self, args):
+        # 2xm1(x) = 2 ** x - 1. Concretize 2**x part alone since only that cannot be modelled in Z3.
+        arg_x = self.state.solver.eval(args[1])
+        return claripy.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
+
+    def _concretize_fscale(self, args):
+        # fscale(x, y) = x * (2 ** y). Concretize 2**y part alone since only that cannot be modelled in Z3.
+        rm = _translate_rm(args[0])
+        arg_x = args[1]
+        arg_y = self.state.solver.eval(args[2])
+        arg_2_y = claripy.FPV(math.pow(2, arg_y), claripy.FSORT_DOUBLE)
+        return claripy.fpMul(rm, arg_x, arg_2_y)
+
+    def _concretize_yl2x(self, args):
+        # yl2x(y, x) = y * log2(x). Concretize log2(x) part alone since only that cannot be modelled in Z3.
+        # 3 arguments are passed: first is FP rounding mode.
+        rm = _translate_rm(args[0])
+        arg_y = args[1]
+        arg_x = claripy.FPV(self.state.solver.eval(args[2]), claripy.FSORT_DOUBLE)
+        arg_x = self.state.solver.eval(args[2])
+        arg_log2_x = claripy.FPV(math.log2(arg_x), claripy.FSORT_DOUBLE)
+        return claripy.fpMul(rm, arg_y, arg_log2_x)
