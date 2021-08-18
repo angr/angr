@@ -121,7 +121,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 start_bits = full_bits - start * memory.state.arch.byte_width - 1
                 # trim the overflowing bytes if there are any
                 end_bits = start_bits + 1 - size * memory.state.arch.byte_width
-                if start_bits != full_bits or end_bits != 0:
+                if start_bits != full_bits - 1 or end_bits != 0:
                     if endness == 'Iend_LE':
                         start_bits, end_bits = len(data.object) - end_bits - 1, len(data.object) - start_bits - 1
                     obj = data.object[start_bits: end_bits]
