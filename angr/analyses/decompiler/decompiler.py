@@ -167,8 +167,6 @@ class Decompiler(Analysis):
         else:
             must_struct = None
 
-        import ipdb; ipdb.set_trace()
-
         # type inference
         try:
             tp = self.project.analyses.Typehoon(type_constraints, kb=var_kb, var_mapping=var_to_typevar,
