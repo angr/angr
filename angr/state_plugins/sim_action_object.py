@@ -119,8 +119,7 @@ class SimActionObject:
 
 def _operator(cls, op_name):
     def wrapper(self, *args, **kwargs):
-        # TODO: don't always get from BV, we'll run into issues...
-        return self._preserving_unbound(getattr(claripy.ast.BV, op_name), *args, **kwargs)
+        return self._preserving_unbound(getattr(self.ast.__class__, op_name), *args, **kwargs)
     wrapper.__name__ = op_name
     setattr(cls, op_name, wrapper)
 
