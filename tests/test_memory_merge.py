@@ -53,5 +53,23 @@ def test_merge_memory_object_endness():
         assert obj.op == "If"
 
 
+def test_merge_seq():
+    state1 = SimState(arch='AMD64', mode='symbolic', plugins={'memory': UltraPageMemory()})
+    state2 = SimState(arch='AMD64', mode='symbolic', plugins={'memory': UltraPageMemory()})
+
+    state1.regs.rsp = 0x80000000
+    state2.regs.rsp = 0x80000000
+
+    state1.memory.store(state1.regs.rsp, 0x11, 1)
+    state1.memory.store(state1.regs.rsp + 1, 0x22, 1)
+    state2.memory.store(state2.regs.rsp, 0xAA, 1)
+    state2.memory.store(state2.regs.rsp + 1, 0xBB, 1)
+
+    state3, _, __ = state1.merge(state2)
+    vals = [v for v in state3.solver.eval_upto(state3.memory.load(state3.regs.rsp, 2), 10)]
+    assert set([0x1122, 0xaabb]) == set(vals)
+
+
 if __name__ == '__main__':
+    test_merge_seq()
     test_merge_memory_object_endness()
