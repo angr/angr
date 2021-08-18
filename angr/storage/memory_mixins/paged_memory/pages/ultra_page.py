@@ -112,7 +112,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             size = memory.page_size - addr
 
         if type(data) is not int:
-            if data.object.op == 'BVV':
+            if data.object.op == 'BVV' and not data.object.annotations:
                 # trim the unnecessary leading bytes if there are any
                 full_bits = len(data.object)
                 start = (page_addr + addr - data.base) & ((1 << memory.state.arch.bits) - 1)
@@ -127,7 +127,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                     obj = data.object[start_bits: end_bits]
                     data = obj.args[0]
 
-        if type(data) is int or data.object.op == 'BVV':
+        if type(data) is int or (data.object.op == 'BVV' and not data.object.annotations):
             # mark range as not symbolic
             self.symbolic_bitmap[addr:addr+size] = b'\0'*size
 
