@@ -55,6 +55,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
 
         force_concretizers = {"Iop_Yl2xF64": self._concretize_yl2x, "Iop_ScaleF64": self._concretize_fscale,
                               "Iop_2xm1F64": self._concretize_2xm1, "Iop_SqrtF64": self._concretize_fsqrt,
+                              "Iop_CosF64": self._concretize_trig_cos, "Iop_SinF64": self._concretize_trig_sin,
+                              "Iop_TanF64": self._concretize_trig_tan,
                              }
         self.state.history.add_event('resilience', resilience_type='irop', op=op, message='unsupported IROp')
         if o.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
@@ -111,6 +113,23 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_fsqrt(self, args):
         # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
         return claripy.FPV(math.sqrt(self.state.solver.eval(args[1])), claripy.FSORT_DOUBLE)
+
+    def _concretize_trig_cos(self, args):
+        # cos(x). Z3 does support *some* cases of cos(see https://github.com/Z3Prover/z3/issues/680) but we don't use
+        # the feature and concretize fully instead.
+        arg_x = self.state.solver.eval(args[1])
+        return claripy.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
+
+    def _concretize_trig_sin(self, args):
+        # sin(x). Z3 does support *some* cases of sin(see https://github.com/Z3Prover/z3/issues/680) but we don't use
+        # the feature and concretize fully instead.
+        arg_x = self.state.solver.eval(args[1])
+        return claripy.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
+
+    def _concretize_trig_tan(self, args):
+        # tan(x). Concretize fully since it cannot be modelled in Z3.
+        arg_x = self.state.solver.eval(args[1])
+        return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
 
     def _concretize_yl2x(self, args):
         # yl2x(y, x) = y * log2(x). Concretize log2(x) part alone since only that cannot be modelled in Z3.
