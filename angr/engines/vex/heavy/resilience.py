@@ -54,7 +54,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
             return super()._check_unsupported_op(op, args)
 
         force_concretizers = {"Iop_Yl2xF64": self._concretize_yl2x, "Iop_ScaleF64": self._concretize_fscale,
-                              "Iop_2xm1F64": self._concretize_2xm1}
+                              "Iop_2xm1F64": self._concretize_2xm1, "Iop_SqrtF64": self._concretize_fsqrt,
+                             }
         self.state.history.add_event('resilience', resilience_type='irop', op=op, message='unsupported IROp')
         if o.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
             try:
@@ -106,6 +107,10 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         arg_y = self.state.solver.eval(args[2])
         arg_2_y = claripy.FPV(math.pow(2, arg_y), claripy.FSORT_DOUBLE)
         return claripy.fpMul(rm, arg_x, arg_2_y)
+
+    def _concretize_fsqrt(self, args):
+        # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
+        return claripy.FPV(math.sqrt(self.state.solver.eval(args[1])), claripy.FSORT_DOUBLE)
 
     def _concretize_yl2x(self, args):
         # yl2x(y, x) = y * log2(x). Concretize log2(x) part alone since only that cannot be modelled in Z3.
