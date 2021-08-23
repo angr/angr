@@ -121,18 +121,30 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_trig_cos(self, args):
         # cos(x). Z3 does support *some* cases of cos(see https://github.com/Z3Prover/z3/issues/680) but we don't use
         # the feature and concretize fully instead.
+        # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
+        if abs(arg_x) == math.inf:
+            raise SimFloatingPointInvalidOperationException("fcos")
+
         return claripy.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
 
     def _concretize_trig_sin(self, args):
         # sin(x). Z3 does support *some* cases of sin(see https://github.com/Z3Prover/z3/issues/680) but we don't use
         # the feature and concretize fully instead.
+        # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
+        if abs(arg_x) == math.inf:
+            raise SimFloatingPointInvalidOperationException("fsin")
+
         return claripy.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
 
     def _concretize_trig_tan(self, args):
         # tan(x). Concretize fully since it cannot be modelled in Z3.
+        # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
+        if abs(arg_x) == math.inf:
+            raise SimFloatingPointInvalidOperationException("ftan")
+
         return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
 
     def _concretize_yl2x(self, args):
