@@ -134,9 +134,37 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_yl2x(self, args):
         # yl2x(y, x) = y * log2(x). Concretize log2(x) part alone since only that cannot be modelled in Z3.
         # 3 arguments are passed: first is FP rounding mode.
+        # TODO: Return NaN if either arg is non-numeric.
+        # TODO: Set FPU flags.
         rm = _translate_rm(args[0])
         arg_y = args[1]
-        arg_x = claripy.FPV(self.state.solver.eval(args[2]), claripy.FSORT_DOUBLE)
-        arg_x = self.state.solver.eval(args[2])
-        arg_log2_x = claripy.FPV(math.log2(arg_x), claripy.FSORT_DOUBLE)
-        return claripy.fpMul(rm, arg_y, arg_log2_x)
+        e_arg_x = self.state.solver.eval(args[2])
+        e_arg_y = self.state.solver.eval(arg_y)
+        if e_arg_x < 0:
+            raise SimFloatingPointInvalidOperationException("fyl2x")
+
+        if e_arg_x == 0:
+            if abs(e_arg_y) == math.inf:
+                return claripy.FPV(-1 * e_arg_y, claripy.FSORT_DOUBLE)
+            elif e_arg_y == 0:
+                raise SimFloatingPointInvalidOperationException("fyl2x")
+            else:
+                raise SimFloatingPointZeroDivisionException("fyl2x")
+
+        if e_arg_x == 1:
+            if abs(e_arg_y) == math.inf:
+                raise SimFloatingPointInvalidOperationException("fyl2x")
+
+            # TODO: How to distiguish between +0 and -0?
+            return claripy.FPV(0, claripy.FSORT_DOUBLE)
+
+        if e_arg_x == math.inf:
+            if e_arg_y == 0:
+                raise SimFloatingPointInvalidOperationException("fyl2x")
+            if e_arg_y < 0:
+                return claripy.FPV(-1 * math.inf, claripy.FSORT_DOUBLE)
+
+            return claripy.FPV(math.inf, claripy.FSORT_DOUBLE)
+
+        log2_arg_x = claripy.FPV(math.log2(e_arg_x), claripy.FSORT_DOUBLE)
+        return claripy.fpMul(rm, arg_y, log2_arg_x)
