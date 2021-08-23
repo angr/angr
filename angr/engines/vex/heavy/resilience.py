@@ -100,7 +100,11 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_2xm1(self, args):
         # 2xm1(x) = 2 ** x - 1. Concretize 2**x part alone since only that cannot be modelled in Z3.
         arg_x = self.state.solver.eval(args[1])
-        return claripy.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
+        if -1 <= arg_x <= 1:
+            return claripy.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
+
+        # If x is outside range [-1.0, 1.0], result is undefined. We arbitrarily return NaN in this case
+        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
 
     def _concretize_fscale(self, args):
         # fscale(x, y) = x * (2 ** y). Concretize 2**y part alone since only that cannot be modelled in Z3.
