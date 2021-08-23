@@ -6,6 +6,7 @@ import pyvex
 from ..light.resilience import VEXResilienceMixin, raiseme
 from ..claripy.datalayer import ClaripyDataMixin, symbol, value
 from angr import sim_options as o
+from angr.errors import SimFloatingPointInvalidOperationException, SimFloatingPointZeroDivisionException
 
 # Copied from engines/vex/claripy/irop.py
 fp_rm_map = {
