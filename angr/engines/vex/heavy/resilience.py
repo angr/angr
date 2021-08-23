@@ -109,10 +109,11 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
 
     def _concretize_fscale(self, args):
         # fscale(x, y) = x * (2 ** y). Concretize 2**y part alone since only that cannot be modelled in Z3.
+        # TODO: How to handle NaN args?
         rm = _translate_rm(args[0])
         arg_x = args[1]
-        arg_y = self.state.solver.eval(args[2])
-        arg_2_y = claripy.FPV(math.pow(2, arg_y), claripy.FSORT_DOUBLE)
+        e_arg_y = math.floor(self.state.solver.eval(args[2]))
+        arg_2_y = claripy.FPV(math.pow(2, e_arg_y), claripy.FSORT_DOUBLE)
         return claripy.fpMul(rm, arg_x, arg_2_y)
 
     def _concretize_fsqrt(self, args):
