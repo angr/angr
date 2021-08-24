@@ -408,6 +408,18 @@ def test_decompiling_1after909_doit():
     m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) != 0\)", code)
     assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
+    # Arguments to the convert call should be fully folded into the call statement itself
+    code_lines = [ line.strip(" ") for line in code.split("\n") ]
+    for i, line in enumerate(code_lines):
+        if "convert(" in line:
+            # the previous line must be a curly brace
+            assert i > 0
+            assert code_lines[i - 1] == "{", "Some arguments to convert() are probably not folded into this call " \
+                                             "statement."
+            break
+    else:
+        assert False, "Call to convert() is not found in decompilation output."
+
 
 def test_decompiling_libsoap():
 
