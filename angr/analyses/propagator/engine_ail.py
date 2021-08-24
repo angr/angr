@@ -205,7 +205,7 @@ class SimEnginePropagatorAIL(
                     )
 
         def _test_concatenation(pv: PropValue):
-            if len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
+            if pv.offset_and_details is not None and len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
                 lo_value = pv.offset_and_details[0]
                 hi_offset = next(iter(k for k in pv.offset_and_details if k != 0))
                 hi_value = pv.offset_and_details[hi_offset]
