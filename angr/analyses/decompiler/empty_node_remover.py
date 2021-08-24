@@ -19,6 +19,9 @@ class EmptyNodeRemover:
     def __init__(self, node):
         self.root = node
 
+        self.removed_sequences = [ ]
+        self.replaced_sequences = { }
+
         handlers = {
             SequenceNode: self._handle_Sequence,
             CodeNode: self._handle_Code,
@@ -59,11 +62,16 @@ class EmptyNodeRemover:
                     new_nodes.append(new_node)
 
         if not new_nodes:
+            self.removed_sequences.append(node)
             return None
         if len(new_nodes) == 1:
             # Remove the unnecessary sequence node
+            self.replaced_sequences[node] = new_nodes[0]
             return new_nodes[0]
-        return SequenceNode(nodes=new_nodes)
+
+        sn = SequenceNode(nodes=new_nodes)
+        self.replaced_sequences[node] = sn
+        return sn
 
     def _handle_MultiNode(self, node: MultiNode, **kwargs):
 

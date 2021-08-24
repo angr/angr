@@ -1,5 +1,5 @@
 # pylint:disable=multiple-statements
-from typing import Dict, Optional, Any
+from typing import Dict, Set, Optional, Any
 import logging
 from collections import defaultdict
 
@@ -491,7 +491,11 @@ class Structurer(Analysis):
         self._remove_redundant_jumps(seq)
         self._remove_conditional_jumps(seq)
 
-        new_seq = EmptyNodeRemover(seq).result
+        empty_node_remover = EmptyNodeRemover(seq)
+        new_seq = empty_node_remover.result
+        # update self._new_sequences
+        self._update_new_sequences(set(empty_node_remover.removed_sequences), empty_node_remover.replaced_sequences)
+
         # we need to do it in-place
         seq.nodes = new_seq.nodes
 
@@ -976,6 +980,9 @@ class Structurer(Analysis):
         while i < len(seq.nodes) - 1:
             structured = False
             node_0 = seq.nodes[i]
+            if not isinstance(node_0, CodeNode):
+                i += 1
+                continue
             rcond_0 = node_0.reaching_condition
             if rcond_0 is None:
                 i += 1
@@ -1487,6 +1494,18 @@ class Structurer(Analysis):
                 return SequenceNode(nodes=[node_0] + node_1.nodes)
             else:
                 return SequenceNode(nodes=[node_0, node_1])
+
+    def _update_new_sequences(self, removed_sequences: Set[SequenceNode], replaced_sequences: Dict[SequenceNode,Any]):
+        new_sequences = [ ]
+        for new_seq_ in self._new_sequences:
+            if new_seq_ not in removed_sequences:
+                if new_seq_ in replaced_sequences:
+                    replaced = replaced_sequences[new_seq_]
+                    if isinstance(replaced, SequenceNode):
+                        new_sequences.append(replaced)
+                else:
+                    new_sequences.append(new_seq_)
+        self._new_sequences = new_sequences
 
 
 register_analysis(RecursiveStructurer, 'RecursiveStructurer')

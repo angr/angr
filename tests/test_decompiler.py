@@ -392,16 +392,19 @@ def test_decompiling_1after909_doit():
             angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier,
     ]
     dec = p.analyses.Decompiler(f, cfg=cfg.model, optimization_passes=optimization_passes)
-    if dec.codegen is not None:
-        code = dec.codegen.text
-        print(code)
-        # with EagerReturnSimplifier applied, there should be no goto!
-        assert "goto" not in code.lower(), "Found goto statements. EagerReturnSimplifier might have failed."
-        # with global variables discovered, there should not be any loads of constant addresses.
-        assert "fflush(stdout);" in code.lower()
-    else:
+    if dec.codegen is None:
         print("Failed to decompile function %r." % f)
         assert False
+
+    code = dec.codegen.text
+    print(code)
+    # with EagerReturnSimplifier applied, there should be no goto!
+    assert "goto" not in code.lower(), "Found goto statements. EagerReturnSimplifier might have failed."
+    # with global variables discovered, there should not be any loads of constant addresses.
+    assert "fflush(stdout);" in code.lower()
+
+    m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) != 0\)", code)
+    assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
 
 def test_decompiling_libsoap():
