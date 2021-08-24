@@ -158,23 +158,8 @@ class CallSiteMaker(Analysis):
                     new_stmts.append(stmt)
 
         ret_expr = last_stmt.ret_expr
-        if ret_expr is None:
-            ret_expr = None
-            if func.prototype is not None:
-                if func.prototype.returnty is not None and not isinstance(func.prototype.returnty, SimTypeBottom):
-                    # it has a return value
-                    if func.calling_convention is not None:
-                        ret_expr_size = func.prototype.returnty._with_arch(self.project.arch).size
-                        if ret_expr_size == 0:
-                            l.warning("Size of the return expression of function %r is 0, which is incorrect. "
-                                       "Force it to word size.", func)
-                            ret_expr_size = self.project.arch.bytes
-                        reg_offset = func.calling_convention.RETURN_VAL._fix_offset(
-                            None,
-                            ret_expr_size,
-                            arch=self.project.arch,
-                        )
-                        ret_expr = Expr.Register(None, None, reg_offset, ret_expr_size * 8)
+        # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return
+        # value of this call statement as useless and is removed.
 
         new_stmts.append(Stmt.Call(last_stmt, last_stmt.target,
                                    calling_convention=func.calling_convention,

@@ -357,18 +357,21 @@ def test_decompiling_1after909_verify_password():
     # verify_password
     f = cfg.functions['verify_password']
     dec = p.analyses.Decompiler(f, cfg=cfg.model)
-    if dec.codegen is not None:
-        code = dec.codegen.text
-        print(code)
-        assert "stack_base" not in code, "Some stack variables are not recognized"
-        m = re.search(r"strncmp\(v0, \S+, 0x40\)", code)
-        assert m is not None
-        strncmp_expr = m.group(0)
-        strncmp_stmt = strncmp_expr + ";"
-        assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
-    else:
+    if dec.codegen is None:
         print("Failed to decompile function %r." % f)
         assert False
+
+    code = dec.codegen.text
+    print(code)
+    assert "stack_base" not in code, "Some stack variables are not recognized"
+
+    m = re.search(r"strncmp\(v0, \S+, 0x40\)", code)
+    assert m is not None
+    strncmp_expr = m.group(0)
+    strncmp_stmt = strncmp_expr + ";"
+    assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
+
+    assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"
 
 
 def test_decompiling_1after909_doit():
