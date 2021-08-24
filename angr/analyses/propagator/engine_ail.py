@@ -211,7 +211,7 @@ class SimEnginePropagatorAIL(
                     if isinstance(hi_value.expr, Expr.Const) and hi_value.expr.value == 0:
                         # it's probably an up-cast
                         mappings = {
-                            # (hi_value.size, lo_value.size): (from_bits, to_bits)
+                            # (lo_value.size, hi_value.size): (from_bits, to_bits)
                             (1, 1): (8, 16),  # char to short
                             (1, 3): (8, 32),  # char to int
                             (1, 7): (8, 64),  # char to int64
@@ -219,7 +219,7 @@ class SimEnginePropagatorAIL(
                             (2, 6): (16, 64),  # short to int64
                             (4, 4): (32, 64),  # int to int64
                         }
-                        key = (hi_value.size, lo_value.size)
+                        key = (lo_value.size, hi_value.size)
                         if key in mappings:
                             from_bits, to_bits = mappings[key]
                             result_expr = Expr.Convert(None, from_bits, to_bits, False, lo_value.expr)
