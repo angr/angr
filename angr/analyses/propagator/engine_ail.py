@@ -1,9 +1,9 @@
-# pylint:disable=arguments-differ
+# pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
 from typing import Optional, Union, TYPE_CHECKING
 import logging
 
 import claripy
-from ailment import Block, Stmt, Expr
+from ailment import Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
@@ -21,6 +21,9 @@ class SimEnginePropagatorAIL(
     SimEngineLightAILMixin,
     SimEnginePropagatorBase,
 ):
+    """
+    The AIl engine for Propagator.
+    """
 
     state: 'PropagatorAILState'
 
@@ -145,8 +148,8 @@ class SimEnginePropagatorAIL(
     # AIL expression handlers
     #
 
-    def _expr(self, expr) -> Optional[PropValue]:
-        return super()._expr(expr)
+    def _expr(self, expr) -> Optional[PropValue]:  # this method exists so that I can annotate the return type
+        return super()._expr(expr)  # pylint:disable=useless-super-delegation
 
     def _ail_handle_Tmp(self, expr: Expr.Tmp) -> PropValue:
         tmp = self.state.load_tmp(expr.tmp_idx)
@@ -201,16 +204,49 @@ class SimEnginePropagatorAIL(
                         self.sp_offset(sb_offset), expr.size, new_expr, self._codeloc()
                     )
 
+        def _test_concatenation(pv: PropValue):
+            if pv.offset_and_details is not None and len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
+                lo_value = pv.offset_and_details[0]
+                hi_offset = next(iter(k for k in pv.offset_and_details if k != 0))
+                hi_value = pv.offset_and_details[hi_offset]
+                if lo_value.def_at == hi_value.def_at:
+                    # it's the same value! we can apply concatenation here
+                    if isinstance(hi_value.expr, Expr.Const) and hi_value.expr.value == 0:
+                        # it's probably an up-cast
+                        mappings = {
+                            # (lo_value.size, hi_value.size): (from_bits, to_bits)
+                            (1, 1): (8, 16),  # char to short
+                            (1, 3): (8, 32),  # char to int
+                            (1, 7): (8, 64),  # char to int64
+                            (2, 2): (16, 32),  # short to int
+                            (2, 6): (16, 64),  # short to int64
+                            (4, 4): (32, 64),  # int to int64
+                        }
+                        key = (lo_value.size, hi_value.size)
+                        if key in mappings:
+                            from_bits, to_bits = mappings[key]
+                            result_expr = Expr.Convert(None, from_bits, to_bits, False, lo_value.expr)
+                            return True, result_expr
+                    result_expr = Expr.BinaryOp(None, "Concat", [hi_value.expr, lo_value.expr], False)
+                    return True, result_expr
+            return False, None
+
         new_expr = self.state.load_register(expr)
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(new_expr.all_exprs())
-            if not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs) and \
-                    len(all_subexprs) == 1:
-                subexpr = all_subexprs[0]
-                if subexpr.size == expr.size:
-                    l.debug("Add a replacement: %s with %s", expr, subexpr)
-                    self.state.add_replacement(self._codeloc(), expr, subexpr)
+            if not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
+                if len(all_subexprs) == 1:
+                    # trivial case
+                    subexpr = all_subexprs[0]
+                    if subexpr.size == expr.size:
+                        l.debug("Add a replacement: %s with %s", expr, subexpr)
+                        self.state.add_replacement(self._codeloc(), expr, subexpr)
+                else:
+                    is_concatenation, result_expr = _test_concatenation(new_expr)
+                    if is_concatenation:
+                        l.debug("Add a replacement: %s with %s", expr, result_expr)
+                        self.state.add_replacement(self._codeloc(), expr, result_expr)
             return new_expr
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())
@@ -307,7 +343,7 @@ class SimEnginePropagatorAIL(
             offset_and_details = {}
             max_offset = max(o_value.offset_and_details.keys())
             for offset_, detail_ in o_value.offset_and_details.items():
-                if offset_ < start_offset and offset_ + detail_.size > start_offset:
+                if offset_ < start_offset < offset_ + detail_.size:
                     # we start here
                     off = 0
                     siz = min(end_offset, offset_ + detail_.size) - start_offset
@@ -331,7 +367,7 @@ class SimEnginePropagatorAIL(
                     else:
                         expr_ = detail_.expr
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
-                elif offset_ < end_offset and offset_ + detail_.size >= end_offset:
+                elif offset_ < end_offset <= offset_ + detail_.size:
                     # we include all the way until end_offset
                     if offset_ < start_offset:
                         off = 0
@@ -715,25 +751,8 @@ class SimEnginePropagatorAIL(
 
     def is_using_outdated_def(self, expr: Expr.Expression) -> bool:
 
-        from ..decompiler.ailblock_walker import AILBlockWalker  # pylint:disable=import-outside-toplevel
+        from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        class OutdatedDefinitionWalker(AILBlockWalker):
-            def __init__(self, state: 'PropagatorAILState'):
-                super().__init__()
-                self.state = state
-                self.expr_handlers[Expr.Register] = self._handle_Register
-                self.out_dated = False
-
-            # pylint:disable=unused-argument
-            def _handle_Register(self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
-                                 block: Optional[Block]):
-                v = self.state.load_register(reg_expr)
-                if v is not None:
-                    if not expr.likes(v):
-                        self.out_dated = True
-                    elif isinstance(v, Expr.TaggedObject) and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
-                        self.out_dated = True
-
-        walker = OutdatedDefinitionWalker(self.state)
+        walker = OutdatedDefinitionWalker(expr, self.state)
         walker.walk_expression(expr)
         return walker.out_dated
