@@ -382,6 +382,8 @@ def test_decompiling_1after909_doit():
     p = angr.Project(bin_path, auto_load_libs=False)
 
     cfg = p.analyses.CFG(normalize=True, data_references=True)
+    p.analyses.CompleteCallingConventions(recover_variables=True)
+
     # doit
     f = cfg.functions['doit']
     optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes(
