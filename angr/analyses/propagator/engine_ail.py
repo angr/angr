@@ -1,9 +1,9 @@
-# pylint:disable=arguments-differ
+# pylint:disable=arguments-differ,arguments-renamed,isinstance-second-argument-not-valid-type
 from typing import Optional, Union, TYPE_CHECKING
 import logging
 
 import claripy
-from ailment import Block, Stmt, Expr
+from ailment import Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
@@ -21,6 +21,9 @@ class SimEnginePropagatorAIL(
     SimEngineLightAILMixin,
     SimEnginePropagatorBase,
 ):
+    """
+    The AIl engine for Propagator.
+    """
 
     state: 'PropagatorAILState'
 
@@ -145,8 +148,8 @@ class SimEnginePropagatorAIL(
     # AIL expression handlers
     #
 
-    def _expr(self, expr) -> Optional[PropValue]:
-        return super()._expr(expr)
+    def _expr(self, expr) -> Optional[PropValue]:  # this method exists so that I can annotate the return type
+        return super()._expr(expr)  # pylint:disable=useless-super-delegation
 
     def _ail_handle_Tmp(self, expr: Expr.Tmp) -> PropValue:
         tmp = self.state.load_tmp(expr.tmp_idx)
@@ -226,7 +229,7 @@ class SimEnginePropagatorAIL(
                             return True, result_expr
                     result_expr = Expr.BinaryOp(None, "Concat", [hi_value.expr, lo_value.expr], False)
                     return True, result_expr
-                return False, None
+            return False, None
 
         new_expr = self.state.load_register(expr)
         if new_expr is not None:
@@ -340,7 +343,7 @@ class SimEnginePropagatorAIL(
             offset_and_details = {}
             max_offset = max(o_value.offset_and_details.keys())
             for offset_, detail_ in o_value.offset_and_details.items():
-                if offset_ < start_offset and offset_ + detail_.size > start_offset:
+                if offset_ < start_offset < offset_ + detail_.size:
                     # we start here
                     off = 0
                     siz = min(end_offset, offset_ + detail_.size) - start_offset
@@ -364,7 +367,7 @@ class SimEnginePropagatorAIL(
                     else:
                         expr_ = detail_.expr
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
-                elif offset_ < end_offset and offset_ + detail_.size >= end_offset:
+                elif offset_ < end_offset <= offset_ + detail_.size:
                     # we include all the way until end_offset
                     if offset_ < start_offset:
                         off = 0
@@ -748,25 +751,8 @@ class SimEnginePropagatorAIL(
 
     def is_using_outdated_def(self, expr: Expr.Expression) -> bool:
 
-        from ..decompiler.ailblock_walker import AILBlockWalker  # pylint:disable=import-outside-toplevel
+        from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        class OutdatedDefinitionWalker(AILBlockWalker):
-            def __init__(self, state: 'PropagatorAILState'):
-                super().__init__()
-                self.state = state
-                self.expr_handlers[Expr.Register] = self._handle_Register
-                self.out_dated = False
-
-            # pylint:disable=unused-argument
-            def _handle_Register(self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
-                                 block: Optional[Block]):
-                v = self.state.load_register(reg_expr)
-                if v is not None:
-                    if not expr.likes(v):
-                        self.out_dated = True
-                    elif isinstance(v, Expr.TaggedObject) and v.tags.get('def_at', None) != expr.tags.get('def_at', None):
-                        self.out_dated = True
-
-        walker = OutdatedDefinitionWalker(self.state)
+        walker = OutdatedDefinitionWalker(expr, self.state)
         walker.walk_expression(expr)
         return walker.out_dated
