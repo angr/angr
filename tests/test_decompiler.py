@@ -592,6 +592,23 @@ def test_decompilation_excessive_goto_removal():
     assert "goto" not in code
 
 
+def test_decompilation_switch_case_structuring_with_removed_nodes():
+
+    # Some jump table entries are fully folded into their successors. Structurer should be able to handle this case.
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "union")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions["build_date"]
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    n = code.count("switch")
+    assert n == 2, f"Expect two switch-case constructs, only found {n} instead."
+
+
 def test_decompiling_fauxware_mipsel():
     bin_path = os.path.join(test_location, "mipsel", "fauxware")
     p = angr.Project(bin_path, auto_load_libs=False)

@@ -1,5 +1,5 @@
 # pylint:disable=multiple-statements
-from typing import Dict, Set, Optional, Any
+from typing import Dict, Set, Optional, Any, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -19,6 +19,9 @@ from .condition_processor import ConditionProcessor
 from .utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
     insert_node
 
+if TYPE_CHECKING:
+    from ...knowledge_plugins.functions import Function
+
 l = logging.getLogger(name=__name__)
 
 
@@ -31,9 +34,10 @@ class RecursiveStructurer(Analysis):
     """
     Recursively structure a region and all of its subregions.
     """
-    def __init__(self, region, cond_proc=None):
+    def __init__(self, region, cond_proc=None, func: Optional['Function']=None):
         self._region = region
         self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
+        self.function = func
 
         self.result = None
 
@@ -70,7 +74,8 @@ class RecursiveStructurer(Analysis):
                 parent_region = parent_map.get(current_region, None)
                 # structure this region
                 st = self.project.analyses.Structurer(current_region, parent_map=parent_map,
-                                                      condition_processor=self.cond_proc)
+                                                      condition_processor=self.cond_proc,
+                                                      func=self.function)
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
                     # this is the top-level region. we are done!
@@ -90,11 +95,15 @@ class RecursiveStructurer(Analysis):
 class Structurer(Analysis):
     """
     Structure a region.
+
+    The current function graph is provided so that we can detect certain edge cases, for example, jump table entries no
+    longer exist due to empty node removal during structuring or prior steps.
     """
-    def __init__(self, region, parent_map=None, condition_processor=None):
+    def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None):
 
         self._region: GraphRegion = region
         self._parent_map = parent_map
+        self.function = func
 
         self.cond_proc = condition_processor if condition_processor is not None else ConditionProcessor()
 
@@ -341,7 +350,7 @@ class Structurer(Analysis):
             loop_successors.add(dst)
         region = GraphRegion(loop_head, loop_region_graph, successors=None,
                              graph_with_successors=None, cyclic=False)
-        structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc)
+        structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc, func=self.function)
         seq = structurer.result
 
         # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
@@ -713,17 +722,17 @@ class Structurer(Analysis):
             if BaseNode.test_empty_node(node_a):
                 seq.remove_node(node_a)
 
-    @staticmethod
-    def _switch_unpack_sequence_node(seq, node_a, node_b_addr, jumptable_entries, addr2nodes):
+    def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable_entries,
+                                     addr2nodes: Dict[int,Any]):
         """
         We might have already structured the actual body of the switch-case structure into a single Sequence node (node
         A). If that is the case, we un-structure the sequence node in this method.
 
         :param seq:                 The original Sequence node.
         :param node_a:              Node A.
-        :param int node_b_addr:     Address of node B.
+        :param node_b_addr:         Address of node B.
         :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
-        :param dict addr2nodes:     A dict of addresses to their corresponding nodes in `seq`.
+        :param addr2nodes:          A dict of addresses to their corresponding nodes in `seq`.
         :return:                    A boolean value indicating the result and an updated node_a. The boolean value is
                                     True if unpacking is not necessary or we successfully unpacked the sequence node,
                                     False otherwise.
@@ -738,35 +747,76 @@ class Structurer(Analysis):
         # if that is the case, we un-structure it here
         if all(entry_addr in addr2nodes for entry_addr in jumptable_entries):
             return True, node_a
-        elif all(entry_addr in node_a_block_addrs | addr2nodes.keys() | {node_b_addr}
-                 for entry_addr in jumptable_entries):
-            # unpack is needed
-            if node_a_block_addrs.issubset(set(jumptable_entries) | {node_a.addr}):
-                for n in node_a.node.nodes:
-                    if isinstance(n, ConditionNode):
-                        if n.true_node is not None and n.false_node is None:
-                            the_node = CodeNode(n.true_node, n.condition)
-                            addr2nodes[n.addr] = the_node
-                            seq.add_node(the_node)
-                        elif n.false_node is not None and n.true_node is None:
-                            the_node = CodeNode(n.false_node, n.condition)
-                            addr2nodes[n.addr] = the_node
-                            seq.add_node(the_node)
-                        else:
-                            # unsupported. bail
-                            return False, None
-                    else:
-                        the_node = CodeNode(n, None)
+        elif self._switch_check_existence_of_jumptable_entries(jumptable_entries, node_a_block_addrs,
+                                                               set(addr2nodes.keys()), node_a.addr, node_b_addr):
+            # unpacking is needed
+            for n in node_a.node.nodes:
+                if isinstance(n, ConditionNode):
+                    if n.true_node is not None and n.false_node is None:
+                        the_node = CodeNode(n.true_node, n.condition)
                         addr2nodes[n.addr] = the_node
                         seq.add_node(the_node)
-                if node_a != addr2nodes[node_a.addr]:
-                    # update node_a
-                    seq.remove_node(node_a)
-                    node_a = addr2nodes[node_a.addr]
-                return True, node_a
+                    elif n.false_node is not None and n.true_node is None:
+                        the_node = CodeNode(n.false_node, n.condition)
+                        addr2nodes[n.addr] = the_node
+                        seq.add_node(the_node)
+                    else:
+                        # unsupported. bail
+                        return False, None
+                else:
+                    the_node = CodeNode(n, None)
+                    addr2nodes[n.addr] = the_node
+                    seq.add_node(the_node)
+            if node_a != addr2nodes[node_a.addr]:
+                # update node_a
+                seq.remove_node(node_a)
+                node_a = addr2nodes[node_a.addr]
+            return True, node_a
 
         # not sure what's going on... give up on this case
         return False, None
+
+    def _switch_check_existence_of_jumptable_entries(self, jumptable_entries, node_a_block_addrs: Set[int],
+                                                     known_node_addrs: Set[int], node_a_addr: int,
+                                                     node_b_addr: int) -> bool:
+        """
+        Check if all entries in the given jump table exist in the given set of nodes of a SequenceNode.
+
+        :param jumptable_entries:   Addresses of jump table entries.
+        :param node_a_block_addrs:  A set of addresses for nodes that belong to Node A.
+        :return:                    True if the check passes, False otherwise.
+        """
+
+        all_node_addrs = node_a_block_addrs | known_node_addrs | {node_b_addr}
+        expected_node_a_addrs = set()
+        for entry_addr in jumptable_entries:
+            if entry_addr in all_node_addrs:
+                expected_node_a_addrs.add(entry_addr)
+                continue
+            # the entry may go missing if the entire node has been folded into its successor node.
+            # in this case, we check if (a) this entry node has only one successor, and (b) this successor exists in
+            # seq_node_addrs.
+            if self.function is not None:
+                entry_node = self.function.get_node(entry_addr)
+                if entry_node is not None:
+                    successors = [ ]
+                    for _, dst, data in self.function.graph.out_edges(entry_node, data=True):
+                        if data.get("type", "transition") != "call":
+                            successors.append(dst)
+                    if len(successors) == 1:
+                        # found the single successor
+                        if successors[0].addr in all_node_addrs:
+                            expected_node_a_addrs.add(successors[0].addr)
+                            continue
+            # failed the check
+            return False
+
+        # finally, make sure all nodes under node A have been accounted for
+        if node_a_block_addrs.issubset(expected_node_a_addrs | {node_a_addr}):
+            return True
+
+        # not sure what is going on...
+        return False
 
     def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: Dict[int,Any]) -> Optional[Any]:
         """
@@ -784,23 +834,26 @@ class Structurer(Analysis):
         if entry_addr in addr2nodes:
             return addr2nodes[entry_addr]
         # magic
-        cfg = self.kb.cfgs.get_most_accurate()
-        if cfg is None:
+        if self.function is None:
             return None
 
         addr = entry_addr
-        cfgnode = cfg.get_any_node(addr)
+        node = self.function.get_node(addr)
         for _ in range(5):  # we try at most five steps
-            if cfgnode is None:
+            if node is None:
                 return None
-            if len(cfgnode.successors) != 1:
+            successors = [ ]
+            for _, dst, data in self.function.graph.out_edges(node, data=True):
+                if data.get('type', 'transition') != "call":
+                    successors.append(dst)
+            if len(successors) != 1:
                 return None
-            successor = cfgnode.successors[0]
+            successor = successors[0]
             if successor.addr in addr2nodes:
                 # found it!
                 return addr2nodes[successor.addr]
             # keep looking
-            cfgnode = successor
+            node = successor
         return None
 
     def _switch_build_cases(self, seq, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
