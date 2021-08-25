@@ -57,7 +57,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         force_concretizers = {"Iop_Yl2xF64": self._concretize_yl2x, "Iop_ScaleF64": self._concretize_fscale,
                               "Iop_2xm1F64": self._concretize_2xm1, "Iop_SqrtF64": self._concretize_fsqrt,
                               "Iop_CosF64": self._concretize_trig_cos, "Iop_SinF64": self._concretize_trig_sin,
-                              "Iop_TanF64": self._concretize_trig_tan,
+                              "Iop_TanF64": self._concretize_trig_tan, "Iop_PRemF64": self._concretize_prem,
+                              "Iop_PRemC3210F64": self._concretize_prem_flags
                              }
         self.state.history.add_event('resilience', resilience_type='irop', op=op, message='unsupported IROp')
         if o.UNSUPPORTED_FORCE_CONCRETIZE in self.state.options:
@@ -119,6 +120,49 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_fsqrt(self, args):
         # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
         return claripy.FPV(math.sqrt(self.state.solver.eval(args[1])), claripy.FSORT_DOUBLE)
+
+    def _concretize_prem(self, args):
+        # Compute partial remainder. Z3 does not support modulo for reals: https://github.com/Z3Prover/z3/issues/557
+        # Implementation based on description in the Intel software manual
+        dividend = self.state.solver.eval(args[1])
+        divisor = self.state.solver.eval(args[2])
+        _, exp_dividend = math.frexp(dividend)
+        _, exp_divisor = math.frexp(divisor)
+        if exp_dividend - exp_divisor < 64:
+            quotient = math.floor(dividend/divisor)
+            result = dividend - (divisor * quotient)
+        else:
+            # According to Intel manual, N is an implementation-dependent number between 32 and 63. 60 was chosen
+            # arbitrarily.
+            N = 60
+            quotient = math.floor((dividend / divisor) / pow(2, exp_dividend - exp_divisor - N))
+            result = dividend - (divisor * quotient * pow(2, exp_dividend - exp_divisor - N))
+
+        return claripy.FPV(result, claripy.FSORT_DOUBLE)
+
+    def _concretize_prem_flags(self, args):
+        # Compute FPU flags for partial remainder.
+        # Implementation based on description in the Intel software manual
+        dividend = self.state.solver.eval(args[1])
+        divisor = self.state.solver.eval(args[2])
+        _, exp_dividend = math.frexp(dividend)
+        _, exp_divisor = math.frexp(divisor)
+        if exp_dividend - exp_divisor < 64:
+            quotient = math.floor(dividend/divisor)
+            flag_c2 = 0
+            flag_c0 = (quotient & 4) >> 2
+            flag_c3 = (quotient & 2) >> 1
+            flag_c1 = (quotient & 1)
+        else:
+            # Nothing is explicitly mentioned for C0 and C3 bits in this case so arbitrarily set to 0
+            # TODO: C1 should be set to 0 only if floating point stack underflows. How to detect that?
+            flag_c2 = 1
+            flag_c0 = 0
+            flag_c1 = 0
+            flag_c3 = 0
+
+        flags = (flag_c3 << 14) | (flag_c2 << 10) | (flag_c1 << 9) | (flag_c0 << 8)
+        return claripy.BVV(flags, 16)
 
     def _concretize_trig_cos(self, args):
         # cos(x). Z3 does support *some* cases of cos(see https://github.com/Z3Prover/z3/issues/680) but we don't use
