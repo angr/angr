@@ -99,11 +99,13 @@ class Structurer(Analysis):
     The current function graph is provided so that we can detect certain edge cases, for example, jump table entries no
     longer exist due to empty node removal during structuring or prior steps.
     """
-    def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None):
+    def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
+                 is_loop_body=False):
 
         self._region: GraphRegion = region
         self._parent_map = parent_map
         self.function = func
+        self._is_loop_body = is_loop_body
 
         self.cond_proc = condition_processor if condition_processor is not None else ConditionProcessor()
 
@@ -350,7 +352,8 @@ class Structurer(Analysis):
             loop_successors.add(dst)
         region = GraphRegion(loop_head, loop_region_graph, successors=None,
                              graph_with_successors=None, cyclic=False)
-        structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc, func=self.function)
+        structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc, func=self.function,
+                                                      is_loop_body=True)
         seq = structurer.result
 
         # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
@@ -498,8 +501,10 @@ class Structurer(Analysis):
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
         self._remove_redundant_jumps(seq)
-        # we don't remove conditional jumps here since they might be required by the cyclic structuring phase, which
-        # will convert conditional jumps into conditional breaks.
+        if not self._is_loop_body:
+            self._remove_conditional_jumps(seq)
+        # if this is a loop body, we don't remove conditional jumps here since they might be required by the cyclic
+        # structuring phase, which will convert conditional jumps into conditional breaks.
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result
