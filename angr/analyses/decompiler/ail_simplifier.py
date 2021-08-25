@@ -147,7 +147,7 @@ class AILSimplifier(Analysis):
 
     def _unify_local_variables(self) -> bool:
         """
-        Find variables that are definitely equivalent and then eliminate the unnecessary copies.
+        Find variables that are definitely equivalent and then eliminate unnecessary copies.
         """
 
         simplified = False
@@ -200,6 +200,9 @@ class AILSimplifier(Analysis):
             # find the definition of this register
             rd = self._compute_reaching_definitions()
             defs = rd.all_uses.get_uses_by_location(eq.codeloc)
+            if len(defs) != 1:
+                # there are multiple defs for this register - we do not support replacing all of them
+                continue
             for def_ in defs:
                 def_: Definition
                 if isinstance(def_.atom, atoms.Register) and def_.atom.reg_offset == reg.reg_offset:

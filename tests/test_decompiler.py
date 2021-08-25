@@ -656,6 +656,24 @@ def test_decompilation_x86_64_stack_arguments():
         assert False, "The line with snprintf() is not found."
 
 
+def test_decompiling_amp_challenge03_arm():
+    bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    p.analyses.CompleteCallingConventions(recover_variables=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    # make sure there are no empty code blocks
+    code = code.replace(" ", "").replace("\n", "")
+    assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some assignments " \
+                             " are incorrectly removed."
+
+
 def test_decompiling_fauxware_mipsel():
     bin_path = os.path.join(test_location, "mipsel", "fauxware")
     p = angr.Project(bin_path, auto_load_libs=False)

@@ -367,7 +367,7 @@ class Clinic(Analysis):
 
     @timethis
     def _simplify_function(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None, unify_variables=False,
-                           max_iterations: int=4) -> None:
+                           max_iterations: int=8) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
         """
