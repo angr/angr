@@ -306,7 +306,7 @@ class Call(Expression, Statement):
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
-            s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention, self.args)
+            s = ("%s: %s" % (cc, self.args)) if self.prototype is None else "%s: %s" % (self.calling_convention, self.args)
 
         return "Call(%s, %s)" % (
             self.target,
