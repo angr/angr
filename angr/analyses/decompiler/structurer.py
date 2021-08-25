@@ -498,7 +498,8 @@ class Structurer(Analysis):
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
         self._remove_redundant_jumps(seq)
-        self._remove_conditional_jumps(seq)
+        # we don't remove conditional jumps here since they might be required by the cyclic structuring phase, which
+        # will convert conditional jumps into conditional breaks.
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result
