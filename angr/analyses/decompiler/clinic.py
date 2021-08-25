@@ -39,7 +39,7 @@ class Clinic(Analysis):
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
                  cfg=None,
-                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
+                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,  # pylint:disable=line-too-long
                  must_struct: Optional[Set[str]]=None,
                  variable_kb=None,
                  reset_variable_names=False,
@@ -468,7 +468,7 @@ class Clinic(Analysis):
         rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=ail_graph,
                                                        observe_callback=self._make_callsites_rd_observe_callback)
 
-        class TempClass:
+        class TempClass:  # pylint:disable=missing-class-docstring
             stack_arg_offsets = set()
 
         def _handler(block):
@@ -731,8 +731,10 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
             else:
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[0])
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[1])
+                self._link_variables_on_expr(
+                    variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[0])
+                self._link_variables_on_expr(
+                    variable_manager, global_variables, block, stmt_idx, stmt, expr.operands[1])
 
         elif type(expr) is ailment.Expr.UnaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)

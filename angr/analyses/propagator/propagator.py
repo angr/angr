@@ -359,7 +359,7 @@ class PropagatorAILState(PropagatorState):
                     if value is not None and len(labels) == 1 and labels[0][0] == 0:
                         value = claripy.ZeroExt(ex.missing_size * self.arch.byte_width, value)
                         offset, offset_in_expr, size, label = labels[0]
-                        labels = (offset, offset_in_expr, size + ex.missing_size, label),
+                        labels = ((offset, offset_in_expr, size + ex.missing_size, label),)
                 except SimMemoryMissingError:
                     # failed again... welp
                     return None
