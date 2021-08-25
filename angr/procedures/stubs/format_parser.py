@@ -467,6 +467,9 @@ class FormatParser(SimProcedure):
             length_spec_str_len = 2
         elif nugget.startswith(b"0"):
             pad_chr = "0"
+        elif nugget.startswith(b"."):
+            pad_chr = "0"
+            nugget = nugget[1:]
 
         for j, c in enumerate(nugget):
             if c in ascii_digits:
