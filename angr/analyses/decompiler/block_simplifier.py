@@ -188,7 +188,7 @@ class BlockSimplifier(Analysis):
             else:
                 uses = rd.all_uses.get_uses(d)
                 if not uses:
-                    # is entirely possible that at the end of the block, a register definition is not used.
+                    # it's entirely possible that at the end of the block, a register definition is not used.
                     # however, it might be used in future blocks.
                     # so we only remove a definition if the definition is not alive anymore at the end of the block
                     defs_ = set()

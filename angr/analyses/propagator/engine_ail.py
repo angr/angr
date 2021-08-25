@@ -272,7 +272,7 @@ class SimEnginePropagatorAIL(
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                     # replacing stack variables, unless this is in the middle of a call statement.
                     if self.state._inside_call_stmt and var.one_expr is not None:
-                        if not self.is_using_outdated_def(var.one_expr):
+                        if not self.is_using_outdated_def(var.one_expr, avoid=expr.addr):
                             l.debug("Add a replacement: %s with %s", expr, var.one_expr)
                             self.state.add_replacement(self._codeloc(), expr, var.one_expr)
                     if not self.state.is_top(var.value):
@@ -755,10 +755,10 @@ class SimEnginePropagatorAIL(
     # Util methods
     #
 
-    def is_using_outdated_def(self, expr: Expr.Expression) -> bool:
+    def is_using_outdated_def(self, expr: Expr.Expression, avoid: Optional[Expr.Expression]=None) -> bool:
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        walker = OutdatedDefinitionWalker(expr, self.state)
+        walker = OutdatedDefinitionWalker(expr, self.state, avoid=avoid)
         walker.walk_expression(expr)
         return walker.out_dated
