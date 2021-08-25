@@ -80,6 +80,40 @@ class SimEngineVRBase(SimEngineLight):
         super()._process(state, successors, block=block)
 
     #
+    # Address parsing
+    #
+
+    @staticmethod
+    def _addr_has_concrete_base(addr: claripy.ast.BV) -> bool:
+        if addr.op == "__add__":
+            if len(addr.args) == 2:
+                if addr.args[0].concrete:
+                    return True
+        return False
+
+    @staticmethod
+    def _parse_offseted_addr(addr: claripy.ast.BV) -> Optional[Tuple[claripy.ast.BV,claripy.ast.BV,claripy.ast.BV]]:
+        if addr.op == "__add__":
+            if len(addr.args) == 2:
+                if not addr.args[0].concrete:
+                    return None
+                base_addr = addr.args[0]
+                offset = None
+                elem_size = None
+                if addr.args[1].concrete:
+                    offset = addr.args[1]
+                    elem_size = 1
+                else:
+                    abs_offset = addr.args[1]
+                    if abs_offset.op == "__lshift__" and abs_offset.args[1].concrete:
+                        offset = abs_offset.args[0]
+                        elem_size = 2 ** abs_offset.args[1]._model_concrete.value
+
+                if base_addr is not None and offset is not None and elem_size is not None:
+                    return base_addr, offset, elem_size
+        return None
+
+    #
     # Logic
     #
 
@@ -212,7 +246,16 @@ class SimEngineVRBase(SimEngineLight):
         stored = False
 
         if addr.concrete:
+            # fully concrete. this is a global address
             self._store_to_global(addr._model_concrete.value, data, size, stmt=stmt)
+            stored = True
+        elif self._addr_has_concrete_base(addr):
+            # we are storing to a concrete global address with an offset
+            parsed = self._parse_offseted_addr(addr)
+            if parsed is not None:
+                base_addr, offset, elem_size = parsed
+                self._store_to_global(base_addr._model_concrete.value, data, size,
+                                      stmt=stmt, offset=offset, elem_size=elem_size)
             stored = True
         else:
             if self.state.is_stack_address(addr):
@@ -290,43 +333,59 @@ class SimEngineVRBase(SimEngineLight):
                     )
         # TODO: Create a tv_sp.store.<bits>@N <: typevar type constraint for the stack pointer
 
-    def _store_to_global(self, addr: int, data: RichR, size: int, stmt=None):
+    def _store_to_global(self, addr: int, data: RichR, size: int, stmt=None, offset: Optional[claripy.ast.BV]=None,
+                         elem_size: Optional[claripy.ast.BV]=None):
         variable_manager = self.variable_manager['global']
         if stmt is None:
             existing_vars = variable_manager.find_variables_by_stmt(self.block.addr, self.stmt_idx, 'memory')
         else:
             existing_vars = variable_manager.find_variables_by_atom(self.block.addr, self.stmt_idx, stmt)
+
+        if offset is None or elem_size is None:
+            # trivial case
+            abs_addr = addr
+        elif offset.concrete and elem_size.concrete:
+            abs_addr = addr + offset._model_concrete.value * elem_size._model_concrete.value
+        else:
+            abs_addr = None
+
         if not existing_vars:
             variable = SimMemoryVariable(addr, size,
-                                        ident=variable_manager.next_variable_ident('global'),
-                                        )
+                                         ident=variable_manager.next_variable_ident('global'),
+                                         )
             variable_manager.set_variable('global', addr, variable)
             l.debug('Identified a new global variable %s at %#x.', variable, self.ins_addr)
-
+            existing_vars = {(variable, 0)}
         else:
             variable, _ = next(iter(existing_vars))
 
         data_expr: claripy.ast.Base = data.data
         data_expr = self.state.annotate_with_variables(data_expr, [(0, variable)])
 
-        self.state.global_region.store(addr,
-                                       data_expr,
-                                       endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
+        if abs_addr is not None:
+            self.state.global_region.store(addr,
+                                           data_expr,
+                                           endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
 
         codeloc = CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr)
-        try:
-            values: MultiValues = self.state.global_region.load(
-                addr,
-                size=size,
-                endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
-        except SimMemoryMissingError:
-            values = None
+        values = None
+        if abs_addr is not None:
+            try:
+                values: MultiValues = self.state.global_region.load(
+                    abs_addr,
+                    size=size,
+                    endness=self.state.arch.memory_endness if stmt is None else stmt.endness)
+            except SimMemoryMissingError:
+                pass
 
         if values is not None:
             for vs in values.values.values():
                 for v in vs:
                     for var_offset, var in self.state.extract_variables(v):
                         variable_manager.write_to(var, var_offset, codeloc, atom=stmt)
+        else:
+            for variable, var_offset in existing_vars:
+                variable_manager.write_to(variable, var_offset, codeloc, atom=stmt)
 
         # create type constraints
         if data.typevar is not None:

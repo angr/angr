@@ -1821,26 +1821,29 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             base, offset = None, None
             if isinstance(cvariable, CBinaryOp) and cvariable.op == 'Add':
                 # variable and a const
-                if isinstance(cvariable.lhs, CConstant) and isinstance(cvariable.rhs, CVariable):
-                    offset = cvariable.lhs.value
-                    base = cvariable.rhs
-                elif isinstance(cvariable.rhs, CConstant) and isinstance(cvariable.lhs, CVariable):
-                    offset = cvariable.rhs.value
-                    base = cvariable.lhs
+                base, offset = None, None
+                if isinstance(cvariable.lhs, CConstant):
+                    if isinstance(cvariable.rhs, CVariable):
+                        offset = cvariable.lhs.value
+                        base = cvariable.rhs
+                elif isinstance(cvariable.rhs, CConstant):
+                    if isinstance(cvariable.lhs, CVariable):
+                        offset = cvariable.rhs.value
+                        base = cvariable.lhs
                 # variable and a typecast
-                elif isinstance(cvariable.lhs, CVariable) and isinstance(cvariable.rhs, CTypeCast):
-                    offset = cvariable.rhs
-                    base = cvariable.lhs
-                elif isinstance(cvariable.rhs, CVariable) and isinstance(cvariable.lhs, CTypeCast):
-                    offset = cvariable.lhs
-                    base = cvariable.rhs
-                elif isinstance(cvariable.lhs, CVariable) and isinstance(cvariable.rhs, CVariable):
-                    # GUESS: we need some guessing here
-                    base = cvariable.lhs
-                    offset = cvariable.rhs
-                else:
-                    base = None
-                    offset = None
+                elif isinstance(cvariable.lhs, CVariable):
+                    if isinstance(cvariable.rhs, CTypeCast):
+                        offset = cvariable.rhs
+                        base = cvariable.lhs
+                elif isinstance(cvariable.rhs, CVariable):
+                    if isinstance(cvariable.lhs, CTypeCast):
+                        offset = cvariable.lhs
+                        base = cvariable.rhs
+                elif isinstance(cvariable.lhs, CVariable):
+                    if isinstance(cvariable.rhs, CVariable):
+                        # GUESS: we need some guessing here
+                        base = cvariable.lhs
+                        offset = cvariable.rhs
 
             if base is not None and offset is not None:
                 cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type, tags=stmt.tags)

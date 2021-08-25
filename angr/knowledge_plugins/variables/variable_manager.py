@@ -534,7 +534,7 @@ class VariableManagerInternal(Serializable):
 
         return input_variables
 
-    def assign_variable_names(self, labels=None):
+    def assign_variable_names(self, labels=None, types=None):
         """
         Assign default names to all SSA variables.
 
@@ -543,7 +543,7 @@ class VariableManagerInternal(Serializable):
         """
 
         for var in self._variables:
-            if isinstance(var, SimStackVariable):
+            if (types is None or SimStackVariable in types) and isinstance(var, SimStackVariable):
                 if var.name is not None:
                     continue
                 if var.ident.startswith('iarg'):
@@ -551,21 +551,23 @@ class VariableManagerInternal(Serializable):
                 else:
                     var.name = 's_%x' % (-var.offset)
                     # var.name = var.ident
-            elif isinstance(var, SimRegisterVariable):
+            elif (types is None or SimRegisterVariable in types) and isinstance(var, SimRegisterVariable):
                 if var.name is not None:
                     continue
                 var.name = var.ident
-            elif isinstance(var, SimMemoryVariable):
+            elif (types is None or SimMemoryVariable in types) and isinstance(var, SimMemoryVariable):
                 if var.name is not None:
                     continue
                 if labels is not None and var.addr in labels:
                     var.name = labels[var.addr]
                     if "@@" in var.name:
                         var.name = var.name[:var.name.index("@@")]
+                elif isinstance(var.addr, int):
+                    var.name = "g_%x" % var.addr
                 elif var.ident is not None:
                     var.name = var.ident
                 else:
-                    var.name = "g_%x" % var.addr
+                    var.name = "g_%s" % var.addr
 
     def assign_unified_variable_names(self, labels=None, reset:bool=False):
         """

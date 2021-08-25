@@ -11,7 +11,7 @@ from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
-from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
@@ -616,6 +616,7 @@ class Clinic(Analysis):
                       exc_info=True)
 
         # Unify SSA variables
+        tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
         var_manager.unify_variables()
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
@@ -792,6 +793,8 @@ class Clinic(Analysis):
                 var = next(iter(variables))
                 expr.tags['reference_variable'] = var
                 expr.tags['reference_variable_offset'] = None
+                expr.variable = var
+                expr.variable_offset = None
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
