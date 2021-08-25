@@ -609,6 +609,50 @@ def test_decompilation_switch_case_structuring_with_removed_nodes():
     assert n == 2, f"Expect two switch-case constructs, only found {n} instead."
 
 
+def test_decompilation_x86_64_stack_arguments():
+
+    # Arguments passed on the stack should not go missing
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "union")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions["build_date"]
+
+    # no dead memdef removal
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    lines = code.split("\n")
+    for line in lines:
+        if "snprintf" in line:
+            # The line should look like this:
+            #   v0 = (int)snprintf(v32[8], (v43 + 0x1) * 0x2 + 0x1a, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT\r\n", &v34,
+            #   ((long long)v35), &v33, ((long long)v36 + 1900), ((long long)v35), ((long long)v35), ((long long)v35));
+            assert "1900" in line, "There is a missing stack argument."
+            break
+    else:
+        assert False, "The line with snprintf() is not found."
+
+    # with dead memdef removal
+    opt = [o for o in angr.analyses.decompiler.decompilation_options.options if o.param == "remove_dead_memdefs"][0]
+    dec = p.analyses.Decompiler(func, cfg=cfg.model, options=[(opt, True)])
+    code = dec.codegen.text
+    print(code)
+
+    lines = code.split("\n")
+    for line in lines:
+        if "snprintf" in line:
+            # The line should look like this:
+            #   v0 = (int)snprintf(v32[8], (v43 + 0x1) * 0x2 + 0x1a, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT\r\n", &v34,
+            #   ((long long)v35), &v33, ((long long)v36 + 1900), ((long long)v35), ((long long)v35), ((long long)v35));
+            assert "1900" in line, "There is a missing stack argument."
+            break
+    else:
+        assert False, "The line with snprintf() is not found."
+
+
 def test_decompiling_fauxware_mipsel():
     bin_path = os.path.join(test_location, "mipsel", "fauxware")
     p = angr.Project(bin_path, auto_load_libs=False)

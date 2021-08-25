@@ -199,7 +199,10 @@ class SimMemoryError(SimStateError):
     pass
 
 class SimMemoryMissingError(SimMemoryError):
-    pass
+    def __init__(self, missing_addr, missing_size, *args):
+        super().__init__(missing_addr, missing_size, *args)
+        self.missing_addr = missing_addr
+        self.missing_size = missing_size
 
 class SimAbstractMemoryError(SimMemoryError):
     pass

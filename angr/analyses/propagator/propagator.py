@@ -263,7 +263,7 @@ class PropagatorAILState(PropagatorState):
     Describes the state used in the AIL engine of Propagator.
     """
 
-    __slots__ = ('_registers', '_stack_variables', '_tmps', )
+    __slots__ = ('_registers', '_stack_variables', '_tmps', '_inside_call_stmt')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
@@ -278,6 +278,7 @@ class PropagatorAILState(PropagatorState):
         self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if registers is None else registers
         self._tmps = {}
+        self._inside_call_stmt = False  # temporary variable that is only used internally
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
@@ -346,9 +347,24 @@ class PropagatorAILState(PropagatorState):
         sp_offset &= (1 << self.arch.bits) - 1
         try:
             value, labels = self._stack_variables.load_with_labels(sp_offset, size=size, endness=endness)
-        except SimMemoryMissingError:
-            # the stack variable does not exist
-            return None
+        except SimMemoryMissingError as ex:
+            # the stack variable does not exist - however, maybe some portion of it exists!
+            if ex.missing_addr > sp_offset:
+                # some data exist. load again
+                try:
+                    value, labels = self._stack_variables.load_with_labels(sp_offset,
+                                                                           size=ex.missing_addr - sp_offset,
+                                                                           endness=endness)
+                    # then we zero-extend both the value and labels
+                    if value is not None and len(labels) == 1 and labels[0][0] == 0:
+                        value = claripy.ZeroExt(ex.missing_size * self.arch.byte_width, value)
+                        offset, offset_in_expr, size, label = labels[0]
+                        labels = (offset, offset_in_expr, size + ex.missing_size, label),
+                except SimMemoryMissingError:
+                    # failed again... welp
+                    return None
+            else:
+                return None
 
         prop_value = PropValue.from_value_and_labels(value, labels)
         return prop_value

@@ -1,6 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 import logging
-from typing import Optional, Union, Type, Iterable, Tuple, TYPE_CHECKING
+from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call
 from ailment.expression import Expression, Tmp, Register, Load
@@ -28,6 +28,7 @@ class BlockSimplifier(Analysis):
     """
     def __init__(self, block: Optional['Block'], remove_dead_memdefs=False, stack_pointer_tracker=None,
                  peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],Type[PeepholeOptimizationExprBase]]]]=None,
+                 stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
                  ):
         """
         :param block:   The AIL block to simplify. Setting it to None to skip calling self._analyze(), which is useful
@@ -37,6 +38,7 @@ class BlockSimplifier(Analysis):
         self.block = block
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._stack_arg_offsets = stack_arg_offsets
         self._stack_pointer_tracker = stack_pointer_tracker
 
         if peephole_optimizations is None:
@@ -100,10 +102,10 @@ class BlockSimplifier(Analysis):
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
-                if isinstance(old, Load):
-                    # skip memory-based replacement
-                    continue
                 stmt = new_statements[codeloc.stmt_idx]
+                if isinstance(old, Load) and not isinstance(stmt, Call):
+                    # skip memory-based replacement for non-Call statements
+                    continue
                 if stmt == old:
                     # replace this statement
                     r = True
@@ -165,11 +167,19 @@ class BlockSimplifier(Analysis):
         # Find dead assignments
         dead_defs_stmt_idx = set()
         all_defs = rd.all_definitions
+        stackarg_offsets = set(tpl[1] for tpl in self._stack_arg_offsets) \
+            if self._stack_arg_offsets is not None else None
         for d in all_defs:
             if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                 continue
-            if not self._remove_dead_memdefs and isinstance(d.atom, (atoms.MemoryLocation, SpOffset)):
-                continue
+            if isinstance(d.atom, atoms.MemoryLocation):
+                if not self._remove_dead_memdefs:
+                    # we always remove definitions for stack arguments
+                    if stackarg_offsets is not None and isinstance(d.atom.addr, atoms.SpOffset):
+                        if d.atom.addr.offset not in stackarg_offsets:
+                            continue
+                    else:
+                        continue
 
             if isinstance(d.atom, atoms.Tmp):
                 uses = live_defs.tmp_uses[d.atom.tmp_idx]

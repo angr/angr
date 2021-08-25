@@ -154,8 +154,10 @@ class Clinic(Analysis):
             ail_graph = self._make_returns(ail_graph)
 
         # Simplify blocks
+        # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
+        # before they are recognized as stack arguments.
         self._update_progress(35., text="Simplifying blocks 1")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
+        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt, remove_dead_memdefs=False)
 
         # Run simplification passes
         self._update_progress(40., text="Running simplifications 1")
@@ -164,7 +166,7 @@ class Clinic(Analysis):
 
         # Simplify the entire function for the first time
         self._update_progress(45., text="Simplifying function 1")
-        self._simplify_function(ail_graph, unify_variables=False)
+        self._simplify_function(ail_graph, remove_dead_memdefs=False, unify_variables=False)
 
         # clear _blocks_by_addr_and_size so no one can use it again
         # TODO: Totally remove this dict
@@ -172,16 +174,18 @@ class Clinic(Analysis):
 
         # Make call-sites
         self._update_progress(50., text="Making callsites")
-        self._make_callsites(ail_graph, stack_pointer_tracker=spt)
+        _, stackarg_offsets = self._make_callsites(ail_graph, stack_pointer_tracker=spt)
 
         # Simplify the entire function for the second time
         self._update_progress(55., text="Simplifying function 2")
-        self._simplify_function(ail_graph, unify_variables=True)
+        self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
+                                stack_arg_offsets=stackarg_offsets, unify_variables=True)
 
         # After global optimization, there might be more chances for peephole optimizations.
         # Simplify blocks for the second time
         self._update_progress(60., text="Simplifying blocks 2")
-        ail_graph = self._simplify_blocks(ail_graph, stack_pointer_tracker=spt)
+        ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
+                                          stack_pointer_tracker=spt)
 
         # Make function arguments
         self._update_progress(65., text="Making argument list")
@@ -316,7 +320,7 @@ class Clinic(Analysis):
         return graph
 
     @timethis
-    def _simplify_blocks(self, ail_graph: networkx.DiGraph, stack_pointer_tracker=None):
+    def _simplify_blocks(self, ail_graph: networkx.DiGraph, remove_dead_memdefs=False, stack_pointer_tracker=None):
         """
         Simplify all blocks in self._blocks.
 
@@ -328,7 +332,8 @@ class Clinic(Analysis):
         blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = { }
 
         for ail_block in ail_graph.nodes():
-            simplified = self._simplify_block(ail_block, stack_pointer_tracker=stack_pointer_tracker)
+            simplified = self._simplify_block(ail_block, remove_dead_memdefs=remove_dead_memdefs,
+                                              stack_pointer_tracker=stack_pointer_tracker)
             key = ail_block.addr, ail_block.idx
             blocks_by_addr_and_idx[key] = simplified
 
@@ -343,7 +348,7 @@ class Clinic(Analysis):
 
         return ail_graph
 
-    def _simplify_block(self, ail_block, stack_pointer_tracker=None):
+    def _simplify_block(self, ail_block, remove_dead_memdefs=False, stack_pointer_tracker=None):
         """
         Simplify a single AIL block.
 
@@ -354,25 +359,29 @@ class Clinic(Analysis):
 
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
-            remove_dead_memdefs=self._remove_dead_memdefs,
+            remove_dead_memdefs=remove_dead_memdefs,
             stack_pointer_tracker=stack_pointer_tracker,
             peephole_optimizations=self.peephole_optimizations,
         )
         return simp.result_block
 
     @timethis
-    def _simplify_function(self, ail_graph, unify_variables=False, max_iterations: int=4) -> None:
+    def _simplify_function(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None, unify_variables=False,
+                           max_iterations: int=4) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
         """
 
         for _ in range(max_iterations):
-            simplified = self._simplify_function_once(ail_graph, unify_variables=unify_variables)
+            simplified = self._simplify_function_once(ail_graph, remove_dead_memdefs=remove_dead_memdefs,
+                                                      unify_variables=unify_variables,
+                                                      stack_arg_offsets=stack_arg_offsets)
             if not simplified:
                 break
 
     @timethis
-    def _simplify_function_once(self, ail_graph, unify_variables=False):
+    def _simplify_function_once(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None,
+                                unify_variables=False):
         """
         Simplify the entire function once.
 
@@ -382,8 +391,9 @@ class Clinic(Analysis):
         simp = self.project.analyses.AILSimplifier(
             self.function,
             func_graph=ail_graph,
-            remove_dead_memdefs=self._remove_dead_memdefs,
+            remove_dead_memdefs=remove_dead_memdefs,
             unify_variables=unify_variables,
+            stack_arg_offsets=stack_arg_offsets,
         )
         # the function graph has been updated at this point
         return simp.simplified
@@ -458,24 +468,30 @@ class Clinic(Analysis):
         rd = self.project.analyses.ReachingDefinitions(subject=self.function, func_graph=ail_graph,
                                                        observe_callback=self._make_callsites_rd_observe_callback)
 
+        class TempClass:
+            stack_arg_offsets = set()
+
         def _handler(block):
             csm = self.project.analyses.AILCallSiteMaker(block,
                                                          reaching_definitions=rd,
                                                          stack_pointer_tracker=stack_pointer_tracker,
                                                          )
+            if csm.stack_arg_offsets is not None:
+                TempClass.stack_arg_offsets |= csm.stack_arg_offsets
             if csm.result_block:
                 if csm.result_block != block:
                     ail_block = csm.result_block
                     simp = self.project.analyses.AILBlockSimplifier(ail_block,
                                                                     stack_pointer_tracker=stack_pointer_tracker,
                                                                     peephole_optimizations=self.peephole_optimizations,
+                                                                    stack_arg_offsets=csm.stack_arg_offsets,
                                                                     )
                     return simp.result_block
             return None
 
         AILGraphWalker(ail_graph, _handler, replace_nodes=True).walk()
 
-        return ail_graph
+        return ail_graph, TempClass.stack_arg_offsets
 
     @timethis
     def _make_returns(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
