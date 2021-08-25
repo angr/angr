@@ -350,12 +350,16 @@ class SimEngineVRBase(SimEngineLight):
             abs_addr = None
 
         if not existing_vars:
+            # special case for global variables: find existing variable by base address
+            existing_vars = { (var, (offset, elem_size)) for var in variable_manager.get_global_variables(addr) }
+
+        if not existing_vars:
             variable = SimMemoryVariable(addr, size,
                                          ident=variable_manager.next_variable_ident('global'),
                                          )
             variable_manager.set_variable('global', addr, variable)
             l.debug('Identified a new global variable %s at %#x.', variable, self.ins_addr)
-            existing_vars = {(variable, 0)}
+            existing_vars = {(variable, (offset, elem_size))}
         else:
             variable, _ = next(iter(existing_vars))
 
@@ -394,10 +398,35 @@ class SimEngineVRBase(SimEngineLight):
                 self.state.typevars.add_type_variable(variable, codeloc, typevar)
             else:
                 typevar = self.state.typevars.get_type_variable(variable, codeloc)
+
             if typevar is not None:
                 self.state.add_type_constraint(
                     typevars.Subtype(data.typevar, typevar)
                 )
+
+            if offset is not None and elem_size is not None:
+                # it's an array!
+                if offset.concrete and elem_size.concrete:
+                    concrete_offset = offset._model_concrete.value * elem_size._model_concrete.value
+                    store_typevar = typevars.DerivedTypeVariable(
+                        typevars.DerivedTypeVariable(typevar, typevars.Store()),
+                        typevars.HasField(size * self.state.arch.byte_width, concrete_offset)
+                    )
+                    self.state.add_type_constraint(
+                        typevars.Existence(store_typevar)
+                    )
+                else:
+                    # FIXME: This is a hack
+                    for i in range(0, 4):
+                        concrete_offset = size * i
+                        store_typevar = typevars.DerivedTypeVariable(
+                            typevars.DerivedTypeVariable(typevar, typevars.Store()),
+                            typevars.HasField(size * self.state.arch.byte_width, concrete_offset)
+                        )
+                        self.state.add_type_constraint(
+                            typevars.Existence(store_typevar)
+                        )
+
 
     def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument
 

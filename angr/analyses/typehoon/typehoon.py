@@ -1,4 +1,4 @@
-from typing import List, Set, Optional, Dict, TYPE_CHECKING
+from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
@@ -61,7 +61,7 @@ class Typehoon(Analysis):
     # Public methods
     #
 
-    def update_variable_types(self, func_addr, var_to_typevar):
+    def update_variable_types(self, func_addr: Union[int,str], var_to_typevar):
 
         for var, typevar in var_to_typevar.items():
             type_ = self.simtypes_solution.get(typevar, None)

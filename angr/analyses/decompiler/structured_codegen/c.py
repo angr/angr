@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Tuple, Set, Any, TYPE_CHECKING, Callable
+from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
 
@@ -995,6 +995,13 @@ class CVariable(CExpression):
                 yield from self._get_offset_string_chunks()
                 yield "]", bracket
 
+            elif isinstance(v, CVariable):
+                bracket = CClosingObject("[")
+                yield from v.c_repr_chunks()
+                yield "[", bracket
+                yield from self._get_offset_string_chunks()
+                yield "]", bracket
+
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
                     if isinstance(v.type, SimTypePointer):
@@ -1311,7 +1318,7 @@ class CTypeCast(CExpression):
                 leading_paren = True
                 yield "(", paren
             yield "(", paren
-            yield "{}".format(self.dst_type), self
+            yield "{}".format(self.dst_type.c_repr(name=None)), self
             yield ")", paren
         yield from CExpression._try_c_repr_chunks(self.expr)
         if self.codegen.show_casts and leading_paren:
@@ -1446,6 +1453,7 @@ class CClosingObject:
 
     def __init__(self, opening_symbol):
         self.opening_symbol = opening_symbol
+
 
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
@@ -1645,10 +1653,73 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         l.warning("Unsupported address expression %r", addr)
         return expr, None
 
-    def _cvariable(self, variable, offset=None, variable_type=None, tags=None):
-        unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
+    def default_simtype_from_size(self, n: int) -> SimType:
+        _mapping = {
+            8: SimTypeLongLong,
+            4: SimTypeInt,
+            2: SimTypeShort,
+            1: SimTypeChar,
+        }
+        return _mapping.get(n, SimTypeBottom)().with_arch(self.project.arch)
+
+    def _cvariable(self, variable: Union[CVariable,SimVariable], offset=None, variable_type=None, tags=None):
+        if isinstance(variable, SimVariable):
+            unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
+        else:
+            unified = None
+
+        src_type, dst_type = None, None  # used later if set to not None
+        if variable_type is not None and not isinstance(variable_type, SimTypeBottom):
+            # the offset argument that is passed in is in terms of bytes. parse the offset argument and set a proper
+            # offset in terms of elements.
+            type_size = variable_type.size // self.project.arch.byte_width
+            if isinstance(offset, CBinaryOp) and isinstance(offset.rhs, CConstant):
+                if isinstance(variable_type, SimTypePointer):
+                    # unpack the pointer
+                    variable_type = variable_type.pts_to
+                    type_size = variable_type.size // self.project.arch.byte_width
+
+                if isinstance(variable_type, SimTypeArray):
+                    type_size = variable_type.elem_type.size // self.project.arch.byte_width
+
+                elem_size = offset.rhs.value
+                if type_size == elem_size:
+                    # awesome - no conversion needed
+                    offset = offset.lhs
+                else:
+                    # damn - we need conversion
+                    if elem_size > type_size:
+                        coeff = CConstant(elem_size // type_size,
+                                          self.default_simtype_from_size(self.project.arch.bytes),
+                                          codegen=self)
+                        offset = CBinaryOp("Mul",
+                                           offset.lhs,
+                                           coeff,
+                                           None,
+                                           codegen=self)
+                    else:  # elem_size < type_size
+                        coeff = CConstant(type_size // elem_size,
+                                          self.default_simtype_from_size(self.project.arch.bytes),
+                                          codegen=self)
+                        offset = CBinaryOp("Div",
+                                           offset.lhs,
+                                           coeff,
+                                           None,
+                                           codegen=self)
+                    # src_type = SimTypePointer(self.default_simtype_from_size(elem_size))
+                    # dst_type = SimTypePointer(self.default_simtype_from_size(type_size))
+            else:
+                # FIXME: unsupported
+                pass
+
         cvariable = CVariable(variable, unified_variable=unified, offset=offset, variable_type=variable_type, tags=tags,
                               codegen=self)
+
+        if src_type is not None and dst_type is not None:
+            addr = CUnaryOp("Reference", cvariable, None, codegen=self)
+            casted_ptr = CTypeCast(src_type, dst_type, addr, codegen=self)
+            cvariable = CVariable(casted_ptr, variable_type=casted_ptr, codegen=self)
+
         if isinstance(variable, SimVariable):
             self._variables_in_use[variable] = cvariable
         return cvariable
@@ -1826,10 +1897,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     if isinstance(cvariable.rhs, CVariable):
                         offset = cvariable.lhs.value
                         base = cvariable.rhs
+                    elif isinstance(cvariable.lhs.variable, CVariable) and \
+                            isinstance(cvariable.lhs.variable.variable, SimMemoryVariable):
+                        base = cvariable.lhs.variable
+                        offset = cvariable.rhs
                 elif isinstance(cvariable.rhs, CConstant):
                     if isinstance(cvariable.lhs, CVariable):
                         offset = cvariable.rhs.value
                         base = cvariable.lhs
+                    elif isinstance(cvariable.rhs.variable, CVariable) and \
+                            isinstance(cvariable.rhs.variable.variable, SimMemoryVariable):
+                        base = cvariable.rhs.variable
+                        offset = cvariable.lhs
                 # variable and a typecast
                 elif isinstance(cvariable.lhs, CVariable):
                     if isinstance(cvariable.rhs, CTypeCast):
@@ -1951,7 +2030,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             else:
                 offset = None
             return self._cvariable(expr.variable, offset=offset,
-                                   variable_type=self._get_variable_type(expr.variable),
+                                   variable_type=self._get_variable_type(
+                                       expr.variable,
+                                       is_global=isinstance(expr.variable, SimMemoryVariable)),
                                    tags=expr.tags
                                    )
 
@@ -1959,7 +2040,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if variable is not None:
             return self._cvariable(variable, offset=offset,
-                                   variable_type=self._get_variable_type(variable),
+                                   variable_type=self._get_variable_type(
+                                       variable,
+                                       is_global=isinstance(expr.variable, SimMemoryVariable)),
                                    tags=expr.tags
                                    )
         else:
