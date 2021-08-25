@@ -261,21 +261,23 @@ class SimEnginePropagatorAIL(
 
         addr = self._expr(expr.addr)
 
-        sp_offset = self.extract_offset_to_sp(addr.one_expr)
-        if sp_offset is not None:
-            # Stack variable.
-            var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
-            if var is not None:
-                # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
-                # replacing stack variables, unless this is in the middle of a call statement.
-                if self.state._inside_call_stmt and var.one_expr is not None:
-                    if not self.is_using_outdated_def(var.one_expr):
-                        l.debug("Add a replacement: %s with %s", expr, var.one_expr)
-                        self.state.add_replacement(self._codeloc(), expr, var.one_expr)
-                if not self.state.is_top(var.value):
-                    return var
-
         addr_expr = addr.one_expr
+
+        if addr_expr is not None:
+            sp_offset = self.extract_offset_to_sp(addr_expr)
+            if sp_offset is not None:
+                # Stack variable.
+                var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
+                if var is not None:
+                    # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
+                    # replacing stack variables, unless this is in the middle of a call statement.
+                    if self.state._inside_call_stmt and var.one_expr is not None:
+                        if not self.is_using_outdated_def(var.one_expr):
+                            l.debug("Add a replacement: %s with %s", expr, var.one_expr)
+                            self.state.add_replacement(self._codeloc(), expr, var.one_expr)
+                    if not self.state.is_top(var.value):
+                        return var
+
         if addr_expr is not None and addr_expr is not expr.addr:
             new_expr = Expr.Load(expr.idx, addr_expr, expr.size, expr.endness, **expr.tags)
         else:
