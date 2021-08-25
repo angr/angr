@@ -338,13 +338,21 @@ class Call(Expression, Statement):
         if self.args:
             new_args = [ ]
             for arg in self.args:
-                r_arg, replaced_arg = arg.replace(old_expr, new_expr)
+                if arg == old_expr:
+                    r_arg = True
+                    replaced_arg = new_expr
+                else:
+                    r_arg, replaced_arg = arg.replace(old_expr, new_expr)
                 r |= r_arg
                 new_args.append(replaced_arg)
 
         new_ret_expr = None
         if self.ret_expr:
-            r_ret, replaced_ret = self.ret_expr.replace(old_expr, new_expr)
+            if self.ret_expr == old_expr:
+                r_ret = True
+                replaced_ret = new_expr
+            else:
+                r_ret, replaced_ret = self.ret_expr.replace(old_expr, new_expr)
             r |= r_ret
             new_ret_expr = replaced_ret
 
@@ -414,7 +422,11 @@ class Return(Statement):
             new_target = self.target
 
         for expr in self.ret_exprs:
-            r_expr, replaced_expr = expr.replace(old_expr, new_expr)
+            if expr == old_expr:
+                r_expr = True
+                replaced_expr = new_expr
+            else:
+                r_expr, replaced_expr = expr.replace(old_expr, new_expr)
             if r_expr:
                 replaced = True
                 new_ret_exprs.append(replaced_expr)
