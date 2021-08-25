@@ -1911,7 +1911,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CReturn(None, tags=stmt.tags, codegen=self)
         elif len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
-            if ret_expr.variable is not None:
+            if not isinstance(ret_expr, Stmt.Call) and ret_expr.variable is not None:
                 return CReturn(self._cvariable(ret_expr.variable, offset=ret_expr.variable_offset),
                                tags=stmt.tags, codegen=self,
                                )

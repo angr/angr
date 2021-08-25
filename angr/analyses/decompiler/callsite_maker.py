@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Any, TYPE_CHECKING
+from typing import Optional, List, Tuple, Any, Set, TYPE_CHECKING
 import logging
 
 import archinfo
@@ -32,6 +32,7 @@ class CallSiteMaker(Analysis):
         self._stack_pointer_tracker = stack_pointer_tracker
 
         self.result_block = None
+        self.stack_arg_offsets: Optional[Set[Tuple[int,int]]] = None  # ins_addr, stack_offset
 
         self._analyze()
 
@@ -62,9 +63,11 @@ class CallSiteMaker(Analysis):
         args = [ ]
         arg_locs = None
 
+        stackarg_sp_diff = 0
         if func.calling_convention is None:
             l.warning('%s has an unknown calling convention.', repr(func))
         else:
+            stackarg_sp_diff = func.calling_convention.STACKARG_SP_DIFF
             if func.prototype is not None:
                 # Make arguments
                 arg_locs = func.calling_convention.arg_locs()
@@ -137,25 +140,18 @@ class CallSiteMaker(Analysis):
                         # found it
                         new_stmts = new_stmts[:-1]
 
-
-        # remove statements that stores arguments on the stack
+        # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
+        # simplification steps in the future, which may decide to remove statements that stores arguments on the stack.
         if stack_arg_locs:
             sp_offset = self._stack_pointer_tracker.offset_before(last_stmt.ins_addr, self.project.arch.sp_offset)
             if sp_offset is None:
                 l.warning("Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
                           "statements.", last_stmt.ins_addr)
+                self.stack_arg_offsets = None
             else:
-                stack_arg_offsets = set((arg.stack_offset + sp_offset) for arg in stack_arg_locs)
-                old_stmts = new_stmts
-                new_stmts = [ ]
-                for stmt in old_stmts:
-                    if isinstance(stmt, Stmt.Store) and isinstance(stmt.addr, Expr.StackBaseOffset):
-                        offset = stmt.addr.offset
-                        if offset < 0:
-                            offset &= (1 << self.project.arch.bits) - 1
-                        if offset in stack_arg_offsets:
-                            continue
-                    new_stmts.append(stmt)
+                self.stack_arg_offsets = set(
+                    (last_stmt.ins_addr, sp_offset + arg.stack_offset - stackarg_sp_diff) for arg in stack_arg_locs
+                )
 
         ret_expr = last_stmt.ret_expr
         # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return

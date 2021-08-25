@@ -27,13 +27,18 @@ class AILSimplifier(Analysis):
     """
     Perform function-level simplifications.
     """
-    def __init__(self, func, func_graph=None, remove_dead_memdefs=False, unify_variables=False):
+    def __init__(self, func,
+                 func_graph=None,
+                 remove_dead_memdefs=False,
+                 stack_arg_offsets: Optional[Set[Tuple[int,int]]]=None,
+                 unify_variables=False):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
         self._reaching_definitions = None
         self._propagator = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
+        self._stack_arg_offsets = stack_arg_offsets
         self._unify_vars = unify_variables
 
         self._calls_to_remove: Set[CodeLocation] = set()
@@ -424,14 +429,23 @@ class AILSimplifier(Analysis):
         # Find all statements that should be removed
 
         rd = self._compute_reaching_definitions()
+        stackarg_offsets = set(tpl[1] for tpl in self._stack_arg_offsets) \
+            if self._stack_arg_offsets is not None else None
         for def_ in rd.all_definitions:  # type: Definition
             if def_.dummy:
                 continue
             # we do not remove references to global memory regions no matter what
             if isinstance(def_.atom, atoms.MemoryLocation) and isinstance(def_.atom.addr, int):
                 continue
-            if not self._remove_dead_memdefs and isinstance(def_.atom, atoms.MemoryLocation):
-                continue
+            if isinstance(def_.atom, atoms.MemoryLocation):
+                if not self._remove_dead_memdefs:
+                    # we always remove definitions for stack arguments
+                    if stackarg_offsets is not None and isinstance(def_.atom.addr, atoms.SpOffset):
+                        if def_.atom.addr.offset not in stackarg_offsets:
+                            continue
+                    else:
+                        continue
+
             uses = rd.all_uses.get_uses(def_)
 
             if not uses:

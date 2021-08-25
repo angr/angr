@@ -124,7 +124,7 @@ class PropValue:
 
     @staticmethod
     def from_value_and_labels(value: claripy.ast.Bits,
-                              labels: Iterable[Tuple[int,int,Dict[str,Any]]]) -> 'PropValue':
+                              labels: Iterable[Tuple[int,int,int,Dict[str,Any]]]) -> 'PropValue':
         if not labels:
             return PropValue(value)
         offset_and_details = {}

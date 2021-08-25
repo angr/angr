@@ -570,7 +570,7 @@ class PagedMemoryMixin(MemoryMixin):
 
 
 class LabeledPagesMixin(PagedMemoryMixin):
-    def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Tuple[int,int,Any]]]:
+    def load_with_labels(self, addr: int, size: int=None, endness=None, **kwargs) -> Tuple[claripy.ast.Base,Tuple[Tuple[int,int,int,Any]]]:
         if endness is None:
             endness = self.endness
 

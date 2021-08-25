@@ -77,7 +77,7 @@ class SimEnginePropagatorAIL(
         data = self._expr(stmt.data)
 
         # is it accessing the stack?
-        sp_offset = self.extract_offset_to_sp(addr.value)
+        sp_offset = self.extract_offset_to_sp(addr.one_expr)
         if sp_offset is not None:
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
@@ -104,7 +104,7 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
-        if target is None or  target.one_expr == stmt.target:
+        if target is None or target.one_expr == stmt.target:
             return
 
         if target.one_expr is not None:
@@ -116,6 +116,8 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_Call(self, expr_stmt: Stmt.Call):
         _ = self._expr(expr_stmt.target)
+
+        self.state._inside_call_stmt = True
 
         if expr_stmt.args:
             for arg in expr_stmt.args:
@@ -133,6 +135,8 @@ class SimEnginePropagatorAIL(
                 self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
             else:
                 l.warning("Unsupported ret_expr type %s.", expr_stmt.ret_expr.__class__)
+
+        self.state._inside_call_stmt = False
 
     def _ail_handle_ConditionalJump(self, stmt):
         _ = self._expr(stmt.condition)
@@ -257,25 +261,23 @@ class SimEnginePropagatorAIL(
 
         addr = self._expr(expr.addr)
 
-        if self.state.is_top(addr.value):
-            return PropValue.from_value_and_details(
-                self.state.top(expr.size * self.arch.byte_width), expr.size, expr, self._codeloc()
-            )
-
-        sp_offset = self.extract_offset_to_sp(addr.value)
-        if sp_offset is not None:
-            # Stack variable.
-            var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
-            if var is not None and not self.state.is_top(var.value):
-                # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
-                # replacing stack variables.
-                #
-                #if not self.is_using_outdated_def(var):
-                #    l.debug("Add a replacement: %s with %s", expr, var)
-                #    self.state.add_replacement(self._codeloc(), expr, var)
-                return var
-
         addr_expr = addr.one_expr
+
+        if addr_expr is not None:
+            sp_offset = self.extract_offset_to_sp(addr_expr)
+            if sp_offset is not None:
+                # Stack variable.
+                var = self.state.load_stack_variable(sp_offset, expr.size, endness=expr.endness)
+                if var is not None:
+                    # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
+                    # replacing stack variables, unless this is in the middle of a call statement.
+                    if self.state._inside_call_stmt and var.one_expr is not None:
+                        if not self.is_using_outdated_def(var.one_expr):
+                            l.debug("Add a replacement: %s with %s", expr, var.one_expr)
+                            self.state.add_replacement(self._codeloc(), expr, var.one_expr)
+                    if not self.state.is_top(var.value):
+                        return var
+
         if addr_expr is not None and addr_expr is not expr.addr:
             new_expr = Expr.Load(expr.idx, addr_expr, expr.size, expr.endness, **expr.tags)
         else:
@@ -422,9 +424,13 @@ class SimEnginePropagatorAIL(
     def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call) -> Optional[PropValue]:
         _ = self._expr(expr_stmt.target)
 
+        self.state._inside_call_stmt = True
+
         if expr_stmt.args:
             for arg in expr_stmt.args:
                 _ = self._expr(arg)
+
+        self.state._inside_call_stmt = False
 
         # ignore ret_expr
         return PropValue.from_value_and_details(
