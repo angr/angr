@@ -97,7 +97,7 @@ class Decompiler(Analysis):
         self._update_progress(75., text='Structuring code')
 
         # structure it
-        rs = self.project.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=self.kb)
+        rs = self.project.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=self.kb, func=self.func)
         self._update_progress(80., text='Simplifying regions')
 
         # simplify it
