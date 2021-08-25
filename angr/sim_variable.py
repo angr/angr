@@ -247,9 +247,9 @@ class SimMemoryVariable(SimVariable):
             size = '%s' % self.size
 
         if type(self.addr) is int:
-            s = "<%s|Mem %#x %s>" % (self.region, self.addr, size)
+            s = "<%s: %s-Mem %#x %s>" % (self.name, self.region, self.addr, size)
         else:
-            s = "<%s|Mem %s %s>" % (self.region, self.addr, size)
+            s = "<%s: %s-Mem %s %s>" % (self.name, self.region, self.addr, size)
 
         return s
 
