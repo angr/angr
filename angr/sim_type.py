@@ -34,6 +34,7 @@ class SimType:
     _arch = None
     _size = None
     _can_refine_int = False
+    _base_name = None
     base = True
 
     def __init__(self, label=None):
@@ -204,6 +205,8 @@ class SimTypeBottom(SimType):
     """
     SimTypeBottom basically represents a type error.
     """
+
+    _base_name = 'bot'
 
     def __repr__(self, label=None):
         return 'BOT'
@@ -428,6 +431,8 @@ class SimTypeChar(SimTypeReg):
     this could be represented by a byte, but this is meant to be interpreted as a character.
     """
 
+    _base_name = 'char'
+
     def __init__(self, signed=True, label=None):
         """
         :param label: the type label.
@@ -471,6 +476,9 @@ class SimTypeChar(SimTypeReg):
 
 
 class SimTypeBool(SimTypeChar):
+
+    _base_name = "bool"
+
     def __repr__(self):
         return 'bool'
 
@@ -979,6 +987,9 @@ class SimTypeFloat(SimTypeReg):
     """
     An IEEE754 single-precision floating point number
     """
+
+    _base_name = 'float'
+
     def __init__(self, size=32):
         super().__init__(size)
 
@@ -1013,6 +1024,9 @@ class SimTypeDouble(SimTypeFloat):
     """
     An IEEE754 double-precision floating point number
     """
+
+    _base_name = 'double'
+
     def __init__(self, align_double=True):
         self.align_double = align_double
         super().__init__(64)

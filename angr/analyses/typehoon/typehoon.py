@@ -1,5 +1,6 @@
 from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
+from ...sim_type import SimStruct, SimTypePointer
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
@@ -67,7 +68,10 @@ class Typehoon(Analysis):
             type_ = self.simtypes_solution.get(typevar, None)
             if type_ is not None:
                 # print("{} -> {}: {}".format(var, typevar, type_))
-                self.kb.variables[func_addr].types[var] = type_
+                name = None
+                if isinstance(type_, SimStruct):
+                    name = type_.name
+                self.kb.variables[func_addr].set_variable_type(var, type_, name=name)
 
     def pp_constraints(self) -> None:
         """

@@ -1,7 +1,30 @@
+import random
 from collections import UserDict
 
 from .plugin import KnowledgeBasePlugin
 from ..sim_type import ALL_TYPES, TypeRef
+
+
+FRUITS = [
+    'mango',
+    'cherry',
+    'banana',
+    'papaya',
+    'apple',
+    'kiwi',
+    'pineapple',
+    'coconut',
+    'peach',
+    'honeydew',
+    'cucumber',
+    'pumpkin',
+    'cantaloupe',
+    'strawberry',
+    'watermelon',
+    'nectarine',
+    'orange',
+]
+
 
 class TypesStore(KnowledgeBasePlugin, UserDict):
     """
@@ -44,5 +67,15 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
         value = self.pop(old)
         value._name = new
         self[new] = value
+
+    def unique_type_name(self) -> str:
+        for fruit in FRUITS:
+            if fruit not in self:
+                name = fruit
+                break
+        else:
+            name = f'type_{random.randint(0x10000000, 0x100000000):x}'
+        return name
+
 
 KnowledgeBasePlugin.register_default('types', TypesStore)

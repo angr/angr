@@ -5,7 +5,7 @@ import logging
 from ailment import Block, Expr, Stmt
 
 from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
-    SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble)
+    SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble, TypeRef)
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
@@ -24,6 +24,13 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 INDENT_DELTA = 4
+
+
+def unpack_typeref(ty):
+    if isinstance(ty, TypeRef):
+        return ty.type
+    return ty
+
 
 #
 #   C Representation Classes
@@ -961,16 +968,17 @@ class CVariable(CExpression):
                     yield str(v), self
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
-                    if isinstance(v.type, SimTypePointer):
-                        if isinstance(v.type.pts_to, SimStruct) and v.type.pts_to.fields:
+                    type_ = unpack_typeref(v.type)
+                    if isinstance(type_, SimTypePointer):
+                        if isinstance(type_.pts_to, SimStruct) and type_.pts_to.fields:
                             # is it pointing to a struct? if so, we take the first field
-                            first_field, *_ = v.type.pts_to.fields
-                            c_field = CStructField(v.type.pts_to, 0, first_field, codegen=self)
+                            first_field, *_ = type_.pts_to.fields
+                            c_field = CStructField(type_.pts_to, 0, first_field, codegen=self)
                             yield from v.c_repr_chunks()
                             yield "->", self
                             yield from c_field.c_repr_chunks()
                             return
-                        elif isinstance(v.type.pts_to, SimTypeArray):
+                        elif isinstance(type_.pts_to, SimTypeArray):
                             bracket = CClosingObject("[")
                             # is it pointing to an array? if so, we take the first element
                             yield from v.c_repr_chunks()
@@ -1004,11 +1012,12 @@ class CVariable(CExpression):
 
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
-                    if isinstance(v.type, SimTypePointer):
-                        if isinstance(v.type.pts_to, SimStruct):
+                    v_type = unpack_typeref(v.type)
+                    if isinstance(v_type, SimTypePointer):
+                        if isinstance(v_type.pts_to, SimStruct):
                             if isinstance(self.offset, int):
                                 # which field is it pointing to?
-                                t = v.type.pts_to
+                                t = v_type.pts_to
                                 offset_to_field = dict((v, k) for k, v in t.offsets.items())
                                 if self.offset in offset_to_field:
                                     field = offset_to_field[self.offset]
@@ -1020,9 +1029,9 @@ class CVariable(CExpression):
                                 else:
                                     # accessing beyond known offset - indicates a bug in type inference
                                     l.warning("Accessing non-existent offset %d in struct %s. This indicates a bug in "
-                                              "the type inference engine.", self.offset, v.type.pts_to)
+                                              "the type inference engine.", self.offset, v_type.pts_to)
 
-                        elif isinstance(v.type.pts_to, SimTypeArray):
+                        elif isinstance(v_type.pts_to, SimTypeArray):
                             if isinstance(self.offset, int):
                                 bracket = CClosingObject("[")
                                 # it's pointing to an array! take the corresponding element
@@ -1706,8 +1715,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                                            coeff,
                                            None,
                                            codegen=self)
-                    # src_type = SimTypePointer(self.default_simtype_from_size(elem_size))
-                    # dst_type = SimTypePointer(self.default_simtype_from_size(type_size))
             else:
                 # FIXME: unsupported
                 pass
@@ -2057,6 +2064,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if reference_values is None:
             reference_values = { }
+            type_ = unpack_typeref(type_)
             if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
                 # char*
                 # Try to get a string
