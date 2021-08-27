@@ -98,6 +98,9 @@ class EmptyNodeRemover:
         if claripy.is_true(node.reaching_condition):
             # Remove the unnecessary CodeNode
             return inner_node
+        if isinstance(inner_node, CodeNode):
+            # unpack the codenode so we don't have directly nested CodeNodes
+            return CodeNode(inner_node.node, claripy.And(node.reaching_condition, inner_node.reaching_condition))
         return CodeNode(inner_node, node.reaching_condition)
 
     def _handle_Condition(self, node, **kwargs):
