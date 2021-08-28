@@ -1698,7 +1698,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         }
         return _mapping.get(n, SimTypeBottom)().with_arch(self.project.arch)
 
-    def _cvariable(self, variable: Union[CVariable,SimVariable], offset=None, variable_type=None, tags=None):
+    def _cvariable(self, variable: Union[SimVariable,CExpression], offset=None, variable_type=None, tags=None):
         if isinstance(variable, SimVariable):
             unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
         else:
@@ -1758,6 +1758,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                                   tags=tags, codegen=self)
         elif isinstance(variable, CVariable):
             cvariable = CVariable(variable.variable, unified_variable=unified, offset=offset,
+                                  variable_type=variable_type, tags=tags,
+                                  codegen=self)
+        else:
+            cvariable = CVariable(variable, unified_variable=unified, offset=offset,
                                   variable_type=variable_type, tags=tags,
                                   codegen=self)
 
