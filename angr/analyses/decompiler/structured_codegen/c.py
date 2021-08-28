@@ -88,23 +88,28 @@ class CConstruct:
 
                             # all valid statements and expressions should be added to map_pos_to_addr and
                             # tracked for instruction mapping from disassembly
-                            pos_to_addr.add_mapping(pos, len(s), obj)
-                            addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
+                            if pos_to_addr is not None:
+                                pos_to_addr.add_mapping(pos, len(s), obj)
+                            if addr_to_pos is not None:
+                                addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     if isinstance(obj, (CVariable, CConstant, CStructField)):
-                        pos_to_node.add_mapping(pos, len(s), obj)
+                        if pos_to_node is not None:
+                            pos_to_node.add_mapping(pos, len(s), obj)
                     elif isinstance(obj, CFunctionCall):
                         if obj not in used_func_calls:
                             used_func_calls.add(obj)
-                            pos_to_node.add_mapping(pos, len(s), obj)
+                            if pos_to_node is not None:
+                                pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, and [] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (CClosingObject, CFunction)):
                     if s is None:
                         continue
 
-                    pos_to_node.add_mapping(pos, len(s), obj)
+                    if pos_to_node is not None:
+                        pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith('\n'):
                     text = pending_stmt_comments.pop(last_insn_addr, None)
@@ -1621,7 +1626,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Util methods
     #
 
-    def _parse_load_addr(self, addr):
+    def _parse_addr(self, addr) -> Tuple[Optional[CExpression],Optional[CExpression]]:
 
         if isinstance(addr, CExpression):
             expr = addr
@@ -1631,21 +1636,43 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if isinstance(expr, CBinaryOp):
             if expr.op == "And" and isinstance(expr.rhs, CConstant) and is_alignment_mask(expr.rhs.value):
                 # alignment - ignore it
-                return self._parse_load_addr(expr.lhs)
+                return self._parse_addr(expr.lhs)
             if expr.op in ("Add", "Sub"):
-                lhs, rhs = expr.lhs, expr.rhs
-                if isinstance(lhs, CConstant):
-                    lhs = lhs.value
-                if isinstance(rhs, CConstant):
-                    rhs = rhs.value
-                if isinstance(lhs, int) and not isinstance(rhs, int):
-                    # swap lhs and rhs
-                    lhs, rhs = rhs, lhs
-                if expr.op == "Sub":
-                    return lhs, -rhs
-                return lhs, rhs
+                # variable and a const
+                base, offset = None, None
+                if isinstance(expr.lhs, CConstant):
+                    if isinstance(expr.rhs, CVariable):
+                        offset = expr.lhs.value
+                        base = expr.rhs
+                    elif isinstance(expr.lhs.variable, CVariable) and \
+                            isinstance(expr.lhs.variable.variable, SimMemoryVariable):
+                        base = expr.lhs.variable
+                        offset = expr.rhs
+                elif isinstance(expr.rhs, CConstant):
+                    if isinstance(expr.lhs, CVariable):
+                        offset = expr.rhs.value
+                        base = expr.lhs
+                    elif isinstance(expr.rhs.variable, CVariable) and \
+                            isinstance(expr.rhs.variable.variable, SimMemoryVariable):
+                        base = expr.rhs.variable
+                        offset = expr.lhs
+                # variable and a typecast
+                elif isinstance(expr.lhs, CVariable):
+                    if isinstance(expr.rhs, CTypeCast):
+                        offset = expr.rhs
+                        base = expr.lhs
+                elif isinstance(expr.rhs, CVariable):
+                    if isinstance(expr.lhs, CTypeCast):
+                        offset = expr.lhs
+                        base = expr.rhs
+                elif isinstance(expr.lhs, CVariable):
+                    if isinstance(expr.rhs, CVariable):
+                        # GUESS: we need some guessing here
+                        base = expr.lhs
+                        offset = expr.rhs
+                return base, offset
         elif isinstance(expr, CTypeCast):
-            return self._parse_load_addr(expr.expr)
+            return self._parse_addr(expr.expr)
         elif isinstance(expr, CConstant):
             if expr.variable is not None:
                 return expr.variable, 0
@@ -1691,7 +1718,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 if isinstance(variable_type, SimTypeArray):
                     type_size = variable_type.elem_type.size // self.project.arch.byte_width
 
-                elem_size = offset.rhs.value
+                if offset.op == "Mul":
+                    elem_size = offset.rhs.value
+                elif offset.op == "Shl":
+                    elem_size = 2 ** offset.rhs.value
+                else:
+                    l.warning("Unsupported variable offsetting operator %s. Default elem_size to 1.", offset.op)
+                    elem_size = 1
+
                 if type_size == elem_size:
                     # awesome - no conversion needed
                     offset = offset.lhs
@@ -1719,8 +1753,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 # FIXME: unsupported
                 pass
 
-        cvariable = CVariable(variable, unified_variable=unified, offset=offset, variable_type=variable_type, tags=tags,
-                              codegen=self)
+        if isinstance(variable, SimVariable):
+            cvariable = CVariable(variable, unified_variable=unified, offset=offset, variable_type=variable_type,
+                                  tags=tags, codegen=self)
+        elif isinstance(variable, CVariable):
+            cvariable = CVariable(variable.variable, unified_variable=unified, offset=offset,
+                                  variable_type=variable_type, tags=tags,
+                                  codegen=self)
 
         if src_type is not None and dst_type is not None:
             addr = CUnaryOp("Reference", cvariable, None, codegen=self)
@@ -1894,47 +1933,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             cvariable = self._handle(stmt.variable)
         elif stmt.addr is not None:
             # storing to an address specified by a variable
-            cvariable = self._handle(stmt.addr)
-            # special handling
-            base, offset = None, None
-            if isinstance(cvariable, CBinaryOp) and cvariable.op == 'Add':
-                # variable and a const
-                base, offset = None, None
-                if isinstance(cvariable.lhs, CConstant):
-                    if isinstance(cvariable.rhs, CVariable):
-                        offset = cvariable.lhs.value
-                        base = cvariable.rhs
-                    elif isinstance(cvariable.lhs.variable, CVariable) and \
-                            isinstance(cvariable.lhs.variable.variable, SimMemoryVariable):
-                        base = cvariable.lhs.variable
-                        offset = cvariable.rhs
-                elif isinstance(cvariable.rhs, CConstant):
-                    if isinstance(cvariable.lhs, CVariable):
-                        offset = cvariable.rhs.value
-                        base = cvariable.lhs
-                    elif isinstance(cvariable.rhs.variable, CVariable) and \
-                            isinstance(cvariable.rhs.variable.variable, SimMemoryVariable):
-                        base = cvariable.rhs.variable
-                        offset = cvariable.lhs
-                # variable and a typecast
-                elif isinstance(cvariable.lhs, CVariable):
-                    if isinstance(cvariable.rhs, CTypeCast):
-                        offset = cvariable.rhs
-                        base = cvariable.lhs
-                elif isinstance(cvariable.rhs, CVariable):
-                    if isinstance(cvariable.lhs, CTypeCast):
-                        offset = cvariable.lhs
-                        base = cvariable.rhs
-                elif isinstance(cvariable.lhs, CVariable):
-                    if isinstance(cvariable.rhs, CVariable):
-                        # GUESS: we need some guessing here
-                        base = cvariable.lhs
-                        offset = cvariable.rhs
+            caddr = self._handle(stmt.addr)
+            base, offset = self._parse_addr(caddr)
 
-            if base is not None and offset is not None:
+            if base is not None and offset is not None and isinstance(base, CVariable):
                 cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type, tags=stmt.tags)
             else:
-                cvariable = self._cvariable(cvariable, offset=None, tags=stmt.tags)
+                cvariable = self._cvariable(caddr, offset=None, tags=stmt.tags)
         else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
             cvariable = None
@@ -2043,13 +2048,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                                    tags=expr.tags
                                    )
 
-        variable, offset = self._parse_load_addr(expr.addr)
+        base, offset = self._parse_addr(expr.addr)
 
-        if variable is not None:
-            return self._cvariable(variable, offset=offset,
-                                   variable_type=self._get_variable_type(
-                                       variable,
-                                       is_global=isinstance(expr.variable, SimMemoryVariable)),
+        if base is not None and offset is not None and isinstance(base, CVariable):
+            return self._cvariable(base, offset=offset,
+                                   variable_type=base.variable_type,
                                    tags=expr.tags
                                    )
         else:
