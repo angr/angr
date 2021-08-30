@@ -115,7 +115,7 @@ def get_unique_strings(ar_path: str) -> List[str]:
 
 
 def run_pelf(pelf_path: str, ar_path: str, output_path: str):
-    subprocess.check_call([pelf_path, ar_path, output_path])
+    subprocess.check_call([pelf_path, "-r43:0:0", ar_path, output_path])
 
 
 def run_sigmake(sigmake_path: str, sig_name: str, pat_path: str, sig_path: str):
@@ -222,7 +222,7 @@ def main():
         raise ValueError("pelf_path must be specified.")
 
     if args.sigmake_path:
-        sigmake_path = args.pelf_path
+        sigmake_path = args.sigmake_path
     elif "sigmake_path" in os.environ:
         sigmake_path = os.environ['sigmake_path']
     else:
