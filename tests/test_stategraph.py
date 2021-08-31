@@ -8,6 +8,7 @@ import sys
 import json
 import claripy
 import angr
+from angr.analyses.state_graph_recovery.differ import diff_coredump
 from angr.analyses.state_graph_recovery import MinDelayBaseRule, RuleVerifier, IllegalNodeBaseRule
 from angr.analyses.state_graph_recovery.apis import generate_patch, apply_patch, apply_patch_on_state, EditDataPatch
 
@@ -351,6 +352,16 @@ def test_verify_patched_binary():
     # output the graph to a dot file
     from networkx.drawing.nx_agraph import write_dot
     write_dot(sgr.state_graph, "state_graph.patched.dot")
+
+
+def test_load_coredump():
+
+    # this test loads a given core dump and compares it against a known binary on a section-by-section basis
+    core_dump_location = "core.3149872"
+    so_filename = "6c561e958548a9b19bdf83f89d68c4b1.so"
+    so_path = so_filename
+
+    diff_coredump(core_dump_location, so_filename, so_path)
 
 
 if __name__ == "__main__":
