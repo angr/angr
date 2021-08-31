@@ -837,6 +837,14 @@ class JumpTableResolver(IndirectJumpResolver):
 
                 assert ret is not None
 
+                # finally, we filter jump targets according to the alignment of the architecture
+                if is_arm_arch(self.project.arch):
+                    alignment = 4 if addr % 2 == 0 else 2
+                else:
+                    alignment = self.project.arch.instruction_alignment
+                if alignment != 1:
+                    all_targets = [ t_ for t_ in all_targets if t_ % alignment == 0 ]
+
                 l.info("Resolved %d targets from %#x.", len(all_targets), addr)
 
                 # write to the IndirectJump object in CFG
