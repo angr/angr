@@ -1374,12 +1374,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # Construct the binary blob first
         unassured_functions = [ ]
 
+        is_arm = is_arm_arch(self.project.arch)
+
         for start_, bytes_ in self._binary.memory.backers():
             for regex in regexes:
                 # Match them!
                 for mo in regex.finditer(bytes_):
                     position = mo.start() + start_
-                    if position % self.project.arch.instruction_alignment == 0:
+                    if (not is_arm and position % self.project.arch.instruction_alignment == 0) or \
+                            (is_arm and position % 4 == 0):
                         mapped_position = AT.from_rva(position, self._binary).to_mva()
                         if self._addr_in_exec_memory_regions(mapped_position):
                             unassured_functions.append(mapped_position)
