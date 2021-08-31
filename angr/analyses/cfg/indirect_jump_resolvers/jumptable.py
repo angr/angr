@@ -843,7 +843,11 @@ class JumpTableResolver(IndirectJumpResolver):
                 else:
                     alignment = self.project.arch.instruction_alignment
                 if alignment != 1:
-                    all_targets = [ t_ for t_ in all_targets if t_ % alignment == 0 ]
+                    if is_arm_arch(self.project.arch) and addr % 2 == 1:
+                        # Special logic for handling THUMB addresses
+                        all_targets = [t_ for t_ in all_targets if (t_ - 1) % alignment == 0]
+                    else:
+                        all_targets = [ t_ for t_ in all_targets if t_ % alignment == 0 ]
 
                 l.info("Resolved %d targets from %#x.", len(all_targets), addr)
 
