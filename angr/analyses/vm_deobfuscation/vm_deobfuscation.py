@@ -480,6 +480,8 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
 
+        import ipdb;ipdb.set_trace()
+
         # DCE commented out temporarily to make testing faster for block simplifications
         for i in range(11):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
@@ -616,39 +618,39 @@ class VMDeobfuscation(Analysis):
                 continue
 
             new_stmts = node.irsb.statements
-            if isinstance(new_stmts[-1], pyvex.stmt.Exit):
-                # Matching the successors with the correct block_id
-                succs = cfg.model.get_successors(node)
-                if len(succs) > 2:
-                    raise Exception("Greater than 2 successors!")
-                branch_block_id = None
-                block_id_for_next = None
-                for succ in succs:
-                    if succ.addr == new_stmts[-1].dst.value:
-                        branch_block_id = succ.block_id
-                    elif not isinstance(node.irsb.next, pyvex.expr.RdTmp):
-                        if succ.addr == node.irsb.next.con.value:
-                            block_id_for_next = succ.block_id
+            block_id_for_next = None
+            for ind, poss_exit_stmt in enumerate(new_stmts):
+                if isinstance(poss_exit_stmt, pyvex.stmt.Exit):
+                    # Matching the successors with the correct block_id
+                    succs = cfg.model.get_successors(node)
+                    if len(succs) > 2:
+                        raise Exception("Greater than 2 successors!")
+                    branch_block_id = None
+                    for succ in succs:
+                        if succ.addr == poss_exit_stmt.dst.value:
+                            branch_block_id = succ.block_id
+                        elif not isinstance(node.irsb.next, pyvex.expr.RdTmp):
+                            if succ.addr == node.irsb.next.con.value:
+                                block_id_for_next = succ.block_id
 
-                if isinstance(new_stmts[-1].dst, pyvex.const.U64):
-                    new_stmts[-1] = pyvex.stmt.Exit(new_stmts[-1].guard,
-                                                        DataSensitiveU64(new_stmts[-1].dst.value, branch_block_id),
-                                                        new_stmts[-1].jk,
-                                                        new_stmts[-1].offsIP)
-                elif isinstance(new_stmts[-1].dst, pyvex.const.U32):
-                    new_stmts[-1] = pyvex.stmt.Exit(new_stmts[-1].guard,
-                                                        DataSensitiveU32(new_stmts[-1].dst.value, branch_block_id),
-                                                        new_stmts[-1].jk,
-                                                        new_stmts[-1].offsIP)
-            else:
+
+                    if isinstance(poss_exit_stmt.dst, pyvex.const.U64):
+                        new_stmts[ind] = pyvex.stmt.Exit(poss_exit_stmt.guard,
+                                                            DataSensitiveU64(poss_exit_stmt.dst.value, branch_block_id),
+                                                            poss_exit_stmt.jk,
+                                                            poss_exit_stmt.offsIP)
+                    elif isinstance(poss_exit_stmt.dst, pyvex.const.U32):
+                        new_stmts[ind] = pyvex.stmt.Exit(poss_exit_stmt.guard,
+                                                            DataSensitiveU32(poss_exit_stmt.dst.value, branch_block_id),
+                                                            poss_exit_stmt.jk,
+                                                            poss_exit_stmt.offsIP)
+
+            if block_id_for_next is None:
                 succs = cfg.model.get_successors(node)
-                if len(succs) > 1:
-                    raise Exception("more than one successor!")
                 if len(succs) == 0: # Last node in the graph
                     block_id_for_next = None
                 else:
                     block_id_for_next = succs[0].block_id
-
 
             if isinstance(node.irsb.next, pyvex.expr.RdTmp):
                 new_next = DataSensitiveRdTmp(node.irsb.next.tmp, block_id_for_next)
@@ -1402,7 +1404,7 @@ class VMDeobfuscation(Analysis):
         # self.annotate_and_preconstrain_sp(start_state)
 
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
-                                        data_sensitive=True ,
+                                        data_sensitive=True,
                                         vm_vpc_addr=vm_vpc_addr,
                                         starts=[start_addr],
                                         initial_state=start_state,
