@@ -297,7 +297,7 @@ class SimIROp:
             self._calculate = partial(self._auto_vectorize, f)
 
         # other conversions
-        elif self._conversion and self._generic_name not in {'Round', 'Reinterp'}:
+        elif self._conversion and self._generic_name not in {'Round', 'Reinterp', 'QNarrowBin'}:
             if self._generic_name == "DivMod":
                 self._calculate = self._op_divmod
             else:
@@ -988,36 +988,50 @@ class SimIROp:
             rounded_bv = claripy.fpToSBV(rm, args[1].raw_to_fp(), args[1].length)
             return claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, rounded_bv, claripy.fp.FSort.from_size(args[1].length))
 
-    def _op_generic_pack_StoU_saturation(self, args, src_size, dst_size):
+    def _generic_pack_saturation(self, args, src_size, dst_size, src_signed, dst_signed):
         """
-        Generic pack with unsigned saturation.
-        Split args in chunks of src_size signed bits and in pack them into unsigned saturated chunks of dst_size bits.
-        Then chunks are concatenated resulting in a BV of len(args)*dst_size//src_size*len(args[0]) bits.
+        Generic pack with saturation.
+        Split args in chunks of src_size and then pack them into saturated chunks of dst_size bits.
+        Then chunks are concatenated.
+
+        So far as I know plain saturating conversion should only ever have to be performed on vectors.
         """
         if src_size <= 0 or dst_size <= 0:
-            raise SimOperationError("Can't pack from or to zero or negative size" % self.name)
+            raise SimOperationError("Can't pack from or to zero or negative size: %s" % self.name)
+        if src_size < dst_size:
+            raise SimOperationError("Can't pack from small size into larger size: %s" % self.name)
         result = None
-        max_value = claripy.BVV(-1, dst_size).zero_extend(src_size - dst_size) #max value for unsigned saturation
-        min_value = claripy.BVV(0, src_size) #min unsigned value always 0
+
+        max_value = 2**dst_size - 1
+        if dst_signed:
+            max_value >>= 1
+        if not dst_signed or not src_signed:
+            min_value = 0
+        else:
+            min_value = -2**(dst_size - 1)
+
+        gt = claripy.SGT if src_signed else claripy.UGT
+        lt = claripy.SLT if src_signed else claripy.ULT
+
         for v in args:
             for src_value in v.chop(src_size):
-                dst_value = self._op_generic_StoU_saturation(src_value, min_value, max_value)
-                dst_value = dst_value.zero_extend(dst_size - src_size)
+                dst_value = claripy.If(
+                    gt(src_value, max_value), max_value, claripy.If(
+                    lt(src_value, min_value), min_value, src_value[dst_size-1:0]))
                 if result is None:
                     result = dst_value
                 else:
                     result = self._op_concat((result, dst_value))
         return result
 
-    def _op_generic_StoU_saturation(self, value, min_value, max_value): #pylint:disable=no-self-use
-        """
-        Return unsigned saturated BV from signed BV.
-        Min and max value should be unsigned.
-        """
-        return claripy.If(
-            claripy.SGT(value, max_value),
-            max_value,
-            claripy.If(claripy.SLT(value, min_value), min_value, value))
+    @supports_vector
+    def _op_generic_QNarrowBin(self, args):
+        return self._generic_pack_saturation(
+                args,
+                self._from_size,
+                self._vector_size,
+                self._from_signed == 'S',
+                self._vector_signed == 'S')
 
     def _op_Iop_64x4toV256(self, args) :
         return self._op_concat(args)
@@ -1034,19 +1048,6 @@ class SimIROp:
     def _op_Iop_V256toV128_0(args): return args[0][127:0]
     @staticmethod
     def _op_Iop_V256toV128_1(args): return args[0][255:128]
-
-    def _op_Iop_QNarrowBin16Sto8Ux16(self, args):
-        """
-        PACKUSWB Pack with Unsigned Saturation.Two 128 bits operands version.
-        VPACKUSWB Pack with Unsigned Saturation.Three 128 bits operands version.
-        """
-        return self._op_generic_pack_StoU_saturation(args, 16, 8)
-
-    def _op_Iop_QNarrowBin16Sto8Ux8(self, args):
-        """
-        PACKUSWB Pack with Unsigned Saturation.Two 64 bits operands version.
-        """
-        return self._op_generic_pack_StoU_saturation(args, 16, 8)
 
     @staticmethod
     def _op_Iop_MAddF64(args):
