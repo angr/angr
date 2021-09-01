@@ -20,6 +20,9 @@ l = logging.getLogger(name=__name__)
 
 
 class OverwriteTmpValueCallback:
+    """
+    Overwrites temporary values during resolution
+    """
     def __init__(self, gp_value):
         self.gp_value = gp_value
 
@@ -28,8 +31,11 @@ class OverwriteTmpValueCallback:
 
 
 class MipsElfFastResolver(IndirectJumpResolver):
+    """
+    Indirect Jump Resolver for MIPs
+    """
     def __init__(self, project):
-        super(MipsElfFastResolver, self).__init__(project, timeless=True)
+        super().__init__(project, timeless=True)
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
         if not isinstance(self.project.arch, (archinfo.ArchMIPS32, archinfo.ArchMIPS64, )):
