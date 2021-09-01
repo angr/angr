@@ -120,7 +120,7 @@ class StateGraphRecoveryAnalysis(Analysis):
     """
     def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int,
                  init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None,
-                 printstate: Optional[Callable] = None,
+                 printstate: Optional[Callable]=None,
                  config_vars: Optional[Set[claripy.ast.Base]]=None,
                  patch_callback: Optional[Callable]=None):
         self.func = func
