@@ -49,8 +49,31 @@ def test_irop_catevenlanes():
     s2 = s1.step(num_inst=1).successors[0]
     assert (s2.regs.xmm0 == 0x1bbb01de0976ee2bf07b009711500cd1).is_true()
 
+def test_saturating_packing():
+    # SaturateSignedWordToUnsignedByte
+    p = angr.load_shellcode("vpackuswb xmm1, xmm0, xmm0", arch='amd64')
+    s = p.factory.blank_state()
+    s.regs.xmm0 = 0x0000_0001_7ffe_7fff_8000_8001_fffe_ffff
+    s = s.step(num_inst=1).successors[0]
+    assert (s.regs.xmm1 == 0x00_01_ff_ff_00_00_00_00_0001ffff00000000).is_true()
+
+    # "Pack with unsigned saturation"
+    p = angr.load_shellcode("vpackusdw xmm1, xmm0, xmm0", arch='amd64')
+    s = p.factory.blank_state()
+    s.regs.xmm0 = 0x00000001_7ffffffe_80000001_fffffffe
+    s = s.step(num_inst=1).successors[0]
+    assert (s.regs.xmm1 == 0x0001_ffff_0000_0000_0001ffff00000000).is_true()
+
+    # SaturateSignedWordToSignedByte
+    p = angr.load_shellcode("vpacksswb xmm1, xmm0, xmm0", arch='amd64')
+    s = p.factory.blank_state()
+    s.regs.xmm0 = 0x0000_0001_7ffe_7fff_8000_8001_fffe_ffff
+    s = s.step(num_inst=1).successors[0]
+    assert (s.regs.xmm1 == 0x00_01_7f_7f_80_80_fe_ff_00017f7f8080feff).is_true()
+
 
 if __name__ == '__main__':
     test_irop_perm()
     test_irop_mulhi()
     test_irop_catevenlanes()
+    test_saturating_packing()
