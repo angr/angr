@@ -58,7 +58,6 @@ class MipsElfFastResolver(IndirectJumpResolver):
         for max_level in range(2, 4):
             resolved, resolved_targets = self._resolve(cfg, addr, func_addr, block, jumpkind, max_level=max_level)
             if resolved:
-                print("Resolved %x -> %s" % (addr, resolved_targets))
                 return resolved, resolved_targets
         return False, []
 
