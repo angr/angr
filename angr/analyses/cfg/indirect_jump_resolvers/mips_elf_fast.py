@@ -38,7 +38,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
     def resolve(self, cfg, addr, func_addr, block, jumpkind):
         """
-        Resolves the indirect jump in MIPS ELF binaries where all external function calls are indexed using gp.
+        Wrapper for _resolve that slowly increments the max_depth used by Blade for finding sources
+        until we can resolve the addr or we reach the default max_depth
 
         :param cfg: A CFG instance.
         :param int addr: IRSB address.
@@ -48,11 +49,35 @@ class MipsElfFastResolver(IndirectJumpResolver):
         :return: If it was resolved and targets alongside it
         :rtype: tuple
         """
+        for max_level in range(2, 4):
+            resolved, resolved_targets = self._resolve(cfg, addr, func_addr, block, jumpkind, max_level=max_level)
+            if resolved:
+                print("Resolved %x -> %s" % (addr, resolved_targets))
+                return resolved, resolved_targets
+        return False, []
+        # resolved, resolved_targets = self._resolve(cfg, addr, func_addr, block, jumpkind)
+        # if resolved:
+        #     print("Resolved %x -> %s" % (addr, resolved_targets))
+        # return resolved, resolved_targets
+
+    def _resolve(self, cfg, addr, func_addr, block, jumpkind, max_level):
+        """
+        Resolves the indirect jump in MIPS ELF binaries where all external function calls are indexed using gp.
+
+        :param cfg: A CFG instance.
+        :param int addr: IRSB address.
+        :param int func_addr: The function address.
+        :param pyvex.IRSB block: The IRSB.
+        :param str jumpkind: The jumpkind.
+        :param int max_level: maximum level for Blade to resolve when looking for sources
+        :return: If it was resolved and targets alongside it
+        :rtype: tuple
+        """
 
         project = self.project
 
         b = Blade(cfg.graph, addr, -1, cfg=cfg, project=project, ignore_sp=True, ignore_bp=True,
-                  ignored_regs=('gp',), cross_insn_opt=False, stop_at_calls=True
+                  ignored_regs=('gp',), cross_insn_opt=False, stop_at_calls=True, max_level=max_level
                   )
 
         sources = [n for n in b.slice.nodes() if b.slice.in_degree(n) == 0]
@@ -112,7 +137,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 return False, [ ]
             target = target_state.addr
 
-            if self._is_target_valid(cfg, target):
+            if self._is_target_valid(cfg, target) and target != func_addr:
                 l.debug("Indirect jump at %#x is resolved to target %#x.", addr, target)
                 return True, [ target ]
 
@@ -124,7 +149,6 @@ class MipsElfFastResolver(IndirectJumpResolver):
 
     @staticmethod
     def _set_gp_load_callback(state, blade, project, gp_offset, gp_value):
-        got_gp_stack_store = False
         tmps = {}
         for block_addr_in_slice in set(slice_node[0] for slice_node in blade.slice.nodes()):
             for stmt in project.factory.block(block_addr_in_slice, cross_insn_opt=False).vex.statements:
@@ -144,10 +168,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
                                                           action=OverwriteTmpValueCallback(
                                                               gp_value).overwrite_tmp_value
                                                           )
-                            got_gp_stack_store = True
                             break
-            if got_gp_stack_store:
-                break
 
     @staticmethod
     def _is_gp_used_on_slice(project, b: Blade) -> bool:
