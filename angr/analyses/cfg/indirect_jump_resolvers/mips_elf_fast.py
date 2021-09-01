@@ -55,10 +55,6 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 print("Resolved %x -> %s" % (addr, resolved_targets))
                 return resolved, resolved_targets
         return False, []
-        # resolved, resolved_targets = self._resolve(cfg, addr, func_addr, block, jumpkind)
-        # if resolved:
-        #     print("Resolved %x -> %s" % (addr, resolved_targets))
-        # return resolved, resolved_targets
 
     def _resolve(self, cfg, addr, func_addr, block, jumpkind, max_level):
         """
@@ -162,12 +158,12 @@ class MipsElfFastResolver(IndirectJumpResolver):
                             # found the load from stack
                             # we must make sure value of that temporary variable equals to the correct gp value
                             state.inspect.make_breakpoint('tmp_write', when=BP_BEFORE,
-                                                          condition=lambda s, bbl_addr_=block_addr_in_slice,
-                                                                           tmp_offset_=tmp_offset:
-                                                          s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
-                                                          action=OverwriteTmpValueCallback(
-                                                              gp_value).overwrite_tmp_value
-                                                          )
+                                        condition=lambda s, bbl_addr_=block_addr_in_slice,
+                                                        tmp_offset_=tmp_offset:
+                                        s.scratch.bbl_addr == bbl_addr_ and s.inspect.tmp_write_num == tmp_offset_,
+                                        action=OverwriteTmpValueCallback(
+                                        gp_value).overwrite_tmp_value
+                                        )
                             break
 
     @staticmethod
