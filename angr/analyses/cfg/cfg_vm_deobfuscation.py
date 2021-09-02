@@ -1465,8 +1465,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
         print("R10 Value: " + str(job.state.regs.r10))
 
-        if addr == 0x140055D8C:
-            import ipdb;ipdb.set_trace()
+
 
         # Get a SimSuccessors out of current job
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
@@ -1528,8 +1527,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 # Only add those successors which have symbolic guard or which evaluates to True, if the guard is not stack tainted
                 if is_stack_tainted is False and is_data_region_tainted is False:
                     if successor.solver.eval(successor.scratch.guard):
-                        if successor.addr in [0x140055da6, 0x14009b4a3]:
-                            import ipdb;ipdb.set_trace()
                         symbolic_sim_successors.add_successor(successor, successor.scratch.target,
                                                               successor.scratch.guard,
                                                               successor.history.jumpkind, True,
