@@ -343,7 +343,7 @@ class JumpTableProcessor(
         self._handle_Comparison(*expr.args)
 
     def _handle_CmpGT(self, expr):
-        self._handle_CmpGE(*expr.args)
+        self._handle_Comparison(*expr.args)
 
     def _handle_CCall(self, expr):
         if not isinstance(expr.args[0], pyvex.IRExpr.Const):
