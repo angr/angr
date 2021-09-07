@@ -497,10 +497,6 @@ class Structurer(Analysis):
 
         self._make_switch_cases(seq)
 
-        # remove conditional jumps of the current level
-        # seq = self._remove_conditional_jumps(seq, follow_seq=False)
-        # new_seq = EmptyNodeRemover(seq).result
-
         # this is hackish...
         # seq.nodes = new_seq.nodes
 
@@ -508,6 +504,8 @@ class Structurer(Analysis):
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
         self._remove_redundant_jumps(seq)
+        # remove conditional jumps of the current level
+        seq = self._remove_conditional_jumps(seq, follow_seq=False)
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result
