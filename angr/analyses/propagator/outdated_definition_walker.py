@@ -19,12 +19,19 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.avoid = avoid
         self.expr_handlers[Expr.Register] = self._handle_Register
         self.expr_handlers[Expr.Load] = self._handle_Load
+        self.expr_handlers[Expr.Tmp] = self._handle_Tmp
         self.out_dated = False
+
+    # pylint:disable=unused-argument
+    def _handle_Tmp(self, expr_idx: int, tmp_expr: Expr.Tmp, stmt_idx: int, stmt: Stmt.Assignment,
+                    block: Optional[Block]):
+        if self.avoid is not None and tmp_expr.likes(self.avoid):
+            self.out_dated = True
 
     # pylint:disable=unused-argument
     def _handle_Register(self, expr_idx: int, reg_expr: Expr.Register, stmt_idx: int, stmt: Stmt.Assignment,
                          block: Optional[Block]):
-        if self.avoid is not None and reg_expr == self.avoid:
+        if self.avoid is not None and reg_expr.likes(self.avoid):
             self.out_dated = True
         else:
             v = self.state.load_register(reg_expr)

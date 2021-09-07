@@ -25,11 +25,12 @@ class CallSiteMaker(Analysis):
     """
     Add calling convention, declaration, and args to a call site.
     """
-    def __init__(self, block, reaching_definitions=None, stack_pointer_tracker=None):
+    def __init__(self, block, reaching_definitions=None, stack_pointer_tracker=None, ail_manager=None):
         self.block = block
 
         self._reaching_definitions = reaching_definitions
         self._stack_pointer_tracker = stack_pointer_tracker
+        self._ail_manager = ail_manager
 
         self.result_block = None
         self.stack_arg_offsets: Optional[Set[Tuple[int,int]]] = None  # ins_addr, stack_offset
@@ -96,7 +97,7 @@ class CallSiteMaker(Analysis):
                         args.append(the_arg)
                     else:
                         # Reaching definitions are not available. Create a register expression instead.
-                        args.append(Expr.Register(None, None, offset, size * 8, reg_name=arg_loc.reg_name))
+                        args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
                 elif type(arg_loc) is SimStackArg:
 
                     stack_arg_locs.append(arg_loc)
@@ -242,9 +243,9 @@ class CallSiteMaker(Analysis):
 
         # TODO: Support extracting values
 
-        return None, Expr.Load(None,
-                         Expr.Register(None, None, self.project.arch.sp_offset, self.project.arch.bits) +
-                            Expr.Const(None, None, offset, self.project.arch.bits),
+        return None, Expr.Load(self._atom_idx(),
+                         Expr.Register(self._atom_idx(), None, self.project.arch.sp_offset, self.project.arch.bits) +
+                            Expr.Const(self._atom_idx(), None, offset, self.project.arch.bits),
                          size,
                          self.project.arch.memory_endness,
                          )
@@ -345,6 +346,9 @@ class CallSiteMaker(Analysis):
         if not specifiers:
             return None
         return len(specifiers)
+
+    def _atom_idx(self) -> Optional[int]:
+        return self._ail_manager.next_atom() if self._ail_manager is not None else None
 
 
 register_analysis(CallSiteMaker, 'AILCallSiteMaker')

@@ -161,7 +161,7 @@ class SimEnginePropagatorAIL(
         if tmp is not None:
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
-            if any(self.is_using_outdated_def(sub_expr) for sub_expr in all_subexprs):
+            if any(self.is_using_outdated_def(sub_expr, avoid=expr) for sub_expr in all_subexprs):
                 return PropValue.from_value_and_details(
                     self.state.top(expr.size * self.arch.byte_width), expr.size, expr, self._codeloc())
 
@@ -238,19 +238,26 @@ class SimEnginePropagatorAIL(
         new_expr = self.state.load_register(expr)
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
+            replaced = False
             all_subexprs = list(new_expr.all_exprs())
-            if not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
+            if all_subexprs and not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
                     if subexpr.size == expr.size:
+                        replaced = True
                         l.debug("Add a replacement: %s with %s", expr, subexpr)
                         self.state.add_replacement(self._codeloc(), expr, subexpr)
                 else:
                     is_concatenation, result_expr = _test_concatenation(new_expr)
                     if is_concatenation:
+                        replaced = True
                         l.debug("Add a replacement: %s with %s", expr, result_expr)
                         self.state.add_replacement(self._codeloc(), expr, result_expr)
+
+            if not replaced:
+                l.debug("Add a replacement: %s with TOP", expr)
+                self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
             return new_expr
 
         return PropValue.from_value_and_details(self.state.top(expr.bits), expr.size, expr, self._codeloc())

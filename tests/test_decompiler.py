@@ -308,8 +308,12 @@ def test_decompiling_true_x86_64_1():
     code: str = dec.codegen.text
 
     # constant propagation was failing. see https://github.com/angr/angr/issues/2659
-    assert code.count("32 <=") == 0
-    assert code.count("32") == 2
+    assert code.count("32 <=") == 0 and code.count("32 >") == 0 and \
+           code.count("((int)32) <=") == 0 and code.count("((int)32) >") == 0
+    if "*(&stack_base-56:32)" in code:
+        assert code.count("32") == 3
+    else:
+        assert code.count("32") == 2
 
 
 def test_decompiling_true_a_x86_64_0():
