@@ -475,6 +475,7 @@ class Clinic(Analysis):
             csm = self.project.analyses.AILCallSiteMaker(block,
                                                          reaching_definitions=rd,
                                                          stack_pointer_tracker=stack_pointer_tracker,
+                                                         ail_manager=self._ail_manager,
                                                          )
             if csm.stack_arg_offsets is not None:
                 TempClass.stack_arg_offsets |= csm.stack_arg_offsets
