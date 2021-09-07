@@ -39,11 +39,11 @@ class EmptyNodeRemover:
         self._walker = SequenceWalker(handlers=handlers)
         r = self._walker.walk(self.root)
         if r is None:
-            self.result = SequenceNode(nodes=[])
+            self.result = SequenceNode(None, nodes=[])
         else:
             # Make sure it's still a sequence node
             if not isinstance(r, SequenceNode):
-                r = SequenceNode(nodes=[r])
+                r = SequenceNode(node.addr, nodes=[r])
             self.result = r
 
     #
@@ -69,7 +69,7 @@ class EmptyNodeRemover:
             self.replaced_sequences[node] = new_nodes[0]
             return new_nodes[0]
 
-        sn = SequenceNode(nodes=new_nodes)
+        sn = SequenceNode(node.addr, nodes=new_nodes)
         self.replaced_sequences[node] = sn
         return sn
 

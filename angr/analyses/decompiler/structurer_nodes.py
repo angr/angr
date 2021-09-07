@@ -1,4 +1,5 @@
-from typing import List, Tuple, Any
+# pylint:disable=missing-class-docstring
+from typing import List, Tuple, Any, Optional
 
 import claripy
 import ailment
@@ -83,9 +84,10 @@ class BaseNode:
 
 class SequenceNode(BaseNode):
 
-    __slots__ = ('nodes',)
+    __slots__ = ('addr', 'nodes',)
 
-    def __init__(self, nodes=None):
+    def __init__(self, addr: Optional[int], nodes=None):
+        self.addr = addr
         self.nodes = nodes if nodes is not None else [ ]
 
     def __repr__(self):
@@ -93,13 +95,6 @@ class SequenceNode(BaseNode):
             return "<SequenceNode, %d nodes>" % len(self.nodes)
         else:
             return "<SequenceNode %#x, %d nodes>" % (self.addr, len(self.nodes))
-
-    @property
-    def addr(self):
-        if self.nodes:
-            return self.nodes[0].addr
-        else:
-            return None
 
     def add_node(self, node):
         self.nodes.append(node)
@@ -114,7 +109,7 @@ class SequenceNode(BaseNode):
         return self.nodes.index(node)
 
     def copy(self):
-        return SequenceNode(nodes=self.nodes[::])
+        return SequenceNode(self.addr, nodes=self.nodes[::])
 
     def dbg_repr(self, indent=0):
         s = ""
@@ -275,7 +270,7 @@ class ConditionalBreakNode(BreakNode):
     __slots__ = ('condition',)
 
     def __init__(self, addr, condition, target):
-        super(ConditionalBreakNode, self).__init__(addr, target)
+        super().__init__(addr, target)
         self.condition = condition
 
     def __repr__(self):

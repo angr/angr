@@ -731,6 +731,27 @@ def test_ifelseif_x8664():
     assert code.count("else if") == 3
 
 
+def test_decompiling_missing_function_call():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    # the call to fileno() should not go missing
+    assert code.count("fileno") == 1
+
+    code_without_spaces = code.replace(" ", "").replace("\n", "")
+    # make sure all break statements are followed by either "case " or "}"
+    replaced = code_without_spaces.replace("break;case", "")
+    replaced = replaced.replace("break;}", "")
+    assert "break" not in replaced
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
