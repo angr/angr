@@ -151,23 +151,23 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
         parent.nodes.insert(insert_idx, node)
     elif isinstance(parent, CodeNode):
         # Make a new sequence node
-        seq = SequenceNode(nodes=[parent.node, node])
+        seq = SequenceNode(parent.addr, nodes=[parent.node, node])
         parent.node = seq
     elif isinstance(parent, MultiNode):
         parent.nodes.insert(insert_idx, node)
     elif isinstance(parent, ConditionNode):
         if node_idx == 0:
             # true node
-            parent.true_node = SequenceNode(nodes=[parent.true_node])
+            parent.true_node = SequenceNode(parent.true_node.addr, nodes=[parent.true_node])
             insert_node(parent.true_node, insert_idx - node_idx, node, 0)
         else:
             # false node
-            parent.false_node = SequenceNode(nodes=[parent.false_node])
+            parent.false_node = SequenceNode(parent.false_node.addr, nodes=[parent.false_node])
             insert_node(parent.false_node, insert_idx - node_idx, node, 0)
     elif isinstance(parent, CascadingConditionNode):
         cond, child_node = parent.condition_and_nodes[node_idx]
         if not isinstance(child_node, SequenceNode):
-            child_node = SequenceNode(nodes=[child_node])
+            child_node = SequenceNode(child_node.addr, nodes=[child_node])
             parent.condition_and_nodes[node_idx] = (cond, child_node)
         insert_node(child_node, insert_idx - node_idx, node, 0)
     elif isinstance(parent, SwitchCaseNode):
@@ -183,7 +183,7 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
                 new_nodes = [ node, parent.cases[node_idx] ]
             else:
                 raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
-            seq = SequenceNode(nodes=new_nodes)
+            seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.cases[node_idx] = seq
         elif label == 'default':
             if insert_location == 'after':
@@ -192,7 +192,7 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
                 new_nodes = [ node, parent.default_node ]
             else:
                 raise TypeError("Unsupported 'insert_location' value %r." % insert_location)
-            seq = SequenceNode(nodes=new_nodes)
+            seq = SequenceNode(new_nodes[0].addr, nodes=new_nodes)
             parent.default_node = seq
     else:
         raise NotImplementedError()

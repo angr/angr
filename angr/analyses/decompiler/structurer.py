@@ -114,6 +114,9 @@ class Structurer(Analysis):
 
         self.result = None
 
+        if self.result is not None:
+            Structurer._remove_conditional_jumps(self.result)
+
         self._analyze()
 
     def _analyze(self):
@@ -146,7 +149,8 @@ class Structurer(Analysis):
 
         loop_node = self._refine_loop(loop_node)
 
-        seq = SequenceNode(nodes=[ loop_node ] + [ succ for succ in successors if succ in self._region.graph ])
+        seq = SequenceNode(loop_head.addr,
+                           nodes=[ loop_node ] + [ succ for succ in successors if succ in self._region.graph ])
 
         self.result = seq
 
@@ -420,10 +424,13 @@ class Structurer(Analysis):
 
     def _make_sequence(self):
 
-        seq = SequenceNode()
+        seq = SequenceNode(None)
 
         for node in CFGUtils.quasi_topological_sort_nodes(self._region.graph):
             seq.add_node(CodeNode(node, self.cond_proc.reaching_conditions.get(node, None)))
+
+        if seq.nodes:
+            seq.addr = seq.nodes[0].addr
 
         return seq
 
@@ -501,10 +508,6 @@ class Structurer(Analysis):
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
         self._remove_redundant_jumps(seq)
-        if not self._is_loop_body:
-            self._remove_conditional_jumps(seq)
-        # if this is a loop body, we don't remove conditional jumps here since they might be required by the cyclic
-        # structuring phase, which will convert conditional jumps into conditional breaks.
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result
@@ -892,7 +895,7 @@ class Structurer(Analysis):
                           seq.addr,
                           )
                 continue
-            case_node = SequenceNode(nodes=[CodeNode(entry_node.node, claripy.true)])
+            case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true)])
             to_remove.add(entry_node)
             entry_node_idx = seq.nodes.index(entry_node)
 
@@ -907,7 +910,9 @@ class Structurer(Analysis):
                     guarded_nodes = guarded_nodes.intersection(set(node_ for _, node_, _ in guarded_node_candidates))
 
             if guarded_nodes is not None:
-                for node_ in guarded_nodes:
+                # keep the topological order of nodes in Sequence node
+                sorted_guarded_nodes = [node_ for node_ in seq.nodes[entry_node_idx + 1:] if node_ in guarded_nodes]
+                for node_ in sorted_guarded_nodes:
                     if node_ is not entry_node and node_.addr not in entry_addrs_set:
                         # fix reaching condition
                         reaching_condition_subexprs = set(ex for ex in get_ast_subexprs(node_.reaching_condition)).difference(set(cond_subexprs))
@@ -1101,7 +1106,7 @@ class Structurer(Analysis):
             )
             new_nodes.append(new_node)
 
-        new_node = SequenceNode(nodes=new_nodes)
+        new_node = SequenceNode(None if not new_nodes else new_nodes[0].addr, nodes=new_nodes)
         return new_node
 
     def _replace_complex_reaching_conditions(self, seq: SequenceNode):
@@ -1212,6 +1217,10 @@ class Structurer(Analysis):
         return CascadingConditionNode(cond_node.addr, cond_and_nodes, else_node=else_node)
 
     def _make_ite(self, seq, node_0, node_1):
+
+        # ensure order
+        if node_0.addr > node_1.addr:
+            node_0, node_1 = node_1, node_0
 
         node_0_pos = seq.node_position(node_0)
         node_1_pos = seq.node_position(node_1)
@@ -1543,16 +1552,17 @@ class Structurer(Analysis):
     @staticmethod
     def _merge_nodes(node_0, node_1):
 
+        addr = node_0.addr if node_0.addr is not None else node_1.addr
         if isinstance(node_0, SequenceNode):
             if isinstance(node_1, SequenceNode):
-                return SequenceNode(nodes=node_0.nodes + node_1.nodes)
+                return SequenceNode(addr, nodes=node_0.nodes + node_1.nodes)
             else:
-                return SequenceNode(nodes=node_0.nodes + [ node_1 ])
+                return SequenceNode(addr, nodes=node_0.nodes + [ node_1 ])
         else:
             if isinstance(node_1, SequenceNode):
-                return SequenceNode(nodes=[node_0] + node_1.nodes)
+                return SequenceNode(addr, nodes=[node_0] + node_1.nodes)
             else:
-                return SequenceNode(nodes=[node_0, node_1])
+                return SequenceNode(addr, nodes=[node_0, node_1])
 
     def _update_new_sequences(self, removed_sequences: Set[SequenceNode], replaced_sequences: Dict[SequenceNode,Any]):
         new_sequences = [ ]

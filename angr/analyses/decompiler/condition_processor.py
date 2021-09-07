@@ -242,7 +242,7 @@ class ConditionProcessor:
             for n in node.nodes:
                 new_node = self.remove_claripy_bool_asts(n, memo=memo)
                 new_nodes.append(new_node)
-            new_seq_node = SequenceNode(new_nodes)
+            new_seq_node = SequenceNode(node.addr, new_nodes)
             return new_seq_node
 
         elif isinstance(node, MultiNode):
