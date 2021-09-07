@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from typing import List, Tuple, Any, Optional
 
 import claripy
@@ -269,7 +270,7 @@ class ConditionalBreakNode(BreakNode):
     __slots__ = ('condition',)
 
     def __init__(self, addr, condition, target):
-        super(ConditionalBreakNode, self).__init__(addr, target)
+        super().__init__(addr, target)
         self.condition = condition
 
     def __repr__(self):
