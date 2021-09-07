@@ -123,11 +123,12 @@ class SimEngineVRAIL(
         if prototype is not None and args:
             # add type constraints
             for arg, arg_type in zip(args, prototype.args):
-                arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
-                type_constraint = typevars.Subtype(
-                    arg_ty, arg.typevar
-                )
-                self.state.add_type_constraint(type_constraint)
+                if arg.typevar is not None:
+                    arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                    type_constraint = typevars.Subtype(
+                        arg_ty, arg.typevar
+                    )
+                    self.state.add_type_constraint(type_constraint)
 
     def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
         return self._ail_handle_Call(expr, is_expr=True)
