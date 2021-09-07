@@ -514,7 +514,7 @@ class Clinic(Analysis):
                 if isinstance(ret_val, SimRegArg):
                     reg = self.project.arch.registers[ret_val.reg_name]
                     new_stmt.ret_exprs.append(ailment.Expr.Register(
-                        None,
+                        self._next_atom(),
                         None,
                         reg[0],
                         reg[1] * self.project.arch.byte_width,
@@ -803,6 +803,9 @@ class Clinic(Analysis):
                 graph.add_edge(src, dst, **data)
 
         return graph
+
+    def _next_atom(self) -> int:
+        return self._ail_manager.next_atom()
 
     @staticmethod
     def _make_callsites_rd_observe_callback(ob_type, **kwargs):
