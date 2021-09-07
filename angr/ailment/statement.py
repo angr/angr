@@ -1,3 +1,4 @@
+# pylint:disable=isinstance-second-argument-not-valid-type
 from typing import Optional, TYPE_CHECKING
 
 try:
@@ -20,9 +21,6 @@ class Statement(TaggedObject):
 
     __slots__ = ()
 
-    def __init__(self, idx, **kwargs):
-        super(Statement, self).__init__(idx, **kwargs)
-
     def __repr__(self):
         raise NotImplementedError()
 
@@ -32,7 +30,7 @@ class Statement(TaggedObject):
     def replace(self, old_expr, new_expr):
         raise NotImplementedError()
 
-    def eq(self, expr0, expr1):
+    def eq(self, expr0, expr1):  # pylint:disable=no-self-use
         if claripy is not None and (isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base)):
             return expr0 is expr1
         return expr0 == expr1
@@ -129,8 +127,8 @@ class Store(Statement):
             return "STORE(addr=%s, data=%s, size=%s, endness=%s, guard=%s)" % (self.addr, str(self.data), self.size,
                                                                                self.endness, self.guard)
         else:
-            return "%s =%s %s<%d>%s" % (self.variable.name, "L" if self.endness == "Iend_LE" else "B", str(self.data), self.size,
-                                        "" if self.guard is None else "[%s]" % self.guard)
+            return "%s =%s %s<%d>%s" % (self.variable.name, "L" if self.endness == "Iend_LE" else "B", str(self.data),
+                                        self.size, "" if self.guard is None else "[%s]" % self.guard)
 
     def replace(self, old_expr, new_expr):
         if self.addr.likes(old_expr):
@@ -269,8 +267,8 @@ class Call(Expression, Statement):
 
     __slots__ = ('target', 'calling_convention', 'prototype', 'args', 'ret_expr', )
 
-    def __init__(self, idx, target, calling_convention: Optional['SimCC']=None, prototype=None, args=None, ret_expr=None,
-                 **kwargs):
+    def __init__(self, idx, target, calling_convention: Optional['SimCC']=None, prototype=None, args=None,
+                 ret_expr=None, **kwargs):
         super().__init__(idx, target.depth + 1,**kwargs)
 
         self.target = target
@@ -279,7 +277,7 @@ class Call(Expression, Statement):
         self.args = args
         self.ret_expr = ret_expr
 
-    def __eq__(self, other):
+    def likes(self, other):
         return type(other) is Call and \
                self.idx == other.idx and \
                self.target == other.target and \
@@ -306,7 +304,8 @@ class Call(Expression, Statement):
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
-            s = ("%s: %s" % (cc, self.args)) if self.prototype is None else "%s: %s" % (self.calling_convention, self.args)
+            s = ("%s: %s" % (cc, self.args)) if self.prototype is None else "%s: %s" % (self.calling_convention,
+                                                                                        self.args)
 
         return "Call(%s, %s)" % (
             self.target,
