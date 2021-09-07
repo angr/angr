@@ -217,7 +217,6 @@ class SimEngineVRAIL(
         except SimMemoryMissingError:
             vs = None
 
-
         typevar_set = set()
         if vs:
             for value in vs:

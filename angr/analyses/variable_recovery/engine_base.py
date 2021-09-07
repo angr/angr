@@ -187,8 +187,14 @@ class SimEngineVRBase(SimEngineLight):
                 vs = MultiValues(offset_to_values={0: {top}})
             self.state.stack_region.store(stack_addr, vs)
 
-        typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-        self.state.typevars.add_type_variable(variable, codeloc, typevar)
+        if self.state.typevars.has_type_variable_for(variable, codeloc):
+            variable_typevar = self.state.typevars.get_type_variable(variable, codeloc)
+        else:
+            variable_typevar = typevars.TypeVariable()
+            self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
+        addr_typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
+        type_constraint = typevars.Subtype(typeconsts.Pointer64(variable_typevar), addr_typevar)
+        self.state.add_type_constraint(type_constraint)
 
         # find all variables
         for var, offset in existing_vars:
