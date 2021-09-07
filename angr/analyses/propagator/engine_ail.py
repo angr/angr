@@ -161,7 +161,7 @@ class SimEnginePropagatorAIL(
         if tmp is not None:
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
-            if any(self.is_using_outdated_def(sub_expr) for sub_expr in all_subexprs):
+            if any(self.is_using_outdated_def(sub_expr, avoid=expr) for sub_expr in all_subexprs):
                 return PropValue.from_value_and_details(
                     self.state.top(expr.size * self.arch.byte_width), expr.size, expr, self._codeloc())
 
