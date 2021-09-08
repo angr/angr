@@ -72,7 +72,7 @@ class CallingConventionAnalysis(Analysis):
         if self._function.is_simprocedure:
             self.cc = self._function.calling_convention
             if self.cc is None:
-                callsite_facts = self._analyze_callsites()
+                callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
                 cc = DefaultCC[self.project.arch.name](self.project.arch)
                 cc = self._adjust_cc(cc, callsite_facts, update_arguments=True)
                 self.cc = cc
@@ -83,7 +83,8 @@ class CallingConventionAnalysis(Analysis):
 
         cc = self._analyze_function()
         if self.analyze_callsites:
-            callsite_facts = self._analyze_callsites()
+            # only take the first 3 because running reaching definition analysis on all functions is costly
+            callsite_facts = self._analyze_callsites(max_analyzing_callsites=3)
             cc = self._adjust_cc(cc, callsite_facts)
 
         if cc is None:
@@ -126,7 +127,7 @@ class CallingConventionAnalysis(Analysis):
                 return real_func.calling_convention
 
         # determine the calling convention by analyzing its callsites
-        callsite_facts = self._analyze_callsites()
+        callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
         cc = DefaultCC[self.project.arch.name](self.project.arch)
         cc = self._adjust_cc(cc, callsite_facts, update_arguments=True)
         return cc
@@ -168,7 +169,7 @@ class CallingConventionAnalysis(Analysis):
 
         return cc
 
-    def _analyze_callsites(self) -> List[CallSiteFact]:  # pylint:disable=no-self-use
+    def _analyze_callsites(self, max_analyzing_callsites: int=3) -> List[CallSiteFact]:  # pylint:disable=no-self-use
         """
         Analyze all call sites of the function and determine the possible number of arguments and if the function
         returns anything or not.
@@ -198,14 +199,11 @@ class CallingConventionAnalysis(Analysis):
                 continue
             call_sites_by_function[caller].append((src.addr, src.instruction_addrs[-1]))
 
-        # only take the first 3 because running reaching definition analysis on all functions is costly
-        MAX_ANALYZING_ITEMS = 3
-
-        call_sites_by_function_list = list(call_sites_by_function.items())[:MAX_ANALYZING_ITEMS]
+        call_sites_by_function_list = list(call_sites_by_function.items())[:max_analyzing_callsites]
         ctr = 0
 
         for caller, call_site_tuples in call_sites_by_function_list:
-            if ctr >= MAX_ANALYZING_ITEMS:
+            if ctr >= max_analyzing_callsites:
                 break
 
             # generate a subgraph that only contains the basic block that does the call and the basic block after the
@@ -225,7 +223,7 @@ class CallingConventionAnalysis(Analysis):
                 facts.append(fact)
 
                 ctr += 1
-                if ctr >= MAX_ANALYZING_ITEMS:
+                if ctr >= max_analyzing_callsites:
                     break
 
         return facts
