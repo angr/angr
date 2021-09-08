@@ -1152,7 +1152,7 @@ class Function(Serializable):
                 blocks.append(b)
                 block_addr_to_insns[b.addr] = sorted(common_insns)
 
-       #subgraph = networkx.subgraph(self.graph, blocks)
+        #subgraph = networkx.subgraph(self.graph, blocks)
         subgraph = self.graph.subgraph(blocks).copy()
         g = networkx.DiGraph()
 
