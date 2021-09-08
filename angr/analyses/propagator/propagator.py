@@ -371,9 +371,16 @@ class PropagatorAILState(PropagatorState):
 
     def add_replacement(self, codeloc, old, new):
 
+        # do not replace anything with a call expression
         if isinstance(new, ailment.statement.Call):
-            # do not replace anything with a call expression
             return
+        else:
+            from .call_expr_finder import CallExprFinder  # pylint:disable=import-outside-toplevel
+
+            callexpr_finder = CallExprFinder()
+            callexpr_finder.walk_expression(new)
+            if callexpr_finder.has_call:
+                return
 
         if self.is_top(new):
             # eliminate the past propagation of this expression
