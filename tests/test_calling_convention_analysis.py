@@ -231,6 +231,19 @@ def test_x86_saved_regs():
     assert cc.args[0] == SimStackArg(4, 4)
 
 
+def test_callsite_inference_amd64():
+
+    # Calling convention analysis should be able to determine calling convention of a library function by analyzing its
+    # callsites.
+    binary_path = os.path.join(test_location, "tests", "x86_64", "decompiler", "morton")
+    proj = angr.Project(binary_path, auto_load_libs=False)
+    cfg = proj.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions.function(name='mosquitto_publish', plt=True)
+    cca = proj.analyses.CallingConvention(func)
+    assert len(cca.cc.args) == 6
+
+
 def run_all():
     for args in test_fauxware():
         func, args = args[0], args[1:]
@@ -245,5 +258,6 @@ if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.calling_convention").setLevel(logging.INFO)
     # run_all()
-    test_x8664_void()
+    # test_x8664_void()
     # test_dir_gcc_O0()
+    test_callsite_inference_amd64()

@@ -757,6 +757,8 @@ def test_decompiling_morton_my_message_callback():
     p = angr.Project(bin_path, auto_load_libs=False)
 
     cfg = p.analyses.CFG(data_references=True, normalize=True)
+    p.analyses.CompleteCallingConventions(recover_variables=True)
+
     func = cfg.functions['my_message_callback']
 
     dec = p.analyses.Decompiler(func, cfg=cfg.model)
@@ -765,7 +767,10 @@ def test_decompiling_morton_my_message_callback():
     print(code)
     # we should not propagate generate_random() calls into function arguments without removing the original call
     # statement.
-    assert code.count("generate_random()") == 3
+    assert code.count("generate_random(") == 3
+    # we should be able to correctly figure out all arguments for mosquitto_publish() by analyzing call sites
+    assert code.count("mosquitto_publish()") == 0
+    assert code.count("mosquitto_publish(") == 6
 
 
 if __name__ == "__main__":
