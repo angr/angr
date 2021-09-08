@@ -752,6 +752,22 @@ def test_decompiling_missing_function_call():
     assert "break" not in replaced
 
 
+def test_decompiling_morton_my_message_callback():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    func = cfg.functions['my_message_callback']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    # we should not propagate generate_random() calls into function arguments without removing the original call
+    # statement.
+    assert code.count("generate_random()") == 3
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
