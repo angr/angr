@@ -25,6 +25,9 @@ l = logging.getLogger(name=__name__)
 
 
 class CallSiteFact:
+    """
+    Store facts about each call site.
+    """
     def __init__(self, return_value_used):
         self.return_value_used: bool = return_value_used
         self.args = [ ]
