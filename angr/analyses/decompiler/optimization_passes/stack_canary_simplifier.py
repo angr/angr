@@ -125,7 +125,7 @@ class StackCanarySimplifier(OptimizationPass):
                     continue
 
                 # Find the statement that computes real canary value xor stored canary value
-                canary_check_stmt_idx = self._find_canary_xor_stmt(pred, store_offset)
+                canary_check_stmt_idx = self._find_canary_comparison_stmt(pred, store_offset)
                 if canary_check_stmt_idx is None:
                     _l.debug("Cannot find the canary check statement in the predecessor.")
                     continue
@@ -186,7 +186,7 @@ class StackCanarySimplifier(OptimizationPass):
 
         return None
 
-    def _find_canary_xor_stmt(self, block, canary_value_stack_offset):
+    def _find_canary_comparison_stmt(self, block, canary_value_stack_offset):
 
         for idx, stmt in enumerate(block.statements):
             if isinstance(stmt, ailment.Stmt.ConditionalJump):
@@ -205,33 +205,26 @@ class StackCanarySimplifier(OptimizationPass):
                 else:
                     continue
 
-                expr = condition.operands[0]
-                if not isinstance(expr, ailment.Expr.BinaryOp):
-                    continue
-                if expr.op != "Xor":
-                    continue
-                op0, op1 = expr.operands
-                if not isinstance(op0, ailment.Expr.Load):
-                    continue
-                if not isinstance(op0.addr, ailment.Expr.StackBaseOffset):
-                    continue
-                bits = self.project.arch.bits
-                if s2u(op0.addr.offset, bits) != s2u(canary_value_stack_offset, bits):
-                    continue
-                if not isinstance(op1, ailment.Expr.Load):
-                    continue
-                if not isinstance(op1.addr, ailment.Expr.BinaryOp):
-                    continue
-                if not op1.addr.op == "Add":
-                    continue
-                if not isinstance(op1.addr.operands[0], ailment.Expr.Const):
-                    continue
-                if op1.addr.operands[0].value != 0x28:
-                    continue
-                if not isinstance(op1.addr.operands[1], ailment.Expr.Register):
-                    continue
-                if op1.addr.operands[1].reg_offset != self.project.arch.get_register_offset('fs'):
-                    continue
+                expr0, expr1 = condition.operands
+                if isinstance(expr0, ailment.Expr.BinaryOp) and expr0.op == "Xor":
+                    # a ^ b
+                    op0, op1 = expr0.operands
+                    if not (self._is_stack_canary_load_expr(op0, self.project.arch.bits, canary_value_stack_offset)
+                            and self._is_random_number_load_expr(op1, self.project.arch.get_register_offset('fs')) or
+                            (
+                               self._is_stack_canary_load_expr(op1, self.project.arch.bits, canary_value_stack_offset)
+                               and self._is_random_number_load_expr(op0, self.project.arch.get_register_offset('fs'))
+                            )):
+                        continue
+                elif isinstance(expr0, ailment.Expr.Load) and isinstance(expr1, ailment.Expr.Load) and \
+                        condition.op == "CmpEQ":
+                    # a == b
+                    if not (self._is_stack_canary_load_expr(expr0, self.project.arch.bits, canary_value_stack_offset)
+                            and self._is_random_number_load_expr(expr1, self.project.arch.get_register_offset('fs')) or
+                            (self._is_stack_canary_load_expr(expr1, self.project.arch.bits, canary_value_stack_offset)
+                             and self._is_random_number_load_expr(expr0, self.project.arch.get_register_offset('fs'))
+                            )):
+                        continue
 
                 # Found it
                 return idx
@@ -249,6 +242,24 @@ class StackCanarySimplifier(OptimizationPass):
                         return True
 
         return False
+
+    @staticmethod
+    def _is_stack_canary_load_expr(expr, bits: int, canary_value_stack_offset: int) -> bool:
+        if not (isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.StackBaseOffset)):
+            return False
+        if s2u(expr.addr.offset, bits) != s2u(canary_value_stack_offset, bits):
+            return False
+        return True
+
+    @staticmethod
+    def _is_random_number_load_expr(expr, fs_reg_offset: int) -> bool:
+        return (isinstance(expr, ailment.Expr.Load)
+                and isinstance(expr.addr, ailment.Expr.BinaryOp)
+                and expr.addr.op == "Add"
+                and isinstance(expr.addr.operands[0], ailment.Expr.Const)
+                and expr.addr.operands[0].value == 0x28
+                and isinstance(expr.addr.operands[1], ailment.Expr.Register)
+                and expr.addr.operands[1].reg_offset == fs_reg_offset)
 
 
 AnalysesHub.register_default("StackCanarySimplifier", StackCanarySimplifier)

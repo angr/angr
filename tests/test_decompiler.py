@@ -773,6 +773,22 @@ def test_decompiling_morton_my_message_callback():
     assert code.count("mosquitto_publish(") == 6
 
 
+def test_decompiling_morton_lib_handle__suback():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton.libmosquitto.so.1")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    p.analyses.CompleteCallingConventions(recover_variables=True)
+
+    func = cfg.functions['handle__suback']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
