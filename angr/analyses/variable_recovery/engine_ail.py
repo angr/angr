@@ -67,7 +67,7 @@ class SimEngineVRAIL(
     def _ail_handle_ConditionalJump(self, stmt):
         self._expr(stmt.condition)
 
-    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False):
+    def _ail_handle_Call(self, stmt: ailment.Stmt.Call, is_expr=False) -> Optional[RichR]:
         target = stmt.target
         args = [ ]
         if stmt.args:
@@ -79,7 +79,9 @@ class SimEngineVRAIL(
 
         ret_expr = None
         ret_reg_offset = None
+        ret_val = None  # stores the value that this method should return to its caller when this is a call expression.
         if not is_expr:
+            # this is a call statement. we need to update the return value register later
             ret_expr: Optional[ailment.Expr.Register] = stmt.ret_expr
             if ret_expr is not None:
                 ret_reg_offset = ret_expr.reg_offset
@@ -93,6 +95,9 @@ class SimEngineVRAIL(
 
                 if ret_expr is not None:
                     ret_reg_offset = self.project.arch.registers[ret_expr.reg_name][0]
+        else:
+            # this is a call expression. we just return the value at the end of this method
+            pass
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
@@ -104,32 +109,43 @@ class SimEngineVRAIL(
                 func = self.kb.functions[func_addr]
                 prototype = func.prototype
 
-        if ret_expr is not None:
-            # dump the type of the return value
-            if prototype is not None:
-                ret_ty = TypeLifter(self.arch.bits).lift(prototype.returnty)
-            else:
-                ret_ty = None
-            if isinstance(ret_ty, typeconsts.BottomType):
-                ret_ty = None
+        # dump the type of the return value
+        if prototype is not None:
+            ret_ty = TypeLifter(self.arch.bits).lift(prototype.returnty)
+        else:
+            ret_ty = typevars.TypeVariable()
+        if isinstance(ret_ty, typeconsts.BottomType):
+            ret_ty = typevars.TypeVariable()
 
-            self._assign_to_register(
-                ret_reg_offset,
-                RichR(self.state.top(self.state.arch.bits), typevar=ret_ty),
-                self.state.arch.bytes,
-                dst=ret_expr,
-            )
+        if is_expr:
+            # call expression mode
+            ret_val = RichR(self.state.top(self.state.arch.bits), typevar=ret_ty)
+        else:
+            if ret_expr is not None:
+                # update the return value register
+                self._assign_to_register(
+                    ret_reg_offset,
+                    RichR(self.state.top(self.state.arch.bits), typevar=ret_ty),
+                    self.state.arch.bytes,
+                    dst=ret_expr,
+                )
 
         if prototype is not None and args:
             # add type constraints
             for arg, arg_type in zip(args, prototype.args):
-                arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
-                type_constraint = typevars.Subtype(
-                    arg_ty, arg.typevar
-                )
-                self.state.add_type_constraint(type_constraint)
+                if arg.typevar is not None:
+                    arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                    type_constraint = typevars.Subtype(
+                        arg_ty, arg.typevar
+                    )
+                    self.state.add_type_constraint(type_constraint)
 
-    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call):
+        if is_expr:
+            # call expression mode: return the actual return value
+            return ret_val
+        return None
+
+    def _ail_handle_CallExpr(self, expr: ailment.Stmt.Call) -> RichR:
         return self._ail_handle_Call(expr, is_expr=True)
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):
@@ -216,7 +232,6 @@ class SimEngineVRAIL(
         except SimMemoryMissingError:
             vs = None
 
-
         typevar_set = set()
         if vs:
             for value in vs:
@@ -277,13 +292,15 @@ class SimEngineVRAIL(
         else:
             # create a new type variable and add constraints accordingly
             typevar = typevars.TypeVariable()
-            type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
+            if r0.typevar is not None and r1.typevar is not None:
+                type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
 
         sum_ = None
         if r0.data is not None and r1.data is not None:
             sum_ = r0.data + r1.data
 
-        type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
+        if r0.typevar is not None and r1.typevar is not None:
+            type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
 
         return RichR(sum_,
                      typevar=typevar,

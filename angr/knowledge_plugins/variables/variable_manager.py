@@ -12,8 +12,10 @@ from claripy.utils.orderedset import OrderedSet
 from ...protos import variables_pb2
 from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
+from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
+from ..types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
 if TYPE_CHECKING:
@@ -51,7 +53,7 @@ class VariableManagerInternal(Serializable):
     Manage variables for a function. It is meant to be used internally by VariableManager.
     """
     def __init__(self, manager, func_addr=None):
-        self.manager = manager
+        self.manager: 'VariableManager' = manager
 
         self.func_addr = func_addr
 
@@ -81,7 +83,9 @@ class VariableManagerInternal(Serializable):
         self._phi_variables = { }
         self._phi_variables_by_block = defaultdict(set)
 
-        self.types = { }
+        self.types = TypesStore(self.manager._kb)
+        self.variable_to_types: Dict[SimVariable,SimType] = { }
+        self.variables_with_manual_types = set()
 
     #
     # Serialization
@@ -533,7 +537,7 @@ class VariableManagerInternal(Serializable):
 
         return input_variables
 
-    def assign_variable_names(self, labels=None):
+    def assign_variable_names(self, labels=None, types=None):
         """
         Assign default names to all SSA variables.
 
@@ -542,7 +546,7 @@ class VariableManagerInternal(Serializable):
         """
 
         for var in self._variables:
-            if isinstance(var, SimStackVariable):
+            if (types is None or SimStackVariable in types) and isinstance(var, SimStackVariable):
                 if var.name is not None:
                     continue
                 if var.ident.startswith('iarg'):
@@ -550,21 +554,23 @@ class VariableManagerInternal(Serializable):
                 else:
                     var.name = 's_%x' % (-var.offset)
                     # var.name = var.ident
-            elif isinstance(var, SimRegisterVariable):
+            elif (types is None or SimRegisterVariable in types) and isinstance(var, SimRegisterVariable):
                 if var.name is not None:
                     continue
                 var.name = var.ident
-            elif isinstance(var, SimMemoryVariable):
+            elif (types is None or SimMemoryVariable in types) and isinstance(var, SimMemoryVariable):
                 if var.name is not None:
                     continue
                 if labels is not None and var.addr in labels:
                     var.name = labels[var.addr]
                     if "@@" in var.name:
                         var.name = var.name[:var.name.index("@@")]
+                elif isinstance(var.addr, int):
+                    var.name = "g_%x" % var.addr
                 elif var.ident is not None:
                     var.name = var.ident
                 else:
-                    var.name = "g_%x" % var.addr
+                    var.name = "g_%s" % var.addr
 
     def assign_unified_variable_names(self, labels=None, reset:bool=False):
         """
@@ -635,11 +641,36 @@ class VariableManagerInternal(Serializable):
             var.name = f"a{idx}"
             var._hash = None
 
-    def get_variable_type(self, var):
-        return self.types.get(var, None)
+    def _register_struct_type(self, ty: SimStruct, name: Optional[str]=None) -> TypeRef:
+        if not name:
+            name = ty.name
+        if not name:
+            name = self.types.unique_type_name()
+        if name in self.types:
+            return self.types[name]
+        ty = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
+        self.types[name] = ty
+        return ty
+
+    def set_variable_type(self, var: SimVariable, ty: SimType, name: Optional[str]=None) -> None:
+        if name:
+            if name not in self.types:
+                self.types[name] = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
+            ty = self.types[name]
+        elif isinstance(ty, SimTypePointer) and isinstance(ty.pts_to, SimStruct):
+            typeref = self._register_struct_type(ty.pts_to)
+            ty = ty.copy().with_arch(self.manager._kb._project.arch)
+            ty.pts_to = typeref
+        elif isinstance(ty, SimStruct):
+            ty = self._register_struct_type(ty, name=name)
+        self.variable_to_types[var] = ty
+
+    def get_variable_type(self, var) -> Optional[SimType]:
+        return self.variable_to_types.get(var, None)
 
     def remove_types(self):
         self.types.clear()
+        self.variable_to_types.clear()
 
     def unify_variables(self) -> None:
         """
@@ -726,6 +757,11 @@ class VariableManager(KnowledgeBasePlugin):
         self._kb: 'KnowledgeBase' = kb
         self.global_manager = VariableManagerInternal(self)
         self.function_managers: Dict[int,VariableManagerInternal] = { }
+
+    def __contains__(self, key) -> bool:
+        if key == 'global':
+            return True
+        return key in self.function_managers
 
     def __getitem__(self, key) -> VariableManagerInternal:
         """

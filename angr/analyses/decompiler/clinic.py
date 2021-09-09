@@ -11,7 +11,7 @@ from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from ...sim_type import SimTypeChar, SimTypeInt, SimTypeLongLong, SimTypeShort, SimTypeFunction, SimTypeBottom
-from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
+from ...sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE
 from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
@@ -23,6 +23,7 @@ from .optimization_passes import get_default_optimization_passes, OptimizationPa
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
+    from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
 
@@ -43,6 +44,7 @@ class Clinic(Analysis):
                  must_struct: Optional[Set[str]]=None,
                  variable_kb=None,
                  reset_variable_names=False,
+                 cache: Optional['DecompilationCache']=None,
                  ):
         if not func.normalized:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -64,6 +66,7 @@ class Clinic(Analysis):
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
+        self._cache = cache
 
         # sanity checks
         if not self.kb.functions:
@@ -586,8 +589,15 @@ class Clinic(Analysis):
         vr = self.project.analyses.VariableRecoveryFast(self.function,  # pylint:disable=unused-variable
                                                         func_graph=ail_graph, kb=tmp_kb, track_sp=False,
                                                         func_args=arg_list)
+        # get ground-truth types
+        var_manager = tmp_kb.variables[self.function.addr]
+        groundtruth = {}
+        for variable in var_manager.variables_with_manual_types:
+            vartype = var_manager.types.get(variable, None)
+            if vartype is not None:
+                groundtruth[vr.var_to_typevar[variable]] = vartype
         # clean up existing types for this function
-        tmp_kb.variables[self.function.addr].remove_types()
+        var_manager.remove_types()
         # TODO: Type inference for global variables
         # run type inference
         if self._must_struct:
@@ -599,15 +609,17 @@ class Clinic(Analysis):
             must_struct = None
         try:
             tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar,
-                                                must_struct=must_struct)
+                                                must_struct=must_struct, ground_truth=groundtruth)
             tp.update_variable_types(self.function.addr, vr.var_to_typevar)
+            tp.update_variable_types('global', vr.var_to_typevar)
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
 
         # Unify SSA variables
-        tmp_kb.variables[self.function.addr].unify_variables()
-        tmp_kb.variables[self.function.addr].assign_unified_variable_names(
+        tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
+        var_manager.unify_variables()
+        var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
             reset=self._reset_variable_names,
         )
@@ -615,6 +627,11 @@ class Clinic(Analysis):
         # Link variables to each statement
         for block in ail_graph.nodes():
             self._link_variables_on_block(block, tmp_kb)
+
+        if self._cache is not None:
+            self._cache.type_constraints = vr.type_constraints
+            self._cache.var_to_typevar = vr.var_to_typevar
+
         return tmp_kb
 
     def _link_variables_on_block(self, block, kb):
@@ -777,6 +794,8 @@ class Clinic(Analysis):
                 var = next(iter(variables))
                 expr.tags['reference_variable'] = var
                 expr.tags['reference_variable_offset'] = None
+                expr.variable = var
+                expr.variable_offset = None
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)

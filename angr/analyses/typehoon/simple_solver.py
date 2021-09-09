@@ -138,7 +138,15 @@ class SimpleSolver:
                 # type_a == type_b
                 # we apply unification and removes one of them
                 ta, tb = constraint.type_a, constraint.type_b
-                graph.add_edge(ta, tb)
+                if isinstance(ta, TypeConstant) and isinstance(tb, TypeVariable):
+                    # replace tb with ta
+                    replacements[tb] = ta
+                elif isinstance(ta, TypeVariable) and isinstance(tb, TypeConstant):
+                    # replace ta with tb
+                    replacements[ta] = tb
+                else:
+                    # they are both type variables. we will determine a representative later
+                    graph.add_edge(ta, tb)
 
         for components in networkx.connected_components(graph):
             components_lst = list(components)

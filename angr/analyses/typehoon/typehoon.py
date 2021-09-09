@@ -1,12 +1,15 @@
-from typing import List, Set, Optional, Dict, TYPE_CHECKING
+from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
+from ...sim_type import SimStruct, SimTypePointer
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, Int8
+from .typevars import Equivalence
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
+    from angr.sim_type import SimType
     from .typevars import TypeVariable, TypeConstraint
 
 
@@ -27,9 +30,18 @@ class Typehoon(Analysis):
                  prioritize_char_array_over_struct: bool=True,
                  must_struct: Optional[Set['TypeVariable']]=None,
                  ):
+        """
+
+        :param constraints:
+        :param ground_truth:        A set of SimType-style solutions for some or all type variables. They will be
+                                    respected during type solving.
+        :param var_mapping:
+        :param prioritize_char_array_over_struct:
+        :param must_struct:
+        """
 
         self._constraints: Set['TypeConstraint'] = constraints
-        self._ground_truth = ground_truth
+        self._ground_truth: Optional[Dict['TypeVariable','SimType']] = ground_truth
         self._var_mapping = var_mapping  # variable mapping is only used for debugging purposes
         self._must_struct = must_struct
 
@@ -50,13 +62,16 @@ class Typehoon(Analysis):
     # Public methods
     #
 
-    def update_variable_types(self, func_addr, var_to_typevar):
+    def update_variable_types(self, func_addr: Union[int,str], var_to_typevar):
 
         for var, typevar in var_to_typevar.items():
             type_ = self.simtypes_solution.get(typevar, None)
             if type_ is not None:
                 # print("{} -> {}: {}".format(var, typevar, type_))
-                self.kb.variables[func_addr].types[var] = type_
+                name = None
+                if isinstance(type_, SimStruct):
+                    name = type_.name
+                self.kb.variables[func_addr].set_variable_type(var, type_, name=name)
 
     def pp_constraints(self) -> None:
         """
@@ -77,9 +92,19 @@ class Typehoon(Analysis):
 
     def _analyze(self):
 
+        # convert ground truth into constraints
+        if self._ground_truth:
+            translator = TypeTranslator(arch=self.project.arch)
+            for tv, sim_type in self._ground_truth.items():
+                self._constraints.add(Equivalence(tv, translator.simtype2tc(sim_type)))
+
         self._solve()
         self._specialize()
         self._translate_to_simtypes()
+
+        # apply ground truth
+        if self._ground_truth and self.simtypes_solution is not None:
+            self.simtypes_solution.update(self._ground_truth)
 
     def _solve(self):
         solver = SimpleSolver(self.bits, self._constraints)
@@ -145,8 +170,7 @@ class Typehoon(Analysis):
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():
-            simtypes_solution[tv], has_nonexistent_ref = translator.translate(sol)
-
+            simtypes_solution[tv], has_nonexistent_ref = translator.tc2simtype(sol)
             if has_nonexistent_ref:
                 needs_backpatch.add(tv)
 

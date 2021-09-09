@@ -2,6 +2,7 @@ from typing import Dict, Any, TYPE_CHECKING
 import json
 
 from ...analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from ...analyses.decompiler.decompilation_cache import DecompilationCache
 from ...knowledge_plugins import StructuredCodeManager
 from ..models import DbStructuredCode
 
@@ -28,16 +29,18 @@ class StructuredCodeManagerSerializer:
         # remove all existing stored structured code
         session.query(DbStructuredCode).filter_by(kb=db_kb).delete()
 
-        for key, codegen in code_manager.codegens.items():
+        for key, cache in code_manager.cached.items():
             func_addr, flavor = key
 
+            # TODO: Cache types
+
             expr_comments = None
-            if codegen.expr_comments:
-                expr_comments = json.dumps(codegen.expr_comments).encode("utf-8")
+            if cache.codegen.expr_comments:
+                expr_comments = json.dumps(cache.codegen.expr_comments).encode("utf-8")
 
             stmt_comments = None
-            if codegen.stmt_comments:
-                stmt_comments = json.dumps(codegen.stmt_comments).encode("utf-8")
+            if cache.codegen.stmt_comments:
+                stmt_comments = json.dumps(cache.codegen.stmt_comments).encode("utf-8")
 
             db_code = DbStructuredCode(
                 kb=db_kb,
@@ -93,6 +96,8 @@ class StructuredCodeManagerSerializer:
                                                          stmt_comments=stmt_comments,
                                                          configuration=configuration,
                                                          )
-            manager[(db_code.func_addr, db_code.flavor)] = dummy_codegen
+            cache = DecompilationCache()
+            cache.codegen = dummy_codegen
+            manager[(db_code.func_addr, db_code.flavor)] = cache
 
         return manager

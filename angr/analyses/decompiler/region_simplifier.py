@@ -188,8 +188,10 @@ class LoopSimplifier(SequenceWalker):
         if node.sort == 'while' and self.continue_preludes[node] and \
                 (node.condition is not None or len(self.continue_preludes[node]) > 1):
             if all(block.statements for block in self.continue_preludes[node]) and \
-                    all(not self._control_transferring_statement(block.statements[-1]) for block in self.continue_preludes[node]) and \
-                    all(block.statements[-1] == self.continue_preludes[node][0].statements[-1] for block in self.continue_preludes[node]):
+                    all(not self._control_transferring_statement(block.statements[-1])
+                        for block in self.continue_preludes[node]) and \
+                    all(block.statements[-1] == self.continue_preludes[node][0].statements[-1]
+                        for block in self.continue_preludes[node]):
                 node.sort = 'for'
                 node.iterator = self.continue_preludes[node][0].statements[-1]
                 for block in self.continue_preludes[node]:
