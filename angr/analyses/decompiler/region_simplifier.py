@@ -153,6 +153,11 @@ class LoopSimplifier(SequenceWalker):
         self.continue_preludes: Dict[LoopNode, List[ailment.Block]] = defaultdict(list)
         self.walk(node)
 
+    @staticmethod
+    def _control_transferring_statement(stmt: ailment.Stmt.Statement) -> bool:
+        return isinstance(stmt,
+                          (ailment.Stmt.Call, ailment.Stmt.Return, ailment.Stmt.Jump, ailment.Stmt.ConditionalJump))
+
     def _handle_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         for n0, n1, n2 in zip(node.nodes, node.nodes[1:] + [successor], [predecessor] + node.nodes[:-1]):
             self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
@@ -183,6 +188,7 @@ class LoopSimplifier(SequenceWalker):
         if node.sort == 'while' and self.continue_preludes[node] and \
                 (node.condition is not None or len(self.continue_preludes[node]) > 1):
             if all(block.statements for block in self.continue_preludes[node]) and \
+                    all(not self._control_transferring_statement(block.statements[-1]) for block in self.continue_preludes[node]) and \
                     all(block.statements[-1] == self.continue_preludes[node][0].statements[-1] for block in self.continue_preludes[node]):
                 node.sort = 'for'
                 node.iterator = self.continue_preludes[node][0].statements[-1]
