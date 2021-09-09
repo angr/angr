@@ -292,13 +292,15 @@ class SimEngineVRAIL(
         else:
             # create a new type variable and add constraints accordingly
             typevar = typevars.TypeVariable()
-            type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
+            if r0.typevar is not None and r1.typevar is not None:
+                type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
 
         sum_ = None
         if r0.data is not None and r1.data is not None:
             sum_ = r0.data + r1.data
 
-        type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
+        if r0.typevar is not None and r1.typevar is not None:
+            type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
 
         return RichR(sum_,
                      typevar=typevar,
