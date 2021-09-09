@@ -561,7 +561,7 @@ class SimEngineVRBase(SimEngineLight):
                     self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
                     variable_set.add(var)
 
-        if self.arch.is_artificial_register(offset, size) or offset in (self.arch.sp_offset, self.arch.bp_offset):
+        if self.arch.is_artificial_register(offset, size) or offset == self.arch.sp_offset:
             typevar = None
             var = None
         else:
