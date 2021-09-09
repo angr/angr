@@ -789,6 +789,22 @@ def test_decompiling_morton_lib_handle__suback():
     assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
 
 
+def test_decompiling_lighttpd_main():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+    # return statements should not be wrapped into a for statement
+    assert re.search(r"for[^\n]*return[^\n]*;", code) is None
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
