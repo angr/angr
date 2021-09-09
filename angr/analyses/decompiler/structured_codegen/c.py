@@ -959,6 +959,54 @@ class CVariable(CExpression):
         else:
             yield from self.offset.c_repr_chunks()
 
+    def _c_repr_with_offset(self, v: Union[SimVariable,'CVariable'], v_type: SimType, offset: Union[int,CExpression]):
+        v_type = unpack_typeref(v_type)
+        if isinstance(v_type, SimTypePointer):
+            pts_to = unpack_typeref(v_type.pts_to)
+            if isinstance(pts_to, SimStruct):
+                if isinstance(offset, int):
+                    # which field is it pointing to?
+                    t = pts_to
+                    offset_to_field = dict((v, k) for k, v in t.offsets.items())
+                    if offset in offset_to_field:
+                        field = offset_to_field[offset]
+                        c_field = CStructField(t, offset, field, codegen=self)
+                        if isinstance(v, SimVariable):
+                            yield v.name, self
+                        else:
+                            yield from v.c_repr_chunks()
+                        yield "->", self
+                        yield from c_field.c_repr_chunks()
+                        return
+                    else:
+                        # accessing beyond known offset - indicates a bug in type inference
+                        l.warning("Accessing non-existent offset %d in struct %s. This indicates a bug in "
+                                  "the type inference engine.", offset, v_type.pts_to)
+
+            elif isinstance(v_type.pts_to, SimTypeArray):
+                if isinstance(offset, int):
+                    bracket = CClosingObject("[")
+                    # it's pointing to an array! take the corresponding element
+                    if isinstance(v, SimVariable):
+                        yield v.name, self
+                    else:
+                        yield from v.c_repr_chunks()
+                    yield "[", bracket
+                    yield str(offset), offset
+                    yield "]", bracket
+                    return
+
+            # other cases
+            bracket = CClosingObject("[")
+            if isinstance(v, SimVariable):
+                yield v.name, self
+            else:
+                yield from v.c_repr_chunks()
+            yield "[", bracket
+            yield from CExpression._try_c_repr_chunks(self.offset)
+            yield "]", bracket
+            return
+
     def c_repr_chunks(self, indent=0, asexpr=False):
 
         v = self.variable if self.unified_variable is None else self.unified_variable
@@ -973,24 +1021,8 @@ class CVariable(CExpression):
                     yield str(v), self
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
-                    type_ = unpack_typeref(v.type)
-                    if isinstance(type_, SimTypePointer):
-                        if isinstance(type_.pts_to, SimStruct) and type_.pts_to.fields:
-                            # is it pointing to a struct? if so, we take the first field
-                            first_field, *_ = type_.pts_to.fields
-                            c_field = CStructField(type_.pts_to, 0, first_field, codegen=self)
-                            yield from v.c_repr_chunks()
-                            yield "->", self
-                            yield from c_field.c_repr_chunks()
-                            return
-                        elif isinstance(type_.pts_to, SimTypeArray):
-                            bracket = CClosingObject("[")
-                            # is it pointing to an array? if so, we take the first element
-                            yield from v.c_repr_chunks()
-                            yield "[", bracket
-                            yield "0", 0
-                            yield "]", bracket
-                            return
+                    yield from self._c_repr_with_offset(v, v.type, 0)
+                    return
 
                 # default output
                 paren = CClosingObject("(")
@@ -1002,6 +1034,11 @@ class CVariable(CExpression):
                 yield str(v), self
         else:  # self.offset is not None
             if isinstance(v, SimVariable):
+                if self.variable_type is not None:
+                    yield from self._c_repr_with_offset(v, self.variable_type, self.offset)
+                    return
+
+                # default case
                 bracket = CClosingObject("[")
                 yield v.name if v.name else "UNKNOWN", self
                 yield "[", bracket
@@ -1009,6 +1046,11 @@ class CVariable(CExpression):
                 yield "]", bracket
 
             elif isinstance(v, CVariable):
+                if self.variable_type is not None:
+                    yield from self._c_repr_with_offset(v, self.variable_type, self.offset)
+                    return
+
+                # default case
                 bracket = CClosingObject("[")
                 yield from v.c_repr_chunks()
                 yield "[", bracket
@@ -1017,42 +1059,8 @@ class CVariable(CExpression):
 
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
-                    v_type = unpack_typeref(v.type)
-                    if isinstance(v_type, SimTypePointer):
-                        if isinstance(v_type.pts_to, SimStruct):
-                            if isinstance(self.offset, int):
-                                # which field is it pointing to?
-                                t = v_type.pts_to
-                                offset_to_field = dict((v, k) for k, v in t.offsets.items())
-                                if self.offset in offset_to_field:
-                                    field = offset_to_field[self.offset]
-                                    c_field = CStructField(t, self.offset, field, codegen=self)
-                                    yield from v.c_repr_chunks()
-                                    yield "->", self
-                                    yield from c_field.c_repr_chunks()
-                                    return
-                                else:
-                                    # accessing beyond known offset - indicates a bug in type inference
-                                    l.warning("Accessing non-existent offset %d in struct %s. This indicates a bug in "
-                                              "the type inference engine.", self.offset, v_type.pts_to)
-
-                        elif isinstance(v_type.pts_to, SimTypeArray):
-                            if isinstance(self.offset, int):
-                                bracket = CClosingObject("[")
-                                # it's pointing to an array! take the corresponding element
-                                yield from v.c_repr_chunks()
-                                yield "[", bracket
-                                yield str(self.offset), self.offset
-                                yield "]", bracket
-                                return
-
-                        # other cases
-                        bracket = CClosingObject("[")
-                        yield from v.c_repr_chunks()
-                        yield "[", bracket
-                        yield from CExpression._try_c_repr_chunks(self.offset)
-                        yield "]", bracket
-                        return
+                    yield from self._c_repr_with_offset(v, v.type, self.offset)
+                    return
 
                 # default output
                 paren = CClosingObject("(")
