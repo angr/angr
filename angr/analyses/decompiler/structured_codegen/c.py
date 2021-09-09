@@ -972,7 +972,10 @@ class CVariable(CExpression):
                         field = offset_to_field[offset]
                         c_field = CStructField(t, offset, field, codegen=self)
                         if isinstance(v, SimVariable):
-                            yield v.name, self
+                            if not v.name:
+                                yield repr(v), self
+                            else:
+                                yield v.name, self
                         else:
                             yield from v.c_repr_chunks()
                         yield "->", self
@@ -988,7 +991,10 @@ class CVariable(CExpression):
                     bracket = CClosingObject("[")
                     # it's pointing to an array! take the corresponding element
                     if isinstance(v, SimVariable):
-                        yield v.name, self
+                        if not v.name:
+                            yield repr(v), self
+                        else:
+                            yield v.name, self
                     else:
                         yield from v.c_repr_chunks()
                     yield "[", bracket
@@ -996,16 +1002,19 @@ class CVariable(CExpression):
                     yield "]", bracket
                     return
 
-            # other cases
-            bracket = CClosingObject("[")
-            if isinstance(v, SimVariable):
-                yield v.name, self
+        # other cases
+        bracket = CClosingObject("[")
+        if isinstance(v, SimVariable):
+            if not v.name:
+                yield repr(v), self
             else:
-                yield from v.c_repr_chunks()
-            yield "[", bracket
-            yield from CExpression._try_c_repr_chunks(self.offset)
-            yield "]", bracket
-            return
+                yield v.name, self
+        else:
+            yield from v.c_repr_chunks()
+        yield "[", bracket
+        yield from CExpression._try_c_repr_chunks(self.offset)
+        yield "]", bracket
+        return
 
     def c_repr_chunks(self, indent=0, asexpr=False):
 
