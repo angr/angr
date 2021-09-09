@@ -118,14 +118,17 @@ class TypeTranslator:
                 ).with_arch(self.arch)
 
             translated_type = self._tc2simtype(typ)
+            if isinstance(translated_type, sim_type.SimTypeBottom):
+                # we cannot have bottom types in a struct since that would mess with offsets of all future types
+                # for now, we replace it with an unsigned char
+                translated_type = sim_type.SimTypeChar(signed=False).with_arch(self.arch)
+
             s.fields["field_%x" % offset] = translated_type
 
-            if isinstance(translated_type, sim_type.SimTypeBottom):
-                next_offset = 1 + offset
-            elif isinstance(translated_type, SimTypeTempRef):
+            if isinstance(translated_type, SimTypeTempRef):
                 next_offset = self.arch.bytes + offset
             else:
-                next_offset = translated_type.size + offset
+                next_offset = translated_type.size // self.arch.byte_width + offset
 
         return s
 
