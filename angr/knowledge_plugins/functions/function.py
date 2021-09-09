@@ -1454,7 +1454,7 @@ class Function(Serializable):
         if self.name[0:2] == "_Z":
             try:
                 ast = parse(self.name)
-            except NotImplementedError:
+            except (NotImplementedError, KeyError):  # itanium demangler is not the most robust package in the world
                 return self.name
             if ast:
                 return ast.__str__()
