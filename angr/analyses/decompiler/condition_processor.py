@@ -650,9 +650,11 @@ class ConditionProcessor:
             'Shl': lambda expr, conv: _op_with_unified_size(operator.lshift, conv, expr.operands[0], expr.operands[1]),
             'Sar': lambda expr, conv: _op_with_unified_size(operator.rshift, conv, expr.operands[0], expr.operands[1]),
 
-            # There is no claripy operation for the following operations
+            # There are no corresponding claripy operations for the following operations
             'DivMod': lambda expr, _: _dummy_bvs(expr),
             'CmpF': lambda expr, _: _dummy_bvs(expr),
+            'Mull': lambda expr, _: _dummy_bvs(expr),
+            'Mulls': lambda expr, _: _dummy_bvs(expr),
         }
 
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
@@ -688,7 +690,8 @@ class ConditionProcessor:
 
         lambda_expr = _mapping.get(condition.verbose_op, None)
         if lambda_expr is None:
-            raise NotImplementedError("Unsupported AIL expression operation %s. Consider implementing." % condition.op)
+            raise NotImplementedError("Unsupported AIL expression operation %s. Consider implementing."
+                                      % condition.verbose_op)
         r = lambda_expr(condition, self.claripy_ast_from_ail_condition)
         if r is NotImplemented:
             r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
