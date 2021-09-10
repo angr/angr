@@ -8,10 +8,12 @@ from archinfo.arch_arm import is_arm_arch
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
-from ..knowledge_plugins.key_definitions.constants import OP_AFTER
+from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ..knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
 from ..knowledge_plugins.variables.variable_access import VariableAccessSort
+from ..utils.constants import DEFAULT_STATEMENT
 from .reaching_definitions import get_all_definitions
+from .reaching_definitions.external_codeloc import ExternalCodeLocation
 from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
@@ -212,17 +214,20 @@ class CallingConventionAnalysis(Analysis):
             # generate a subgraph that only contains the basic block that does the call and the basic block after the
             # call.
             for call_site_tuple in call_site_tuples:
-                caller_block_addr, _ = call_site_tuple
+                caller_block_addr, call_insn_addr = call_site_tuple
                 func = self.project.kb.functions[caller.addr]
                 subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
 
                 rda = self.project.analyses.ReachingDefinitions(
                     func,
                     func_graph=subgraph,
-                    observation_points=[('node', caller_block_addr, OP_AFTER)],
+                    observation_points=[
+                        ('insn', call_insn_addr, OP_BEFORE),
+                        ('node', caller_block_addr, OP_AFTER)
+                    ],
                 )
                 # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
-                fact = self._analyze_callsite(call_site_tuple[0], rda.model)
+                fact = self._analyze_callsite(caller_block_addr, call_insn_addr, rda.model)
                 facts.append(fact)
 
                 ctr += 1
@@ -244,72 +249,94 @@ class CallingConventionAnalysis(Analysis):
 
         return subgraph
 
-    def _analyze_callsite(self, caller_block_addr: int, rda: ReachingDefinitionsModel) -> CallSiteFact:
+    def _analyze_callsite(self, caller_block_addr: int,
+                          call_insn_addr: int,
+                          rda: ReachingDefinitionsModel) -> CallSiteFact:
 
         fact = CallSiteFact(
             True, # by default we treat all return values as used
         )
 
-        state = rda.observed_results[('node', caller_block_addr, OP_AFTER)]
-        all_uses: 'Uses' = rda.all_uses
-
         default_cc_cls = DefaultCC.get(self.project.arch.name, None)
-
         if default_cc_cls is not None:
-
             default_cc: SimCC = default_cc_cls(self.project.arch)
-            all_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
-
-            # determine if the return value is used
-            return_val = default_cc.RETURN_VAL
-            if return_val is not None and isinstance(return_val, SimRegArg):
-                return_reg_offset, _ = self.project.arch.registers[return_val.reg_name]
-
-                # find the def of the return val
-                try:
-                    return_def = next(iter(d for d in all_defs
-                                           if isinstance(d.atom, Register) and d.atom.reg_offset == return_reg_offset))
-                except StopIteration:
-                    return_def = None
-
-                if return_def is not None:
-                    # is it used?
-                    uses = all_uses.get_uses(return_def)
-                    if uses:
-                        # the return value is used!
-                        fact.return_value_used = True
-                    else:
-                        fact.return_value_used = False
-
-            # determine if potential register and stack arguments are set
-            defs_by_reg_offset = dict((d.atom.reg_offset, d) for d in all_defs if isinstance(d.atom, Register))
-            defined_reg_offsets = set(defs_by_reg_offset.keys())
-            defs_by_stack_offset = dict((d.atom.addr.offset, d) for d in all_defs
-                                        if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset))
-
-            arg_session = default_cc.arg_session
-            for _ in range(30):  # at most 30 arguments
-                arg_loc = arg_session.next_arg(False)
-                if isinstance(arg_loc, SimRegArg):
-                    reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
-                    # is it initialized?
-                    if reg_offset in defined_reg_offsets:
-                        fact.args.append(arg_loc)
-                    else:
-                        # no more arguments
-                        break
-                elif isinstance(arg_loc, SimStackArg):
-                    l.warning("Totally untested logic in determining stack arguments - it needs to be tested on stack "
-                              "registers and 32-bit binaries.")
-                    if arg_loc.stack_offset in defs_by_stack_offset:
-                        fact.args.append(arg_loc)
-                    else:
-                        # no more arguments
-                        break
-                else:
-                    break
+            self._analyze_callsite_return_value_uses(default_cc, caller_block_addr, rda, fact)
+            self._analyze_callsite_arguments(default_cc, caller_block_addr, call_insn_addr, rda, fact)
 
         return fact
+
+    def _analyze_callsite_return_value_uses(self,
+                                            default_cc: SimCC,
+                                            caller_block_addr: int,
+                                            rda: ReachingDefinitionsModel,
+                                            fact: CallSiteFact) -> None:
+
+        state = rda.observed_results[('node', caller_block_addr, OP_AFTER)]
+        all_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
+        all_uses: 'Uses' = rda.all_uses
+
+        # determine if the return value is used
+        return_val = default_cc.RETURN_VAL
+        if return_val is not None and isinstance(return_val, SimRegArg):
+            return_reg_offset, _ = self.project.arch.registers[return_val.reg_name]
+
+            # find the def of the return val
+            try:
+                return_def = next(iter(d for d in all_defs
+                                       if isinstance(d.atom, Register) and d.atom.reg_offset == return_reg_offset))
+            except StopIteration:
+                return_def = None
+
+            if return_def is not None:
+                # is it used?
+                uses = all_uses.get_uses(return_def)
+                if uses:
+                    # the return value is used!
+                    fact.return_value_used = True
+                else:
+                    fact.return_value_used = False
+
+    def _analyze_callsite_arguments(self,
+                                    default_cc: SimCC,
+                                    caller_block_addr: int,
+                                    call_insn_addr: int,
+                                    rda: ReachingDefinitionsModel,
+                                    fact: CallSiteFact) -> None:
+        # determine if potential register and stack arguments are set
+        state = rda.observed_results[('insn', call_insn_addr, OP_BEFORE)]
+        defs_by_reg_offset: Dict[int, List[Definition]] = defaultdict(list)
+        all_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
+        all_uses: 'Uses' = rda.all_uses
+        for d in all_defs:
+            if isinstance(d.atom, Register) and \
+                    not isinstance(d.codeloc, ExternalCodeLocation) and \
+                    not (d.codeloc.block_addr == caller_block_addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT):
+                defs_by_reg_offset[d.offset].append(d)
+        defined_reg_offsets = set(defs_by_reg_offset.keys())
+        defs_by_stack_offset = dict((d.atom.addr.offset, d) for d in all_defs
+                                    if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset))
+
+        arg_session = default_cc.arg_session
+        for _ in range(30):  # at most 30 arguments
+            arg_loc = arg_session.next_arg(False)
+            if isinstance(arg_loc, SimRegArg):
+                reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
+                # is it initialized?
+                if reg_offset in defined_reg_offsets:
+                    fact.args.append(arg_loc)
+                else:
+                    # no more arguments
+                    break
+            elif isinstance(arg_loc, SimStackArg):
+                l.warning("Totally untested logic in determining stack arguments - it needs to be tested on stack "
+                          "registers and 32-bit binaries.")
+                if arg_loc.stack_offset in defs_by_stack_offset:
+                    fact.args.append(arg_loc)
+                else:
+                    # no more arguments
+                    break
+            else:
+                break
 
     def _adjust_cc(self, cc: SimCC, facts: List[CallSiteFact], update_arguments: bool=False):  # pylint:disable=no-self-use
 
