@@ -29,9 +29,8 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         from ...analyses.decompiler.decompilation_cache import DecompilationCache
 
         if isinstance(value, BaseStructuredCodeGenerator):
-
             cache = DecompilationCache()
-            cache.codegen = cache
+            cache.codegen = value
         else:
             cache = value
         self.cached[self._normalize_key(key)] = cache
