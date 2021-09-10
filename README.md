@@ -52,3 +52,4 @@ project.execute()
 - Dive right in: [top-level-accessible methods](http://docs.angr.io/docs/toplevel.html)
 - [Examples using angr to solve CTF challenges](http://docs.angr.io/docs/examples.html).
 - [API Reference](http://angr.io/api-doc/)
+- [awesome-angr repo](https://github.com/degrigis/awesome-angr)
