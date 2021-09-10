@@ -48,69 +48,69 @@ class CallSiteMaker(Analysis):
             self.result_block = self.block
             return
 
-        target = self._get_call_target(last_stmt)
-
-        if target is None:
-            return
-
-        if target not in self.kb.functions:
-            return
-
-        func = self.kb.functions[target]
-
-        if func.prototype is None:
-            func.find_declaration()
-
-        args = [ ]
-        arg_locs = None
-
-        stackarg_sp_diff = 0
-        if func.calling_convention is None:
-            l.warning('%s has an unknown calling convention.', repr(func))
-        else:
-            stackarg_sp_diff = func.calling_convention.STACKARG_SP_DIFF
-            if func.prototype is not None:
-                # Make arguments
-                arg_locs = func.calling_convention.arg_locs()
-                if func.prototype.variadic:
-                    # determine the number of variadic arguments
-                    variadic_args = self._determine_variadic_arguments(func, func.calling_convention, last_stmt)
-                    if variadic_args:
-                        arg_sizes = [arg.size // self.project.arch.byte_width for arg in func.prototype.args] + \
-                                    ([self.project.arch.bytes] * variadic_args)
-                        is_fp = [False] * len(arg_sizes)
-                        arg_locs = func.calling_convention.arg_locs(is_fp=is_fp, sizes=arg_sizes)
-            else:
-                if func.calling_convention.args is not None:
-                    arg_locs = func.calling_convention.arg_locs()
-
+        cc = None
+        prototype = None
+        args = None
         stack_arg_locs: List[SimStackArg] = [ ]
-        if arg_locs is not None:
-            for arg_loc in arg_locs:
-                if type(arg_loc) is SimRegArg:
-                    size = arg_loc.size
-                    offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
+        stackarg_sp_diff = 0
 
-                    _, the_arg = self._resolve_register_argument(last_stmt, arg_loc)
+        target = self._get_call_target(last_stmt)
+        if target is not None and target in self.kb.functions:
+            # function-specific logic when the calling target is known
+            func = self.kb.functions[target]
+            if func.prototype is None:
+                func.find_declaration()
+            cc = func.calling_convention
+            prototype = func.prototype
 
-                    if the_arg is not None:
-                        args.append(the_arg)
-                    else:
-                        # Reaching definitions are not available. Create a register expression instead.
-                        args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
-                elif type(arg_loc) is SimStackArg:
-
-                    stack_arg_locs.append(arg_loc)
-                    _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
-
-                    if the_arg is not None:
-                        args.append(the_arg)
-                    else:
-                        args.append(None)
-
+            args = [ ]
+            arg_locs = None
+            if func.calling_convention is None:
+                l.warning('%s has an unknown calling convention.', repr(func))
+            else:
+                stackarg_sp_diff = func.calling_convention.STACKARG_SP_DIFF
+                if func.prototype is not None:
+                    # Make arguments
+                    arg_locs = func.calling_convention.arg_locs()
+                    if func.prototype.variadic:
+                        # determine the number of variadic arguments
+                        variadic_args = self._determine_variadic_arguments(func, func.calling_convention, last_stmt)
+                        if variadic_args:
+                            arg_sizes = [arg.size // self.project.arch.byte_width for arg in func.prototype.args] + \
+                                        ([self.project.arch.bytes] * variadic_args)
+                            is_fp = [False] * len(arg_sizes)
+                            arg_locs = func.calling_convention.arg_locs(is_fp=is_fp, sizes=arg_sizes)
                 else:
-                    raise NotImplementedError('Not implemented yet.')
+                    if func.calling_convention.args is not None:
+                        arg_locs = func.calling_convention.arg_locs()
 
+            if arg_locs is not None:
+                for arg_loc in arg_locs:
+                    if type(arg_loc) is SimRegArg:
+                        size = arg_loc.size
+                        offset = arg_loc._fix_offset(None, size, arch=self.project.arch)
+
+                        _, the_arg = self._resolve_register_argument(last_stmt, arg_loc)
+
+                        if the_arg is not None:
+                            args.append(the_arg)
+                        else:
+                            # Reaching definitions are not available. Create a register expression instead.
+                            args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
+                    elif type(arg_loc) is SimStackArg:
+
+                        stack_arg_locs.append(arg_loc)
+                        _, the_arg = self._resolve_stack_argument(last_stmt, arg_loc)
+
+                        if the_arg is not None:
+                            args.append(the_arg)
+                        else:
+                            args.append(None)
+
+                    else:
+                        raise NotImplementedError('Not implemented yet.')
+
+        # Remove the old call statement
         new_stmts = self.block.statements[:-1]
 
         # remove the statement that stores the return address
@@ -159,8 +159,8 @@ class CallSiteMaker(Analysis):
         # value of this call statement as useless and is removed.
 
         new_stmts.append(Stmt.Call(last_stmt, last_stmt.target,
-                                   calling_convention=func.calling_convention,
-                                   prototype=func.prototype,
+                                   calling_convention=cc,
+                                   prototype=prototype,
                                    args=args,
                                    ret_expr=ret_expr,
                                    **last_stmt.tags,
