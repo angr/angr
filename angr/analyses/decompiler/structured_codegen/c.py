@@ -5,7 +5,7 @@ import logging
 from ailment import Block, Expr, Stmt
 
 from ....sim_type import (SimTypeLongLong, SimTypeInt, SimTypeShort, SimTypeChar, SimTypePointer, SimStruct, SimType,
-    SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble, TypeRef)
+    SimTypeBottom, SimTypeArray, SimTypeFunction, SimTypeFloat, SimTypeDouble, TypeRef, SimTypeNum)
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
@@ -959,7 +959,76 @@ class CVariable(CExpression):
         else:
             yield from self.offset.c_repr_chunks()
 
-    def _c_repr_with_offset(self, v: Union[SimVariable,'CVariable'], v_type: SimType, offset: Union[int,CExpression]):
+    def _c_repr_variable(self, v):
+        if isinstance(v, SimVariable):
+            if not v.name:
+                yield repr(v), self
+            else:
+                yield v.name, self
+        else:
+            yield from v.c_repr_chunks()
+
+    def _c_repr_array_access_with_offset(self, v: Union[SimVariable,'CVariable'], v_type: SimTypeArray,
+                                         self_type: SimType,
+                                         offset: Union[int,CExpression]):
+        if isinstance(offset, int):
+            bracket = CClosingObject("[")
+            # it's pointing to an array! take the corresponding element
+
+            elem_size = v_type.elem_type.size // self.codegen.project.arch.byte_width
+            if offset % elem_size == 0:
+                elem_n = offset // elem_size
+                if self_type.size == v_type.elem_type.size:
+                    # TODO: Introduce stricter type equivalence checks and add potential type conversions
+                    yield from self._c_repr_variable(v)
+                    yield "[", bracket
+                    yield str(elem_n), elem_n
+                    yield "]", bracket
+                else:
+                    # casting is needed
+                    cast_type = SimTypePointer(self_type).with_arch(self.codegen.project.arch)
+                    paren = CClosingObject("(")
+
+                    yield "*", None
+                    yield "(", paren
+                    yield "(", paren
+                    yield cast_type.c_repr(), None
+                    yield ")", paren
+                    yield "&", None
+                    yield from self._c_repr_variable(v)
+                    yield "[", bracket
+                    yield str(elem_n), elem_n
+                    yield "]", bracket
+                    yield ")", paren
+            else:
+                # cast it to a char*
+                paren = CClosingObject("(")
+                cast_type = SimTypePointer(self_type).with_arch(self.codegen.project.arch)
+
+                yield "*"
+                yield "(", paren
+                yield cast_type.c_repr(), None
+                yield ")", paren
+                yield "(", paren
+                yield "(unsigned char*)", None
+                yield "(", paren
+                yield from self._c_repr_variable(v)
+                yield ")", paren
+                yield "+", None
+                yield str(offset), offset
+                yield ")", paren
+            return
+
+        # in the non-int case, the variable has to be the right element index. no conversion is needed
+        bracket = CClosingObject("[")
+        yield from self._c_repr_variable(v)
+        yield "[", bracket
+        yield from CExpression._try_c_repr_chunks(offset)
+        yield "]", bracket
+        return
+
+    def _c_repr_with_offset(self, v: Union[SimVariable,'CVariable'], v_type: SimType, offset: Union[int,CExpression],
+                            self_type: SimType):
         v_type = unpack_typeref(v_type)
         if isinstance(v_type, SimTypePointer):
             pts_to = unpack_typeref(v_type.pts_to)
@@ -971,13 +1040,7 @@ class CVariable(CExpression):
                     if offset in offset_to_field:
                         field = offset_to_field[offset]
                         c_field = CStructField(t, offset, field, codegen=self)
-                        if isinstance(v, SimVariable):
-                            if not v.name:
-                                yield repr(v), self
-                            else:
-                                yield v.name, self
-                        else:
-                            yield from v.c_repr_chunks()
+                        yield from self._c_repr_variable(v)
                         yield "->", self
                         yield from c_field.c_repr_chunks()
                         return
@@ -987,30 +1050,25 @@ class CVariable(CExpression):
                                   "the type inference engine.", offset, v_type.pts_to)
 
             elif isinstance(v_type.pts_to, SimTypeArray):
-                if isinstance(offset, int):
-                    bracket = CClosingObject("[")
-                    # it's pointing to an array! take the corresponding element
-                    if isinstance(v, SimVariable):
-                        if not v.name:
-                            yield repr(v), self
-                        else:
-                            yield v.name, self
-                    else:
-                        yield from v.c_repr_chunks()
-                    yield "[", bracket
-                    yield str(offset), offset
-                    yield "]", bracket
-                    return
+                # it's pointing to an array! take the corresponding element
+                yield from self._c_repr_array_access_with_offset(v, v_type.pts_to, self_type, offset)
+                return
 
+        elif isinstance(v_type, SimTypeArray):
+            yield from self._c_repr_array_access_with_offset(v, v_type, self_type, offset)
+            return
+
+        #
         # other cases
+        #
         bracket = CClosingObject("[")
-        if isinstance(v, SimVariable):
-            if not v.name:
-                yield repr(v), self
-            else:
-                yield v.name, self
-        else:
-            yield from v.c_repr_chunks()
+        paren = CClosingObject("(")
+
+        # cast the variable to a pointer
+        yield "(unsigned int *)", None
+        yield "(", paren
+        yield from self._c_repr_variable(v)
+        yield ")", paren
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.offset)
         yield "]", bracket
@@ -1030,7 +1088,7 @@ class CVariable(CExpression):
                     yield str(v), self
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
-                    yield from self._c_repr_with_offset(v, v.type, 0)
+                    yield from self._c_repr_with_offset(v, v.type, 0, self.type)
                     return
 
                 # default output
@@ -1043,8 +1101,10 @@ class CVariable(CExpression):
                 yield str(v), self
         else:  # self.offset is not None
             if isinstance(v, SimVariable):
-                if self.variable_type is not None:
-                    yield from self._c_repr_with_offset(v, self.variable_type, self.offset)
+                # this should not happen, but sometimes it does. we have a fallback
+                v_type = self.codegen.default_simtype_from_size(v.size)
+                if v_type is not None:
+                    yield from self._c_repr_with_offset(v, v_type, self.offset, self.type)
                     return
 
                 # default case
@@ -1055,8 +1115,8 @@ class CVariable(CExpression):
                 yield "]", bracket
 
             elif isinstance(v, CVariable):
-                if self.variable_type is not None:
-                    yield from self._c_repr_with_offset(v, self.variable_type, self.offset)
+                if v.type is not None:
+                    yield from self._c_repr_with_offset(v, v.type, self.offset, self.type)
                     return
 
                 # default case
@@ -1068,7 +1128,7 @@ class CVariable(CExpression):
 
             elif isinstance(v, CExpression):
                 if isinstance(v, CVariable) and v.type is not None:
-                    yield from self._c_repr_with_offset(v, v.type, self.offset)
+                    yield from self._c_repr_with_offset(v, v.type, self.offset, self.type)
                     return
 
                 # default output
@@ -1639,6 +1699,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             return self._variable_kb.variables[self._func.addr].get_variable_type(var)
 
+    def _get_derefed_type(self, ty: SimType) -> Optional[SimType]:
+        if ty is None:
+            return None
+        ty = unpack_typeref(ty)
+        if isinstance(ty, SimTypePointer):
+            return unpack_typeref(ty.pts_to).with_arch(self.project.arch)
+        if isinstance(ty, SimTypeArray):
+            return unpack_typeref(ty.elem_type).with_arch(self.project.arch)
+        return ty
+
     #
     # Util methods
     #
@@ -1688,6 +1758,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         base = expr.lhs
                         offset = expr.rhs
                 return base, offset
+        elif isinstance(expr, CVariable):
+            return expr, 0
         elif isinstance(expr, CTypeCast):
             return self._parse_addr(expr.expr)
         elif isinstance(expr, CConstant):
@@ -1713,7 +1785,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             2: SimTypeShort,
             1: SimTypeChar,
         }
-        return _mapping.get(n, SimTypeBottom)().with_arch(self.project.arch)
+        if n in _mapping:
+            return _mapping.get(n)().with_arch(self.project.arch)
+        return SimTypeNum(n * self.project.arch.byte_width).with_arch(self.project.arch)
 
     def _cvariable(self, variable: Union[SimVariable,CExpression], offset=None, variable_type=None, tags=None):
         if isinstance(variable, SimVariable):
@@ -1774,7 +1848,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             cvariable = CVariable(variable, unified_variable=unified, offset=offset, variable_type=variable_type,
                                   tags=tags, codegen=self)
         elif isinstance(variable, CVariable):
-            cvariable = CVariable(variable.variable, unified_variable=unified, offset=offset,
+            cvariable = CVariable(variable, unified_variable=unified, offset=offset,
                                   variable_type=variable_type, tags=tags,
                                   codegen=self)
         else:
@@ -1951,23 +2025,26 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if stmt.variable is not None:
             # storing to a variable directly
-            cvariable = self._handle(stmt.variable)
+            cdst = self._handle(stmt.variable)
         elif stmt.addr is not None:
             # storing to an address specified by a variable
             caddr = self._handle(stmt.addr)
-            base, offset = self._parse_addr(caddr)
+            base_addr, offset = self._parse_addr(caddr)
 
-            if base is not None and offset is not None and isinstance(base, CVariable):
-                cvariable = self._cvariable(base, offset=offset, variable_type=base.variable_type, tags=stmt.tags)
+            if base_addr is not None and offset is not None and isinstance(base_addr, CVariable):
+                cdst = self._cvariable(base_addr,
+                                       offset=offset,
+                                       variable_type=self._get_derefed_type(base_addr.variable_type),
+                                       tags=stmt.tags)
             else:
-                cvariable = self._cvariable(caddr, offset=None, tags=stmt.tags)
+                cdst = self._cvariable(caddr, offset=0, tags=stmt.tags)
         else:
             l.warning("Store statement %s has no variable linked with it.", stmt)
-            cvariable = None
+            cdst = None
 
         cdata = self._handle(stmt.data)
 
-        return CAssignment(cvariable, cdata, tags=stmt.tags, codegen=self)
+        return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Assignment(self, stmt):
 
@@ -2072,9 +2149,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         base, offset = self._parse_addr(expr.addr)
 
         if base is not None and offset is not None and isinstance(base, CVariable):
-            return self._cvariable(base, offset=offset,
-                                   variable_type=base.variable_type,
-                                   tags=expr.tags
+            return self._cvariable(base,
+                                   offset=offset,
+                                   variable_type=self.default_simtype_from_size(expr.size),
+                                   tags=expr.tags,
                                    )
         else:
             return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt), codegen=self), tags=expr.tags)
@@ -2212,6 +2290,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Variable_SimMemoryVariable(self, variable):  # pylint:disable=no-self-use
         return self._cvariable(variable, variable_type=self._get_variable_type(variable, is_global=True))
+
 
 StructuredCodeGenerator = CStructuredCodeGenerator
 register_analysis(StructuredCodeGenerator, 'StructuredCodeGenerator')

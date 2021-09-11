@@ -1,6 +1,6 @@
 from typing import List, Set, Optional, Dict, Union, TYPE_CHECKING
 
-from ...sim_type import SimStruct, SimTypePointer
+from ...sim_type import SimStruct
 from ..analysis import Analysis, AnalysesHub
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
@@ -97,7 +97,8 @@ class Typehoon(Analysis):
 
         typevar_to_var = dict((v, k) for k, v in self._var_mapping.items())
         print("### {} solutions".format(len(self.solution)))
-        for typevar, sol in self.solution.items():
+        for typevar in sorted(self.solution.keys(), key=str):
+            sol = self.solution[typevar]
             print("    {} -> {}".format(typevar_to_var.get(typevar, typevar), sol))
         print("### end of solutions ###")
 
