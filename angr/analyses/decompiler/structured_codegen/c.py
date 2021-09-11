@@ -2137,7 +2137,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1])
-        rhs.set_type(lhs.type)
 
         return CBinaryOp(expr.op, lhs, rhs,
                          variable=self._handle(expr.variable) if expr.variable is not None else None,
