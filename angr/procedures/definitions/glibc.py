@@ -651,10 +651,14 @@ _libc_decls = \
         "fwrite_unlocked": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
         # int printf (const char *TEMPLATE, ...);
         "printf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
+        # int __printf_chk (int flag, const char *TEMPLATE, ...);
+        "__printf_chk": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["flag", "template"], variadic=True),
         # int wprintf (const wchar_t *TEMPLATE, ...);
         "wprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int fprintf (FILE *STREAM, const char *TEMPLATE, ...);
         "fprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        # int __fprintf_chk (int flag, FILE *STREAM, const char *TEMPLATE, ...);
+        "__fprintf_chk": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["flag", "stream", "template"], variadic=True),
         # int fwprintf (FILE *STREAM, const wchar_t *TEMPLATE, ...);
         "fwprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int sprintf (char *S, const char *TEMPLATE, ...);
@@ -3403,8 +3407,10 @@ _libc_c_decls = \
 
 
         "int printf (const char *TEMPLATE, ...);",
+        "int __printf_chk (int flag, const char *TEMPLATE, ...);",
         "int wprintf (const wchar_t *TEMPLATE, ...);",
         "int fprintf (FILE *STREAM, const char *TEMPLATE, ...);",
+        "int __fprintf_chk (int flag, FILE *STREAM, const char *TEMPLATE, ...);",
         "int fwprintf (FILE *STREAM, const wchar_t *TEMPLATE, ...);",
         "int sprintf (char *S, const char *TEMPLATE, ...);",
         "int swprintf (wchar_t *WS, size_t SIZE, const wchar_t *TEMPLATE, ...);",
