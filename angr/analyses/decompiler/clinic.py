@@ -610,6 +610,8 @@ class Clinic(Analysis):
         try:
             tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar,
                                                 must_struct=must_struct, ground_truth=groundtruth)
+            # tp.pp_constraints()
+            # tp.pp_solution()
             tp.update_variable_types(self.function.addr, vr.var_to_typevar)
             tp.update_variable_types('global', vr.var_to_typevar)
         except Exception:  # pylint:disable=broad-except

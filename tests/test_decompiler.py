@@ -644,6 +644,9 @@ def test_decompilation_x86_64_stack_arguments():
 
     # with dead memdef removal
     opt = [o for o in angr.analyses.decompiler.decompilation_options.options if o.param == "remove_dead_memdefs"][0]
+    # kill the cache since variables to statements won't match any more - variables are re-discovered with the new
+    # option.
+    p.kb.structured_code.cached.clear()
     dec = p.analyses.Decompiler(func, cfg=cfg.model, options=[(opt, True)])
     code = dec.codegen.text
     print(code)
@@ -789,7 +792,7 @@ def test_decompiling_morton_lib_handle__suback():
     assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
 
 
-def test_decompiling_lighttpd_main():
+def test_decompiling_newburry_main():
     bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
     p = angr.Project(bin_path, auto_load_libs=False)
 

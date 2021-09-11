@@ -97,7 +97,8 @@ class Typehoon(Analysis):
 
         typevar_to_var = dict((v, k) for k, v in self._var_mapping.items())
         print("### {} solutions".format(len(self.solution)))
-        for typevar, sol in self.solution.items():
+        for typevar in sorted(self.solution.keys(), key=lambda x: str(x)):
+            sol = self.solution[typevar]
             print("    {} -> {}".format(typevar_to_var.get(typevar, typevar), sol))
         print("### end of solutions ###")
 

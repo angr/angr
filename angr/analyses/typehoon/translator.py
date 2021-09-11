@@ -144,6 +144,9 @@ class TypeTranslator:
     def _translate_Int64(self, tc):  # pylint:disable=unused-argument
         return sim_type.SimTypeLongLong(signed=False).with_arch(self.arch)
 
+    def _translate_Int128(self, tc):  # pylint:disable=unused-argument
+        return sim_type.SimTypeNum(128, signed=False).with_arch(self.arch)
+
     def _translate_TypeVariableReference(self, tc):
 
         if tc.typevar in self.translated:
@@ -223,6 +226,7 @@ TypeConstHandlers = {
     typeconsts.Int16: TypeTranslator._translate_Int16,
     typeconsts.Int32: TypeTranslator._translate_Int32,
     typeconsts.Int64: TypeTranslator._translate_Int64,
+    typeconsts.Int128: TypeTranslator._translate_Int128,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
 }
 
