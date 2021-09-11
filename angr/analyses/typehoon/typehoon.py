@@ -86,6 +86,21 @@ class Typehoon(Analysis):
             print("    " + constraint.pp_str(typevar_to_var))
         print("### end of constraints ###")
 
+    def pp_solution(self) -> None:
+        """
+        Pretty-print solutions using the variable mapping.
+        """
+        if self._var_mapping is None:
+            raise ValueError("Variable mapping does not exist.")
+        if self.solution is None:
+            raise RuntimeError("Please run type solver before calling pp_solution().")
+
+        typevar_to_var = dict((v, k) for k, v in self._var_mapping.items())
+        print("### {} solutions".format(len(self.solution)))
+        for typevar, sol in self.solution.items():
+            print("    {} -> {}".format(typevar_to_var.get(typevar, typevar), sol))
+        print("### end of solutions ###")
+
     #
     # Private methods
     #
