@@ -38,6 +38,14 @@ class StructuredCodeManager(KnowledgeBasePlugin):
     def __contains__(self, key):
         return self._normalize_key(key) in self.cached
 
+    def __delitem__(self, key):
+        del self.cached[self._normalize_key(key)]
+
+    def discard(self, key):
+        normalized_key = self._normalize_key(key)
+        if normalized_key in self.cached:
+            del self.cached[normalized_key]
+
     def available_flavors(self, item):
         if type(item) is str:
             item = self._kb.labels.lookup(item)
