@@ -3,10 +3,17 @@ import zlib
 from .testing import is_testing
 
 class Loggers:
+    """
+    Implements a loggers manager for angr.
+    """
+
+    __slots__ = ('default_level', '_loggers', 'profiling_enabled', 'handler', )
+
     def __init__(self, default_level=logging.WARNING):
         self.default_level = default_level
         self._loggers = {}
         self.load_all_loggers()
+        self.profiling_enabled = False
 
         self.handler = CuteHandler()
         self.handler.setFormatter(logging.Formatter('%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'))
@@ -35,7 +42,7 @@ class Loggers:
             raise AttributeError(k)
 
     def __dir__(self):
-        return super(Loggers, self).__dir__() + self._loggers.keys()
+        return list(super(Loggers, self).__dir__()) + list(self._loggers.keys())
 
     def enable_root_logger(self):
         """
@@ -54,7 +61,11 @@ class Loggers:
         for name in logging.Logger.manager.loggerDict.keys():
             logging.getLogger(name).setLevel(level)
 
+
 class CuteHandler(logging.StreamHandler):
+    """
+    A log handler that prints log messages with colors.
+    """
     def emit(self, record):
         color = zlib.adler32(record.name.encode()) % 7 + 31
         try:
@@ -68,3 +79,16 @@ class CuteHandler(logging.StreamHandler):
             pass
 
         super(CuteHandler, self).emit(record)
+
+
+def is_enabled_for(logger, level):
+    if level == 1:
+        from .. import loggers
+        return loggers.profiling_enabled
+    return originalIsEnabledFor(logger, level)
+
+
+originalIsEnabledFor = logging.Logger.isEnabledFor
+
+# Override isEnabledFor() for Logger class
+logging.Logger.isEnabledFor = is_enabled_for
