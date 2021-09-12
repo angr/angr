@@ -783,7 +783,7 @@ def test_decompiling_morton_lib_handle__suback():
     cfg = p.analyses.CFG(data_references=True, normalize=True)
     p.analyses.CompleteCallingConventions(recover_variables=True)
 
-    func = cfg.functions['handle__suback']
+    func = cfg.functions.function(name='handle__suback', plt=False)
 
     dec = p.analyses.Decompiler(func, cfg=cfg.model)
     code = dec.codegen.text
