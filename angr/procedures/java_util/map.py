@@ -22,6 +22,8 @@ def get_map_key(state, key_ref):
             return state.solver.eval(string)
     elif key_ref.type == 'java.lang.Integer':
         return key_ref.get_field(state, 'value', 'int')
+    elif key_ref.type == 'java.lang.Class':
+        return key_ref.name
     else:
         return key_ref.id
 
@@ -30,10 +32,13 @@ class MapInit(JavaSimProcedure):
 
     __provides__ = (
         ('java.util.Map', '<init>()'),
-        ('java.util.HashMap', '<init>()')
+        ('java.util.HashMap', '<init>()'),
+        ('java.util.TreeMap', '<init>()'),
+        ('java.util.TreeMap', '<init>(java.util.Comparator)'),
+        ('java.util.concurrent.ConcurrentHashMap', '<init>()')
     )
 
-    def run(self, this_ref):
+    def run(self, this_ref, *args):
         log.debug('Called SimProcedure java.util.Map.<init> with args: {}'.format(this_ref))
         # init map size
         this_ref.store_field(self.state, MAP_SIZE, 'int', claripy.BVV(0, 32))
@@ -47,11 +52,13 @@ class MapPut(JavaSimProcedure):
 
     __provides__ = (
         ('java.util.Map', 'put(java.lang.Object,java.lang.Object)'),
-        ('java.util.HashMap', 'put(java.lang.Object,java.lang.Object)')
+        ('java.util.HashMap', 'put(java.lang.Object,java.lang.Object)'),
+        ('java.util.TreeMap', 'put(java.lang.Object,java.lang.Object)')
     )
 
     def run(self, this_ref, key_ref, value_ref):
         log.debug('Called SimProcedure java.util.Map.add with args: {} {} {}'.format(this_ref, key_ref, value_ref))
+                                                                             value_ref))
 
         if this_ref.symbolic:
             return SimSootExpr_NullConstant
@@ -77,7 +84,8 @@ class MapGet(JavaSimProcedure):
 
     __provides__ = (
         ('java.util.Map', 'get(java.lang.Object)'),
-        ('java.util.HashMap', 'get(java.lang.Object)')
+        ('java.util.HashMap', 'get(java.lang.Object)'),
+        ('java.util.TreeMap', 'get(java.lang.Object)')
     )
 
     def run(self, this_ref, key_ref):
@@ -96,7 +104,8 @@ class MapSize(JavaSimProcedure):
 
     __provides__ = (
         ('java.util.Map', 'size()'),
-        ('java.util.HashMap', 'size()')
+        ('java.util.HashMap', 'size()'),
+        ('java.util.TreeMap', 'size()')
     )
 
     def run(self, this_ref):
@@ -112,11 +121,13 @@ class MapContainsKey(JavaSimProcedure):
 
     __provides__ = (
         ('java.util.Map', 'containsKey(java.lang.Object)'),
-        ('java.util.HashMap', 'containsKey(java.lang.Object)')
+        ('java.util.HashMap', 'containsKey(java.lang.Object)'),
+        ('java.util.TreeMap', 'containsKey(java.lang.Object)')
     )
 
     def run(self, this_ref, key_ref):
         log.debug('Called SimProcedure java.util.Map.containsKey with args: {} {}'.format(this_ref, key_ref))
+                                                                                  key_ref))
 
         if this_ref.symbolic:
             return claripy.BoolS('contains_key')
@@ -133,7 +144,8 @@ class MapKeySet(JavaSimProcedure):
 
     __provides__ = (
         ('java.util.Map', 'keySet()'),
-        ('java.util.HashMap', 'keySet()')
+        ('java.util.HashMap', 'keySet()'),
+        ('java.util.TreeMap', 'keySet()')
     )
 
     def run(self, this_ref):
