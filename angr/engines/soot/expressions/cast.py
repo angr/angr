@@ -5,6 +5,7 @@ from archinfo import ArchSoot
 from archinfo.arch_soot import SootNullConstant
 
 from .base import SimSootExpr
+from .constants import SimSootExpr_NullConstant
 from ..values.thisref import SimSootValue_ThisRef
 from ..values.arrayref import SimSootValue_ArrayBaseRef
 from ..expressions.newMultiArray import SimSootExpr_NewMultiArray
@@ -28,7 +29,7 @@ class SimSootExpr_Cast(SimSootExpr):
             self.expr = SimSootValue_ArrayBaseRef(value_uncasted.heap_alloc_id, self.expr.cast_type.replace('[]', ''),
                                                   value_uncasted.size)
         # We are casting a null value
-        elif isinstance(value_uncasted, SootNullConstant):
+        elif isinstance(value_uncasted, SootNullConstant) or value_uncasted == SimSootExpr_NullConstant:
             self.expr = SootNullConstant()
         # We are casting a reference to a multidimensional array (we just oversimplify and return a new multi array)
         elif self.expr.cast_type.endswith("[][]"):
