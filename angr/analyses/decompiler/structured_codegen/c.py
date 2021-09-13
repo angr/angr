@@ -1434,6 +1434,16 @@ class CConstant(CExpression):
     def type(self):
         return self._type
 
+    @staticmethod
+    def str_to_c_str(_str):
+        repr_str = repr(_str)
+        base_str = repr_str[1:-1]
+        if repr_str[0] == "'":
+            # check if there's double quotes in the body
+            if '"' in base_str:
+                base_str = base_str.replace('"', '\\"')
+        return f"\"{base_str}\""
+
     def c_repr_chunks(self, indent=0, asexpr=False):
 
         if self.variable is not None:
@@ -1444,7 +1454,7 @@ class CConstant(CExpression):
                 yield hex(self.reference_values[self._type]), self
             elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeChar):
                 refval = self.reference_values[self._type]  # angr.knowledge_plugin.cfg.MemoryData
-                yield '"' + repr(refval.content.decode('utf-8')).strip("'").strip('"') + '"', self
+                yield CConstant.str_to_c_str(refval.content.decode('utf-8')), self
             else:
                 yield self.reference_values[self.type], self
 
