@@ -466,6 +466,14 @@ def test_decompiling_no_arguments_in_variable_list():
     assert argc_name in code
     assert code.count(argc_name) == 1  # it should only appear once
 
+def test_decompiling_strings_c_representation():
+
+    input_expected = [("""Foo"bar""", "\"Foo\\\"bar\""),
+                      ("""Foo'bar""", "\"Foo'bar\"")]
+
+    for (_input, expected) in input_expected:
+        result = angr.analyses.decompiler.structured_codegen.c.CConstant.str_to_c_str(_input)
+        assert result == expected
 
 def test_decompiling_strings_local_strlen():
     bin_path = os.path.join(test_location, "x86_64", "types", "strings")
