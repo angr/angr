@@ -1,19 +1,17 @@
 import os
 import struct
-from typing import TYPE_CHECKING
-
-import pickle
-import networkx
 import sys
 import json
+import pickle
+from typing import Optional, Dict
+
+import networkx
+
 import claripy
 import angr
-from angr.analyses.state_graph_recovery.differ import diff_coredump
+from angr.analyses.state_graph_recovery.differ import diff_coredump, find_base_addr_in_coredump, compare_state_graphs
 from angr.analyses.state_graph_recovery import MinDelayBaseRule, RuleVerifier, IllegalNodeBaseRule
 from angr.analyses.state_graph_recovery.apis import generate_patch, apply_patch, apply_patch_on_state, EditDataPatch
-
-if TYPE_CHECKING:
-    import networkx
 
 
 binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
@@ -66,8 +64,8 @@ def printstate(abs_state):
 
     light_on = '\u25cf'
     light_off = '\u25cb'
-    switch_on = u"\U0001F532"
-    switch_off = u"\U0001F533"
+    switch_on = u"\U0001F532" if sys.platform != "win32" else "ON"
+    switch_off = u"\U0001F533" if sys.platform != "win32" else "OFF"
 
     SWITCH_BUTTON = switch_off
     RED_LIGHT = light_off
@@ -354,16 +352,148 @@ def test_verify_patched_binary():
     write_dot(sgr.state_graph, "state_graph.patched.dot")
 
 
+def generate_state_graph(library_path: Optional[str], variables_data: Dict,
+                         project: Optional[angr.Project]=None) -> networkx.DiGraph:
+    if project is None:
+        proj = angr.Project(library_path, auto_load_libs=False)
+    else:
+        proj = project
+
+    cfg = proj.analyses.CFG(show_progressbar=True)
+    _hook_py_extensions(proj, cfg)
+
+    # run the state initializer
+    init = cfg.kb.functions['config_init__']
+    init_callable = proj.factory.callable(init.addr, perform_merge=False)
+    init_callable.perform_call()
+    initial_state = init_callable.result_state
+
+    assert initial_state is not None
+
+    base_addr = int(variables_data['variable_base_addr'], 16) if isinstance(variables_data['variable_base_addr'], str) \
+        else variables_data['variable_base_addr']
+    time_addr = int(variables_data['time_addr'], 16) if isinstance(variables_data['time_addr'], str) \
+        else variables_data['time_addr']
+
+    # define abstract fields
+    fields_desc, config_fields = _generate_field_desc(variables_data, base_addr)
+
+    # pre-constrain configuration variables so that we can track them
+    config_vars = {}
+    symbolic_config_var_to_fields = {}
+    for var_name, (var_addr, var_type, var_size) in config_fields.items():
+        print("[.] Preconstraining %s..." % var_name)
+        # if var_type == "float":
+        #     symbolic_v = claripy.FPS(var_name, claripy.fp.FSORT_FLOAT)
+        # elif var_type == "double":
+        #     symbolic_v = claripy.FPS(var_name, claripy.fp.FSORT_DOUBLE)
+        # else:
+        symbolic_v = claripy.BVS(var_name, var_size * 8)
+        concrete_v = initial_state.memory.load(var_addr, size=var_size, endness=proj.arch.memory_endness)
+        initial_state.memory.store(var_addr, symbolic_v, endness=proj.arch.memory_endness)
+        initial_state.preconstrainer.preconstrain(concrete_v, symbolic_v)
+        config_vars[var_name] = symbolic_v
+        symbolic_config_var_to_fields[symbolic_v] = var_name, var_addr, var_type, var_size
+
+    fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
+    func = cfg.kb.functions['__run']
+    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on,
+                                           config_vars=set(config_vars.values()), printstate=printstate)
+    state_graph = sgr.state_graph
+
+    return state_graph
+
+
+def mem_patch_object(obj, section, new_content: bytes):
+    # find the in-memory offset of the section
+    section_offset = section.vaddr - obj.mapped_base
+    # find which memory backer offers this section
+    for idx, (backer_offset, content) in enumerate(obj.memory._backers):
+        if backer_offset <= section_offset < backer_offset + len(content):
+            # we found it!
+            offset_in_backer = section_offset - backer_offset
+            obj.memory._backers[idx] = (
+                backer_offset,
+                content[:offset_in_backer] + new_content[:len(content) - offset_in_backer]
+            )
+            break
+    else:
+        raise RuntimeError(f"Cannot find the memory backer to patch for section {section}")
+
+
 def test_load_coredump():
 
-    # this test loads a given core dump and compares it against a known binary on a section-by-section basis
-    core_dump_location = "core.3149872"
-    so_filename = "6c561e958548a9b19bdf83f89d68c4b1.so"
-    so_path = so_filename
+    base_dir = r"C:\Users\Fish\Desktop\temp\mitre"
 
-    diff_coredump(core_dump_location, so_filename, so_path)
+    # this test loads a given core dump and compares it against a known binary on a section-by-section basis
+    core_dump_location = "core.516581"
+    so_filename = "6c561e958548a9b19bdf83f89d68c4b1.so"
+    so_path = os.path.join(base_dir, so_filename)
+
+    global data
+
+    diffs = diff_coredump(os.path.join(base_dir, core_dump_location), so_filename, so_path)
+    assert diffs
+
+    #
+    # Load the core dump for analysis
+    #
+
+    proj_coredump = angr.Project(os.path.join(base_dir, core_dump_location))
+    so_baseaddr = find_base_addr_in_coredump(proj_coredump, so_filename)
+    so_filepath = os.path.join(base_dir, so_filename)
+    # let's load the original binary at the same memory location
+    proj = angr.Project(so_filepath, main_opts={'base_addr': so_baseaddr}, auto_load_libs=False)
+    # memory patch it
+    mem_patch_object(proj.loader.main_object, diffs[0][0], diffs[0][1])
+    print("[+] Patched runtime differences found in the core dump into the project.")
+
+    # analyze differences - which bytes are different?
+    
+
+    #
+    # generate a state graph on the core dump
+    #
+    variable_file_path = os.path.join(base_dir, "6c561e958548a9b19bdf83f89d68c4b1.json")
+    with open(variable_file_path) as f:
+        data = json.load(f)
+    # we also need to update addresses in the json file to reflect differences between static addresses and runtime
+    # memory addresses
+    data["variable_base_addr"] = hex(int(data['variable_base_addr'], 16) + (so_baseaddr - 0x400000))
+    data["time_addr"] = hex(int(data['time_addr'], 16) + (so_baseaddr - 0x400000))
+    print("[.] Generating a runtime state graph...")
+    if os.path.isfile("runtime_state_graph.dump"):
+        with open("runtime_state_graph.dump", "rb") as f:
+            runtime_state_graph = pickle.loads(f.read())
+    else:
+        runtime_state_graph = generate_state_graph(None, data, project=proj)
+        with open("runtime_state_graph.dump", "wb") as f:
+            pickle.dump(runtime_state_graph, f)
+
+    #
+    # generate a state graph on the original binary
+    #
+    so_filepath = os.path.join(base_dir, so_filename)
+    variable_file_path = os.path.join(base_dir, "6c561e958548a9b19bdf83f89d68c4b1.json")
+    with open(variable_file_path) as f:
+        data = json.load(f)
+
+    if os.path.isfile("reference_state_graph.dump"):
+        with open("reference_state_graph.dump", "rb") as f:
+            reference_state_graph = pickle.loads(f.read())
+    else:
+        reference_state_graph = generate_state_graph(so_filepath, data)
+        with open("reference_state_graph.dump", "wb") as f:
+            pickle.dump(reference_state_graph, f)
+
+    #
+    # Compare two state graphs
+    #
+
+    compare_state_graphs(runtime_state_graph, so_baseaddr, reference_state_graph, 0x400000)
 
 
 if __name__ == "__main__":
-    test_find_violations()
+    # test_find_violations()
     # test_verify_patched_binary()
+    test_load_coredump()
