@@ -1,5 +1,6 @@
 from typing import Optional, List, Tuple
 import logging
+import time
 from collections import defaultdict
 
 import claripy
@@ -202,7 +203,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self.var_to_typevar = { }
         self.type_constraints = None
 
+        start = time.time()
         self._analyze()
+        elapsed = time.time() - start
+        l.log(1, "Variable recovery on function %r took %f seconds.", func, elapsed)
 
         # cleanup (for cpython pickle)
         self.downsize()
