@@ -195,34 +195,40 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
 
     def _concretize_yl2x(self, args):
         # yl2x(y, x) = y * log2(x). Concretize log2(x) part alone since only that cannot be modelled in Z3.
-        # 3 arguments are passed: first is FP rounding mode.
+        # 3 arguments are passed: first is FP rounding mode. y is from st(1) and x from st(0).
         # TODO: Return NaN if either arg is non-numeric.
         # TODO: Set FPU flags.
         rm = _translate_rm(args[0])
         arg_y = args[1]
-        e_arg_x = self.state.solver.eval(args[2])
+        arg_x = args[2]
+        e_arg_x = self.state.solver.eval(arg_x)
         e_arg_y = self.state.solver.eval(arg_y)
         if e_arg_x < 0:
-            raise SimFloatingPointInvalidOperationException("fyl2x")
+            # TODO: Indicate floating-point invalid-operation exception
+            return arg_x
 
         if e_arg_x == 0:
             if abs(e_arg_y) == math.inf:
                 return claripy.FPV(-1 * e_arg_y, claripy.FSORT_DOUBLE)
             elif e_arg_y == 0:
-                raise SimFloatingPointInvalidOperationException("fyl2x")
+                # TODO: Indicate floating-point invalid-operation exception
+                return arg_x
             else:
-                raise SimFloatingPointZeroDivisionException("fyl2x")
+                # TODO: Indicate floating-point zero-division exception
+                return arg_x
 
         if e_arg_x == 1:
             if abs(e_arg_y) == math.inf:
-                raise SimFloatingPointInvalidOperationException("fyl2x")
+                # TODO: Indicate floating-point invalid-operation exception
+                return arg_x
 
             # TODO: How to distiguish between +0 and -0?
             return claripy.FPV(0, claripy.FSORT_DOUBLE)
 
         if e_arg_x == math.inf:
             if e_arg_y == 0:
-                raise SimFloatingPointInvalidOperationException("fyl2x")
+                # TODO: Indicate floating-point invalid-operation exception
+                return arg_x
             if e_arg_y < 0:
                 return claripy.FPV(-1 * math.inf, claripy.FSORT_DOUBLE)
 
