@@ -6,7 +6,6 @@ import pyvex
 from ..light.resilience import VEXResilienceMixin, raiseme
 from ..claripy.datalayer import ClaripyDataMixin, symbol, value
 from angr import sim_options as o
-from angr.errors import SimFloatingPointInvalidOperationException, SimFloatingPointZeroDivisionException
 
 # Copied from engines/vex/claripy/irop.py
 fp_rm_map = {
@@ -170,7 +169,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
         if abs(arg_x) == math.inf:
-            raise SimFloatingPointInvalidOperationException("fcos")
+            # TODO: Indicate floating-point invalid-operation exception
+            return args[1]
 
         return claripy.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
 
@@ -180,7 +180,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
         if abs(arg_x) == math.inf:
-            raise SimFloatingPointInvalidOperationException("fsin")
+            # TODO: Indicate floating-point invalid-operation exception
+            return args[1]
 
         return claripy.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
 
@@ -189,7 +190,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
         if abs(arg_x) == math.inf:
-            raise SimFloatingPointInvalidOperationException("ftan")
+            # TODO: Indicate floating-point invalid-operation exception
+            return args[1]
 
         return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
 
