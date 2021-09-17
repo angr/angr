@@ -1,5 +1,5 @@
 # pylint:disable=multiple-statements
-from typing import Dict, Set, Optional, Any, TYPE_CHECKING
+from typing import Dict, Set, Optional, Any, List, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -1359,11 +1359,19 @@ class Structurer(Analysis):
 
     def _rewrite_conditional_jumps_to_breaks(self, loop_node, successor_addrs):
 
-        def _rewrite_conditional_jump_to_break(node, parent=None, index=None, label=None, **kwargs):  # pylint:disable=unused-argument
+        def _rewrite_conditional_jump_to_break(node: ailment.Block, parent=None, index=None, label=None,
+                                               **kwargs):  # pylint:disable=unused-argument
             if not node.statements:
                 return
-            stmt = node.statements[-1]
-            if isinstance(stmt, (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump)):
+
+            # stores all nodes that will replace the current AIL Block node
+            new_nodes: List = [ ]
+            last_nonjump_stmt_idx = 0
+
+            # find all jump and indirect jump statements
+            for stmt_idx, stmt in enumerate(node.statements):
+                if not isinstance(stmt, (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump)):
+                    continue
                 targets = extract_jump_targets(stmt)
                 if any(target in successor_addrs for target in targets):
                     # This node has an exit to the outside of the loop
@@ -1371,7 +1379,7 @@ class Structurer(Analysis):
                     break_node = self._loop_create_break_node(stmt, successor_addrs)
                     # insert this node to the parent
                     if isinstance(parent, SwitchCaseNode) and index is None:
-                        # the current node is not a container. insert_node() handles it for us.
+                        # the parent of the current node is not a container. insert_node() handles it for us.
                         insert_node(parent, None, break_node, index, label=label, insert_location="before")
                         # now remove the node from the newly created container
                         if label == "case":
@@ -1382,9 +1390,36 @@ class Structurer(Analysis):
                         else:
                             raise TypeError("Unsupported label %s." % label)
                     else:
-                        insert_node(parent, index + 1, break_node, index)
-                        # remove this statement
-                        node.statements = node.statements[:-1]
+                        # previous nodes
+                        if stmt_idx > last_nonjump_stmt_idx:
+                            # add a subset of the block to new_nodes
+                            sub_block_statements = node.statements[last_nonjump_stmt_idx : stmt_idx]
+                            new_sub_block = ailment.Block(sub_block_statements[0].ins_addr,
+                                                          stmt.ins_addr - sub_block_statements[0].ins_addr,
+                                                          statements=sub_block_statements,
+                                                          idx=node.idx,
+                                                          )
+                            new_nodes.append(new_sub_block)
+                        last_nonjump_stmt_idx = stmt_idx + 1
+
+                        new_nodes.append(break_node)
+
+            if new_nodes:
+                if len(node.statements) - 1 > last_nonjump_stmt_idx:
+                    # insert the last node
+                    sub_block_statements = node.statements[last_nonjump_stmt_idx: ]
+                    new_sub_block = ailment.Block(sub_block_statements[0].ins_addr,
+                                                  node.addr + node.original_size - sub_block_statements[0].ins_addr,
+                                                  statements=sub_block_statements,
+                                                  idx=node.idx,
+                                                  )
+                    new_nodes.append(new_sub_block)
+
+                # replace the original node with nodes in the new_nodes list
+                for new_node in reversed(new_nodes):
+                    insert_node(parent, index + 1, new_node, index)
+                # remove the current node
+                node.statements = [ ]
 
         handlers = {
             ailment.Block: _rewrite_conditional_jump_to_break,
