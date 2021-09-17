@@ -816,6 +816,20 @@ def test_decompiling_newburry_main():
     assert re.search(r"for[^\n]*return[^\n]*;", code) is None
 
 
+def test_single_instruction_loop():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "level_12_teaching")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text
+
+    print(code)
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):

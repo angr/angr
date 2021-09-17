@@ -49,16 +49,18 @@ class SequenceWalker:
 
     def _handle_Sequence(self, node, **kwargs):
         i = 0
-        while i < len(node.nodes):
-            node_ = node.nodes[i]
+        nodes_copy = list(node.nodes)
+        while i < len(nodes_copy):
+            node_ = nodes_copy[i]
             self._handle(node_, parent=node, index=i)
             i += 1
         return None
 
     def _handle_MultiNode(self, node, **kwargs):
         i = 0
-        while i < len(node.nodes):
-            node_ = node.nodes[i]
+        nodes_copy = list(node.nodes)
+        while i < len(nodes_copy):
+            node_ = nodes_copy[i]
             self._handle(node_, parent=node, index=i)
             i += 1
         return None
