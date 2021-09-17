@@ -828,6 +828,9 @@ def test_single_instruction_loop():
     code = dec.codegen.text
 
     print(code)
+    code_without_spaces = code.replace(" ", "").replace("\n", "")
+    assert "while(true" not in code_without_spaces
+    assert "for(" in code_without_spaces
 
 
 if __name__ == "__main__":
