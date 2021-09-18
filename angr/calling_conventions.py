@@ -1268,7 +1268,22 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
 
     @staticmethod
     def syscall_num(state):
-        return state.regs.r7
+        if ((state.regs.ip_at_syscall & 1) == 1).is_true():
+            insn = state.mem[state.regs.ip_at_syscall - 3].short.resolved
+            is_svc = ((insn & 0xff00) == 0xdf00).is_true()
+            svc_num = insn & 0xff
+        else:
+            insn = state.mem[state.regs.ip_at_syscall - 4].dword.resolved
+            is_svc = ((insn & 0x0f000000) == 0x0f000000).is_true()
+            svc_num = insn & 0xffffff
+        if not is_svc:
+            l.error("ARM syscall number being queried at an address which is not an SVC")
+            return claripy.BVV(0, 32)
+
+        if len(svc_num) == 32 and (svc_num > 0x900000).is_true() and (svc_num < 0x90ffff).is_true():
+            return svc_num - 0x900000
+        else:
+            return state.regs.r7
 
 
 class SimCCAArch64(SimCC):
