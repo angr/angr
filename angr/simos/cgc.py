@@ -136,7 +136,7 @@ class SimCGC(SimUserland):
             state.regs.fpu_tags = 0
             state.regs.fpround = 0
             state.regs.fc3210 = 0x0300
-            state.regs.ftop = 0
+            state.regs.ftop = 7
 
             # sse values
             state.regs.sseround = 0
