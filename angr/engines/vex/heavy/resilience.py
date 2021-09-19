@@ -168,7 +168,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # the feature and concretize fully instead.
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
-        if abs(arg_x) == math.inf:
+        if abs(arg_x) > pow(2, 63):
             # TODO: Indicate floating-point invalid-operation exception
             return args[1]
 
@@ -179,7 +179,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # the feature and concretize fully instead.
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
-        if abs(arg_x) == math.inf:
+        if abs(arg_x) > pow(2, 63):
             # TODO: Indicate floating-point invalid-operation exception
             return args[1]
 
@@ -189,7 +189,7 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # tan(x). Concretize fully since it cannot be modelled in Z3.
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
-        if abs(arg_x) == math.inf:
+        if abs(arg_x) > pow(2, 63):
             # TODO: Indicate floating-point invalid-operation exception
             return args[1]
 
