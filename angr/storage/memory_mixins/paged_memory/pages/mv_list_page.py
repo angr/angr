@@ -100,12 +100,11 @@ class MVListPage(
             self.stored_offset = set()
         else:
             if not weak:
+                if len(data) == 1:
+                    # unpack
+                    data: _MOTYPE = next(iter(data))
                 for subaddr in range(addr, addr + size):
-                    if len(data) == 1:
-                        # unpack
-                        self.content[subaddr] = next(iter(data))
-                    else:
-                        self.content[subaddr] = data
+                    self.content[subaddr] = data
                     self.stored_offset.add(subaddr)
             else:
                 for subaddr in range(addr, addr + size):
