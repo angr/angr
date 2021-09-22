@@ -313,8 +313,7 @@ class ReachingDefinitionsState:
             self.current_codeloc = code_loc
             self.codeloc_uses = set()
 
-    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[MultiValues]=None, dummy=True,
-                         tags: Set[Tag]=None, annotated: bool=False) -> None:
+    def kill_definitions(self, atom: Atom) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
@@ -325,10 +324,7 @@ class ReachingDefinitionsState:
         :return: None
         """
 
-        if data is None:
-            data = MultiValues(offset_to_values={0: {self.top(atom.size * self.arch.byte_width)}})
-
-        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags, annotated=annotated)
+        self.live_definitions.kill_definitions(atom)
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
                                 dummy=False, tags: Set[Tag]=None, endness=None,

@@ -9,6 +9,7 @@ from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
+from ...errors import SimMemoryMissingError
 from .. import Analysis, register_analysis
 from .peephole_optimizations import STMT_OPTS, EXPR_OPTS, PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 from .ailblock_walker import AILBlockWalker
@@ -193,16 +194,23 @@ class BlockSimplifier(Analysis):
                     # so we only remove a definition if the definition is not alive anymore at the end of the block
                     defs_ = set()
                     if isinstance(d.atom, atoms.Register):
-                        vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                        try:
+                            vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                        except SimMemoryMissingError:
+                            vs = None
                     elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                         stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-                        vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
-                                                                             endness=d.atom.endness)
+                        try:
+                            vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+                                                                                 endness=d.atom.endness)
+                        except SimMemoryMissingError:
+                            vs = None
                     else:
                         continue
-                    for values in vs.values.values():
-                        for value in values:
-                            defs_.update(live_defs.extract_defs(value))
+                    if vs is not None:
+                        for values in vs.values.values():
+                            for value in values:
+                                defs_.update(live_defs.extract_defs(value))
 
                     if d not in defs_:
                         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)

@@ -93,6 +93,17 @@ class MemoryMixin(SimStatePlugin):
         """
         raise NotImplementedError()
 
+    def erase(self, addr, size=None, **kwargs) -> None:
+        """
+        Set [addr:addr+size) to uninitialized. In many cases this will be faster than overwriting those locations with
+        new values. This is commonly used during static data flow analysis.
+
+        :param addr:    The address to start erasing.
+        :param size:    The number of bytes for erasing.
+        :return:        None
+        """
+        raise NotImplementedError()
+
     def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
         """
         Override this method to provide default values for a variety of edge cases and base cases.

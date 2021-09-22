@@ -299,20 +299,46 @@ class LiveDefinitions:
 
         return state, merge_occurred
 
-    def kill_definitions(self, atom: Atom, code_loc: CodeLocation, data: Optional[MultiValues]=None, dummy=True,
-                         tags: Set[Tag]=None, annotated=False) -> None:
+    def kill_definitions(self, atom: Atom) -> None:
         """
         Overwrite existing definitions w.r.t 'atom' with a dummy definition instance. A dummy definition will not be
         removed during simplification.
 
         :param atom:
-        :param CodeLocation code_loc:
         :return: None
         """
 
-        if data is None:
-            data = MultiValues(offset_to_values={0: {self.top(atom.size * self.arch.byte_width)}})
-        self.kill_and_add_definition(atom, code_loc, data, dummy=dummy, tags=tags, annotated=annotated)
+        if isinstance(atom, Register):
+            self.register_definitions.erase(atom.reg_offset, size=atom.size)
+        elif isinstance(atom, MemoryLocation):
+            if isinstance(atom.addr, SpOffset):
+                if atom.addr.offset is not None:
+                    stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                    self.stack_definitions.erase(stack_addr, size=atom.size)
+                else:
+                    l.warning("Skip stack storing since the stack offset is None.")
+            elif isinstance(atom.addr, HeapAddress):
+                self.heap_definitions.erase(atom.addr.value, size=atom.size)
+            elif isinstance(atom.addr, int):
+                self.memory_definitions.erase(atom.addr, size=atom.size)
+            elif isinstance(atom.addr, claripy.ast.Base):
+                if atom.addr.concrete:
+                    self.memory_definitions.erase(atom.addr._model_concrete.value, size=atom.size)
+                elif self.is_stack_address(atom.addr):
+                    stack_addr = self.get_stack_address(atom.addr)
+                    if stack_addr is None:
+                        l.warning("Failed to convert stack address %s to a concrete stack address. Skip the store.",
+                                  atom.addr)
+                    else:
+                        self.stack_definitions.erase(stack_addr, size=atom.size)
+                else:
+                    return
+            else:
+                return
+        elif isinstance(atom, Tmp):
+            del self.tmps[atom.tmp_idx]
+        else:
+            raise NotImplementedError()
 
     def kill_and_add_definition(self, atom: Atom, code_loc: CodeLocation, data: MultiValues,
                                 dummy=False, tags: Set[Tag]=None, endness=None,

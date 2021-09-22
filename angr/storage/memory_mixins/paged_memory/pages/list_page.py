@@ -87,6 +87,10 @@ class ListPage(MemoryObjectMixin, PageBase):
                 self.content[subaddr] = data
                 self.stored_offset.add(subaddr)
 
+    def erase(self, addr, size=None, **kwargs) -> None:
+        for off in range(size):
+            self.content[addr + off] = None
+
     def merge(self, others: List['ListPage'], merge_conditions, common_ancestor=None, page_addr: int=None,
               memory=None, changed_offsets: Optional[Set[int]]=None):
 

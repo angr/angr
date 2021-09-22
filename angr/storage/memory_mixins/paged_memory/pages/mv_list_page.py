@@ -116,6 +116,10 @@ class MVListPage(
                         self.content[subaddr] = {self.content[subaddr]} | data
                     self.stored_offset.add(subaddr)
 
+    def erase(self, addr, size=None, **kwargs) -> None:
+        for off in range(size):
+            self.content[addr + off] = None
+
     def merge(self, others: List['MVListPage'], merge_conditions, common_ancestor=None, page_addr: int = None,
               memory=None, changed_offsets: Optional[Set[int]]=None):
 
@@ -268,11 +272,13 @@ class MVListPage(
                 differences.add(c)
             else:
                 if self.content[c] is None:
-                    self.content[c] = SimMemoryObject(self.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
-                                                      byte_width=byte_width, endness='Iend_BE')
+                    if self.sinkhole is not None:
+                        self.content[c] = SimMemoryObject(self.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
+                                                          byte_width=byte_width, endness='Iend_BE')
                 if other.content[c] is None:
-                    other.content[c] = SimMemoryObject(other.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
-                                                       byte_width=byte_width, endness='Iend_BE')
+                    if other.sinkhole is not None:
+                        other.content[c] = SimMemoryObject(other.sinkhole.bytes_at(page_addr + c, 1), page_addr + c,
+                                                           byte_width=byte_width, endness='Iend_BE')
                 if s_contains and self.content[c] != other.content[c]:
                     same = None
                     if self._mo_cmp is not None:
