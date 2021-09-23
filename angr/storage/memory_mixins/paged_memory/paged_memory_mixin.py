@@ -155,7 +155,7 @@ class PagedMemoryMixin(MemoryMixin):
         if type(addr) is not int:
             raise TypeError("Need addr to be resolved to an int by this point")
 
-        l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
+        # l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
 
         pageno, pageoff = self._divide_addr(addr)
         sub_gen = self.PAGE_TYPE._decompose_objects(addr, data, endness, memory=self, **kwargs)
@@ -195,6 +195,24 @@ class PagedMemoryMixin(MemoryMixin):
             pageoff = 0
 
         sub_gen.close()
+
+    def erase(self, addr, size=None, **kwargs) -> None:
+        if type(size) is not int:
+            raise TypeError("Need size to be resolved to an int by this point")
+
+        if type(addr) is not int:
+            raise TypeError("Need addr to be resolved to an int by this point")
+
+        pageno, pageoff = self._divide_addr(addr)
+        max_pageno = (1 << self.state.arch.bits) // self.page_size
+        bytes_done = 0
+        while bytes_done < size:
+            page = self._get_page(pageno, True, **kwargs)
+            sub_size = min(self.page_size - pageoff, size - bytes_done)
+            page.erase(pageoff, sub_size, memory=self, **kwargs)
+            bytes_done += sub_size
+            pageno = (pageno + 1) % max_pageno
+            pageoff = 0
 
     def merge(self, others: Iterable['PagedMemoryMixin'], merge_conditions, common_ancestor=None) -> bool:
         changed_pages_and_offsets: Dict[int,Optional[Set[int]]] = {}
