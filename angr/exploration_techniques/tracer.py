@@ -200,7 +200,11 @@ class Tracer(ExplorationTechnique):
         """
         if self._aslr:
             # if we don't know whether there is any slide, we need to identify the slides via heuristics
-            for obj in self.project.loader.all_elf_objects + self.project.loader.all_pe_objects:
+            for obj in self.project.loader.all_objects:
+                # do not analyze pseudo-objects
+                if obj.binary.binary_basename.startswith('cle##'):
+                    continue
+
                 # heuristic 1: non-PIC  objects are loaded without aslr slides
                 if not obj.pic:
                     self._aslr_slides[obj] = 0
@@ -233,7 +237,10 @@ class Tracer(ExplorationTechnique):
                     raise AngrTracerError("Trace seems ambiguous with respect to what the ASLR slides are for %s. This is surmountable, please open an issue." % obj)
         else:
             # if we know there is no slides, just trust the address in the loader
-            for obj in self.project.loader.all_elf_objects + self.project.loader.all_pe_objects:
+            for obj in self.project.loader.all_objects:
+                # do not analyze pseudo-objects
+                if obj.binary.binary_basename.startswith('cle##'):
+                    continue
                 self._aslr_slides[obj] = 0
             self._current_slide = 0
 
