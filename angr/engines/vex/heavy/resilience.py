@@ -139,6 +139,12 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # Implementation based on description in the Intel software manual
         dividend = self.state.solver.eval(args[1])
         divisor = self.state.solver.eval(args[2])
+        if math.isnan(dividend) or math.isnan(divisor) or abs(dividend) == math.inf or divisor == 0.0:
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs(divisor) == math.inf or dividend == 0.0:
+            return args[1]
+
         _, exp_dividend = math.frexp(dividend)
         _, exp_divisor = math.frexp(divisor)
         if exp_dividend - exp_divisor < 64:
@@ -151,6 +157,11 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
             quotient = math.floor((dividend / divisor) / pow(2, exp_dividend - exp_divisor - N))
             result = dividend - (divisor * quotient * pow(2, exp_dividend - exp_divisor - N))
 
+        if result == 0.0:
+            if math.copysign(1.0, dividend) < 0:
+                # According to Intel manual, if result is 0, its sign should be same as that of dividend.
+                return claripy.FPV(-0.0, claripy.FSORT_DOUBLE)
+
         return claripy.FPV(result, claripy.FSORT_DOUBLE)
 
     def _concretize_prem_flags(self, args):
@@ -158,21 +169,30 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # Implementation based on description in the Intel software manual
         dividend = self.state.solver.eval(args[1])
         divisor = self.state.solver.eval(args[2])
-        _, exp_dividend = math.frexp(dividend)
-        _, exp_divisor = math.frexp(divisor)
-        if exp_dividend - exp_divisor < 64:
-            quotient = math.floor(dividend/divisor)
-            flag_c2 = 0
-            flag_c0 = (quotient & 4) >> 2
-            flag_c3 = (quotient & 2) >> 1
-            flag_c1 = (quotient & 1)
-        else:
-            # Nothing is explicitly mentioned for C0 and C3 bits in this case so arbitrarily set to 0
-            # TODO: C1 should be set to 0 only if floating point stack underflows. How to detect that?
-            flag_c2 = 1
+        if math.isnan(dividend) or math.isnan(divisor) or abs(dividend) == math.inf or divisor == 0.0 or \
+          abs(divisor) == math.inf or dividend == 0.0:
+            # Since these are exception cases, the manual does not specify anything for these flags. These are set to
+            # zero based on what was observed on an Intel CPU.
             flag_c0 = 0
             flag_c1 = 0
+            flag_c2 = 0
             flag_c3 = 0
+        else:
+            _, exp_dividend = math.frexp(dividend)
+            _, exp_divisor = math.frexp(divisor)
+            if exp_dividend - exp_divisor < 64:
+                quotient = math.floor(dividend/divisor)
+                flag_c2 = 0
+                flag_c0 = (quotient & 4) >> 2
+                flag_c3 = (quotient & 2) >> 1
+                flag_c1 = (quotient & 1)
+            else:
+                # Nothing is explicitly specified for C0 and C3 bits in this case so arbitrarily set to 0
+                # TODO: C1 should be set to 0 only if floating point stack underflows. How to detect that?
+                flag_c2 = 1
+                flag_c0 = 0
+                flag_c1 = 0
+                flag_c3 = 0
 
         flags = (flag_c3 << 14) | (flag_c2 << 10) | (flag_c1 << 9) | (flag_c0 << 8)
         return claripy.BVV(flags, 16)
