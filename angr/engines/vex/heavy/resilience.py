@@ -180,10 +180,19 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_trig_cos(self, args):
         # cos(x). Z3 does support *some* cases of cos(see https://github.com/Z3Prover/z3/issues/680) but we don't use
         # the feature and concretize fully instead.
-        # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
-        if abs(arg_x) > pow(2, 63):
-            # TODO: Indicate floating-point invalid-operation exception
+        abs_arg_x = abs(arg_x)
+
+        if math.isnan(abs_arg_x):
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs_arg_x == math.inf:
+            # Floating-point invalid-operation exception
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs_arg_x > pow(2, 63):
+            # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
+            # exception: leave value changed
             return args[1]
 
         return claripy.FPV(math.cos(arg_x), claripy.FSORT_DOUBLE)
@@ -191,10 +200,19 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
     def _concretize_trig_sin(self, args):
         # sin(x). Z3 does support *some* cases of sin(see https://github.com/Z3Prover/z3/issues/680) but we don't use
         # the feature and concretize fully instead.
-        # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
-        if abs(arg_x) > pow(2, 63):
-            # TODO: Indicate floating-point invalid-operation exception
+        abs_arg_x = abs(arg_x)
+
+        if math.isnan(abs_arg_x):
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs_arg_x == math.inf:
+            # Floating-point invalid-operation exception
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs_arg_x > pow(2, 63):
+            # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
+            # exception: leave value changed
             return args[1]
 
         return claripy.FPV(math.sin(arg_x), claripy.FSORT_DOUBLE)
@@ -203,8 +221,18 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         # tan(x). Concretize fully since it cannot be modelled in Z3.
         # TODO: How to handle NaN arg?
         arg_x = self.state.solver.eval(args[1])
-        if abs(arg_x) > pow(2, 63):
-            # TODO: Indicate floating-point invalid-operation exception
+        abs_arg_x = abs(arg_x)
+
+        if math.isnan(abs_arg_x):
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs_arg_x == math.inf:
+            # Floating-point invalid-operation exception
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        if abs_arg_x > pow(2, 63):
+            # Intel manual says argument must be in range [-2^63, 2^63]. Otherwise, floating-point invalid-operation
+            # exception: leave value changed
             return args[1]
 
         return claripy.FPV(math.tan(arg_x), claripy.FSORT_DOUBLE)
