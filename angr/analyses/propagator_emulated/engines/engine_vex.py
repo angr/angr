@@ -5,6 +5,7 @@ from ....code_location import CodeLocation
 from ...cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation
 from ....engines.vex.heavy.heavy import HeavyVEXMixin
 from ...vm_deobfuscation.vm_deobfuscation import DataSensitiveRdTmp, DataSensitiveU32, DataSensitiveU64
+from ...cfg.cfg_job_base import BlockID
 
 
 
@@ -52,33 +53,33 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
         self.state.globals['cur_block_id'] = stmt.dst.block_id
         super()._handle_vex_stmt_Exit(stmt)
 
-    def process_successors(self,
-        successors,
-        irsb=None,
-        insn_text=None,
-        insn_bytes=None,
-        thumb=False,
-        size=None,
-        num_inst=None,
-        extra_stop_points=None,
-        opt_level=None,
-        **kwargs):
-
-        super().process_successors(
-        successors,
-        irsb,
-        insn_text,
-        insn_bytes,
-        thumb,
-        size,
-        num_inst,
-        extra_stop_points,
-        opt_level,
-        **kwargs)
-
-        for succ in successors.all_successors:
-            if succ.addr != succ.globals['cur_block_id'].addr:
-                cur_block_id = succ.globals['cur_block_id']
-                succ.globals['cur_block_id'] = BlockID.new(succ.addr, cur_block_id.callsite_tuples, cur_block_id.vm_vpc,
-                                                           cur_block_id.branch_trace, cur_block_id.jump_type)
-
+    # def process_successors(self,
+    #     successors,
+    #     irsb=None,
+    #     insn_text=None,
+    #     insn_bytes=None,
+    #     thumb=False,
+    #     size=None,
+    #     num_inst=None,
+    #     extra_stop_points=None,
+    #     opt_level=None,
+    #     **kwargs):
+    #
+    #     super().process_successors(
+    #     successors,
+    #     irsb,
+    #     insn_text,
+    #     insn_bytes,
+    #     thumb,
+    #     size,
+    #     num_inst,
+    #     extra_stop_points,
+    #     opt_level,
+    #     **kwargs)
+    #
+    #     for succ in successors.all_successors:
+    #         if succ.addr != succ.globals['cur_block_id'].addr:
+    #             cur_block_id = succ.globals['cur_block_id']
+    #             succ.globals['cur_block_id'] = BlockID.new(succ.addr, cur_block_id.callsite_tuples, cur_block_id.vm_vpc,
+    #                                                        cur_block_id.branch_trace, cur_block_id.jump_type)
+    #

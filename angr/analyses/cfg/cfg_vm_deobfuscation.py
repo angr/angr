@@ -138,6 +138,7 @@ class EmulatedCFGVisitor(GraphVisitor):
         super(EmulatedCFGVisitor, self).__init__()
         self._start = start
         self.graph = graph
+        ### should change this to stop analysis nodes
         self.reset()
 
     def startpoints(self):
@@ -1187,7 +1188,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         abstract_state.concrete_states = sim_successors.all_successors
         self._abstract_state_map[block_key] = abstract_state
 
-        if self._node_iterations[block_key] < self._max_iterations:
+        if self._node_iterations[block_key] <= self._max_iterations:
             return True, abstract_state
         else:
             return False, abstract_state
@@ -1430,6 +1431,36 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Generate a unique key for this job
         block_id = job.block_id
 
+        if block_id.addr == 0x14002C1A9:
+            # Draw graph
+            for node in self.graph.nodes():
+                if len(list(self.graph.predecessors(node))) == 0:
+                    start_node = node
+
+            cur_node = start_node
+            sub_graph_node_list = set()
+            queue = []
+            while len(sub_graph_node_list) < 500:
+                for successor in self.graph.successors(cur_node):
+                    sub_graph_node_list.add(successor)
+                    queue.append(successor)
+                cur_node = queue.pop(0)
+
+            sub_graph_A = self.graph.subgraph(sub_graph_node_list)
+            A = networkx.nx_agraph.to_agraph(sub_graph_A)
+            for cur_node in sub_graph_A:
+                stmt_str = str(cur_node)
+                if cur_node.irsb != None:
+                    for ind, stmt in enumerate(cur_node.irsb.statements):
+                        stmt_str = stmt_str + "\l" + stmt.__str__(arch=cur_node.irsb.arch, tyenv=cur_node.irsb.tyenv)
+
+                graphviz_node = A.get_node(str(cur_node))
+                graphviz_node.attr["label"] = stmt_str
+                graphviz_node.attr["shape"] = "box"
+            #A.layout(prog="dot")
+            A.draw(path="/media/sf_PhD/simple_vm_set/MitchVirtualizationObfuscatorAnalysis/VMProtect3/VM1_500.svg", format="svg",prog="dot")
+            import ipdb;ipdb.set_trace()
+
         # Extract initial info the CFGJob
         job.call_stack_suffix = job.get_call_stack_suffix()
         job.current_function = self.kb.functions.function(job.func_addr, create=True,
@@ -1462,10 +1493,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Job List: "+str(self._job_info_queue))
         l.debug("Data offset: "+str(job.vm_vpc))
         l.debug("Branch Trace: " + str(job.branch_trace))
-        print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
+        #print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
         print("R10 Value: " + str(job.state.regs.r10))
-
-
 
         # Get a SimSuccessors out of current job
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
@@ -1533,13 +1562,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                               successor.scratch.exit_stmt_idx,
                                                               successor.scratch.exit_ins_addr,
                                                               successor.scratch.source)
-                    elif successor.solver.symbolic(successor.scratch.guard) and successor.solver.symbolic(successor.scratch.guard) not in [False, True]:
-                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                              successor.scratch.guard,
-                                                              successor.history.jumpkind, True,
-                                                              successor.scratch.exit_stmt_idx,
-                                                              successor.scratch.exit_ins_addr,
-                                                              successor.scratch.source)
+                    # elif successor.solver.symbolic(successor.scratch.guard):
+                    #     import ipdb;ipdb.set_trace()
+                    #     symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                    #                                           successor.scratch.guard,
+                    #                                           successor.history.jumpkind, True,
+                    #                                           successor.scratch.exit_stmt_idx,
+                    #                                           successor.scratch.exit_ins_addr,
+                    #                                           successor.scratch.source)
 
 
             # ### Assigning each successor a unique id, even if it is in a loop. Since each successor will result in a new job, but not a new node in the CFG.

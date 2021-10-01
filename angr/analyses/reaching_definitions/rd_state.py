@@ -299,16 +299,35 @@ class ReachingDefinitionsState:
                 self, subject.cc, subject.content.current_function_address(), rtoc_value
             )
         elif subject.type == SubjectType.Block:
-            # Ashwin added this to make block wise RDA track stack variables
-            sp = Register(self.arch.sp_offset, self.arch.bytes)
-            sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits),
-                                tags={InitialValueTag()})
-            self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
 
-            bp = Register(self.arch.bp_offset, self.arch.bytes)
-            bp_def = Definition(bp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0, is_base=True), self.arch.bits),
-                                tags={InitialValueTag()})
-            self.register_definitions.set_object(bp_def.offset, bp_def, bp_def.size)
+            # # Ashwin added this to make block wise RDA track stack variables
+            # sp = Register(self.arch.sp_offset, self.arch.bytes)
+            # sp_def = Definition(sp, ExternalCodeLocation(), DataSet(SpOffset(self.arch.bits, 0), self.arch.bits),
+            #                     tags={InitialValueTag()})
+            # self.register_definitions.set_object(sp_def.offset, sp_def, sp_def.size)
+            # bp = Register(self.arch.bp_offset, self.arch.bytes)
+            # bp_def = Definition(bp, ExternalCodeLocation(),
+            #                     DataSet(SpOffset(self.arch.bits, 0, is_base=True), self.arch.bits),
+            #                     tags={InitialValueTag()})
+            # self.register_definitions.set_object(bp_def.offset, bp_def, bp_def.size)
+            # pass
+            #
+            # Ashwin added this to make block wise RDA track stack variables
+            sp_atom = Register(self.arch.sp_offset, self.arch.bytes)
+            sp_def = Definition(sp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            sp = self.annotate_with_def(self._initial_stack_pointer(), sp_def)
+            self.register_definitions.store(self.arch.sp_offset, sp)
+
+            if self.arch.bits == 32:
+                initial_bp = claripy.BVS("initial_bp", 32, explicit_name=True)
+            elif self.arch.bits == 64:
+                initial_bp = claripy.BVS("initial_bp", 64, explicit_name=True)
+
+            bp_atom = Register(self.arch.bp_offset, self.arch.bytes)
+            bp_def = Definition(bp_atom, ExternalCodeLocation(), tags={InitialValueTag()})
+            # haev to set it to top since we don't know how afr bp is from sp
+            bp = self.annotate_with_def(self.top(self.arch.bits), bp_def)
+            self.register_definitions.store(self.arch.bp_offset, bp)
             # pass
         elif subject.type == SubjectType.Tuple:
             self._initialize_function(
