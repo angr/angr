@@ -274,7 +274,7 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             return states[0]
         merged_abstract_state = reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
         print(merged_abstract_state._replacements)
-        return merged_abstract_state
+        return merged_abstract_state, True
 
     # def _add_input_state(self, node, input_state):
     #     successors_to_visit = []
