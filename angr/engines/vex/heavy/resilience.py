@@ -104,8 +104,8 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
         if -1 <= arg_x <= 1:
             return claripy.FPV(math.pow(2, arg_x) - 1, claripy.FSORT_DOUBLE)
 
-        # If x is outside range [-1.0, 1.0], result is undefined. We arbitrarily return NaN in this case
-        return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+        # If x is outside range [-1.0, 1.0], result is undefined. We return argument itself as observed on an Intel CPU.
+        return args[1]
 
     def _concretize_fscale(self, args):
         # fscale(x, y) = x * (2 ** y). Concretize 2**y part alone since only that cannot be modelled in Z3.
