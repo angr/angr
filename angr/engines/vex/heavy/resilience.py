@@ -118,7 +118,11 @@ class HeavyResilienceMixin(VEXResilienceMixin, ClaripyDataMixin):
 
     def _concretize_fsqrt(self, args):
         # Concretize floating point square root. Z3 does support square root but unsure if that includes floating point
-        return claripy.FPV(math.sqrt(self.state.solver.eval(args[1])), claripy.FSORT_DOUBLE)
+        arg_1 = self.state.solver.eval(args[1])
+        if arg_1 < 0 or math.isnan(arg_1):
+            return claripy.FPV(math.nan, claripy.FSORT_DOUBLE)
+
+        return claripy.FPV(math.sqrt(arg_1), claripy.FSORT_DOUBLE)
 
     def _concretize_prem(self, args):
         # Compute partial remainder. Z3 does not support modulo for reals: https://github.com/Z3Prover/z3/issues/557
