@@ -952,28 +952,24 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
-            changed, output_state = self._run_on_node(n, job_state)
+            _, output_state = self._run_on_node(n, job_state)
 
             # output state of node n is input state for successors to node n
-            successors_to_visit = self._add_input_state(n, output_state)
+            successors_to_visit = set(self._graph_visitor.successors(n))
+            # successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
-            if changed is False:
-                # no change is detected
-                continue
-            elif changed is True:
-                # changes detected
-                # revisit all its successors
-                self._graph_visitor.revisit_successors(n, include_self=False)
-            else:
-                # the change of states are determined during state merging (_add_input_state()) instead of during
-                # simulated execution (_run_on_node()).
-                # revisit all successors in the `successors_to_visit` list
-                for succ in successors_to_visit:
-                    self._graph_visitor.revisit_node(succ)
+            for succ in successors_to_visit:
+                if sum(1 for _ in self._graph_visitor.predecessors(succ)) == 1:
+                    self._input_states[self._node_key(succ)] = [output_state]
+
+            for succ in successors_to_visit:
+                self._graph_visitor.revisit_node(succ)
 
 
     def _run_on_node(self, node, abstract_state):
         print("Running semantic verification on node: "+str(node))
+        if node.addr == 0x4009b1 and node.block_id.vm_vpc == 10:
+            import ipdb;ipdb.set_trace()
         input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
