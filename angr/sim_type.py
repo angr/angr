@@ -1,5 +1,7 @@
 # pylint:disable=abstract-method
 from collections import OrderedDict, defaultdict, ChainMap
+
+from archinfo import Endness
 from .misc.ux import deprecated
 import copy
 import re
@@ -297,7 +299,7 @@ class SimTypeNum(SimType):
 
     def __init__(self, size, signed=True, label=None):
         """
-        :param size:        The size of the integer, in bytes
+        :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
         :param label:       A label for the type
         """
@@ -1075,8 +1077,11 @@ class SimStruct(NamedTypeMixin, SimType):
                 align = ty.alignment
                 if offset_so_far % align != 0:
                     offset_so_far += (align - offset_so_far % align)
-            offsets[name] = offset_so_far
-            offset_so_far += ty.size // self._arch.byte_width
+                offsets[name] = offset_so_far
+                offset_so_far += ty.size // self._arch.byte_width
+            else:
+                offsets[name] = offset_so_far // self._arch.byte_width
+                offset_so_far += ty.size
 
         return offsets
 
@@ -1127,7 +1132,10 @@ class SimStruct(NamedTypeMixin, SimType):
 
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
-        return last_off * self._arch.byte_width + last_type.size
+        if isinstance(last_type, SimTypeNumOffset):
+            return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
+        else:
+            return last_off * self._arch.byte_width + last_type.size
 
     @property
     def alignment(self):
@@ -1423,6 +1431,38 @@ class SimCppClassValue:
         return SimCppClassValue(self._class, values=defaultdict(lambda: None, self._values))
 
 
+class SimTypeNumOffset(SimTypeNum):
+
+    _fields = SimTypeNum._fields + ("offset",)
+
+    def __init__(self, size, signed=True, label=None, offset=0):
+        super().__init__(size, signed, label)
+        self.offset = offset
+
+    def __repr__(self):
+        return super().__repr__()
+
+    def extract(self, state: "SimState", addr, concrete=False):
+        if state.arch.memory_endness != Endness.LE:
+            raise NotImplementedError("This has only been implemented and tested with Little Endian arches so far")
+        load_size = (self.size - self.size % (-state.arch.byte_width)) // state.arch.byte_width
+        out = state.memory.load(addr, size=load_size, endness=state.arch.memory_endness)
+        out = claripy.Concat(*out.chop(1)[-(self.size + self.offset):-self.offset or None])
+
+        if not concrete:
+            return out
+        n = state.solver.eval(out)
+        if self.signed and n >= 1 << (self.size - 1):
+            n -= 1 << (self.size)
+        return n
+
+    def store(self, state, addr, value):
+        raise NotImplementedError()
+
+    def copy(self):
+        return SimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
+
+
 BASIC_TYPES = {
     'char': SimTypeChar(),
     'signed char': SimTypeChar(),
@@ -1678,7 +1718,7 @@ def _accepts_scope_stack():
     setattr(pycparser.CParser, 'parse', parse)
 
 
-def _decl_to_type(decl, extra_types=None):
+def _decl_to_type(decl, extra_types=None) -> SimType:
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
@@ -1969,3 +2009,4 @@ except ImportError:
     pass
 
 from .state_plugins.view import SimMemView
+from .state_plugins import SimState
