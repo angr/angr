@@ -72,7 +72,7 @@ class SimType:
         return []
 
     def _refine(self, view, k): # pylint: disable=unused-argument,no-self-use
-        raise KeyError("{} is not a valid refinement".format(k))
+        raise KeyError(f"{k} is not a valid refinement")
 
     @property
     def size(self):
@@ -106,13 +106,13 @@ class SimType:
         return cp
 
     def _init_str(self):
-        return "NotImplemented(%s)" % (self.__class__.__name__)
+        return f"NotImplemented({self.__class__.__name__})"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
             return repr(self)
         else:
-            return '%s %s' % (str(self) if self.label is None else self.label, name)
+            return f'{str(self) if self.label is None else self.label} {name}'
 
     def copy(self):
         raise NotImplementedError()
@@ -195,12 +195,12 @@ class NamedTypeMixin:
     def name(self, v):
         self._name = v
 
-    def unqualified_name(self, lang: str="c++") -> str:
+    def unqualified_name(self, lang: str = "c++") -> str:
         if lang == "c++":
             splitter = "::"
             n = self.name.split(splitter)
             return n[-1]
-        raise NotImplementedError("Unsupported language %s." % lang)
+        raise NotImplementedError(f"Unsupported language {lang}.")
 
 
 class SimTypeBottom(SimType):
@@ -494,7 +494,7 @@ class SimTypeBool(SimTypeChar):
         return ver != 0
 
     def _init_str(self):
-        return "%s()" % (self.__class__.__name__)
+        return f"{self.__class__.__name__}()"
 
 
 class SimTypeFd(SimTypeReg):
@@ -588,7 +588,7 @@ class SimTypeReference(SimTypeReg):
         self.refs: SimType = refs
 
     def __repr__(self):
-        return "{}&".format(self.refs)
+        return f"{self.refs}&"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         name = '&' if name is None else '&%s' % name
