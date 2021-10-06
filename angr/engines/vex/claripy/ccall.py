@@ -1,7 +1,7 @@
 from typing import Dict, Optional
+import logging
 
 import claripy
-import logging
 from archinfo.arch_arm import is_arm_arch
 from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
 from angr import errors
@@ -990,7 +990,8 @@ def amd64g_calculate_RCL(state, arg, rot_amt, eflags_in, sz):
         raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
 
     want_flags = claripy.SLT(sz, 0).is_true()
-    if want_flags: sz = -sz
+    if want_flags:
+        sz = -sz
     carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
     carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, True, arg, rot_amt, carry_bit_in, sz)
 
@@ -1010,7 +1011,8 @@ def amd64g_calculate_RCR(state, arg, rot_amt, eflags_in, sz):
         raise SimError('Hit a symbolic "sz" in an x86 rotate with carry instruction. Panic.')
 
     want_flags = claripy.SLT(sz, 0).is_true()
-    if want_flags: sz = -sz
+    if want_flags:
+        sz = -sz
     carry_bit_in = eflags_in[data['AMD64']['CondBitOffsets']['G_CC_SHIFT_C']]
     carry_bit_out, overflow_bit_out, arg_out = generic_rotate_with_carry(state, False, arg, rot_amt, carry_bit_in, sz)
 
@@ -1439,7 +1441,8 @@ def armg_calculate_flag_n(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = claripy.LShR(cc_dep2, 31)
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
     l.error("Unknown cc_op %s (armg_calculate_flag_n)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
 
@@ -1471,7 +1474,8 @@ def armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = arm_zerobit(state, cc_dep1 | cc_dep2)
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_z)", concrete_op)
     raise SimCCallError("Unknown cc_op %s" % concrete_op)
@@ -1501,7 +1505,8 @@ def armg_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = (claripy.LShR(cc_dep3, 1)) & 1
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_c)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
@@ -1535,7 +1540,8 @@ def armg_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op == ARMG_CC_OP_MULL:
         flag = cc_dep3 & 1
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unknown cc_op %s (armg_calculate_flag_v)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
@@ -1597,7 +1603,8 @@ def armg_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
         zf = armg_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & ~(zf | (nf ^ vf)))
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unrecognized condition %d in armg_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in armg_calculate_condition" % concrete_cond)
@@ -1760,7 +1767,8 @@ def arm64g_calculate_flag_c(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
         flag = claripy.BVV(0, 64) # C after logic is zero on arm64
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_c)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
@@ -1816,7 +1824,8 @@ def arm64g_calculate_flag_v(state, cc_op, cc_dep1, cc_dep2, cc_dep3):
     elif concrete_op in (ARM64G_CC_OP_LOGIC32, ARM64G_CC_OP_LOGIC64):
         flag = claripy.BVV(0, 64)
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unknown cc_op %s (arm64g_calculate_flag_v)", cc_op)
     raise SimCCallError("Unknown cc_op %s" % cc_op)
@@ -1872,7 +1881,8 @@ def arm64g_calculate_condition(state, cond_n_op, cc_dep1, cc_dep2, cc_dep3):
         zf = arm64g_calculate_flag_z(state, cc_op, cc_dep1, cc_dep2, cc_dep3)
         flag = inv ^ (1 & ~(zf | (nf ^ vf)))
 
-    if flag is not None: return flag
+    if flag is not None:
+        return flag
 
     l.error("Unrecognized condition %d in arm64g_calculate_condition", concrete_cond)
     raise SimCCallError("Unrecognized condition %d in arm64g_calculate_condition" % concrete_cond)
