@@ -275,6 +275,8 @@ class SimEngineRDAIL(
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
                 self.state.add_use(Register(offset, size), codeloc)
+            else:
+                l.error("Cannot handle CC with non-register return value location")
 
         # base pointer
         # TODO: Check if the stack base pointer is used as a stack base pointer in this function or not

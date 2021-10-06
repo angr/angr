@@ -5,6 +5,7 @@ import claripy
 from ...calling_conventions import SimFunctionArgument, SimRegArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class Atom:
@@ -55,7 +56,10 @@ class FunctionCall(Atom):
         self.callsite = callsite
 
     def __repr__(self):
-        return '<Call %s>' % self.target
+        target = self.target
+        if type(target) is MultiValues and len(target.values) == 1 and 0 in target.values:
+            target = target.values[0]
+        return '<Call %s>' % target
 
     def __eq__(self, other):
         return type(other) is FunctionCall and self.callsite == other.callsite
