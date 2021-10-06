@@ -1,3 +1,4 @@
+from mmap import mmap
 from typing import Union, List, Generator, Tuple
 import logging
 
@@ -83,7 +84,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
     def _data_from_backer(self, addr: int, backer: BackerType, backer_start: int,
                           backer_iter: BackerIterType) -> claripy.ast.BV:
         # initialize the page
-        if isinstance(backer, (bytes, bytearray)):
+        if isinstance(backer, (bytes, bytearray, mmap)):
             return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
         elif isinstance(backer, list):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)
