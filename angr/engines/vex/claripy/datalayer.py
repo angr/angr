@@ -115,8 +115,13 @@ class ClaripyDataMixin(VEXMixin):
         try:
             return func(self.state, *args)
         except ccall.CCallMultivaluedException as e:
-            cases = e.args[0]
-            return claripy.ite_cases([(case, func(self.state, value, *args[1:])) for case, value in cases], value(ty, 0))
+            cases, to_replace = e.args
+            for i, arg in enumerate(args):
+                if arg is to_replace:
+                    break
+            else:
+                raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
+            return claripy.ite_cases([(case, func(self.state, *args[:i], value_, *args[i+1:])) for case, value_ in cases], value(ty, 0))
 
 from . import irop
 from . import ccall

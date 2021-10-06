@@ -4,6 +4,7 @@ import claripy
 import logging
 from archinfo.arch_arm import is_arm_arch
 from angr.state_plugins.sim_action_object import _raw_ast, SimActionObject
+from angr import errors
 
 l = logging.getLogger(name=__name__)
 #l.setLevel(logging.DEBUG)
@@ -45,7 +46,7 @@ def op_concretize(op):
     if op.op == 'If':
         cases = list(claripy.reverse_ite_cases(op))
         if all(c.op == 'BVV' for _, c in cases):
-            raise CCallMultivaluedException(cases)
+            raise CCallMultivaluedException(cases, op)
     if op.op != 'BVV':
         raise SimError("Hit a symbolic conditional operation. Something has gone wildly wrong.")
     return op.args[0]
@@ -1899,8 +1900,15 @@ def _get_flags(state) -> claripy.ast.bv.BV:
     try:
         return func(state, cc_op, cc_dep1, cc_dep2, cc_ndep)
     except CCallMultivaluedException as e:
-        cases = e.args[0]
-        return claripy.ite_cases([(case, func(state, value, cc_dep1, cc_dep2, cc_ndep)) for case, value in cases], 0)
+        cases, to_replace = e.args
+        args = [cc_op, cc_dep1, cc_dep2, cc_ndep]
+        for i, arg in enumerate(args):
+            if arg is to_replace:
+                break
+        else:
+            raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
+        return claripy.ite_cases([(case, func(state, *args[:i], value_, *args[i + 1:])) for case, value_ in cases], 0)
+
 
 def _concat_flags(nbits, flags_vec):
     """
