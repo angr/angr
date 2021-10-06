@@ -422,6 +422,7 @@ class ReachingDefinitionsState:
         kinda_definition = Definition(atom, code_loc)
 
         if self.dep_graph is not None:
+            self.dep_graph.add_node(kinda_definition)
             for used in self.codeloc_uses:
                 self.dep_graph.add_edge(used, kinda_definition)
 
@@ -431,6 +432,7 @@ class ReachingDefinitionsState:
         kinda_definition = Definition(atom, code_loc)
 
         if self.dep_graph is not None and self._track_calls:
+            self.dep_graph.add_node(kinda_definition)
             for used in self.codeloc_uses:
                 self.dep_graph.add_edge(used, kinda_definition)
             self.codeloc_uses.clear()
@@ -444,5 +446,6 @@ class ReachingDefinitionsState:
         kinda_definition = Definition(atom, code_loc)
 
         if self.dep_graph is not None and self._track_consts:
+            self.dep_graph.add_node(kinda_definition)
             self.codeloc_uses.add(kinda_definition)
             self.live_definitions.uses_by_codeloc[code_loc].add(const)
