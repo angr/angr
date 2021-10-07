@@ -3,6 +3,8 @@ import logging
 import claripy
 import pyvex
 
+from . import irop
+from . import ccall
 from ..light import VEXMixin
 from .... import errors
 from .... import sim_options as o
@@ -27,6 +29,9 @@ def symbol(ty, name):
         return claripy.BVS(name, pyvex.get_type_size(ty))
 
 class ClaripyDataMixin(VEXMixin):
+    """
+    This mixin provides methods that makes the vex engine process guest code using claripy ASTs as the data domain.
+    """
 
     # util methods
 
@@ -121,7 +126,7 @@ class ClaripyDataMixin(VEXMixin):
             return func(self.state, *args)
         except ccall.CCallMultivaluedException as e:
             cases, to_replace = e.args
-            # pylint: disable=possibly-undefined-loop-variable
+            # pylint: disable=undefined-loop-variable
             for i, arg in enumerate(args):
                 if arg is to_replace:
                     break
@@ -129,6 +134,3 @@ class ClaripyDataMixin(VEXMixin):
                 raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
             evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i+1:])) for case, value_ in cases]
             return claripy.ite_cases(evaluated_cases, value(ty, 0))
-
-from . import irop
-from . import ccall
