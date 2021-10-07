@@ -1447,8 +1447,7 @@ class SimTypeNumOffset(SimTypeNum):
             raise NotImplementedError("This has only been implemented and tested with Little Endian arches so far")
         load_size = (self.size - self.size % (-state.arch.byte_width)) // state.arch.byte_width
         out = state.memory.load(addr, size=load_size, endness=state.arch.memory_endness)
-        out = claripy.Concat(*out.chop(1)[-(self.size + self.offset):-self.offset or None])
-
+        out = out[self.offset + self.size - 1:self.offset]
         if not concrete:
             return out
         n = state.solver.eval(out)
