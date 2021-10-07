@@ -1,6 +1,7 @@
 # pylint:disable=unused-variable
 import nose
 
+import archinfo
 import claripy
 
 import angr
@@ -264,6 +265,23 @@ def test_forward_declaration_typedef_union():
     nose.tools.assert_is_instance(extra_types['union _A'].members['a'], SimTypeInt)
     nose.tools.assert_is_instance(extra_types['union _A'].members['b'], SimTypeInt)
 
+def test_bitfield_struct():
+    code = """
+    struct bitfield_struct {
+        uint64_t    qword;
+        uint64_t    a    : 36,
+                    b     :  8,
+                    c  :  7,
+                    d      : 12,
+                    e      :  1;
+        char*       name;
+    }"""
+    type = angr.types.parse_type(code)
+    type = type.with_arch(archinfo.ArchAArch64())
+    nose.tools.assert_list_equal(
+        [(t.size, t.offset) for t in list(type.fields.values())[1:-1]],
+        [(36, 0), (8, 4), (7, 4), (12, 3), (1, 7)]
+    )
 
 if __name__ == '__main__':
     test_type_annotation()
@@ -278,3 +296,4 @@ if __name__ == '__main__':
     test_arg_names()
     test_forward_declaration_typedef_struct()
     test_forward_declaration_typedef_union()
+    test_bitfield_struct()

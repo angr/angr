@@ -1057,6 +1057,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
     def __init__(self, fields: Union[Dict[str,SimType], OrderedDict], name=None, pack=False, align=None):
         super().__init__(None, name='<anon>' if name is None else name)
+
         self._pack = pack
         self._align = align
         self._pack = pack
@@ -1104,7 +1105,17 @@ class SimStruct(NamedTypeMixin, SimType):
         out = SimStruct(None, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
+
+
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
+        offset_so_far = 0
+        for name, ty in out.fields.items():
+            if isinstance(ty, SimTypeNumOffset):
+                out._pack = True
+                ty.offset = offset_so_far % arch.byte_width
+                offset_so_far += ty.size
         return out
 
     def __repr__(self):
@@ -1432,7 +1443,12 @@ class SimCppClassValue:
 
 
 class SimTypeNumOffset(SimTypeNum):
-
+    """
+    like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields like
+    struct {
+        uint16_t a: 2, b: 3, c: 11;
+    }
+    """
     _fields = SimTypeNum._fields + ("offset",)
 
     def __init__(self, size, signed=True, label=None, offset=0):
@@ -1717,7 +1733,7 @@ def _accepts_scope_stack():
     setattr(pycparser.CParser, 'parse', parse)
 
 
-def _decl_to_type(decl, extra_types=None) -> SimType:
+def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
@@ -1739,7 +1755,7 @@ def _decl_to_type(decl, extra_types=None) -> SimType:
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
         if decl.declname == 'TOP':
             return SimTypeTop()
-        return _decl_to_type(decl.type, extra_types)
+        return _decl_to_type(decl.type, extra_types, bitsize=bitsize)
 
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
         pts_to = _decl_to_type(decl.type, extra_types)
@@ -1759,7 +1775,7 @@ def _decl_to_type(decl, extra_types=None) -> SimType:
 
     elif isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
-            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize)) for field in decl.decls)
         else:
             fields = OrderedDict()
 
@@ -1814,7 +1830,9 @@ def _decl_to_type(decl, extra_types=None) -> SimType:
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
         key = ' '.join(decl.names)
-        if key in extra_types:
+        if bitsize is not None:
+            return SimTypeNumOffset(int(bitsize.value), signed=False)
+        elif key in extra_types:
             return extra_types[key]
         elif key in ALL_TYPES:
             return ALL_TYPES[key]
