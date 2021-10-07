@@ -1,6 +1,7 @@
 from typing import Dict, Tuple, Union, Optional
 
 import claripy
+import ailment
 
 from ...calling_conventions import SimFunctionArgument, SimRegArg
 from ...engines.light import SpOffset
@@ -55,11 +56,17 @@ class FunctionCall(Atom):
         self.target = target
         self.callsite = callsite
 
+    @property
+    def single_target(self):
+        if type(self.target) is MultiValues and len(self.target.values) == 1 and 0 in self.target.values and \
+                len(self.target.values[0]) == 1 and next(iter(self.target.values[0])).op == 'BVV':
+            return next(iter(self.target.values[0])).args[0]
+        return None
+
     def __repr__(self):
-        target = self.target
-        if type(target) is MultiValues and len(target.values) == 1 and 0 in target.values:
-            target = target.values[0]
-        return '<Call %s>' % target
+        target = self.single_target
+        target_txt = hex(target) if target is not None else '(indirect)'
+        return '<Call %s>' % target_txt
 
     def __eq__(self, other):
         return type(other) is FunctionCall and self.callsite == other.callsite
