@@ -276,10 +276,10 @@ def test_bitfield_struct():
                     e      :  1;
         char*       name;
     }"""
-    type = angr.types.parse_type(code)
-    type = type.with_arch(archinfo.ArchAArch64())
+    ty = angr.types.parse_type(code)
+    ty = ty.with_arch(archinfo.ArchAArch64())
     nose.tools.assert_list_equal(
-        [(t.size, t.offset) for t in list(type.fields.values())[1:-1]],
+        [(t.size, t.offset) for t in list(ty.fields.values())[1:-1]],
         [(36, 0), (8, 4), (7, 4), (12, 3), (1, 7)]
     )
 

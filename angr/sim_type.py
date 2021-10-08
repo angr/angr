@@ -1444,10 +1444,7 @@ class SimCppClassValue:
 
 class SimTypeNumOffset(SimTypeNum):
     """
-    like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields like
-    struct {
-        uint16_t a: 2, b: 3, c: 11;
-    }
+    like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields
     """
     _fields = SimTypeNum._fields + ("offset",)
 
