@@ -1461,9 +1461,12 @@ class SimTypeNumOffset(SimTypeNum):
     def extract(self, state: "SimState", addr, concrete=False):
         if state.arch.memory_endness != Endness.LE:
             raise NotImplementedError("This has only been implemented and tested with Little Endian arches so far")
-        load_size = (self.size - self.size % (-state.arch.byte_width)) // state.arch.byte_width
+        minimum_load_size = self.offset + self.size # because we start from a byte aligned offset _before_ the value
+        # Now round up to the next byte
+        load_size = (minimum_load_size - minimum_load_size % (-state.arch.byte_width)) // state.arch.byte_width
         out = state.memory.load(addr, size=load_size, endness=state.arch.memory_endness)
         out = out[self.offset + self.size - 1:self.offset]
+
         if not concrete:
             return out
         n = state.solver.eval(out)
