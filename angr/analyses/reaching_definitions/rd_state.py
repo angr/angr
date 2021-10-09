@@ -448,4 +448,4 @@ class ReachingDefinitionsState:
         if self.dep_graph is not None and self._track_consts:
             self.dep_graph.add_node(kinda_definition)
             self.codeloc_uses.add(kinda_definition)
-            self.live_definitions.uses_by_codeloc[code_loc].add(const)
+            self.live_definitions.uses_by_codeloc[code_loc].add(kinda_definition)
