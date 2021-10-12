@@ -1,5 +1,7 @@
 # pylint:disable=abstract-method
 from collections import OrderedDict, defaultdict, ChainMap
+
+from archinfo import Endness
 from .misc.ux import deprecated
 import copy
 import re
@@ -70,7 +72,7 @@ class SimType:
         return []
 
     def _refine(self, view, k): # pylint: disable=unused-argument,no-self-use
-        raise KeyError("{} is not a valid refinement".format(k))
+        raise KeyError(f"{k} is not a valid refinement")
 
     @property
     def size(self):
@@ -104,13 +106,13 @@ class SimType:
         return cp
 
     def _init_str(self):
-        return "NotImplemented(%s)" % (self.__class__.__name__)
+        return f"NotImplemented({self.__class__.__name__})"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
             return repr(self)
         else:
-            return '%s %s' % (str(self) if self.label is None else self.label, name)
+            return f'{str(self) if self.label is None else self.label} {name}'
 
     def copy(self):
         raise NotImplementedError()
@@ -193,12 +195,12 @@ class NamedTypeMixin:
     def name(self, v):
         self._name = v
 
-    def unqualified_name(self, lang: str="c++") -> str:
+    def unqualified_name(self, lang: str = "c++") -> str:
         if lang == "c++":
             splitter = "::"
             n = self.name.split(splitter)
             return n[-1]
-        raise NotImplementedError("Unsupported language %s." % lang)
+        raise NotImplementedError(f"Unsupported language {lang}.")
 
 
 class SimTypeBottom(SimType):
@@ -297,7 +299,7 @@ class SimTypeNum(SimType):
 
     def __init__(self, size, signed=True, label=None):
         """
-        :param size:        The size of the integer, in bytes
+        :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
         :param label:       A label for the type
         """
@@ -492,7 +494,7 @@ class SimTypeBool(SimTypeChar):
         return ver != 0
 
     def _init_str(self):
-        return "%s()" % (self.__class__.__name__)
+        return f"{self.__class__.__name__}()"
 
 
 class SimTypeFd(SimTypeReg):
@@ -586,7 +588,7 @@ class SimTypeReference(SimTypeReg):
         self.refs: SimType = refs
 
     def __repr__(self):
-        return "{}&".format(self.refs)
+        return f"{self.refs}&"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         name = '&' if name is None else '&%s' % name
@@ -1055,6 +1057,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
     def __init__(self, fields: Union[Dict[str,SimType], OrderedDict], name=None, pack=False, align=None):
         super().__init__(None, name='<anon>' if name is None else name)
+
         self._pack = pack
         self._align = align
         self._pack = pack
@@ -1075,8 +1078,11 @@ class SimStruct(NamedTypeMixin, SimType):
                 align = ty.alignment
                 if offset_so_far % align != 0:
                     offset_so_far += (align - offset_so_far % align)
-            offsets[name] = offset_so_far
-            offset_so_far += ty.size // self._arch.byte_width
+                offsets[name] = offset_so_far
+                offset_so_far += ty.size // self._arch.byte_width
+            else:
+                offsets[name] = offset_so_far // self._arch.byte_width
+                offset_so_far += ty.size
 
         return offsets
 
@@ -1099,7 +1105,17 @@ class SimStruct(NamedTypeMixin, SimType):
         out = SimStruct(None, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
+
+
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
+        offset_so_far = 0
+        for name, ty in out.fields.items():
+            if isinstance(ty, SimTypeNumOffset):
+                out._pack = True
+                ty.offset = offset_so_far % arch.byte_width
+                offset_so_far += ty.size
         return out
 
     def __repr__(self):
@@ -1127,7 +1143,10 @@ class SimStruct(NamedTypeMixin, SimType):
 
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
-        return last_off * self._arch.byte_width + last_type.size
+        if isinstance(last_type, SimTypeNumOffset):
+            return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
+        else:
+            return last_off * self._arch.byte_width + last_type.size
 
     @property
     def alignment(self):
@@ -1423,6 +1442,42 @@ class SimCppClassValue:
         return SimCppClassValue(self._class, values=defaultdict(lambda: None, self._values))
 
 
+class SimTypeNumOffset(SimTypeNum):
+    """
+    like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields
+    """
+    _fields = SimTypeNum._fields + ("offset",)
+
+    def __init__(self, size, signed=True, label=None, offset=0):
+        super().__init__(size, signed, label)
+        self.offset = offset
+
+    def __repr__(self):
+        return super().__repr__()
+
+    def extract(self, state: "SimState", addr, concrete=False):
+        if state.arch.memory_endness != Endness.LE:
+            raise NotImplementedError("This has only been implemented and tested with Little Endian arches so far")
+        minimum_load_size = self.offset + self.size # because we start from a byte aligned offset _before_ the value
+        # Now round up to the next byte
+        load_size = (minimum_load_size - minimum_load_size % (-state.arch.byte_width)) // state.arch.byte_width
+        out = state.memory.load(addr, size=load_size, endness=state.arch.memory_endness)
+        out = out[self.offset + self.size - 1:self.offset]
+
+        if not concrete:
+            return out
+        n = state.solver.eval(out)
+        if self.signed and n >= 1 << (self.size - 1):
+            n -= 1 << (self.size)
+        return n
+
+    def store(self, state, addr, value):
+        raise NotImplementedError()
+
+    def copy(self):
+        return SimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
+
+
 BASIC_TYPES = {
     'char': SimTypeChar(),
     'signed char': SimTypeChar(),
@@ -1678,7 +1733,7 @@ def _accepts_scope_stack():
     setattr(pycparser.CParser, 'parse', parse)
 
 
-def _decl_to_type(decl, extra_types=None):
+def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
@@ -1700,7 +1755,7 @@ def _decl_to_type(decl, extra_types=None):
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
         if decl.declname == 'TOP':
             return SimTypeTop()
-        return _decl_to_type(decl.type, extra_types)
+        return _decl_to_type(decl.type, extra_types, bitsize=bitsize)
 
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
         pts_to = _decl_to_type(decl.type, extra_types)
@@ -1720,7 +1775,7 @@ def _decl_to_type(decl, extra_types=None):
 
     elif isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
-            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize)) for field in decl.decls)
         else:
             fields = OrderedDict()
 
@@ -1775,7 +1830,9 @@ def _decl_to_type(decl, extra_types=None):
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
         key = ' '.join(decl.names)
-        if key in extra_types:
+        if bitsize is not None:
+            return SimTypeNumOffset(int(bitsize.value), signed=False)
+        elif key in extra_types:
             return extra_types[key]
         elif key in ALL_TYPES:
             return ALL_TYPES[key]
@@ -1969,3 +2026,4 @@ except ImportError:
     pass
 
 from .state_plugins.view import SimMemView
+from .state_plugins import SimState

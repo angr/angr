@@ -28,7 +28,7 @@ class NotMemoryview:
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
-    def __init__(self, cle_memory_backer=None, **kwargs):
+    def __init__(self, cle_memory_backer: Union[None, cle.Loader, cle.Clemory] = None, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(cle_memory_backer, cle.Loader):
