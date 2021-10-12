@@ -1,8 +1,9 @@
 import logging
-l = logging.getLogger("angr.tests")
 import os
-
 import angr
+
+l = logging.getLogger("angr.tests")
+
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 target_arches = {
