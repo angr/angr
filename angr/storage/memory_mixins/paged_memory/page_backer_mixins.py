@@ -66,6 +66,10 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         data = self._data_from_backer(addr, backer, backer_start, backer_iter)
 
         permissions = self._cle_permissions_lookup(addr)
+        if permissions is None:
+            # There is no segment mapped at the start of the page.
+            # Maybe the end of the page is mapped instead?
+            permissions = self._cle_permissions_lookup (addr + self.page_size - 1)
 
         # see if this page supports creating without copying
         if type(data) is NotMemoryview:
