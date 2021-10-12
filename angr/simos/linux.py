@@ -15,6 +15,7 @@ from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
 from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
+from ..sim_options import STRICT_PAGE_ACCESS
 from .. import sim_options as o
 from .userland import SimUserland
 
@@ -341,7 +342,11 @@ class SimLinux(SimUserland):
                 if sym.size != self.arch.bytes:
                     _l.warning("Something is wrong with %s - bad size", name)
                 else:
+                    has_strict = STRICT_PAGE_ACCESS in state.options
+                    state.options.discard(STRICT_PAGE_ACCESS)
                     state.mem[sym.rebased_addr].long = val
+                    if has_strict:
+                        state.options.add(STRICT_PAGE_ACCESS)
 
         return state
 

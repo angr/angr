@@ -18,7 +18,11 @@ def run_fauxware_relro(arch):
     p = angr.Project(os.path.join(test_location, arch, 'fauxware'), use_sim_procedures=False)
     s = p.factory.full_init_state(add_options={angr.options.STRICT_PAGE_ACCESS})
 
-    relro_segment = next(s for s in p.loader.main_object.segments if s.relro)
+    relro_segment = next((s for s in p.loader.main_object.segments if s.relro), None)
+    if relro_segment is None:
+        # No relro on this arch
+        return
+
     assert not relro_segment.is_writable, "The RELRO segment should not be writable"
 
     try:
