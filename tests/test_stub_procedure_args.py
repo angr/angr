@@ -11,9 +11,6 @@ from angr.calling_conventions import SimCCStdcall, SimStackArg
 binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', "tests")
 
 
-
-
-
 def test_stub_procedure_args():
     # stub procedures should have the right number of arguments
 

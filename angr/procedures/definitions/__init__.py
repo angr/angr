@@ -342,7 +342,8 @@ class SimCppLibrary(SimLibrary):
         if demangled_name != name:
             # itanium-mangled function name
             stub.cc.set_func_type_with_arch(self._proto_from_demangled_name(demangled_name))
-            stub.cc.args = stub.cc.func_ty.args[::]
+            stub.cc.args = stub.cc.arg_locs(
+                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in stub.cc.func_ty.args])
             if stub.cc.func_ty is not None and not stub.ARGS_MISMATCH:
                 stub.cc.num_args = len(stub.cc.func_ty.args)
                 stub.num_args = len(stub.cc.func_ty.args)
