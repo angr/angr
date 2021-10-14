@@ -8,7 +8,7 @@ from typing import Optional, Dict, Type, TYPE_CHECKING
 
 import itanium_demangler
 
-from ...sim_type import parse_cpp_file, SimTypeFunction
+from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeFloat, SimTypeDouble
 from ...calling_conventions import SimCC, DEFAULT_CC
 from ...misc import autoimport
 from ...sim_type import parse_file
@@ -187,7 +187,8 @@ class SimLibrary:
             proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
             # Use inspect to extract the parameters from the run python function
             proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
-            proc.cc.args = proc.cc.func_ty.args[::]
+            proc.cc.args = proc.cc.arg_locs(
+                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proc.cc.func_ty.args])
             if not proc.ARGS_MISMATCH:
                 proc.cc.num_args = len(proc.cc.func_ty.args)
                 proc.num_args = len(proc.cc.func_ty.args)
