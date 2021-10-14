@@ -8,7 +8,7 @@ from typing import Optional, Dict, Type, TYPE_CHECKING
 
 import itanium_demangler
 
-from ...sim_type import parse_cpp_file, SimTypeFunction
+from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeFloat, SimTypeDouble
 from ...calling_conventions import SimCC, DEFAULT_CC
 from ...misc import autoimport
 from ...sim_type import parse_file
@@ -187,6 +187,8 @@ class SimLibrary:
             proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
             # Use inspect to extract the parameters from the run python function
             proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
+            proc.cc.args = proc.cc.arg_locs(
+                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proc.cc.func_ty.args])
             if not proc.ARGS_MISMATCH:
                 proc.cc.num_args = len(proc.cc.func_ty.args)
                 proc.num_args = len(proc.cc.func_ty.args)
@@ -340,6 +342,8 @@ class SimCppLibrary(SimLibrary):
         if demangled_name != name:
             # itanium-mangled function name
             stub.cc.set_func_type_with_arch(self._proto_from_demangled_name(demangled_name))
+            stub.cc.args = stub.cc.arg_locs(
+                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in stub.cc.func_ty.args])
             if stub.cc.func_ty is not None and not stub.ARGS_MISMATCH:
                 stub.cc.num_args = len(stub.cc.func_ty.args)
                 stub.num_args = len(stub.cc.func_ty.args)
