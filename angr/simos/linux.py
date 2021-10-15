@@ -342,7 +342,8 @@ class SimLinux(SimUserland):
                 if sym.size != self.arch.bytes:
                     _l.warning("Something is wrong with %s - bad size", name)
                 else:
-                    state.memory.store(sym.rebased_addr, val, size=state.arch.bytes, endness=state.arch.memory_endness, priv=True)
+                    state.memory.store(sym.rebased_addr, val, size=state.arch.bytes, \
+                                       endness=state.arch.memory_endness, priv=True)
 
         return state
 
