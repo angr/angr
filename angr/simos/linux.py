@@ -342,11 +342,7 @@ class SimLinux(SimUserland):
                 if sym.size != self.arch.bytes:
                     _l.warning("Something is wrong with %s - bad size", name)
                 else:
-                    has_strict = STRICT_PAGE_ACCESS in state.options
-                    state.options.discard(STRICT_PAGE_ACCESS)
-                    state.mem[sym.rebased_addr].long = val
-                    if has_strict:
-                        state.options.add(STRICT_PAGE_ACCESS)
+                    state.memory.store(sym.rebased_addr, val, size=state.arch.bytes, endness=state.arch.memory_endness, priv=True)
 
         return state
 
