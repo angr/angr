@@ -179,7 +179,8 @@ from .lengthlimiter import LengthLimiter
 from .veritesting import Veritesting
 from .oppologist import Oppologist
 from .director import Director, ExecuteAddressGoal, CallFunctionGoal
-from .spiller import Spiller
+# we do not import spiller by default so that we don't always import sqlalchemy (which is quite slow to import)
+# from .spiller import Spiller
 from .manual_mergepoint import ManualMergepoint
 from .tech_builder import TechniqueBuilder
 from .stochastic import StochasticSearch

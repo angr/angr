@@ -1,15 +1,11 @@
-from typing import TYPE_CHECKING, Dict
+from typing import Dict
 import time
 import multiprocessing
 import logging
 import sys
 
-from ..exploration_techniques import ExplorationTechnique, Spiller, Bucketizer
-from ..exploration_techniques.spiller import PickledStatesDb
+from ..exploration_techniques import ExplorationTechnique, Bucketizer
 from ..vaults import VaultDirShelf
-
-if TYPE_CHECKING:
-    from .server import Server
 
 
 _l = logging.getLogger(__name__)
@@ -80,6 +76,8 @@ class Worker:
         self._proc.start()
 
     def run(self):
+
+        from ..exploration_techniques.spiller import Spiller, PickledStatesDb  # pylint:disable=import-outside-toplevel
 
         _l.debug("Worker %d starts running...", self.worker_id)
         if self._recursion_limit is not None and self._recursion_limit != sys.getrecursionlimit():

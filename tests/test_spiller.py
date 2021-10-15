@@ -1,4 +1,5 @@
 import angr
+from angr.exploration_techniques.spiller import Spiller
 import nose
 import os
 import gc
@@ -28,7 +29,7 @@ def priority_key(state):
 def test_basic():
     project = angr.Project(_bin('tests', 'cgc', 'sc2_0b32aa01_01'))
     state = project.factory.entry_state()
-    spiller = angr.exploration_techniques.Spiller(pickle_callback=pickle_callback, unpickle_callback=unpickle_callback)
+    spiller = Spiller(pickle_callback=pickle_callback, unpickle_callback=unpickle_callback)
     spiller._pickle([state])
 
     del state
@@ -45,7 +46,7 @@ def test_palindrome2():
     limiter = angr.exploration_techniques.LengthLimiter(max_length=250)
     pg.use_technique(limiter)
 
-    spiller = angr.exploration_techniques.Spiller(
+    spiller = Spiller(
         pickle_callback=pickle_callback, unpickle_callback=unpickle_callback,
         priority_key=priority_key
     )
