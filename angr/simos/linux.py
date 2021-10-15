@@ -15,7 +15,6 @@ from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
 from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
-from .. import sim_options as o
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)
@@ -341,7 +340,8 @@ class SimLinux(SimUserland):
                 if sym.size != self.arch.bytes:
                     _l.warning("Something is wrong with %s - bad size", name)
                 else:
-                    state.mem[sym.rebased_addr].long = val
+                    state.memory.store(sym.rebased_addr, val, size=state.arch.bytes, \
+                                       endness=state.arch.memory_endness, priv=True)
 
         return state
 
