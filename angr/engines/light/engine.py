@@ -467,11 +467,19 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
     def _handle_Clz64(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        if self._is_top(expr_0):
+            return self._top(expr_0.size())
         return self._top(expr_0.size())
 
     def _handle_Ctz64(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        if self._is_top(expr_0):
+            return self._top(expr_0.size())
         return self._top(expr_0.size())
 
     def _handle_Add(self, expr):
