@@ -23,13 +23,13 @@ class BadStatesDropper(ExplorationTechnique):
 
     def step(self, simgr, stash='active', **kwargs):
 
-        for k in {"deadended", "avoid", "pruned", "unsat", "errored"}:
+        for k in ("deadended", "avoid", "pruned", "unsat", "errored"):
             if k in simgr.stashes and simgr.stashes[k]:
                 _l.debug("Storing states in stash %s.", k)
                 for state in simgr.stashes[k]:
                     state_id = self.vault.store(state)
                     self.db.add(0, state_id, taken=True, stash=k)
-                _l.debug("Dropping states in stash %s." % k)
+                _l.debug("Dropping states in stash %s.", k)
                 simgr.drop(stash=k)
 
         simgr = simgr.step(stash="active", **kwargs)
@@ -59,7 +59,8 @@ class Worker:
     Worker implements a worker thread/process for conducting a task.
     """
 
-    def __init__(self, worker_id, server, server_state, recursion_limit=None, techniques=None, add_options=None, remove_options=None):
+    def __init__(self, worker_id, server, server_state, recursion_limit=None, techniques=None, add_options=None,
+                 remove_options=None):
         self.worker_id = worker_id
         self.server = server
         self.server_state = server_state
