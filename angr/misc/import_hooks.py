@@ -5,7 +5,11 @@ import importlib.util
 from importlib.machinery import ModuleSpec
 
 
-class FastPkgResources():
+class FastPkgResources:
+    """
+    A class that replaces pkg_resources. It only implements resource_filename() and forwards all unimplemented
+    attributes to the original pkg_resources.
+    """
 
     def __getattribute__(self, name):
         try:
@@ -16,7 +20,8 @@ class FastPkgResources():
             import pkg_resources
             return getattr(pkg_resources, name)
 
-    def __spec__(self):
+    @staticmethod
+    def __spec__():
         return ModuleSpec("pkg_resources", None)
 
     def resource_filename(self, package, resource_name):
@@ -28,7 +33,8 @@ class FastPkgResources():
             return pkg_resources.resource_filename(package, resource_name)
         return r
 
-    def _resource_filename(self, package, resource_name):
+    @staticmethod
+    def _resource_filename(package, resource_name):
         spec = importlib.util.find_spec(package)
         if spec is None:
             return None
