@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,unused-import
 import datetime
 
 try:

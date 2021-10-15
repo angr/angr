@@ -1,9 +1,10 @@
 # pylint:disable=no-member,import-outside-toplevel
 import logging
 
-l = logging.getLogger(name=__name__)
-
 from . import ExplorationTechnique
+
+
+l = logging.getLogger(name=__name__)
 
 
 class PickledStatesBase:
@@ -39,6 +40,9 @@ class PickledStatesBase:
 
 
 class PickledStatesList(PickledStatesBase):
+    """
+    List-backed pickled state storage.
+    """
     def __init__(self):
         self._picked_states = [ ]
 
@@ -55,13 +59,16 @@ class PickledStatesList(PickledStatesBase):
 
 
 class PickledStatesDb(PickledStatesBase):
+    """
+    Database-backed pickled state storage.
+    """
     def __init__(self, db_str="sqlite:///:memory:"):
 
-        from spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
+        from .spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
 
         if sqlalchemy is None:
-            raise ImportError("Cannot import SQLAlchemy. Please install SQLAlchemy before using %s."
-                              % self.__class__.__name__)
+            raise ImportError(f"Cannot import SQLAlchemy. Please install SQLAlchemy before using "
+                              f"{self.__class__.__name__}.")
 
         # ORM declarations
         engine = create_engine(db_str)
@@ -143,7 +150,7 @@ class Spiller(ExplorationTechnique):
 
     def __init__(
         self,
-        src_stash="active", min=5, max=10, #pylint:disable=redefined-builtin
+        src_stash="active", min=5, max=10,  # pylint:disable=redefined-builtin
         staging_stash="spill_stage", staging_min=10, staging_max=20,
         pickle_callback=None, unpickle_callback=None, post_pickle_callback=None,
         priority_key=None, vault=None, states_collection=None,
@@ -151,14 +158,18 @@ class Spiller(ExplorationTechnique):
         """
         Initializes the spiller.
 
-        @param max: the number of states that are *not* spilled
-        @param src_stash: the stash from which to spill states (default: active)
-        @param staging_stash: the stash *to* which to spill states (default: "spill_stage")
-        @param staging_max: the number of states that can be in the staging stash before things get spilled to ANA (default: None. If staging_stash is set, then this means unlimited, and ANA will not be used).
-        @param priority_key: a function that takes a state and returns its numberical priority (MAX_INT is lowest priority). By default, self.state_priority will be used, which prioritizes by object ID.
-        @param vault: an angr.Vault object to handle storing and loading of states. If not provided, an angr.vaults.VaultShelf will be created with a temporary file.
+        :param max:          the number of states that are *not* spilled
+        :param src_stash:    the stash from which to spill states (default: active)
+        :param staging_stash: the stash *to* which to spill states (default: "spill_stage")
+        :param staging_max:  the number of states that can be in the staging stash before things get spilled to ANA
+                             (default: None. If staging_stash is set, then this means unlimited, and ANA will not be
+                             used).
+        :param priority_key: a function that takes a state and returns its numerical priority (MAX_INT is lowest
+                             priority). By default, self.state_priority will be used, which prioritizes by object ID.
+        :param vault:        an angr.Vault object to handle storing and loading of states. If not provided, an
+                             angr.vaults.VaultShelf will be created with a temporary file.
         """
-        super(Spiller, self).__init__()
+        super().__init__()
         self.max = max
         self.min = min
         self.src_stash = src_stash
@@ -216,7 +227,8 @@ class Spiller(ExplorationTechnique):
     def step(self, simgr, stash='active', **kwargs):
         simgr = simgr.step(stash=stash, **kwargs)
 
-        l.debug("STASH STATUS: active: %d, staging: %d", len(simgr.stashes[self.src_stash]), len(simgr.stashes[self.staging_stash]))
+        l.debug("STASH STATUS: active: %d, staging: %d",
+                len(simgr.stashes[self.src_stash]),len(simgr.stashes[self.staging_stash]))
 
         states = simgr.stashes[self.src_stash]
         staged_states = simgr.stashes.setdefault(self.staging_stash, [ ]) if self.staging_stash else [ ]
@@ -256,5 +268,6 @@ class Spiller(ExplorationTechnique):
     @staticmethod
     def state_priority(state):
         return id(state)
+
 
 from .. import vaults
