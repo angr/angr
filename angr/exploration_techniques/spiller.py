@@ -1,27 +1,5 @@
-# pylint:disable=no-member
+# pylint:disable=no-member,import-outside-toplevel
 import logging
-import datetime
-
-try:
-    import sqlalchemy
-    from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
-    from sqlalchemy.orm import sessionmaker
-    from sqlalchemy.ext.declarative import declarative_base
-    from sqlalchemy.exc import OperationalError
-
-    Base = declarative_base()
-
-    class PickledState(Base):
-        __tablename__ = "pickled_states"
-
-        id = Column(String, primary_key=True)
-        priority = Column(Integer)
-        taken = Column(Boolean, default=False)
-        stash = Column(String, default="")
-        timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-
-except ImportError:
-    sqlalchemy = None
 
 l = logging.getLogger(name=__name__)
 
@@ -78,6 +56,9 @@ class PickledStatesList(PickledStatesBase):
 
 class PickledStatesDb(PickledStatesBase):
     def __init__(self, db_str="sqlite:///:memory:"):
+
+        from spiller_db import sqlalchemy, create_engine, Base, OperationalError, sessionmaker
+
         if sqlalchemy is None:
             raise ImportError("Cannot import SQLAlchemy. Please install SQLAlchemy before using %s."
                               % self.__class__.__name__)
@@ -98,6 +79,9 @@ class PickledStatesDb(PickledStatesBase):
         pass
 
     def add(self, prio, sid, taken=False, stash="spilled"):  # pylint:disable=arguments-differ
+
+        from .spiller_db import PickledState
+
         record = PickledState(id=sid, priority=prio, taken=taken, stash=stash)
         session = self.Session()
         session.add(record)
@@ -105,6 +89,9 @@ class PickledStatesDb(PickledStatesBase):
         session.close()
 
     def pop_n(self, n, stash="spilled"):  # pylint:disable=arguments-differ
+
+        from .spiller_db import PickledState
+
         session = self.Session()
         q = session.query(PickledState)\
             .filter_by(taken=False)\
@@ -122,6 +109,9 @@ class PickledStatesDb(PickledStatesBase):
         return ss
 
     def get_recent_n(self, n, stash="spilled"):
+
+        from .spiller_db import PickledState
+
         session = self.Session()
         q = session.query(PickledState) \
             .filter_by(stash=stash) \
@@ -136,6 +126,9 @@ class PickledStatesDb(PickledStatesBase):
         return ss
 
     def count(self):
+
+        from .spiller_db import PickledState
+
         session = self.Session()
         q = session.query(PickledState).count()
         session.close()
