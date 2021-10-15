@@ -15,8 +15,6 @@ from ..procedures import SIM_PROCEDURES as P, SIM_LIBRARIES as L
 from ..state_plugins import SimFilesystem, SimHostFilesystem
 from ..storage.file import SimFile, SimFileBase
 from ..errors import AngrSyscallError
-from ..sim_options import STRICT_PAGE_ACCESS
-from .. import sim_options as o
 from .userland import SimUserland
 
 _l = logging.getLogger(name=__name__)
