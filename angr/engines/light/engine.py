@@ -463,7 +463,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         except TypeError as e:
             self.l.exception(e)
             return None
-        
+
     def _handle_Clz64(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
@@ -741,11 +741,11 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             return r
 
         return None
-    
+
     def _handle_16HLto32(self, expr):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
-    
+
     def _handle_ExpCmpNE64(self, expr):
         _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
         return self._top(expr.result_size(self.tyenv))
