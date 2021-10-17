@@ -426,14 +426,14 @@ class SimEngineRDVEX(
     def _handle_ITE(self, expr: pyvex.IRExpr.ITE):
         cond = self._expr(expr.cond)
         cond_v = cond.one_value()
+        iftrue = self._expr(expr.iftrue)
+        iffalse = self._expr(expr.iffalse)
 
         if claripy.is_true(cond_v):
-            return self._expr(expr.iftrue)
+            return iftrue
         elif claripy.is_false(cond_v):
-            return self._expr(expr.iffalse)
+            return iffalse
         else:
-            iftrue = self._expr(expr.iftrue)
-            iffalse = self._expr(expr.iffalse)
             data = iftrue.merge(iffalse)
             return data
 
@@ -492,9 +492,36 @@ class SimEngineRDVEX(
 
         return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
+    def _handle_Clz64(self, expr):
+        arg0 = expr.args[0]
+        _ = self._expr(arg0)
+        bits = expr.result_size(self.tyenv)
+        # Need to actually implement this later
+        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+    def _handle_Ctz64(self, expr):
+        arg0 = expr.args[0]
+        _ = self._expr(arg0)
+        bits = expr.result_size(self.tyenv)
+        # Need to actually implement this later
+        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
     #
     # Binary operation handlers
     #
+    def _handle_ExpCmpNE64(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+        # Need to actually implement this later
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
+
+    def _handle_16HLto32(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+        # Need to actually implement this later
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
 
     def _handle_Add(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
