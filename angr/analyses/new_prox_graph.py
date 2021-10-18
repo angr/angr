@@ -241,6 +241,13 @@ class NewProximityGraphAnalysis(Analysis):
                         else:
                             # not a string. present it as a constant integer
                             args.append(IntegerProxiNode(arg.value, None))
+                    # TODO change the need to supply byte string. Maybe add a new Node. TESTING
+                    elif isinstance(arg, ailment.expression.Load):
+                        # TESTING
+                        try:
+                            args.append(StringProxiNode(arg.variable.addr, bytes(arg.variable.name, 'utf-8')))
+                        except:
+                            print("FAILED TO ADD STRING ARG")
                     else:
                         args.append(UnknownProxiNode("_"))
 
