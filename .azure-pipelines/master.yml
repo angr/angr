@@ -9,3 +9,5 @@ resources:
 
 stages:
 - template: resources/master.yml@ci-settings
+  parameters:
+    container_image: angr/ci:str
