@@ -119,6 +119,26 @@ class UnknownProxiNode(BaseProxiNode):
         return hash((UnknownProxiNode, self.dummy_value))
 
 
+class BlockWalker(AILBlockWalker):
+    # TODO (last) check this syntax
+    def __init__(self, stmt_handlers=None, expr_handlers=None):
+        super().__init__()
+        self.node_checker = False
+
+    def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block: Optional[ailment.Block]):
+        try:
+            handler = self.stmt_handlers[type(stmt)]
+            if type(stmt) == ailment.Stmt.Call:
+                self.node_checker = True
+                print("_handle_Call Node Created")
+        except KeyError:
+            handler = None
+
+        if handler:
+            return handler(stmt_idx, stmt, block)
+        return None
+
+
 class NewProximityGraphAnalysis(Analysis):
     """
     Generate a proximity graph.
@@ -137,6 +157,7 @@ class NewProximityGraphAnalysis(Analysis):
         self._expand_funcs = expand_funcs.copy() if expand_funcs else None
 
         self.graph: Optional[networkx.DiGraph] = None
+        self.captured_node: bool = False
 
         self._work()
 
@@ -147,24 +168,26 @@ class NewProximityGraphAnalysis(Analysis):
         # the function
         func_proxi_node = FunctionProxiNode(self._function)
 
+        # TODO (1) implement with no Decompilation
         # Process the function graph
-        if not self._decompilation:
-            to_expand = self._process_function(self._function, self.graph, func_proxi_node=func_proxi_node)
-        else:
-            to_expand = self._process_decompilation(self._function, self.graph, func_proxi_node=func_proxi_node)
+        # if not self._decompilation:
+        #     to_expand = self._process_function(self._function, self.graph, func_proxi_node=func_proxi_node)
+        # else:
+        to_expand = self._process_decompilation(self._function, self.graph, func_proxi_node=func_proxi_node)
 
-        for func_node in to_expand:
-            if self._expand_funcs:
-                self._expand_funcs.discard(func_node.func.addr)
+        # TODO (2) look into this...
+        # for func_node in to_expand:
+        #     if self._expand_funcs:
+        #         self._expand_funcs.discard(func_node.func.addr)
+        #
+        #     subgraph = networkx.DiGraph()
+        #     self._process_function(func_node.func, subgraph, func_proxi_node=func_node)
+        #
+        #     # merge subgraph into the original graph
+        #     self.graph.add_nodes_from(subgraph.nodes())
+        #     self.graph.add_edges_from(subgraph.edges())
 
-            subgraph = networkx.DiGraph()
-            self._process_function(func_node.func, subgraph, func_proxi_node=func_node)
-
-            # merge subgraph into the original graph
-            self.graph.add_nodes_from(subgraph.nodes())
-            self.graph.add_edges_from(subgraph.edges())
-
-    # Looks for strings in the memory_data that are also present in the function blocks ('Exiting...' and '/home/woadey/members_binary')
+    # Looks for strings in the memory_data that are also present in the function blocks
     def _process_strings(self, func, proxi_nodes, exclude_string_refs: Set[int]=None):
         # strings
         for v in self._cfg_model.memory_data.values():
@@ -179,36 +202,37 @@ class NewProximityGraphAnalysis(Analysis):
                         proxi_nodes.append(node)
                         break
 
+    # TODO (1) implement with no Decompilation
     # Grabs all of the nodes in func.nodes that are Function type, and their ref_at data
-    def _process_function(self, func: 'Function', graph: networkx.DiGraph,
-                          func_proxi_node: Optional[FunctionProxiNode]=None) -> List[FunctionProxiNode]:
-
-        proxi_nodes: List[BaseProxiNode] = [ ]
-        to_expand: List[FunctionProxiNode] = [ ]
-
-        self._process_strings(func, proxi_nodes)
-
-        # function calls
-        for n_ in func.nodes:
-            if isinstance(n_, Function):
-                func_node = n_
-                ref_at = set()
-                for _, _, data in func.transition_graph.in_edges(func_node, data=True):
-                    if 'ins_addr' in data:
-                        ref_at.add(data['ins_addr'])
-                if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
-                    node = FunctionProxiNode(func_node, ref_at=ref_at)
-                    to_expand.append(node)
-                else:
-                    node = CallProxiNode(func_node, ref_at=ref_at)
-                proxi_nodes.append(node)
-
-        # add it to the graph
-        graph.add_node(func_proxi_node)
-        for pn in proxi_nodes:
-            graph.add_edge(func_proxi_node, pn)
-
-        return to_expand
+    # def _process_function(self, func: 'Function', graph: networkx.DiGraph,
+    #                       func_proxi_node: Optional[FunctionProxiNode]=None) -> List[FunctionProxiNode]:
+    #
+    #     proxi_nodes: List[BaseProxiNode] = [ ]
+    #     to_expand: List[FunctionProxiNode] = [ ]
+    #
+    #     self._process_strings(func, proxi_nodes)
+    #
+    #     # function calls
+    #     for n_ in func.nodes:
+    #         if isinstance(n_, Function):
+    #             func_node = n_
+    #             ref_at = set()
+    #             for _, _, data in func.transition_graph.in_edges(func_node, data=True):
+    #                 if 'ins_addr' in data:
+    #                     ref_at.add(data['ins_addr'])
+    #             if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
+    #                 node = FunctionProxiNode(func_node, ref_at=ref_at)
+    #                 to_expand.append(node)
+    #             else:
+    #                 node = CallProxiNode(func_node, ref_at=ref_at)
+    #             proxi_nodes.append(node)
+    #
+    #     # add it to the graph
+    #     graph.add_node(func_proxi_node)
+    #     for pn in proxi_nodes:
+    #         graph.add_edge(func_proxi_node, pn)
+    #
+    #     return to_expand
 
     def _process_decompilation(self, func: 'Function', graph: networkx.DiGraph,
                                func_proxi_node: Optional[FunctionProxiNode]=None) -> List[FunctionProxiNode]:
@@ -241,7 +265,7 @@ class NewProximityGraphAnalysis(Analysis):
                         else:
                             # not a string. present it as a constant integer
                             args.append(IntegerProxiNode(arg.value, None))
-                    # TODO change the need to supply byte string. Maybe add a new Node. TESTING
+                    # TODO (last) change the need to supply byte string. Maybe add a new Node. TESTING
                     elif isinstance(arg, ailment.expression.Load):
                         # TESTING
                         try:
@@ -279,14 +303,24 @@ class NewProximityGraphAnalysis(Analysis):
             ailment.Stmt.Call: _handle_CallExpr,
         }
 
-        block_walker = AILBlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
+        counter = 0
+        # Custom Graph walker, go through AIL nodes
+        for node in list(ail_graph):
+            counter += 1
 
-        def _graph_walker_handler(node):
-            block_walker.walk(node)
+            # Custom Block walker
+            bw = BlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
+            bw.walk(node)
 
-        AILGraphWalker(ail_graph, _graph_walker_handler, replace_nodes=False).walk()
+            # Check if ailment.Stmt.Call has occurred; skip to avoid duplicates
+            if bw.node_checker is True:
+                continue
 
+            # Add blank node to represent path
+            proxi_nodes.append(UnknownProxiNode(""))
+            print("Blank Node Created")
 
+        # TODO (3) go through this...
         # add strings references that are not used in function calls
         self._process_strings(func, proxi_nodes, exclude_string_refs=string_refs)
 
