@@ -7,7 +7,7 @@ import angr
 def test_amd64_elf_static_libc_ubuntu_2004():
     binary_path = os.path.join(bin_location, "tests", "x86_64", "elf_with_static_libc_ubuntu_2004_stripped")
     proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
-    cfg = proj.analyses.CFGFast(show_progressbar=True) #, detect_tail_calls=True)
+    cfg = proj.analyses.CFGFast(show_progressbar=False) #, detect_tail_calls=True)
     flirt_path = os.path.join(bin_location, "tests", "x86_64", "libc_ubuntu_2004.sig")
     proj.analyses.Flirt(flirt_path)
 
