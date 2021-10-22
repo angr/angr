@@ -966,7 +966,7 @@ class SimCC:
                self.sp_delta == other.sp_delta
 
     @classmethod
-    def _match(cls, arch, args, sp_delta):
+    def _match(cls, arch, args: List, sp_delta):
         if cls.ARCH is not None and not isinstance(arch, cls.ARCH):
             return False
         if sp_delta != cls.STACKARG_SP_DIFF:
@@ -978,9 +978,16 @@ class SimCC:
         both_iter = sample_inst.both_args
         some_both_args = [next(both_iter) for _ in range(len(args))]
 
+        new_args = [ ]
         for arg in args:
             if arg not in all_fp_args and arg not in all_int_args and arg not in some_both_args:
+                if isinstance(arg, SimRegArg) and arg.reg_name in sample_inst.CALLER_SAVED_REGS:
+                    continue
                 return False
+            new_args.append(arg)
+
+        args.clear()
+        args.extend(new_args)
 
         return True
 
