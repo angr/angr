@@ -986,23 +986,24 @@ class SimCC:
                 return False
             new_args.append(arg)
 
+        # update args (e.g., drop caller-saved register arguments)
         args.clear()
         args.extend(new_args)
 
         return True
 
     @staticmethod
-    def find_cc(arch, args, sp_delta):
+    def find_cc(arch: 'archinfo.Arch', args: List[SimFunctionArgument], sp_delta: int) -> Optional['SimCC']:
         """
         Pinpoint the best-fit calling convention and return the corresponding SimCC instance, or None if no fit is
         found.
 
-        :param Arch arch:       An ArchX instance. Can be obtained from archinfo.
-        :param list args:       A list of arguments.
-        :param int sp_delta:    The change of stack pointer before and after the call is made.
-        :return:                A calling convention instance, or None if none of the SimCC subclasses seems to fit the
-                                arguments provided.
-        :rtype:                 SimCC or None
+        :param arch:        An ArchX instance. Can be obtained from archinfo.
+        :param args:        A list of arguments. It may be updated by the first matched calling convention to
+                            remove non-argument arguments.
+        :param sp_delta:    The change of stack pointer before and after the call is made.
+        :return:            A calling convention instance, or None if none of the SimCC subclasses seems to fit the
+                            arguments provided.
         """
         if arch.name not in CC:
             return None
