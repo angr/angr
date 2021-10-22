@@ -136,7 +136,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
         if type(self) is ReachingDefinitionsAnalysis and \
                 not self._observe_all and \
                 not self._observation_points and \
-                not self._observe_callback:
+                not self._observe_callback and \
+                not self._dep_graph:
             l.warning('No observation point is specified. '
                       'You cannot get any analysis result from performing the analysis.'
                       )
