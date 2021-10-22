@@ -540,6 +540,9 @@ class Structurer(Analysis):
                 i += 1
                 continue
             node_1 = seq.nodes[i + 1]
+            if not type(node_1) is CodeNode:
+                i += 1
+                continue
             rcond_1 = node_1.reaching_condition
             if rcond_1 is None:
                 i += 1
@@ -1080,7 +1083,7 @@ class Structurer(Analysis):
         if common_subexpr is claripy.true:
             return [ ]
         for j, node_1 in enumerate(seq.nodes[starting_idx:]):
-            rcond_1 = node_1.reaching_condition
+            rcond_1 = getattr(node_1, 'reaching_condition', None)
             if rcond_1 is None:
                 continue
             subexprs_1 = list(get_ast_subexprs(rcond_1))

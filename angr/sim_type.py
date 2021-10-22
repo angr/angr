@@ -95,6 +95,8 @@ class SimType:
         return self.size // self._arch.byte_width
 
     def with_arch(self, arch):
+        if arch is None:
+            return self
         if self._arch is not None and self._arch == arch:
             return self
         else:
@@ -1076,6 +1078,9 @@ class SimStruct(NamedTypeMixin, SimType):
                 continue
             if not self._pack:
                 align = ty.alignment
+                if align is NotImplemented:
+                    # hack!
+                    align = 1
                 if offset_so_far % align != 0:
                     offset_so_far += (align - offset_so_far % align)
                 offsets[name] = offset_so_far
@@ -1498,6 +1503,7 @@ BASIC_TYPES = {
 
     'long': SimTypeLong(True),
     'signed long': SimTypeLong(True),
+    'long signed': SimTypeLong(True),
     'unsigned long': SimTypeLong(False),
     'long int': SimTypeLong(True),
     'signed long int': SimTypeLong(True),
@@ -1510,6 +1516,14 @@ BASIC_TYPES = {
     'long long int': SimTypeLongLong(True),
     'signed long long int': SimTypeLongLong(True),
     'unsigned long long int': SimTypeLongLong(False),
+
+    '__int128': SimTypeNum(128, True),
+    'unsigned __int128': SimTypeNum(128, False),
+    '__int256': SimTypeNum(256, True),
+    'unsigned __int256': SimTypeNum(256, False),
+
+    'bool': SimTypeBool(),
+    '_Bool': SimTypeBool(),
 
     'float': SimTypeFloat(),
     'double': SimTypeDouble(),
@@ -1624,22 +1638,22 @@ def do_preprocess(defn, include_path=()):
     return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
 
 
-def parse_defns(defn, preprocess=True, predefined_types=None):
+def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types)[0]
+    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, preprocess=True, predefined_types=None):
+def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types)[1]
+    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[1]
 
 
 _include_re = re.compile(r'^\s*#include')
-def parse_file(defn, preprocess=True, predefined_types=None):
+def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
@@ -1659,7 +1673,7 @@ def parse_file(defn, preprocess=True, predefined_types=None):
     extra_types = {}
     for piece in node.ext:
         if isinstance(piece, pycparser.c_ast.FuncDef):
-            out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types)
+            out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
         elif isinstance(piece, pycparser.c_ast.Decl):
             ty = _decl_to_type(piece.type, extra_types)
             if piece.name is not None:
@@ -1688,15 +1702,15 @@ if pycparser is not None:
                                                              optimize=False,
                                                              errorlog=errorlog)
 
-def parse_type(defn, preprocess=True, predefined_types=None):  # pylint:disable=unused-argument
+def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
     >>> parse_type('int *')
     """
-    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types)[0]
+    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
 
-def parse_type_with_name(defn, preprocess=True, predefined_types=None):  # pylint:disable=unused-argument
+def parse_type_with_name(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning the a tuple of the type object and any associated name
     that might be found in the place a name would go in a type declaration.
@@ -1715,7 +1729,7 @@ def parse_type_with_name(defn, preprocess=True, predefined_types=None):  # pylin
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
-    return _decl_to_type(decl), node.name
+    return _decl_to_type(decl, arch=arch), node.name
 
 def _accepts_scope_stack():
     """
@@ -1733,13 +1747,13 @@ def _accepts_scope_stack():
     setattr(pycparser.CParser, 'parse', parse)
 
 
-def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
+def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
         argtyps = () if decl.args is None else [... if type(x) is pycparser.c_ast.EllipsisParam else \
                                                 SimTypeBottom() if type(x) is pycparser.c_ast.ID else \
-                                                _decl_to_type(x.type, extra_types) for x in decl.args.params]
+                                                _decl_to_type(x.type, extra_types, arch=arch) for x in decl.args.params]
         arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] if decl.args else None
         # special handling: func(void) is func()
         if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom) and arg_names[0] is None:
@@ -1750,32 +1764,42 @@ def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
             variadic = True
         else:
             variadic = False
-        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names, variadic=variadic)
+        r = SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types, arch=arch), arg_names=arg_names, variadic=variadic)
+        r._arch = arch
+        return r
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
         if decl.declname == 'TOP':
-            return SimTypeTop()
-        return _decl_to_type(decl.type, extra_types, bitsize=bitsize)
+            r = SimTypeTop()
+            r._arch = arch
+            return r
+        return _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
 
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
-        pts_to = _decl_to_type(decl.type, extra_types)
-        return SimTypePointer(pts_to)
+        pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
+        r = SimTypePointer(pts_to)
+        r._arch = arch
+        return r
 
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
-        elem_type = _decl_to_type(decl.type, extra_types)
+        elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
 
         if decl.dim is None:
-            return SimTypeArray(elem_type)
+            r = SimTypeArray(elem_type)
+            r._arch = arch
+            return r
         try:
-            size = _parse_const(decl.dim)
+            size = _parse_const(decl.dim, extra_types=extra_types, arch=arch)
         except ValueError as e:
             l.warning("Got error parsing array dimension, defaulting to zero: %s", e)
             size = 0
-        return SimTypeFixedSizeArray(elem_type, size)
+        r = SimTypeFixedSizeArray(elem_type, size)
+        r._arch = arch
+        return r
 
     elif isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
-            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize)) for field in decl.decls)
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch)) for field in decl.decls)
         else:
             fields = OrderedDict()
 
@@ -1791,6 +1815,7 @@ def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
 
             if struct is None:
                 struct = SimStruct(fields, decl.name)
+                struct._arch = arch
             elif not struct.fields:
                 struct.fields = fields
             elif fields and struct.fields != fields:
@@ -1799,11 +1824,12 @@ def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
             extra_types[key] = struct
         else:
             struct = SimStruct(fields)
+            struct._arch = arch
         return struct
 
     elif isinstance(decl, pycparser.c_ast.Union):
         if decl.decls is not None:
-            fields = {field.name: _decl_to_type(field.type, extra_types) for field in decl.decls}
+            fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
 
@@ -1818,6 +1844,7 @@ def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
 
             if union is None:
                 union = SimUnion(fields, decl.name)
+                union._arch = arch
             elif not union.members:
                 union.members = fields
             elif fields and union.members != fields:
@@ -1826,6 +1853,7 @@ def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
             extra_types[key] = union
         else:
             union = SimUnion(fields)
+            union._arch = arch
         return union
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
@@ -1835,34 +1863,41 @@ def _decl_to_type(decl, extra_types=None, bitsize=None) -> SimType:
         elif key in extra_types:
             return extra_types[key]
         elif key in ALL_TYPES:
-            return ALL_TYPES[key]
+            return ALL_TYPES[key].with_arch(arch)
         else:
             raise TypeError("Unknown type '%s'" % key)
 
     elif isinstance(decl, pycparser.c_ast.Enum):
         # See C99 at 6.7.2.2
-        return ALL_TYPES['int']
+        return ALL_TYPES['int'].with_arch(arch)
 
     raise ValueError("Unknown type!")
 
 
-def _parse_const(c):
+def _parse_const(c, arch=None, extra_types=None):
     if type(c) is pycparser.c_ast.Constant:
         return int(c.value, base=0)
     elif type(c) is pycparser.c_ast.BinaryOp:
         if c.op == '+':
-            return _parse_const(c.children()[0][1]) + _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) + _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '-':
-            return _parse_const(c.children()[0][1]) - _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) - _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '*':
-            return _parse_const(c.children()[0][1]) * _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) * _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '/':
-            return _parse_const(c.children()[0][1]) // _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) // _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '<<':
-            return _parse_const(c.children()[0][1]) << _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) << _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '>>':
-            return _parse_const(c.children()[0][1]) >> _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) >> _parse_const(c.children()[1][1], arch, extra_types)
         raise ValueError('Binary op %s' % c.op)
+    elif type(c) is pycparser.c_ast.UnaryOp:
+        if c.op == 'sizeof':
+            return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
+        else:
+            raise ValueError("Unary op %s" % c.op)
+    elif type(c) is pycparser.c_ast.Cast:
+        return _parse_const(c.expr, arch, extra_types)
     else:
         raise ValueError(c)
 
