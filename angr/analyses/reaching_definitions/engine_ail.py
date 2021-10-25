@@ -15,6 +15,7 @@ from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...knowledge_plugins.key_definitions.atoms import Register, Tmp, MemoryLocation
 from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
 from ...knowledge_plugins.key_definitions.live_definitions import Definition
+from .subject import SubjectType
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
 
@@ -213,7 +214,7 @@ class SimEngineRDAIL(
                     reg_atom = Register(return_reg_offset, return_reg_size)
                     top = self.state.top(return_reg_size * self.arch.byte_width)
                     self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(offset_to_values={0: {top}}))
-                if isinstance(stmt.ret_expr, ailment.Expr.Tmp):
+                elif isinstance(stmt.ret_expr, ailment.Expr.Tmp):
                     tmp_atom = Tmp(stmt.ret_expr.tmp_idx, stmt.ret_expr.size)
                     top = self.state.top(stmt.ret_expr.bits)
                     self.state.kill_and_add_definition(tmp_atom, codeloc, MultiValues(offset_to_values={0: {top}}))
@@ -241,15 +242,24 @@ class SimEngineRDAIL(
 
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
-        # TODO: Get the calling convention of the current function
         codeloc = self._codeloc()
         size = self.project.arch.bits // 8
-        cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
-        if cc_cls is None:
-            l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
-            cc = None
-        else:
-            cc = cc_cls(self.project.arch)
+
+        cc = None
+        if self.state.analysis.subject.type == SubjectType.Function:
+            cc = self.state.analysis.subject.content.calling_convention
+            # import ipdb; ipdb.set_trace()
+
+        if cc is None:
+            # fall back to the default calling convention
+            cc_cls = DEFAULT_CC.get(self.project.arch.name, None)
+            if cc_cls is None:
+                l.warning("Unknown default calling convention for architecture %s.", self.project.arch.name)
+                cc = None
+            else:
+                cc = cc_cls(self.project.arch)
+
+        if cc is not None:
             # callee-saved args
             for reg in self.arch.register_list:
                 if (reg.general_purpose
@@ -268,12 +278,11 @@ class SimEngineRDAIL(
 
         # No return expressions are available.
         # consume registers that are potentially useful
-        # TODO: Consider the calling convention of the current function
 
         # return value
-        if cc is not None and cc.RETURN_VAL is not None:
-            if isinstance(cc.RETURN_VAL, SimRegArg):
-                offset = cc.RETURN_VAL._fix_offset(None, size, arch=self.project.arch)
+        if cc is not None and cc.ret_val is not None:
+            if isinstance(cc.ret_val, SimRegArg):
+                offset = cc.ret_val._fix_offset(None, size, arch=self.project.arch)
                 self.state.add_use(Register(offset, size), codeloc)
             else:
                 l.error("Cannot handle CC with non-register return value location")

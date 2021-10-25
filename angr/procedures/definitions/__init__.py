@@ -185,8 +185,9 @@ class SimLibrary:
             proc.cc = self.fallback_cc[arch.name](arch)
         if proc.display_name in self.prototypes:
             proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
-            # Use inspect to extract the parameters from the run python function
-            proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
+            if proc.cc.func_ty.arg_names is None:
+                # Use inspect to extract the parameters from the run python function
+                proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
             proc.cc.args = proc.cc.arg_locs(
                 is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proc.cc.func_ty.args])
             if not proc.ARGS_MISMATCH:

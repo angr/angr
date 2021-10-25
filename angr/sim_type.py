@@ -898,7 +898,7 @@ class SimTypeFunction(SimType):
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
-            (", label=%s" % self.label) if self.label else "",
+            (", label=\"%s\"" % self.label) if self.label else "",
             (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
         )
@@ -1248,6 +1248,7 @@ class SimStructValue:
     def copy(self):
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
+
 class SimUnion(NamedTypeMixin, SimType):
     fields = ('members', 'name')
 
@@ -1301,6 +1302,18 @@ class SimUnion(NamedTypeMixin, SimType):
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';' for k, v in self.members.items())
         return 'union %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented, '' if name is None else ' ' + name)
+
+    def _init_str(self):
+        return "%s({%s}, name=\"%s\", label=\"%s\")" % (
+            self.__class__.__name__,
+            ", ".join([self._field_str(f, ty) for f, ty in self.members.items()]),
+            self._name,
+            self.label,
+        )
+
+    @staticmethod
+    def _field_str(field_name, field_type):
+        return "\"%s\": %s" % (field_name, field_type._init_str())
 
     def __str__(self):
         return 'union %s' % (self.name, )

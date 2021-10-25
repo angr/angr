@@ -19,6 +19,7 @@ from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 from ...protos import function_pb2
 from ...calling_conventions import DEFAULT_CC
+from ...sim_type import SimTypeFloat, SimTypeDouble
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
@@ -1437,7 +1438,8 @@ class Function(Serializable):
         proto = library.get_prototype(self.name)
         self.prototype = proto
         if self.calling_convention is not None:
-            self.calling_convention.args = None
+            self.calling_convention.args = self.calling_convention.arg_locs(
+                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proto.args])
             self.calling_convention.set_func_type_with_arch(proto)
 
     @staticmethod
