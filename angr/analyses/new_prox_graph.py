@@ -165,12 +165,14 @@ class NewProximityGraphAnalysis(Analysis):
         import networkx as nx
         import matplotlib.pyplot as plt
         from networkx.drawing.nx_agraph import graphviz_layout
+        # sudo apt-get install graphviz graphviz-dev
+        # pip install pygraphviz
 
         plt.title(name.split('/')[-1])
         pos = graphviz_layout(G, prog='dot')
         nx.draw(G, pos, font_size=5, node_size=60, with_labels=True)
-        plt.figure(1, figsize=(1920, 1080), format='eps')
-        plt.savefig(name)
+        plt.figure(1)
+        plt.savefig(name, dpi=500)
 
     def _work(self):
 
