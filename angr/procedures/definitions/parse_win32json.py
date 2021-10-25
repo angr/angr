@@ -227,6 +227,12 @@ def do_it(in_dir, out_file):
     missing_declarations = defaultdict(dict)
 
     missing_declarations["kernel32"] = {
+        "InterlockedCompareExchange": SimTypeFunction((SimTypeLong(),)*3, SimTypeLong()),
+        "InterlockedCompareExchange64": SimTypeFunction((SimTypeLong(),)*5, SimTypeLong()),
+        "InterlockedDecrement": SimTypeFunction((SimTypeLong(),)*1, SimTypeLong()),
+        "InterlockedExchange": SimTypeFunction((SimTypeLong(),)*2, SimTypeLong()),
+        "InterlockedExchangeAdd": SimTypeFunction((SimTypeLong(),)*2, SimTypeLong()),
+        "InterlockedIncrement": SimTypeFunction((SimTypeLong(),)*1, SimTypeLong()),
         "UTRegister": SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
         "RegisterConsoleVDM": SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
         "RegOpenUserClassesRoot": SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),

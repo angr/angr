@@ -2666,6 +2666,18 @@ prototypes = \
         # 
         'InitializeContext2': SimTypeFunction([SimTypePointer(SimTypeBottom(label="Void"), offset=0), SimTypeInt(signed=False, label="UInt32"), SimTypePointer(SimTypePointer(SimStruct({"ContextFlags": SimTypeInt(signed=False, label="UInt32"), "Dr0": SimTypeInt(signed=False, label="UInt32"), "Dr1": SimTypeInt(signed=False, label="UInt32"), "Dr2": SimTypeInt(signed=False, label="UInt32"), "Dr3": SimTypeInt(signed=False, label="UInt32"), "Dr6": SimTypeInt(signed=False, label="UInt32"), "Dr7": SimTypeInt(signed=False, label="UInt32"), "FloatSave": SimTypeBottom(label="FLOATING_SAVE_AREA"), "SegGs": SimTypeInt(signed=False, label="UInt32"), "SegFs": SimTypeInt(signed=False, label="UInt32"), "SegEs": SimTypeInt(signed=False, label="UInt32"), "SegDs": SimTypeInt(signed=False, label="UInt32"), "Edi": SimTypeInt(signed=False, label="UInt32"), "Esi": SimTypeInt(signed=False, label="UInt32"), "Ebx": SimTypeInt(signed=False, label="UInt32"), "Edx": SimTypeInt(signed=False, label="UInt32"), "Ecx": SimTypeInt(signed=False, label="UInt32"), "Eax": SimTypeInt(signed=False, label="UInt32"), "Ebp": SimTypeInt(signed=False, label="UInt32"), "Eip": SimTypeInt(signed=False, label="UInt32"), "SegCs": SimTypeInt(signed=False, label="UInt32"), "EFlags": SimTypeInt(signed=False, label="UInt32"), "Esp": SimTypeInt(signed=False, label="UInt32"), "SegSs": SimTypeInt(signed=False, label="UInt32"), "ExtendedRegisters": SimTypeFixedSizeArray(SimTypeChar(label="Byte"), 512)}, name="CONTEXT", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=False, label="UInt32"), offset=0), SimTypeLongLong(signed=False, label="UInt64")], SimTypeInt(signed=True, label="Int32"), arg_names=["Buffer", "ContextFlags", "Context", "ContextLength", "XStateCompactionMask"]),
         # 
+        'InterlockedCompareExchange': SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
+        # 
+        'InterlockedCompareExchange64': SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
+        # 
+        'InterlockedDecrement': SimTypeFunction([SimTypeLong(signed=True)], SimTypeLong(signed=True)),
+        # 
+        'InterlockedExchange': SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
+        # 
+        'InterlockedExchangeAdd': SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
+        # 
+        'InterlockedIncrement': SimTypeFunction([SimTypeLong(signed=True)], SimTypeLong(signed=True)),
+        # 
         'UTRegister': SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
         # 
         'RegisterConsoleVDM': SimTypeFunction([SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True), SimTypeLong(signed=True)], SimTypeLong(signed=True)),
