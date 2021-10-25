@@ -699,7 +699,8 @@ lib.set_prototypes(prototypes)
         with open(filename, "w") as f:
             f.write(header)
             if libname == "kernel32":
-                f.write("""lib.add_alias('EncodePointer', 'DecodePointer')
+                f.write("""lib.add_all_from_dict(P['win32'])
+lib.add_alias('EncodePointer', 'DecodePointer')
 lib.add_alias('GlobalAlloc', 'LocalAlloc')
 
 lib.add('lstrcatA', P['libc']['strcat'])

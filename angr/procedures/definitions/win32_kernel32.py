@@ -13,6 +13,7 @@ _l = logging.getLogger(name=__name__)
 lib = SimLibrary()
 lib.set_default_cc('X86', SimCCStdcall)
 lib.set_default_cc('AMD64', SimCCMicrosoftAMD64)
+lib.add_all_from_dict(P['win32'])
 lib.add_alias('EncodePointer', 'DecodePointer')
 lib.add_alias('GlobalAlloc', 'LocalAlloc')
 
