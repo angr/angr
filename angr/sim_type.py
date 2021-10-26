@@ -1765,7 +1765,7 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
         argtyps = () if decl.args is None else [... if type(x) is pycparser.c_ast.EllipsisParam else \
-                                                SimTypeBottom() if type(x) is pycparser.c_ast.ID else \
+                                                SimTypeBottom().with_arch(arch) if type(x) is pycparser.c_ast.ID else \
                                                 _decl_to_type(x.type, extra_types, arch=arch) for x in decl.args.params]
         arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] if decl.args else None
         # special handling: func(void) is func()
@@ -1825,6 +1825,8 @@ def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
             struct = extra_types.get(key, None)
             if struct is None:
                 struct = ALL_TYPES.get(key, None)
+                if struct is not None:
+                    struct = struct.with_arch(arch)
 
             if struct is None:
                 struct = SimStruct(fields, decl.name)
