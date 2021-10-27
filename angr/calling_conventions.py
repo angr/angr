@@ -16,7 +16,9 @@ from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
 from .sim_type import SimTypeReg
 from .sim_type import SimTypeInt
+from .sim_type import SimTypeBottom
 from .sim_type import SimStruct
+from .sim_type import SimUnion
 from .sim_type import parse_file
 from .sim_type import SimTypeTop
 
@@ -511,7 +513,11 @@ class SimCC:
                 args = self.args
             # FIXME: Hack: Replacing structs with primitive types since we don't yet support passing structs as
             # FIXME: arguments.
-            args = [ SimTypeInt().with_arch(self.arch) if isinstance(a, SimStruct) else a for a in args ]
+            args = [ SimTypeInt().with_arch(self.arch) if isinstance(a, (SimStruct, SimUnion)) else a for a in args ]
+            # FIXME: Hack: Replacing long ints with shorter types since we don't yet support passing integers longer
+            # FIXME: than GPR sizes.
+            args = [ SimTypeInt().with_arch(self.arch) if not isinstance(a, SimTypeBottom) and a.size > self.arch.bytes
+                     else a for a in args ]
             if is_fp is None:
                 is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
             else:
