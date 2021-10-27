@@ -15,6 +15,7 @@ from .sim_type import SimTypeFunction
 from .sim_type import SimTypeFloat
 from .sim_type import SimTypeDouble
 from .sim_type import SimTypeReg
+from .sim_type import SimTypeInt
 from .sim_type import SimStruct
 from .sim_type import parse_file
 from .sim_type import SimTypeTop
@@ -508,6 +509,9 @@ class SimCC:
                 args = [ a.with_arch(self.arch) for a in self.func_ty.args ]
             else:
                 args = self.args
+            # FIXME: Hack: Replacing structs with primitive types since we don't yet support passing structs as
+            # FIXME: arguments.
+            args = [ SimTypeInt().with_arch(self.arch) if isinstance(a, SimStruct) else a for a in args ]
             if is_fp is None:
                 is_fp = [ isinstance(arg, (SimTypeFloat, SimTypeDouble)) or self.is_fp_arg(arg) for arg in args ]
             else:

@@ -1157,7 +1157,7 @@ class SimStruct(NamedTypeMixin, SimType):
     def alignment(self):
         if self._align is not None:
             return self._align
-        return max(val.alignment for val in self.fields.values())
+        return max(val.alignment for val in self.fields.values() if not isinstance(val, SimTypeBottom))
 
     def _refine_dir(self):
         return list(self.fields.keys())
@@ -1262,11 +1262,11 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def size(self):
-        return max(ty.size for ty in self.members.values())
+        return max(ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom))
 
     @property
     def alignment(self):
-        return max(val.alignment for val in self.members.values())
+        return max(val.alignment for val in self.members.values() if not isinstance(val, SimTypeBottom))
 
     def _refine_dir(self):
         return list(self.members.keys())
