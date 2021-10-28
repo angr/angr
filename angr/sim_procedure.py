@@ -385,10 +385,15 @@ class SimProcedure:
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr) #pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
+            if self.cc.args is not None:
+                arg_types = [isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in self.cc.args]
+            else:
+                # fall back to using self.num_args
+                arg_types = [False] * self.num_args
             ret_addr = self.cc.teardown_callsite(
                     self.state,
                     expr,
-                    arg_types=[False]*self.num_args if self.cc.args is None else None)
+                    arg_types=arg_types)
 
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
@@ -514,5 +519,5 @@ from . import sim_options as o
 from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowStackError
 from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC
+from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeDouble
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE

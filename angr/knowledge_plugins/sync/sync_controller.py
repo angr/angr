@@ -1,19 +1,30 @@
-
+# pylint:disable=import-outside-toplevel
 from functools import wraps
 from typing import Optional, List
 
-try:
-    import binsync
-    from binsync.client import Client
-    from binsync.data.stack_variable import StackVariable, StackOffsetType
-    binsync_available = True
-except ImportError:
-    binsync_available = False
+binsync_available = None
+binsync = None
+Client = None
+StackVariable = None
+StackOffsetType = None
+
+
 
 from ... import knowledge_plugins
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
 from ...sim_variable import SimStackVariable
 from ..variables.variable_manager import VariableManagerInternal
+
+
+def import_binsync():
+    global binsync_available
+    try:
+        import binsync
+        from binsync.client import Client
+        from binsync.data.stack_variable import StackVariable, StackOffsetType
+        binsync_available = True
+    except ImportError:
+        binsync_available = False
 
 
 def make_state(f):
@@ -75,6 +86,10 @@ class SyncController(KnowledgeBasePlugin):
     :ivar binsync.Client client:   The binsync client.
     """
     def __init__(self, kb):
+
+        # import binsync upon the first use of this class
+        import_binsync()
+
         super().__init__()
 
         self._kb: KnowledgeBasePlugin = kb

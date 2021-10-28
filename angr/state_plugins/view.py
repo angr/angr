@@ -198,6 +198,7 @@ class SimMemView(SimStatePlugin):
     def __dir__(self):
         return self._type._refine_dir() if self._type else [x for x in SimMemView.types if ' ' not in x] + ['struct']
 
+    struct: "StructMode"
     def __getattr__(self, k):
         if k in ('concrete', 'deref', 'resolvable', 'resolved', 'state', 'array', 'store', '_addr', '_type') or k in dir(SimStatePlugin):
             return object.__getattribute__(self, k)
@@ -244,7 +245,7 @@ class SimMemView(SimStatePlugin):
         return self._type.extract(self.state, self._addr, True)
 
     @property
-    def deref(self):
+    def deref(self) -> "SimMemView":
         if self._addr is None:
             raise ValueError("Trying to dereference pointer without addr defined")
         ptr = self.state.memory.load(self._addr, self.state.arch.bytes, endness=self.state.arch.memory_endness)
@@ -254,7 +255,7 @@ class SimMemView(SimStatePlugin):
 
         return self._deeper(ty=self._type.pts_to if isinstance(self._type, SimTypePointer) else None, addr=ptr)
 
-    def array(self, n):
+    def array(self, n) -> "SimMemView":
         if self._addr is None:
             raise ValueError("Trying to produce array without specifying adddress")
         if self._type is None:

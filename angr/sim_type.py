@@ -1,5 +1,7 @@
 # pylint:disable=abstract-method
 from collections import OrderedDict, defaultdict, ChainMap
+
+from archinfo import Endness
 from .misc.ux import deprecated
 import copy
 import re
@@ -70,7 +72,7 @@ class SimType:
         return []
 
     def _refine(self, view, k): # pylint: disable=unused-argument,no-self-use
-        raise KeyError("{} is not a valid refinement".format(k))
+        raise KeyError(f"{k} is not a valid refinement")
 
     @property
     def size(self):
@@ -93,6 +95,8 @@ class SimType:
         return self.size // self._arch.byte_width
 
     def with_arch(self, arch):
+        if arch is None:
+            return self
         if self._arch is not None and self._arch == arch:
             return self
         else:
@@ -104,13 +108,13 @@ class SimType:
         return cp
 
     def _init_str(self):
-        return "NotImplemented(%s)" % (self.__class__.__name__)
+        return f"NotImplemented({self.__class__.__name__})"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         if name is None:
             return repr(self)
         else:
-            return '%s %s' % (str(self) if self.label is None else self.label, name)
+            return f'{str(self) if self.label is None else self.label} {name}'
 
     def copy(self):
         raise NotImplementedError()
@@ -193,12 +197,12 @@ class NamedTypeMixin:
     def name(self, v):
         self._name = v
 
-    def unqualified_name(self, lang: str="c++") -> str:
+    def unqualified_name(self, lang: str = "c++") -> str:
         if lang == "c++":
             splitter = "::"
             n = self.name.split(splitter)
             return n[-1]
-        raise NotImplementedError("Unsupported language %s." % lang)
+        raise NotImplementedError(f"Unsupported language {lang}.")
 
 
 class SimTypeBottom(SimType):
@@ -297,7 +301,7 @@ class SimTypeNum(SimType):
 
     def __init__(self, size, signed=True, label=None):
         """
-        :param size:        The size of the integer, in bytes
+        :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
         :param label:       A label for the type
         """
@@ -492,7 +496,7 @@ class SimTypeBool(SimTypeChar):
         return ver != 0
 
     def _init_str(self):
-        return "%s()" % (self.__class__.__name__)
+        return f"{self.__class__.__name__}()"
 
 
 class SimTypeFd(SimTypeReg):
@@ -586,7 +590,7 @@ class SimTypeReference(SimTypeReg):
         self.refs: SimType = refs
 
     def __repr__(self):
-        return "{}&".format(self.refs)
+        return f"{self.refs}&"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         name = '&' if name is None else '&%s' % name
@@ -894,7 +898,7 @@ class SimTypeFunction(SimType):
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
-            (", label=%s" % self.label) if self.label else "",
+            (", label=\"%s\"" % self.label) if self.label else "",
             (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
         )
@@ -1055,6 +1059,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
     def __init__(self, fields: Union[Dict[str,SimType], OrderedDict], name=None, pack=False, align=None):
         super().__init__(None, name='<anon>' if name is None else name)
+
         self._pack = pack
         self._align = align
         self._pack = pack
@@ -1073,10 +1078,16 @@ class SimStruct(NamedTypeMixin, SimType):
                 continue
             if not self._pack:
                 align = ty.alignment
+                if align is NotImplemented:
+                    # hack!
+                    align = 1
                 if offset_so_far % align != 0:
                     offset_so_far += (align - offset_so_far % align)
-            offsets[name] = offset_so_far
-            offset_so_far += ty.size // self._arch.byte_width
+                offsets[name] = offset_so_far
+                offset_so_far += ty.size // self._arch.byte_width
+            else:
+                offsets[name] = offset_so_far // self._arch.byte_width
+                offset_so_far += ty.size
 
         return offsets
 
@@ -1099,7 +1110,17 @@ class SimStruct(NamedTypeMixin, SimType):
         out = SimStruct(None, name=self.name, pack=self._pack, align=self._align)
         out._arch = arch
         self._arch_memo[arch.name] = out
+
+
         out.fields = OrderedDict((k, v.with_arch(arch)) for k, v in self.fields.items())
+
+        # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
+        offset_so_far = 0
+        for name, ty in out.fields.items():
+            if isinstance(ty, SimTypeNumOffset):
+                out._pack = True
+                ty.offset = offset_so_far % arch.byte_width
+                offset_so_far += ty.size
         return out
 
     def __repr__(self):
@@ -1127,13 +1148,16 @@ class SimStruct(NamedTypeMixin, SimType):
 
         last_name, last_off = list(self.offsets.items())[-1]
         last_type = self.fields[last_name]
-        return last_off * self._arch.byte_width + last_type.size
+        if isinstance(last_type, SimTypeNumOffset):
+            return last_off * self._arch.byte_width + (last_type.size + last_type.offset)
+        else:
+            return last_off * self._arch.byte_width + last_type.size
 
     @property
     def alignment(self):
         if self._align is not None:
             return self._align
-        return max(val.alignment for val in self.fields.values())
+        return max(val.alignment for val in self.fields.values() if not isinstance(val, SimTypeBottom))
 
     def _refine_dir(self):
         return list(self.fields.keys())
@@ -1224,6 +1248,7 @@ class SimStructValue:
     def copy(self):
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
+
 class SimUnion(NamedTypeMixin, SimType):
     fields = ('members', 'name')
 
@@ -1237,11 +1262,11 @@ class SimUnion(NamedTypeMixin, SimType):
 
     @property
     def size(self):
-        return max(ty.size for ty in self.members.values())
+        return max(ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom))
 
     @property
     def alignment(self):
-        return max(val.alignment for val in self.members.values())
+        return max(val.alignment for val in self.members.values() if not isinstance(val, SimTypeBottom))
 
     def _refine_dir(self):
         return list(self.members.keys())
@@ -1277,6 +1302,18 @@ class SimUnion(NamedTypeMixin, SimType):
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(new_indented + v.c_repr(k, full-1, new_memo, new_indent) + ';' for k, v in self.members.items())
         return 'union %s {%s%s%s%s}%s' % (self.name, newline, members, newline, indented, '' if name is None else ' ' + name)
+
+    def _init_str(self):
+        return "%s({%s}, name=\"%s\", label=\"%s\")" % (
+            self.__class__.__name__,
+            ", ".join([self._field_str(f, ty) for f, ty in self.members.items()]),
+            self._name,
+            self.label,
+        )
+
+    @staticmethod
+    def _field_str(field_name, field_type):
+        return "\"%s\": %s" % (field_name, field_type._init_str())
 
     def __str__(self):
         return 'union %s' % (self.name, )
@@ -1423,6 +1460,42 @@ class SimCppClassValue:
         return SimCppClassValue(self._class, values=defaultdict(lambda: None, self._values))
 
 
+class SimTypeNumOffset(SimTypeNum):
+    """
+    like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields
+    """
+    _fields = SimTypeNum._fields + ("offset",)
+
+    def __init__(self, size, signed=True, label=None, offset=0):
+        super().__init__(size, signed, label)
+        self.offset = offset
+
+    def __repr__(self):
+        return super().__repr__()
+
+    def extract(self, state: "SimState", addr, concrete=False):
+        if state.arch.memory_endness != Endness.LE:
+            raise NotImplementedError("This has only been implemented and tested with Little Endian arches so far")
+        minimum_load_size = self.offset + self.size # because we start from a byte aligned offset _before_ the value
+        # Now round up to the next byte
+        load_size = (minimum_load_size - minimum_load_size % (-state.arch.byte_width)) // state.arch.byte_width
+        out = state.memory.load(addr, size=load_size, endness=state.arch.memory_endness)
+        out = out[self.offset + self.size - 1:self.offset]
+
+        if not concrete:
+            return out
+        n = state.solver.eval(out)
+        if self.signed and n >= 1 << (self.size - 1):
+            n -= 1 << (self.size)
+        return n
+
+    def store(self, state, addr, value):
+        raise NotImplementedError()
+
+    def copy(self):
+        return SimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
+
+
 BASIC_TYPES = {
     'char': SimTypeChar(),
     'signed char': SimTypeChar(),
@@ -1443,6 +1516,7 @@ BASIC_TYPES = {
 
     'long': SimTypeLong(True),
     'signed long': SimTypeLong(True),
+    'long signed': SimTypeLong(True),
     'unsigned long': SimTypeLong(False),
     'long int': SimTypeLong(True),
     'signed long int': SimTypeLong(True),
@@ -1455,6 +1529,14 @@ BASIC_TYPES = {
     'long long int': SimTypeLongLong(True),
     'signed long long int': SimTypeLongLong(True),
     'unsigned long long int': SimTypeLongLong(False),
+
+    '__int128': SimTypeNum(128, True),
+    'unsigned __int128': SimTypeNum(128, False),
+    '__int256': SimTypeNum(256, True),
+    'unsigned __int256': SimTypeNum(256, False),
+
+    'bool': SimTypeBool(),
+    '_Bool': SimTypeBool(),
 
     'float': SimTypeFloat(),
     'double': SimTypeDouble(),
@@ -1569,22 +1651,22 @@ def do_preprocess(defn, include_path=()):
     return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
 
 
-def parse_defns(defn, preprocess=True, predefined_types=None):
+def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types)[0]
+    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, preprocess=True, predefined_types=None):
+def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types)[1]
+    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[1]
 
 
 _include_re = re.compile(r'^\s*#include')
-def parse_file(defn, preprocess=True, predefined_types=None):
+def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
@@ -1604,7 +1686,7 @@ def parse_file(defn, preprocess=True, predefined_types=None):
     extra_types = {}
     for piece in node.ext:
         if isinstance(piece, pycparser.c_ast.FuncDef):
-            out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types)
+            out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
         elif isinstance(piece, pycparser.c_ast.Decl):
             ty = _decl_to_type(piece.type, extra_types)
             if piece.name is not None:
@@ -1633,15 +1715,15 @@ if pycparser is not None:
                                                              optimize=False,
                                                              errorlog=errorlog)
 
-def parse_type(defn, preprocess=True, predefined_types=None):  # pylint:disable=unused-argument
+def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
     >>> parse_type('int *')
     """
-    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types)[0]
+    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
 
-def parse_type_with_name(defn, preprocess=True, predefined_types=None):  # pylint:disable=unused-argument
+def parse_type_with_name(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning the a tuple of the type object and any associated name
     that might be found in the place a name would go in a type declaration.
@@ -1660,7 +1742,7 @@ def parse_type_with_name(defn, preprocess=True, predefined_types=None):  # pylin
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
-    return _decl_to_type(decl), node.name
+    return _decl_to_type(decl, arch=arch), node.name
 
 def _accepts_scope_stack():
     """
@@ -1678,13 +1760,13 @@ def _accepts_scope_stack():
     setattr(pycparser.CParser, 'parse', parse)
 
 
-def _decl_to_type(decl, extra_types=None):
+def _decl_to_type(decl, extra_types=None, bitsize=None, arch=None) -> SimType:
     if extra_types is None: extra_types = {}
 
     if isinstance(decl, pycparser.c_ast.FuncDecl):
         argtyps = () if decl.args is None else [... if type(x) is pycparser.c_ast.EllipsisParam else \
-                                                SimTypeBottom() if type(x) is pycparser.c_ast.ID else \
-                                                _decl_to_type(x.type, extra_types) for x in decl.args.params]
+                                                SimTypeBottom().with_arch(arch) if type(x) is pycparser.c_ast.ID else \
+                                                _decl_to_type(x.type, extra_types, arch=arch) for x in decl.args.params]
         arg_names = [ arg.name for arg in decl.args.params if type(arg) is not pycparser.c_ast.EllipsisParam] if decl.args else None
         # special handling: func(void) is func()
         if len(argtyps) == 1 and isinstance(argtyps[0], SimTypeBottom) and arg_names[0] is None:
@@ -1695,32 +1777,42 @@ def _decl_to_type(decl, extra_types=None):
             variadic = True
         else:
             variadic = False
-        return SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types), arg_names=arg_names, variadic=variadic)
+        r = SimTypeFunction(argtyps, _decl_to_type(decl.type, extra_types, arch=arch), arg_names=arg_names, variadic=variadic)
+        r._arch = arch
+        return r
 
     elif isinstance(decl, pycparser.c_ast.TypeDecl):
         if decl.declname == 'TOP':
-            return SimTypeTop()
-        return _decl_to_type(decl.type, extra_types)
+            r = SimTypeTop()
+            r._arch = arch
+            return r
+        return _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
 
     elif isinstance(decl, pycparser.c_ast.PtrDecl):
-        pts_to = _decl_to_type(decl.type, extra_types)
-        return SimTypePointer(pts_to)
+        pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
+        r = SimTypePointer(pts_to)
+        r._arch = arch
+        return r
 
     elif isinstance(decl, pycparser.c_ast.ArrayDecl):
-        elem_type = _decl_to_type(decl.type, extra_types)
+        elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
 
         if decl.dim is None:
-            return SimTypeArray(elem_type)
+            r = SimTypeArray(elem_type)
+            r._arch = arch
+            return r
         try:
-            size = _parse_const(decl.dim)
+            size = _parse_const(decl.dim, extra_types=extra_types, arch=arch)
         except ValueError as e:
             l.warning("Got error parsing array dimension, defaulting to zero: %s", e)
             size = 0
-        return SimTypeFixedSizeArray(elem_type, size)
+        r = SimTypeFixedSizeArray(elem_type, size)
+        r._arch = arch
+        return r
 
     elif isinstance(decl, pycparser.c_ast.Struct):
         if decl.decls is not None:
-            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types)) for field in decl.decls)
+            fields = OrderedDict((field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch)) for field in decl.decls)
         else:
             fields = OrderedDict()
 
@@ -1733,9 +1825,12 @@ def _decl_to_type(decl, extra_types=None):
             struct = extra_types.get(key, None)
             if struct is None:
                 struct = ALL_TYPES.get(key, None)
+                if struct is not None:
+                    struct = struct.with_arch(arch)
 
             if struct is None:
                 struct = SimStruct(fields, decl.name)
+                struct._arch = arch
             elif not struct.fields:
                 struct.fields = fields
             elif fields and struct.fields != fields:
@@ -1744,11 +1839,12 @@ def _decl_to_type(decl, extra_types=None):
             extra_types[key] = struct
         else:
             struct = SimStruct(fields)
+            struct._arch = arch
         return struct
 
     elif isinstance(decl, pycparser.c_ast.Union):
         if decl.decls is not None:
-            fields = {field.name: _decl_to_type(field.type, extra_types) for field in decl.decls}
+            fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
 
@@ -1763,6 +1859,7 @@ def _decl_to_type(decl, extra_types=None):
 
             if union is None:
                 union = SimUnion(fields, decl.name)
+                union._arch = arch
             elif not union.members:
                 union.members = fields
             elif fields and union.members != fields:
@@ -1771,41 +1868,51 @@ def _decl_to_type(decl, extra_types=None):
             extra_types[key] = union
         else:
             union = SimUnion(fields)
+            union._arch = arch
         return union
 
     elif isinstance(decl, pycparser.c_ast.IdentifierType):
         key = ' '.join(decl.names)
-        if key in extra_types:
+        if bitsize is not None:
+            return SimTypeNumOffset(int(bitsize.value), signed=False)
+        elif key in extra_types:
             return extra_types[key]
         elif key in ALL_TYPES:
-            return ALL_TYPES[key]
+            return ALL_TYPES[key].with_arch(arch)
         else:
             raise TypeError("Unknown type '%s'" % key)
 
     elif isinstance(decl, pycparser.c_ast.Enum):
         # See C99 at 6.7.2.2
-        return ALL_TYPES['int']
+        return ALL_TYPES['int'].with_arch(arch)
 
     raise ValueError("Unknown type!")
 
 
-def _parse_const(c):
+def _parse_const(c, arch=None, extra_types=None):
     if type(c) is pycparser.c_ast.Constant:
         return int(c.value, base=0)
     elif type(c) is pycparser.c_ast.BinaryOp:
         if c.op == '+':
-            return _parse_const(c.children()[0][1]) + _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) + _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '-':
-            return _parse_const(c.children()[0][1]) - _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) - _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '*':
-            return _parse_const(c.children()[0][1]) * _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) * _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '/':
-            return _parse_const(c.children()[0][1]) // _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) // _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '<<':
-            return _parse_const(c.children()[0][1]) << _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) << _parse_const(c.children()[1][1], arch, extra_types)
         if c.op == '>>':
-            return _parse_const(c.children()[0][1]) >> _parse_const(c.children()[1][1])
+            return _parse_const(c.children()[0][1], arch, extra_types) >> _parse_const(c.children()[1][1], arch, extra_types)
         raise ValueError('Binary op %s' % c.op)
+    elif type(c) is pycparser.c_ast.UnaryOp:
+        if c.op == 'sizeof':
+            return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
+        else:
+            raise ValueError("Unary op %s" % c.op)
+    elif type(c) is pycparser.c_ast.Cast:
+        return _parse_const(c.expr, arch, extra_types)
     else:
         raise ValueError(c)
 
@@ -1969,3 +2076,4 @@ except ImportError:
     pass
 
 from .state_plugins.view import SimMemView
+from .state_plugins import SimState

@@ -35,6 +35,15 @@ class CallSiteFact:
         self.args = [ ]
 
 
+class UpdateArgumentsOption:
+    """
+    Enums for controlling the argument updating behavior in _adjust_cc.
+    """
+    DoNotUpdate = 0
+    AlwaysUpdate = 1
+    UpdateWhenCCHasNoArgs = 2
+
+
 class CallingConventionAnalysis(Analysis):
     """
     Analyze the calling convention of functions.
@@ -79,7 +88,7 @@ class CallingConventionAnalysis(Analysis):
             if self.cc is None:
                 callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
                 cc = DefaultCC[self.project.arch.name](self.project.arch)
-                cc = self._adjust_cc(cc, callsite_facts, update_arguments=True)
+                cc = self._adjust_cc(cc, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate)
                 self.cc = cc
             return
         if self._function.is_plt:
@@ -90,7 +99,7 @@ class CallingConventionAnalysis(Analysis):
         if self.analyze_callsites:
             # only take the first 3 because running reaching definition analysis on all functions is costly
             callsite_facts = self._analyze_callsites(max_analyzing_callsites=3)
-            cc = self._adjust_cc(cc, callsite_facts)
+            cc = self._adjust_cc(cc, callsite_facts, update_arguments=UpdateArgumentsOption.UpdateWhenCCHasNoArgs)
 
         if cc is None:
             l.warning('Cannot determine calling convention for %r.', self._function)
@@ -134,7 +143,7 @@ class CallingConventionAnalysis(Analysis):
         # determine the calling convention by analyzing its callsites
         callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
         cc = DefaultCC[self.project.arch.name](self.project.arch)
-        cc = self._adjust_cc(cc, callsite_facts, update_arguments=True)
+        cc = self._adjust_cc(cc, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate)
         return cc
 
     def _analyze_function(self) -> Optional[SimCC]:
@@ -159,7 +168,8 @@ class CallingConventionAnalysis(Analysis):
         # TODO: properly determine sp_delta
         sp_delta = self.project.arch.bytes if self.project.arch.call_pushes_ret else 0
 
-        cc = SimCC.find_cc(self.project.arch, list(input_args), sp_delta)
+        input_args = list(input_args)  # input_args might be modified by find_cc()
+        cc = SimCC.find_cc(self.project.arch, input_args, sp_delta)
 
         if cc is None:
             l.warning('_analyze_function(): Cannot find a calling convention for %r that fits the given arguments.',
@@ -305,15 +315,16 @@ class CallingConventionAnalysis(Analysis):
         # determine if potential register and stack arguments are set
         state = rda.observed_results[('insn', call_insn_addr, OP_BEFORE)]
         defs_by_reg_offset: Dict[int, List[Definition]] = defaultdict(list)
-        all_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
+        all_reg_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
+        all_stack_defs: Set['Definition'] = get_all_definitions(state.stack_definitions)
         all_uses: 'Uses' = rda.all_uses
-        for d in all_defs:
+        for d in all_reg_defs:
             if isinstance(d.atom, Register) and \
                     not isinstance(d.codeloc, ExternalCodeLocation) and \
                     not (d.codeloc.block_addr == caller_block_addr and d.codeloc.stmt_idx == DEFAULT_STATEMENT):
                 defs_by_reg_offset[d.offset].append(d)
         defined_reg_offsets = set(defs_by_reg_offset.keys())
-        defs_by_stack_offset = dict((d.atom.addr.offset, d) for d in all_defs
+        defs_by_stack_offset = dict((-d.atom.addr.offset, d) for d in all_stack_defs
                                     if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset))
 
         arg_session = default_cc.arg_session
@@ -328,8 +339,6 @@ class CallingConventionAnalysis(Analysis):
                     # no more arguments
                     break
             elif isinstance(arg_loc, SimStackArg):
-                l.warning("Totally untested logic in determining stack arguments - it needs to be tested on stack "
-                          "registers and 32-bit binaries.")
                 if arg_loc.stack_offset in defs_by_stack_offset:
                     fact.args.append(arg_loc)
                 else:
@@ -338,7 +347,9 @@ class CallingConventionAnalysis(Analysis):
             else:
                 break
 
-    def _adjust_cc(self, cc: SimCC, facts: List[CallSiteFact], update_arguments: bool=False):  # pylint:disable=no-self-use
+    @staticmethod
+    def _adjust_cc(cc: SimCC, facts: List[CallSiteFact],
+                   update_arguments: int=UpdateArgumentsOption.DoNotUpdate):
 
         if cc is None:
             return cc
@@ -349,7 +360,10 @@ class CallingConventionAnalysis(Analysis):
         else:
             cc.ret_val = cc.RETURN_VAL
 
-        if update_arguments:
+        if update_arguments == UpdateArgumentsOption.AlwaysUpdate or (
+                update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and
+                not cc.args
+        ):
             if len(set(len(fact.args) for fact in facts)) == 1:
                 fact = next(iter(facts))
                 cc.args = fact.args
