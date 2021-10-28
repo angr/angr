@@ -497,7 +497,7 @@ class CFGBase(Analysis):
         Check whether the given memory region is extremely sparse, i.e., all bytes are the same value.
 
         :param int start: The beginning of the region.
-        :param int end:   The end of the region.
+        :param int end:   The end of the region (exclusive).
         :param base_state: The base state (optional).
         :return:           True if the region is extremely sparse, False otherwise.
         :rtype:            bool
@@ -506,13 +506,13 @@ class CFGBase(Analysis):
         all_bytes = None
 
         if base_state is not None:
-            all_bytes = base_state.memory.load(start, end - start + 1)
+            all_bytes = base_state.memory.load(start, end - start)
             try:
                 all_bytes = base_state.solver.eval(all_bytes, cast_to=bytes)
             except SimError:
                 all_bytes = None
 
-        size = end - start + 1
+        size = end - start
 
         if all_bytes is None:
             # load from the binary
@@ -524,7 +524,7 @@ class CFGBase(Analysis):
         if len(all_bytes) < size:
             l.warning("_is_region_extremely_sparse: The given region %#x-%#x is not a continuous memory region in the "
                       "memory space. Only the first %d bytes (%#x-%#x) are processed.", start, end, len(all_bytes),
-                      start, start + len(all_bytes) - 1)
+                      start, start + len(all_bytes))
 
         the_byte_value = None
         for b in all_bytes:

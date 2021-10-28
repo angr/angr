@@ -280,6 +280,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_Not1'
         elif expr.op.startswith('Iop_Not'):
             handler = '_handle_Not'
+        elif expr.op.startswith('Iop_Clz64'):
+            handler = '_handle_Clz64'
+        elif expr.op.startswith('Iop_Ctz64'):
+            handler = '_handle_Ctz64'
 
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
@@ -334,6 +338,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_32HLto64'
         elif expr.op.startswith('Const'):
             handler = '_handle_Const'
+        elif expr.op.startswith('Iop_16HLto32'):
+            handler = '_handle_16HLto32'
+        elif expr.op.startswith('Iop_ExpCmpNE64'):
+            handler = '_handle_ExpCmpNE64'
 
         vector_size, vector_count = None, None
         if handler is not None:
@@ -455,6 +463,24 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         except TypeError as e:
             self.l.exception(e)
             return None
+
+    def _handle_Clz64(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        if self._is_top(expr_0):
+            return self._top(expr_0.size())
+        return self._top(expr_0.size())
+
+    def _handle_Ctz64(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        if self._is_top(expr_0):
+            return self._top(expr_0.size())
+        return self._top(expr_0.size())
 
     def _handle_Add(self, expr):
         args, r = self._binop_get_args(expr)
@@ -715,6 +741,14 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             return r
 
         return None
+
+    def _handle_16HLto32(self, expr):
+        _, _ = self._binop_get_args(expr)
+        return self._top(expr.result_size(self.tyenv))
+
+    def _handle_ExpCmpNE64(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        return self._top(expr.result_size(self.tyenv))
 
 
 class SimEngineLightAILMixin(SimEngineLightMixin):

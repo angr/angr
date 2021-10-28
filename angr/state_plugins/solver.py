@@ -280,7 +280,11 @@ class SimSolver(SimStatePlugin):
             elif 'smtlib_abc' in backend_manager.backends._backends_by_name:
                 our_backend = backend_manager.backends.smtlib_abc
             else:
-                raise ValueError("Could not find suitable string solver!")
+                l.error("Cannot find a suitable string solver. Please ensure you have installed a string solver that "
+                        "angr supports, and have imported the corresponding solver backend in claripy. You can try "
+                        "adding \"from claripy.backends.backend_smtlib_solvers import *\" at the beginning of your "
+                        "script.")
+                raise ValueError("Cannot find a suitable string solver")
             if o.COMPOSITE_SOLVER in self.state.options:
                 self._stored_solver = claripy.SolverComposite(
                     template_solver_string=claripy.SolverCompositeChild(backend=our_backend, track=track)

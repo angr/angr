@@ -1,10 +1,14 @@
+from collections import OrderedDict
+
+import angr
 import claripy
 import nose
 import ctypes
 
 from archinfo import Endness
 from angr import SimState
-from angr.sim_type import register_types, parse_types
+from angr.sim_type import register_types, parse_types, SimStruct, SimTypeNumOffset
+
 
 def test_simple_concrete():
     s = SimState(arch="AMD64")
@@ -100,10 +104,84 @@ struct test_structs {
     nose.tools.assert_equal(s.mem[0x8000].struct.test_structs.a.concrete, 10)
     nose.tools.assert_equal(s.solver.eval(s.memory.load(0x8000, 16), cast_to=bytes), bytes.fromhex('0a000000000000001400000000000000'))
 
+def test_struct_bitfield_simple():
+    """
+    Tests if a struct with bitfields like
+    struct {
+        uint32_t a:8, b:1, c:23;
+    }
+    can be used with a memview
+    :return:
+    """
+    state = SimState(arch='AMD64')
+    register_types(SimStruct(name="bitfield_struct", pack=True, fields=OrderedDict([
+        ("a", SimTypeNumOffset(8, signed=False)),
+        ("b", SimTypeNumOffset(1, signed=False)),
+        ("c", SimTypeNumOffset(23, signed=False))
+    ])))
+
+    data = [
+        (b'\x0e\x02\x00\x00', (14, 0, 1)),
+        (b'\x14T\x00\x00', (20, 0, 42)),
+        (b'\x04\n\x01\x00', (4, 0, 133)),
+        (b'\x04j\x01\x00', (4, 0, 181)),
+        (b'\x04\xa2\x01\x00', (4, 0, 209)),
+        (b'\x04\xf4\x01\x00', (4, 0, 250)),
+        (b'\x04\\\x02\x00', (4, 0, 302)),
+        (b'\x04\x98\x02\x00', (4, 0, 332)),
+        (b'\x04\xe0\x02\x00', (4, 0, 368)),
+        (b'\x04\x1e\x03\x00', (4, 0, 399)),
+    ]
+    state.memory.store(0x8000,
+                       b'\x0e\x02\x00\x00'
+                       b'\x14T\x00\x00'
+                       b'\x04\n\x01\x00'
+                       b'\x04j\x01\x00'
+                       b'\x04\xa2\x01\x00'
+                       b'\x04\xf4\x01\x00'
+                       b'\x04\\\x02\x00'
+                       b'\x04\x98\x02\x00'
+                       b'\x04\xe0\x02\x00'
+                       b'\x04\x1e\x03\x00'
+                       )
+    view = state.mem[0x8000].struct.bitfield_struct.array(5)
+    for (idx, (b, result)) in enumerate(data):
+        v = view[idx]
+        s = v.concrete
+        nose.tools.assert_equal(s.a, result[0], msg=f"Field a was {s.a}, expected {result[0]}, from bytes {b}")
+        nose.tools.assert_equal(v.a.concrete, result[0], msg=f"Field a was {v.a.concrete}, expected {result[0]}, from bytes {b}")
+
+        nose.tools.assert_equal(s.b, result[1], msg=f"Field b was {s.b}, expected {result[1]}, from bytes {b}")
+        nose.tools.assert_equal(v.b.concrete, result[1], msg=f"Field b was {s.b}, expected {result[1]}, from bytes {b}")
+
+        nose.tools.assert_equal(s.c, result[2], msg=f"Field c was {s.c}, expected {result[2]}, from bytes {b}")
+        nose.tools.assert_equal(v.c.concrete, result[2], msg=f"Field c was {v.c.concrete}, expected {result[2]}, from bytes {b}")
+
+def test_struct_bitfield_complex():
+    bitfield_struct2 = angr.types.parse_type("""struct bitfield_struct2
+    {
+        uint64_t    target    : 36,    
+                    high8     :  8,   
+                    reserved  :  7,
+                    next      : 12,
+                    bind      :  1;
+    }""")
+
+    angr.types.register_types(bitfield_struct2)
+    state = SimState(arch='AMD64')
+    state.memory.store(0x1000, b'\xb3\xc7\xe9|\xad\xd7\xee$') # store some random data
+    struct = state.mem[0x1000].struct.bitfield_struct2.concrete
+    nose.tools.assert_equal(struct.target, 0xD7CE9C7B3)
+    nose.tools.assert_equal(struct.high8, 0x7A)
+    nose.tools.assert_equal(struct.next, 0x49D)
+    nose.tools.assert_equal(struct.bind, 0)
+    pass
 
 if __name__ == '__main__':
     test_simple_concrete()
     test_string_concrete()
     test_array_concrete()
     test_pointer_concrete()
-    test_struct()
+    test_structs()
+    test_struct_bitfield_simple()
+    test_struct_bitfield_complex()

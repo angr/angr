@@ -8,6 +8,7 @@ from angr.engines.soot.method_dispatcher import resolve_method
 from archinfo.arch_amd64 import ArchAMD64
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootMethodDescriptor,
                                 SootArgument, SootAddressTerminator)
+from claripy.backends.backend_smtlib_solvers import z3str_popen  # pylint:disable=unused-import
 
 file_dir = os.path.dirname(os.path.realpath(__file__))
 test_location = os.path.join(file_dir, "..", "..", "binaries", "tests", "java")
