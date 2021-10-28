@@ -117,7 +117,7 @@ class GirlScout(Analysis):
 
     def _get_next_code_addr(self, initial_state):
         """
-        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not, 
+        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not,
         we'll move on to request for next valid address.
         """
         next_addr = self._get_next_addr_to_search()

@@ -19,7 +19,7 @@ class dup(angr.SimProcedure):  #pylint:disable=W0622
         for i, fd in enumerate(sorted(self.state.posix.fd.keys())):
             if i != fd: # "Free" slot in keys
                 newfd = i
-        
+
         self.state.posix.fd[newfd] = self.state.posix.fd[oldfd]
         return newfd
 

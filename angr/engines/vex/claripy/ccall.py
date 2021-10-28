@@ -1133,9 +1133,9 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         condition = claripy.Or(old_AL > 0x99, old_C == 1)
         r_AL = claripy.If(condition, r_AL + 0x60, r_AL)
         r_C = claripy.If(condition, one, zero)
-    
+
         r_AL = r_AL&0xFF
-        r_O = zero 
+        r_O = zero
         r_S = claripy.If((r_AL & 0x80) != 0, one, zero)
         r_Z = claripy.If(r_AL == 0, one, zero)
         r_P = calc_paritybit(r_AL).zero_extend(31)
