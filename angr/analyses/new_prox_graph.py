@@ -1,13 +1,13 @@
-from typing import Optional, Set, List, Tuple, TYPE_CHECKING
+from typing import Optional, Set, List, Tuple, TYPE_CHECKING, Dict
 import logging
 
 import networkx
 
 import ailment
+import networkx as nx
 
 from ..knowledge_plugins.functions import Function
 from . import Analysis
-from .decompiler.ailgraph_walker import AILGraphWalker
 from .decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
@@ -19,6 +19,7 @@ _l = logging.getLogger(name=__name__)
 
 
 class ProxiNodeTypes:
+    Empty = 0
     String = 1
     Function = 2
     FunctionCall = 3
@@ -36,10 +37,12 @@ class BaseProxiNode:
         self.ref_at = ref_at
 
     def __eq__(self, other):
-        raise NotImplementedError()
+        test = isinstance(other, BaseProxiNode) and other.type_ == self.type_ and self.ref_at == other.ref_at
+        return test
 
     def __hash__(self):
-        raise NotImplementedError()
+        test = hash((BaseProxiNode, self.type_))
+        return test
 
 
 class FunctionProxiNode(BaseProxiNode):
@@ -81,13 +84,12 @@ class CallProxiNode(BaseProxiNode):
         self.args = args
 
     def __eq__(self, other):
-        return isinstance(other, CallProxiNode) and \
-               other.type_ == self.type_ and \
-               self.callee == other.callee and \
-               self.args == other.args
+        test = isinstance(other, CallProxiNode) and other.type_ == self.type_ and self.callee == other.callee and self.args == other.args and self.ref_at == other.ref_at
+        return test
 
     def __hash__(self):
-        return hash((CallProxiNode, self.callee, self.args))
+        test = hash((CallProxiNode, self.callee, self.args))
+        return test
 
 
 class IntegerProxiNode(BaseProxiNode):
@@ -118,24 +120,18 @@ class UnknownProxiNode(BaseProxiNode):
         return hash((UnknownProxiNode, self.dummy_value))
 
 
-class BlockWalker(AILBlockWalker):
-    # TODO (last) check this syntax
-    def __init__(self, stmt_handlers=None, expr_handlers=None):
-        super().__init__()
-        self.node_checker = False
+def save_graph(G, name):
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    from networkx.drawing.nx_agraph import graphviz_layout
+    # sudo apt-get install graphviz graphviz-dev
+    # pip install pygraphviz
 
-    def _handle_stmt(self, stmt_idx: int, stmt: ailment.Stmt.Statement, block: Optional[ailment.Block]):
-        try:
-            handler = self.stmt_handlers[type(stmt)]
-            if type(stmt) == ailment.Stmt.Call:
-                self.node_checker = True
-                print("_handle_Call Node Created")
-        except KeyError:
-            handler = None
-
-        if handler:
-            return handler(stmt_idx, stmt, block)
-        return None
+    plt.title(name.split('/')[-1])
+    pos = graphviz_layout(G, prog='dot')
+    nx.draw(G, pos, font_size=5, node_size=60, with_labels=True)
+    plt.figure(1)
+    plt.savefig(name, dpi=500)
 
 
 class NewProximityGraphAnalysis(Analysis):
@@ -144,61 +140,28 @@ class NewProximityGraphAnalysis(Analysis):
     """
 
     def __init__(self, func: 'Function', cfg_model: 'CFGModel', xrefs: 'XRefManager',
-                 decompilation: Optional['Decompiler'] = None,
-                 pred_depth=1, succ_depth=1,
-                 expand_funcs: Optional[Set[int]] = None):
+                 decompilation: Optional['Decompiler'] = None):
         self._function = func
         self._cfg_model = cfg_model
         self._xrefs = xrefs
         self._decompilation = decompilation
-        self._pred_depth: int = pred_depth
-        self._succ_depth: int = succ_depth
-        self._expand_funcs = expand_funcs.copy() if expand_funcs else None
 
         self.graph: Optional[networkx.DiGraph] = None
-        self.captured_node: bool = False
+        self.current_block = None
+        self.handled_node = None
 
         self._work()
-
-    @staticmethod
-    def save_graph(G, name):
-        import networkx as nx
-        import matplotlib.pyplot as plt
-        from networkx.drawing.nx_agraph import graphviz_layout
-        # sudo apt-get install graphviz graphviz-dev
-        # pip install pygraphviz
-
-        plt.title(name.split('/')[-1])
-        pos = graphviz_layout(G, prog='dot')
-        nx.draw(G, pos, font_size=5, node_size=60, with_labels=True)
-        plt.figure(1)
-        plt.savefig(name, dpi=500)
 
     def _work(self):
 
         self.graph = networkx.DiGraph()
 
-        # the function
-        func_proxi_node = FunctionProxiNode(self._function)
-
         # TODO (1) implement with no Decompilation
         # Process the function graph
         # if not self._decompilation:
-        #     to_expand = self._process_function(self._function, self.graph, func_proxi_node=func_proxi_node)
+        #     self._process_function(self._function, self.graph)
         # else:
-        to_expand = self._process_decompilation(self._function, self.graph, func_proxi_node=func_proxi_node)
-
-        # TODO (2) look into this...
-        # for func_node in to_expand:
-        #     if self._expand_funcs:
-        #         self._expand_funcs.discard(func_node.func.addr)
-        #
-        #     subgraph = networkx.DiGraph()
-        #     self._process_function(func_node.func, subgraph, func_proxi_node=func_node)
-        #
-        #     # merge subgraph into the original graph
-        #     self.graph.add_nodes_from(subgraph.nodes())
-        #     self.graph.add_edges_from(subgraph.edges())
+        self._process_decompilation(self._function, self.graph)
 
     # Looks for strings in the memory_data that are also present in the function blocks
     def _process_strings(self, func, proxi_nodes, exclude_string_refs: Set[int] = None):
@@ -247,13 +210,10 @@ class NewProximityGraphAnalysis(Analysis):
     #
     #     return to_expand
 
-    def _process_decompilation(self, func: 'Function', graph: networkx.DiGraph,
-                               func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
-        proxi_nodes: List[BaseProxiNode] = []
-        to_expand: List[FunctionProxiNode] = []
-
+    def _process_decompilation(self, func: 'Function', graph: networkx.DiGraph):
         # dedup
         string_refs: Set[int] = set()
+        unique_blocks: Dict[ailment.Block, CallProxiNode] = {}
         func_calls: Set[CallProxiNode] = set()
 
         # Walk the clinic structure to dump string references and function calls
@@ -289,27 +249,23 @@ class NewProximityGraphAnalysis(Analysis):
                     else:
                         args.append(UnknownProxiNode("_"))
 
-            if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
-                node = FunctionProxiNode(func_node, ref_at=ref_at)
-                to_expand.append(node)
+            if self.current_block in unique_blocks:
+                node = unique_blocks[self.current_block]
             else:
                 node = CallProxiNode(func_node, ref_at=ref_at, args=tuple(args) if args is not None else None)
+                unique_blocks[self.current_block] = node
 
-            if node in func_calls:
-                return
+            # if node in func_calls:
+            #     return
             func_calls.add(node)
-            proxi_nodes.append(node)
+            self.handled_node = node
 
         def _handle_CallExpr(self, expr_idx: int, expr: ailment.Stmt.Call, stmt_idx: int, stmt: ailment.Stmt.Statement,
                              block: Optional[ailment.Block]):  # pylint:disable=unused-argument
             func_node = self.kb.functions[expr.target.value]
             ref_at = {stmt.ins_addr}
-            if self._expand_funcs and func_node.addr in self._expand_funcs:
-                node = FunctionProxiNode(func_node, ref_at=ref_at)
-                to_expand.append(node)
-            else:
-                node = CallProxiNode(func_node, ref_at=ref_at)
-            proxi_nodes.append(node)
+            node = CallProxiNode(func_node, ref_at=ref_at)
+            self.handled_node = node
 
         stmt_handlers = {
             ailment.Stmt.Call: _handle_Call,
@@ -318,36 +274,23 @@ class NewProximityGraphAnalysis(Analysis):
             ailment.Stmt.Call: _handle_CallExpr,
         }
 
-        counter = 0
-        self.save_graph(ail_graph, "/home/woadey/ail_graph.png")
+        # Custom Block walker
+        bw = AILBlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
+
         # Custom Graph walker, go through AIL nodes
-        for node in list(ail_graph):
-            counter += 1
+        for pair in nx.edge_bfs(ail_graph):
+            nodes = ()
+            for block in pair:
+                self.current_block = block
+                bw.walk(block)
+                if self.handled_node:
+                    node = self.handled_node
+                    self.handled_node = None
+                else:
+                    node = BaseProxiNode(ProxiNodeTypes.Empty, block.addr)
+                nodes += (node,)
 
-            # Custom Block walker
-            bw = BlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
-            bw.walk(node)
-
-            # Check if ailment.Stmt.Call has occurred; skip to avoid duplicates
-            if bw.node_checker is True:
-                continue
-
-            # Add blank node to represent path
-            proxi_nodes.append(UnknownProxiNode(""))
-            print("Blank Node Created")
-
-        # TODO (3) go through this...
-        # add strings references that are not used in function calls
-        self._process_strings(func, proxi_nodes, exclude_string_refs=string_refs)
-
-        # add it to the graph
-        graph.add_node(func_proxi_node)
-        for pn in proxi_nodes:
-            graph.add_edge(func_proxi_node, pn)
-
-        return to_expand
-
+            graph.add_edge(*nodes)
 
 from angr.analyses import AnalysesHub
-
 AnalysesHub.register_default('NewProximity', NewProximityGraphAnalysis)
