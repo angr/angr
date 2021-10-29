@@ -109,7 +109,7 @@ def test_ast_vault():
 
 def test_project():
 	v = angr.vaults.VaultDir()
-	p = angr.Project("/bin/false")
+	p = angr.Project("/bin/false", auto_load_libs=False)
 	ps = v.store(p)
 	pp = v.load(ps)
 	assert p is pp

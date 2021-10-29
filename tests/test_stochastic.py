@@ -15,8 +15,7 @@ criteria = {
 }
 
 def run_stochastic(binary, arch):
-    proj = angr.Project(os.path.join(location, arch, binary),
-                        auto_load_libs=False)
+    proj = angr.Project(os.path.join(location, arch, binary), auto_load_libs=False)
     simgr = proj.factory.simulation_manager()
     start_state = simgr.active[0]
     technique = angr.exploration_techniques.StochasticSearch(start_state)

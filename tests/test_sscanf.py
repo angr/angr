@@ -15,7 +15,7 @@ def test_sscanf():
         raise nose.SkipTest()
 
     test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
-    b = angr.Project(test_bin)
+    b = angr.Project(test_bin, auto_load_libs=False)
 
     pg = b.factory.simulation_manager()
 

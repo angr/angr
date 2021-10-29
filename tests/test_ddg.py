@@ -14,10 +14,7 @@ import angr
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def perform_one(binary_path):
-    proj = angr.Project(binary_path,
-                        load_options={'auto_load_libs': False},
-                        use_sim_procedures=True,
-                        default_analysis_mode='symbolic')
+    proj = angr.Project(binary_path, load_options={'auto_load_libs': False}, use_sim_procedures=True, default_analysis_mode='symbolic')
     start = time.time()
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=2, keep_state=True,
                                     state_add_options=angr.sim_options.refs  # refs are necessary for DDG to work

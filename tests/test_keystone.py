@@ -24,7 +24,7 @@ def run_keystone(arch):
     if arch == "armel_thumb":
         is_thumb = True
         proj_arch = "armel"
-    p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"))
+    p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"), auto_load_libs=False)
     addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
 
     sm = p.factory.simulation_manager()

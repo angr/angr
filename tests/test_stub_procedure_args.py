@@ -24,7 +24,7 @@ def test_stub_procedure_args():
     assert len(stub.cc.args) == 3
     assert all(isinstance(arg, SimStackArg) for arg in stub.cc.args)
 
-    proj = angr.Project(os.path.join(binaries_base, "i386", "all"), auto_load_libs=True)
+    proj = angr.Project(os.path.join(binaries_base, "i386", "all"), auto_load_libs=False)
     state = proj.factory.blank_state()
 
     initial_sp = state.regs.sp

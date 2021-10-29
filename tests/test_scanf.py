@@ -92,7 +92,7 @@ class Checker:
 
 def test_scanf():
     test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_test")
-    b = angr.Project(test_bin)
+    b = angr.Project(test_bin, auto_load_libs=False)
 
     pg = b.factory.simulation_manager()
 
@@ -126,7 +126,7 @@ def test_scanf():
 
 def test_scanf_multi():
     test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_multi_test")
-    b = angr.Project(test_bin)
+    b = angr.Project(test_bin, auto_load_libs=False)
 
     pg = b.factory.simulation_manager()
 
