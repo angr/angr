@@ -290,8 +290,7 @@ def test_jumptable_occupied_as_data():
 
 def test_vtable_amd64_libc_ubuntu_2004():
 
-    p = angr.Project(os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"),
-                     auto_load_libs=False)
+    p = angr.Project(os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"),auto_load_libs=False)
     cfg = p.analyses.CFGFast()
 
     assert 0x46d710 in cfg.indirect_jumps

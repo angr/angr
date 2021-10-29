@@ -10,7 +10,7 @@ arches = ( "armel", "i386", "mips", "mipsel", "ppc64", "ppc", "x86_64" )
 # TODO: arches += ( "armhf", )
 
 def run_checkbyte(arch):
-    p = angr.Project(os.path.join(test_location, arch, "checkbyte"))
+    p = angr.Project(os.path.join(test_location, arch, "checkbyte"), auto_load_libs=False)
     results = p.factory.simulation_manager().run(n=100) #, until=lambda lpg: len(lpg.active) > 1)
 
     assert len(results.deadended) == 2
