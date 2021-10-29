@@ -34,10 +34,7 @@ def run_veritesting_a(arch):
 def run_veritesting_b(arch):
     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
 
-    proj = angr.Project(os.path.join(location, arch, "veritesting_b"),
-                        load_options={'auto_load_libs': False},
-                        use_sim_procedures=True
-                        )
+    proj = angr.Project(os.path.join(location, arch, "veritesting_b"),load_options={'auto_load_libs': False},use_sim_procedures=True)
     ex = proj.factory.simulation_manager()
     ex.use_technique(angr.exploration_techniques.Veritesting(enable_function_inlining=True))
     ex.explore(find=addresses_veritesting_b[arch])

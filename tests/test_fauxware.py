@@ -60,7 +60,7 @@ def run_fauxware(arch):
     assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
 
 def run_pickling(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
     pg = p.factory.simulation_manager().run(n=10)
     pickled = pickle.dumps(pg, pickle.HIGHEST_PROTOCOL)
     del p
@@ -75,11 +75,11 @@ def run_pickling(arch):
 
 @attr(speed='slow')
 def run_fastmem(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
     p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()
 
 def run_nodecode(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
 
     # screw up the instructions and make sure the test fails with nodecode
     for i,c in enumerate(corrupt_addrs[arch][1]):
@@ -96,7 +96,7 @@ def run_nodecode(arch):
     nose.tools.assert_equal(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00', stdin)
 
 def run_merge(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"))
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
     pg = p.factory.simulation_manager()
     pg.explore()
 

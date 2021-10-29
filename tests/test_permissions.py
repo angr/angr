@@ -8,7 +8,7 @@ import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_nx():
-    nx_amd64 = angr.Project(os.path.join(test_location, 'x86_64', 'memmove'))
+    nx_amd64 = angr.Project(os.path.join(test_location, 'x86_64', 'memmove'), auto_load_libs=False)
     es = nx_amd64.factory.entry_state()
 
     # .text should be PROT_READ|PROT_EXEC
