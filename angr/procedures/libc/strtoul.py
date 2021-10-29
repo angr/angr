@@ -6,4 +6,3 @@ class strtoul(angr.SimProcedure):
         strtol = angr.SIM_PROCEDURES['libc']['strtol']
         result = self.inline_call(strtol, nptr, endptr, base).ret_expr
         return result
-
