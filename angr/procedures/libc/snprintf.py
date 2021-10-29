@@ -14,7 +14,7 @@ class snprintf(FormatParser):
 
         if self.state.solver.eval(size) == 0:
             return size
-        
+
         # The format str is at index 2
         fmt_str = self._parse(2)
         out_str = fmt_str.replace(3, self.arg)

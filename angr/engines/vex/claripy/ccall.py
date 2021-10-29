@@ -1136,9 +1136,9 @@ def x86g_calculate_daa_das_aaa_aas(state, flags_and_AX, opcode):
         condition = claripy.Or(old_AL > 0x99, old_C == 1)
         r_AL = claripy.If(condition, r_AL + 0x60, r_AL)
         r_C = claripy.If(condition, one, zero)
-    
+
         r_AL = r_AL&0xFF
-        r_O = zero 
+        r_O = zero
         r_S = claripy.If((r_AL & 0x80) != 0, one, zero)
         r_Z = claripy.If(r_AL == 0, one, zero)
         r_P = calc_paritybit(r_AL).zero_extend(31)
@@ -1228,7 +1228,7 @@ def x86g_calculate_aad_aam(state, flags_and_AX, opcode):
 #
 
 # Reference for the GDT entry layout
-# http://wiki.osdev.org/Global_Descriptor_Table
+# https://wiki.osdev.org/Global_Descriptor_Table
 def get_segdescr_base(state, descriptor):
     lo = descriptor[31:16]
     mid = descriptor[39:32]
@@ -1267,7 +1267,7 @@ def x86g_use_seg_selector(state, ldt, gdt, seg_selector, virtual_addr):
     segment_selector_val = seg_selector >> 3
 
     if state.project.simos.name == "Win32" and (segment_selector_val == 0x6).is_true() and state.project.concrete_target is not None:
-            return bad("angr doesn't support Windows Heaven's gate calls http://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
+            return bad("angr doesn't support Windows Heaven's gate calls https://rce.co/knockin-on-heavens-gate-dynamic-processor-mode-switching/ \n"
                    "Please use the native 32 bit libs (not WoW64) or implement a simprocedure to avoid executing these instructions"
                    )
 

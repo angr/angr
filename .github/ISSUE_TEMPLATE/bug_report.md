@@ -7,7 +7,7 @@ about: Create a report to help us fix existing bugs and improve angr
 *Disclaimer:
 The angr suite is maintained by a small team of volunteers.
 While we cannot guarantee any timeliness for fixes and enhancements, we will do our best.
-For more real-time help with angr, from us and the community, join our [Slack.](http://angr.io/invite/)*
+For more real-time help with angr, from us and the community, join our [Slack.](https://angr.io/invite/)*
 -->
 ---
 
