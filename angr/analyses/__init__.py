@@ -2,15 +2,17 @@
 from .analysis import Analysis, AnalysesHub
 from ..misc.ux import deprecated
 
+
 def register_analysis(cls, name):
     AnalysesHub.register_default(name, cls)
+
 
 from .cfg import CFGFast, CFGEmulated, CFG, CFGArchOptions, CFGFastSoot
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
 from .boyscout import BoyScout
-#from .girlscout import GirlScout
+# from .girlscout import GirlScout
 from .backward_slice import BackwardSlice
 from .veritesting import Veritesting
 from .vsa_ddg import VSA_DDG
@@ -41,3 +43,4 @@ from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
 from .flirt import FlirtAnalysis
+from .data_dependency_graph import DataDependencyGraphAnalysis
