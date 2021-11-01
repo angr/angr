@@ -7,8 +7,7 @@ def test_fauxware():
     cfg = proj.analyses.CFG(data_references=True, cross_references=True, normalize=True)
     func = cfg.kb.functions['main']
 
-    # TODO Removing no decompilation for now, will add...
-    # prox_1 = proj.analyses.NewProximity(func, cfg.model, cfg.kb.xrefs)  # pylint:disable=unused-variable
+    prox_1 = proj.analyses.NewProximity(func, cfg.model, cfg.kb.xrefs)  # pylint:disable=unused-variable
 
     # once we have decompiled code, things are different...
     dec = proj.analyses.Decompiler(func, cfg=cfg.model)
