@@ -437,6 +437,12 @@ class VMDeobfuscation(Analysis):
         self.start_addr = start_addr
         self.vm_vpc_addr = vm_vpc_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
+
+        # removing path terminators, cause...............they causing problems
+        for node in cfg.graph.nodes():
+            if node.name == "PathTerminator":
+                cfg.graph.remove_node(node)
+
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state)
         folder_name = os.path.dirname(self.project.filename)
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
@@ -457,7 +463,6 @@ class VMDeobfuscation(Analysis):
         print("Doing constant propagation")
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
-
         # DCE commented out temporarily to make testing faster for block simplifications
         for i in range(11):
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
@@ -468,9 +473,10 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
-        for i in range(4):
-            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-        self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
+        # commented this for test_vmp to show the add eax,1 result
+        # for i in range(4):
+        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        # self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
 
         # self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
@@ -483,10 +489,13 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
         for i in range(2):
             print("DCE round "+str(i))
             new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "debug_3_result.svg"))
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
         for i in range(3):
@@ -497,8 +506,8 @@ class VMDeobfuscation(Analysis):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
 
-        if verification_input is not None:
-            self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr, input=verification_input)
+
+        self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr, input=verification_input)
 
         self.draw_graph(new_cfg, os.path.join(folder_name,  "final_result.svg"))
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
@@ -678,11 +687,25 @@ class VMDeobfuscation(Analysis):
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
 
+        rax_loc = start_state.regs.rsp - 0x78
+        rax2_loc = start_state.regs.rsp - 0x68
         for node in new_cfg.graph.nodes():
+            # for i in range(16):
+            #     print(node.input_state.memory.load(start_state.solver.eval(start_state.regs.rsp - (0x40+i*8)), 8))
+            print(node.input_state.memory.load(start_state.solver.eval(rax_loc-0x158), 4, endness="Iend_LE"))
+            print(node.input_state.memory.load(start_state.solver.eval(rax_loc - 0x158), 4, endness="Iend_LE").annotations)
+            print(node.input_state.memory.load(start_state.solver.eval(rax_loc), 4, endness="Iend_LE"))
+            print(node.input_state.memory.load(start_state.solver.eval(rax_loc), 4,
+                                               endness="Iend_LE").annotations)
+            print("next")
+
             succs = new_cfg.model.get_successors(node)
             if len(succs) == 0:
-                final_state = node.input_state
+                final_state = node.final_states[0]
                 print(final_state.posix.dumps(1))
+
+        import ipdb;ipdb.set_trace()
+
 
     def convert_to_atom(self, vex_inst, tyenv, byte_width):
         if isinstance(vex_inst, pyvex.expr.RdTmp):
@@ -840,7 +863,12 @@ class VMDeobfuscation(Analysis):
                 if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                     for use in uses:
                         if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
-                            replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                            ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
+                            if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
+                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+                            elif self.project.arch.bits == 32 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I32' and d.atom.size == 4:
+                                replace_stle_dict[use.stmt_idx] = node.irsb.statements[d.codeloc.stmt_idx].data
+
 
             new_statements = []
             # Remove dead assignments
@@ -1586,7 +1614,8 @@ class VMDeobfuscation(Analysis):
 
         node_replace_dict = {}
         for node in list(cfg.graph.nodes()):
-            if not node.is_simprocedure:
+            # skip last node
+            if not node.is_simprocedure and len(list(cfg.graph.successors(node)))!= 0:
                 print(node.simprocedure_name)
                 old_stmts = node.irsb.statements
                 new_stmts = []
@@ -1625,6 +1654,8 @@ class VMDeobfuscation(Analysis):
                     # check if there's a Store from a symbolic memory address
                     elif (isinstance(stmt, pyvex.stmt.Store) and not type(stmt.addr) == pyvex.expr.Const):
                         new_stmts.append(stmt)
+                    # elif isinstance(stmt, pyvex.stmt.WrTmp) and stmt.tmp == 421 and node.addr in [0x6bb92e, 0x6b3241] and node.block_id.vm_vpc in [6736528, 6736645]:
+                    #     import ipdb;ipdb.set_trace()
 
                 # Dealing with empty blocks i.e. removing them
                 if len(new_stmts) == 0:

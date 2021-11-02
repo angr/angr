@@ -948,7 +948,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             if n is None:
                 break
 
-            job_state = self._get_input_state(n)
+            job_state = self._get_and_update_input_state(n)
             if job_state is None:
                 job_state = self._initial_abstract_state(n)
 
@@ -959,9 +959,9 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             # successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
             for succ in successors_to_visit:
-                if sum(1 for _ in self._graph_visitor.predecessors(succ)) == 1:
-                    self._input_states[self._node_key(succ)] = [output_state]
+                self._input_states[self._node_key(succ)] = [output_state]
 
+            # revisit all successors in the `successors_to_visit` list
             for succ in successors_to_visit:
                 self._graph_visitor.revisit_node(succ)
 
