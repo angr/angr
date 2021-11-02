@@ -293,7 +293,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                         other_byte = other.content[c].bytes_at(page_addr + c, 1)
                     #    same = self_byte is other_byte
                     # Ashwin added this to remove the problem that arises from comparing same valued asts with different(only hash is different) annotations
-                        if not(self_byte == other_byte).is_true():
+                        if not (self_byte == other_byte).is_true():
                             differences.add(c)
 
                     # if same is False:
