@@ -78,7 +78,7 @@ def _get_closest_matches(input_attributes, target_attributes):
     return closest_matches
 
 
-# from http://rosettacode.org/wiki/Levenshtein_distance
+# from https://rosettacode.org/wiki/Levenshtein_distance
 def _levenshtein_distance(s1, s2):
     """
     :param s1:  A list or string

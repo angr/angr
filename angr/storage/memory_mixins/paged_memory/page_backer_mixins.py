@@ -1,3 +1,4 @@
+from mmap import mmap
 from typing import Union, List, Generator, Tuple
 import logging
 
@@ -27,7 +28,7 @@ class NotMemoryview:
 
 
 class ClemoryBackerMixin(PagedMemoryMixin):
-    def __init__(self, cle_memory_backer=None, **kwargs):
+    def __init__(self, cle_memory_backer: Union[None, cle.Loader, cle.Clemory] = None, **kwargs):
         super().__init__(**kwargs)
 
         if isinstance(cle_memory_backer, cle.Loader):
@@ -65,6 +66,10 @@ class ClemoryBackerMixin(PagedMemoryMixin):
         data = self._data_from_backer(addr, backer, backer_start, backer_iter)
 
         permissions = self._cle_permissions_lookup(addr)
+        if permissions is None:
+            # There is no segment mapped at the start of the page.
+            # Maybe the end of the page is mapped instead?
+            permissions = self._cle_permissions_lookup (addr + self.page_size - 1)
 
         # see if this page supports creating without copying
         if type(data) is NotMemoryview:
@@ -83,7 +88,7 @@ class ClemoryBackerMixin(PagedMemoryMixin):
     def _data_from_backer(self, addr: int, backer: BackerType, backer_start: int,
                           backer_iter: BackerIterType) -> claripy.ast.BV:
         # initialize the page
-        if isinstance(backer, (bytes, bytearray)):
+        if isinstance(backer, (bytes, bytearray, mmap)):
             return self._data_from_bytes_backer(addr, backer, backer_start, backer_iter)
         elif isinstance(backer, list):
             return self._data_from_lists_backer(addr, backer, backer_start, backer_iter)

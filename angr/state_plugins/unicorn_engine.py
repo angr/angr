@@ -731,7 +731,7 @@ class Unicorn(SimStatePlugin):
         else:
             self.trap_ip = self.uc.reg_read(unicorn.x86_const.UC_X86_REG_RIP)
 
-        # http://wiki.osdev.org/Exceptions
+        # https://wiki.osdev.org/Exceptions
         if intno == 0:
             # divide by zero
             _UC_NATIVE.stop(self._uc_state, STOP.STOP_ZERO_DIV)

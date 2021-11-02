@@ -1,7 +1,10 @@
-from typing import Tuple, Optional
+from typing import List, Tuple, Optional, TYPE_CHECKING
 
 from ..sim_type import parse_file, parse_cpp_file, normalize_cpp_function_name, SimTypeCppFunction, SimTypeFd, \
     register_types, parse_types
+
+if TYPE_CHECKING:
+    from ..sim_type import SimTypeFunction
 
 
 def get_function_name(s):
@@ -55,14 +58,13 @@ def register_kernel_types():
     """))
 
 
-def convert_cproto_to_py(c_decl):
+def convert_cproto_to_py(c_decl) -> Tuple[str,'SimTypeFunction',str]:
     """
     Convert a C-style function declaration string to its corresponding SimTypes-based Python representation.
 
     :param str c_decl:              The C-style function declaration string.
     :return:                        A tuple of the function name, the prototype, and a string representing the
                                     SimType-based Python representation.
-    :rtype:                         tuple
     """
 
     s = [ ]
@@ -127,7 +129,9 @@ def convert_cppproto_to_py(cpp_decl: str,
     return func_name, func_proto, "\n".join(s)
 
 
-def cprotos2py(cprotos, fd_spots=frozenset(), remove_sys_prefix=False):
+def parsedcprotos2py(parsed_cprotos: List[Tuple[str,'SimTypeFunction',str]],
+                      fd_spots=frozenset(),
+                      remove_sys_prefix=False) -> str:
     """
     Parse a list of C function declarations and output to Python code that can be embedded into
     angr.procedures.definitions.
@@ -136,13 +140,12 @@ def cprotos2py(cprotos, fd_spots=frozenset(), remove_sys_prefix=False):
     >>> from angr.procedures.definitions import glibc
     >>> with open("glibc_protos", "w") as f: f.write(cprotos2py(glibc._libc_c_decls))
 
-    :param list cprotos:    A list of C prototype strings.
+    :param parsed_cprotos:  A list of tuples where each tuple is (function name, parsed C function prototype,
+                            the original function declaration).
     :return:                A Python string.
-    :rtype:                 str
     """
     s = ""
-    for decl in cprotos:
-        func_name, proto_, str_ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
+    for func_name, proto_, decl in parsed_cprotos:
         if remove_sys_prefix and func_name.startswith('sys'):
             func_name = '_'.join(func_name.split('_')[1:])
         if proto_ is not None:
@@ -156,6 +159,25 @@ def cprotos2py(cprotos, fd_spots=frozenset(), remove_sys_prefix=False):
         line2 = ' '*8 + repr(func_name) + ": " + (proto_._init_str() if proto_ is not None else "None") + ',' + '\n'
         s += line1 + line2
     return s
+
+
+def cprotos2py(cprotos: List[str], fd_spots=frozenset(), remove_sys_prefix=False) -> str:
+    """
+    Parse a list of C function declarations and output to Python code that can be embedded into
+    angr.procedures.definitions.
+
+    >>> # parse the list of glibc C prototypes and output to a file
+    >>> from angr.procedures.definitions import glibc
+    >>> with open("glibc_protos", "w") as f: f.write(cprotos2py(glibc._libc_c_decls))
+
+    :param cprotos:         A list of C prototype strings.
+    :return:                A Python string.
+    """
+    parsed_cprotos = [ ]
+    for decl in cprotos:
+        func_name, proto_, _ = convert_cproto_to_py(decl)  # pylint:disable=unused-variable
+        parsed_cprotos.append((func_name, proto_, decl))
+    return parsedcprotos2py(parsed_cprotos, fd_spots=fd_spots, remove_sys_prefix=remove_sys_prefix)
 
 
 def get_cpp_function_name(demangled_name, specialized=True, qualified=True):

@@ -105,6 +105,12 @@ class RegionIdentifier(Analysis):
                 # a fixed-point is reached
                 break
 
+        # Flow graph reducibility, Hecht and Ullman
+        if len(graph.nodes) == 1:
+            return True
+
+        return False
+
     def _make_supergraph(self, graph):
 
         while True:

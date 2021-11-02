@@ -158,11 +158,13 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
     elif isinstance(parent, ConditionNode):
         if node_idx == 0:
             # true node
-            parent.true_node = SequenceNode(parent.true_node.addr, nodes=[parent.true_node])
+            if not isinstance(parent.true_node, (SequenceNode, MultiNode)):
+                parent.true_node = SequenceNode(parent.true_node.addr, nodes=[parent.true_node])
             insert_node(parent.true_node, insert_idx - node_idx, node, 0)
         else:
             # false node
-            parent.false_node = SequenceNode(parent.false_node.addr, nodes=[parent.false_node])
+            if not isinstance(parent.false_node, (SequenceNode, MultiNode)):
+                parent.false_node = SequenceNode(parent.false_node.addr, nodes=[parent.false_node])
             insert_node(parent.false_node, insert_idx - node_idx, node, 0)
     elif isinstance(parent, CascadingConditionNode):
         cond, child_node = parent.condition_and_nodes[node_idx]

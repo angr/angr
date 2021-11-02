@@ -1,10 +1,10 @@
 import imp
-import pkg_resources
 import os
 import sys
 import datetime
-import gc
-import ctypes
+
+from .import_hooks import remove_fake_pkg_resources
+
 
 have_gitpython = False
 try:
@@ -12,6 +12,7 @@ try:
     have_gitpython = True
 except ImportError:
     print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
+
 
 angr_modules = ['angr', 'ailment', 'cle', 'pyvex', 'claripy', 'archinfo', 'z3', 'unicorn']
 native_modules = {'angr': 'angr.state_plugins.unicorn_engine._UC_NATIVE',
@@ -37,7 +38,13 @@ def import_module(module):
         sys.stderr.write("ERROR: missing python module: " + module + "\n")
         sys.exit(1)
 
+
 def print_versions():
+
+    remove_fake_pkg_resources()
+    # import the real pkg_resources
+    import pkg_resources  # pylint:disable=import-outside-toplevel
+
     for m in angr_modules:
         print("######## %s #########" % m)
         try:
@@ -81,7 +88,12 @@ def print_git_info(dirname):
     except:
         print("Could not resolve tracking branch or remote info!")
 
+
 def print_system_info():
+    remove_fake_pkg_resources()
+    # import the real pkg_resources
+    import pkg_resources  # pylint:disable=import-outside-toplevel
+
     print("Platform: " + pkg_resources.get_build_platform())
     print("Python version: " + str(sys.version))
 

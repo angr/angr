@@ -1,7 +1,10 @@
-import claripy
-import pyvex
 import logging
 
+import claripy
+import pyvex
+
+from . import irop
+from . import ccall
 from ..light import VEXMixin
 from .... import errors
 from .... import sim_options as o
@@ -26,6 +29,9 @@ def symbol(ty, name):
         return claripy.BVS(name, pyvex.get_type_size(ty))
 
 class ClaripyDataMixin(VEXMixin):
+    """
+    This mixin provides methods that makes the vex engine process guest code using claripy ASTs as the data domain.
+    """
 
     # util methods
 
@@ -98,9 +104,13 @@ class ClaripyDataMixin(VEXMixin):
         return claripy.If(cond != 0, ifTrue, ifFalse)
 
     def _perform_vex_expr_Op(self, op, args):
-        # TODO: get rid of these hacks (i.e. state options and modes) and move these switches into the engine initializer
+        # TODO: get rid of these hacks (i.e. state options and modes) and move these switches into engine properties
         options = getattr(self.state, 'options', {o.SUPPORT_FLOATING_POINT})
-        simop = irop.vexop_to_simop(op, extended=o.EXTENDED_IROP_SUPPORT in options, fp=o.SUPPORT_FLOATING_POINT in options)
+        simop = irop.vexop_to_simop(
+            op,
+            extended=o.EXTENDED_IROP_SUPPORT in options,
+            fp=o.SUPPORT_FLOATING_POINT in options
+        )
         return simop.calculate(*args)
 
     # ccall support
@@ -110,13 +120,17 @@ class ClaripyDataMixin(VEXMixin):
             try:
                 func = getattr(ccall, func_name)
             except AttributeError as e:
-                raise errors.UnsupportedCCallError("Unsupported ccall %s" % func_name) from e
+                raise errors.UnsupportedCCallError(f"Unsupported ccall {func_name}") from e
 
         try:
             return func(self.state, *args)
         except ccall.CCallMultivaluedException as e:
-            cases = e.args[0]
-            return claripy.ite_cases([(case, func(self.state, value, *args[1:])) for case, value in cases], value(ty, 0))
-
-from . import irop
-from . import ccall
+            cases, to_replace = e.args
+            # pylint: disable=undefined-loop-variable
+            for i, arg in enumerate(args):
+                if arg is to_replace:
+                    break
+            else:
+                raise errors.UnsupportedCCallError("Trying to concretize a value which is not an argument")
+            evaluated_cases = [(case, func(self.state, *args[:i], value_, *args[i+1:])) for case, value_ in cases]
+            return claripy.ite_cases(evaluated_cases, value(ty, 0))

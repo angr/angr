@@ -216,13 +216,17 @@ class SimplifierAILEngine(
                                              operand_expr.operands[0])
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
                                          [converted, operand_expr.operands[1]], operand_expr.signed, **expr.tags)
-                elif isinstance(operand_expr.operands[0], Expr.Convert) and \
-                        expr.from_bits == operand_expr.operands[0].to_bits and \
-                        expr.to_bits == operand_expr.operands[0].from_bits:
-                    return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                                         [operand_expr.operands[0].operand, operand_expr.operands[1]],
-                                         operand_expr.signed,
-                                         **operand_expr.tags)
+                # TODO: the below optimization was unsound
+                # Conv(32->64, (Conv(64->32, r14<8>) + 0x1<32>)) became Add(r14<8>, 0x1<32>)
+                # ideally it should become Conv(32->64, Conv(64->32, r14<8> + 0x1<64>))
+                # and then the double convert can be pretty-printed away
+                #elif isinstance(operand_expr.operands[0], Expr.Convert) and \
+                #        expr.from_bits == operand_expr.operands[0].to_bits and \
+                #        expr.to_bits == operand_expr.operands[0].from_bits:
+                #    return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
+                #                         [operand_expr.operands[0].operand, operand_expr.operands[1]],
+                #                         operand_expr.signed,
+                #                         **operand_expr.tags)
             elif isinstance(operand_expr.operands[0], Expr.Convert) \
                     and isinstance(operand_expr.operands[1], Expr.Convert) \
                     and operand_expr.operands[0].from_bits == operand_expr.operands[1].from_bits:

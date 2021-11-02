@@ -77,7 +77,7 @@ class CallMethodBase(JNISimProcedure):
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):
-            
+
             if arg_type in ArchSoot.primitive_types:
                 # argument has a primitive integral type
                 # => cast native value to java type

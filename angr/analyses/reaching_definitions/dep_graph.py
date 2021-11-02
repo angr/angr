@@ -166,7 +166,7 @@ class DepGraph:
                     unknown_concrete_addresses.add(v)
 
         for address in unknown_concrete_addresses:
-            data_at_address = cfg.memory_data.get(address, None)
+            data_at_address = cfg.memory_data.get(address, None) if cfg is not None else None
 
             if data_at_address is None or data_at_address.sort not in ['string', 'unknown']: continue
 
