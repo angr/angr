@@ -806,7 +806,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
         fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges(data=True)
                          if data['jumpkind'] == 'Ijk_FakeRet' ]
-        import ipdb;ipdb.set_trace()
         self.graph.remove_edges_from(fakeret_edges)
 
     def get_topological_order(self, cfg_node):
@@ -1176,8 +1175,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
-        print(sim_successors)
-        import ipdb;ipdb.set_trace()
+
         if node.is_simprocedure:
             if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
                 raise Exception("Sim Procedure has more than one successor")
@@ -1432,36 +1430,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # Generate a unique key for this job
         block_id = job.block_id
 
-        if block_id.addr == 0x14002C1A9:
-            # Draw graph
-            for node in self.graph.nodes():
-                if len(list(self.graph.predecessors(node))) == 0:
-                    start_node = node
-
-            cur_node = start_node
-            sub_graph_node_list = set()
-            queue = []
-            while len(sub_graph_node_list) < 500:
-                for successor in self.graph.successors(cur_node):
-                    sub_graph_node_list.add(successor)
-                    queue.append(successor)
-                cur_node = queue.pop(0)
-
-            sub_graph_A = self.graph.subgraph(sub_graph_node_list)
-            A = networkx.nx_agraph.to_agraph(sub_graph_A)
-            for cur_node in sub_graph_A:
-                stmt_str = str(cur_node)
-                if cur_node.irsb != None:
-                    for ind, stmt in enumerate(cur_node.irsb.statements):
-                        stmt_str = stmt_str + "\l" + stmt.__str__(arch=cur_node.irsb.arch, tyenv=cur_node.irsb.tyenv)
-
-                graphviz_node = A.get_node(str(cur_node))
-                graphviz_node.attr["label"] = stmt_str
-                graphviz_node.attr["shape"] = "box"
-            #A.layout(prog="dot")
-            A.draw(path="/media/sf_PhD/simple_vm_set/MitchVirtualizationObfuscatorAnalysis/VMProtect3/VM1_500.svg", format="svg",prog="dot")
-            import ipdb;ipdb.set_trace()
-
         # Extract initial info the CFGJob
         job.call_stack_suffix = job.get_call_stack_suffix()
         job.current_function = self.kb.functions.function(job.func_addr, create=True,
@@ -1586,6 +1554,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Should we skip tracing this block?
         should_skip = False
+        if 'stop_analysis' in job.state.globals and job.state.globals['stop_analysis'] is True:
+            should_skip = True
+            import ipdb;ipdb.set_trace()
+
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc, job.branch_trace)][addr] >= self._max_iterations:
             l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
