@@ -291,10 +291,13 @@ class ListPage(MemoryObjectMixin, PageBase):
                         # Try to see if the bytes are equal
                         self_byte = self.content[c].bytes_at(page_addr + c, 1)
                         other_byte = other.content[c].bytes_at(page_addr + c, 1)
-                        same = self_byte is other_byte
+                    #    same = self_byte is other_byte
+                    # Ashwin added this to remove the problem that arises from comparing same valued asts with different(only hash is different) annotations
+                        if not(self_byte == other_byte).is_true():
+                            differences.add(c)
 
-                    if same is False:
-                        differences.add(c)
+                    # if same is False:
+                    #     differences.add(c)
                 else:
                     # this means the byte is in neither memory
                     pass
