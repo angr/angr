@@ -439,9 +439,7 @@ class VMDeobfuscation(Analysis):
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
 
         # removing path terminators, cause...............they causing problems
-        for node in cfg.graph.nodes():
-            if node.name == "PathTerminator":
-                cfg.graph.remove_node(node)
+        cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
 
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state)
         folder_name = os.path.dirname(self.project.filename)
@@ -474,9 +472,9 @@ class VMDeobfuscation(Analysis):
         self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
         # commented this for test_vmp to show the add eax,1 result
-        # for i in range(4):
-        #     new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
-        # self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
+        for i in range(4):
+            new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
 
         # self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
@@ -607,7 +605,7 @@ class VMDeobfuscation(Analysis):
             for ind, poss_exit_stmt in enumerate(new_stmts):
                 if isinstance(poss_exit_stmt, pyvex.stmt.Exit):
                     # Matching the successors with the correct block_id
-                    succs = cfg.model.get_successors(node)
+                    succs = cfg.get_successors(node)
                     if len(succs) > 2:
                         raise Exception("Greater than 2 successors!")
                     branch_block_id = None
@@ -631,7 +629,7 @@ class VMDeobfuscation(Analysis):
                                                             poss_exit_stmt.offsIP)
 
             if block_id_for_next is None:
-                succs = cfg.model.get_successors(node)
+                succs = cfg.get_successors(node)
                 if len(succs) == 0: # Last node in the graph
                     block_id_for_next = None
                 else:
@@ -1354,6 +1352,49 @@ class VMDeobfuscation(Analysis):
                                                    vm_vpc_addr=self.vm_vpc_addr)
         return new_cfg
 
+
+    def new_model_without_terminator_graph(self, old_graph, proj, identifier):
+        new_cfg_graph = old_graph.__class__()
+        new_nodes = []
+        node_map = {}
+        node_map_by_addr = defaultdict(list)
+
+        # not setting the attributes for the model since they will *most likely* be not used on the analysis
+        new_model = proj.kb.cfgs.new_model(identifier)
+        new_model.graph = new_cfg_graph
+
+        for node in old_graph.nodes():
+            if "PathTerminator" not in str(node.name):
+                new_node = CFGENode(irsb=copy.deepcopy(node.irsb),
+                                    block_id=copy.deepcopy(node.block_id),
+                                    size=copy.deepcopy(node.size),
+                                    vm_vpc=copy.deepcopy(node.vm_vpc),
+                                    branch_trace = copy.deepcopy(node.branch_trace),
+                                    looping_times=copy.deepcopy(node.looping_times),
+                                    callstack_key=copy.deepcopy(node.callstack_key),
+                                    simprocedure_name=copy.deepcopy(node.simprocedure_name),
+                                    addr=copy.deepcopy(node.addr),
+                                    function_address=copy.deepcopy(node.function_address),
+                                    input_state=None,
+                                    final_states=None,
+                                    cfg=new_model)
+
+                new_nodes.append(new_node)
+                node_map[new_node.block_id] = new_node
+                node_map_by_addr[new_node.addr].append(new_node)
+
+        new_edges = []
+        for src, dst, data in old_graph.edges(data=True):
+            if "PathTerminator" not in str(src.name) and "PathTerminator" not in str(dst.name):
+                new_edges.append((node_map[src.block_id], node_map[dst.block_id], {'jumpkind': data['jumpkind']}))
+
+        new_cfg_graph.add_nodes_from(new_nodes)
+        new_cfg_graph.add_edges_from(new_edges)
+
+        new_model._nodes = node_map
+        new_model._nodes_by_addr = node_map_by_addr
+
+        return new_model
     ## creates a new model which contains a graph that is structurally similar to the old one but resets the states
     ## and keeps certain attributes
     def new_model_graph(self, old_graph, proj, identifier):
