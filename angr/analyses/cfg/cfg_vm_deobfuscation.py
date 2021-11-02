@@ -806,6 +806,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         """
         fakeret_edges = [ (src, dst) for src, dst, data in self.graph.edges(data=True)
                          if data['jumpkind'] == 'Ijk_FakeRet' ]
+        import ipdb;ipdb.set_trace()
         self.graph.remove_edges_from(fakeret_edges)
 
     def get_topological_order(self, cfg_node):
@@ -1157,7 +1158,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     def _run_on_node(self, node, abstract_state):
         print("Running on node: "+str(node))
-        print("Running on node: "+str(node))
         input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
@@ -1176,7 +1176,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
-
+        print(sim_successors)
+        import ipdb;ipdb.set_trace()
         if node.is_simprocedure:
             if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
                 raise Exception("Sim Procedure has more than one successor")
@@ -1494,7 +1495,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Data offset: "+str(job.vm_vpc))
         l.debug("Branch Trace: " + str(job.branch_trace))
         #print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
-        print("R10 Value: " + str(job.state.regs.r10))
+
 
         # Get a SimSuccessors out of current job
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
@@ -1866,7 +1867,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     if job.vm_vpc is None:
                         new_vm_vpc = None
                     else:
-                        new_vm_vpc = job.vm_vpc.copy()
+                        new_vm_vpc = job.vm_vpc
                     if job.branch_trace is None:
                         new_branch_trace = None
                     else:
