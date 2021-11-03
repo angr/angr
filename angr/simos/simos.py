@@ -246,6 +246,7 @@ class SimOS:
         stack_base = kwargs.pop('stack_base', None)
         alloc_base = kwargs.pop('alloc_base', None)
         grow_like_stack = kwargs.pop('grow_like_stack', True)
+        func_ty = angr.calling_conventions.SimCC.guess_prototype(args, kwargs.pop('func_ty', None)).with_arch(self.arch)
 
         if state is None:
             if stack_base is not None:
@@ -254,7 +255,7 @@ class SimOS:
         else:
             state = state.copy()
             state.regs.ip = addr
-        cc.setup_callsite(state, ret_addr, args, stack_base, alloc_base, grow_like_stack)
+        cc.setup_callsite(state, ret_addr, args, func_ty, stack_base, alloc_base, grow_like_stack)
 
         if state.arch.name == 'PPC64' and toc is not None:
             state.regs.r2 = toc

@@ -119,6 +119,15 @@ class SimType:
     def copy(self):
         raise NotImplementedError()
 
+    def extract_claripy(self, bits):
+        """
+        Given a bitvector `bits` which was loaded from memory in a big-endian fashion, return a more appropriate or
+        structured representation of the data.
+
+        A type must have an arch associated in order to use this method.
+        """
+        raise NotImplementedError(f"extract_claripy is not implemented for {self}")
+
 class TypeRef(SimType):
     """
     A TypeRef is a reference to a type with a name. This allows for interactivity in type analysis, by storing a type
@@ -1068,6 +1077,10 @@ class SimStruct(NamedTypeMixin, SimType):
         self._arch_memo = {}
 
     @property
+    def packed(self):
+        return self._pack
+
+    @property
     def offsets(self) -> Dict[str,int]:
         offsets = {}
         offset_so_far = 0
@@ -1209,7 +1222,14 @@ class SimStructValue:
         :param values:      A mapping from struct fields to values
         """
         self._struct = struct
+        # since the keys are specified, also support specifying the values as just a list
+        if values is not None and type(values) is not dict and hasattr(values, '__iter__'):
+            values = dict(zip(struct.fields.keys(), values))
         self._values = defaultdict(lambda: None, values or ())
+
+    @property
+    def struct(self):
+        return self._struct
 
     def __indented_repr__(self, indent=0):
         fields = []
@@ -1649,6 +1669,16 @@ def do_preprocess(defn, include_path=()):
         p.add_path(included)
     p.parse(defn)
     return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
+
+
+def parse_signature(defn, preprocess=True, predefined_types=None, arch=None):
+    """
+    Parse a single function prototype and return its type
+    """
+    try:
+        return next(iter(parse_file(defn.strip(' \n\t;') + ';')[0].values()))
+    except StopIteration as e:
+        raise ValueError("No declarations found") from e
 
 
 def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):

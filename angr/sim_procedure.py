@@ -60,7 +60,7 @@ class SimProcedure:
     :ivar kwargs:           Any extra keyword arguments used to construct the procedure; will be passed to ``run``
     :ivar display_name:     See the eponymous parameter
     :ivar library_name:     See the eponymous parameter
-    :ivar abi:
+    :ivar abi:              If this is a syscall simprocedure, which ABI are we using to map the syscall numbers?
     :ivar symbolic_return:  See the eponymous parameter
     :ivar syscall_number:   If this procedure is a syscall, the number will be populated here.
     :ivar returns:          See eponymous parameter and NO_RET cvar
@@ -86,10 +86,12 @@ class SimProcedure:
     :ivar call_ret_expr:    The return value from having used ``self.call()``
     :ivar inhibit_autoret:  Whether we should avoid automatically adding an exit for returning once the run function
                             ends
+    :ivar arg_session:      The ArgSession object that was used to extract the runtime argument values. Useful for if
+                            you want to extract variadic args.
 
     """
     def __init__(
-        self, project=None, cc=None, symbolic_return=None,
+        self, project=None, cc=None, func_ty=None, symbolic_return=None,
         returns=None, is_syscall=False, is_stub=False,
         num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
@@ -99,6 +101,7 @@ class SimProcedure:
         self.arch = project.arch if project is not None else None
         self.addr = None
         self.cc = cc # type: angr.SimCC
+        self.func_ty = func_ty  # type: angr.sim_type.SimTypeFunction
         self.canonical = self
 
         self.kwargs = kwargs
@@ -133,6 +136,7 @@ class SimProcedure:
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
+        self.arg_session = None
 
     def __repr__(self):
         return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
@@ -218,7 +222,13 @@ class SimProcedure:
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
-                    sim_args = [ inst.arg(_) for _ in range(inst.num_args) ]
+                    if inst.func_ty is not None:
+                        func_ty = inst.func_ty
+                    else:
+                        charp = SimTypePointer(SimTypeChar())
+                        func_ty = SimTypeFunction([charp]*inst.num_args, charp)
+                    inst.arg_session = inst.cc.arg_session(func_ty.returnty)
+                    sim_args = [inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in func_ty.args]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
@@ -309,30 +319,9 @@ class SimProcedure:
         raise SimProcedureError("the java-specific _compute_ret_addr() method was invoked on a non-Java SimProcedure.")
 
     def set_args(self, args):
-        arg_session = self.cc.arg_session
-        for arg in args:
-            if self.cc.is_fp_value(args):
-                arg_session.next_arg(True).set_value(self.state, arg)
-            else:
-                arg_session.next_arg(False).set_value(self.state, arg)
-
-    def arg(self, i):
-        """
-        Returns the ith argument. Raise a SimProcedureArgumentError if we don't have such an argument available.
-
-        :param int i: The index of the argument to get
-        :return: The argument
-        :rtype: object
-        """
-        if self.use_state_arguments:
-            r = self.cc.arg(self.state, i)
-        else:
-            if i >= len(self.arguments):
-                raise SimProcedureArgumentError("Argument %d does not exist." % i)
-            r = self.arguments[i]           # pylint: disable=unsubscriptable-object
-
-        l.debug("returning argument")
-        return r
+        arg_session = self.cc.arg_session(self.func_ty.returnty)
+        for arg, ty in zip(args, self.func_ty.args):
+            self.cc.next_arg(arg_session, ty).set_value(self.state, arg)
 
     #
     # Control Flow
@@ -385,15 +374,7 @@ class SimProcedure:
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr) #pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
-            if self.cc.args is not None:
-                arg_types = [isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in self.cc.args]
-            else:
-                # fall back to using self.num_args
-                arg_types = [False] * self.num_args
-            ret_addr = self.cc.teardown_callsite(
-                    self.state,
-                    expr,
-                    arg_types=arg_types)
+            ret_addr = self.cc.teardown_callsite(self.state, expr, func_ty=self.func_ty)
 
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
@@ -517,7 +498,6 @@ class SimProcedure:
 
 from . import sim_options as o
 from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowStackError
-from angr.sim_type import SimTypePointer
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeDouble
+from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeFunction, SimTypePointer, SimTypeChar
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE

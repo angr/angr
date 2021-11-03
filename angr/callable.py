@@ -1,7 +1,6 @@
-
 import pycparser
 
-from .calling_conventions import DEFAULT_CC
+from .calling_conventions import DEFAULT_CC, SimCC
 
 
 class Callable(object):
@@ -15,13 +14,15 @@ class Callable(object):
     Otherwise, you can get the resulting simulation manager at callable.result_path_group.
     """
 
-    def __init__(self, project, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
+    def __init__(self, project, addr, func_ty=None, concrete_only=False, perform_merge=True, base_state=None, toc=None,
+                 cc=None):
         """
         :param project:         The project to operate on
         :param addr:            The address of the function to use
 
         The following parameters are optional:
 
+        :param func_ty:         The signature of the calls you would like to make. This really shouldn't be optional.
         :param concrete_only:   Throw an exception if the execution splits into multiple paths
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
@@ -37,6 +38,7 @@ class Callable(object):
         self._toc = toc
         self._cc = cc if cc is not None else DEFAULT_CC[project.arch.name](project.arch)
         self._deadend_addr = project.simos.return_deadend
+        self._func_ty = func_ty
 
         self.result_path_group = None
         self.result_state = None
@@ -49,14 +51,19 @@ class Callable(object):
         self._base_state = state
 
     def __call__(self, *args):
-        self.perform_call(*args)
-        if self.result_state is not None:
-            return self.result_state.solver.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
+        func_ty = SimCC.guess_prototype(args, self._func_ty).with_arch(self._project.arch)
+        self.perform_call(*args, func_ty=func_ty)
+        if self.result_state is not None and func_ty.returnty is not None:
+            loc = self._cc.return_val(func_ty.returnty)
+            val = loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF)
+            return self.result_state.solver.simplify(val)
         else:
             return None
 
-    def perform_call(self, *args):
+    def perform_call(self, *args, func_ty=None):
+        func_ty = SimCC.guess_prototype(args, func_ty or self._func_ty).with_arch(self._project.arch)
         state = self._project.factory.call_state(self._addr, *args,
+                    func_ty=func_ty,
                     cc=self._cc,
                     base_state=self._base_state,
                     ret_addr=self._deadend_addr,

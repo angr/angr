@@ -186,12 +186,13 @@ class AngrObjectFactory:
         """
         return self.simulation_manager(*args, **kwargs)
 
-    def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
+    def callable(self, addr, func_ty=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
 
         :param addr:            The address of the function to use
+        :param func_ty:         The prototype of the call to use, as a string or a SimTypeFunction
         :param concrete_only:   Throw an exception if the execution splits into multiple states
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
@@ -203,26 +204,16 @@ class AngrObjectFactory:
         """
         return Callable(self.project,
                         addr=addr,
+                        func_ty=func_ty,
                         concrete_only=concrete_only,
                         perform_merge=perform_merge,
                         base_state=base_state,
                         toc=toc,
                         cc=cc)
 
-    def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
+    def cc(self):
         """
-        Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
-
-        :param args:        A list of argument storage locations, as SimFunctionArguments.
-        :param ret_val:     The return value storage location, as a SimFunctionArgument.
-        :param sp_delta:    Does this even matter??
-        :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
-                            can be parsed into a SimTypeFunction instance.
-
-        Example func_ty strings:
-        >>> "int func(char*, int)"
-        >>> "int f(int, int, int*);"
-        Function names are ignored.
+        Return a SimCC (calling convention) parametrized for this project.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
@@ -230,11 +221,7 @@ class AngrObjectFactory:
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
 
-        return self._default_cc(arch=self.project.arch,
-                                  args=args,
-                                  ret_val=ret_val,
-                                  sp_delta=sp_delta,
-                                  func_ty=func_ty)
+        return self._default_cc(arch=self.project.arch)
 
     def cc_from_arg_kinds(self, fp_args, ret_fp=None, sizes=None, sp_delta=None, func_ty=None):
         """

@@ -18,7 +18,7 @@ class strncmp(angr.SimProcedure):
 
         match_constraints = [ ]
         variables = a_len.variables | b_len.variables | limit.variables
-        ret_expr = self.state.solver.Unconstrained("strncmp_ret", self.state.arch.bits, key=('api', 'strncmp'))
+        ret_expr = self.state.solver.Unconstrained("strncmp_ret", 32, key=('api', 'strncmp'))
 
         # determine the maximum number of bytes to compare
         concrete_run = False
@@ -50,19 +50,19 @@ class strncmp(angr.SimProcedure):
             if self.state.solver.single_valued(limit) and self.state.solver.eval(limit) == 0:
                 # limit is 0
                 l.debug("returning equal for 0-limit")
-                return self.state.solver.BVV(0, self.state.arch.bits)
+                return self.state.solver.BVV(0, 32)
             elif self.state.solver.single_valued(a_len) and self.state.solver.single_valued(b_len) and \
                     self.state.solver.eval(a_len) == self.state.solver.eval(b_len) == 0:
                 # two empty strings
                 l.debug("returning equal for two empty strings")
-                return self.state.solver.BVV(0, self.state.arch.bits)
+                return self.state.solver.BVV(0, 32)
             else:
                 # all other cases fall into this branch
                 l.debug("returning non-equal for comparison of an empty string and a non-empty string")
                 if a_strlen.max_null_index == 0:
-                    return self.state.solver.BVV(-1, self.state.arch.bits)
+                    return self.state.solver.BVV(-1, 32)
                 else:
-                    return self.state.solver.BVV(1, self.state.arch.bits)
+                    return self.state.solver.BVV(1, 32)
 
         # the bytes
         max_byte_len = maxlen * char_size
@@ -96,9 +96,9 @@ class strncmp(angr.SimProcedure):
                 if a_conc != b_conc:
                     l.debug("... found mis-matching concrete bytes 0x%x and 0x%x", a_conc, b_conc)
                     if a_conc < b_conc:
-                        return self.state.solver.BVV(-1, self.state.arch.bits)
+                        return self.state.solver.BVV(-1, 32)
                     else:
-                        return self.state.solver.BVV(1, self.state.arch.bits)
+                        return self.state.solver.BVV(1, 32)
             else:
 
                 if self.state.mode == 'static':
@@ -131,14 +131,14 @@ class strncmp(angr.SimProcedure):
 
         if concrete_run:
             l.debug("concrete run made it to the end!")
-            return self.state.solver.BVV(0, self.state.arch.bits)
+            return self.state.solver.BVV(0, 32)
 
         if self.state.mode == 'static':
             ret_expr = self.state.solver.ESI(8)
             for expr in return_values:
                 ret_expr = ret_expr.union(expr)
 
-            ret_expr = ret_expr.sign_extend(self.state.arch.bits - 8)
+            ret_expr = ret_expr.sign_extend(24)
 
         else:
             # make the constraints
