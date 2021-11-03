@@ -28,7 +28,7 @@ class ProxiNodeTypes:
     Unknown = 5
 
 
-# TODO I can change ref_at to simply an int
+# TODO Check the set() for edge cases
 class BaseProxiNode:
     """
     Base class for all nodes in a proximity graph.
@@ -194,7 +194,7 @@ class NewProximityGraphAnalysis(Analysis):
                 func_node = n_
                 for block, _, data in func.transition_graph.in_edges(func_node, data=True):
                     if 'ins_addr' in data:
-                        node = CallProxiNode(func_node, ref_at=data['ins_addr'])
+                        node = CallProxiNode(func_node, ref_at={data['ins_addr']})
                         found_blocks[block] = node
 
         for edge in func.graph.edges:
@@ -203,7 +203,7 @@ class NewProximityGraphAnalysis(Analysis):
                 if block in found_blocks:
                     nodes += (found_blocks[block],)
                 else:
-                    nodes += (BaseProxiNode(ProxiNodeTypes.Empty, block.addr),)
+                    nodes += (BaseProxiNode(ProxiNodeTypes.Empty, {block.addr}),)
             graph.add_edge(*nodes)
 
     def _process_decompilation(self, graph: networkx.DiGraph):
@@ -234,13 +234,9 @@ class NewProximityGraphAnalysis(Analysis):
                         else:
                             # not a string. present it as a constant integer
                             args.append(IntegerProxiNode(arg.value, None))
-                    # TODO (last) change the need to supply byte string. Maybe add a new Node. TESTING
+                    # TODO change to VariableProxiNode
                     elif isinstance(arg, ailment.expression.Load):
-                        # TESTING
-                        try:
-                            args.append(StringProxiNode(arg.variable.addr, bytes(arg.variable.name, 'utf-8')))
-                        except:
-                            print("FAILED TO ADD STRING ARG")
+                        args.append(StringProxiNode(arg.variable.addr, bytes(arg.variable.name, 'utf-8')))
                     else:
                         args.append(UnknownProxiNode("_"))
 
@@ -279,7 +275,7 @@ class NewProximityGraphAnalysis(Analysis):
                     node = self.handled_node
                     self.handled_node = None
                 else:
-                    node = BaseProxiNode(ProxiNodeTypes.Empty, block.addr)
+                    node = BaseProxiNode(ProxiNodeTypes.Empty, {block.addr})
                 nodes += (node,)
 
             graph.add_edge(*nodes)
