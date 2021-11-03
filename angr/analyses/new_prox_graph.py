@@ -4,7 +4,6 @@ import logging
 import networkx
 
 import ailment
-import networkx as nx
 from angr.codenode import BlockNode
 
 from ..knowledge_plugins.functions import Function
