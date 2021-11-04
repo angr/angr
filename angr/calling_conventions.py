@@ -1057,7 +1057,33 @@ class SimCCCdecl(SimCC):
 
         return refine_locs_with_struct_type(self.arch, locs, arg_type)
 
-class SimCCStdcall(SimCCCdecl):
+    STRUCT_RETURN_THRESHOLD = 32
+
+    def return_val(self, ty, perspective_returned=False):
+        if not isinstance(ty, SimStruct):
+            return super().return_val(ty, perspective_returned)
+
+        if ty.size > self.STRUCT_RETURN_THRESHOLD:
+            # TODO this code is duplicated a ton of places. how should it be a function?
+            byte_size = ty.size // self.arch.byte_width
+            referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+            referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
+            if perspective_returned:
+                ptr_loc = self.RETURN_VAL
+            else:
+                ptr_loc = SimStackArg(0, 4)
+            reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
+            return reference_loc
+
+        return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
+
+    def return_in_implicit_outparam(self, ty):
+        return isinstance(ty, SimStruct) and ty.size > self.STRUCT_RETURN_THRESHOLD
+
+class SimCCMicrosoftCdecl(SimCCCdecl):
+    STRUCT_RETURN_THRESHOLD = 64
+
+class SimCCStdcall(SimCCMicrosoftCdecl):
     CALLEE_CLEANUP = True
 
 class SimCCMicrosoftFastcall(SimCC):
@@ -1106,6 +1132,9 @@ class SimCCMicrosoftAMD64(SimCC):
         referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
         reference_loc = SimReferenceArgument(int_loc, referenced_loc)
         return reference_loc
+
+    def return_in_implicit_outparam(self, ty):
+        return not isinstance(ty, SimTypeFloat) and ty.size > 64
 
 
 class SimCCSyscall(SimCC):
