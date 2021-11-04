@@ -544,12 +544,18 @@ class SimCC:
         out += self.STACKARG_SP_BUFF
         return out
 
-    def return_val(self, ty):
+    def return_val(self, ty, perspective_returned=False):
         """
         The location the return value is stored, based on its type.
         """
+        if isinstance(ty, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
+            raise TypeError(f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
+                            "implement its ABI logic")
         if self.return_in_implicit_outparam(ty):
-            ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()))
+            if perspective_returned:
+                ptr_loc = self.RETURN_VAL
+            else:
+                ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()))
             return SimReferenceArgument(ptr_loc, SimStackArg(0, ty.size // self.arch.byte_width, is_fp=isinstance(ty, SimTypeFloat)))
 
         if isinstance(ty, SimTypeFloat):
@@ -648,8 +654,9 @@ class SimCC:
         arg_locs = self.arg_locs(func_ty)
         return [loc.get_value(state, stack_base=stack_base) for loc in arg_locs]
 
-    def set_return_val(self, state, val, ty, stack_base=None):
-        self.return_val(ty).set_value(state, val, stack_base=stack_base)
+    def set_return_val(self, state, val, ty, stack_base=None, perspective_returned=False):
+        loc = self.return_val(ty, perspective_returned=perspective_returned)
+        loc.set_value(state, val, stack_base=stack_base)
 
     def setup_callsite(self, state, ret_addr, args, func_ty, stack_base=None, alloc_base=None, grow_like_stack=True):
         """
@@ -703,6 +710,15 @@ class SimCC:
             dumped = allocator.dump(val, state, loc=val.main_loc)
             vals[i] = dumped
             arg_locs[i] = val.ptr_loc
+
+        # step 1.75 allocate implicit outparam stuff
+        if self.return_in_implicit_outparam(func_ty.returnty):
+            loc = self.return_val(func_ty.returnty)
+            assert isinstance(loc, SimReferenceArgument)
+            # hack: because the allocator gives us a pointer that needs to be translated, we need to shove it into
+            # the args list so it'll be translated and stored once everything is laid out
+            vals.append(allocator.alloc(loc.main_loc.size))
+            arg_locs.append(loc.ptr_loc)
 
         #
         # STEP 2: decide on memory storage locations
@@ -764,7 +780,11 @@ class SimCC:
         Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
         """
         if return_val is not None:
-            self.return_val(func_ty.returnty).set_value(state, return_val)
+            loc = self.return_val(func_ty.returnty)
+            loc.set_value(state, return_val)
+            # ummmmmmmm hack
+            if isinstance(loc, SimReferenceArgument):
+                self.RETURN_VAL.set_value(state, loc.ptr_loc.get_value(state))
 
         ret_addr = self.return_addr.get_value(state)
 
@@ -1013,7 +1033,7 @@ class SimCCUsercall(SimCC):
     def next_arg(self, session, arg_type):
         return next(session.real_args)
 
-    def return_val(self, ty):
+    def return_val(self, ty, **kwargs):
         return self.ret_loc
 
 class SimCCCdecl(SimCC):
@@ -1128,10 +1148,10 @@ class SimCCSyscall(SimCC):
         self.ERROR_REG.set_value(state, error_reg_val)
         return expr
 
-    def set_return_val(self, state, val, ty, stack_base=None):
+    def set_return_val(self, state, val, ty, **kwargs):
         if self.ERROR_REG is not None:
             val = self.linux_syscall_update_error_reg(state, val)
-        super().set_return_val(state, val, ty, stack_base=stack_base)
+        super().set_return_val(state, val, ty, **kwargs)
 
 
 class SimCCX86LinuxSyscall(SimCCSyscall):
@@ -1177,7 +1197,8 @@ class SimCCSystemVAMD64(SimCC):
     RETURN_ADDR = SimStackArg(0, 8)
     RETURN_VAL = SimRegArg('rax', 8)
     OVERFLOW_RETURN_VAL = SimRegArg('rdx', 8)
-    FP_RETURN_VAL = SimRegArg('xmm0', 32)
+    FP_RETURN_VAL = SimRegArg('xmm0', 128)
+    OVERFLOW_FP_RETURN_VAL = SimRegArg('xmm1', 128)
     ARCH = archinfo.ArchAMD64
     STACK_ALIGNMENT = 16
 
@@ -1227,6 +1248,41 @@ class SimCCSystemVAMD64(SimCC):
             mapped_classes = [next(session.both_iter) for _ in classification]
 
         return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
+
+    def return_val(self, ty, perspective_returned=False):
+        classification = self._classify(ty)
+        if any(cls == 'MEMORY' for cls in classification):
+            assert all(cls == 'MEMORY' for cls in classification)
+            byte_size = ty.size // self.arch.byte_width
+            referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+            referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, ty)
+            if perspective_returned:
+                ptr_loc = self.RETURN_VAL
+            else:
+                ptr_loc = SimRegArg('rdi', 8)
+            reference_loc = SimReferenceArgument(ptr_loc, referenced_loc)
+            return reference_loc
+        else:
+            mapped_classes = []
+            int_iter = iter([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
+            fp_iter = iter([self.FP_RETURN_VAL, self.OVERFLOW_FP_RETURN_VAL])
+            for cls in classification:
+                if cls == 'SSEUP':
+                    mapped_classes.append(mapped_classes[-1].sse_extend(self.arch.bytes))
+                elif cls == 'NO_CLASS':
+                    raise NotImplementedError("Bug. Report to @rhelmot")
+                elif cls == 'INTEGER':
+                    mapped_classes.append(next(int_iter))
+                elif cls == 'SSE':
+                    mapped_classes.append(next(fp_iter))
+                else:
+                    raise NotImplementedError("Bug. Report to @rhelmot")
+
+            return refine_locs_with_struct_type(self.arch, mapped_classes, ty)
+
+    def return_in_implicit_outparam(self, ty):
+        # :P
+        return isinstance(self.return_val(ty), SimReferenceArgument)
 
     def _classify(self, ty, chunksize=None):
         if chunksize is None:
