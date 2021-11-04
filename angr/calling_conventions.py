@@ -1027,6 +1027,16 @@ class SimCCCdecl(SimCC):
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
 
+    def next_arg(self, session, arg_type):
+        locs_size = 0
+        byte_size = arg_type.size // self.arch.byte_width
+        locs = []
+        while locs_size < byte_size:
+            locs.append(next(session.both_iter))
+            locs_size += locs[-1].size
+
+        return refine_locs_with_struct_type(self.arch, locs, arg_type)
+
 class SimCCStdcall(SimCCCdecl):
     CALLEE_CLEANUP = True
 
