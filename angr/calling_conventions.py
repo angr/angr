@@ -28,11 +28,16 @@ class AllocHelper:
         self.ptr = self.base
         self.stores = {}
 
-    def dump(self, val, state):
-        self.stores[self.ptr.cache_key] = val
+    def alloc(self, size):
         out = self.ptr
-        self.ptr += self._calc_size(val, state.arch)
+        self.ptr += size
         return out
+
+    def dump(self, val, state, loc=None):
+        if loc is None:
+            loc = self.stack_loc(val, state.arch)
+        self.stores[self.ptr.cache_key] = (val, loc)
+        return self.alloc(self.calc_size(val, state.arch))
 
     def translate(self, val, base):
         if type(val) is SimStructValue:
@@ -46,10 +51,10 @@ class AllocHelper:
         raise TypeError(type(val))
 
     def apply(self, state, base):
-        for ptr, val in self.stores.items():
+        for ptr, (val, loc) in self.stores.items():
             translated_val = self.translate(val, base)
             translated_ptr = self.translate(ptr.ast, base)
-            self._adlib_loc(translated_val, state.arch).set_value(state, translated_val, stack_base=translated_ptr)
+            loc.set_value(state, translated_val, stack_base=translated_ptr)
 
     def size(self):
         val = self.translate(self.ptr, claripy.BVV(0, len(self.ptr)))
@@ -57,31 +62,72 @@ class AllocHelper:
         return abs(val.args[0])
 
     @classmethod
-    def _calc_size(cls, val, arch):
+    def calc_size(cls, val, arch):
         if type(val) is SimStructValue:
             return val.struct.size // arch.byte_width
         if isinstance(val, claripy.Bits):
             return len(val) // arch.byte_width
         if type(val) is list:
-            return cls._calc_size(val[0], arch) * len(val)
+            # TODO real strides
+            if len(val) == 0:
+                return 0
+            return cls.calc_size(val[0], arch) * len(val)
         raise TypeError(type(val))
 
     @classmethod
-    def _adlib_loc(cls, val, arch, offset=0):
+    def stack_loc(cls, val, arch, offset=0):
         if isinstance(val, claripy.Bits):
             return SimStackArg(offset, len(val) // arch.byte_width)
         if type(val) is list:
             # TODO real strides
             if len(val) == 0:
                 return SimArrayArg([])
-            stride = cls._calc_size(val[0], arch)
-            return SimArrayArg([cls._adlib_loc(subval, arch, offset + i * stride) for i, subval in enumerate(val)])
+            stride = cls.calc_size(val[0], arch)
+            return SimArrayArg([cls.stack_loc(subval, arch, offset + i * stride) for i, subval in enumerate(val)])
         if type(val) is SimStructValue:
             return SimStructArg(val.struct, {
-                field: cls._adlib_loc(subval, arch, offset + val.struct.offsets[field])
+                field: cls.stack_loc(subval, arch, offset + val.struct.offsets[field])
                 for field, subval in val.fields.items()
             })
         raise TypeError(type(val))
+
+def refine_locs_with_struct_type(arch, locs, arg_type, offset=0):
+    # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
+    # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
+    # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
+    if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
+        seen_bytes = 0
+        pieces = []
+        while seen_bytes < arg_type.size // arch.byte_width:
+            start_offset = offset + seen_bytes
+            chunk = start_offset // arch.bytes
+            chunk_offset = start_offset % arch.bytes
+            chunk_remaining = arch.bytes - chunk_offset
+            type_remaining = arg_type.size // arch.byte_width - seen_bytes
+            use_bytes = min(chunk_remaining, type_remaining)
+            pieces.append(locs[chunk].refine(size=use_bytes, offset=chunk_offset))
+            seen_bytes += use_bytes
+
+        if len(pieces) == 1:
+            piece = pieces[0]
+        else:
+            piece = SimComboArg(pieces)
+        if isinstance(arg_type, SimTypeFloat):
+            piece.is_fp = True
+        return piece
+    if isinstance(arg_type, SimTypeFixedSizeArray):
+        # TODO explicit stride
+        locs = [
+            refine_locs_with_struct_type(locs, arg_type.elem_type, offset + i * arg_type.size // arch.byte_width)
+            for i in range(arg_type.length)
+        ]
+        return SimArrayArg(locs)
+    if isinstance(arg_type, SimStruct):
+        locs = {
+            field: refine_locs_with_struct_type(locs, field_ty, offset + arg_type.offsets[field]) for field, field_ty in arg_type.fields.items()
+        }
+        return SimStructArg(arg_type, locs)
+    raise TypeError("I don't know how to lay out a %s" % arg_type)
 
 class SerializableIterator:
     def __iter__(self):
@@ -650,6 +696,14 @@ class SimCC:
         vals = [self._standardize_value(arg, ty, state, allocator.dump) for arg, ty in zip(args, func_ty.args)]
         arg_locs = self.arg_locs(func_ty)
 
+        # step 1.5, gotta handle the SimReferenceArguments correctly
+        for i, (loc, val) in enumerate(zip(arg_locs, vals)):
+            if not isinstance(loc, SimReferenceArgument):
+                continue
+            dumped = allocator.dump(val, state, loc=val.main_loc)
+            vals[i] = dumped
+            arg_locs[i] = val.ptr_loc
+
         #
         # STEP 2: decide on memory storage locations
         # implement the contract for stack_base/alloc_base/grow_like_stack
@@ -983,6 +1037,13 @@ class SimCCMicrosoftFastcall(SimCC):
     RETURN_ADDR = SimStackArg(0, 4)
     ARCH = archinfo.ArchX86
 
+class MicrosoftAMD64ArgSession:
+    def __init__(self, cc):
+        self.cc = cc
+        self.int_iter = cc.int_args
+        self.fp_iter = cc.fp_args
+        self.both_iter = cc.both_args
+
 class SimCCMicrosoftAMD64(SimCC):
     ARG_REGS = ['rcx', 'rdx', 'r8', 'r9']
     FP_ARG_REGS = ['xmm0', 'xmm1', 'xmm2', 'xmm3']
@@ -994,6 +1055,27 @@ class SimCCMicrosoftAMD64(SimCC):
     RETURN_ADDR = SimStackArg(0, 8)
     ARCH = archinfo.ArchAMD64
     STACK_ALIGNMENT = 16
+
+    ArgSession = MicrosoftAMD64ArgSession
+    def next_arg(self, session, arg_type):
+        try:
+            int_loc = next(session.int_iter)
+            fp_loc = next(session.fp_iter)
+        except StopIteration:
+            int_loc = fp_loc = next(session.both_iter)
+
+        byte_size = arg_type.size // self.arch.byte_width
+
+        if isinstance(arg_type, SimTypeFloat):
+            return fp_loc.refine(size=byte_size, is_fp=True, arch=self.arch)
+
+        if byte_size <= int_loc.size:
+            return int_loc.refine(size=byte_size, is_fp=False, arch=self.arch)
+
+        referenced_locs = [SimStackArg(offset, self.arch.bytes) for offset in range(0, byte_size, self.arch.bytes)]
+        referenced_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
+        reference_loc = SimReferenceArgument(int_loc, referenced_loc)
+        return reference_loc
 
 
 class SimCCSyscall(SimCC):
@@ -1134,7 +1216,7 @@ class SimCCSystemVAMD64(SimCC):
             session.setstate(state)
             mapped_classes = [next(session.both_iter) for _ in classification]
 
-        return self._refine_locs_with_type(mapped_classes, arg_type)
+        return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
 
     def _classify(self, ty, chunksize=None):
         if chunksize is None:
@@ -1215,47 +1297,6 @@ class SimCCSystemVAMD64(SimCC):
             return 'INTEGER'
         return 'SSE'
 
-    def _refine_locs_with_type(self, mapped_classes, arg_type, offset=0):
-        if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
-            seen_bytes = 0
-            pieces = []
-            while seen_bytes < arg_type.size // self.arch.byte_width:
-                start_offset = offset + seen_bytes
-                chunk = start_offset // self.arch.bytes
-                chunk_offset = start_offset % self.arch.bytes
-                chunk_remaining = self.arch.bytes - chunk_offset
-                type_remaining = arg_type.size // self.arch.byte_width - seen_bytes
-                use_bytes = min(chunk_remaining, type_remaining)
-                pieces.append(mapped_classes[chunk].refine(size=use_bytes, offset=chunk_offset))
-                seen_bytes += use_bytes
-
-            if len(pieces) == 1:
-                piece = pieces[0]
-            else:
-                piece = SimComboArg(pieces)
-            if isinstance(arg_type, SimTypeFloat):
-                piece.is_fp = True
-            return piece
-        if isinstance(arg_type, SimTypeFixedSizeArray):
-            # TODO explicit stride
-            locs = [
-                self._refine_locs_with_type(
-                    mapped_classes,
-                    arg_type.elem_type,
-                    offset + i*arg_type.size//self.arch.byte_width)
-                for i in range(arg_type.length)
-            ]
-            return SimArrayArg(locs)
-        if isinstance(arg_type, SimStruct):
-            locs = {
-                field: self._refine_locs_with_type(
-                    mapped_classes,
-                    field_ty,
-                    offset + arg_type.offsets[field]
-                ) for field, field_ty in arg_type.fields.items()
-            }
-            return SimStructArg(arg_type, locs)
-        raise TypeError("I don't know how to lay out a %s" % arg_type)
 
 class SimCCAMD64LinuxSyscall(SimCCSyscall):
     ARG_REGS = ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9']
