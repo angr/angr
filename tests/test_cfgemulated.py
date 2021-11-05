@@ -81,7 +81,10 @@ def compare_cfg(standard, g, function_list):
             l.error("Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.", get_function_name(src), src, get_function_name(dst), dst)
 
 def perform_single(binary_path, cfg_path=None):
-    proj = angr.Project(binary_path, use_sim_procedures=True, default_analysis_mode='symbolic',load_options={'auto_load_libs': False})
+     proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        page_size=1), 
+                        load_options={'auto_load_libs': False})
     start = time.time()
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
     end = time.time()

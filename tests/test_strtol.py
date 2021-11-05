@@ -14,7 +14,8 @@ class TestStrtol(unittest.TestCase):
     @unittest.skipUnless(sys.platform.startswith("linux"), "linux-only")
     def test_strtol(self, threads=None):
         test_bin = os.path.join(bin_location, "tests", "x86_64", "strtol_test")
-        b = angr.Project(test_bin, auto_load_libs=True)#disabling auto_load_libs increases the execution time of the test case.
+        # disabling auto_load_libs increases the execution time of the test case.
+        b = angr.Project(test_bin, auto_load_libs=True)
 
         initial_state = b.factory.entry_state(remove_options={angr.options.LAZY_SOLVES})
         pg = b.factory.simulation_manager(thing=initial_state, threads=threads)

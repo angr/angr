@@ -32,7 +32,8 @@ corrupt_addrs = {
 }
 
 def run_fauxware_override(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False) #auto_load_libs can't be disabled as the test fails
+    # auto_load_libs can't be disabled as the test fails
+    p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False)
     s = p.factory.full_init_state()
 
     def overwrite_str(state):
