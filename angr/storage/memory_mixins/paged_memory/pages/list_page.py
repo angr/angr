@@ -154,7 +154,9 @@ class ListPage(MemoryObjectMixin, PageBase):
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
                 if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
-                    merged_label = self._merge_labels([mo_.label for mo_, _ in memory_objects], memory=memory)
+                    labels = [(mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {})
+                              for mo_, _ in memory_objects]
+                    merged_label = self._merge_labels(labels, memory=memory)
                     new_mo = SimLabeledMemoryObject(merged_val, mo_base, endness=the_endness, label=merged_label)
                 else:
                     new_mo = SimMemoryObject(merged_val, mo_base, endness=the_endness)
@@ -195,7 +197,9 @@ class ListPage(MemoryObjectMixin, PageBase):
                     continue
 
                 if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
-                    merged_label = self._merge_labels([mo_.label for mo_, _ in memory_objects], memory=memory)
+                    labels = [(mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {})
+                              for mo_, _ in memory_objects]
+                    merged_label = self._merge_labels(labels, memory=memory)
                     new_mo = SimLabeledMemoryObject(merged_val, page_addr+b, endness='Iend_BE', label=merged_label)
                 else:
                     new_mo = SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE'),
