@@ -130,12 +130,13 @@ class PropValue:
         offset_and_details = {}
         for offset, offset_in_expr, size, label in labels:
             expr = label['expr']
-            if offset_in_expr != 0:
-                expr = PropValue.extract_ail_expression(offset_in_expr * 8, size * 8, expr)
-            elif size < expr.size:
-                expr = PropValue.extract_ail_expression(0, size * 8, expr)
-            elif size > expr.size:
-                expr = PropValue.extend_ail_expression((size - expr.size) * 8, expr)
+            if expr is not None:
+                if offset_in_expr != 0:
+                    expr = PropValue.extract_ail_expression(offset_in_expr * 8, size * 8, expr)
+                elif size < expr.size:
+                    expr = PropValue.extract_ail_expression(0, size * 8, expr)
+                elif size > expr.size:
+                    expr = PropValue.extend_ail_expression((size - expr.size) * 8, expr)
             offset_and_details[offset] = Detail(size, expr, label['def_at'])
         return PropValue(value, offset_and_details=offset_and_details)
 
@@ -149,7 +150,7 @@ class PropValue:
 
     @staticmethod
     def extract_ail_expression(start: int, bits: int,
-                                expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+                               expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
         if isinstance(expr, ailment.Expr.Const):
             mask = (1 << bits) - 1
             return ailment.Expr.Const(expr.idx, expr.variable, (expr.value >> start) & mask, bits, **expr.tags)

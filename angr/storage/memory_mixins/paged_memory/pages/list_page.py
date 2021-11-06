@@ -3,7 +3,7 @@ import logging
 from typing import Optional, List, Set, Tuple
 
 from . import PageBase
-from angr.storage.memory_object import SimMemoryObject
+from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .cooperation import MemoryObjectMixin
 
 
@@ -153,8 +153,13 @@ class ListPage(MemoryObjectMixin, PageBase):
                 # TODO: Implement in-place replacement instead of calling store()
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
+                if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
+                    merged_label = self._merge_labels([mo_.label for mo_, _ in memory_objects], memory=memory)
+                    new_mo = SimLabeledMemoryObject(merged_val, mo_base, endness=the_endness, label=merged_label)
+                else:
+                    new_mo = SimMemoryObject(merged_val, mo_base, endness=the_endness)
                 self.store(b,
-                           SimMemoryObject(merged_val, mo_base, endness=the_endness),
+                           new_mo,
                            size=size,
                            cooperate=True
                            )
@@ -189,8 +194,13 @@ class ListPage(MemoryObjectMixin, PageBase):
                 if merged_val is None:
                     continue
 
+                if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
+                    merged_label = self._merge_labels([mo_.label for mo_, _ in memory_objects], memory=memory)
+                    new_mo = SimLabeledMemoryObject(merged_val, page_addr+b, endness='Iend_BE', label=merged_label)
+                else:
+                    new_mo = SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE'),
                 self.store(b,
-                           SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE'),
+                           new_mo,
                            size=min_size,
                            endness='Iend_BE', cooperate=True
                            )  # do not convert endianness again
