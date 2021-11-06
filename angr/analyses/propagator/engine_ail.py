@@ -339,7 +339,7 @@ class SimEnginePropagatorAIL(
                         new_expr.size - new_size,
                         Expr.Const(expr.idx, None, 0, new_expr.to_bits - new_expr.from_bits),
                         self._codeloc()),
-                    new_size: Detail(new_size, new_expr.operand, o_defat),
+                    new_expr.size - new_size: Detail(new_size, new_expr.operand, o_defat),
                 }
             else:
                 offset_and_details = {0: Detail(expr.size, new_expr, self._codeloc())}
