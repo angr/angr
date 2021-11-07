@@ -163,8 +163,9 @@ class SimEnginePropagatorAIL(
             all_subexprs = list(tmp.all_exprs())
             if None in all_subexprs or \
                     any(self.is_using_outdated_def(sub_expr, avoid=expr) for sub_expr in all_subexprs):
-                return PropValue.from_value_and_details(
-                    self.state.top(expr.size * self.arch.byte_width), expr.size, expr, self._codeloc())
+                top = self.state.top(expr.size * self.arch.byte_width)
+                self.state.add_replacement(self._codeloc(), expr, top)
+                return PropValue.from_value_and_details(top, expr.size, expr, self._codeloc())
 
             if len(all_subexprs) == 1 and 0 in tmp.offset_and_details and tmp.offset_and_details[0].size == expr.size:
                 subexpr = all_subexprs[0]
@@ -172,7 +173,9 @@ class SimEnginePropagatorAIL(
                 self.state.add_replacement(self._codeloc(), expr, subexpr)
             elif tmp.offset_and_details and 0 in tmp.offset_and_details:
                 non_zero_subexprs = list(tmp.non_zero_exprs())
-                if len(non_zero_subexprs) == 1 and non_zero_subexprs[0] is tmp.offset_and_details[0].expr:
+                non_zero_keys = [ off for off in tmp.offset_and_details.keys() if off != 0 ]
+                if len(non_zero_subexprs) == 1 and len(non_zero_keys) == 1 and\
+                        non_zero_subexprs[0] is tmp.offset_and_details[non_zero_keys[0]].expr:
                     # we will use the zero-extended version as the replacement
                     subexpr = non_zero_subexprs[0]
                     subexpr = PropValue.extend_ail_expression(expr.bits - subexpr.bits, subexpr)
