@@ -173,9 +173,7 @@ class SimEnginePropagatorAIL(
                 self.state.add_replacement(self._codeloc(), expr, subexpr)
             elif tmp.offset_and_details and 0 in tmp.offset_and_details:
                 non_zero_subexprs = list(tmp.non_zero_exprs())
-                non_zero_keys = [ off for off in tmp.offset_and_details.keys() if off != 0 ]
-                if len(non_zero_subexprs) == 1 and len(non_zero_keys) == 1 and\
-                        non_zero_subexprs[0] is tmp.offset_and_details[non_zero_keys[0]].expr:
+                if len(non_zero_subexprs) == 1 and non_zero_subexprs[0] is tmp.offset_and_details[0].expr:
                     # we will use the zero-extended version as the replacement
                     subexpr = non_zero_subexprs[0]
                     subexpr = PropValue.extend_ail_expression(expr.bits - subexpr.bits, subexpr)
@@ -215,9 +213,9 @@ class SimEnginePropagatorAIL(
         def _test_concatenation(pv: PropValue):
             if pv.offset_and_details is not None and len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
                 # values are in big endian
-                hi_value = pv.offset_and_details[0]
-                lo_offset = next(iter(k for k in pv.offset_and_details if k != 0))
-                lo_value = pv.offset_and_details[lo_offset]
+                lo_value = pv.offset_and_details[0]
+                hi_offset = next(iter(k for k in pv.offset_and_details if k != 0))
+                hi_value = pv.offset_and_details[hi_offset]
                 if lo_value.def_at == hi_value.def_at:
                     # it's the same value! we can apply concatenation here
                     if isinstance(hi_value.expr, Expr.Const) and hi_value.expr.value == 0:
@@ -340,11 +338,11 @@ class SimEnginePropagatorAIL(
                 # special handling for zero-extension: it simplifies the code if we explicitly model zeros
                 new_size = new_expr.from_bits // self.arch.byte_width
                 offset_and_details = {
-                    0: Detail(
+                    0: Detail(new_size, new_expr.operand, o_defat),
+                    new_size: Detail(
                         new_expr.size - new_size,
                         Expr.Const(expr.idx, None, 0, new_expr.to_bits - new_expr.from_bits),
                         self._codeloc()),
-                    new_expr.size - new_size: Detail(new_size, new_expr.operand, o_defat),
                 }
             else:
                 offset_and_details = {0: Detail(expr.size, new_expr, self._codeloc())}
@@ -353,11 +351,8 @@ class SimEnginePropagatorAIL(
 
         elif o_value.offset_and_details:
             # hard cases... we will keep certain labels and eliminate other labels
-            # note that value is stored in big-endian
-            # so if we want to convert a 64-bit integer to a 32-bit integer, we will take bytes 4 - 7 and drop bytes
-            # 0 - 3.
-            end_offset = expr.from_bits // self.arch.byte_width  # end_offset is exclusive
-            start_offset = expr.from_bits // self.arch.byte_width - expr.to_bits // self.arch.byte_width
+            start_offset = 0
+            end_offset = expr.to_bits // self.arch.byte_width  # end_offset is exclusive
             offset_and_details = {}
             max_offset = max(o_value.offset_and_details.keys())
             for offset_, detail_ in o_value.offset_and_details.items():
