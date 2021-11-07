@@ -202,7 +202,7 @@ class ListPage(MemoryObjectMixin, PageBase):
                     merged_label = self._merge_labels(labels, memory=memory)
                     new_mo = SimLabeledMemoryObject(merged_val, page_addr+b, endness='Iend_BE', label=merged_label)
                 else:
-                    new_mo = SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE'),
+                    new_mo = SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE')
                 self.store(b,
                            new_mo,
                            size=min_size,
