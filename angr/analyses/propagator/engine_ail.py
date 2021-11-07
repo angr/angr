@@ -161,9 +161,11 @@ class SimEnginePropagatorAIL(
         if tmp is not None:
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
-            if any(self.is_using_outdated_def(sub_expr, avoid=expr) for sub_expr in all_subexprs):
-                return PropValue.from_value_and_details(
-                    self.state.top(expr.size * self.arch.byte_width), expr.size, expr, self._codeloc())
+            if None in all_subexprs or \
+                    any(self.is_using_outdated_def(sub_expr, avoid=expr) for sub_expr in all_subexprs):
+                top = self.state.top(expr.size * self.arch.byte_width)
+                self.state.add_replacement(self._codeloc(), expr, top)
+                return PropValue.from_value_and_details(top, expr.size, expr, self._codeloc())
 
             if len(all_subexprs) == 1 and 0 in tmp.offset_and_details and tmp.offset_and_details[0].size == expr.size:
                 subexpr = all_subexprs[0]
@@ -240,7 +242,8 @@ class SimEnginePropagatorAIL(
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
             all_subexprs = list(new_expr.all_exprs())
-            if all_subexprs and not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
+            if all_subexprs and None not in all_subexprs \
+                    and not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
@@ -348,7 +351,7 @@ class SimEnginePropagatorAIL(
         elif o_value.offset_and_details:
             # hard cases... we will keep certain labels and eliminate other labels
             start_offset = 0
-            end_offset = expr.to_bits // self.arch.byte_width
+            end_offset = expr.to_bits // self.arch.byte_width  # end_offset is exclusive
             offset_and_details = {}
             max_offset = max(o_value.offset_and_details.keys())
             for offset_, detail_ in o_value.offset_and_details.items():
