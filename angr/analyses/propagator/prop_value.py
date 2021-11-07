@@ -14,7 +14,7 @@ class Detail:
 
     __slots__ = ('size', 'expr', 'def_at')
 
-    def __init__(self, size: int, expr: ailment.Expression, def_at: 'CodeLocation'):
+    def __init__(self, size: int, expr: Optional[ailment.Expression], def_at: 'CodeLocation'):
         self.size = size
         self.expr = expr
         self.def_at = def_at
@@ -150,7 +150,10 @@ class PropValue:
 
     @staticmethod
     def extract_ail_expression(start: int, bits: int,
-                               expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+                               expr: Optional[ailment.Expr.Expression]) -> Optional[ailment.Expr.Expression]:
+        if expr is None:
+            return None
+
         if isinstance(expr, ailment.Expr.Const):
             mask = (1 << bits) - 1
             return ailment.Expr.Const(expr.idx, expr.variable, (expr.value >> start) & mask, bits, **expr.tags)
@@ -162,7 +165,9 @@ class PropValue:
             return ailment.Expr.Convert(None, a.bits, bits, False, a)
 
     @staticmethod
-    def extend_ail_expression(bits: int, expr: ailment.Expr.Expression) -> Optional[ailment.Expr.Expression]:
+    def extend_ail_expression(bits: int, expr: Optional[ailment.Expr.Expression]) -> Optional[ailment.Expr.Expression]:
+        if expr is None:
+            return None
         if isinstance(expr, ailment.Expr.Const):
             return ailment.Expr.Const(expr.idx, expr.variable, expr.value, bits + expr.bits, **expr.tags)
         elif isinstance(expr, ailment.Expr.Convert):

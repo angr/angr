@@ -360,14 +360,11 @@ class SimEnginePropagatorAIL(
                     # we start here
                     off = 0
                     siz = min(end_offset, offset_ + detail_.size) - start_offset
-                    if detail_.expr is None:
-                        expr_ = None
-                    else:
-                        expr_ = PropValue.extract_ail_expression(
-                            (start_offset - offset_) * self.arch.byte_width,
-                            siz * self.arch.byte_width,
-                            detail_.expr
-                        )
+                    expr_ = PropValue.extract_ail_expression(
+                        (start_offset - offset_) * self.arch.byte_width,
+                        siz * self.arch.byte_width,
+                        detail_.expr
+                    )
                     offset_and_details[off] = Detail(siz, expr_, detail_.def_at)
                 elif offset_ >= start_offset and offset_ + detail_.size <= end_offset:
                     # we include the whole thing
