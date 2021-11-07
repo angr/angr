@@ -4,6 +4,9 @@ from . import MemoryMixin
 
 
 class LabelMergerMixin(MemoryMixin):
+    """
+    A memory mixin for merging labels. Labels come from SimLabeledMemoryObject.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

@@ -1,9 +1,12 @@
-from typing import Iterable, Tuple, Any, Callable, Dict, Optional
+from typing import Iterable, Tuple, Any, Callable
 
 from . import MemoryMixin
 
 
 class TopMergerMixin(MemoryMixin):
+    """
+    A memory mixin for merging values in memory to TOP.
+    """
     def __init__(self, *args, top_func=None, **kwargs):
         self._top_func: Callable = top_func
 

@@ -1,8 +1,9 @@
+# pylint:disable=missing-class-docstring
 import re
 import unittest
 
-import angr
 import ailment
+import angr
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 
 
@@ -18,7 +19,7 @@ class TestPropagatorLoops(unittest.TestCase):
         p.analyses.CFGFast(normalize=True)
         f = p.kb.functions[0]
         banner('Raw AIL Nodes')
-        nodes = sorted([n for n in f.nodes], key=lambda n: n.addr)
+        nodes = sorted(list(f.nodes), key=lambda n: n.addr)
         am = ailment.Manager(arch=p.arch)
         for n in nodes:
             b = p.factory.block(n.addr, n.size)
@@ -27,8 +28,8 @@ class TestPropagatorLoops(unittest.TestCase):
         print('')
         banner('Optimized AIL Nodes')
         a = p.analyses.Clinic(f)
-        nodes = sorted([n for n in a.graph.nodes], key=lambda n: n.addr)
-        assert(len(nodes) == 3)
+        nodes = sorted(list(a.graph.nodes), key=lambda n: n.addr)
+        assert len(nodes) == 3
         for n in nodes:
             print(n)
         print('')
@@ -49,8 +50,8 @@ class TestPropagatorLoops(unittest.TestCase):
         ri = p.analyses.RegionIdentifier(f, graph=a.graph, cond_proc=cond_proc, kb=p.kb)
         rs = p.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=p.kb, func=f)
         snodes = rs.result.nodes
-        assert(len(snodes) == 3)
-        assert(isinstance(snodes[1], angr.analyses.decompiler.structurer_nodes.LoopNode))
+        assert len(snodes) == 3
+        assert isinstance(snodes[1], angr.analyses.decompiler.structurer_nodes.LoopNode)
         banner('Condition')
         print(str(snodes[1].condition))
         return snodes[1].condition

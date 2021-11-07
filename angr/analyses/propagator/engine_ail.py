@@ -242,7 +242,8 @@ class SimEnginePropagatorAIL(
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
             all_subexprs = list(new_expr.all_exprs())
-            if all_subexprs and None not in all_subexprs and not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
+            if all_subexprs and None not in all_subexprs \
+                    and not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
