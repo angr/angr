@@ -211,9 +211,10 @@ class SimEnginePropagatorAIL(
 
         def _test_concatenation(pv: PropValue):
             if pv.offset_and_details is not None and len(pv.offset_and_details) == 2 and 0 in pv.offset_and_details:
-                lo_value = pv.offset_and_details[0]
-                hi_offset = next(iter(k for k in pv.offset_and_details if k != 0))
-                hi_value = pv.offset_and_details[hi_offset]
+                # values are in big endian
+                hi_value = pv.offset_and_details[0]
+                lo_offset = next(iter(k for k in pv.offset_and_details if k != 0))
+                lo_value = pv.offset_and_details[lo_offset]
                 if lo_value.def_at == hi_value.def_at:
                     # it's the same value! we can apply concatenation here
                     if isinstance(hi_value.expr, Expr.Const) and hi_value.expr.value == 0:
