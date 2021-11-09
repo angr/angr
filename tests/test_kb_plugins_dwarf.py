@@ -9,7 +9,7 @@ def test_kb_plugins_dwarf():
     p = angr.Project(os.path.join(location, 'x86_64', 'state_merge_0'), load_options={
         "load_debug_info":True,
         "auto_load_libs": False,
-        } )
+    } )
     nose.tools.assert_is_instance(p.kb.variables, angr.knowledge_plugins.VariableManager)
     p.kb.variables.load_from_dwarf()
 
