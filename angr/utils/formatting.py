@@ -11,10 +11,8 @@ ansi_color_enabled: bool = False
 
 def setup_terminal():
     """
-    Check if we are running in a TTY. If so, make sure the terminal supports
-    ANSI escape sequences. If not, disable colorized output. Sets global
-    `ansi_color_enabled` to True if colorized output should be enabled by
-    default.
+    Check if we are running in a TTY. If so, make sure the terminal supports ANSI escape sequences. If not, disable
+    colorized output. Sets global `ansi_color_enabled` to True if colorized output should be enabled by default.
     """
     isatty = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
                and hasattr(sys.stderr, 'isatty') and sys.stderr.isatty())
@@ -30,9 +28,8 @@ def ansi_color(s: str, color: Optional[str]) -> str:
     """
     Colorize string `s` by wrapping in ANSI escape sequence for given `color`.
 
-    This function does not consider whether escape sequences are functional or
-    not; it is up to the caller to determine if its appropriate. Check global
-    `ansi_color_enabled` value in this module.
+    This function does not consider whether escape sequences are functional or not; it is up to the caller to determine
+    if its appropriate. Check global `ansi_color_enabled` value in this module.
     """
     if color is None:
         return s
