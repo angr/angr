@@ -61,7 +61,7 @@ def ansi_color(s: str, color: Optional[str]) -> str:
 
 def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: int,
                        formatter: Optional[Callable[[str], str]] = None,
-                       dashed: bool = False, ascii_only: bool = False):
+                       dashed: bool = False, ascii_only: Optional[bool] = None):
     """
     Draw an edge by adding Unicode box and arrow glyphs to beginning of each line in a list of lines.
 
@@ -71,12 +71,17 @@ def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: 
     :param end: End line, where arrow points.
     :param formatter: Optional callback function used to format the edge before writing it to output buffer.
     :param dashed: Render edge line dashed instead of solid.
+    :param ascii_only: Render edge using ASCII characters only. If unspecified, guess by stdout encoding.
     :return:
     """
     abs_start  = min(start, end)
     abs_end    = max(start, end)
     max_depth  = max(map(len, ref[abs_start:abs_end+1]))
     descending = start < end
+
+    if ascii_only is None:
+        # Guess whether we should only use ASCII characters based on stdout encoding
+        ascii_only = getattr(sys.stdout, 'encoding', None) != 'utf-8'
 
     if ascii_only:
         chars = {
