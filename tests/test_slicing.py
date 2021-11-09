@@ -14,7 +14,10 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 
 
 def test_find_exits():
-    slicing_test = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_1'),use_sim_procedures=True, default_analysis_mode='symbolic', auto_load_libs=False)
+    slicing_test = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_1'),
+                                use_sim_procedures=True,
+                                default_analysis_mode='symbolic',
+                                auto_load_libs=False)
 
     l.info("Unit test for BackwardSlice._find_exits()")
     cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2, keep_state=True)
