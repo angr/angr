@@ -1064,7 +1064,7 @@ class Disassembly(Analysis):
             else:
                 buf.append(item.render(formatting))
 
-        if self._graph is not None and show_edges and len(buf) > 0:
+        if self._graph is not None and show_edges and buf:
             edges_by_line = set()
             for edge in self._graph.edges.items():
                 from_block, to_block = edge[0]
@@ -1080,8 +1080,9 @@ class Disassembly(Analysis):
             # Render block edges, to a reference buffer for tracking and output buffer for display
             edge_buf = ['' for _ in buf]
             ref_buf = ['' for _ in buf]
+            edge_col = col('edge')
             for f, t in sorted(edges_by_line, key=lambda e: abs(e[0]-e[1])):
-                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, col('edge')), ascii_only=ascii_only)
+                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, edge_col), ascii_only=ascii_only)
                 add_edge_to_buffer(ref_buf, ref_buf, f, t, ascii_only=ascii_only)
             max_edge_depth = max(map(len, ref_buf))
 
