@@ -964,13 +964,13 @@ class Disassembly(Analysis):
             b = self.project.factory.block(block.addr, size=block.size)
             self._add_block_ir_to_results(block, b.vex)
 
-    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True, show_bytes: bool = True) -> str:
+    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True, show_bytes: bool = False) -> str:
         """
         Render the disassembly to a string, with optional edges and addresses.
 
         Color will be added by default, if enabled. To disable color pass an empty formatting dict.
         """
-        max_bytes_per_line = 7
+        max_bytes_per_line = 5
         bytes_width = max_bytes_per_line*3+1
         a2ln = defaultdict(list)
         buf = []
