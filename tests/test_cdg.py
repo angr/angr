@@ -20,6 +20,7 @@ def test_graph_0():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'datadep_test'),
                      load_options={'auto_load_libs': False},
                      use_sim_procedures=True)
+    
     # Create the CDG analysis
     cfg = p.analyses.CFGEmulated(no_construct=True)
 
