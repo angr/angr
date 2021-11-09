@@ -1,6 +1,6 @@
 import logging
 from collections import defaultdict
-from typing import Union, Optional, Sequence, Tuple
+from typing import Union, Optional, Sequence, Tuple, Any
 
 import pyvex
 from angr.knowledge_plugins import Function
@@ -964,12 +964,14 @@ class Disassembly(Analysis):
             b = self.project.factory.block(block.addr, size=block.size)
             self._add_block_ir_to_results(block, b.vex)
 
-    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True) -> str:
+    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True, show_bytes: bool = True) -> str:
         """
         Render the disassembly to a string, with optional edges and addresses.
 
         Color will be added by default, if enabled. To disable color pass an empty formatting dict.
         """
+        max_bytes_per_line = 7
+        bytes_width = max_bytes_per_line*3+1
         a2ln = defaultdict(list)
         buf = []
 
@@ -977,6 +979,7 @@ class Disassembly(Analysis):
             formatting = {
                 'colors': {
                     'address':       'gray',
+                    'bytes':         'cyan',
                     'edge':          'yellow',
                     Label:           'bright_yellow',
                     ConstantOperand: 'cyan',
@@ -986,46 +989,77 @@ class Disassembly(Analysis):
                 'format_callback': lambda item, s: ansi_color(s, formatting['colors'].get(type(item), None))
             }
 
-        def col(item):
+        def col(item: Any) -> Optional[str]:
             try:
                 return formatting['colors'][item]
             except KeyError:
                 return None
 
-        def format_address(addr, color=True) -> str:
+        def format_address(addr: int, color: bool = True) -> str:
             if not show_addresses:
                 return ''
-            a = f'{addr:x}'
-            pad = '  '
-            if not color:
-                return a + pad
-            return ansi_color(a, col('address')) + pad
+            a, pad = f'{addr:x}', '  '
+            return (ansi_color(a, col('address')) if color else a) + pad
 
-        def format_comment(text) -> str:
-            return ansi_color(' ; ' + text, col(Comment))
+        def format_bytes(data: bytes, color: bool = True) -> str:
+            s = ' '.join(f'{x:02x}' for x in data).ljust(bytes_width)
+            return ansi_color(s, col('bytes')) if color else s
+
+        def format_comment(text: str, color: bool = True) -> str:
+            s = ' ; ' + text
+            return ansi_color(s, col(Comment)) if color else s
 
         comment = None
+
         for item in self.raw_result:
             if isinstance(item, BlockStart):
                 if len(buf) > 0:
                     buf.append('')
             elif isinstance(item, Label):
                 pad = len(format_address(item.addr, False)) * ' '
+                if show_bytes:
+                    pad += bytes_width * ' '
                 buf.append(pad + item.render(formatting)[0])
             elif isinstance(item, Comment):
                 comment = item
             elif isinstance(item, Instruction):
                 a2ln[item.addr].append(len(buf))
-                s_plain = format_address(item.addr, False) + item.render()[0]
-                s = format_address(item.addr) + item.render(formatting)[0]
+                lines = []
+
+                # Chop instruction bytes into line segments
+                p, insn_bytes = 0, []
+                while show_bytes and p < len(item.insn.bytes):
+                    s = item.insn.bytes[p:p+min(len(item.insn.bytes)-p, max_bytes_per_line)]
+                    p += len(s)
+                    insn_bytes.append(s)
+
+                # Format the instruction's address, bytes, disassembly, and comment
+                s_plain = format_address(item.addr, False)
+                s = format_address(item.addr)
+                if show_bytes:
+                    bytes_column = len(s_plain)
+                    s_plain += format_bytes(insn_bytes[0], False)
+                    s += format_bytes(insn_bytes[0])
+                s_plain += item.render()[0]
+                s += item.render(formatting)[0]
                 if comment is not None:
                     comment_column = len(s_plain)
                     s += format_comment(comment.text[0])
-                buf.append(s)
-                if comment is not None and len(comment.text) > 1:
-                    for line in comment.text[1:]:
-                        buf.append(' '*comment_column + format_comment(line))
-                comment = None
+                lines.append(s)
+
+                # Add additional lines of instruction bytes
+                for i in range(1, len(insn_bytes)):
+                    lines.append(' ' * bytes_column + format_bytes(insn_bytes[i]))
+
+                # Add additional lines of comments
+                if comment is not None:
+                    for i in range(1, len(comment.text)):
+                        if len(lines) <= i:
+                            lines.append(' ' * comment_column)
+                        lines[i] += format_comment(comment.text[i])
+                    comment = None
+
+                buf.extend(lines)
             else:
                 buf.append(item.render(formatting))
 
