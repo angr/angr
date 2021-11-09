@@ -84,7 +84,7 @@ def perform_single(binary_path, cfg_path=None):
     proj = angr.Project(binary_path,
                         use_sim_procedures=True,
                         default_analysis_mode='symbolic',
-                        load_options={'auto_load_libs': False}
+                        load_options={'auto_load_libs': False})
     start = time.time()
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
     end = time.time()
@@ -156,7 +156,10 @@ def test_not_returning():
     # Make sure we are properly labeling functions that do not return in function manager
 
     binary_path = os.path.join(test_location, 'x86_64', 'not_returning')
-    proj = angr.Project(binary_path,use_sim_procedures=True,load_options={'auto_load_libs': False})
+    proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        load_options={'auto_load_libs': False}
+                        )
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
 
     # function_a returns
