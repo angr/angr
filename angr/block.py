@@ -239,8 +239,11 @@ class Block(Serializable):
     def __ne__(self, other):
         return not self == other
 
-    def pp(self):
-        return self.disassembly.pp()
+    def pp(self, **kwargs):
+        if self._project is not None:
+            print(self._project.analyses.Disassembly(ranges=[(self.addr, self.addr + self.size)]).render(**kwargs))
+        else:
+            self.disassembly.pp()
 
     @property
     def _vex_engine(self):

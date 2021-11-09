@@ -1536,3 +1536,9 @@ class Function(Serializable):
         func.tags = self.tags
 
         return func
+
+    def pp(self, **kwargs):
+        """
+        Pretty-print the function disassembly.
+        """
+        print(self.project.analyses.Disassembly(self).render(**kwargs))

@@ -1,4 +1,5 @@
 # pylint: disable=wildcard-import
+# pylint: disable=wrong-import-position
 
 __version__ = (9, 0, "gitrolling")
 
@@ -18,7 +19,11 @@ For more information, see here: https://docs.angr.io/appendix/migration
 Good luck!
 """)
 
-# first: let's set up some bootstrap logging
+from .utils.formatting import setup_terminal
+setup_terminal()
+del setup_terminal
+
+# let's set up some bootstrap logging
 import logging
 logging.getLogger("angr").addHandler(logging.NullHandler())
 from .misc.loggers import Loggers
