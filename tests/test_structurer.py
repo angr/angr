@@ -178,7 +178,7 @@ def test_simple_loop():
 
 
 def test_recursive_structuring():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'), 
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'),
                      auto_load_libs=False, load_debug_info=True)
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
