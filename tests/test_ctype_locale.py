@@ -36,7 +36,7 @@ def test_ctype_b_loc():
 
     ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_b_loc']().execute(state, arguments=arguments)
 
-    b = angr.Project(bin_path)
+    b = angr.Project(bin_path, auto_load_libs=False)
     p = b.factory.full_init_state()
     pg = b.factory.simulation_manager(p)
 
@@ -86,7 +86,7 @@ def test_ctype_tolower_loc():
 
     ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_tolower_loc']().execute(state, arguments=arguments)
 
-    b = angr.Project(bin_path)
+    b = angr.Project(bin_path, auto_load_libs=False)
     p = b.factory.full_init_state()
     pg = b.factory.simulation_manager(p)
 
@@ -136,7 +136,7 @@ def test_ctype_toupper_loc():
 
     ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_toupper_loc']().execute(state, arguments=arguments)
 
-    b = angr.Project(bin_path)
+    b = angr.Project(bin_path, auto_load_libs=False)
     p = b.factory.full_init_state()
     pg = b.factory.simulation_manager(p)
 

@@ -51,7 +51,7 @@ def internaltest_project(fpath):
     tpath = tempfile.mktemp()
     shutil.copy(fpath, tpath)
 
-    p = angr.Project(tpath)
+    p = angr.Project(tpath, auto_load_libs=False)
     state = pickle.dumps(p, -1)
     loaded_p = pickle.loads(state)
     assert p is not loaded_p

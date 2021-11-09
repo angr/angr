@@ -4,7 +4,7 @@ import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_fauxware_symbolization():
-	p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"))
+	p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
 	sm = p.factory.simulation_manager()
 
 	assert not sm.one_active.regs.rsp.symbolic

@@ -34,7 +34,7 @@ def test_file_read_missing_content():
 
 def test_concrete_fs_resolution():
     bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
-    proj = angr.Project(bin_path)
+    proj = angr.Project(bin_path, auto_load_libs=False)
     state = proj.factory.entry_state(concrete_fs=True)
     fd = state.posix.open(bin_path, Flags.O_RDONLY)
     stat = state.posix.fstat(fd)
@@ -47,7 +47,7 @@ def test_concrete_fs_resolution():
 
 def test_sim_fs_resolution():
     bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
-    proj = angr.Project(bin_path)
+    proj = angr.Project(bin_path, auto_load_libs=False)
     state = proj.factory.entry_state()
     fd = state.posix.open(bin_path, Flags.O_RDONLY)
     stat = state.posix.fstat(fd)

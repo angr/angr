@@ -32,7 +32,7 @@ def check_state_3(state):
 
 def test_file_struct_funcs():
     test_bin = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'file_func_test')
-    b = angr.Project(test_bin)
+    b = angr.Project(test_bin, auto_load_libs=False)
 
     pg = b.factory.simulation_manager()
     pg.active[0].options.discard("LAZY_SOLVES")

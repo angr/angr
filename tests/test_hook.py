@@ -11,7 +11,7 @@ def test_mips():
     INNER_LOOP = 0x40069C
     OUTER_LOOP = 0x40076C
 
-    p = angr.Project(os.path.join(location, 'mips', 'test_loops'))
+    p = angr.Project(os.path.join(location, 'mips', 'test_loops'), auto_load_libs=False)
     output = []
 
     # hooking by a function decorator

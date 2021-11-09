@@ -8,7 +8,7 @@ import angr
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_libc_x86():
-
+    # disabling auto_load_libs increases the execution time.
     p = angr.Project(os.path.join(test_location, "i386", "libc-2.27-3ubuntu1.so.6"), auto_load_libs=True)
     dl_addr = p.loader.find_symbol('_dl_addr').rebased_addr
     cfg = p.analyses.CFGFast(regions=[(dl_addr, dl_addr + 4096)])

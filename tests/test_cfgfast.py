@@ -556,7 +556,7 @@ def test_serialization_cfgfast():
 
 def test_cfg_copy():
     path = os.path.join(test_location, "cgc", "CADET_00002")
-    proj = angr.Project(path)
+    proj = angr.Project(path, auto_load_libs= False)
 
     cfg = proj.analyses.CFGFast()
     cfg_copy = cfg.copy()
@@ -881,7 +881,7 @@ def test_cfg_with_patches():
 def test_unresolvable_targets():
 
     path = os.path.join(test_location, 'cgc', 'CADET_00002')
-    proj = angr.Project(path)
+    proj = angr.Project(path, auto_load_libs=False)
 
     proj.analyses.CFGFast(normalize=True)
     func = proj.kb.functions[0x080489E0]

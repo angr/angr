@@ -19,7 +19,8 @@ vfg_buffer_overflow_addresses = {
 def run_vfg_buffer_overflow(arch):
     proj = angr.Project(os.path.join(test_location, arch, "basic_buffer_overflows"),
                  use_sim_procedures=True,
-                 default_analysis_mode='symbolic')
+                 default_analysis_mode='symbolic',
+                 auto_load_libs=False)
 
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1)
 
@@ -127,6 +128,7 @@ def run_vfg_1(arch):
     proj = angr.Project(
         os.path.join(test_location, arch, "fauxware"),
         use_sim_procedures=True,
+        auto_load_libs=False
     )
 
     cfg = proj.analyses.CFGEmulated()

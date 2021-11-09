@@ -39,7 +39,7 @@ def check_value(project, init_type, comparison):
 
 
 def test_security_cookie_init():
-    project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'))
+    project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'), auto_load_libs=False)
     check_value(project, angr.simos.windows.SecurityCookieInit.NONE, compare_none)
     check_value(project, angr.simos.windows.SecurityCookieInit.RANDOM, compare_random)
     check_value(project, angr.simos.windows.SecurityCookieInit.STATIC, compare_static)

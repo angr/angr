@@ -14,7 +14,7 @@ def test_signed_div():
     if not sys.platform.startswith('linux'):
         raise nose.SkipTest()   # this is not technically required, the run result could just be inlined
     test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "test_signed_div")
-    b = angr.Project(test_bin)
+    b = angr.Project(test_bin, auto_load_libs=False)
 
     pg = b.factory.simulation_manager()
     pg.explore()
