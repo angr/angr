@@ -215,7 +215,7 @@ def disabled_loop_unrolling():
     binary_path = os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling')
 
     p = angr.Project(binary_path, auto_load_libs=True)
-    cfg = p.analyses.CFGEmulated(fail_fast=False)
+    cfg = p.analyses.CFGEmulated(fail_fast=True)
 
     cfg.normalize()
     cfg.unroll_loops(5)
