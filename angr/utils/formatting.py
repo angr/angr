@@ -36,22 +36,22 @@ def ansi_color(s: str, color: Optional[str]) -> str:
 
     codes = {
         'black':          '30m',
-        'bright_black':   '30;1m',
-        'gray':           '30;1m',  # alias 'bright black'
+        'bright_black':   '90m',
+        'gray':           '90m',  # alias 'bright black'
         'blue':           '34m',
-        'bright_blue':    '34;1m',
+        'bright_blue':    '94m',
         'cyan':           '36m',
-        'bright_cyan':    '36;1m',
+        'bright_cyan':    '96m',
         'green':          '32m',
-        'bright_green':   '32;1m',
+        'bright_green':   '92m',
         'magenta':        '35m',
-        'bright_magenta': '35;1m',
+        'bright_magenta': '95m',
         'red':            '31m',
-        'bright_red':     '31;1m',
+        'bright_red':     '91m',
         'white':          '37m',
-        'bright_white':   '37;1m',
+        'bright_white':   '97m',
         'yellow':         '33m',
-        'bright_yellow':  '33;1m',
+        'bright_yellow':  '93m',
     }
     return '\u001b[' + codes[color] + s + '\u001b[0m'
 
