@@ -197,7 +197,10 @@ def test_cfg_6():
     # We need to add DO_CCALLS to resolve long jmp and support real mode
     o.modes['fastpath'] |= {o.DO_CCALLS}
     binary_path = test_location + "/i386/bios.bin.elf"
-    proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1, auto_load_libs=False)
+    proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        page_size=1,
+                        auto_load_libs=False)
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
     nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
     o.modes['fastpath'] ^= {o.DO_CCALLS}
