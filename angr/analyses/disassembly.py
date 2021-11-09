@@ -1,8 +1,9 @@
 import logging
 from collections import defaultdict
-from typing import Union, Optional
+from typing import Union, Optional, Sequence, Tuple
 
 import pyvex
+from angr.knowledge_plugins import Function
 
 from . import Analysis
 
@@ -807,10 +808,12 @@ class FuncComment(DisassemblyPiece):
 
 
 class Disassembly(Analysis):
-    def __init__(self, function=None, ranges=None, include_ir=False):  # pylint:disable=unused-argument
+    """
+    Produce formatted machine code disassembly.
+    """
 
-        # TODO: support ranges
-
+    def __init__(self, function: Optional[Function] = None, ranges: Optional[Sequence[Tuple[int,int]]] = None,
+                 include_ir: bool = False):
         self.raw_result = []
         self.raw_result_map = {
             'block_starts': {},
@@ -831,10 +834,34 @@ class Disassembly(Analysis):
             blocks = sorted(function.graph.nodes(), key=lambda node: (node.addr, not node.is_hook))
             for block in blocks:
                 self.parse_block(block)
-        else:
+        elif ranges is not None:
             cfg = self.project.kb.cfgs.get_most_accurate()
-            if cfg is not None:
+            if cfg is None:
+                # CFG not available yet. Simply disassemble the code in the given regions. In the future we may want
+                # to handle this case by automatically running CFG analysis on given ranges.
+                for start, end in ranges:
+                    self.parse_block(BlockNode(start, end - start))
+            else:
                 self._graph = cfg.graph
+                for start, end in ranges:
+                    assert(start < end)
+                    # Grab all blocks that intersect target range
+                    blocks = sorted([n.block.codenode
+                                     for n in self._graph.nodes() if not (n.addr + n.size <= start or n.addr >= end)],
+                                    key=lambda node: (node.addr, not node.is_hook))
+
+                    # Trim blocks that are not within range
+                    for i, block in enumerate(blocks):
+                        if block.addr < start:
+                            delta = start - block.addr
+                            blocks[i] = BlockNode(block.addr + delta, block.size - delta, block.bytestr[delta:])
+                    for i, block in enumerate(blocks):
+                        if block.addr + block.size > end:
+                            delta = block.addr + block.size - end
+                            blocks[i] = BlockNode(block.addr, block.size - delta, block.bytestr[0:-delta])
+
+                    for block in blocks:
+                        self.parse_block(block)
 
     def func_lookup(self, block):
         try:
@@ -941,7 +968,7 @@ class Disassembly(Analysis):
         """
         Render the disassembly to a string, with optional edges and addresses.
 
-        Color will be added by default if enabled. To disable color pass an empty formatting dict.
+        Color will be added by default, if enabled. To disable color pass an empty formatting dict.
         """
         a2ln = defaultdict(list)
         buf = []
