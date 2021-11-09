@@ -44,7 +44,8 @@ def main(file_path, arch, endianness):
                 'arch': 'ARM',
                 'offset': 0,
             }
-        }, auto_load_libs=False
+        },
+        auto_load_libs=False
     )
     # Call Scout
     #p.analyses.Scout(start=0x16353c)
