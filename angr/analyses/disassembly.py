@@ -964,7 +964,8 @@ class Disassembly(Analysis):
             b = self.project.factory.block(block.addr, size=block.size)
             self._add_block_ir_to_results(block, b.vex)
 
-    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True, show_bytes: bool = False) -> str:
+    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True,
+               show_bytes: bool = False, ascii_only: Optional[bool] = None) -> str:
         """
         Render the disassembly to a string, with optional edges and addresses.
 
@@ -1080,8 +1081,8 @@ class Disassembly(Analysis):
             edge_buf = ['' for _ in buf]
             ref_buf = ['' for _ in buf]
             for f, t in sorted(edges_by_line, key=lambda e: abs(e[0]-e[1])):
-                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, col('edge')))
-                add_edge_to_buffer(ref_buf, ref_buf, f, t)
+                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, col('edge')), ascii_only=ascii_only)
+                add_edge_to_buffer(ref_buf, ref_buf, f, t, ascii_only=ascii_only)
             max_edge_depth = max(map(len, ref_buf))
 
             # Justify edge and combine with disassembly
