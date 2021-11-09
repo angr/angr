@@ -178,7 +178,8 @@ def test_simple_loop():
 
 
 def test_recursive_structuring():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'),auto_load_libs=False, load_debug_info=True)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling'), 
+                     auto_load_libs=False, load_debug_info=True)
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['test_func']
@@ -200,7 +201,8 @@ def test_recursive_structuring():
 
 
 def test_while_true_break():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),auto_load_libs=False, load_debug_info=True)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
+                     auto_load_libs=False, load_debug_info=True)
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['_while_true_break']
@@ -223,7 +225,8 @@ def test_while_true_break():
 
 
 def test_while():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),auto_load_libs=False, load_debug_info=True)
+    p = angr.Project(os.path.join(test_location, 'x86_64', 'test_decompiler_loops_O0'),
+                     auto_load_libs=False, load_debug_info=True)
     cfg = p.analyses.CFG(data_references=True, normalize=True)
 
     test_func = cfg.kb.functions['_while']
