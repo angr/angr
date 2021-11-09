@@ -60,8 +60,11 @@ class DisassemblyPiece:
 
     def highlight(self, string, formatting=None):
         try:
-            if formatting is not None and self in formatting['highlight']:
-                return self.color(string, 'highlight', formatting)
+            if formatting is not None:
+                if 'format_callback' in formatting:
+                    return formatting['format_callback'](self, string)
+                if self in formatting['highlight']:
+                    return self.color(string, 'highlight', formatting)
         except KeyError:
             pass
         return string
