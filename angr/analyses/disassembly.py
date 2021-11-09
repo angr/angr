@@ -1,12 +1,13 @@
 import logging
 from collections import defaultdict
-from typing import Union
+from typing import Union, Optional
 
 import pyvex
 
 from . import Analysis
 
 from ..utils.library import get_cpp_function_name
+from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
 from ..codenode import BlockNode
 from .disassembly_utils import decode_instruction
@@ -822,12 +823,18 @@ class Disassembly(Analysis):
         self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
         self._include_ir = include_ir
+        self._graph = None
 
         if function is not None:
             # sort them by address, put hooks before nonhooks
+            self._graph = function.graph
             blocks = sorted(function.graph.nodes(), key=lambda node: (node.addr, not node.is_hook))
             for block in blocks:
                 self.parse_block(block)
+        else:
+            cfg = self.project.kb.cfgs.get_most_accurate()
+            if cfg is not None:
+                self._graph = cfg.graph
 
     def func_lookup(self, block):
         try:
@@ -930,10 +937,97 @@ class Disassembly(Analysis):
             b = self.project.factory.block(block.addr, size=block.size)
             self._add_block_ir_to_results(block, b.vex)
 
-    def render(self, formatting=None):
-        if formatting is None: formatting = {}
-        return '\n'.join(sum((x.render(formatting) for x in self.raw_result), []))
+    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True) -> str:
+        """
+        Render the disassembly to a string, with optional edges and addresses.
 
+        Color will be added by default if enabled. To disable color pass an empty formatting dict.
+        """
+        a2ln = defaultdict(list)
+        buf = []
+
+        if formatting is None:
+            formatting = {
+                'colors': {
+                    'address':       'gray',
+                    'edge':          'yellow',
+                    Label:           'bright_yellow',
+                    ConstantOperand: 'cyan',
+                    MemoryOperand:   'yellow',
+                    Comment:         'gray',
+                } if ansi_color_enabled else {},
+                'format_callback': lambda item, s: ansi_color(s, formatting['colors'].get(type(item), None))
+            }
+
+        def col(item):
+            try:
+                return formatting['colors'][item]
+            except KeyError:
+                return None
+
+        def format_address(addr, color=True) -> str:
+            if not show_addresses:
+                return ''
+            a = f'{addr:x}'
+            pad = '  '
+            if not color:
+                return a + pad
+            return ansi_color(a, col('address')) + pad
+
+        def format_comment(text) -> str:
+            return ansi_color(' ; ' + text, col(Comment))
+
+        comment = None
+        for item in self.raw_result:
+            if isinstance(item, BlockStart):
+                if len(buf) > 0:
+                    buf.append('')
+            elif isinstance(item, Label):
+                pad = len(format_address(item.addr, False)) * ' '
+                buf.append(pad + item.render(formatting)[0])
+            elif isinstance(item, Comment):
+                comment = item
+            elif isinstance(item, Instruction):
+                a2ln[item.addr].append(len(buf))
+                s_plain = format_address(item.addr, False) + item.render()[0]
+                s = format_address(item.addr) + item.render(formatting)[0]
+                if comment is not None:
+                    comment_column = len(s_plain)
+                    s += format_comment(comment.text[0])
+                buf.append(s)
+                if comment is not None and len(comment.text) > 1:
+                    for line in comment.text[1:]:
+                        buf.append(' '*comment_column + format_comment(line))
+                comment = None
+            else:
+                buf.append(item.render(formatting))
+
+        if self._graph is not None and show_edges and len(buf) > 0:
+            edges_by_line = set()
+            for edge in self._graph.edges.items():
+                from_block, to_block = edge[0]
+                if to_block.addr != from_block.addr + from_block.size:
+                    from_addr = edge[1]['ins_addr']
+                    to_addr = to_block.addr
+                    if not (from_addr in a2ln and to_addr in a2ln):
+                        continue
+                    for f in a2ln[from_addr]:
+                        for t in a2ln[to_addr]:
+                            edges_by_line.add((f, t))
+
+            # Render block edges, to a reference buffer for tracking and output buffer for display
+            edge_buf = ['' for _ in buf]
+            ref_buf = ['' for _ in buf]
+            for f, t in sorted(edges_by_line, key=lambda e: abs(e[0]-e[1])):
+                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, col('edge')))
+                add_edge_to_buffer(ref_buf, ref_buf, f, t)
+            max_edge_depth = max(map(len, ref_buf))
+
+            # Justify edge and combine with disassembly
+            for i, line in enumerate(buf):
+                buf[i] = ' ' * (max_edge_depth - len(ref_buf[i])) + edge_buf[i] + line
+
+        return '\n'.join(buf)
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('Disassembly', Disassembly)

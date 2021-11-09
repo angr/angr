@@ -27,7 +27,6 @@ l = logging.getLogger(name=__name__)
 from ...sim_type import SimTypeFunction, parse_defns
 from ...calling_conventions import SimCC
 from ...project import Project
-from ...utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 
 
 class Function(Serializable):
@@ -1538,92 +1537,8 @@ class Function(Serializable):
 
         return func
 
-    def pp(self, color: Optional[bool] = None, show_edges: bool = True, show_address: bool = True):
+    def pp(self, **kwargs):
         """
-        Pretty-print the function disassembly, with color and block edges.
+        Pretty-print the function disassembly.
         """
-        # Lazily imported to prevent circular dependency
-        from ...analyses.disassembly import Label, ConstantOperand, MemoryOperand, Instruction, BlockStart, Comment  # pylint:disable=import-outside-toplevel
-
-        if color is None:
-            color = ansi_color_enabled
-
-        dis = self.project.analyses.Disassembly(self)
-        a2ln = defaultdict(list)
-        buf = []
-        colors = {
-            'address':       'gray',
-            'edge':          'yellow',
-            Label:           'bright_yellow',
-            ConstantOperand: 'cyan',
-            MemoryOperand:   'yellow',
-            Comment:         'gray',
-        } if color else {}
-
-        formatting = {
-            'format_callback': lambda item, s: ansi_color(s, colors.get(type(item), None))
-        }
-
-        # Format disassembly
-        addr_width = len(f'{self.addr:x}') if show_address else 0
-        comment = None
-
-        for item in dis.raw_result:
-            if isinstance(item, BlockStart):
-                if len(buf) > 0:
-                    buf.append('')
-            elif isinstance(item, Label):
-                addr = ' '*(addr_width + 2) if show_address else ''
-                buf.append(addr + ansi_color(item.render()[0], colors.get(type(item), None)))
-            elif isinstance(item, Comment):
-                comment = item
-            elif isinstance(item, Instruction):
-                a2ln[item.addr].append(len(buf))
-                item.disect_instruction()
-
-                s_plain = item.render()[0]
-                s = item.render(formatting)[0]
-
-                if show_address:
-                    a = f'{item.addr:x}'
-                    s_plain = a + '  ' + s_plain
-                    s = ansi_color(a, colors.get('address', None)) + '  ' + s
-
-                if comment is not None:
-                    comment_column = len(s_plain)
-                    s += ansi_color(' ; ' + comment.text[0], colors.get(Comment, None))
-
-                buf.append(s)
-
-                if comment is not None and len(comment.text) > 1:
-                    for line in comment.text[1:]:
-                        buf.append(' '*comment_column + ansi_color(' ; ' + line, colors.get(Comment, None)))
-                comment = None
-
-        if show_edges:
-            edges_by_line = set()
-            for edge in self.graph.edges.items():
-                from_block, to_block = edge[0]
-                if to_block.addr != from_block.addr + from_block.size:
-                    from_addr = edge[1]['ins_addr']
-                    to_addr = to_block.addr
-                    if not (from_addr in a2ln and to_addr in a2ln):
-                        continue
-                    for f in a2ln[from_addr]:
-                        for t in a2ln[to_addr]:
-                            edges_by_line.add((f, t))
-
-            # Render block edges, to a reference buffer for tracking and output buffer for display
-            edge_buf = ['' for _ in buf]
-            ref_buf = ['' for _ in buf]
-            for f, t in sorted(edges_by_line, key=lambda e: abs(e[0]-e[1])):
-                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, colors.get('edge', None)))
-                add_edge_to_buffer(ref_buf, ref_buf, f, t)
-            max_edge_depth = max(map(len, ref_buf))
-
-            # Justify edge and combine with disassembly
-            for i, line in enumerate(buf):
-                buf[i] = ' ' * (max_edge_depth - len(ref_buf[i])) + edge_buf[i] + line
-
-        for line in buf:
-            print(line)
+        print(self.project.analyses.Disassembly(self).render(**kwargs))
