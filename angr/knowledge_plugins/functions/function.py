@@ -27,7 +27,7 @@ l = logging.getLogger(name=__name__)
 from ...sim_type import SimTypeFunction, parse_defns
 from ...calling_conventions import SimCC
 from ...project import Project
-from ...utils.formatting import ansi_color, add_edge_to_buffer
+from ...utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 
 
 class Function(Serializable):
@@ -1538,12 +1538,15 @@ class Function(Serializable):
 
         return func
 
-    def pp(self, color: bool = True, show_edges: bool = True, show_address: bool = True):
+    def pp(self, color: Optional[bool] = None, show_edges: bool = True, show_address: bool = True):
         """
         Pretty-print the function disassembly, with color and block edges.
         """
         # Lazily imported to prevent circular dependency
         from ...analyses.disassembly import Label, ConstantOperand, MemoryOperand, Instruction, BlockStart, Comment  # pylint:disable=import-outside-toplevel
+
+        if color is None:
+            color = ansi_color_enabled
 
         dis = self.project.analyses.Disassembly(self)
         a2ln = defaultdict(list)

@@ -1,9 +1,38 @@
+import sys
 from typing import Sequence, Optional, Callable
+
+
+if sys.platform == 'win32':
+    import colorama  # pylint:disable=import-error
+
+
+ansi_color_enabled: bool = False
+
+
+def setup_terminal():
+    """
+    Check if we are running in a TTY. If so, make sure the terminal supports
+    ANSI escape sequences. If not, disable colorized output. Sets global
+    `ansi_color_enabled` to True if colorized output should be enabled by
+    default.
+    """
+    isatty = (hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+               and hasattr(sys.stderr, 'isatty') and sys.stderr.isatty())
+    if sys.platform == 'win32' and isatty:
+        if not isinstance(sys.stdout, colorama.ansitowin32.StreamWrapper):
+            colorama.init()
+
+    global ansi_color_enabled  # pylint:disable=global-statement
+    ansi_color_enabled = isatty
 
 
 def ansi_color(s: str, color: Optional[str]) -> str:
     """
     Colorize string `s` by wrapping in ANSI escape sequence for given `color`.
+
+    This function does not consider whether escape sequences are functional or
+    not; it is up to the caller to determine if its appropriate. Check global
+    `ansi_color_enabled` value in this module.
     """
     if color is None:
         return s
