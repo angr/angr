@@ -61,7 +61,7 @@ def ansi_color(s: str, color: Optional[str]) -> str:
 
 def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: int,
                        formatter: Optional[Callable[[str], str]] = None,
-                       dashed: bool = False):
+                       dashed: bool = False, ascii_only: bool = False):
     """
     Draw an edge by adding Unicode box and arrow glyphs to beginning of each line in a list of lines.
 
@@ -78,15 +78,26 @@ def add_edge_to_buffer(buf: Sequence[str], ref: Sequence[str], start: int, end: 
     max_depth  = max(map(len, ref[abs_start:abs_end+1]))
     descending = start < end
 
-    chars = {
-        'start_cap'    : '╴',
-        'start_corner' : '╭' if descending else '╰',
-        'end_cap'      : '⏵',
-        'end_corner'   : '╰' if descending else '╭',
-        'horizontal'   : '╌' if dashed else '─',
-        'vertical'     : '╎' if dashed else '│',
-        'spin'         : '⟳ ',
-    }
+    if ascii_only:
+        chars = {
+            'start_cap'    : '-',
+            'start_corner' : '+',
+            'end_cap'      : '>',
+            'end_corner'   : '+',
+            'horizontal'   : '+' if dashed else '-',
+            'vertical'     : '+' if dashed else '|',
+            'spin'         : '@ ',
+        }
+    else:
+        chars = {
+            'start_cap'    : '╴',
+            'start_corner' : '╭' if descending else '╰',
+            'end_cap'      : '⧽',
+            'end_corner'   : '╰' if descending else '╭',
+            'horizontal'   : '╌' if dashed else '─',
+            'vertical'     : '╎' if dashed else '│',
+            'spin'         : '⟳ ',
+        }
 
     def handle_line(i, edge_str):
         if formatter is not None:
