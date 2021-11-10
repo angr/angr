@@ -58,7 +58,6 @@ class MapPut(JavaSimProcedure):
 
     def run(self, this_ref, key_ref, value_ref):
         log.debug('Called SimProcedure java.util.Map.add with args: {} {} {}'.format(this_ref, key_ref, value_ref))
-                                                                             value_ref))
 
         if this_ref.symbolic:
             return SimSootExpr_NullConstant
@@ -127,7 +126,6 @@ class MapContainsKey(JavaSimProcedure):
 
     def run(self, this_ref, key_ref):
         log.debug('Called SimProcedure java.util.Map.containsKey with args: {} {}'.format(this_ref, key_ref))
-                                                                                  key_ref))
 
         if this_ref.symbolic:
             return claripy.BoolS('contains_key')
