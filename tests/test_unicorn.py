@@ -230,3 +230,121 @@ def test_concrete_transmits():
     pg_unicorn = p.factory.simulation_manager(s_unicorn)
     pg_unicorn.run(n=10)
 
+    assert (pg_unicorn.one_active.posix.dumps(1) == b'1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\nRandomness added\n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n  Index: \n1) Add number to the array\n2) Add random number to the array\n3) Sum numbers\n4) Exit\n')
+
+def test_inspect():
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
+        main_addr = p.loader.find_symbol("main").rebased_addr
+        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+
+    # test breaking on specific addresses
+    s_break_addr = main_state(1)
+    addr0 = 0x08048479 # at the beginning of a basic block, at end of stop_normal function
+    addr1 = 0x080485d0 # this is at the beginning of main, in the middle of a basic block
+    addr2 = 0x08048461 # another non-bb address, at the start of stop_normal
+    addr3 = 0x0804847c # address of a block that should not get hit (stop_symbolc function)
+    addr4 = 0x08048632 # another address that shouldn't get hit, near end of main
+    hits = { addr0 : 0, addr1: 0, addr2: 0, addr3: 0, addr4: 0 }
+
+    def create_addr_action(addr):
+        def action(_state):
+            hits[addr] += 1
+        return action
+
+    for addr in [addr0, addr1, addr2]:
+        s_break_addr.inspect.b("instruction", instruction=addr, action=create_addr_action(addr))
+
+    pg_instruction = p.factory.simulation_manager(s_break_addr)
+    pg_instruction.run()
+    assert (hits[addr0] == 1)
+    assert (hits[addr1] == 1)
+    assert (hits[addr2] == 1)
+    assert (hits[addr3] == 0)
+    assert (hits[addr4] == 0)
+
+    # test breaking on every instruction
+    def collect_trace(options):
+        s_break_every = main_state(1, add_options=options)
+        trace = []
+        def action_every(state):
+            trace.append(state.addr)
+        s_break_every.inspect.b("instruction", action=action_every)
+        pg_break_every = p.factory.simulation_manager(s_break_every)
+        pg_break_every.run()
+    assert (collect_trace(so.unicorn) == collect_trace(set()))
+
+def test_explore():
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
+        main_addr = p.loader.find_symbol("main").rebased_addr
+        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+
+    addr = 0x08048479
+    s_explore = main_state(1)
+    pg_explore_find = p.factory.simulation_manager(s_explore)
+    pg_explore_find.explore(find=addr)
+    assert (len(pg_explore_find.found) == 1)
+    assert (pg_explore_find.found[0].addr == addr)
+
+    pg_explore_avoid = p.factory.simulation_manager(s_explore)
+    pg_explore_avoid.explore(avoid=addr)
+    assert (len(pg_explore_avoid.avoid), 1)
+    assert (pg_explore_avoid.avoid[0].addr == addr)
+
+
+def test_single_step():
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'))
+
+
+    def main_state(argc, add_options=None):
+        add_options = add_options or so.unicorn
+        main_addr = p.loader.find_symbol("main").rebased_addr
+        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+
+    s_main = main_state(1)
+
+    step1 = s_main.block().instruction_addrs[1]
+    successors1 = s_main.step(num_inst=1).successors
+    assert (len(successors1) == 1)
+    assert (successors1[0].addr == step1)
+
+    step5 = s_main.block().instruction_addrs[5]
+    successors2 = successors1[0].step(num_inst=4).successors
+    assert (len(successors2) == 1)
+    assert (successors2[0].addr == step5)
+
+if __name__ == '__main__':
+    import logging
+    logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
+    logging.getLogger('angr.engines.unicorn_engine').setLevel('INFO')
+    logging.getLogger('angr.factory').setLevel('DEBUG')
+    logging.getLogger('angr.project').setLevel('DEBUG')
+    #logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
+
+    import sys
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            print('test_' + arg)
+            res = globals()['test_' + arg]()
+            if hasattr(res, '__iter__'):
+                for ft in res:
+                    fo = ft[0]
+                    fa = ft[1:]
+                    print('...', fa)
+                    fo(*fa)
+    else:
+        for fk, fv in list(globals().items()):
+            if fk.startswith('test_') and callable(fv):
+                print(fk)
+                res = fv()
+                if hasattr(res, '__iter__'):
+                    for ft in res:
+                        fo = ft[0]
+                        fa = ft[1:]
+                        print('...', fa)
+                        fo(*fa)
