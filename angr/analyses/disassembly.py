@@ -670,7 +670,7 @@ class MemoryOperand(Operand):
             return super(MemoryOperand, self)._render(formatting)
         else:
             values_style = "square"
-            show_prefix = False
+            show_prefix = True
             custom_values_str = None
 
             if formatting is not None:
@@ -679,8 +679,8 @@ class MemoryOperand(Operand):
 
                 try:
                     show_prefix_str = formatting['show_prefix'][self.ident]
-                    if show_prefix_str in ('true', 'True'):
-                        show_prefix = True
+                    if show_prefix_str in ('false', 'False'):
+                        show_prefix = False
                 except KeyError:
                     pass
 
