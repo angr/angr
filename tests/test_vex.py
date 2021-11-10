@@ -441,7 +441,12 @@ def test_store_simplification():
     sim_successors = HeavyVEXMixin(None).process(state.copy(), irsb=irsb)
     exit_state = sim_successors.all_successors[0]
 
-    assert claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4))   def test_loadg_no_constraint_creation():      state = SimState(arch='armel'
+    assert claripy.backends.z3.is_true(exit_state.regs.ebp == state.regs.esp - 4)
+def test_loadg_no_constraint_creation():
+    state = SimState(arch='armel', mode='symbolic')
+    engine = HeavyVEXMixin(None)
+
+    stmt = pyvex.IRStmt.LoadG('Iend_LE', 'ILGop_16Uto32',
                               0, # dst
                               pyvex.IRExpr.Const(pyvex.const.U32(0x2000)), # addr (src)
                               pyvex.IRExpr.Const(pyvex.const.U32(0x1337)), # alt

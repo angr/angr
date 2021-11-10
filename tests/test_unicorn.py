@@ -293,7 +293,7 @@ def test_explore():
 
     pg_explore_avoid = p.factory.simulation_manager(s_explore)
     pg_explore_avoid.explore(avoid=addr)
-    assert (len(pg_explore_avoid.avoid), 1)
+    assert (len(pg_explore_avoid.avoid) == 1)
     assert (pg_explore_avoid.avoid[0].addr == addr)
 
 
