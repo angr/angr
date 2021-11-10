@@ -270,6 +270,8 @@ class CFGFastSoot(CFGFast):
         for target in targets:
             target_desc = SootMethodDescriptor(target.class_name, target.name, target.params)
             successors.append((stmt.label - offset, addr, SootAddressDescriptor(target_desc, 0, 0), 'Ijk_Call'))
+        else:
+            return [(stmt.label - offset, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')]
 
         return successors
 
