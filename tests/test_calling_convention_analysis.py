@@ -2,7 +2,6 @@
 import logging
 import os
 
-import nose.tools
 
 import archinfo
 import angr
@@ -26,7 +25,7 @@ def run_fauxware(arch, function_and_cc_list):
         cc_analysis = fauxware.analyses.CallingConvention(authenticate, cfg=cfg, analyze_callsites=True)
         cc = cc_analysis.cc
 
-        nose.tools.assert_equal(cc, expected_cc)
+        assert cc == expected_cc
 
 
 def run_cgc(binary_name):
@@ -94,16 +93,11 @@ def check_arg(arg, expected_str):
 
 def check_args(func_name, args, expected_arg_strs):
 
-    nose.tools.assert_equal(len(args), len(expected_arg_strs), msg="Wrong number of arguments for function %s. "
-                                                                   "Got %d, expect %d." % (
-        func_name, len(args), len(expected_arg_strs)
-    ))
+    assert len(args) == len(expected_arg_strs)
 
     for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
         r = check_arg(arg, expected_arg_str)
-        nose.tools.assert_true(r, msg="Incorrect argument %d for function %s. Got %s, expect %s." % (
-            idx, func_name, arg, expected_arg_str
-        ))
+        assert r
 
 
 def _a(funcs, func_name):

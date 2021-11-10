@@ -1,6 +1,5 @@
 import angr
 import os
-import nose
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
 arches = {'i386', 'x86_64'}
@@ -20,7 +19,7 @@ def run_ddg_memvar_addresses(arch):
 
     for node in ddg._data_graph.nodes():
         if isinstance(node.variable, angr.sim_variable.SimMemoryVariable):
-            nose.tools.assert_true(0 <= node.variable.addr < (1 << proj.arch.bits), msg="Program variable {} has an invalid address: {}".format(node.variable, node.variable.addr))
+            assert 0 <= node.variable.addr < (1 << proj.arch.bits)
 
 if __name__ == "__main__":
         main()

@@ -1,4 +1,3 @@
-import nose
 import time
 import pickle
 import networkx
@@ -147,10 +146,10 @@ def test_additional_edges():
                                                                    # can automatically find the node 0x4005ad.
                                     )
 
-    nose.tools.assert_not_equal(cfg.get_any_node(0x400580), None)
-    nose.tools.assert_not_equal(cfg.get_any_node(0x40058f), None)
-    nose.tools.assert_not_equal(cfg.get_any_node(0x40059e), None)
-    nose.tools.assert_equal(cfg.get_any_node(0x4005ad), None)
+    assert cfg.get_any_node(0x400580) != None
+    assert cfg.get_any_node(0x40058f) != None
+    assert cfg.get_any_node(0x40059e) != None
+    assert cfg.get_any_node(0x4005ad) == None
 
 def test_not_returning():
     # Make sure we are properly labeling functions that do not return in function manager
@@ -163,23 +162,23 @@ def test_not_returning():
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
 
     # function_a returns
-    nose.tools.assert_not_equal(proj.kb.functions.function(name='function_a'), None)
-    nose.tools.assert_true(proj.kb.functions.function(name='function_a').returning)
+    assert proj.kb.functions.function(name='function_a') != None
+    assert proj.kb.functions.function(name='function_a').returning
 
     # function_b does not return
-    nose.tools.assert_not_equal(proj.kb.functions.function(name='function_b'), None)
-    nose.tools.assert_false(proj.kb.functions.function(name='function_b').returning)
+    assert proj.kb.functions.function(name='function_b') != None
+    assert not proj.kb.functions.function(name='function_b').returning
 
     # function_c does not return
-    nose.tools.assert_not_equal(proj.kb.functions.function(name='function_c'), None)
-    nose.tools.assert_false(proj.kb.functions.function(name='function_c').returning)
+    assert proj.kb.functions.function(name='function_c') != None
+    assert not proj.kb.functions.function(name='function_c').returning
 
     # main does not return
-    nose.tools.assert_not_equal(proj.kb.functions.function(name='main'), None)
-    nose.tools.assert_false(proj.kb.functions.function(name='main').returning)
+    assert proj.kb.functions.function(name='main') != None
+    assert not proj.kb.functions.function(name='main').returning
 
     # function_d should not be reachable
-    nose.tools.assert_equal(proj.kb.functions.function(name='function_d'), None)
+    assert proj.kb.functions.function(name='function_d') == None
 
 def disabled_cfg_5():
     binary_path = os.path.join(test_location, 'mipsel', 'busybox')
@@ -201,7 +200,7 @@ def test_cfg_6():
                         use_sim_procedures=True,
                         page_size=1)
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
-    nose.tools.assert_greater_equal(set(f for f in proj.kb.functions), set(function_addresses))
+    assert set(f for f in proj.kb.functions) >= set(function_addresses)
     o.modes['fastpath'] ^= {o.DO_CCALLS}
 
 def test_fauxware():
@@ -219,7 +218,7 @@ def disabled_loop_unrolling():
     cfg.normalize()
     cfg.unroll_loops(5)
 
-    nose.tools.assert_equal(len(cfg.get_all_nodes(0x400636)), 7)
+    assert len(cfg.get_all_nodes(0x400636)) == 7
 
 def test_thumb_mode():
     # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
@@ -231,9 +230,9 @@ def test_thumb_mode():
 
     def check_addr(a):
         if a % 2 == 1:
-            nose.tools.assert_true(cfg.is_thumb_addr(a))
+            assert cfg.is_thumb_addr(a)
         else:
-            nose.tools.assert_false(cfg.is_thumb_addr(a))
+            assert not cfg.is_thumb_addr(a)
 
     # CFGNodes
     cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() if not n.is_simprocedure ]
@@ -260,42 +259,42 @@ def test_fakeret_edges_0():
     cfg = p.analyses.CFGEmulated(context_sensitivity_level=3, fail_fast=True)
 
     putchar_plt = cfg.functions.function(name="putchar", plt=True)
-    nose.tools.assert_true(putchar_plt.returning)
+    assert putchar_plt.returning
 
     putchar = cfg.functions.function(name="putchar", plt=False)
-    nose.tools.assert_true(putchar.returning)
+    assert putchar.returning
 
     # Since context sensitivity is 3, there should be two different putchar nodes
     putchar_cfgnodes = cfg.get_all_nodes(putchar.addr)
-    nose.tools.assert_equal(len(putchar_cfgnodes), 2)
+    assert len(putchar_cfgnodes) == 2
 
     # Each putchar node has a different predecessor as their PLT entry
     plt_entry_0 = cfg.get_predecessors(putchar_cfgnodes[0])
-    nose.tools.assert_equal(len(plt_entry_0), 1)
+    assert len(plt_entry_0) == 1
     plt_entry_0 = plt_entry_0[0]
 
     plt_entry_1 = cfg.get_predecessors(putchar_cfgnodes[1])
-    nose.tools.assert_equal(len(plt_entry_1), 1)
+    assert len(plt_entry_1) == 1
     plt_entry_1 = plt_entry_1[0]
 
-    nose.tools.assert_true(plt_entry_0 is not plt_entry_1)
+    assert plt_entry_0 is not plt_entry_1
 
     # Each PLT entry should have a FakeRet edge
     preds_0 = cfg.get_predecessors(plt_entry_0)
-    nose.tools.assert_equal(len(preds_0), 1)
+    assert len(preds_0) == 1
     preds_1 = cfg.get_predecessors(plt_entry_1)
-    nose.tools.assert_equal(len(preds_1), 1)
+    assert len(preds_1) == 1
 
     # Each predecessor must have a call edge and a FakeRet edge
     edges_0 = cfg.get_successors_and_jumpkind(preds_0[0], excluding_fakeret=False)
-    nose.tools.assert_equal(len(edges_0), 2)
+    assert len(edges_0) == 2
     jumpkinds = { jumpkind for _, jumpkind in edges_0 }
-    nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
+    assert jumpkinds == { 'Ijk_Call', 'Ijk_FakeRet' }
 
     edges_1 = cfg.get_successors_and_jumpkind(preds_1[0], excluding_fakeret=False)
-    nose.tools.assert_equal(len(edges_1), 2)
+    assert len(edges_1) == 2
     jumpkinds = { jumpkind for _, jumpkind in edges_1 }
-    nose.tools.assert_set_equal(jumpkinds, { 'Ijk_Call', 'Ijk_FakeRet' })
+    assert jumpkinds == { 'Ijk_Call', 'Ijk_FakeRet' }
 
 def test_string_references():
 
@@ -319,10 +318,10 @@ def test_arrays():
     cfg = b.analyses.CFGEmulated(fail_fast=True)
 
     node = cfg.model.get_any_node(0x10415)
-    nose.tools.assert_is_not_none(node)
+    assert node is not None
 
     successors = cfg.model.get_successors(node)
-    nose.tools.assert_equal(len(successors), 2)
+    assert len(successors) == 2
 
 def test_max_steps():
 
@@ -340,7 +339,7 @@ def test_max_steps():
             depth_map[dst] = depth_map[src] + 1
         depth_map[dst] = max(depth_map[src] + 1, depth_map[dst])
 
-    nose.tools.assert_less_equal(max(depth_map.values()), 5)
+    assert max(depth_map.values()) <= 5
 
 
 def test_armel_final_missing_block():
@@ -355,8 +354,8 @@ def test_armel_final_missing_block():
 
     blocks = list(cfg.kb.functions[0x8000].blocks)
 
-    nose.tools.assert_equal(len(blocks), 3)
-    nose.tools.assert_set_equal({ block.addr for block in blocks }, { 0x8000, 0x8014, 0x8020 })
+    assert len(blocks) == 3
+    assert { block.addr for block in blocks } == { 0x8000, 0x8014, 0x8020 }
 
 
 def test_armel_final_missing_block_b():
@@ -390,8 +389,8 @@ def test_armel_final_missing_block_b():
 
     blocks = list(cfg.kb.functions['main'].blocks)
 
-    nose.tools.assert_equal(len(blocks), 2)
-    nose.tools.assert_set_equal(set(block.addr for block in blocks), { 0x10b79, 0x10bbf })
+    assert len(blocks) == 2
+    assert set(block.addr for block in blocks) == { 0x10b79, 0x10bbf }
 
 def test_armel_incorrect_function_detection_caused_by_branch():
 
@@ -402,20 +401,20 @@ def test_armel_incorrect_function_detection_caused_by_branch():
     cfg = b.analyses.CFGEmulated()
 
     # The Main function should be identified as a single function
-    nose.tools.assert_in(0x80a1, cfg.functions)
+    assert 0x80a1 in cfg.functions
     main_func = cfg.functions[0x80a1]
 
     # All blocks should be there
     block_addrs = sorted([ b.addr for b in main_func.blocks ])
-    nose.tools.assert_equal(block_addrs, [0x80a1, 0x80b1, 0x80bb, 0x80cd, 0x80df, 0x80e3, 0x80ed])
+    assert block_addrs == [0x80a1, 0x80b1, 0x80bb, 0x80cd, 0x80df, 0x80e3, 0x80ed]
 
     # The ResetISR function should be identified as a single function, too
-    nose.tools.assert_in(0x8009, cfg.functions)
+    assert 0x8009 in cfg.functions
     resetisr_func = cfg.functions[0x8009]
 
     # All blocks should be there
     block_addrs = sorted([ b.addr for b in resetisr_func.blocks ])
-    nose.tools.assert_equal(block_addrs, [0x8009, 0x8011, 0x801f, 0x8027])
+    assert block_addrs == [0x8009, 0x8011, 0x801f, 0x8027]
 
 
 def test_cfg_switches():
@@ -477,9 +476,7 @@ def test_cfg_switches():
         for src, dst in edges[arch]:
             src_node = cfg.get_any_node(src)
             dst_node = cfg.get_any_node(dst)
-            nose.tools.assert_in(dst_node, src_node.successors,
-                                 msg="CFG edge %s-%s is not found." % (src_node, dst_node)
-                                 )
+            assert dst_node in src_node.successors
 
 
 class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
@@ -504,12 +501,12 @@ def test_abort_and_resume():
 
     CFGEmulatedAborted.should_abort = True
     cfg = b.analyses.CFGEmulatedAborted()
-    nose.tools.assert_greater(len(list(cfg.jobs)), 0)  # there should be left-over jobs
+    assert len(list(cfg.jobs)) > 0
 
     CFGEmulatedAborted.should_abort = False
     cfg.resume()
 
-    nose.tools.assert_equal(len(list(cfg.jobs)), 0)  # no left-over job
+    assert len(list(cfg.jobs)) == 0
 
 def test_base_graph():
     path = os.path.join(test_location, "x86_64", "test_cfgemulated_base_graph")
@@ -543,15 +540,11 @@ def test_base_graph():
     for src, dst in edges:
         src_node = target_function_cfg_emulated.get_any_node(src)
         dst_node = target_function_cfg_emulated.get_any_node(dst)
-        nose.tools.assert_in(dst_node, src_node.successors,
-                             msg="CFG edge %s-%s is not found." % (src_node, dst_node)
-                             )
+        assert dst_node in src_node.successors
 
     for (node_addr,final_states_number) in final_states_info.items():
         node = target_function_cfg_emulated.get_any_node(node_addr)
-        nose.tools.assert_equal(final_states_number, len(node.final_states),
-                                msg="CFG node 0x%x has incorrect final states." % node_addr
-                                )
+        assert final_states_number == len(node.final_states)
 
 def run_all():
     functions = globals()

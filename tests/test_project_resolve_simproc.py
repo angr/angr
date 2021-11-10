@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import os
@@ -25,11 +24,10 @@ def test_bina():
     libc_sleep_addr = p.loader.shared_objects['libc.so.6'].get_symbol('sleep').rebased_addr
     libc_rand_addr = p.loader.shared_objects['libc.so.6'].get_symbol('rand').rebased_addr
 
-    nose.tools.assert_equal(sleep_addr, libc_sleep_addr)
-    nose.tools.assert_equal(rand_addr, libc_rand_addr)
-    nose.tools.assert_true(p.is_hooked(read_addr))
-    nose.tools.assert_true("read" in
-                           str(p._sim_procedures[read_addr]))
+    assert sleep_addr == libc_sleep_addr
+    assert rand_addr == libc_rand_addr
+    assert p.is_hooked(read_addr)
+    assert "read" in                            str(p._sim_procedures[read_addr])
 
 if __name__ == '__main__':
     test_bina()

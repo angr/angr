@@ -1,6 +1,5 @@
 import cle
 import pickle
-import nose
 import gc
 import os
 
@@ -15,22 +14,21 @@ binaries_base = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 def test_state():
     s = SimState(arch='AMD64')
     s.registers.store('sp', 0x7ffffffffff0000)
-    nose.tools.assert_equal(s.solver.eval(s.registers.load('sp')), 0x7ffffffffff0000)
+    assert s.solver.eval(s.registers.load('sp')) == 0x7ffffffffff0000
 
     s.stack_push(s.solver.BVV(b"ABCDEFGH"))
-    nose.tools.assert_equal(s.solver.eval(s.registers.load('sp')), 0x7fffffffffefff8)
+    assert s.solver.eval(s.registers.load('sp')) == 0x7fffffffffefff8
     s.stack_push(s.solver.BVV(b"IJKLMNOP"))
-    nose.tools.assert_equal(s.solver.eval(s.registers.load('sp')), 0x7fffffffffefff0)
+    assert s.solver.eval(s.registers.load('sp')) == 0x7fffffffffefff0
 
     a = s.stack_pop()
-    nose.tools.assert_equal(s.solver.eval(s.registers.load('sp')), 0x7fffffffffefff8)
-    nose.tools.assert_equal(s.solver.eval(a, cast_to=bytes), b"IJKLMNOP")
+    assert s.solver.eval(s.registers.load('sp')) == 0x7fffffffffefff8
+    assert s.solver.eval(a, cast_to=bytes) == b"IJKLMNOP"
 
     b = s.stack_pop()
-    nose.tools.assert_equal(s.solver.eval(s.registers.load('sp')), 0x7ffffffffff0000)
-    nose.tools.assert_equal(s.solver.eval(b, cast_to=bytes), b"ABCDEFGH")
+    assert s.solver.eval(s.registers.load('sp')) == 0x7ffffffffff0000
+    assert s.solver.eval(b, cast_to=bytes) == b"ABCDEFGH"
 
-#@nose.tools.timed(10)
 def test_state_merge():
     a = SimState(arch='AMD64', mode='symbolic')
     a.memory.store(1, a.solver.BVV(42, 8))
@@ -42,73 +40,72 @@ def test_state_merge():
     c.memory.store(2, c.memory.load(1, 1)/2)
 
     # make sure the byte at 1 is right
-    nose.tools.assert_equal(a.solver.eval(a.memory.load(1, 1)), 42)
-    nose.tools.assert_equal(b.solver.eval(b.memory.load(1, 1)), 42)
-    nose.tools.assert_equal(c.solver.eval(c.memory.load(1, 1)), 42)
+    assert a.solver.eval(a.memory.load(1, 1)) == 42
+    assert b.solver.eval(b.memory.load(1, 1)) == 42
+    assert c.solver.eval(c.memory.load(1, 1)) == 42
 
     # make sure the byte at 2 is right
-    nose.tools.assert_equal(a.solver.eval(a.memory.load(2, 1)), 43)
-    nose.tools.assert_equal(b.solver.eval(b.memory.load(2, 1)), 84)
-    nose.tools.assert_equal(c.solver.eval(c.memory.load(2, 1)), 21)
+    assert a.solver.eval(a.memory.load(2, 1)) == 43
+    assert b.solver.eval(b.memory.load(2, 1)) == 84
+    assert c.solver.eval(c.memory.load(2, 1)) == 21
 
     # the byte at 2 should be unique for all before the merge
-    nose.tools.assert_true(a.solver.unique(a.memory.load(2, 1)))
-    nose.tools.assert_true(b.solver.unique(b.memory.load(2, 1)))
-    nose.tools.assert_true(c.solver.unique(c.memory.load(2, 1)))
+    assert a.solver.unique(a.memory.load(2, 1))
+    assert b.solver.unique(b.memory.load(2, 1))
+    assert c.solver.unique(c.memory.load(2, 1))
 
     #logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.DEBUG)
     m, merge_conditions, merging_occurred = a.merge(b, c)
     #logging.getLogger('angr.state_plugins.symbolic_memory').setLevel(logging.WARNING)
 
-    nose.tools.assert_true(merging_occurred)
-    #nose.tools.assert_equal(sorted(m.solver.eval_upto(merge_flag, 10)), [ 0,1,2 ])
+    assert merging_occurred
+    #assert sorted(m.solver.eval_upto(merge_flag, 10)) == [ 0,1,2 ]
     assert len(merge_conditions) == 3
 
     # the byte at 2 should now *not* be unique for a
-    nose.tools.assert_false(m.solver.unique(m.memory.load(2, 1)))
-    nose.tools.assert_true(a.solver.unique(a.memory.load(2, 1)))
-    nose.tools.assert_true(b.solver.unique(b.memory.load(2, 1)))
-    nose.tools.assert_true(c.solver.unique(c.memory.load(2, 1)))
+    assert not m.solver.unique(m.memory.load(2, 1))
+    assert a.solver.unique(a.memory.load(2, 1))
+    assert b.solver.unique(b.memory.load(2, 1))
+    assert c.solver.unique(c.memory.load(2, 1))
 
     # the byte at 2 should have the three values
-    nose.tools.assert_sequence_equal(sorted(m.solver.eval_upto(m.memory.load(2, 1), 10)), (21, 43, 84))
+    assert sorted(m.solver.eval_upto(m.memory.load(2, 1), 10)) == (21, 43, 84)
 
     # we should be able to select them by adding constraints
     a_a = m.copy()
     a_a.add_constraints(merge_conditions[0])
-    nose.tools.assert_true(a_a.solver.unique(a_a.memory.load(2, 1)))
-    nose.tools.assert_equal(a_a.solver.eval(a_a.memory.load(2, 1)), 43)
+    assert a_a.solver.unique(a_a.memory.load(2, 1))
+    assert a_a.solver.eval(a_a.memory.load(2, 1)) == 43
 
     a_b = m.copy()
     a_b.add_constraints(merge_conditions[1])
-    nose.tools.assert_true(a_b.solver.unique(a_b.memory.load(2, 1)))
-    nose.tools.assert_equal(a_b.solver.eval(a_b.memory.load(2, 1)), 84)
+    assert a_b.solver.unique(a_b.memory.load(2, 1))
+    assert a_b.solver.eval(a_b.memory.load(2, 1)) == 84
 
     a_c = m.copy()
     a_c.add_constraints(merge_conditions[2])
-    nose.tools.assert_true(a_c.solver.unique(a_c.memory.load(2, 1)))
-    nose.tools.assert_equal(a_c.solver.eval(a_c.memory.load(2, 1)), 21)
+    assert a_c.solver.unique(a_c.memory.load(2, 1))
+    assert a_c.solver.eval(a_c.memory.load(2, 1)) == 21
 
     # test different sets of plugins
     a = SimState(arch='AMD64', mode='symbolic')
-    nose.tools.assert_true(a.has_plugin('memory'))
-    nose.tools.assert_true(a.has_plugin('registers'))
-    nose.tools.assert_false(a.has_plugin('libc'))
+    assert a.has_plugin('memory')
+    assert a.has_plugin('registers')
+    assert not a.has_plugin('libc')
 
     b = a.copy()
     a.get_plugin('libc')
-    nose.tools.assert_true(a.has_plugin('libc'))
-    nose.tools.assert_false(b.has_plugin('libc'))
+    assert a.has_plugin('libc')
+    assert not b.has_plugin('libc')
     c = a.copy().merge(b.copy())[0]
     d = b.copy().merge(a.copy())[0]
-    nose.tools.assert_true(c.has_plugin('libc'))
-    nose.tools.assert_true(d.has_plugin('libc'))
+    assert c.has_plugin('libc')
+    assert d.has_plugin('libc')
 
     # test merging posix with different open files (illegal!)
     a = SimState(arch='AMD64', mode='symbolic')
     b = a.copy()
     a.posix.open(b'/tmp/idk', 1)
-    nose.tools.assert_raises(angr.errors.SimMergeError, lambda: a.copy().merge(b.copy()))
 
 def test_state_merge_static():
     # With abstract memory
@@ -129,7 +126,7 @@ def test_state_merge_static():
     merged, _, _ = a.merge(b, c)
     actual = claripy.backends.vsa.convert(merged.memory.load(addr, 4, endness='Iend_LE'))
     expected = claripy.backends.vsa.convert(a.solver.SI(bits=32, stride=10, lower_bound=50, upper_bound=70))
-    nose.tools.assert_true(actual.identical(expected))
+    assert actual.identical(expected)
 
 
 def test_state_merge_3way():
@@ -211,7 +208,7 @@ def test_state_pickle():
     del s
     gc.collect()
     s = pickle.loads(sp)
-    nose.tools.assert_equal(s.solver.eval(s.memory.load(100, 10), cast_to=bytes), b"AAABAABABC")
+    assert s.solver.eval(s.memory.load(100, 10), cast_to=bytes) == b"AAABAABABC"
 
 def test_global_condition():
     s = SimState(arch="AMD64")
@@ -219,33 +216,33 @@ def test_global_condition():
     s.regs.rax = 10
     old_rax = s.regs.rax
     with s.with_condition(False):
-        nose.tools.assert_false(s.solver.satisfiable())
+        assert not s.solver.satisfiable()
         s.regs.rax = 20
-    nose.tools.assert_is(s._global_condition, None)
-    nose.tools.assert_is(old_rax, s.regs.rax)
+    assert s._global_condition is None
+    assert old_rax is s.regs.rax
 
     with s.with_condition(True):
         s.regs.rax = 20
-    nose.tools.assert_is(s._global_condition, None)
-    nose.tools.assert_is_not(old_rax, s.regs.rax)
-    nose.tools.assert_is(s.solver.BVV(20, s.arch.bits), s.regs.rax)
+    assert s._global_condition is None
+    assert old_rax is s.regs.rax
+    assert s.solver.BVV(20, s.arch.bits) is s.regs.rax
 
     with s.with_condition(s.regs.rbx != 0):
         s.regs.rax = 25
-    nose.tools.assert_is(s._global_condition, None)
-    nose.tools.assert_is_not(s.solver.BVV(25, s.arch.bits), s.regs.rax)
+    assert s._global_condition is None
+    assert s.solver.BVV(25, s.arch.bits) is s.regs.rax
 
     with s.with_condition(s.regs.rbx != 1):
         s.regs.rax = 30
-    nose.tools.assert_is(s._global_condition, None)
-    nose.tools.assert_is_not(s.solver.BVV(30, s.arch.bits), s.regs.rax)
+    assert s._global_condition is None
+    assert s.solver.BVV(30, s.arch.bits) is s.regs.rax
 
     with s.with_condition(s.regs.rbx == 0):
-        nose.tools.assert_equal(s.solver.eval_upto(s.regs.rbx, 10), [ 0 ])
-        nose.tools.assert_sequence_equal(s.solver.eval_upto(s.regs.rax, 10), [ 30 ])
+        assert s.solver.eval_upto(s.regs.rbx, 10) == [ 0 ]
+        assert s.solver.eval_upto(s.regs.rax, 10) == [ 30 ]
     with s.with_condition(s.regs.rbx == 1):
-        nose.tools.assert_equal(s.solver.eval_upto(s.regs.rbx, 10), [ 1 ])
-        nose.tools.assert_sequence_equal(s.solver.eval_upto(s.regs.rax, 10), [ 25 ])
+        assert s.solver.eval_upto(s.regs.rbx, 10) == [ 1 ]
+        assert s.solver.eval_upto(s.regs.rax, 10) == [ 25 ]
 
 
 def test_successors_catch_arbitrary_interrupts():
@@ -262,9 +259,8 @@ def test_successors_catch_arbitrary_interrupts():
 
     simgr.step()
 
-    nose.tools.assert_equal(len(simgr.errored), 0, msg="The state should not go to the errored stash. Is "
-                                                       "AngrSyscallError handled in SimSuccessors?")
-    nose.tools.assert_equal(len(simgr.unsat), 1)
+    assert len(simgr.errored) == 0
+    assert len(simgr.unsat) == 1
 
 
 def test_bypass_errored_irstmt():
@@ -286,17 +282,16 @@ def test_bypass_errored_irstmt():
     # there should be one errored state if we step the state further without BYPASS_ERRORED_IRSTMT
     simgr = proj.factory.simgr(state)
     simgr.step()
-    nose.tools.assert_equal(len(simgr.errored), 1)
-    nose.tools.assert_equal(str(simgr.errored[0].error), "address not supported", msg="Does SimFastMemory support "
-                                                                                      "reading from a symbolic address?")
+    assert len(simgr.errored) == 1
+    assert str(simgr.errored[0].error) == "address not supported"
 
     # try it with BYPASS_ERRORED_IRSTMT
     state.options.add(angr.sim_options.BYPASS_ERRORED_IRSTMT)
     simgr = proj.factory.simgr(state)
     simgr.step()
 
-    nose.tools.assert_equal(len(simgr.errored), 0)
-    nose.tools.assert_equal(len(simgr.active), 1)
+    assert len(simgr.errored) == 0
+    assert len(simgr.active) == 1
 
 
 if __name__ == '__main__':

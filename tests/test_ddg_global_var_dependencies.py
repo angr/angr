@@ -1,6 +1,5 @@
 import os
 import angr
-import nose
 
 
 test_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests'))
@@ -36,8 +35,8 @@ def run_ddg_global_var_dependencies(arch):
         has_correct_dependency |= check_dependency(stmt, buf_addr, ord('b'))
 
         # If the target depends on the statement assigning 'a' to the global variable, it is underconstrained (this assignment should be overwritten by the 'b' assignment)
-        nose.tools.assert_false(check_dependency(stmt, buf_addr, ord('a')), msg="Target statement has incorrect dependency (DDG is underconstrained)")
-    nose.tools.assert_true(has_correct_dependency, msg='Target statement does not have correct dependency (DDG is overconstrained)')
+        assert not check_dependency(stmt, buf_addr, ord('a'))
+    assert has_correct_dependency
 
 
 

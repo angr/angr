@@ -2,7 +2,6 @@
 import os
 
 import angr
-from nose.tools import assert_true
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 

@@ -1,4 +1,3 @@
-import nose
 import archinfo
 
 import logging
@@ -37,7 +36,7 @@ def test_lseek_set():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
-    nose.tools.assert_equal(current_pos,0)
+    assert current_pos == 0
 
     # Part 2
 
@@ -46,7 +45,7 @@ def test_lseek_set():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
-    nose.tools.assert_equal(current_pos,8)
+    assert current_pos == 8
 
     # Part 3
 
@@ -55,7 +54,7 @@ def test_lseek_set():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
-    nose.tools.assert_equal(current_pos,3)
+    assert current_pos == 3
 
 def test_lseek_cur():
     state = SimState(arch="AMD64", mode="symbolic")
@@ -74,7 +73,7 @@ def test_lseek_cur():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
-    nose.tools.assert_equal(current_pos,12)
+    assert current_pos == 12
 
     # Part 2
 
@@ -83,7 +82,7 @@ def test_lseek_cur():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the start
-    nose.tools.assert_equal(current_pos,9)
+    assert current_pos == 9
 
 def test_lseek_end():
     state = SimState(arch="AMD64", mode="symbolic")
@@ -101,7 +100,7 @@ def test_lseek_end():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the end + offset
-    nose.tools.assert_equal(current_pos, 16)
+    assert current_pos == 16
 
     # Part 2
 
@@ -110,7 +109,7 @@ def test_lseek_end():
     current_pos = state.solver.eval(current_pos)
 
     # We should be at the end + offset
-    nose.tools.assert_equal(current_pos,10)
+    assert current_pos == 10
 
 def test_lseek_unseekable():
     state = SimState(arch="AMD64", mode="symbolic")
@@ -120,23 +119,22 @@ def test_lseek_unseekable():
     current_pos = state.solver.eval(current_pos)
 
     # Assert we have a negative return value
-    nose.tools.assert_true(current_pos & (1 << 63) != 0)
+    assert current_pos & (1 << 63) != 0
 
     # Illegal seek
     current_pos = lseek(state,[1,0,SEEK_SET]).ret_expr
     current_pos = state.solver.eval(current_pos)
 
     # Assert we have a negative return value
-    nose.tools.assert_true(current_pos & (1 << 63) != 0)
+    assert current_pos & (1 << 63) != 0
 
     # Illegal seek
     current_pos = lseek(state,[2,0,SEEK_SET]).ret_expr
     current_pos = state.solver.eval(current_pos)
 
     # Assert we have a negative return value
-    nose.tools.assert_true(current_pos & (1 << 63) != 0)
+    assert current_pos & (1 << 63) != 0
 
-@nose.tools.raises(SimPosixError)
 def test_lseek_symbolic_whence():
     # symbolic whence is currently not possible
     state = SimState(arch="AMD64", mode="symbolic")

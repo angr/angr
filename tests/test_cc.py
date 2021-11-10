@@ -1,4 +1,3 @@
-import nose
 from angr import SimState, SIM_PROCEDURES
 
 FAKE_ADDR = 0x100000
@@ -40,7 +39,7 @@ def test_calling_conventions():
 
 
         for index, arg in enumerate(args):
-            nose.tools.assert_true(s.solver.is_true(manyargs.arg(index) == arg))
+            assert s.solver.is_true(manyargs.arg(index) == arg)
 
 if __name__ == '__main__':
     test_calling_conventions()

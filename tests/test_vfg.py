@@ -3,7 +3,6 @@ import time
 import os
 import logging
 
-import nose
 
 import angr
 import claripy
@@ -41,18 +40,14 @@ def run_vfg_buffer_overflow(arch):
     l.info("VFG generation done in %f seconds.", duration)
 
     # TODO: These are very weak conditions. Make them stronger!
-    nose.tools.assert_greater(len(vfg.final_states), 0)
+    assert len(vfg.final_states) > 0
     states = vfg.final_states
-    nose.tools.assert_equal(len(states), 2)
+    assert len(states) == 2
     stack_check_fail = proj._extern_obj.get_pseudo_addr('symbol hook: __stack_chk_fail')
-    nose.tools.assert_equal(set([ s.solver.eval_one(s.ip) for s in states ]),
-                            {
-                                stack_check_fail,
-                                0x4005b4
-                            })
+    assert set([ s.solver.eval_one(s.ip) for s in states ]) == {                                 stack_check_fail,                                 0x4005b4                             }
 
     state = [ s for s in states if s.solver.eval_one(s.ip) == 0x4005b4 ][0]
-    nose.tools.assert_true(claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28))
+    assert claripy.backends.vsa.is_true(state.stack_read(12, 4) >= 0x28)
 
 def broken_vfg_buffer_overflow():
     # Test for running VFG on a single function
@@ -76,14 +71,14 @@ def run_vfg_0(arch):
                             )
 
     function_final_states = vfg._function_final_states
-    nose.tools.assert_in(main.addr, function_final_states)
+    assert main.addr in function_final_states
 
     final_state_main = next(iter(function_final_states[main.addr].values()))
     stdout = final_state_main.posix.dumps(1)
 
-    nose.tools.assert_equal(stdout[:6], b"i = 64")
+    assert stdout[:6] == b"i = 64"
     # the following does not work without affine relation analysis
-    # nose.tools.assert_equal(stdout, "i = 64, j = 63")
+    # assert stdout == "i = 64
 
 #
 # VFG test case 1
@@ -135,24 +130,24 @@ def run_vfg_1(arch):
                             )
 
     all_block_addresses = set([ n.addr for n in vfg.graph.nodes() ])
-    nose.tools.assert_true(vfg_1_addresses[arch].issubset(all_block_addresses))
+    assert vfg_1_addresses[arch].issubset(all_block_addresses)
 
     # return value for functions
 
     # function authenticate has only two possible return values: 0 and 1
     authenticate = cfg.functions.function(name='authenticate')
-    nose.tools.assert_true(authenticate.addr in vfg.function_final_states)
+    assert authenticate.addr in vfg.function_final_states
     authenticate_final_states = vfg.function_final_states[authenticate.addr]
-    nose.tools.assert_equal(len(authenticate_final_states), 1)
+    assert len(authenticate_final_states) == 1
     authenticate_final_state = next(iter(authenticate_final_states.values()))
-    nose.tools.assert_is_not_none(authenticate_final_state)
-    nose.tools.assert_equal(authenticate_final_state.solver.eval_upto(authenticate_final_state.regs.rax, 3), [0, 1])
+    assert authenticate_final_state is not None
+    assert authenticate_final_state.solver.eval_upto(authenticate_final_state.regs.rax, 3) == [0, 1]
 
     # optimal execution tests
     # - the basic block after returning from `authenticate` should only be executed once
-    nose.tools.assert_equal(vfg._execution_counter[0x4007b3], 1)
+    assert vfg._execution_counter[0x4007b3] == 1
     # - the last basic block in `authenticate` should only be executed once (on a non-normalized CFG)
-    nose.tools.assert_equal(vfg._execution_counter[0x4006eb], 1)
+    assert vfg._execution_counter[0x4006eb] == 1
 
 def test_vfg_1():
     # Test the code coverage of VFG

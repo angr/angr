@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import os
@@ -50,8 +49,8 @@ def main(file_path, arch, endianness):
     #p.analyses.Scout(start=0x16353c)
     bs = p.analyses.BoyScout()
 
-    nose.tools.assert_in(arch, bs.arch)
-    nose.tools.assert_equal(bs.endianness, endianness)
+    assert arch in bs.arch
+    assert bs.endianness == endianness
 
 if __name__ == "__main__":
     for func, aa, bb, cc in test_boyscout():

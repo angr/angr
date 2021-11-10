@@ -3,7 +3,6 @@ import sys
 import os
 import logging
 
-import nose
 
 import angr
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
@@ -106,9 +105,7 @@ def run_variable_recovery_analysis(func_name, groundtruth, is_fast):
                 l.error('Unsupported variable sort %s.', var_sort)
                 assert False
 
-            nose.tools.assert_is_not_none(the_var, msg="The variable %s in groundtruth at instruction %#x cannot be "
-                                                       "found in variable manager." % (var_info, insn_addr)
-                                          )
+            assert the_var is not None
             l.debug("Found variable %s at %#x.", the_var, insn_addr)
 
     for block_addr, variables in groundtruth['phi_variables_by_block'].items():
@@ -125,9 +122,7 @@ def run_variable_recovery_analysis(func_name, groundtruth, is_fast):
                 l.error('Unsupported variable sort %s.', var_sort)
                 assert False
 
-            nose.tools.assert_is_not_none(the_var, msg="The phi variable %s in groundtruth at block %#x cannot be "
-                                                       "found in variable manager." % (var_info, block_addr)
-                                          )
+            assert the_var is not None
             l.debug("Found phi variable %s at %#x.", the_var, block_addr)
 
 

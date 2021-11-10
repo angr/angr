@@ -1,5 +1,4 @@
 import os
-import nose.tools
 
 import angr
 from angr.state_plugins.posix import Flags
@@ -26,11 +25,10 @@ def test_file_read_missing_content():
     length = s.posix.get_fd(fd).read(0xc00000, 100)
 
     data = s.memory.load(0xc00000, length, endness="Iend_BE")
-    nose.tools.assert_not_equal(data.op, 'Reverse', "Byte strings read directly out of a file should not have Reverse "
-                                                    "operators.")
-    nose.tools.assert_equal(data.op, "BVS")
-    nose.tools.assert_equal(len(data.variables), 1)
-    nose.tools.assert_in("oops", next(iter(data.variables)))  # file name should be part of the variable name
+    assert data.op != 'Reverse'
+    assert data.op == "BVS"
+    assert len(data.variables) == 1
+    assert "oops" in next(iter(data.variables))
 
 def test_concrete_fs_resolution():
     bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
@@ -41,9 +39,9 @@ def test_concrete_fs_resolution():
     size = stat.st_size
     int_size = state.solver.eval(size)
 
-    nose.tools.assert_true(stat)
-    nose.tools.assert_not_equal(int_size, 0)
-    nose.tools.assert_false(state.solver.symbolic(size))
+    assert stat
+    assert int_size != 0
+    assert not state.solver.symbolic(size)
 
 def test_sim_fs_resolution():
     bin_path = os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware')
@@ -53,8 +51,8 @@ def test_sim_fs_resolution():
     stat = state.posix.fstat(fd)
     size = stat.st_size
 
-    nose.tools.assert_true(stat)
-    nose.tools.assert_true(state.solver.symbolic(size))
+    assert stat
+    assert state.solver.symbolic(size)
 
 if __name__ == '__main__':
     test_files()

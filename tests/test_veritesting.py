@@ -1,6 +1,5 @@
 import sys
 
-import nose
 import angr
 
 import logging
@@ -28,11 +27,11 @@ def run_veritesting_a(arch):
                         )
     ex = proj.factory.simulation_manager(veritesting=True)
     ex.explore(find=addresses_veritesting_a[arch])
-    nose.tools.assert_not_equal(len(ex.found), 0)
+    assert len(ex.found) != 0
     # Make sure the input makes sense
     for f in ex.found:
         input_str = f.plugins['posix'].dumps(0)
-        nose.tools.assert_equal(input_str.count(b'B'), 10)
+        assert input_str.count(b'B') == 10
 
 def run_veritesting_b(arch):
     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
@@ -44,11 +43,11 @@ def run_veritesting_b(arch):
     ex = proj.factory.simulation_manager()
     ex.use_technique(angr.exploration_techniques.Veritesting(enable_function_inlining=True))
     ex.explore(find=addresses_veritesting_b[arch])
-    nose.tools.assert_not_equal(len(ex.found), 0)
+    assert len(ex.found) != 0
     # Make sure the input makes sense
     for f in ex.found:
         input_str = f.plugins['posix'].dumps(0)
-        nose.tools.assert_equal(input_str.count(b'B'), 35)
+        assert input_str.count(b'B') == 35
 
 def test_veritesting_a():
     # This is the most basic test

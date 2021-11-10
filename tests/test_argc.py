@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import logging
@@ -14,12 +13,12 @@ def test_mips():
     s = proj.factory.entry_state(args = ['aaa'], env = {"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 1)
+    assert len(xpl.found) == 1
 
     s = proj.factory.entry_state(args = ['aaa', 'bbb'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 0)
+    assert len(xpl.found) == 0
 
 def test_mipsel():
     proj = angr.Project(os.path.join(test_location, 'mipsel', 'argc_decide'))
@@ -27,12 +26,12 @@ def test_mipsel():
     s = proj.factory.entry_state(args = ['aaa', 'bbb'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 1)
+    assert len(xpl.found) == 1
 
     s = proj.factory.entry_state(args = ['aaa'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 0)
+    assert len(xpl.found) == 0
 
 def test_i386():
     proj = angr.Project(os.path.join(test_location, 'i386', 'argc_decide'))
@@ -40,12 +39,12 @@ def test_i386():
     s = proj.factory.entry_state(args = ['aaa'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 1)
+    assert len(xpl.found) == 1
 
     s = proj.factory.entry_state(args = ['aaa', 'bbb'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 0)
+    assert len(xpl.found) == 0
 
 def test_amd64():
     proj = angr.Project(os.path.join(test_location, 'x86_64', 'argc_decide'))
@@ -53,12 +52,12 @@ def test_amd64():
     s = proj.factory.entry_state(args = ['aaa'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 1)
+    assert len(xpl.found) == 1
 
     s = proj.factory.entry_state(args = ['aaa', 'bbb'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 0)
+    assert len(xpl.found) == 0
 
 def test_arm():
     proj = angr.Project(os.path.join(test_location, 'armel', 'argc_decide'))
@@ -67,12 +66,12 @@ def test_arm():
     s = proj.factory.entry_state(args = ['aaa'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 1)
+    assert len(xpl.found) == 1
 
     s = proj.factory.entry_state(args = ['aaa', 'bbb'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 0)
+    assert len(xpl.found) == 0
 
 def test_ppc32():
     proj = angr.Project(os.path.join(test_location, 'ppc', 'argc_decide'))
@@ -81,12 +80,12 @@ def test_ppc32():
     s = proj.factory.entry_state(args = ['aaa'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 1)
+    assert len(xpl.found) == 1
 
     s = proj.factory.entry_state(args = ['aaa', 'bbb'], env ={"HOME": "/home/angr"})
     xpl = proj.factory.simulation_manager(s).explore(find=r_addr)
 
-    nose.tools.assert_equal(len(xpl.found), 0)
+    assert len(xpl.found) == 0
 
 if __name__ == "__main__":
     test_mips()

@@ -1,4 +1,3 @@
-import nose
 import angr
 import subprocess
 import sys
@@ -12,7 +11,7 @@ test_location = os.path.dirname(os.path.realpath(__file__))
 
 def test_signed_div():
     if not sys.platform.startswith('linux'):
-        raise nose.SkipTest()   # this is not technically required, the run result could just be inlined
+        return   # this is not technically required, the run result could just be inlined
     test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "test_signed_div")
     b = angr.Project(test_bin)
 
@@ -22,7 +21,7 @@ def test_signed_div():
     proc = subprocess.Popen(test_bin, stdout=subprocess.PIPE)
     stdout_real, _ = proc.communicate()
 
-    nose.tools.assert_equal(out_angr, stdout_real)
+    assert out_angr == stdout_real
 
 if __name__ == "__main__":
     test_signed_div()

@@ -1,7 +1,6 @@
 
 import os.path
 
-import nose.tools
 
 import angr
 import ailment
@@ -33,8 +32,8 @@ def test_baseptr_save_simplifier_amd64():
     entry_block = _get_block(dec.clinic, main_func.addr)
     endpoint_block = _get_block(dec.clinic, next(iter(main_func.endpoints)).addr)
 
-    nose.tools.assert_is_not_none(entry_block)
-    nose.tools.assert_is_not_none(endpoint_block)
+    assert entry_block is not None
+    assert endpoint_block is not None
 
     for stmt in entry_block.statements:
         if isinstance(stmt, ailment.Stmt.Store) \
@@ -57,11 +56,7 @@ def check_bp_save_fauxware(arch):
     first_block_stmts = dra.codegen._sequence.nodes[0].nodes[0].statements
     for stmt in first_block_stmts:
         if isinstance(stmt, ailment.Stmt.Store):
-            nose.tools.assert_false(
-                (isinstance(stmt.data, ailment.Expr.Register)
-                 and stmt.data.reg_offset == p.arch.bp_offset)
-                or (isinstance(stmt.data, ailment.Expr.StackBaseOffset)
-                    and stmt.data.offset == 0))
+            assert not (isinstance(stmt.data, ailment.Expr.Register)                  and stmt.data.reg_offset == p.arch.bp_offset)                 or (isinstance(stmt.data, ailment.Expr.StackBaseOffset)                     and stmt.data.offset == 0)
 
 
 def test_bp_save_amd64_fauxware():

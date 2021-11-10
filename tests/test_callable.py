@@ -1,4 +1,3 @@
-import nose
 import angr
 import claripy
 import archinfo
@@ -40,8 +39,7 @@ def run_fauxware(arch):
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
     cc = p.factory.cc(func_ty=prototype)
     authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, cc=cc)
-    nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY")._model_concrete.value, 1)
-    nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
+    assert authenticate("asdf", "SOSNEAKY")._model_concrete.value == 1
 
 
 def run_callable_c_fauxware(arch):
@@ -50,8 +48,7 @@ def run_callable_c_fauxware(arch):
     cc = p.factory.cc(func_ty="int f(char*, char*)")
     authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, cc=cc)
     retval = authenticate.call_c('("asdf", "SOSNEAKY")')
-    nose.tools.assert_equal(retval._model_concrete.value, 1)
-    nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
+    assert retval._model_concrete.value == 1
 
 
 def run_manysum(arch):
@@ -62,8 +59,8 @@ def run_manysum(arch):
     cc = p.factory.cc(func_ty=prototype)
     sumlots = p.factory.callable(addr, cc=cc)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
-    nose.tools.assert_false(result.symbolic)
-    nose.tools.assert_equal(result._model_concrete.value, sum(range(12)))
+    assert not result.symbolic
+    assert result._model_concrete.value == sum(range(12))
 
 
 def run_callable_c_manysum(arch):
@@ -72,8 +69,8 @@ def run_callable_c_manysum(arch):
     cc = p.factory.cc(func_ty="int f(int, int, int, int, int, int, int, int, int, int, int)")
     sumlots = p.factory.callable(addr, cc=cc)
     result = sumlots.call_c("(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)")
-    nose.tools.assert_false(result.symbolic)
-    nose.tools.assert_equal(result._model_concrete.value, sum(range(12)))
+    assert not result.symbolic
+    assert result._model_concrete.value == sum(range(12))
 
 type_cache = None
 
@@ -91,9 +88,9 @@ def run_manyfloatsum(arch):
         addr = p.loader.main_object.get_symbol(function).rebased_addr
         my_callable = p.factory.callable(addr, cc=cc)
         result = my_callable(*args)
-        nose.tools.assert_false(result.symbolic)
+        assert not result.symbolic
         result_concrete = result.args[0]
-        nose.tools.assert_equal(answer, result_concrete)
+        assert answer == result_concrete
 
 @slow_test
 def run_manyfloatsum_symbolic(arch):
@@ -109,7 +106,7 @@ def run_manyfloatsum_symbolic(arch):
     addr = p.loader.main_object.get_symbol(function).rebased_addr
     my_callable = p.factory.callable(addr, cc=cc)
     result = my_callable(*args)
-    nose.tools.assert_true(result.symbolic)
+    assert result.symbolic
 
     s = claripy.Solver(timeout=15*60*1000)
     for arg in args:
@@ -117,11 +114,11 @@ def run_manyfloatsum_symbolic(arch):
     s.add(result == claripy.FPV(27.7, claripy.FSORT_DOUBLE))
 
     args_conc = s.batch_eval(args, 1)[0]
-    nose.tools.assert_equal(s.eval(result, 1)[0], 27.7)
+    assert s.eval(result, 1)[0] == 27.7
     # not almost equal!! totally equal!!! z3 is magic, if kinda slow!!!!!
     for arg_conc in args_conc:
-        nose.tools.assert_greater(arg_conc, 1.0)
-    nose.tools.assert_equal(sum(args_conc), 27.7)
+        assert arg_conc > 1.0
+    assert sum(args_conc) == 27.7
 
 
 def test_fauxware():

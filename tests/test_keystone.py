@@ -2,7 +2,6 @@ import os
 import logging
 import sys
 
-import nose
 
 import angr
 
@@ -37,21 +36,21 @@ def run_keystone(arch):
         addr |= 1
     block = p.factory.block(addr, insn_text=insn_texts[arch], thumb=is_thumb).vex
 
-    nose.tools.assert_equal(block.instructions, 1)
+    assert block.instructions == 1
 
     sm.step(force_addr=addr, insn_text=insn_texts[arch], thumb=is_thumb)
 
     if arch in ['i386', 'x86_64']:
-        nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.eax), 0x12)
+        assert sm.one_active.solver.eval(sm.one_active.regs.eax) == 0x12
     else:
-        nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.r1), 0x12)
+        assert sm.one_active.solver.eval(sm.one_active.regs.r1) == 0x12
 
 def test_keystone():
 
     # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
     # re-enabling this test on Windows.
     if not sys.platform.startswith('linux'):
-        raise nose.SkipTest()
+        return
 
     for arch_name in insn_texts:
         yield run_keystone, arch_name
