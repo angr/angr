@@ -3738,21 +3738,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 distance_to_noncode_addr = next_noncode_addr - real_addr
                 distance = min(distance, distance_to_noncode_addr)
 
-            switch_mode_on_nodecode = self._arch_options.switch_mode_on_nodecode
-            if is_arm_arch(self.project.arch) and real_addr in self._decoding_assumptions:
-                # we have come across this address before
-                assumption = self._decoding_assumptions[real_addr]
-                if assumption.attempted_thumb and assumption.attempted_arm:
-                    # unfortunately, we have attempted both, and it couldn't be decoded as any. time to give up
-                    return None, None, None, None
-                if assumption.attempted_thumb and addr % 2 == 1:
-                    # we have attempted THUMB mode. time to try ARM mode instead.
-                    addr &= ~1
-                    switch_mode_on_nodecode = False
-                elif assumption.attempted_arm and addr % 2 == 0:
-                    # we have attempted ARM mode. time to try THUMB mode instead.
-                    addr |= 1
-                    switch_mode_on_nodecode = False
+            switch_mode_on_nodecode = False
+            if is_arm_arch(self.project.arch):
+                switch_mode_on_nodecode = self._arch_options.switch_mode_on_nodecode
+                if real_addr in self._decoding_assumptions:
+                    # we have come across this address before
+                    assumption = self._decoding_assumptions[real_addr]
+                    if assumption.attempted_thumb and assumption.attempted_arm:
+                        # unfortunately, we have attempted both, and it couldn't be decoded as any. time to give up
+                        return None, None, None, None
+                    if assumption.attempted_thumb and addr % 2 == 1:
+                        # we have attempted THUMB mode. time to try ARM mode instead.
+                        addr &= ~1
+                        switch_mode_on_nodecode = False
+                    elif assumption.attempted_arm and addr % 2 == 0:
+                        # we have attempted ARM mode. time to try THUMB mode instead.
+                        addr |= 1
+                        switch_mode_on_nodecode = False
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
@@ -4007,8 +4009,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 for data_seg_addr, data_seg_size in assumption.data_segs:
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
-            if addr in (0x9a5b4, 0x9a5b5):
-                import ipdb; ipdb.set_trace()
             try:
                 existing_node = self._nodes.pop(addr)
                 self._nodes_by_addr[addr].remove(existing_node)
