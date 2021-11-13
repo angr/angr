@@ -4012,12 +4012,16 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             try:
                 existing_node = self._nodes.pop(addr)
                 self._nodes_by_addr[addr].remove(existing_node)
+                if not self._nodes_by_addr[addr]:
+                    del self._nodes_by_addr[addr]
             except KeyError:
                 existing_node = None
             if existing_node is None:
                 try:
                     existing_node = self._nodes.pop(addr + 1)
                     self._nodes_by_addr[addr + 1].remove(existing_node)
+                    if not self._nodes_by_addr[addr + 1]:
+                        del self._nodes_by_addr[addr + 1]
                 except KeyError:
                     existing_node = None
 
