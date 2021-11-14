@@ -1289,7 +1289,16 @@ class Unicorn(SimStatePlugin):
 
             start, size = self.state.arch.registers[r]
             if v.symbolic:
-                self._symbolic_offsets.update(b for b,vb in enumerate(reversed(v.chop(8)), start) if vb.symbolic)
+                symbolic_reg_offsets = set(range(start, start + size))
+                # Process subregisters in decreasing order of their size so that smaller subregisters' taint status
+                # isn't clobbered by larger subregisters
+                subregs = sorted(self.state.arch.get_register_by_name(r).subregisters, key=lambda x: x[-1], reverse=True)
+                for subreg in subregs:
+                    if not getattr(self.state.regs, subreg[0]).symbolic:
+                        for subreg_offset in range(start + subreg[1], start + subreg[1] + subreg[2]):
+                            symbolic_reg_offsets.discard(subreg_offset)
+
+                self._symbolic_offsets.update(symbolic_reg_offsets)
 
         # TODO: Support ARM hardfloat synchronization
 
