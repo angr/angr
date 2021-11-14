@@ -17,8 +17,8 @@ def test_can_be_instantiated_with_a_function(_):
     function = _a_mock_function(0x42, 'function_name')
     subject = Subject(function)
 
-    assert (subject.content == function)
-    assert (subject.type == SubjectType.Function)
+    assert subject.content == function
+    assert subject.type == SubjectType.Function
 
 
 @mock.patch.object(Block, '_parse_vex_info', return_value=None)
@@ -28,15 +28,15 @@ def test_can_be_instantiated_with_a_block(_):
     subject = Subject(block)
 
     assert subject.content == block
-    assert (subject.type == SubjectType.Block)
+    assert subject.type == SubjectType.Block
 
 
 def test_can_be_instantiated_with_an_ailment_block():
     block = ailment.Block(0x42, original_size=4)
     subject = Subject(block)
 
-    assert (subject.content == block)
-    assert (subject.type == SubjectType.Block)
+    assert subject.content == block
+    assert subject.type == SubjectType.Block
 
 
 def test_fails_when_instanciated_with_an_inadequate_object():
@@ -57,8 +57,8 @@ def test_when_instanciated_with_a_function_need_other_attributes(_, __):
 
     subject = Subject(function, func_graph, cc)
 
-    assert (subject.func_graph == func_graph)
-    assert (subject.cc == cc)
+    assert subject.func_graph == func_graph
+    assert subject.cc == cc
 
 
 def test_cc_attribute_should_raise_error_when_subject_is_a_block():

@@ -412,7 +412,7 @@ def test_segment_list_0():
     assert len(seg_list) == 2
     assert seg_list._list[0].end == 1
     assert seg_list._list[1].end == 5
-    assert seg_list.is_occupied(4) == True
+    assert seg_list.is_occupied(4)
     assert seg_list.is_occupied(5) == False
 
 def test_segment_list_1():

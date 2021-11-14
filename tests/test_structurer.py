@@ -86,7 +86,7 @@ def test_region_identifier_1():
 
     ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
-    assert (len(region.graph.nodes())) == 2
+    assert len(region.graph.nodes()) == 2
 
 
 def test_smoketest():

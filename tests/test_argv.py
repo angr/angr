@@ -28,7 +28,7 @@ def test_mips():
     found = xpl.found[0]
     conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
 
-    assert b"Yan is a noob" in conc == True
+    assert b"Yan is a noob" in conc
 
 def test_mipsel():
     proj = angr.Project(os.path.join(test_location, 'mipsel', 'argv_test'))
@@ -50,7 +50,7 @@ def test_mipsel():
     found = xpl.found[0]
     conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
 
-    assert b"Yan is a noob" in conc == True
+    assert b"Yan is a noob" in conc
 
 def test_i386():
     proj = angr.Project(os.path.join(test_location, 'i386', 'argv_test'))
@@ -72,7 +72,7 @@ def test_i386():
     found = xpl.found[0]
     conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
 
-    assert b"Yan is a noob" in conc == True
+    assert b"Yan is a noob" in conc
 
 def test_amd64():
     proj = angr.Project(os.path.join(test_location, 'x86_64', 'argv_test'))
@@ -94,7 +94,7 @@ def test_amd64():
     found = xpl.found[0]
     conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
 
-    assert b"Yan is a noob" in conc == True
+    assert b"Yan is a noob" in conc
 
 def test_arm():
     proj = angr.Project(os.path.join(test_location, 'armel', 'argv_test'))
@@ -117,7 +117,7 @@ def test_arm():
     found = xpl.found[0]
     conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
 
-    assert b"Yan is a noob" in conc == True
+    assert b"Yan is a noob" in conc
 
 def test_ppc32():
     proj = angr.Project(os.path.join(test_location, 'ppc', 'argv_test'))
@@ -140,7 +140,7 @@ def test_ppc32():
     found = xpl.found[0]
     conc = found.solver.eval(found.memory.load(found.registers.load('sp'), 400), cast_to=bytes)
 
-    assert b"Yan is a noob" in conc == True
+    assert b"Yan is a noob" in conc
 
 if __name__ == "__main__":
     test_mips()
