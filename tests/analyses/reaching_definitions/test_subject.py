@@ -1,4 +1,5 @@
 from unittest import mock
+import unittest
 
 import ailment
 
@@ -12,75 +13,59 @@ from angr.knowledge_plugins import Function
 def _a_mock_function(address, name):
     return Function(None, address, name=name, syscall=False, is_simprocedure=False, is_plt=False, returning=False)
 
-@mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
-def test_can_be_instantiated_with_a_function(_):
-    function = _a_mock_function(0x42, 'function_name')
-    subject = Subject(function)
 
-    assert subject.content == function
-    assert subject.type == SubjectType.Function
+class TestSubject(unittest.TestCase):
 
+    @mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
+    def test_can_be_instantiated_with_a_function(self):
+        function = _a_mock_function(0x42, 'function_name')
+        subject = Subject(function)
 
-@mock.patch.object(Block, '_parse_vex_info', return_value=None)
-def test_can_be_instantiated_with_a_block(_):
-    arch = ArchX86()
-    block = Block(0x42, byte_string=b'', arch=arch)
-    subject = Subject(block)
+        assert subject.content == function
+        assert subject.type == SubjectType.Function
 
-    assert subject.content == block
-    assert subject.type == SubjectType.Block
+    @mock.patch.object(Block, '_parse_vex_info', return_value=None)
+    def test_can_be_instantiated_with_a_block(self, _):
+        arch = ArchX86()
+        block = Block(0x42, byte_string=b'', arch=arch)
+        subject = Subject(block)
 
+        assert subject.content == block
+        assert subject.type == SubjectType.Block
 
-def test_can_be_instantiated_with_an_ailment_block():
-    block = ailment.Block(0x42, original_size=4)
-    subject = Subject(block)
+    def test_can_be_instantiated_with_an_ailment_block(self):
+        block = ailment.Block(0x42, original_size=4)
+        subject = Subject(block)
 
-    assert subject.content == block
-    assert subject.type == SubjectType.Block
+        assert subject.content == block
+        assert subject.type == SubjectType.Block
 
+    def test_fails_when_instanciated_with_an_inadequate_object(self, _):
+        with self.assertRaises(TypeError):
+            Subject('test-me', None)
 
-def test_fails_when_instanciated_with_an_inadequate_object():
-    error_flag = False
-    try:
-        Subject('test-me', None)
-    except TypeError:
-        error_flag = True
-    assert error_flag
+    @mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
+    @mock.patch.object(FunctionGraphVisitor, 'sort_nodes')
+    def test_when_instanciated_with_a_function_need_other_attributes(self, _, __):
+        function = _a_mock_function(0x42, 'function_name')
+        func_graph = 'mock_func_graph'
+        cc = 'mock_cc'
 
+        subject = Subject(function, func_graph, cc)
 
-@mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
-@mock.patch.object(FunctionGraphVisitor, 'sort_nodes')
-def test_when_instanciated_with_a_function_need_other_attributes(_, __):
-    function = _a_mock_function(0x42, 'function_name')
-    func_graph = 'mock_func_graph'
-    cc = 'mock_cc'
+        assert subject.func_graph == func_graph
+        assert subject.cc == cc
 
-    subject = Subject(function, func_graph, cc)
+    def test_cc_attribute_should_raise_error_when_subject_is_a_block(self):
+        arch = ArchX86()
+        block = Block(0x42, byte_string=b'', arch=arch)
+        subject = Subject(block)
+        with self.assertRaises(TypeError):
+            _ = subject.cc
 
-    assert subject.func_graph == func_graph
-    assert subject.cc == cc
-
-
-def test_cc_attribute_should_raise_error_when_subject_is_a_block():
-    arch = ArchX86()
-    block = Block(0x42, byte_string=b'', arch=arch)
-    subject = Subject(block)
-    flag = False
-    try:
-        _ = subject.cc
-    except TypeError:
-        flag = True
-    assert flag
-
-
-def test_func_graph_attribute_should_raise_error_when_subject_is_a_block():
-    arch = ArchX86()
-    block = Block(0x42, byte_string=b'', arch=arch)
-    subject = Subject(block)
-
-    flag = False
-    try:
-        _ = subject.func_graph
-    except TypeError:
-        flag = True
-    assert flag
+    def test_func_graph_attribute_should_raise_error_when_subject_is_a_block(self):
+        arch = ArchX86()
+        block = Block(0x42, byte_string=b'', arch=arch)
+        subject = Subject(block)
+        with self.assertRaises(TypeError):
+            _ = subject.func_graph
