@@ -53,7 +53,7 @@ def test_call_function_brancher():
 
     assert len(pg.deprioritized) > 0
     assert len(pg.found) > 0
-    assert NonLocal.the_state is None
+    assert NonLocal.the_state is not None
     assert NonLocal.the_goal is goal
 
 if __name__ == "__main__":

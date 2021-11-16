@@ -236,7 +236,7 @@ class TestState(unittest.TestCase):
         with s.with_condition(True):
             s.regs.rax = 20
         assert s._global_condition is None
-        assert old_rax is s.regs.rax
+        assert old_rax is not s.regs.rax
         assert s.solver.BVV(20, s.arch.bits) is s.regs.rax
 
         with s.with_condition(s.regs.rbx != 0):

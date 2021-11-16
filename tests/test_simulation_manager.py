@@ -71,7 +71,7 @@ def run_fauxware(arch, threads):
     st1, st2 = pg8.active
     pg8.step(selector_func=lambda p: p is st1, step_func=lambda lpg: lpg.prune().drop(stash='pruned'))
     assert st2 is pg8.active[1]
-    assert st1 is pg8.active[0]
+    assert st1 is not pg8.active[0]
 
     total_active = len(pg8.active)
 

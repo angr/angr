@@ -13,9 +13,9 @@ def test_registration():
 
     b2 = s1.solver.BVS('b', 64, key=(2,), eternal=False)
     b3 = s2.solver.BVS('b', 64, key=(2,), eternal=False)
-    assert b1 is b2
-    assert b2 is b3
-    assert b1 is b3
+    assert b1 is not b2
+    assert b2 is not b3
+    assert b1 is not b3
 
     a3 = s1.solver.BVS('a', 64, key=(1,), eternal=True)
     a4 = s2.solver.BVS('a', 64, key=(1,), eternal=True)

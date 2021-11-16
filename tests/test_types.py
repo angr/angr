@@ -50,12 +50,7 @@ def test_cproto_conversion():
     assert isinstance(pyproto.returnty, SimTypeInt)
 
     # Directly comparing the strings... how bad can I be?
-    assert (
-        the_str
-        == '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), '
-        "SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), "
-        'arg_names=["argc", "argv"] '
-    )
+    assert the_str == '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),'
 
     # A bad function declaration
     cproto_1 = "int bad(xxxxxxx);"
