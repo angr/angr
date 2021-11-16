@@ -3,10 +3,14 @@ import pickle
 import networkx
 
 import logging
+
 l = logging.getLogger("angr.tests.test_cfgemulated")
 
 import os
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+
+test_location = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
+)
 
 import angr
 from angr import options as o
@@ -24,17 +28,17 @@ def compare_cfg(standard, g, function_list):
         while start <= end:
             mid = (start + end) / 2
             f = function_list[mid]
-            if addr < f['start']:
+            if addr < f["start"]:
                 end = mid - 1
-            elif addr > f['end']:
+            elif addr > f["end"]:
                 start = mid + 1
             else:
-                return f['name']
+                return f["name"]
 
         return None
 
     # Sort function list
-    function_list = sorted(function_list, key=lambda x: x['start'])
+    function_list = sorted(function_list, key=lambda x: x["start"])
 
     # Convert the IDA-style CFG into VEX-style CFG
     s_graph = networkx.DiGraph()
@@ -70,20 +74,35 @@ def compare_cfg(standard, g, function_list):
             continue
         else:
             # Edge doesn't exist in our CFG
-            l.error("Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.", get_function_name(src), src, get_function_name(dst), dst)
+            l.error(
+                "Edge (%s-0x%x, %s-0x%x) only exists in IDA CFG.",
+                get_function_name(src),
+                src,
+                get_function_name(dst),
+                dst,
+            )
 
     for src, dst in graph.edges():
         if s_graph.has_edge(src, dst):
             continue
         else:
             # Edge doesn't exist in our CFG
-            l.error("Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.", get_function_name(src), src, get_function_name(dst), dst)
+            l.error(
+                "Edge (%s-0x%x, %s-0x%x) only exists in angr's CFG.",
+                get_function_name(src),
+                src,
+                get_function_name(dst),
+                dst,
+            )
+
 
 def perform_single(binary_path, cfg_path=None):
-    proj = angr.Project(binary_path,
-                        use_sim_procedures=True,
-                        default_analysis_mode='symbolic',
-                        load_options={'auto_load_libs': False})
+    proj = angr.Project(
+        binary_path,
+        use_sim_procedures=True,
+        default_analysis_mode="symbolic",
+        load_options={"auto_load_libs": False},
+    )
     start = time.time()
     cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
     end = time.time()
@@ -96,121 +115,182 @@ def perform_single(binary_path, cfg_path=None):
     if cfg_path is not None and os.path.isfile(cfg_path):
         # Compare the graph with a predefined CFG
         info = pickle.load(open(cfg_path, "rb"))
-        standard = info['cfg']
-        functions = info['functions']
+        standard = info["cfg"]
+        functions = info["functions"]
         graph = cfg.graph
 
         compare_cfg(standard, graph, functions)
     else:
         l.warning("No standard CFG specified.")
 
+
 def disabled_cfg_0():
-    binary_path = os.path.join(test_location, 'x86_64', 'cfg_0')
+    binary_path = os.path.join(test_location, "x86_64", "cfg_0")
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def disabled_cfg_1():
-    binary_path = os.path.join(test_location, 'x86_64', 'cfg_1')
+    binary_path = os.path.join(test_location, "x86_64", "cfg_1")
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def disabled_cfg_2():
-    binary_path = os.path.join(test_location, 'armel', 'test_division')
+    binary_path = os.path.join(test_location, "armel", "test_division")
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def disabled_cfg_3():
-    binary_path = os.path.join(test_location, 'mips', 'test_arrays')
+    binary_path = os.path.join(test_location, "mips", "test_arrays")
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
 
+
 def disabled_cfg_4():
-    binary_path = os.path.join(test_location, 'mipsel', 'darpa_ping')
+    binary_path = os.path.join(test_location, "mipsel", "darpa_ping")
     cfg_path = binary_path + ".cfg"
     perform_single(binary_path, cfg_path)
+
 
 def test_additional_edges():
     # Test the `additional_edges` parameter for CFG generation
 
-    binary_path = os.path.join(test_location, 'x86_64', 'switch')
-    proj = angr.Project(binary_path,
-                        use_sim_procedures=True,
-                        default_analysis_mode='symbolic',
-                        load_options={'auto_load_libs': False})
-    additional_edges = {
-        0x400573 : [ 0x400580, 0x40058f, 0x40059e ]
-    }
-    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, additional_edges=additional_edges, fail_fast=True,
-                                    resolve_indirect_jumps=False,  # For this test case, we need to disable the
-                                                                   # jump table resolving, otherwise CFGEmulated
-                                                                   # can automatically find the node 0x4005ad.
-                                    )
+    binary_path = os.path.join(test_location, "x86_64", "switch")
+    proj = angr.Project(
+        binary_path,
+        use_sim_procedures=True,
+        default_analysis_mode="symbolic",
+        load_options={"auto_load_libs": False},
+    )
+    additional_edges = {0x400573: [0x400580, 0x40058F, 0x40059E]}
+    cfg = proj.analyses.CFGEmulated(
+        context_sensitivity_level=0,
+        additional_edges=additional_edges,
+        fail_fast=True,
+        resolve_indirect_jumps=False,  # For this test case, we need to disable the
+        # jump table resolving, otherwise CFGEmulated
+        # can automatically find the node 0x4005ad.
+    )
 
     assert cfg.get_any_node(0x400580) != None
-    assert cfg.get_any_node(0x40058f) != None
-    assert cfg.get_any_node(0x40059e) != None
-    assert cfg.get_any_node(0x4005ad) == None
+    assert cfg.get_any_node(0x40058F) != None
+    assert cfg.get_any_node(0x40059E) != None
+    assert cfg.get_any_node(0x4005AD) == None
+
 
 def test_not_returning():
     # Make sure we are properly labeling functions that do not return in function manager
 
-    binary_path = os.path.join(test_location, 'x86_64', 'not_returning')
-    proj = angr.Project(binary_path,
-                        use_sim_procedures=True,
-                        load_options={'auto_load_libs': False}
-                        )
-    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=0, fail_fast=True)  # pylint:disable=unused-variable
+    binary_path = os.path.join(test_location, "x86_64", "not_returning")
+    proj = angr.Project(
+        binary_path, use_sim_procedures=True, load_options={"auto_load_libs": False}
+    )
+    cfg = proj.analyses.CFGEmulated(
+        context_sensitivity_level=0, fail_fast=True
+    )  # pylint:disable=unused-variable
 
     # function_a returns
-    assert proj.kb.functions.function(name='function_a') != None
-    assert proj.kb.functions.function(name='function_a').returning
+    assert proj.kb.functions.function(name="function_a") != None
+    assert proj.kb.functions.function(name="function_a").returning
 
     # function_b does not return
-    assert proj.kb.functions.function(name='function_b') != None
-    assert not proj.kb.functions.function(name='function_b').returning
+    assert proj.kb.functions.function(name="function_b") != None
+    assert not proj.kb.functions.function(name="function_b").returning
 
     # function_c does not return
-    assert proj.kb.functions.function(name='function_c') != None
-    assert not proj.kb.functions.function(name='function_c').returning
+    assert proj.kb.functions.function(name="function_c") != None
+    assert not proj.kb.functions.function(name="function_c").returning
 
     # main does not return
-    assert proj.kb.functions.function(name='main') != None
-    assert not proj.kb.functions.function(name='main').returning
+    assert proj.kb.functions.function(name="main") != None
+    assert not proj.kb.functions.function(name="main").returning
 
     # function_d should not be reachable
-    assert proj.kb.functions.function(name='function_d') == None
+    assert proj.kb.functions.function(name="function_d") == None
+
 
 def disabled_cfg_5():
-    binary_path = os.path.join(test_location, 'mipsel', 'busybox')
+    binary_path = os.path.join(test_location, "mipsel", "busybox")
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
+
 
 def test_cfg_6():
-    function_addresses = [0xfa630, 0xfa683, 0xfa6d4, 0xfa707, 0xfa754, 0xfa779, 0xfa7a9, 0xfa7d6, 0xfa844, 0xfa857,
-                          0xfa8d9, 0xfa92f, 0xfa959, 0xfa9fb, 0xfabd6, 0xfac61, 0xfacc2, 0xfad29, 0xfaf94, 0xfbd07,
-                          0xfc100, 0xfc101, 0xfc14f, 0xfc18e, 0xfc25e, 0xfc261, 0xfc3c6, 0xfc42f, 0xfc4a3, 0xfc4cf,
-                          0xfc4db, 0xfc5ba, 0xfc5ef, 0xfc5fe, 0xfc611, 0xfc682, 0xfc6b7, 0xfc7fc, 0xfc8a8, 0xfc8e7,
-                          0xfcb42, 0xfcb50, 0xfcb72, 0xfcc3b, 0xfcc7a, 0xfcc8b, 0xfccdc, 0xfd1a3, 0xff06e]
+    function_addresses = [
+        0xFA630,
+        0xFA683,
+        0xFA6D4,
+        0xFA707,
+        0xFA754,
+        0xFA779,
+        0xFA7A9,
+        0xFA7D6,
+        0xFA844,
+        0xFA857,
+        0xFA8D9,
+        0xFA92F,
+        0xFA959,
+        0xFA9FB,
+        0xFABD6,
+        0xFAC61,
+        0xFACC2,
+        0xFAD29,
+        0xFAF94,
+        0xFBD07,
+        0xFC100,
+        0xFC101,
+        0xFC14F,
+        0xFC18E,
+        0xFC25E,
+        0xFC261,
+        0xFC3C6,
+        0xFC42F,
+        0xFC4A3,
+        0xFC4CF,
+        0xFC4DB,
+        0xFC5BA,
+        0xFC5EF,
+        0xFC5FE,
+        0xFC611,
+        0xFC682,
+        0xFC6B7,
+        0xFC7FC,
+        0xFC8A8,
+        0xFC8E7,
+        0xFCB42,
+        0xFCB50,
+        0xFCB72,
+        0xFCC3B,
+        0xFCC7A,
+        0xFCC8B,
+        0xFCCDC,
+        0xFD1A3,
+        0xFF06E,
+    ]
 
     # We need to add DO_CCALLS to resolve long jmp and support real mode
-    o.modes['fastpath'] |= {o.DO_CCALLS}
+    o.modes["fastpath"] |= {o.DO_CCALLS}
     binary_path = test_location + "/i386/bios.bin.elf"
-    proj = angr.Project(binary_path,
-                        use_sim_procedures=True,
-                        page_size=1)
-    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
+    proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1)
+    cfg = proj.analyses.CFGEmulated(
+        context_sensitivity_level=1, fail_fast=True
+    )  # pylint:disable=unused-variable
     assert set(f for f in proj.kb.functions) >= set(function_addresses)
-    o.modes['fastpath'] ^= {o.DO_CCALLS}
+    o.modes["fastpath"] ^= {o.DO_CCALLS}
+
 
 def test_fauxware():
-    binary_path = os.path.join(test_location, 'x86_64', 'fauxware')
+    binary_path = os.path.join(test_location, "x86_64", "fauxware")
     cfg_path = binary_path + ".cfg"
 
     perform_single(binary_path, cfg_path)
 
+
 def disabled_loop_unrolling():
-    binary_path = os.path.join(test_location, 'x86_64', 'cfg_loop_unrolling')
+    binary_path = os.path.join(test_location, "x86_64", "cfg_loop_unrolling")
 
     p = angr.Project(binary_path)
     cfg = p.analyses.CFGEmulated(fail_fast=True)
@@ -220,11 +300,12 @@ def disabled_loop_unrolling():
 
     assert len(cfg.get_all_nodes(0x400636)) == 7
 
+
 def test_thumb_mode():
     # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
     # reflect VEX's trick to encode the THUMB state in the address.
 
-    binary_path = os.path.join(test_location, 'armhf', 'test_arrays')
+    binary_path = os.path.join(test_location, "armhf", "test_arrays")
     p = angr.Project(binary_path)
     cfg = p.analyses.CFGEmulated(fail_fast=True)
 
@@ -235,7 +316,7 @@ def test_thumb_mode():
             assert not cfg.is_thumb_addr(a)
 
     # CFGNodes
-    cfg_node_addrs = [ n.addr for n in cfg.graph.nodes() if not n.is_simprocedure ]
+    cfg_node_addrs = [n.addr for n in cfg.graph.nodes() if not n.is_simprocedure]
     for a in cfg_node_addrs:
         check_addr(a)
 
@@ -246,6 +327,7 @@ def test_thumb_mode():
         check_addr(f_addr)
         if f.startpoint is not None:
             check_addr(f.startpoint.addr)
+
 
 def test_fakeret_edges_0():
 
@@ -288,13 +370,14 @@ def test_fakeret_edges_0():
     # Each predecessor must have a call edge and a FakeRet edge
     edges_0 = cfg.get_successors_and_jumpkind(preds_0[0], excluding_fakeret=False)
     assert len(edges_0) == 2
-    jumpkinds = { jumpkind for _, jumpkind in edges_0 }
-    assert jumpkinds == { 'Ijk_Call', 'Ijk_FakeRet' }
+    jumpkinds = {jumpkind for _, jumpkind in edges_0}
+    assert jumpkinds == {"Ijk_Call", "Ijk_FakeRet"}
 
     edges_1 = cfg.get_successors_and_jumpkind(preds_1[0], excluding_fakeret=False)
     assert len(edges_1) == 2
-    jumpkinds = { jumpkind for _, jumpkind in edges_1 }
-    assert jumpkinds == { 'Ijk_Call', 'Ijk_FakeRet' }
+    jumpkinds = {jumpkind for _, jumpkind in edges_1}
+    assert jumpkinds == {"Ijk_Call", "Ijk_FakeRet"}
+
 
 def test_string_references():
 
@@ -302,7 +385,7 @@ def test_string_references():
     # references
 
     binary_path = os.path.join(test_location, "i386", "ctf_nuclear")
-    b = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    b = angr.Project(binary_path, load_options={"auto_load_libs": False})
     cfg = b.analyses.CFGEmulated(keep_state=True, fail_fast=True)
 
     string_references = []
@@ -311,10 +394,11 @@ def test_string_references():
 
     # test passes if hasn't thrown an exception
 
+
 def test_arrays():
 
     binary_path = os.path.join(test_location, "armhf", "test_arrays")
-    b = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    b = angr.Project(binary_path, load_options={"auto_load_libs": False})
     cfg = b.analyses.CFGEmulated(fail_fast=True)
 
     node = cfg.model.get_any_node(0x10415)
@@ -323,10 +407,11 @@ def test_arrays():
     successors = cfg.model.get_successors(node)
     assert len(successors) == 2
 
+
 def test_max_steps():
 
     binary_path = os.path.join(test_location, "x86_64", "fauxware")
-    b = angr.Project(binary_path, load_options={'auto_load_libs': False})
+    b = angr.Project(binary_path, load_options={"auto_load_libs": False})
     cfg = b.analyses.CFGEmulated(max_steps=5, fail_fast=True)
 
     dfs_edges = networkx.dfs_edges(cfg.graph)
@@ -348,14 +433,14 @@ def test_armel_final_missing_block():
     # only entry edge to that block is an Ijk_Ret edge. See #475 on GitHub.
     # Thank @gergo for reporting and providing this test binary.
 
-    binary_path = os.path.join(test_location, 'armel', 'last_block')
+    binary_path = os.path.join(test_location, "armel", "last_block")
     b = angr.Project(binary_path, auto_load_libs=False)
     cfg = b.analyses.CFGEmulated(fail_fast=True)
 
     blocks = list(cfg.kb.functions[0x8000].blocks)
 
     assert len(blocks) == 3
-    assert { block.addr for block in blocks } == { 0x8000, 0x8014, 0x8020 }
+    assert {block.addr for block in blocks} == {0x8000, 0x8014, 0x8020}
 
 
 def test_armel_final_missing_block_b():
@@ -377,20 +462,22 @@ def test_armel_final_missing_block_b():
     # The binary's app code was compiled as CortexM, but linked against ARM libraries.
     # This is illegal, and does not actually execute on a real CortexM.
     # Somebody should recompile it....
-    binary_path = os.path.join(test_location, 'armel', 'aes')
+    binary_path = os.path.join(test_location, "armel", "aes")
     b = angr.Project(binary_path, arch="ARMEL", auto_load_libs=False)
 
-    function = b.loader.main_object.get_symbol('main').rebased_addr
-    cfg = b.analyses.CFGEmulated(starts=[function],
-                                 context_sensitivity_level=0,
-                                 normalize=True,
-                                 fail_fast=True,
-                                 )
+    function = b.loader.main_object.get_symbol("main").rebased_addr
+    cfg = b.analyses.CFGEmulated(
+        starts=[function],
+        context_sensitivity_level=0,
+        normalize=True,
+        fail_fast=True,
+    )
 
-    blocks = list(cfg.kb.functions['main'].blocks)
+    blocks = list(cfg.kb.functions["main"].blocks)
 
     assert len(blocks) == 2
-    assert set(block.addr for block in blocks) == { 0x10b79, 0x10bbf }
+    assert set(block.addr for block in blocks) == {0x10B79, 0x10BBF}
+
 
 def test_armel_incorrect_function_detection_caused_by_branch():
 
@@ -401,67 +488,67 @@ def test_armel_incorrect_function_detection_caused_by_branch():
     cfg = b.analyses.CFGEmulated()
 
     # The Main function should be identified as a single function
-    assert 0x80a1 in cfg.functions
-    main_func = cfg.functions[0x80a1]
+    assert 0x80A1 in cfg.functions
+    main_func = cfg.functions[0x80A1]
 
     # All blocks should be there
-    block_addrs = sorted([ b.addr for b in main_func.blocks ])
-    assert block_addrs == [0x80a1, 0x80b1, 0x80bb, 0x80cd, 0x80df, 0x80e3, 0x80ed]
+    block_addrs = sorted([b.addr for b in main_func.blocks])
+    assert block_addrs == [0x80A1, 0x80B1, 0x80BB, 0x80CD, 0x80DF, 0x80E3, 0x80ED]
 
     # The ResetISR function should be identified as a single function, too
     assert 0x8009 in cfg.functions
     resetisr_func = cfg.functions[0x8009]
 
     # All blocks should be there
-    block_addrs = sorted([ b.addr for b in resetisr_func.blocks ])
-    assert block_addrs == [0x8009, 0x8011, 0x801f, 0x8027]
+    block_addrs = sorted([b.addr for b in resetisr_func.blocks])
+    assert block_addrs == [0x8009, 0x8011, 0x801F, 0x8027]
 
 
 def test_cfg_switches():
 
-    #logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
-    #logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
+    # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
+    # logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
 
     filename = "cfg_switches"
 
     edges = {
-        'x86_64': {
+        "x86_64": {
             # jump table 0 in func_0
-            (0x40053a, 0x400547),
-            (0x40053a, 0x400552),
-            (0x40053a, 0x40055d),
-            (0x40053a, 0x400568),
-            (0x40053a, 0x400573),
-            (0x40053a, 0x400580),
-            (0x40053a, 0x40058d),
+            (0x40053A, 0x400547),
+            (0x40053A, 0x400552),
+            (0x40053A, 0x40055D),
+            (0x40053A, 0x400568),
+            (0x40053A, 0x400573),
+            (0x40053A, 0x400580),
+            (0x40053A, 0x40058D),
             # jump table 0 in func_1
-            (0x4005bc, 0x4005c9),
-            (0x4005bc, 0x4005d8),
-            (0x4005bc, 0x4005e7),
-            (0x4005bc, 0x4005f6),
-            (0x4005bc, 0x400605),
-            (0x4005bc, 0x400614),
-            (0x4005bc, 0x400623),
-            (0x4005bc, 0x400632),
-            (0x4005bc, 0x40063e),
-            (0x4005bc, 0x40064a),
-            (0x4005bc, 0x4006b0),
+            (0x4005BC, 0x4005C9),
+            (0x4005BC, 0x4005D8),
+            (0x4005BC, 0x4005E7),
+            (0x4005BC, 0x4005F6),
+            (0x4005BC, 0x400605),
+            (0x4005BC, 0x400614),
+            (0x4005BC, 0x400623),
+            (0x4005BC, 0x400632),
+            (0x4005BC, 0x40063E),
+            (0x4005BC, 0x40064A),
+            (0x4005BC, 0x4006B0),
             # jump table 1 in func_1
-            (0x40065a, 0x400667),
-            (0x40065a, 0x400673),
-            (0x40065a, 0x40067f),
-            (0x40065a, 0x40068b),
-            (0x40065a, 0x400697),
-            (0x40065a, 0x4006a3),
+            (0x40065A, 0x400667),
+            (0x40065A, 0x400673),
+            (0x40065A, 0x40067F),
+            (0x40065A, 0x40068B),
+            (0x40065A, 0x400697),
+            (0x40065A, 0x4006A3),
             # jump table 0 in main
-            (0x4006e1, 0x4006ee),
-            (0x4006e1, 0x4006fa),
-            (0x4006e1, 0x40070b),
-            (0x4006e1, 0x40071c),
-            (0x4006e1, 0x40072d),
-            (0x4006e1, 0x40073e),
-            (0x4006e1, 0x40074f),
-            (0x4006e1, 0x40075b),
+            (0x4006E1, 0x4006EE),
+            (0x4006E1, 0x4006FA),
+            (0x4006E1, 0x40070B),
+            (0x4006E1, 0x40071C),
+            (0x4006E1, 0x40072D),
+            (0x4006E1, 0x40073E),
+            (0x4006E1, 0x40074F),
+            (0x4006E1, 0x40075B),
         },
     }
 
@@ -469,20 +556,26 @@ def test_cfg_switches():
 
     for arch in arches:
         path = os.path.join(test_location, arch, filename)
-        proj = angr.Project(path, load_options={'auto_load_libs': False})
+        proj = angr.Project(path, load_options={"auto_load_libs": False})
 
         cfg = proj.analyses.CFGEmulated()
 
         for src, dst in edges[arch]:
             src_node = cfg.get_any_node(src)
             dst_node = cfg.get_any_node(dst)
-            assert dst_node in src_node.successors
+            assert dst_node in src_node.successors, "CFG edge %s-%s is not found." % (
+                src_node,
+                dst_node,
+            )
 
 
-class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
+class CFGEmulatedAborted(
+    angr.analyses.cfg.cfg_emulated.CFGEmulated
+):  # pylint:disable=abstract-method
     """
     Only used in the test_abort_and_resume test case.
     """
+
     should_abort = False
 
     def _intra_analysis(self):
@@ -491,9 +584,10 @@ class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:
         else:
             super()._intra_analysis()
 
+
 def test_abort_and_resume():
 
-    angr.analyses.AnalysesHub.register_default('CFGEmulatedAborted', CFGEmulatedAborted)
+    angr.analyses.AnalysesHub.register_default("CFGEmulatedAborted", CFGEmulatedAborted)
 
     CFGEmulatedAborted.should_abort = False
     binary_path = os.path.join(test_location, "x86_64", "fauxware")
@@ -501,12 +595,13 @@ def test_abort_and_resume():
 
     CFGEmulatedAborted.should_abort = True
     cfg = b.analyses.CFGEmulatedAborted()
-    assert len(list(cfg.jobs)) > 0
+    assert len(list(cfg.jobs)) > 0  # there should be left-over jobs
 
     CFGEmulatedAborted.should_abort = False
     cfg.resume()
 
     assert len(list(cfg.jobs)) == 0
+
 
 def test_base_graph():
     path = os.path.join(test_location, "x86_64", "test_cfgemulated_base_graph")
@@ -515,44 +610,56 @@ def test_base_graph():
 
     edges = {
         (0x401129, 0x401144),
-        (0x401129, 0x40114d),
+        (0x401129, 0x40114D),
         (0x401144, 0x401154),
-        (0x40114d, 0x401154),
+        (0x40114D, 0x401154),
     }
 
     final_states_info = {
         0x401129: 2,
-        0x40114d: 1,
+        0x40114D: 1,
         0x401144: 1,
         0x401154: 1,
     }
 
-    proj = angr.Project(path, load_options={'auto_load_libs': False})
+    proj = angr.Project(path, load_options={"auto_load_libs": False})
 
     cfg_fast = proj.analyses.CFGFast(normalize=True)
     target_function = cfg_fast.kb.functions[func_addr]
     target_function.normalize()
 
-    target_function_cfg_emulated = proj.analyses.CFGEmulated(keep_state=True,
-                                         state_add_options=angr.options.refs,
-                                         base_graph = target_function.graph, starts=(func_addr,),
-                                         normalize=True)
+    target_function_cfg_emulated = proj.analyses.CFGEmulated(
+        keep_state=True,
+        state_add_options=angr.options.refs,
+        base_graph=target_function.graph,
+        starts=(func_addr,),
+        normalize=True,
+    )
     for src, dst in edges:
         src_node = target_function_cfg_emulated.get_any_node(src)
         dst_node = target_function_cfg_emulated.get_any_node(dst)
-        assert dst_node in src_node.successors
+        assert dst_node in src_node.successors, "CFG edge %s-%s is not found." % (
+            src_node,
+            dst_node,
+        )
 
-    for (node_addr,final_states_number) in final_states_info.items():
+    for (node_addr, final_states_number) in final_states_info.items():
         node = target_function_cfg_emulated.get_any_node(node_addr)
-        assert final_states_number == len(node.final_states)
+        assert final_states_number == len(node.final_states), (
+            "CFG node 0x%x has incorrect final states." % node_addr
+        )
+
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda kv: kv[0].startswith('test_')), functions.items()))
+    all_functions = dict(
+        filter((lambda kv: kv[0].startswith("test_")), functions.items())
+    )
     for f in sorted(all_functions.keys()):
-        if hasattr(all_functions[f], '__call__'):
+        if hasattr(all_functions[f], "__call__"):
             print(f)
             all_functions[f]()
+
 
 if __name__ == "__main__":
     logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
@@ -560,11 +667,12 @@ if __name__ == "__main__":
     # logging.getLogger("angr.analyses.cfg.cfg_emulated").setLevel(logging.DEBUG)
     # logging.getLogger("s_irsb").setLevel(logging.DEBUG)
     # Temporarily disable the warnings of claripy backend
-    #logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
-    #logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
+    # logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
+    # logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
 
     import sys
+
     if len(sys.argv) > 1:
-        globals()['test_' + sys.argv[1]]()
+        globals()["test_" + sys.argv[1]]()
     else:
         run_all()

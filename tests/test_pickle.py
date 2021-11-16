@@ -5,6 +5,7 @@ import shutil
 import angr
 import gc
 import os
+import unittest
 
 tests_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
@@ -54,54 +55,53 @@ def make_pickles():
     f.close()
     #print "Test case generated run '%s <something>' to execute the test" % sys.argv[0]
 
-def setup():
-    pass
+class TestPickle(unittest.TestCase):
 
-def teardown():
-    # pylint: disable=bare-except
-    try:
-        shutil.rmtree('pickletest')
-    except:
-        pass
-    try:
-        shutil.rmtree('pickletest2')
-    except:
-        pass
-    try:
-        os.remove('pickletest_good')
-    except:
-        pass
-    try:
-        os.remove('pickletest_bad')
-    except:
-        pass
+    @classmethod
+    def tearDown(cls):
+        # pylint: disable=bare-except
+        try:
+            shutil.rmtree('pickletest')
+        except:
+            pass
+        try:
+            shutil.rmtree('pickletest2')
+        except:
+            pass
+        try:
+            os.remove('pickletest_good')
+        except:
+            pass
+        try:
+            os.remove('pickletest_bad')
+        except:
+            pass
 
-def test_pickling():
-    make_pickles()
-    load_pickles()
-    gc.collect()
-    load_pickles()
+    def test_pickling():
+        make_pickles()
+        load_pickles()
+        gc.collect()
+        load_pickles()
 
 
-def test_project_pickling():
+    def test_project_pickling():
 
-    # AnalysesHub should not be pickled together with the project itself
-    p = angr.Project(os.path.join(tests_location, 'i386', 'fauxware'))
+        # AnalysesHub should not be pickled together with the project itself
+        p = angr.Project(os.path.join(tests_location, 'i386', 'fauxware'))
 
-    # make a copy of the active_preset so that we do not touch the global preset object. this is only for writing this
-    # test case.
-    p.analyses._active_preset = pickle.loads(pickle.dumps(p.analyses._active_preset, -1))
-    assert len(p.analyses._active_preset._default_plugins) > 0
-    p.analyses._active_preset = p.analyses._active_preset
-    p.analyses._active_preset._default_plugins = {}
-    assert len(p.analyses._active_preset._default_plugins) == 0
+        # make a copy of the active_preset so that we do not touch the global preset object. this is only for writing this
+        # test case.
+        p.analyses._active_preset = pickle.loads(pickle.dumps(p.analyses._active_preset, -1))
+        assert len(p.analyses._active_preset._default_plugins) > 0
+        p.analyses._active_preset = p.analyses._active_preset
+        p.analyses._active_preset._default_plugins = {}
+        assert len(p.analyses._active_preset._default_plugins) == 0
 
-    s = pickle.dumps(p, -1)
+        s = pickle.dumps(p, -1)
 
-    p1 = pickle.loads(s)
-    assert len(p1.analyses._active_preset._default_plugins) > 0
+        p1 = pickle.loads(s)
+        assert len(p1.analyses._active_preset._default_plugins) > 0
 
 
 if __name__ == '__main__':
-    test_pickling()
-    test_project_pickling()
+    unittest.main()

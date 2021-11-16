@@ -432,10 +432,6 @@ def test_registers():
     assert s.solver.eval(expr) == 0x00000031
 
 def test_fullpage_write():
-    if os.environ.get("APPVEYOR", "false").lower() == "true":
-        # Skip as AppVeyor boxes do not have enough memory to run this test
-        return
-
     s = SimState(arch='AMD64')
     a = s.solver.BVV(b'A'*0x2000)
     s.memory.store(0, a)

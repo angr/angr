@@ -1,9 +1,9 @@
 import os
 import struct
+import unittest
 
 import angr
 import angr.simos.windows
-
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests')
 
@@ -37,14 +37,16 @@ def check_value(project, init_type, comparison):
     comparison(state, value)
 
 
-def test_security_cookie_init():
-    project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'))
-    check_value(project, angr.simos.windows.SecurityCookieInit.NONE, compare_none)
-    check_value(project, angr.simos.windows.SecurityCookieInit.RANDOM, compare_random)
-    check_value(project, angr.simos.windows.SecurityCookieInit.STATIC, compare_static)
-    check_value(project, angr.simos.windows.SecurityCookieInit.SYMBOLIC, compare_symbolic)
+class TestWindowsStackCookie(unittest.TestCase):
+    def test_security_cookie_init(self):
+        project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'))
+        check_value(project, angr.simos.windows.SecurityCookieInit.NONE, compare_none)
+        check_value(project, angr.simos.windows.SecurityCookieInit.RANDOM, compare_random)
+        check_value(project, angr.simos.windows.SecurityCookieInit.STATIC, compare_static)
+        check_value(project, angr.simos.windows.SecurityCookieInit.SYMBOLIC, compare_symbolic)
 
+        self.assertRaises(TypeError, project.factory.blank_state, security_cookie_init=1)
 
 
 if __name__ == '__main__':
-    test_security_cookie_init()
+    unittest.main()

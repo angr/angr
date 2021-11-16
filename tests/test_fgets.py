@@ -21,7 +21,7 @@ def _testfind(addr, failmsg):
     e.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     s = p.factory.simgr(e)
     r = s.explore(find=addr)
-    assert len(r.found) > 0
+    assert len(r.found) > 0, failmsg
     return r.found[0].posix.dumps(0)
 
 def _testnotfind(addr, failmsg):
@@ -30,7 +30,8 @@ def _testnotfind(addr, failmsg):
     e.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     s = p.factory.simgr(e)
     r= s.explore(find=addr)
-    assert len(r.found) == 0
+    assert len(r.found) == 0, failmsg
+
 
 def test_normal():
     answer = _testfind(find_normal, "Normal Failure!")
