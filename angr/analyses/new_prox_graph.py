@@ -25,9 +25,9 @@ class ProxiNodeTypes:
     FunctionCall = 3
     Integer = 4
     Unknown = 5
+    Variable = 6
 
 
-# TODO Check the set() for edge cases
 class BaseProxiNode:
     """
     Base class for all nodes in a proximity graph.
@@ -38,12 +38,10 @@ class BaseProxiNode:
         self.ref_at = ref_at
 
     def __eq__(self, other):
-        test = isinstance(other, BaseProxiNode) and other.type_ == self.type_ and self.ref_at == other.ref_at
-        return test
+        return isinstance(other, BaseProxiNode) and other.type_ == self.type_ and self.ref_at == other.ref_at
 
     def __hash__(self):
-        test = hash((BaseProxiNode, self.type_))
-        return test
+        return hash((BaseProxiNode, self.type_))
 
 
 class FunctionProxiNode(BaseProxiNode):
@@ -59,6 +57,22 @@ class FunctionProxiNode(BaseProxiNode):
 
     def __hash__(self):
         return hash((FunctionProxiNode, self.func))
+
+
+class VariableProxiNode(BaseProxiNode):
+
+    def __init__(self, addr, name, ref_at: Optional[Set[int]] = None):
+        super().__init__(ProxiNodeTypes.Variable, ref_at=ref_at)
+        self.addr = addr
+        self.name = name
+
+    def __eq__(self, other):
+        return isinstance(other, VariableProxiNode) and \
+               other.type_ == self.type_ and \
+               self.addr == other.addr
+
+    def __hash__(self):
+        return hash((VariableProxiNode, self.addr))
 
 
 class StringProxiNode(BaseProxiNode):
@@ -85,13 +99,14 @@ class CallProxiNode(BaseProxiNode):
         self.args = args
 
     def __eq__(self, other):
-        test = isinstance(other,
-                          CallProxiNode) and other.type_ == self.type_ and self.callee == other.callee and self.args == other.args and self.ref_at == other.ref_at
-        return test
+        return isinstance(other, CallProxiNode) and \
+               other.type_ == self.type_ and \
+               self.callee == other.callee and \
+               self.args == other.args and \
+               self.ref_at == other.ref_at
 
     def __hash__(self):
-        test = hash((CallProxiNode, self.callee, self.args))
-        return test
+        return hash((CallProxiNode, self.callee, self.args))
 
 
 class IntegerProxiNode(BaseProxiNode):
@@ -122,20 +137,6 @@ class UnknownProxiNode(BaseProxiNode):
         return hash((UnknownProxiNode, self.dummy_value))
 
 
-def save_graph(G, name):
-    import networkx as nx
-    import matplotlib.pyplot as plt
-    from networkx.drawing.nx_agraph import graphviz_layout
-    # sudo apt-get install graphviz graphviz-dev
-    # pip install pygraphviz
-
-    plt.title(name.split('/')[-1])
-    pos = graphviz_layout(G, prog='dot')
-    nx.draw(G, pos, font_size=5, node_size=60)
-    plt.figure(1)
-    plt.savefig(name, dpi=500)
-
-
 class NewProximityGraphAnalysis(Analysis):
     """
     Generate a proximity graph.
@@ -158,7 +159,7 @@ class NewProximityGraphAnalysis(Analysis):
 
         self.graph = networkx.DiGraph()
 
-        # TODO implement `expand_func`
+        # TODO need to implement `expand_func`?
         if not self._decompilation:
             self._process_function(self._function, self.graph)
         else:
@@ -235,7 +236,10 @@ class NewProximityGraphAnalysis(Analysis):
                             args.append(IntegerProxiNode(arg.value, None))
                     # TODO change to VariableProxiNode
                     elif isinstance(arg, ailment.expression.Load):
-                        args.append(StringProxiNode(arg.variable.addr, bytes(arg.variable.name, 'utf-8')))
+                        if arg.variable is not None:
+                            args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
+                        else:
+                            args.append(UnknownProxiNode("!"))
                     else:
                         args.append(UnknownProxiNode("_"))
 
@@ -261,7 +265,6 @@ class NewProximityGraphAnalysis(Analysis):
             ailment.Stmt.Call: _handle_CallExpr,
         }
 
-        # Custom Block walker
         bw = AILBlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
 
         # Custom Graph walker, go through AIL nodes
