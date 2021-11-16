@@ -17,7 +17,7 @@ def _a_mock_function(address, name):
 class TestSubject(unittest.TestCase):
 
     @mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
-    def test_can_be_instantiated_with_a_function(self):
+    def test_can_be_instantiated_with_a_function(self, _):
         function = _a_mock_function(0x42, 'function_name')
         subject = Subject(function)
 
@@ -41,8 +41,7 @@ class TestSubject(unittest.TestCase):
         assert subject.type == SubjectType.Block
 
     def test_fails_when_instanciated_with_an_inadequate_object(self, _):
-        with self.assertRaises(TypeError):
-            Subject('test-me', None)
+        self.assertRaises(TypeError, Subject, 'test-me', None)
 
     @mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
     @mock.patch.object(FunctionGraphVisitor, 'sort_nodes')

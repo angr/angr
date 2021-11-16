@@ -59,7 +59,7 @@ def test_cproto_conversion():
     )  # pylint:disable=unused-variable
 
     assert pyproto_name == "bad"
-    assert pyproto is None
+    assert pyproto is not None
 
     # A even worse function declaration
     # Special thanks to @schieb, see GitHub PR #958

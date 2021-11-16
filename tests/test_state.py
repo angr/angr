@@ -73,7 +73,7 @@ class TestState(unittest.TestCase):
         assert c.solver.unique(c.memory.load(2, 1))
 
         # the byte at 2 should have the three values
-        assert sorted(m.solver.eval_upto(m.memory.load(2, 1), 10)) == (21, 43, 84)
+        self.assertSequenceEqual(sorted(m.solver.eval_upto(m.memory.load(2, 1), 10)) == (21, 43, 84))
 
         # we should be able to select them by adding constraints
         a_a = m.copy()
@@ -242,12 +242,12 @@ class TestState(unittest.TestCase):
         with s.with_condition(s.regs.rbx != 0):
             s.regs.rax = 25
         assert s._global_condition is None
-        assert s.solver.BVV(25, s.arch.bits) is s.regs.rax
+        assert s.solver.BVV(25, s.arch.bits) is not s.regs.rax
 
         with s.with_condition(s.regs.rbx != 1):
             s.regs.rax = 30
         assert s._global_condition is None
-        assert s.solver.BVV(30, s.arch.bits) is s.regs.rax
+        assert s.solver.BVV(30, s.arch.bits) is not s.regs.rax
 
         with s.with_condition(s.regs.rbx == 0):
             assert s.solver.eval_upto(s.regs.rbx, 10) == [0]
