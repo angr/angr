@@ -73,7 +73,7 @@ class TestState(unittest.TestCase):
         assert c.solver.unique(c.memory.load(2, 1))
 
         # the byte at 2 should have the three values
-        self.assertSequenceEqual(sorted(m.solver.eval_upto(m.memory.load(2, 1), 10)) == (21, 43, 84))
+        self.assertSequenceEqual(sorted(m.solver.eval_upto(m.memory.load(2, 1), 10)), (21, 43, 84))
 
         # we should be able to select them by adding constraints
         a_a = m.copy()

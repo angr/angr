@@ -54,7 +54,7 @@ def test_inline_strlen():
     s.memory.store(b_addr, b_str, endness="Iend_BE")
     b_len = strlen(s, arguments=[b_addr])
     assert s.solver.max_int(b_len) == 3
-    assert sorted(s.solver.eval_upto(b_len, 10)) == (0,1,2,3)
+    assert tuple(sorted(s.solver.eval_upto(b_len, 10))) == (0, 1, 2, 3)
 
     l.info("fully unconstrained")
     u_addr = s.solver.BVV(0x50, 64)
