@@ -743,24 +743,24 @@ class SimTypeString(NamedTypeMixin, SimTypeArray):
     def __repr__(self):
         return 'string_t'
 
-    def extract(self, state, addr, concrete=False):
+    def extract(self, state: "SimState", addr, concrete=False):
         if self.length is None:
             out = None
-            last_byte = state.memory.load(addr, 1)
+            last_byte = state.memory.load(addr, size=1)
             # if we try to extract a symbolic string, it's likely that we are going to be trapped in a very large loop.
             if state.solver.symbolic(last_byte):
                 raise ValueError("Trying to extract a symbolic string at %#x" % state.solver.eval(addr))
             addr += 1
             while not (claripy.is_true(last_byte == 0) or state.solver.symbolic(last_byte)):
                 out = last_byte if out is None else out.concat(last_byte)
-                last_byte = state.memory.load(addr, 1)
+                last_byte = state.memory.load(addr, size=1)
                 addr += 1
         else:
-            out = state.memory.load(addr, self.length)
+            out = state.memory.load(addr, size=self.length)
         if not concrete:
             return out if out is not None else claripy.BVV(0, 0)
         else:
-            return state.solver.eval(out, cast_to=bytes) if out is not None else ''
+            return state.solver.eval(out, cast_to=bytes) if out is not None else b''
 
     _can_refine_int = True
 
