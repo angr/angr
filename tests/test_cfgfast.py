@@ -132,14 +132,16 @@ def test_busybox():
     edges = {
         "mipsel": {
             (0x4091EC, 0x408DE0),
+            # call to putenv. address of putenv may change in the future
             (
                 0x449ACC,
                 0x5003B8,
-            ),  # call to putenv. address of putenv may change in the future
+            ),
+            # call to free. address of free may change in the future
             (
                 0x467CFC,
                 0x500014,
-            ),  # call to free. address of free may change in the future
+            ),
         }
     }
 
@@ -148,8 +150,8 @@ def test_busybox():
 
 
 @slow_test
-@unittest.skipIf(
-    not os.path.isfile("C:\\Windows\\System32\\ntoskrnl.exe"),
+@unittest.skipUnless(
+    os.path.isfile("C:\\Windows\\System32\\ntoskrnl.exe"),
     "ntoskrnl.exe does not exist on this system.",
 )
 def test_ntoskrnl():

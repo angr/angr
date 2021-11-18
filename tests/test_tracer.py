@@ -4,7 +4,7 @@ import logging
 
 import angr
 
-from common import bin_location, do_trace, load_cgc_pov, slow_test
+from common import bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
 
 
 def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False):
@@ -32,11 +32,11 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False
 
 
 def trace_cgc_with_pov_file(
-    binary: str,
-    test_name: str,
-    pov_file: str,
-    output_initial_bytes: bytes,
-    copy_states=False,
+        binary: str,
+        test_name: str,
+        pov_file: str,
+        output_initial_bytes: bytes,
+        copy_states=False,
 ):
     assert os.path.isfile(pov_file)
     pov = load_cgc_pov(pov_file)
@@ -123,11 +123,8 @@ def broken_cache_stall():
     assert crash_state != None
 
 
+@skip_if_not_linux
 def test_manual_recursion():
-
-    if not sys.platform.startswith("linux"):
-        return
-
     b = os.path.join(bin_location, "tests", "cgc", "CROMU_00071")
     blob = open(os.path.join(bin_location, "tests_data", "crash2731"), "rb").read()
 
@@ -210,10 +207,8 @@ def test_crash_addr_detection():
     assert simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip)
 
 
+@skip_if_not_linux
 def test_fauxware():
-    if not sys.platform.startswith("linux"):
-        return
-
     b = os.path.join(bin_location, "tests", "x86_64", "fauxware")
     simgr, _ = tracer_linux(
         b, "tracer_fauxware", b"A" * 18, remove_options={angr.options.CPUID_SYMBOLIC}

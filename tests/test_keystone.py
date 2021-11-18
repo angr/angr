@@ -21,7 +21,7 @@ insn_texts = {
 }
 
 
-class TestKeyStone(unittest.TestCase):
+class TestKeystone(unittest.TestCase):
     def run_keystone(self, arch):
         proj_arch = arch
         is_thumb = False
