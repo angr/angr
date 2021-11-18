@@ -143,11 +143,12 @@ class NewProximityGraphAnalysis(Analysis):
     """
 
     def __init__(self, func: 'Function', cfg_model: 'CFGModel', xrefs: 'XRefManager',
-                 decompilation: Optional['Decompiler'] = None):
+                 decompilation: Optional['Decompiler'] = None, expand_funcs: Optional[Set[int]] = None):
         self._function = func
         self._cfg_model = cfg_model
         self._xrefs = xrefs
         self._decompilation = decompilation
+        self._expand_funcs = expand_funcs.copy() if expand_funcs else None
 
         self.graph: Optional[networkx.DiGraph] = None
         self.current_block = None
@@ -159,13 +160,44 @@ class NewProximityGraphAnalysis(Analysis):
 
         self.graph = networkx.DiGraph()
 
-        # TODO need to implement `expand_func`?
-        if not self._decompilation:
-            self._process_function(self._function, self.graph)
-        else:
-            self._process_decompilation(self.graph)
+        # initial function
+        func_proxi_node = FunctionProxiNode(self._function)
 
-    # Looks for strings in the memory_data that are also present in the function blocks
+        if not self._decompilation:
+            to_expand = self._process_function(self._function, self.graph, func_proxi_node=func_proxi_node)
+        else:
+            to_expand = self._process_decompilation(self.graph, func_proxi_node=func_proxi_node)
+
+        for func_node in to_expand:
+            if self._expand_funcs:
+                self._expand_funcs.discard(func_node.func.addr)
+
+            subgraph = networkx.DiGraph()
+            self._process_function(func_node.func, subgraph, func_proxi_node=func_node)
+
+            # merge subgraph into the original graph
+            self.graph.add_nodes_from(subgraph.nodes())
+            self.graph.add_edges_from(subgraph.edges())
+
+    def _endnode_connector(self, func: 'Function', graph: networkx.DiGraph):
+        successors = []
+        # Get successor node of the current function node
+        for node in self.graph.nodes():
+            if isinstance(node, FunctionProxiNode) and node.func == func:
+                successors = list(self.graph.succ[node])
+                # Remove edge FunctionProxiNode->successors
+                for succ in successors:
+                    self.graph.remove_edge(node, succ)
+                break
+
+        if successors:
+            # add edges subgraph_end_nodes->successor
+            end_nodes = [n for n in graph.nodes() if graph.in_degree(n) >= 1 and graph.out_degree(n) == 0]
+            for end_node in end_nodes:
+                for succ in successors:
+                    graph.add_edge(end_node, succ)
+
+    # TODO do something about this
     def _process_strings(self, func, proxi_nodes, exclude_string_refs: Set[int] = None):
         # strings
         for v in self._cfg_model.memory_data.values():
@@ -180,11 +212,13 @@ class NewProximityGraphAnalysis(Analysis):
                         proxi_nodes.append(node)
                         break
 
-    # Grabs all of the nodes in func.nodes that are Function type, and their ref_at data
-    def _process_function(self, func: 'Function', graph: networkx.DiGraph):
+    # TODO add arguments
+    def _process_function(self, func: 'Function', graph: networkx.DiGraph,
+                          func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
 
         proxi_nodes: List[BaseProxiNode] = []
-        found_blocks: Dict[BlockNode: CallProxiNode] = {}
+        to_expand: List[FunctionProxiNode] = []
+        found_blocks: Dict[BlockNode: BaseProxiNode] = {}
 
         self._process_strings(func, proxi_nodes)
 
@@ -194,8 +228,18 @@ class NewProximityGraphAnalysis(Analysis):
                 func_node = n_
                 for block, _, data in func.transition_graph.in_edges(func_node, data=True):
                     if 'ins_addr' in data:
-                        node = CallProxiNode(func_node, ref_at={data['ins_addr']})
+                        if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
+                            node = FunctionProxiNode(func_node, ref_at={data['ins_addr']})
+                            to_expand.append(node)
+                        else:
+                            node = CallProxiNode(func_node, ref_at={data['ins_addr']})
                         found_blocks[block] = node
+
+        # subgraph check - do before in case of recursion
+        if self.graph == graph:
+            subgraph = False
+        else:
+            subgraph = True
 
         for edge in func.graph.edges:
             nodes = ()
@@ -206,10 +250,24 @@ class NewProximityGraphAnalysis(Analysis):
                     nodes += (BaseProxiNode(ProxiNodeTypes.Empty, {block.addr}),)
             graph.add_edge(*nodes)
 
-    def _process_decompilation(self, graph: networkx.DiGraph):
+        # Append FunctionProxiNode before Graph
+        root_node = [n for n, d in graph.in_degree() if d == 0]
+        if root_node:
+            graph.add_edge(func_proxi_node, root_node[0])
+
+        # Draw edge from subgraph endnodes to current node's successor
+        if subgraph:
+            self._endnode_connector(func_proxi_node.func, graph)
+
+        return to_expand
+
+    def _process_decompilation(self, graph: networkx.DiGraph,
+                               func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
+        to_expand: List[FunctionProxiNode] = []
+
         # dedup
         string_refs: Set[int] = set()
-        unique_blocks: Dict[ailment.Block, CallProxiNode] = {}
+        unique_blocks: Dict[ailment.Block, BaseProxiNode] = {}
 
         # Walk the clinic structure to dump string references and function calls
         ail_graph = self._decompilation.clinic.graph
@@ -234,7 +292,6 @@ class NewProximityGraphAnalysis(Analysis):
                         else:
                             # not a string. present it as a constant integer
                             args.append(IntegerProxiNode(arg.value, None))
-                    # TODO change to VariableProxiNode
                     elif isinstance(arg, ailment.expression.Load):
                         if arg.variable is not None:
                             args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
@@ -246,7 +303,11 @@ class NewProximityGraphAnalysis(Analysis):
             if self.current_block in unique_blocks:
                 new_node = unique_blocks[self.current_block]
             else:
-                new_node = CallProxiNode(func_node, ref_at=ref_at, args=tuple(args) if args is not None else None)
+                if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
+                    new_node = FunctionProxiNode(func_node, ref_at=ref_at)
+                    to_expand.append(new_node)
+                else:
+                    new_node = CallProxiNode(func_node, ref_at=ref_at, args=tuple(args) if args is not None else None)
                 unique_blocks[self.current_block] = new_node
 
             self.handled_node = new_node
@@ -255,7 +316,11 @@ class NewProximityGraphAnalysis(Analysis):
                              block: Optional[ailment.Block]):  # pylint:disable=unused-argument
             func_node = self.kb.functions[expr.target.value]
             ref_at = {stmt.ins_addr}
-            node = CallProxiNode(func_node, ref_at=ref_at)
+            if self._expand_funcs and func_node.addr in self._expand_funcs:
+                node = FunctionProxiNode(func_node, ref_at=ref_at)
+                to_expand.append(node)
+            else:
+                node = CallProxiNode(func_node, ref_at=ref_at)
             self.handled_node = node
 
         stmt_handlers = {
@@ -266,7 +331,6 @@ class NewProximityGraphAnalysis(Analysis):
         }
 
         bw = AILBlockWalker(stmt_handlers=stmt_handlers, expr_handlers=expr_handlers)
-
         # Custom Graph walker, go through AIL nodes
         for pair in ail_graph.edges:
             nodes = ()
@@ -281,6 +345,13 @@ class NewProximityGraphAnalysis(Analysis):
                 nodes += (node,)
 
             graph.add_edge(*nodes)
+
+        # Append FunctionProxiNode before Graph
+        root_node = [n for n, d in graph.in_degree() if d == 0]
+        if root_node:
+            graph.add_edge(func_proxi_node, root_node[0])
+
+        return to_expand
 
 
 from angr.analyses import AnalysesHub
