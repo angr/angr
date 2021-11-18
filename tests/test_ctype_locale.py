@@ -38,10 +38,10 @@ class TestCtypeLocale(unittest.TestCase):
         bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_b_loc')
 
         ctype_b_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_b_loc']().execute(state, arguments=arguments)
-
-        b = angr.Project(bin_path)
+        b = angr.Project(bin_path, auto_load_libs=False)
         p = b.factory.full_init_state()
         pg = b.factory.simulation_manager(p)
+
 
         # Find main located at 0x400596 to let libc_start_main do its thing
         main = pg.explore(find=0x400596)
@@ -87,10 +87,10 @@ class TestCtypeLocale(unittest.TestCase):
         bin_path = os.path.join(test_location, '..', '..', 'binaries', 'tests', 'x86_64', 'ctype_tolower_loc')
 
         ctype_tolower_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_tolower_loc']().execute(state, arguments=arguments)
-
-        b = angr.Project(bin_path)
+        b = angr.Project(bin_path, auto_load_libs=False)
         p = b.factory.full_init_state()
         pg = b.factory.simulation_manager(p)
+
 
         # Find main located at 0x400596 to let libc_start_main do its thing
         main = pg.explore(find=0x400596)
@@ -136,7 +136,7 @@ class TestCtypeLocale(unittest.TestCase):
 
         ctype_toupper_loc = lambda state, arguments: angr.SIM_PROCEDURES['glibc']['__ctype_toupper_loc']().execute(state, arguments=arguments)
 
-        b = angr.Project(bin_path)
+        b = angr.Project(bin_path, auto_load_libs=False)
         p = b.factory.full_init_state()
         pg = b.factory.simulation_manager(p)
 

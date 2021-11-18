@@ -9,7 +9,7 @@ from common import bin_location
 
 def test_memory_watcher():
     binary = os.path.join(bin_location, 'tests', 'x86_64', 'veritesting_a')
-    proj = angr.Project(binary)
+    proj = angr.Project(binary, auto_load_libs=False)
     simgr = proj.factory.simulation_manager()
 
     memory_watcher = angr.exploration_techniques.MemoryWatcher()

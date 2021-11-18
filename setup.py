@@ -167,6 +167,7 @@ setup(
     extras_require={
         'AngrDB': ['sqlalchemy'],
         'pcode': ['pypcode==1.0.2'],
+        ':sys_platform == "win32"': ['colorama'],
     },
     cmdclass=cmdclass,
     include_package_data=True,

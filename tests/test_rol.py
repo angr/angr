@@ -9,7 +9,7 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 def test_rol_x86_64():
     binary_path = os.path.join(test_location, 'x86_64', 'test_rol.exe')
 
-    proj = angr.Project(binary_path)
+    proj = angr.Project(binary_path, auto_load_libs=False)
 
     initial_state = proj.factory.blank_state(addr=0x401000)
     r_rax = initial_state.solver.BVS('rax', 64)
@@ -25,7 +25,7 @@ def test_rol_x86_64():
 def test_rol_i386():
     binary_path = os.path.join(test_location, 'i386', 'test_rol.exe')
 
-    proj = angr.Project(binary_path)
+    proj = angr.Project(binary_path, auto_load_libs=False)
 
     initial_state = proj.factory.blank_state(addr=0x401000)
     r_eax = initial_state.solver.BVS('eax', 32)

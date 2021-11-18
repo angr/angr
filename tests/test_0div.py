@@ -5,7 +5,7 @@ test_location = os.path.join(os.path.dirname(__file__), '..', '..', 'binaries', 
 
 def run_0div(arch):
     # check that we run in unicorn up to the zero-div site, fall back, try again in angr, and error correctly.
-    p = angr.Project(os.path.join(test_location, arch, 'test_0div'))
+    p = angr.Project(os.path.join(test_location, arch, 'test_0div'), auto_load_libs=False)
     s = p.factory.entry_state(add_options=angr.options.unicorn)
     simgr = p.factory.simulation_manager(s)
     simgr.run(n=5)

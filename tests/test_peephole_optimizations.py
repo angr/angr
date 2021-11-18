@@ -14,7 +14,7 @@ def test_constant_dereference():
     # a = *(A) :=> a = the variable at at A iff
     # - A is a pointer that points to a read-only section.
 
-    proj = angr.Project(os.path.join(test_location, "armel", "decompiler", "rm"))
+    proj = angr.Project(os.path.join(test_location, "armel", "decompiler", "rm"), auto_load_libs=False)
 
     stmt = ailment.Assignment(None,
                               ailment.Register(None, None, proj.arch.registers['r0'][0],

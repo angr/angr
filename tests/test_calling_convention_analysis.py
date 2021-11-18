@@ -39,15 +39,8 @@ def run_fauxware(arch, function_and_cc_list):
 
 
 def run_cgc(binary_name):
-    binary_path = os.path.join(
-        test_location,
-        "..",
-        "binaries-private",
-        "cgc_qualifier_event",
-        "cgc",
-        binary_name,
-    )
-    project = angr.Project(binary_path)
+    binary_path = os.path.join(test_location, '..', 'binaries-private', 'cgc_qualifier_event', 'cgc', binary_name)
+    project = angr.Project(binary_path, auto_load_libs=False)
 
     categorization = project.analyses.FunctionCategorizationAnalysis()
 

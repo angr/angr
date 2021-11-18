@@ -15,6 +15,7 @@ target_arches = {
 }
 
 def run_echo_haha(arch):
+    # auto_load_libs can't be disabled as the test fails
     p = angr.Project(os.path.join(test_location, arch, 'echo'), use_sim_procedures=False)
     s = p.factory.full_init_state(mode='symbolic_approximating', args=['echo', 'haha'], add_options={angr.options.STRICT_PAGE_ACCESS})
     pg = p.factory.simulation_manager(s)

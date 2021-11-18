@@ -31,9 +31,13 @@ def _compare_trace(trace, expected):
 
 
 def test_stops():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "uc_stop")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
     # test STOP_NORMAL, STOP_STOPPOINT
     s_normal = p.factory.entry_state(args=["a"], add_options=so.unicorn)
@@ -180,6 +184,7 @@ def test_stops():
 
 
 def run_longinit(arch):
+<<<<<<< HEAD
     p = angr.Project(os.path.join(test_location, "binaries", "tests", arch, "longinit"))
     s_unicorn = p.factory.entry_state(
         add_options=so.unicorn, remove_options={so.SHORT_READS}
@@ -187,6 +192,11 @@ def run_longinit(arch):
     pg = p.factory.simulation_manager(
         s_unicorn, save_unconstrained=True, save_unsat=True
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', arch, 'longinit'), auto_load_libs=False)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn, remove_options={so.SHORT_READS})
+    pg = p.factory.simulation_manager(s_unicorn, save_unconstrained=True, save_unsat=True)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
     pg.explore()
     s = pg.deadended[0]
     (first, _), (second, _) = s.posix.stdin.content
@@ -204,10 +214,15 @@ def test_longinit_x86_64():
 
 
 def broken_fauxware_arm():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "armel", "fauxware")
     )
     s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'armel', 'fauxware'), auto_load_libs=False)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
     pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
     assert all(
@@ -223,10 +238,15 @@ def broken_fauxware_arm():
 
 
 def test_fauxware():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "fauxware")
     )
     s_unicorn = p.factory.entry_state(add_options=so.unicorn)  # unicorn
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+    s_unicorn = p.factory.entry_state(add_options=so.unicorn) # unicorn
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
     pg = p.factory.simulation_manager(s_unicorn)
     pg.explore()
 
@@ -243,9 +263,13 @@ def test_fauxware():
 
 
 def test_fauxware_aggressive():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "fauxware")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
     s_unicorn = p.factory.entry_state(
         add_options=so.unicorn | {so.UNICORN_AGGRESSIVE_CONCRETIZATION},
         remove_options={so.LAZY_SOLVES},
@@ -261,7 +285,7 @@ def test_fauxware_aggressive():
 
 
 def run_similarity(binpath, depth, prehook=None):
-    b = angr.Project(os.path.join(test_location, binpath))
+    b = angr.Project(os.path.join(test_location, binpath), auto_load_libs=False)
     cc = b.analyses.CongruencyCheck(throw=True)
     cc.set_state_options(
         left_add_options=so.unicorn,
@@ -299,9 +323,13 @@ def test_fp():
         os.path.join(test_location, "binaries", "tests_src", "manyfloatsum.c")
     ) as fp:
         type_cache = angr.sim_type.parse_defns(fp.read())
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "manyfloatsum")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
     for function in (
         "sum_floats",
@@ -324,9 +352,13 @@ def test_fp():
 
 
 def test_unicorn_pickle():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "fauxware")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
     def _uni_state():
         # try pickling out paths that went through unicorn
@@ -357,9 +389,13 @@ def test_unicorn_pickle():
     )
 
     # test the pickling of SimUnicorn itself
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "fauxware")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'fauxware'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
     pg = p.factory.simulation_manager(_uni_state())
     pg.run(n=2)
     assert p.factory.successors(pg.one_active).sort == "Unicorn"
@@ -380,9 +416,13 @@ def test_unicorn_pickle():
 
 
 def test_concrete_transmits():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "cgc", "PIZZA_00001")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'cgc', 'PIZZA_00001'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
     inp = bytes.fromhex("320a310a0100000005000000330a330a340a")
 
     s_unicorn = p.factory.entry_state(
@@ -400,9 +440,13 @@ def test_concrete_transmits():
 
 
 def test_inspect():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "uc_stop")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -459,9 +503,13 @@ def test_inspect():
 
 
 def test_explore():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "uc_stop")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
@@ -482,9 +530,14 @@ def test_explore():
 
 
 def test_single_step():
+<<<<<<< HEAD
     p = angr.Project(
         os.path.join(test_location, "binaries", "tests", "i386", "uc_stop")
     )
+=======
+    p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'uc_stop'), auto_load_libs=False)
+
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn

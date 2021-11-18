@@ -1,12 +1,14 @@
 import logging
 from collections import defaultdict
-from typing import Union
+from typing import Union, Optional, Sequence, Tuple, Any
 
 import pyvex
+from angr.knowledge_plugins import Function
 
 from . import Analysis
 
 from ..utils.library import get_cpp_function_name
+from ..utils.formatting import ansi_color_enabled, ansi_color, add_edge_to_buffer
 from ..block import DisassemblerInsn, CapstoneInsn, SootBlockNode
 from ..codenode import BlockNode
 from .disassembly_utils import decode_instruction
@@ -60,8 +62,11 @@ class DisassemblyPiece:
 
     def highlight(self, string, formatting=None):
         try:
-            if formatting is not None and self in formatting['highlight']:
-                return self.color(string, 'highlight', formatting)
+            if formatting is not None:
+                if 'format_callback' in formatting:
+                    return formatting['format_callback'](self, string)
+                if self in formatting['highlight']:
+                    return self.color(string, 'highlight', formatting)
         except KeyError:
             pass
         return string
@@ -665,7 +670,7 @@ class MemoryOperand(Operand):
             return super(MemoryOperand, self)._render(formatting)
         else:
             values_style = "square"
-            show_prefix = False
+            show_prefix = True
             custom_values_str = None
 
             if formatting is not None:
@@ -674,8 +679,8 @@ class MemoryOperand(Operand):
 
                 try:
                     show_prefix_str = formatting['show_prefix'][self.ident]
-                    if show_prefix_str in ('true', 'True'):
-                        show_prefix = True
+                    if show_prefix_str in ('false', 'False'):
+                        show_prefix = False
                 except KeyError:
                     pass
 
@@ -803,10 +808,12 @@ class FuncComment(DisassemblyPiece):
 
 
 class Disassembly(Analysis):
-    def __init__(self, function=None, ranges=None, include_ir=False):  # pylint:disable=unused-argument
+    """
+    Produce formatted machine code disassembly.
+    """
 
-        # TODO: support ranges
-
+    def __init__(self, function: Optional[Function] = None, ranges: Optional[Sequence[Tuple[int,int]]] = None,
+                 include_ir: bool = False):
         self.raw_result = []
         self.raw_result_map = {
             'block_starts': {},
@@ -819,12 +826,42 @@ class Disassembly(Analysis):
         self.block_to_insn_addrs = defaultdict(list)
         self._func_cache = {}
         self._include_ir = include_ir
+        self._graph = None
 
         if function is not None:
             # sort them by address, put hooks before nonhooks
+            self._graph = function.graph
             blocks = sorted(function.graph.nodes(), key=lambda node: (node.addr, not node.is_hook))
             for block in blocks:
                 self.parse_block(block)
+        elif ranges is not None:
+            cfg = self.project.kb.cfgs.get_most_accurate()
+            if cfg is None:
+                # CFG not available yet. Simply disassemble the code in the given regions. In the future we may want
+                # to handle this case by automatically running CFG analysis on given ranges.
+                for start, end in ranges:
+                    self.parse_block(BlockNode(start, end - start))
+            else:
+                self._graph = cfg.graph
+                for start, end in ranges:
+                    assert(start < end)
+                    # Grab all blocks that intersect target range
+                    blocks = sorted([n.block.codenode
+                                     for n in self._graph.nodes() if not (n.addr + n.size <= start or n.addr >= end)],
+                                    key=lambda node: (node.addr, not node.is_hook))
+
+                    # Trim blocks that are not within range
+                    for i, block in enumerate(blocks):
+                        if block.addr < start:
+                            delta = start - block.addr
+                            blocks[i] = BlockNode(block.addr + delta, block.size - delta, block.bytestr[delta:])
+                    for i, block in enumerate(blocks):
+                        if block.addr + block.size > end:
+                            delta = block.addr + block.size - end
+                            blocks[i] = BlockNode(block.addr, block.size - delta, block.bytestr[0:-delta])
+
+                    for block in blocks:
+                        self.parse_block(block)
 
     def func_lookup(self, block):
         try:
@@ -927,10 +964,133 @@ class Disassembly(Analysis):
             b = self.project.factory.block(block.addr, size=block.size)
             self._add_block_ir_to_results(block, b.vex)
 
-    def render(self, formatting=None):
-        if formatting is None: formatting = {}
-        return '\n'.join(sum((x.render(formatting) for x in self.raw_result), []))
+    def render(self, formatting=None, show_edges: bool = True, show_addresses: bool = True,
+               show_bytes: bool = False, ascii_only: Optional[bool] = None) -> str:
+        """
+        Render the disassembly to a string, with optional edges and addresses.
 
+        Color will be added by default, if enabled. To disable color pass an empty formatting dict.
+        """
+        max_bytes_per_line = 5
+        bytes_width = max_bytes_per_line*3+1
+        a2ln = defaultdict(list)
+        buf = []
+
+        if formatting is None:
+            formatting = {
+                'colors': {
+                    'address':       'gray',
+                    'bytes':         'cyan',
+                    'edge':          'yellow',
+                    Label:           'bright_yellow',
+                    ConstantOperand: 'cyan',
+                    MemoryOperand:   'yellow',
+                    Comment:         'gray',
+                } if ansi_color_enabled else {},
+                'format_callback': lambda item, s: ansi_color(s, formatting['colors'].get(type(item), None))
+            }
+
+        def col(item: Any) -> Optional[str]:
+            try:
+                return formatting['colors'][item]
+            except KeyError:
+                return None
+
+        def format_address(addr: int, color: bool = True) -> str:
+            if not show_addresses:
+                return ''
+            a, pad = f'{addr:x}', '  '
+            return (ansi_color(a, col('address')) if color else a) + pad
+
+        def format_bytes(data: bytes, color: bool = True) -> str:
+            s = ' '.join(f'{x:02x}' for x in data).ljust(bytes_width)
+            return ansi_color(s, col('bytes')) if color else s
+
+        def format_comment(text: str, color: bool = True) -> str:
+            s = ' ; ' + text
+            return ansi_color(s, col(Comment)) if color else s
+
+        comment = None
+
+        for item in self.raw_result:
+            if isinstance(item, BlockStart):
+                if len(buf) > 0:
+                    buf.append('')
+            elif isinstance(item, Label):
+                pad = len(format_address(item.addr, False)) * ' '
+                if show_bytes:
+                    pad += bytes_width * ' '
+                buf.append(pad + item.render(formatting)[0])
+            elif isinstance(item, Comment):
+                comment = item
+            elif isinstance(item, Instruction):
+                a2ln[item.addr].append(len(buf))
+                lines = []
+
+                # Chop instruction bytes into line segments
+                p, insn_bytes = 0, []
+                while show_bytes and p < len(item.insn.bytes):
+                    s = item.insn.bytes[p:p+min(len(item.insn.bytes)-p, max_bytes_per_line)]
+                    p += len(s)
+                    insn_bytes.append(s)
+
+                # Format the instruction's address, bytes, disassembly, and comment
+                s_plain = format_address(item.addr, False)
+                s = format_address(item.addr)
+                if show_bytes:
+                    bytes_column = len(s_plain)
+                    s_plain += format_bytes(insn_bytes[0], False)
+                    s += format_bytes(insn_bytes[0])
+                s_plain += item.render()[0]
+                s += item.render(formatting)[0]
+                if comment is not None:
+                    comment_column = len(s_plain)
+                    s += format_comment(comment.text[0])
+                lines.append(s)
+
+                # Add additional lines of instruction bytes
+                for i in range(1, len(insn_bytes)):
+                    lines.append(' ' * bytes_column + format_bytes(insn_bytes[i]))
+
+                # Add additional lines of comments
+                if comment is not None:
+                    for i in range(1, len(comment.text)):
+                        if len(lines) <= i:
+                            lines.append(' ' * comment_column)
+                        lines[i] += format_comment(comment.text[i])
+                    comment = None
+
+                buf.extend(lines)
+            else:
+                buf.append(item.render(formatting))
+
+        if self._graph is not None and show_edges and buf:
+            edges_by_line = set()
+            for edge in self._graph.edges.items():
+                from_block, to_block = edge[0]
+                if to_block.addr != from_block.addr + from_block.size:
+                    from_addr = edge[1]['ins_addr']
+                    to_addr = to_block.addr
+                    if not (from_addr in a2ln and to_addr in a2ln):
+                        continue
+                    for f in a2ln[from_addr]:
+                        for t in a2ln[to_addr]:
+                            edges_by_line.add((f, t))
+
+            # Render block edges, to a reference buffer for tracking and output buffer for display
+            edge_buf = ['' for _ in buf]
+            ref_buf = ['' for _ in buf]
+            edge_col = col('edge')
+            for f, t in sorted(edges_by_line, key=lambda e: abs(e[0]-e[1])):
+                add_edge_to_buffer(edge_buf, ref_buf, f, t, lambda s: ansi_color(s, edge_col), ascii_only=ascii_only)
+                add_edge_to_buffer(ref_buf, ref_buf, f, t, ascii_only=ascii_only)
+            max_edge_depth = max(map(len, ref_buf))
+
+            # Justify edge and combine with disassembly
+            for i, line in enumerate(buf):
+                buf[i] = ' ' * (max_edge_depth - len(ref_buf[i])) + edge_buf[i] + line
+
+        return '\n'.join(buf)
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('Disassembly', Disassembly)

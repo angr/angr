@@ -317,7 +317,7 @@ class SimConcreteFilesystem(SimMount):
         return True
 
     def delete(self, path_elements):
-        path = self.pathsep.join(x.decode() for x in path_elements)
+        path = self._join_chunks([x.decode() for x in path_elements])
         self.deleted_list.add(path)
         return self.cache.pop(path, None) is not None
 

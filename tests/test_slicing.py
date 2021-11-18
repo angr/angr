@@ -15,7 +15,9 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", 
 def test_find_exits():
     slicing_test = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_1'),
                                 use_sim_procedures=True,
-                                default_analysis_mode='symbolic')
+                                default_analysis_mode='symbolic',
+                                auto_load_libs=False,
+                                )
 
     l.info("Unit test for BackwardSlice._find_exits()")
     cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2, keep_state=True)
@@ -42,7 +44,9 @@ def test_find_exits():
 def test_control_flow_slicing():
     slicing_test = angr.Project(os.path.join(test_location, 'x86_64', 'cfg_1'),
                                 use_sim_procedures=True,
-                                default_analysis_mode='symbolic')
+                                default_analysis_mode='symbolic',
+                                auto_load_libs=False,
+                                )
     l.info("Control Flow Slicing")
     start = time.time()
     cfg = slicing_test.analyses.CFGEmulated(context_sensitivity_level=2)
@@ -64,7 +68,9 @@ def broken_backward_slice():
 
     slicing_test = angr.Project(os.path.join(test_location, "x86_64", "cfg_1"),
                                 use_sim_procedures=True,
-                                default_analysis_mode='symbolic')
+                                default_analysis_mode='symbolic',
+                                auto_load_libs=False,
+                                )
 
     l.info("Control Flow Slicing")
 
@@ -85,7 +91,9 @@ def broken_backward_slice():
 
 def test_last_branching_statement():
     slicing_test = angr.Project(os.path.join(test_location, 'armel', 'fauxware'),
-                                use_sim_procedures=True)
+                                use_sim_procedures=True,
+                                auto_load_libs=False,
+                                )
     l.info('Testing _search_for_last_branching_statement.')
 
     # The IRSB:

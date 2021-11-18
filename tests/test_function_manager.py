@@ -12,7 +12,7 @@ TEST_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 class TestFunctionManager(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.project = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"))
+        cls.project = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"), auto_load_libs=False)
 
 
     def test_amd64(self):

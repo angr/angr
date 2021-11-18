@@ -274,13 +274,13 @@ def test_cfg_6():
     # We need to add DO_CCALLS to resolve long jmp and support real mode
     o.modes["fastpath"] |= {o.DO_CCALLS}
     binary_path = test_location + "/i386/bios.bin.elf"
-    proj = angr.Project(binary_path, use_sim_procedures=True, page_size=1)
-    cfg = proj.analyses.CFGEmulated(
-        context_sensitivity_level=1, fail_fast=True
-    )  # pylint:disable=unused-variable
+    proj = angr.Project(binary_path,
+                        use_sim_procedures=True,
+                        page_size=1,
+                        auto_load_libs=False)
+    cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)  # pylint:disable=unused-variable
     assert set(f for f in proj.kb.functions) >= set(function_addresses)
     o.modes["fastpath"] ^= {o.DO_CCALLS}
-
 
 def test_fauxware():
     binary_path = os.path.join(test_location, "x86_64", "fauxware")
@@ -292,7 +292,7 @@ def test_fauxware():
 def disabled_loop_unrolling():
     binary_path = os.path.join(test_location, "x86_64", "cfg_loop_unrolling")
 
-    p = angr.Project(binary_path)
+    p = angr.Project(binary_path, auto_load_libs=True)
     cfg = p.analyses.CFGEmulated(fail_fast=True)
 
     cfg.normalize()
@@ -305,8 +305,8 @@ def test_thumb_mode():
     # In thumb mode, all addresses of instructions and in function manager should be odd numbers, which loyally
     # reflect VEX's trick to encode the THUMB state in the address.
 
-    binary_path = os.path.join(test_location, "armhf", "test_arrays")
-    p = angr.Project(binary_path)
+    binary_path = os.path.join(test_location, 'armhf', 'test_arrays')
+    p = angr.Project(binary_path, auto_load_libs=False)
     cfg = p.analyses.CFGEmulated(fail_fast=True)
 
     def check_addr(a):
@@ -337,7 +337,7 @@ def test_fakeret_edges_0():
 
     binary_path = os.path.join(test_location, "x86_64", "cfg_3")
 
-    p = angr.Project(binary_path)
+    p = angr.Project(binary_path, auto_load_libs=False)
     cfg = p.analyses.CFGEmulated(context_sensitivity_level=3, fail_fast=True)
 
     putchar_plt = cfg.functions.function(name="putchar", plt=True)

@@ -10,6 +10,7 @@ to step into their lib code.
 """
 
 def test_bina():
+    #auto_load_libs can't be disabled as the testcase fails
     p = angr.Project(bina, exclude_sim_procedures_list=['rand', 'sleep'], load_options={"auto_load_libs":True})
 
     # Make sure external functions are not replaced with a SimProcedure

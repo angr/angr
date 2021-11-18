@@ -37,6 +37,7 @@ def check_value(project, init_type, comparison):
     comparison(state, value)
 
 
+<<<<<<< HEAD
 class TestWindowsStackCookie(unittest.TestCase):
     def test_security_cookie_init(self):
         project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'))
@@ -44,6 +45,14 @@ class TestWindowsStackCookie(unittest.TestCase):
         check_value(project, angr.simos.windows.SecurityCookieInit.RANDOM, compare_random)
         check_value(project, angr.simos.windows.SecurityCookieInit.STATIC, compare_static)
         check_value(project, angr.simos.windows.SecurityCookieInit.SYMBOLIC, compare_symbolic)
+=======
+def test_security_cookie_init():
+    project = angr.Project(os.path.join(test_location, 'i386', 'test_arrays.exe'), auto_load_libs=False)
+    check_value(project, angr.simos.windows.SecurityCookieInit.NONE, compare_none)
+    check_value(project, angr.simos.windows.SecurityCookieInit.RANDOM, compare_random)
+    check_value(project, angr.simos.windows.SecurityCookieInit.STATIC, compare_static)
+    check_value(project, angr.simos.windows.SecurityCookieInit.SYMBOLIC, compare_symbolic)
+>>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
         self.assertRaises(TypeError, project.factory.blank_state, security_cookie_init=1)
 

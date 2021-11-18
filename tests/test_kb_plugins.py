@@ -6,7 +6,7 @@ location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..',
 
 
 def test_kb_plugins():
-    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'))
+    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), auto_load_libs=False)
 
     assert isinstance(p.kb.data, angr.knowledge_plugins.Data)
     assert isinstance(p.kb.functions, angr.knowledge_plugins.FunctionManager)

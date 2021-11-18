@@ -31,7 +31,7 @@ def test_ret_float():
 
 def test_syscall_and_simprocedure():
     bin_path = os.path.join(BIN_PATH, 'tests', 'cgc', 'CADET_00002')
-    proj = angr.Project(bin_path)
+    proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True)
 
     # check syscall
