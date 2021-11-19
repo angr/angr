@@ -157,7 +157,6 @@ class NewProximityGraphAnalysis(Analysis):
         self._work()
 
     def _work(self):
-
         self.graph = networkx.DiGraph()
 
         # initial function
@@ -179,7 +178,7 @@ class NewProximityGraphAnalysis(Analysis):
             self.graph.add_nodes_from(subgraph.nodes())
             self.graph.add_edges_from(subgraph.edges())
 
-    def _endnode_connector(self, func: 'Function', graph: networkx.DiGraph):
+    def _endnode_connector(self, func: 'Function', subgraph: networkx.DiGraph):
         successors = []
         # Get successor node of the current function node
         for node in self.graph.nodes():
@@ -192,10 +191,10 @@ class NewProximityGraphAnalysis(Analysis):
 
         if successors:
             # add edges subgraph_end_nodes->successor
-            end_nodes = [n for n in graph.nodes() if graph.in_degree(n) >= 1 and graph.out_degree(n) == 0]
+            end_nodes = [n for n in subgraph.nodes() if subgraph.in_degree(n) >= 1 and subgraph.out_degree(n) == 0]
             for end_node in end_nodes:
                 for succ in successors:
-                    graph.add_edge(end_node, succ)
+                    subgraph.add_edge(end_node, succ)
 
     # TODO do something about this
     def _process_strings(self, func, proxi_nodes, exclude_string_refs: Set[int] = None):
@@ -261,6 +260,48 @@ class NewProximityGraphAnalysis(Analysis):
 
         return to_expand
 
+    # TODO check with Fish about this
+    def _arg_handler(self, arg, args, string_refs):
+        if isinstance(arg, ailment.Expr.Const):
+            # is it a reference to a string?
+            if arg.value in self._cfg_model.memory_data:
+                md = self._cfg_model.memory_data[arg.value]
+                if md.sort == "string":
+                    # Yes!
+                    args.append(StringProxiNode(arg.value, md.content))
+                    string_refs.add(arg.value)
+            else:
+                # not a string. present it as a constant integer
+                args.append(IntegerProxiNode(arg.value, None))
+        elif isinstance(arg, ailment.expression.Load):
+            if arg.variable is not None:
+                args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
+            elif arg.addr.variable is not None:
+                args.append(VariableProxiNode(arg.addr.variable.addr, arg.addr.variable.name))
+            else:
+                args.append(UnknownProxiNode("l_"))
+        elif isinstance(arg, ailment.expression.StackBaseOffset):
+            if arg.variable is not None:
+                args.append(VariableProxiNode(arg.variable, arg.variable.name))
+            else:
+                args.append(UnknownProxiNode("s_"))
+        elif isinstance(arg, ailment.Expr.Register):
+            a = arg.addr
+            ops = []
+            if a.operands:
+                for op in a.operands:
+                    if op.variable is not None:
+                        ops.append(op.variable.name)
+                    elif op.value is not None:
+                        ops.append(op.value)
+                    else:
+                        ops.append("fail")
+                args.append(VariableProxiNode(arg.addr, f"{ops[0]}{a.OPSTR_MAP[a.op]}{ops[1]}"))
+            else:
+                args.append(UnknownProxiNode("r_"))
+        else:
+            args.append(UnknownProxiNode("_"))
+
     def _process_decompilation(self, graph: networkx.DiGraph,
                                func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
         to_expand: List[FunctionProxiNode] = []
@@ -281,24 +322,7 @@ class NewProximityGraphAnalysis(Analysis):
             args = []
             if stmt.args:
                 for arg in stmt.args:
-                    if isinstance(arg, ailment.Expr.Const):
-                        # is it a reference to a string?
-                        if arg.value in self._cfg_model.memory_data:
-                            md = self._cfg_model.memory_data[arg.value]
-                            if md.sort == "string":
-                                # Yes!
-                                args.append(StringProxiNode(arg.value, md.content))
-                                string_refs.add(arg.value)
-                        else:
-                            # not a string. present it as a constant integer
-                            args.append(IntegerProxiNode(arg.value, None))
-                    elif isinstance(arg, ailment.expression.Load):
-                        if arg.variable is not None:
-                            args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
-                        else:
-                            args.append(UnknownProxiNode("!"))
-                    else:
-                        args.append(UnknownProxiNode("_"))
+                    self._arg_handler(arg, args, string_refs)
 
             if self.current_block in unique_blocks:
                 new_node = unique_blocks[self.current_block]
