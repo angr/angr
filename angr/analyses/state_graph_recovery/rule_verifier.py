@@ -55,9 +55,8 @@ class MinDelayBaseRule(BaseRule):
 
     def eval(self, graph) -> Tuple[bool,Any,Any]:
         nodes_a = self.node_a(graph)
-        nodes_b = self.node_b(graph)
-
         for a in nodes_a:
+            nodes_b = self.node_b(graph, a)
             for b in nodes_b:
                 for t in self.delay(graph, a, b):
                     if t < self.min_delay:
