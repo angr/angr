@@ -22,28 +22,44 @@ class MinDelayRule_PedGreen(MinDelayBaseRule):
     def node_a(self, graph: 'networkx.DiGraph'):
         # ped light is green
         for node in graph.nodes():
-            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 0:
+            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 1 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 0 and dict(node)['time_delta'] is None:
                 yield node
 
-    def node_b(self, graph: 'networkx.DiGraph'):
+    def node_b(self, graph: 'networkx.DiGraph', start: tuple):
         # ped light is red
-        for node in graph.nodes():
-            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 0 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 1:
+        visited = [start]
+        queue = [start]
+        while queue:
+            node = queue.pop(0)
+            if dict(node)['PEDESTRIAN_GREEN_LIGHT'] == 0 and dict(node)['PEDESTRIAN_RED_LIGHT'] == 1 and dict(node)['time_delta'] is None:
                 yield node
+            for suc in graph.successors(node):
+                if suc not in visited:
+                    visited.append(suc)
+                    queue.append(suc)
 
 
 class MinDelayRule_Orange(MinDelayBaseRule):
     def node_a(self, graph: 'networkx.DiGraph'):
         # ped light is orange
         for node in graph.nodes():
-            if dict(node)['ORANGE_LIGHT'] == 1 and dict(node)['RED_LIGHT'] == 0:
+            if dict(node)['ORANGE_LIGHT'] == 1 and dict(node)['RED_LIGHT'] == 0 and dict(node)['time_delta'] is None:
                 yield node
 
-    def node_b(self, graph: 'networkx.DiGraph'):
+    def node_b(self, graph: 'networkx.DiGraph', start: tuple):
         # ped light is red
-        for node in graph.nodes():
-            if dict(node)['ORANGE_LIGHT'] == 0 and dict(node)['RED_LIGHT'] == 1:
+        visited = [start]
+        queue = [start]
+        while queue:
+            node = queue.pop(0)
+            if dict(node)['ORANGE_LIGHT'] == 0 and dict(node)['RED_LIGHT'] == 1 and dict(node)['time_delta'] is None:
                 yield node
+            for suc in graph.successors(node):
+                if suc not in visited:
+                    visited.append(suc)
+                    queue.append(suc)
+
+
 
 
 class NoPedGreenCarGreen(IllegalNodeBaseRule):
@@ -108,7 +124,6 @@ def switch_on(state):
     switch_flag_addr = switch_value_addr + 1
     state.memory.store(switch_value_addr, claripy.BVV(0x1, 8), endness=state.memory.endness)  # value
     state.memory.store(switch_flag_addr, claripy.BVV(0x2, 8), endness=state.memory.endness)  # flag
-
 
 def _hook_py_extensions(proj, cfg):
     proj.hook(cfg.kb.functions['PYTHON_EVAL_body__'].addr, angr.SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
@@ -177,6 +192,7 @@ def test_find_violations():
 
     base_addr = int(data['variable_base_addr'], 16)
     time_addr = int(data['time_addr'], 16)
+    software = data['software']
 
     # define abstract fields
     fields_desc, config_fields = _generate_field_desc(data, base_addr)
@@ -200,7 +216,7 @@ def test_find_violations():
 
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
     func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on,
+    sgr = proj.analyses.StateGraphRecovery(func, fields, software, time_addr, init_state=initial_state, switch_on=switch_on,
                                            config_vars=set(config_vars.values()), printstate=printstate)
     state_graph = sgr.state_graph
     pickle.dumps(sgr, -1)
@@ -284,6 +300,7 @@ def test_verify_patched_binary():
 
     base_addr = int(data['variable_base_addr'], 16)
     time_addr = int(data['time_addr'], 16)
+    software = data['software']
 
     def switch_on(state):
         # switch on
@@ -329,7 +346,7 @@ def test_verify_patched_binary():
 
     fields = angr.analyses.state_graph_recovery.AbstractStateFields(fields_desc)
     func = cfg.kb.functions['__run']
-    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, init_state=initial_state, switch_on=switch_on,
+    sgr = proj.analyses.StateGraphRecovery(func, fields, time_addr, software, init_state=initial_state, switch_on=switch_on,
                                            config_vars=set(config_vars.values()), printstate=printstate,
                                            patch_callback=patch_all)
     state_graph = sgr.state_graph
