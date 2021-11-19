@@ -41,7 +41,7 @@ class MinDelayBaseRule(BaseRule):
     def node_a(self, graph: 'networkx.DiGraph') -> Iterable[Any]:
         raise NotImplementedError()
 
-    def node_b(self, graph: 'networkx.DiGraph') -> Iterable[Any]:
+    def node_b(self, graph: 'networkx.DiGraph', start: tuple) -> Iterable[Any]:
         raise NotImplementedError()
 
     def delay(self, graph: 'networkx.DiGraph', node_a, node_b) -> Generator[float,None,None]:
