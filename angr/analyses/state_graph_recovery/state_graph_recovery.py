@@ -118,7 +118,8 @@ class StateGraphRecoveryAnalysis(Analysis):
     """
     Traverses a function and derive a state graph with respect to given variables.
     """
-    def __init__(self, func: 'Function', fields: 'AbstractStateFields', time_addr: int,
+    def __init__(self, func: 'Function', fields: 'AbstractStateFields', software: str,
+                 time_addr: int, temp_addr: int = None,
                  init_state: Optional['SimState']=None, switch_on: Optional[Callable]=None,
                  printstate: Optional[Callable]=None,
                  config_vars: Optional[Set[claripy.ast.Base]]=None,
@@ -126,17 +127,17 @@ class StateGraphRecoveryAnalysis(Analysis):
         self.func = func
         self.fields = fields
         self.config_vars = config_vars if config_vars is not None else set()
+        self.software = software
         self.init_state = init_state
         self._switch_on = switch_on
         self._ret_trap: int = 0x1f37ff4a
         self.printstate = printstate
         self.patch_callback = patch_callback
 
-        # self._iec_time = 0x425620       # Traffic_Light_short_ped
-        # self._iec_time = 0x448630       # Traffic_Light_both_green
-        self._iec_time = time_addr
+        self._time_addr = time_addr
+        self._temp_addr = temp_addr
         self._tv_sec_var = None
-        self._tv_nsec_var = None
+        self._temperature = None
         self.state_graph = None
         self._expression_source = {}
 
@@ -152,10 +153,14 @@ class StateGraphRecoveryAnalysis(Analysis):
 
         symbolic_input_fields = self._symbolize_input_fields(init_state)
         symbolic_time_counters = self._symbolize_timecounter(init_state)
+        if self._temp_addr is not None:
+            symbolic_temperature = self._symbolize_temp(init_state)
 
         # setup inspection points to catch where expressions are created
         all_vars = set(symbolic_input_fields.values())
         all_vars |= set(symbolic_time_counters.values())
+        if self._temp_addr is not None:
+            all_vars |= set(symbolic_temperature.values())
         all_vars |= self.config_vars
         slice_gen = SliceGenerator(all_vars, bp=None)
         expression_bp = slice_gen.install_expr_hook(init_state)
@@ -173,35 +178,52 @@ class StateGraphRecoveryAnalysis(Analysis):
         abs_state = self.fields.generate_abstract_state(init_state)
         abs_state_id = next(abs_state_id_ctr)
         self.state_graph.add_node((('STATE_ID', abs_state_id),) + abs_state)
-        state_queue = [(init_state, abs_state_id, abs_state, 1, None, None)]
-        countdown_timer = 2  # how many iterations to execute before switching on
-        switched_on = False
+        state_queue = [(init_state, abs_state_id, abs_state, None, None, None, None, None, None, None)]
+        if self._switch_on is None:
+            countdown_timer = 0
+            switched_on = True
+        else:
+            countdown_timer = 2  # how many iterations to execute before switching on
+            switched_on = False
 
-        known_transitions = set()
+        known_transitions = list()
+        known_states = dict()
 
         absstate_to_slice = { }
-
         while state_queue:
-            prev_state, prev_abs_state_id, prev_abs_state, time_delta, time_delta_constraint, time_delta_src = state_queue.pop(0)
+            prev_state, prev_abs_state_id, prev_abs_state, prev_prev_abs, time_delta, time_delta_constraint, time_delta_src, temp_delta, temp_delta_constraint, temp_delta_src = state_queue.pop(0)
             if time_delta is None:
                 pass
             else:
                 # advance the time stamp as required
                 self._advance_timecounter(prev_state, time_delta)
 
+            if temp_delta is None:
+                pass
+            else:
+                # advance the temperature stamp as required
+                self._advance_temp(prev_state, temp_delta)
+
             # symbolically trace the state
             expression_bp.enabled = True
             next_state = self._traverse_one(prev_state)
             expression_bp.enabled = False
 
-            # print(time_delta)
-            abs_state_id = next(abs_state_id_ctr)
             abs_state = self.fields.generate_abstract_state(next_state)
             abs_state += (('time_delta', time_delta),
                           # ('tdc', time_delta_constraint),
-                          ('td_src', time_delta_src)
+                          ('td_src', time_delta_src),
+                          ('temp_delta', temp_delta),
+                          ('temp_src', temp_delta_src)
                           )
-
+            if switched_on:
+                if abs_state in known_states.keys():
+                    abs_state_id = known_states[abs_state]
+                else:
+                    abs_state_id = next(abs_state_id_ctr)
+                    known_states[abs_state] = abs_state_id
+            else:
+                abs_state_id = next(abs_state_id_ctr)
             import pprint
             print("[+] Discovered a new abstract state:")
             if self.printstate is None:
@@ -211,16 +233,19 @@ class StateGraphRecoveryAnalysis(Analysis):
             absstate_to_slice[abs_state] = slice_gen.slice
             print("[.] There are %d nodes in the slice." % len(slice_gen.slice))
 
-            transition = (prev_abs_state, abs_state)
+            transition = (prev_prev_abs, prev_abs_state, abs_state)
             if switched_on and transition in known_transitions:
                 continue
 
-            known_transitions.add(transition)
+            known_transitions.append(transition)
             self.state_graph.add_edge((('STATE_ID', prev_abs_state_id),) + prev_abs_state,
                                       (('STATE_ID', abs_state_id),) + abs_state,
                                       time_delta=time_delta,
                                       time_delta_constraint=time_delta_constraint,
                                       time_delta_src=time_delta_src,
+                                      temp_delta=temp_delta,
+                                      temp_delta_constraint=temp_delta_constraint,
+                                      temp_delta_src=temp_delta_src,
                                       )
 
             # discover time deltas
@@ -229,7 +254,7 @@ class StateGraphRecoveryAnalysis(Analysis):
                     print("[.] Pre-heat... %d" % countdown_timer)
                     countdown_timer -= 1
                     new_state = self._initialize_state(init_state=next_state)
-                    state_queue.append((new_state, abs_state_id, abs_state, 1, None, None))
+                    state_queue.append((new_state, abs_state_id, abs_state,None, 1, None, None, None, None, None))
                     continue
                 else:
                     print("[.] Switch on.")
@@ -238,43 +263,198 @@ class StateGraphRecoveryAnalysis(Analysis):
                         print("[.] Applying patches...")
                         self.patch_callback(next_state)
                     switched_on = True
-                    delta_and_sources = {}
+                    time_delta_and_sources = {}
+                    temp_delta_and_sources = {}
                     prev_abs_state = None
+                    # state_queue.append((new_state, abs_state_id, abs_state, None, None, None, None, None, None))
             else:
-                delta_and_sources = self._discover_time_deltas(next_state)
-                for delta, constraint, source in delta_and_sources:
+                time_delta_and_sources = self._discover_time_deltas(next_state)
+
+                for delta, constraint, source in time_delta_and_sources:
                     if source is None:
                         block_addr, stmt_idx = -1, -1
                     else:
                         block_addr, stmt_idx = source
                     print(f"[.] Discovered a new time interval {delta} defined at {block_addr:#x}:{stmt_idx}")
+                if self._temp_addr is not None:
+                    temp_delta_and_sources = self._discover_temp_deltas(next_state)
+                    for delta, constraint, source in temp_delta_and_sources:
+                        if source is None:
+                            block_addr, stmt_idx = -1, -1
+                        else:
+                            block_addr, stmt_idx = source
+                        print(f"[.] Discovered a new temperature {delta} defined at {block_addr:#x}:{stmt_idx}")
 
-            if delta_and_sources:
-                for delta, constraint, src in delta_and_sources:
-                    new_state = self._initialize_state(init_state=next_state)
+            if temp_delta_and_sources or time_delta_and_sources:
 
-                    # re-symbolize input fields, time counters, and update slice generator
-                    symbolic_input_fields = self._symbolize_input_fields(new_state)
-                    symbolic_time_counters = self._symbolize_timecounter(new_state)
-                    all_vars = set(symbolic_input_fields.values())
-                    all_vars |= set(symbolic_time_counters.values())
-                    slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                if temp_delta_and_sources:
 
-                    state_queue.append((new_state, abs_state_id, abs_state, delta, constraint, src))
+                    for temp_delta, temp_constraint, temp_src in temp_delta_and_sources:
+                        # append two states in queue
+                        op = temp_constraint.args[0].op
+                        prev = next_state.memory.load(self._temp_addr, 8, endness=self.project.arch.memory_endness).raw_to_fp()
+                        prev_temp = next_state.solver.eval(prev)
+                        if op in ['fpLEQ', 'fpLT', 'fpGEQ', 'fpGT']:
+                            if prev_temp < temp_delta:
+                                delta0, temp_constraint0, temp_src0 = None, None, None
+                                delta1, temp_constraint1, temp_src1 = temp_delta + 1.0, temp_constraint, temp_src
+
+                                new_state = self._initialize_state(init_state=next_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, None, None, None, delta1,
+                                                    temp_constraint1, temp_src1))
+                            elif prev_temp > temp_delta:
+                                delta0, temp_constraint0, temp_src0 = temp_delta - 1.0, temp_constraint, temp_src
+                                delta1, temp_constraint1, temp_src1 = None, None, None
+
+                                new_state = self._initialize_state(init_state=next_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, None, None, None, delta0,
+                                                    temp_constraint0, temp_src0))
+                            else:
+                                import ipdb; ipdb.set_trace()
+
+                        elif op in ['fpEQ']:
+                            # import ipdb; ipdb.set_trace()
+                            new_state = self._initialize_state(init_state=next_state)
+
+                            # re-symbolize input fields, time counters, and update slice generator
+                            symbolic_input_fields = self._symbolize_input_fields(new_state)
+                            symbolic_time_counters = self._symbolize_timecounter(new_state)
+                            symbolic_temperature = self._symbolize_temp(new_state)
+                            all_vars = set(symbolic_input_fields.values())
+                            all_vars |= set(symbolic_time_counters.values())
+                            all_vars |= set(symbolic_temperature.values())
+                            all_vars |= self.config_vars
+                            slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                            state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, None, None, None, temp_delta, temp_constraint, temp_src))
+                            continue
+
+                        if time_delta_and_sources:
+                            # print(time_delta_constraint)
+                            for time_delta, time_constraint, time_src in time_delta_and_sources:
+                                # append state satisfy constraint
+                                new_state = self._initialize_state(init_state=next_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, time_delta, time_constraint, time_src, delta0, temp_constraint0, temp_src0))
+
+                                # append state not satisfy constraint
+                                new_state = self._initialize_state(init_state=next_state)
+
+                                # re-symbolize input fields, time counters, and update slice generator
+                                symbolic_input_fields = self._symbolize_input_fields(new_state)
+                                symbolic_time_counters = self._symbolize_timecounter(new_state)
+                                symbolic_temperature = self._symbolize_temp(new_state)
+                                all_vars = set(symbolic_input_fields.values())
+                                all_vars |= set(symbolic_time_counters.values())
+                                all_vars |= set(symbolic_temperature.values())
+                                all_vars |= self.config_vars
+                                slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                                state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, time_delta, time_constraint, time_src, delta1, temp_constraint1, temp_src1))
+
+                # only discover time delta
+                else:
+                    for time_delta, time_constraint, time_src in time_delta_and_sources:
+                        new_state = self._initialize_state(init_state=next_state)
+
+                        # re-symbolize input fields, time counters, and update slice generator
+                        symbolic_input_fields = self._symbolize_input_fields(new_state)
+                        symbolic_time_counters = self._symbolize_timecounter(new_state)
+                        all_vars = set(symbolic_input_fields.values())
+                        all_vars |= set(symbolic_time_counters.values())
+                        if self._temp_addr is not None:
+                            symbolic_temperature = self._symbolize_temp(new_state)
+                            all_vars |= set(symbolic_temperature.values())
+                        all_vars |= self.config_vars
+                        slice_gen = SliceGenerator(all_vars, bp=expression_bp)
+                        state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, time_delta, time_constraint, time_src, None, None, None))
+
             else:
-                if prev_abs_state == abs_state and time_delta is None:
-                    continue
+                # if time_delta is None and prev_abs_state == abs_state:
+                #     continue
                 new_state = self._initialize_state(init_state=next_state)
 
                 # re-symbolize input fields, time counters, and update slice generator
                 symbolic_input_fields = self._symbolize_input_fields(new_state)
                 symbolic_time_counters = self._symbolize_timecounter(new_state)
+
                 all_vars = set(symbolic_input_fields.values())
                 all_vars |= set(symbolic_time_counters.values())
+                if self._temp_addr is not None:
+                    symbolic_temperature = self._symbolize_temp(new_state)
+                    all_vars |= set(symbolic_temperature.values())
                 all_vars |= self.config_vars
                 slice_gen = SliceGenerator(all_vars, bp=expression_bp)
 
-                state_queue.append((new_state, abs_state_id, abs_state, None, None, None))
+                state_queue.append((new_state, abs_state_id, abs_state, prev_abs_state, None, None, None, None, None, None))
+
+        # check if any nodes need to be divided
+        for state_node in list(self.state_graph):
+            predecessors = list(self.state_graph.predecessors(state_node))
+            if len(predecessors) > 1:
+                nin = len(predecessors)
+                nout = len(list(self.state_graph.successors(state_node)))
+                state_edge = list()
+                for edge in known_transitions:
+                    if state_node[1:] == edge[1]:
+                        state_edge.append(edge)
+                ntrans = len(state_edge)
+                if ntrans == nin * nout:
+                    continue
+                else:
+                    for pre_node in predecessors:
+                        new_id = next(abs_state_id_ctr)
+                        pre_edge_data = self.state_graph.get_edge_data(pre_node, state_node)
+                        self.state_graph.add_edge(pre_node,
+                                                  (('STATE_ID', new_id),) + state_node[1:],
+                                                  time_delta=pre_edge_data['time_delta'],
+                                                  time_delta_constraint=pre_edge_data['time_delta_constraint'],
+                                                  time_delta_src=pre_edge_data['time_delta_src'],
+                                                  temp_delta=pre_edge_data['temp_delta'],
+                                                  temp_delta_constraint=pre_edge_data['temp_delta_constraint'],
+                                                  temp_delta_src=pre_edge_data['temp_delta_src'],
+                                                  )
+                        suc_nodes = [edge[2] for edge in state_edge if edge[0] == pre_node[1:] ]
+                        for suc_node in suc_nodes:
+                            suc_id = known_states[suc_node]
+                            suc_edge_data = self.state_graph.get_edge_data(state_node, ((('STATE_ID',suc_id),) + suc_node))
+                            self.state_graph.add_edge((('STATE_ID', new_id),) + state_node[1:],
+                                                      (('STATE_ID', suc_id),) + suc_node,
+                                                      time_delta=suc_edge_data['time_delta'],
+                                                      time_delta_constraint=suc_edge_data['time_delta_constraint'],
+                                                      time_delta_src=suc_edge_data['time_delta_src'],
+                                                      temp_delta=suc_edge_data['temp_delta'],
+                                                      temp_delta_constraint=suc_edge_data['temp_delta_constraint'],
+                                                      temp_delta_src=suc_edge_data['temp_delta_src'],
+                                                      )
+                    self.state_graph.remove_node(state_node)
 
     def _discover_time_deltas(self, state: 'SimState') -> List[Tuple[int,claripy.ast.Base,Tuple[int,int]]]:
         """
@@ -310,6 +490,18 @@ class StateGraphRecoveryAnalysis(Analysis):
 
                     if constraint.op == "__eq__" and constraint.args[0] is delta:
                         continue
+                    elif constraint.op in ('ULE'):  # arduino arm32
+                        if constraint.args[0].args[1] is delta:
+                            if constraint.args[1].args[0].op == 'BVV':
+                                step = constraint.args[1].args[0].args[0]
+                                if step != 0:
+                                    steps.append((
+                                        step,
+                                        constraint,
+                                        constraint_source.get(original_constraint, None),
+                                    ))
+                                    continue
+
                     elif constraint.op == "__ne__":
                         if constraint.args[0] is delta:     # amd64
                             # found a potential step
@@ -348,6 +540,59 @@ class StateGraphRecoveryAnalysis(Analysis):
                                             constraint_source.get(original_constraint, None),
                                         ))
                                         continue
+        return steps
+
+    def _discover_temp_deltas(self, state: 'SimState') -> List[Tuple[int,claripy.ast.Base,Tuple[int,int]]]:
+        """
+        Discover all possible temperature that may be required to transition the current state to successor states.
+
+        :param state:   The current initial state.
+        :return:        A list of ints where each int represents the required interval in number of seconds.
+        """
+        if self._temp_addr is None:
+            return []
+        state = self._initialize_state(state)
+        temp_deltas = self._symbolically_advance_temp(state)
+        # setup inspection points to catch where comparison happens
+        constraint_source = { }
+        constraint_logger = ConstraintLogger(constraint_source)
+        bp_0 = BP(when=BP_BEFORE, enabled=True, action=constraint_logger.on_adding_constraints)
+        state.inspect.add_breakpoint('constraints', bp_0)
+
+        next_state = self._traverse_one(state)
+
+        # detect required temp delta
+        steps: List[Tuple[int,claripy.ast.Base,Tuple[int,int]]] = [ ]
+        if temp_deltas:
+            for delta in temp_deltas:
+                for constraint in next_state.solver.constraints:
+                    original_constraint = constraint
+
+                    if constraint.op == "__eq__" and constraint.args[0] is delta:
+                        continue
+                    elif constraint.op == 'Not':
+                        if len(constraint.args[0].args[1].args) > 2:
+                            if constraint.args[0].args[1].args[2] is delta:
+                                if constraint.args[0].args[0].op == 'FPV':
+                                    step = constraint.args[0].args[0]._model_concrete.value
+                                    if step != 0 and step < 10000:
+                                        steps.append((
+                                            step,
+                                            constraint,
+                                            constraint_source.get(original_constraint, None),
+                                        ))
+                                        continue
+                        elif len(constraint.args[0].args[0].args) > 2:
+                            if constraint.args[0].args[0].args[2] is delta:
+                                if constraint.args[0].args[1].op == 'FPV':
+                                    step = constraint.args[0].args[1]._model_concrete.value
+                                    if step != 0 and step < 10000:
+                                        steps.append((
+                                            step,
+                                            constraint,
+                                            constraint_source.get(original_constraint, None),
+                                        ))
+                                        continue
 
         return steps
 
@@ -362,7 +607,7 @@ class StateGraphRecoveryAnalysis(Analysis):
         :return:
         """
 
-        if (constraint.op in ("__ne__", "__eq__")
+        if (constraint.op in ("__ne__", "__eq__", "ULE")
                 and constraint.args[0].op == "__add__"
                 and constraint.args[1].op == "__add__"):
             # remove arguments that appear in both sides of the comparison
@@ -502,8 +747,14 @@ class StateGraphRecoveryAnalysis(Analysis):
         return symbolic_input_vars
 
     def _symbolize_timecounter(self, state: 'SimState') -> Dict[str,claripy.ast.Base]:
-        # TODO: Generalize it
-        tv_sec_addr = self._iec_time
+        if self.software == "beremiz":
+            return self._symbolize_timecounter_beremiz(state)
+        elif self.software == 'arduino':
+            return self._symbolize_timecounter_arduino(state)
+
+    # Traffic_Light Beremiz
+    def _symbolize_timecounter_beremiz(self, state: 'SimState') -> Dict[str,claripy.ast.Base]:
+        tv_sec_addr = self._time_addr
         tv_nsec_addr = tv_sec_addr + self.project.arch.bytes
 
         self._tv_sec_var = claripy.BVS('tv_sec', self.project.arch.bytes * self.project.arch.byte_width)
@@ -521,34 +772,68 @@ class StateGraphRecoveryAnalysis(Analysis):
             'tv_nsec_var': self._tv_nsec_var
         }
 
+    # reflowoven Arduino
+    def _symbolize_timecounter_arduino(self, state: 'SimState') -> Dict[str, claripy.ast.Base]:
+        tv_sec_addr = self._time_addr
+        prev = state.memory.load(self._time_addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        prev_time = state.solver.eval(prev) + 1
+
+        self._tv_sec_var = claripy.BVS('tv_sec', self.project.arch.bytes * self.project.arch.byte_width)
+        state.memory.store(tv_sec_addr, self._tv_sec_var, endness=self.project.arch.memory_endness)
+        state.preconstrainer.preconstrain(claripy.BVV(prev_time, self.project.arch.bytes * self.project.arch.byte_width), self._tv_sec_var)
+
+        return {'tv_sec': self._tv_sec_var}
+
     def _symbolically_advance_timecounter(self, state: 'SimState') -> List[claripy.ast.Bits]:
-        # TODO: Generalize it
         sec_delta = claripy.BVS("sec_delta", self.project.arch.bytes * self.project.arch.byte_width)
         state.preconstrainer.preconstrain(claripy.BVV(1, self.project.arch.bytes * self.project.arch.byte_width), sec_delta)
 
-        tv_sec = state.memory.load(self._iec_time, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
-        state.memory.store(self._iec_time, tv_sec + sec_delta, endness=self.project.arch.memory_endness)
+        tv_sec = state.memory.load(self._time_addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        state.memory.store(self._time_addr, tv_sec + sec_delta, endness=self.project.arch.memory_endness)
 
         return [sec_delta]
 
     def _advance_timecounter(self, state: 'SimState', delta: int) -> None:
-        # TODO: Generalize it
-        tv_sec = state.memory.load(self._iec_time, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
-        state.memory.store(self._iec_time, tv_sec + delta, endness=self.project.arch.memory_endness)
+        prev = state.memory.load(self._time_addr, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
+        state.memory.store(self._time_addr, prev + delta, endness=self.project.arch.memory_endness)
 
-        # hack
-        tv_nsec = state.memory.load(self._iec_time + self.project.arch.bytes, size=self.project.arch.bytes, endness=self.project.arch.memory_endness)
-        state.memory.store(self._iec_time + self.project.arch.bytes, tv_nsec + 200, endness=self.project.arch.memory_endness)
+        if self.software == 'beremiz':
+            tv_nsec = state.memory.load(self._time_addr + self.project.arch.bytes, size=self.project.arch.bytes,
+                                        endness=self.project.arch.memory_endness)
+            state.memory.store(self._time_addr + self.project.arch.bytes, tv_nsec + 200,
+                               endness=self.project.arch.memory_endness)
+
+    def _symbolize_temp(self, state: 'SimState') -> Dict[str, claripy.ast.Base]:
+        temp_addr = self._temp_addr
+
+        prev = state.memory.load(self._temp_addr, size=8, endness=self.project.arch.memory_endness)
+        prev_temp = state.solver.eval(prev)
+
+        self._temperature = claripy.FPS('temperature', claripy.fp.FSORT_DOUBLE)
+        state.memory.store(temp_addr, self._temperature, endness=self.project.arch.memory_endness)
+        state.preconstrainer.preconstrain(state.solver.BVV(prev_temp, 64).raw_to_fp(), self._temperature)
+
+        return {'temperature': self._temperature}
+
+    def _symbolically_advance_temp(self, state: 'SimState') -> List[claripy.ast.Bits]:
+        temp_delta = claripy.FPS("temp_delta", claripy.fp.FSORT_DOUBLE)
+        state.preconstrainer.preconstrain(state.solver.FPV(0.5, claripy.fp.FSORT_DOUBLE), temp_delta)
+
+        prev = state.memory.load(self._temp_addr, size=8, endness=self.project.arch.memory_endness).raw_to_fp()
+        state.memory.store(self._temp_addr, prev + temp_delta, endness=self.project.arch.memory_endness)
+
+        return [temp_delta]
+
+    def _advance_temp(self, state: 'SimState', delta) -> None:
+        self._temperature = claripy.FPS('temperature', claripy.fp.FSORT_DOUBLE)
+        state.memory.store(self._temp_addr, self._temperature, endness=self.project.arch.memory_endness)
+        state.preconstrainer.preconstrain(claripy.FPV(delta, claripy.fp.FSORT_DOUBLE), self._temperature)
 
     def _traverse_one(self, state: 'SimState'):
 
         simgr = self.project.factory.simgr(state)
 
         while simgr.active:
-            # print(simgr.active)
-            # import sys
-            # sys.stdout.write('.')
-
             s = simgr.active[0]
             if len(simgr.active) > 1:
                 import ipdb; ipdb.set_trace()
@@ -560,7 +845,6 @@ class StateGraphRecoveryAnalysis(Analysis):
         # import sys
         # sys.stdout.write('\n')
         assert len(simgr.finished) == 1
-
         return simgr.finished[0]
 
     def _initialize_state(self, init_state=None) -> 'SimState':
