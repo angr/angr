@@ -21,7 +21,7 @@ class LinuxLoader(angr.SimProcedure):
             addr = self.initializers[0]
             self.initializers = self.initializers[1:]
             self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer',
-                func_ty = 'int main(int arch, char **argv, char **envp)')
+                func_ty = 'int main(int argc, char **argv, char **envp)')
 
 class IFuncResolver(angr.SimProcedure):
     NO_RET = True

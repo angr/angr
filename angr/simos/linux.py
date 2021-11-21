@@ -373,6 +373,14 @@ class SimLinux(SimUserland):
             else:
                 _l.error('What the ass kind of default value is %s?', val)
 
+        if state.arch.name == 'PPC64':
+            # store argc at the top of the stack if the program is statically linked, otherwise 0
+            # see sysdeps/powerpc/powerpc64/dl-machine.h, _dl_start_user
+            #stack_top = state.posix.argc.sign_extend(32) if state.project.loader.linux_loader_object is None else 0
+            # UMMMMMM actually nvm we're going to lie about it
+            stack_top = state.posix.argc.sign_extend(32)
+            state.mem[state.regs.sp].qword = stack_top
+
     def state_full_init(self, **kwargs):
         kwargs['addr'] = self._loader_addr
         return super(SimLinux, self).state_full_init(**kwargs)
