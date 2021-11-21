@@ -1,17 +1,20 @@
 from __future__ import annotations  # Makes all type hints strings that aren't evaluated (helps with cyclical imports)
 
+import itertools
 import logging
+from copy import copy
+from typing import TYPE_CHECKING, Set
+
 import networkx
 
-from typing import TYPE_CHECKING
-
-from claripy import BV
-from claripy.bv import BVV
+from claripy.ast.bv import BV
 from . import Analysis
 from ..state_plugins import SimActionData, SimActionObject
 
+from ..errors import AngrAnalysisError
+
 if TYPE_CHECKING:
-    from typing import Optional, TYPE_CHECKING, List, Tuple, Union, Dict
+    from typing import Optional, TYPE_CHECKING, List, Union, Dict
     from .. import SimState
 
 _l = logging.getLogger(name=__name__)
@@ -20,8 +23,8 @@ _l = logging.getLogger(name=__name__)
 class DepNodeTypes:
     Memory = 1
     Register = 2
-    # Integer = 3
-    Unknown = 3
+    Constant = 3
+    Unknown = 4
 
 
 class BaseDepNode:
@@ -29,22 +32,39 @@ class BaseDepNode:
     Base class for all nodes in a data-dependency graph
     """
 
-    def __init__(self, type_: int, instruction_addr: int, uid: int):
+    def __init__(self, type_: int, instruction_addr: int, stmt_idx: int):
         self._type = type_
         self._instruction_addr = instruction_addr
-        self._uid = uid
+        self._stmt_idx = stmt_idx
+        self._value: Optional[int] = None
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_val: int):
+        self._value = new_val
 
     @property
     def ins_addr(self) -> int:
         return self._instruction_addr
 
+    @ins_addr.setter
+    def ins_addr(self, new_ins_addr: int):
+        self._instruction_addr = new_ins_addr
+
     @property
-    def uid(self) -> int:
+    def stmt_idx(self) -> int:
         """
-        Unique ID for SimAction, should not repeat (even between basic blocks)
+        Statement index of action
         :return:
         """
-        return self._uid
+        return self._stmt_idx
+
+    @stmt_idx.setter
+    def stmt_idx(self, new_stmt_idx: int):
+        self._stmt_idx = new_stmt_idx
 
     @property
     def type(self) -> int:
@@ -58,57 +78,99 @@ class BaseDepNode:
         raise NotImplementedError()
 
     def __eq__(self, other):
-        raise NotImplementedError()
+        return self.type == other.type and self.ins_addr == other.ins_addr
 
     def __hash__(self):
-        return hash(self._type) ^ hash(self.ins_addr)
+        return hash(self.type) ^ hash(self.ins_addr)
+
+
+class ConstantDepNode(BaseDepNode):
+    def __init__(self, value: int):
+        super(ConstantDepNode, self).__init__(DepNodeTypes.Constant, 0, 0)  # Don't care about where constant came from
+        self.value = value
+
+    def __repr__(self):
+        return f"Constant{hex(self.value)}"
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __hash__(self):
+        return hash(self.value)
 
 
 class VarDepNode(BaseDepNode):
-    def __init__(self, type_: int, ins_addr: int, uid: int, reg: int, arch_name: str = ''):
-        super(VarDepNode, self).__init__(type_, ins_addr, uid)
+    def __init__(self, ins_addr: int, stmt_idx: int, reg: int, arch_name: str = ''):
+        super(VarDepNode, self).__init__(DepNodeTypes.Register, ins_addr, stmt_idx)
         self.reg = reg
         self.arch_name = arch_name
 
     def __repr__(self):
         inner = self.arch_name if self.arch_name else hex(self.reg)
-        return f"RegDep[{inner}]@{hex(self.ins_addr)}:{self.uid}"
+        val_str = 'None' if self.value is None else hex(self.value)
+        return f"{inner}@{hex(self.ins_addr)}:{self.stmt_idx}\n{val_str}"
 
     def __eq__(self, other):
-        return self.type == other.type and self.reg == other.reg
+        return super(VarDepNode, self).__eq__(other) and self.reg == other.reg
 
     def __hash__(self):
         return super(VarDepNode, self).__hash__() ^ hash(self.reg)
 
 
+class VarDepWriteNode(VarDepNode):
+    def __init__(self, ins_addr: int, stmt_idx: int, reg: int, arch_name: str = ''):
+        super(VarDepWriteNode, self).__init__(ins_addr, stmt_idx, reg, arch_name)
+
+    def __eq__(self, other):
+        return super(VarDepWriteNode, self).__eq__(other) and self.stmt_idx == other.stmt_idx
+
+    def __hash__(self):
+        return super(VarDepWriteNode, self).__hash__() ^ hash(self.stmt_idx)
+
+
+class VarDepReadNode(VarDepNode):
+    def __init__(self, ins_addr: int, stmt_idx: int, reg: int, arch_name: str = ''):
+        super(VarDepReadNode, self).__init__(ins_addr, stmt_idx, reg, arch_name)
+
+
 class MemDepNode(BaseDepNode):
-    def __init__(self, type_: int, ins_addr: int, uid: int, addr: int):
-        super(MemDepNode, self).__init__(type_, ins_addr, uid)
+    def __init__(self, ins_addr: int, stmt_idx: int, addr: int):
+        super(MemDepNode, self).__init__(DepNodeTypes.Memory, ins_addr, stmt_idx)
         self.addr = addr
 
     def __repr__(self):
-        return f"MemDep[{hex(self.addr)}]@{hex(self.ins_addr)}:{self.uid}"
+        val_str = 'None' if self.value is None else hex(self.value)
+        return f"{hex(self.addr)}\n{hex(self.ins_addr)}:{self.stmt_idx}\n{val_str}"
 
     def __eq__(self, other):
-        return self.type == other.type and self.addr == other.addr
+        return super(MemDepNode, self).__eq__(other) and self.addr == other.addr
 
     def __hash__(self):
         return super(MemDepNode, self).__hash__() ^ hash(self.addr)
 
 
-class IntDepNode(BaseDepNode):
-    def __init__(self, type_: int, ins_addr: int, uid: int, value: int):
-        super(IntDepNode, self).__init__(type_, ins_addr, uid)
-        self.value = value
-
-    def __repr__(self):
-        return f"IntDep[{hex(self.value)}]@{hex(self.ins_addr)}:{self.uid}"
+class MemDepWriteNode(MemDepNode):
+    def __init__(self, ins_addr: int, stmt_idx: int, addr: int):
+        super(MemDepWriteNode, self).__init__(ins_addr, stmt_idx, addr)
 
     def __eq__(self, other):
-        return self.type == other.type and self.value == other.value
+        return super(MemDepWriteNode, self).__eq__(other) and self.stmt_idx == other.stmt_idx
 
     def __hash__(self):
-        return hash(self.type) ^ hash(self.value)
+        return super(MemDepWriteNode, self).__hash__() ^ hash(self.stmt_idx)
+
+
+class MemDepReadNode(MemDepNode):
+    def __init__(self, ins_addr: int, stmt_idx: int, addr: int):
+        super(MemDepReadNode, self).__init__(ins_addr, stmt_idx, addr)
+
+
+def _is_tmp_node(node: BaseDepNode) -> bool:
+    """
+    :param node: Node to test
+    :return: Returns whether or not the given node is a temp node.
+    """
+    return isinstance(node, VarDepNode) and node.arch_name.startswith('tmp')
 
 
 class DataDependencyGraphAnalysis(Analysis):
@@ -116,19 +178,31 @@ class DataDependencyGraphAnalysis(Analysis):
     generates a proximity graph based off data-dependency.
     """
 
-    def __init__(self, end_state: SimState, start_from):
+    def __init__(self, end_state: SimState, start_from=None, end_at=None):
+        """
+
+        :param end_state: Simulation state used to extract all SimActionData from
+        :param start_from: An address, Specifies where to start generation of DDG
+        """
         self._graph: Optional[networkx.DiGraph] = None
+        self._simplified_graph: Optional[networkx.DiGraph] = None
         self._end_state = end_state
-        self._start_from = start_from
+        self._start_from = start_from if start_from else self.project.entry
+        self._end_at = end_at
         self._canonical_graph_nodes: Dict[
             BaseDepNode, BaseDepNode] = dict()  # Maps a node to itself for lookup purposes
-        self._actions: List[SimActionData] = []
 
+        self._actions: List[SimActionData] = []
+        self._parsed_ins_addrs: List[int] = []  # Used by parser to track instruction addresses processed
         self._work()
 
     @property
     def graph(self) -> Optional[networkx.DiGraph]:
         return self._graph
+
+    @property
+    def simplified_graph(self) -> Optional[networkx.DiGraph]:
+        return self._simplified_graph
 
     def _pop(self) -> Optional[SimActionData]:
         """
@@ -156,205 +230,276 @@ class DataDependencyGraphAnalysis(Analysis):
         """
         return self._actions[0].action if self._actions else ''
 
-    def _get_or_create_graph_node(self, type_: int, ins_addr: int, uid: int, *constructor_params) -> BaseDepNode:
+    def _get_or_create_graph_node(self, type_: int, sim_act: SimActionData,
+                                  val: int, should_create: bool = True, *constructor_params) -> BaseDepNode:
         """
         If the node already exists in the graph, that node is returned. Otherwise, a new node is created
         :param _type: Type of node to check/create
-        :param ins_addr: The address of the instruction that generated the associated action
-        :param uid: The unique identifier of the SimAction
+        :param sim_act: The SimActionData associated with the node
+        :param val: The value to be assigned to the node
+        :param should_create: If true, will add to canonical nodes if new. Otherwise, will just create lookup node
         :param constructor_params: Variadic list of arguments to supply for node lookup / creation
         :return: A reference to a node with the given parameters
         """
 
+        action = sim_act.action
+        ins_addr = sim_act.ins_addr
+        stmt_idx = sim_act.stmt_idx
+
         if type_ is DepNodeTypes.Register:
-            node = VarDepNode(type_, ins_addr, uid, *constructor_params)
+            lookup_node = VarDepNode(ins_addr, stmt_idx, *constructor_params)
+            lookup_node.value = val
+            if not lookup_node.arch_name:
+                lookup_node.arch_name = sim_act.storage
+            store_node = copy(lookup_node)
+            store_node.__class__ = VarDepReadNode if action is SimActionData.READ else VarDepWriteNode
         elif type_ is DepNodeTypes.Memory:
-            node = MemDepNode(type_, ins_addr, uid, *constructor_params)
-        elif type_ is DepNodeTypes.Integer:
-            node = IntDepNode(type_, ins_addr, uid, *constructor_params)
+            lookup_node = MemDepNode(ins_addr, stmt_idx, *constructor_params)
+            lookup_node.value = val
+            store_node = copy(lookup_node)
+            store_node.__class__ = MemDepReadNode if action is SimActionData.READ else MemDepWriteNode
+        elif type_ is DepNodeTypes.Constant:
+            lookup_node = ConstantDepNode(val)
+            store_node = copy(lookup_node)
         else:
             raise TypeError("Type must be a type of DepNode.")
 
-        if node not in self._canonical_graph_nodes:
-            self._graph.add_node(node, label=repr(node))
-            self._canonical_graph_nodes[node] = node
+        if not should_create:
+            return lookup_node
 
-        return self._canonical_graph_nodes[node]
+        if lookup_node not in self._canonical_graph_nodes:
+            # New node, write nodes should always get in here
+            self._graph.add_node(store_node, label=repr(store_node))
+            self._canonical_graph_nodes[lookup_node] = store_node
 
-    def _get_dep_node(self, dep_type: int, ins_addr: int, uid: int, var_src: Union[BV, int], val_src: Union[BV, int],
-                      act: Optional[SimActionData] = None) -> Tuple[BaseDepNode, BaseDepNode]:
-        if isinstance(var_src, BVV):
+        return self._canonical_graph_nodes[lookup_node] if action is SimActionData.READ else store_node
+
+    def _get_dep_node(self, dep_type: int, sim_act: SimActionData, var_src: Union[BV, int],
+                      val: Union[BV, int], should_create: bool) -> BaseDepNode:
+        if isinstance(var_src, BV):
             var_src = self._end_state.solver.eval(var_src)
-        if isinstance(val_src, BVV):
-            val_src = self._end_state.solver.eval(val_src)
+        if isinstance(val, BV):
+            val = self._end_state.solver.eval(val)
 
-        var_num = self._end_state.solver.eval(var_src)
-        var_node = self._get_or_create_graph_node(dep_type, ins_addr, uid, *[var_num])
-        val_node = self._get_or_create_graph_node(DepNodeTypes.Integer, ins_addr, uid,
-                                                  self._end_state.solver.eval(val_src))
+        var_node = self._get_or_create_graph_node(dep_type, sim_act, val, should_create, *[var_src])
 
-        if act and dep_type is DepNodeTypes.Register and not var_node.arch_name:
-            var_node.arch_name = act.storage
+        return var_node
 
-        return var_node, val_node
+    def _get_generic_node(self, action: SimActionData, should_create: bool = True) -> BaseDepNode:
 
-    def _get_reg_read_node(self, act: SimActionData) -> Tuple[BaseDepNode, BaseDepNode]:
-        return self._get_dep_node(DepNodeTypes.Register, act.ins_addr, act.id,
-                                  act.all_objects[0].ast, act.data.ast, act)
+        def node_attributes(act: SimActionData) -> tuple:
+            ac = act.action
+            ty = act.type
 
-    def _get_reg_write_node(self, act: SimActionData) -> Tuple[BaseDepNode, BaseDepNode]:
-        return self._get_dep_node(DepNodeTypes.Register, act.ins_addr,
-                                  act.id, act.all_objects[0].ast, act.actual_value.ast, act)
-
-    def _get_tmp_read_node(self, act: SimActionData) -> Tuple[BaseDepNode, BaseDepNode]:
-        return self._get_dep_node(DepNodeTypes.Register, act.ins_addr, act.id, act.tmp, act.all_objects[1].ast, act)
-
-    def _get_tmp_write_node(self, act: SimActionData) -> Tuple[BaseDepNode, BaseDepNode]:
-        return self._get_dep_node(DepNodeTypes.Register, act.ins_addr, act.id, act.tmp, act.all_objects[1].ast, act)
-
-    def _get_mem_read_node(self, act: SimActionData) -> Tuple[BaseDepNode, BaseDepNode]:
-        return self._get_dep_node(DepNodeTypes.Memory, act.ins_addr, act.id, act.addr.ast, act.data.ast)
-
-    def _get_mem_write_node(self, act: SimActionData) -> Tuple[BaseDepNode, BaseDepNode]:
-        return self._get_dep_node(DepNodeTypes.Memory, act.ins_addr, act.id, act.addr.ast, act.data.ast)
-
-    def _parse_read_from_var(self) -> Tuple[BaseDepNode, BaseDepNode]:
-        """
-
-        CFG
-        read_from_var -> READ REG --> INT
-        read_from_var -> READ MEM --> INT
-        read_from_var -> read_from_var write_to_var
-        """
-
-        act_one = self._peek()
-        act_two = self._peek(1)
-
-        read_act = self._pop()
-        var_type = read_act.type
-
-        if var_type is SimActionData.REG:
-            var_node, val_node = self._get_reg_read_node(read_act)
-        elif var_type is SimActionData.TMP:
-            var_node, val_node = self._get_tmp_read_node(read_act)
-        elif var_type is SimActionData.MEM:
-            var_node, val_node = self._get_mem_read_node(read_act)
-        else:
-            raise TypeError("Unable to parse read of %r with type %s", self._peek(), var_type)
-
-        if act_two and act_one.ins_addr == act_two.ins_addr:
-
-            # Rather than default, want to add edge between two tmp/mem/reg
-            write_var, write_val = self._parse_write_to_var(False)
-
-            if val_node is not write_val:
-                _l.error("Same instruction address for read value %r and write value %r", val_node, write_val)
-                _l.error("%r and %r\n\n", act_one, act_two)
-
-            self._graph.add_edge(var_node, write_var)
-            return write_var, var_node
-        else:
-            self._graph.add_edge(var_node, val_node)  # Value is dependent on variable being read
-            return var_node, val_node
-
-    def _parse_write_to_var(self, should_add_edge: bool = True) -> Tuple[BaseDepNode, BaseDepNode]:
-        """
-
-        CFG
-        write_to_var -> WRITE TMP --> INT
-        write_to_var -> WRITE REG --> INT
-        write_to_var -> WRITE MEM --> INT
-        """
-
-        write_act = self._pop()
-        var_type = write_act.type
-
-        if var_type is SimActionData.REG:
-            var_node, val_node = self._get_reg_write_node(write_act)
-        elif var_type is SimActionData.TMP:
-            var_node, val_node = self._get_tmp_write_node(write_act)
-        elif var_type is SimActionData.MEM:
-            var_node, val_node = self._get_mem_write_node(write_act)
-        else:
-            raise TypeError("Unable to parse write of %r with type %s", self._peek(), var_type)
-
-        if should_add_edge:
-            self._graph.add_edge(val_node, var_node)  # Variable is dependent on value
-
-        return var_node, val_node
-
-    def _parse_action(self):
-        """
-        action -> write_to_var
-        action -> read_from_var
-        action -> write_to_var action
-        action -> read_from_var action
-        """
-        if self._peek_action() is SimActionData.READ:
-            self._parse_read_from_var()
-        elif self._peek_action() is SimActionData.WRITE:
-            self._parse_write_to_var()
-        else:
-            _l.error("Unable to parse %r with action %s", self._peek(), self._peek_action())
-
-    def _parse_statement(self):
-        """
-        statement -> write_var
-        statement -> read_var statement
-        :return:
-        """
-        action = self._peek()
-
-        value_source_map: Dict[int, BaseDepNode] = {}
-
-        if action.type is SimActionData.WRITE:
-            # End of statement
-            write_node = self._parse_write_to_var()
-
-            if len(value_source_map.values()) == 1:
-                # Only one source where write node could come from
-                # TODO: Some information should be stored on the edge (direct store or math?)
-                self._graph.add_edge(value_source_map.values()[0], write_node)
-            elif src_node := value_source_map.get(write_node.value, None):
-                self._graph.add_edge(src_node, write_node)
+            if ac is SimActionData.READ:
+                if ty is SimActionData.REG:
+                    tup = DepNodeTypes.Register, act.all_objects[0].ast, act.data.ast,
+                elif ty is SimActionData.TMP:
+                    tup = DepNodeTypes.Register, act.tmp, act.all_objects[1].ast,
+                elif ty is SimActionData.MEM:
+                    tup = DepNodeTypes.Memory, act.addr.ast, act.data.ast,
+                else:
+                    raise AngrAnalysisError('Unsupported Read type: <%s>!', ty)
+            elif ac is SimActionData.WRITE:
+                if ty is SimActionData.REG:
+                    tup = DepNodeTypes.Register, act.all_objects[0].ast, act.actual_value.ast,
+                elif ty is SimActionData.TMP:
+                    tup = DepNodeTypes.Register, act.tmp, act.all_objects[1].ast,
+                elif ty is SimActionData.MEM:
+                    tup = DepNodeTypes.Memory, act.addr.ast, act.data.ast,
+                else:
+                    raise AngrAnalysisError('Unsupported Write type: <%s>!', ty)
             else:
-                raise AngrAnalysisError("Node <%r> written to without tracked value source!" % write_node)
-        elif action.type is SimActionData.READ:
-            read_node = self._parse_read_from_var()
-            value_source_map[read_node.value] = read_node  # TODO: Could have two same values from different sources
-        else:
-            raise TypeError("Unexpected action type <%s> in statement parsing." % action.type)
+                raise AngrAnalysisError('Unsupported action type: <%s>!', ac)
 
-    def _parse_instruction(self):
+            return tup
+
+        dep_type, var_src, val = node_attributes(action)
+        return self._get_dep_node(dep_type, action, var_src, val, should_create)
+
+    def _parse_action(self) -> BaseDepNode:
+        return self._get_generic_node(self._pop())
+
+    def _get_most_recent_ancestor(self, curr_node: BaseDepNode, go_by_stmt: bool = False) -> Optional[BaseDepNode]:
+        """
+        Retrieves the most recent ancestor of the given node, if it exists
+        :param curr_node: Node to search for an ancestor of
+        :param go_by_stmt: Whether an ancestor from the same instruction is acceptable
+        :return: The most recent ancestor, else None
+        """
+        ancestor_lookup_node = copy(curr_node)
+        ancestor_node = None
+
+        if go_by_stmt:
+            if isinstance(ancestor_lookup_node, VarDepWriteNode):
+                ancestor_lookup_node.__class__ = VarDepNode
+            elif isinstance(ancestor_lookup_node, MemDepWriteNode):
+                ancestor_lookup_node.__class__ = MemDepNode
+
+            ins_addrs = list(self._parsed_ins_addrs)
+            ins_addrs.insert(0, ancestor_lookup_node.ins_addr)
+
+            for ins_addr, stmt_idx in itertools.product(ins_addrs, range(ancestor_lookup_node.stmt_idx - 1, 1, -1)):
+                ancestor_lookup_node.ins_addr = ins_addr
+                ancestor_lookup_node.stmt_idx = stmt_idx
+
+                if found_node := self._canonical_graph_nodes.get(ancestor_lookup_node, None):
+                    if curr_node != found_node:
+                        # Cannot be the same node
+                        ancestor_node = found_node
+                        break
+        else:
+            for ins_addr in self._parsed_ins_addrs:
+                ancestor_lookup_node.ins_addr = ins_addr
+                if found_node := self._canonical_graph_nodes.get(ancestor_lookup_node, None):
+                    ancestor_node = found_node
+                    break
+
+        return ancestor_node
+
+    def _link_with_most_recent_ins_ancestor(self, curr_node: BaseDepNode):
+        """
+        Adds an edge between the given node and its most recent instruction ancestor, if it exists
+        :param curr_node: Node to find an ancestor of
+        """
+        if ancestor_node := self._get_most_recent_ancestor(curr_node):
+            self._graph.add_edge(ancestor_node, curr_node, label='ancestor')
+
+    def _parse_read_statement(self, read_nodes: Optional[Dict[int, BaseDepNode]] = None) -> BaseDepNode:
+        act = self._peek()
+        pre_existing_node = self._canonical_graph_nodes.get(
+            self._get_generic_node(act, should_create=False),
+            None
+        )
+
+        read_node = self._parse_action()
+
+        read_ancestor = self._get_most_recent_ancestor(read_node, go_by_stmt=True)
+
+        # Determine if read node should be marked a dependency of a constant value
+        has_ancestor_and_new_value = read_ancestor is not None and read_ancestor.value != read_node.value
+        is_orphan_and_new_value = read_ancestor is None and pre_existing_node is None and ConstantDepNode(
+            read_node.value) not in self._canonical_graph_nodes
+        exists_with_new_value = pre_existing_node and pre_existing_node.value != read_node.value
+
+        if has_ancestor_and_new_value or is_orphan_and_new_value or exists_with_new_value:
+            # This is a value that isn't inherited from a previous statement
+            val_node = self._get_or_create_graph_node(DepNodeTypes.Constant, act, read_node.value)
+            self._graph.add_edge(val_node, read_node)
+
+        self._link_with_most_recent_ins_ancestor(read_node)
+        read_nodes[read_node.value] = read_node
+        return read_node
+
+    def _parse_var_statement(self, read_nodes: Optional[Dict[int, BaseDepNode]] = None) -> int:
+        act = self._peek()
+
+        if act.action is SimActionData.WRITE:
+            write_node = self._parse_action()
+
+            if src_node := read_nodes.get(write_node.value, None):
+                # Write value came from a previous read value
+                self._graph.add_edge(src_node, write_node, label='val')
+            elif len(read_nodes) == 0:
+                # No reads in this instruction before first write, so its value is direct
+                if ConstantDepNode(write_node.value) not in self._canonical_graph_nodes:
+                    val_node = self._get_or_create_graph_node(DepNodeTypes.Constant, act, write_node.value)
+                    self._graph.add_edge(val_node, write_node)
+            elif len(read_nodes) == 1:
+                # Some calculation must have been performed on the value of the single read
+                stmt_read_node = list(read_nodes.values())[0]
+                diff = list(read_nodes.keys())[0] - write_node.value
+                edge_label = f"{'-' if diff > 0 else '+'} {abs(diff)}"
+                self._graph.add_edge(stmt_read_node, write_node, label=edge_label)
+            else:
+                _l.error("Node <%r> written to without tracked value source!" % write_node)
+
+            return act.ins_addr
+        else:
+            self._parse_read_statement(read_nodes)
+            return self._parse_statement(read_nodes)
+
+    def _parse_mem_statement(self, read_nodes: Optional[Dict[int, BaseDepNode]] = None):
+        act = self._peek()
+
+        if act.action is SimActionData.WRITE:
+            mem_node = self._parse_action()
+
+            if src_node := read_nodes.get(mem_node.value, None):
+                # Value being written to address came from previous read
+                self._graph.add_edge(src_node, mem_node, label='val')
+            elif len(read_nodes) == 1 and read_nodes.get(mem_node.addr, None):
+                # Only read thus far was for the memory address, value is direct
+                if ConstantDepNode(mem_node.value) not in self._canonical_graph_nodes:
+                    val_node = self._get_or_create_graph_node(DepNodeTypes.Constant, act, mem_node.value)
+                    self._graph.add_edge(val_node, mem_node)
+                else:
+                    _l.error("Already encountered %d written to <%r> without stmt read!", mem_node.value, mem_node)
+            else:
+                raise AngrAnalysisError("Unexpected MemWrite pattern encountered! <%r>", act)
+            ret_val = act.ins_addr
+        else:
+            mem_node = self._parse_read_statement(read_nodes)
+            ret_val = None
+
+        # Handle the address of the mem R/W
+        if addr_source_node := read_nodes.get(mem_node.addr, None):
+            self._graph.add_edge(addr_source_node, mem_node, label='addr_source')
+
+        return ret_val if ret_val else self._parse_statement(read_nodes)
+
+    def _parse_statement(self, read_nodes: Optional[Dict[int, BaseDepNode]] = None) -> int:
+        """
+        statement -> write_var | write_mem
+        statement -> read_var | write_mem statement
+        :return: The instruction address associated with the statement
+        """
+        read_nodes = read_nodes if read_nodes else {}
+        sim_act = self._peek()
+        if not sim_act:
+            return -1
+
+        # Some sanity checks
+        if sim_act.action not in [SimActionData.WRITE, SimActionData.READ]:
+            raise AngrAnalysisError("Statement with unsupported action encountered: <%s>", sim_act.action)
+        if sim_act.type not in [SimActionData.TMP, SimActionData.MEM, SimActionData.REG]:
+            raise AngrAnalysisError("Statement with unsupported type encountered: <%s>", sim_act.type)
+        if sim_act.action is SimActionData.WRITE and self._peek(1) and self._peek(1).stmt_idx == sim_act.stmt_idx:
+            raise AngrAnalysisError("Statement must end with a write, but %r follows a write!", self._peek(1))
+
+        if sim_act.type is SimActionData.MEM:
+            return self._parse_mem_statement(read_nodes)
+        else:
+            return self._parse_var_statement(read_nodes)  # TMP or REG
+
+    def _parse_instruction(self, ins_addr: Optional[int] = None):
         """
         instruction -> statement
         instruction -> statement instruction
         :return:
         """
-        ins_addr = self._peek().ins_addr
-        ins_actions = []
 
-        # Parse all the actions of the instruction
-        while ins_addr == self._peek().ins_addr:
-            ins_actions += self._parse_statement()
+        if not self._actions:
+            return
 
-        for var_node, val_node in ins_actions:
-            if isinstance(var_node, IntDepNode):
-                pass
+        if ins_addr and ins_addr != self._peek().ins_addr:
+            # End of instruction
+            self._parsed_ins_addrs.insert(0, ins_addr)
+            return
 
+        ins_addr = self._parse_statement()
+        self._parse_instruction(ins_addr)
 
-
-    def _parse_actions(self):
+    def _parse_instructions(self):
         """
         Utilizes the following grammar to populate a DiGraph with DepNodes.
 
-        write_to_var -> WRITE TMP/REG/MEM <-- INT
-        write_to_var -> <read_from_var> <write_to_var>  # this is (tmp/reg/mem <-- tmp/reg/mem)
-        read_from_var -> read tmp/reg/mem --> INT
+        instructions -> instruction
+        instructions -> instruction instructions
         """
         if self._actions:
-            self._parse_action()
-            self._parse_actions()
+            self._parse_instruction()
+            self._parse_instructions()
 
     def _work(self):
         """
@@ -363,10 +508,12 @@ class DataDependencyGraphAnalysis(Analysis):
         self._graph = networkx.DiGraph()
 
         relevant_actions: List[SimActionObject] = self._end_state.history.filter_actions(
-            block_addr=self._start_from
+            start_block_addr=self._start_from, end_block_addr=self._end_at
         )[::-1]
+
         # We only care about SimActionData for this analysis
-        self._actions = list(filter(lambda a: isinstance(a, SimActionData), relevant_actions))
+        self._actions = list(
+            filter(lambda a: isinstance(a, SimActionData) and a.sim_procedure is None, relevant_actions))
 
         ins_str = ''
         ins_addr = self._actions[0].ins_addr
@@ -382,25 +529,79 @@ class DataDependencyGraphAnalysis(Analysis):
                 ins_str += ' '
 
             ins_str += 'R' if act.action is SimActionData.READ else 'W'
-        self._parse_actions()
+        self._parse_instructions()
 
-        # Run transitive reduction
-        print(self._graph)
-        print(self._graph.edges)
-        print("DAG: " + str(networkx.algorithms.dag.is_directed_acyclic_graph(self._graph)))
-        # self._graph = networkx.algorithms.dag.transitive_reduction(self._graph)
-        # print(self._graph)
+        # Create a simplified version of the graph
+        self._simplified_graph = self._simplify_graph(self._graph)
 
-        # Visualize the graph
+    def get_reg_data_dep(self, ins_addr: int, stmt_idx: int,
+                         reg: int, pred_max: Optional[int] = None,
+                         include_tmp_nodes: bool = True) -> Optional[networkx.DiGraph]:
+        eq_reg_node = VarDepNode(ins_addr, stmt_idx, reg)
+        return self._get_data_dep(eq_reg_node, pred_max, include_tmp_nodes)
+
+    def get_mem_data_dep(self, ins_addr: int, stmt_idx: int,
+                         addr: int, pred_max: Optional[int] = None,
+                         include_tmp_nodes: bool = True) -> Optional[networkx.DiGraph]:
+        eq_mem_node = MemDepNode(ins_addr, stmt_idx, addr)
+        return self._get_data_dep(eq_mem_node, pred_max, include_tmp_nodes)
+
+    @staticmethod
+    def _simplify_graph(G: networkx.DiGraph) -> networkx.DiGraph:
+        """
+        Performs an in-place removal of all tmp nodes and reconnects varnodes and memnodes.
+        :param G: Graph to be simplified
+        """
+
+        g0 = G.copy()
+        tmp_nodes = [n for n in g0.nodes() if _is_tmp_node(n)]
+        for curr_node in tmp_nodes:
+            # Node must be removed and predecessor(s) connected to successor(s)
+            in_edges = list(g0.in_edges(curr_node, data=True))
+            out_edges = list(g0.out_edges(curr_node, data=True))
+
+            for pred, _, _ in in_edges:
+                g0.remove_edge(pred, curr_node)
+            for _, suc, _ in out_edges:
+                g0.remove_edge(curr_node, suc)
+
+            # Ancestor nodes should not be considered in simplification
+            # in_edges = list(filter(lambda edge: 'label' not in edge[2] or edge[2]['label'] != 'ancestor', in_edges))
+
+            for pred, _, data_in in in_edges:
+                for _, suc, data_out in out_edges:
+                    data = data_in.copy()
+                    data.update(data_out)
+                    g0.add_edge(pred, suc, **data)
+
+            g0.remove_node(curr_node)
+
+        return g0
+
+    @staticmethod
+    def _get_parent_nodes(G: networkx.DiGraph, curr_node: BaseDepNode, nodes: Set[BaseDepNode]):
+        nodes.add(curr_node)
+
+        if pred_nodes := G.predecessors(curr_node):
+            for p in pred_nodes:
+                DataDependencyGraphAnalysis._get_parent_nodes(G, p, nodes)
+        else:
+            return
+
+    def _get_data_dep(self, eq_node: BaseDepNode, pred_max: Optional[int], include_tmp_nodes: bool) -> Optional[
+        networkx.DiGraph]:
+        # TODO: Implement pred_max
+        if g_node := self._canonical_graph_nodes.get(eq_node, None):
+            # We have a matching node and can proceed to build a subgraph
+            relevant_nodes = set()
+            g = self._graph if include_tmp_nodes else self._simplified_graph
+            DataDependencyGraphAnalysis._get_parent_nodes(g, g_node, relevant_nodes)
+            return g.subgraph(relevant_nodes).copy()
+        else:
+            _l.error("No node %r in existing graph.", eq_node)
 
 
 # register this analysis
 from angr.analyses import AnalysesHub
 
 AnalysesHub.register_default('DataDep', DataDependencyGraphAnalysis)
-
-"""
-a = 70; write a <--- 70
-b = a; read a ---> 70; write b <---- 70
-return b; read b ---> 70; write rax <--- 70
-"""
