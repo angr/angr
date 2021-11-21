@@ -51,6 +51,6 @@ class KiUserExceptionDispatcher(angr.SimProcedure):
 
         self.cur_ptr = next_ptr
         # as far as I can tell it doesn't actually matter whether the callback is stdcall or cdecl
-        self.call(func_ptr, (record, cur_ptr, context, 0xBADF00D), 'dispatch')
+        self.call(func_ptr, (record, cur_ptr, context, 0xBADF00D), 'dispatch', func_ty='void x(int, int, int, int)')
         # bonus! after we've done the call, mutate the state even harder so ebp is pointing to some fake args
         self.successors.successors[0].regs.ebp = self.successors.successors[0].regs.esp - 4

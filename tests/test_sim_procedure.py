@@ -7,28 +7,49 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 BIN_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
 
 def test_ret_float():
-    p = angr.load_shellcode(b'X', arch='i386')
-
     class F1(angr.SimProcedure):
         def run(self):
             return 12.5
 
-    p.hook(0x1000, F1(cc=p.factory.cc(func_ty=angr.sim_type.parse_file('float (x)();')[0]['x'])))
-    p.hook(0x2000, F1(cc=p.factory.cc(func_ty=angr.sim_type.parse_file('double (x)();')[0]['x'])))
+    p = angr.load_shellcode(b'X', arch='i386')
 
-    s = p.factory.call_state(addr=0x1000, ret_addr=0)
-    succ = s.step()
-    nose.tools.assert_equal(len(succ.successors), 1)
-    s2 = succ.flat_successors[0]
-    nose.tools.assert_false(s2.regs.st0.symbolic)
-    nose.tools.assert_equal(s2.solver.eval(s2.regs.st0.get_bytes(4, 4).raw_to_fp()), 12.5)
+    p.hook(0x1000, F1(func_ty='float (x)();'))
+    p.hook(0x2000, F1(func_ty='double (x)();'))
 
-    s = p.factory.call_state(addr=0x2000, ret_addr=0)
+    s = p.factory.call_state(addr=0x1000, ret_addr=0, func_ty='float(x)()')
     succ = s.step()
     nose.tools.assert_equal(len(succ.successors), 1)
     s2 = succ.flat_successors[0]
     nose.tools.assert_false(s2.regs.st0.symbolic)
     nose.tools.assert_equal(s2.solver.eval(s2.regs.st0.raw_to_fp()), 12.5)
+
+    s = p.factory.call_state(addr=0x2000, ret_addr=0, func_ty='double(x)()')
+    succ = s.step()
+    nose.tools.assert_equal(len(succ.successors), 1)
+    s2 = succ.flat_successors[0]
+    nose.tools.assert_false(s2.regs.st0.symbolic)
+    nose.tools.assert_equal(s2.solver.eval(s2.regs.st0.raw_to_fp()), 12.5)
+
+    p = angr.load_shellcode(b'X', arch='amd64')
+
+    p.hook(0x1000, F1(func_ty='float (x)();'))
+    p.hook(0x2000, F1(func_ty='double (x)();'))
+
+    s = p.factory.call_state(addr=0x1000, ret_addr=0, func_ty='float(x)()')
+    succ = s.step()
+    nose.tools.assert_equal(len(succ.successors), 1)
+    s2 = succ.flat_successors[0]
+    res = s2.registers.load('xmm0', 4).raw_to_fp()
+    nose.tools.assert_false(res.symbolic)
+    nose.tools.assert_equal(s2.solver.eval(res), 12.5)
+
+    s = p.factory.call_state(addr=0x2000, ret_addr=0, func_ty='double(x)()')
+    succ = s.step()
+    nose.tools.assert_equal(len(succ.successors), 1)
+    s2 = succ.flat_successors[0]
+    res = s2.registers.load('xmm0', 8).raw_to_fp()
+    nose.tools.assert_false(res.symbolic)
+    nose.tools.assert_equal(s2.solver.eval(res), 12.5)
 
 def test_syscall_and_simprocedure():
     bin_path = os.path.join(BIN_PATH, 'tests', 'cgc', 'CADET_00002')

@@ -257,9 +257,9 @@ class SimLinux(SimUserland):
 
         # Prepare argc
         if argc is None:
-            argc = claripy.BVV(len(args), state.arch.bits)
+            argc = claripy.BVV(len(args), 32)
         elif type(argc) is int:  # pylint: disable=unidiomatic-typecheck
-            argc = claripy.BVV(argc, state.arch.bits)
+            argc = claripy.BVV(argc, 32)
 
         # Make string table for args/env/auxv
         table = StringTableSpec()

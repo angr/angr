@@ -101,6 +101,8 @@ class SimProcedure:
         self.arch = project.arch if project is not None else None
         self.addr = None
         self.cc = cc # type: angr.SimCC
+        if type(func_ty) is str:
+            func_ty = parse_signature(func_ty)
         self.func_ty = func_ty  # type: angr.sim_type.SimTypeFunction
         self.canonical = self
 
@@ -126,6 +128,10 @@ class SimProcedure:
             self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
         else:
             self.num_args = num_args
+
+        if self.func_ty is None:
+            charp = SimTypePointer(SimTypeChar())
+            self.func_ty = SimTypeFunction([charp] * self.num_args, charp)
 
         # runtime values
         self.state = None
@@ -173,6 +179,8 @@ class SimProcedure:
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.'
                                         ' You must specify a calling convention.' % self.arch.name)
+        if self.func_ty._arch is None:
+            self.func_ty = self.func_ty.with_arch(self.arch)
 
         inst = copy.copy(self)
         inst.state = state
@@ -222,13 +230,8 @@ class SimProcedure:
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
-                    if inst.func_ty is not None:
-                        func_ty = inst.func_ty
-                    else:
-                        charp = SimTypePointer(SimTypeChar())
-                        func_ty = SimTypeFunction([charp]*inst.num_args, charp)
-                    inst.arg_session = inst.cc.arg_session(func_ty.returnty)
-                    sim_args = [inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in func_ty.args]
+                    inst.arg_session = inst.cc.arg_session(inst.func_ty.returnty)
+                    sim_args = [inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in inst.func_ty.args]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
@@ -392,7 +395,7 @@ class SimProcedure:
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
 
 
-    def call(self, addr, args, continue_at, cc=None):
+    def call(self, addr, args, continue_at, cc=None, func_ty=None):
         """
         Add an exit representing calling another function via pointer.
 
@@ -402,11 +405,13 @@ class SimProcedure:
                             procedure will continue in the named method.
         :param cc:          Optional: use this calling convention for calling the new function.
                             Default is to use the current convention.
+        :param func_ty:     Optional: The prototype to use for the call. Will default to all-ints.
         """
         self.inhibit_autoret = True
 
         if cc is None:
             cc = self.cc
+        func_ty = cc.guess_prototype(args, func_ty)
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
@@ -416,7 +421,7 @@ class SimProcedure:
                               saved_local_vars,
                               self.state.regs.lr if self.state.arch.lr_offset is not None else None,
                               ret_addr)
-        cc.setup_callsite(call_state, ret_addr, args)
+        cc.setup_callsite(call_state, ret_addr, args, func_ty)
         call_state.callstack.top.procedure_data = simcallstack_entry
 
         # TODO: Move this to setup_callsite?
@@ -434,7 +439,7 @@ class SimProcedure:
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
             ret_state = self.state.copy()
-            cc.setup_callsite(ret_state, ret_addr, args)
+            cc.setup_callsite(ret_state, ret_addr, args, func_ty)
             ret_state.callstack.top.procedure_data = simcallstack_entry
             guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
             self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
@@ -501,3 +506,4 @@ from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowS
 from angr.state_plugins.sim_action import SimActionExit
 from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeFunction, SimTypePointer, SimTypeChar
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
+from .sim_type import parse_signature

@@ -81,8 +81,6 @@ class SimUserland(SimOS):
                     raise AngrUnsupportedSyscallError("Got a symbolic syscall number")
 
         proc = self.syscall_from_number(num, allow_unsupported=allow_unsupported, abi=abi)
-        if proc.cc is not None:
-            cc.func_ty = proc.cc.func_ty
         proc.cc = cc
         return proc
 

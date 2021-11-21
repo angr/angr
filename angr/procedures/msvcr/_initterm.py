@@ -35,4 +35,4 @@ class _initterm(angr.SimProcedure):
         else:
             callback_addr = self.callbacks.pop(0)
             l.debug("Calling %#x", callback_addr)
-            self.call(callback_addr, [], continue_at='do_callbacks')
+            self.call(callback_addr, [], continue_at='do_callbacks', func_ty='void x()')

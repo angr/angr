@@ -11,7 +11,7 @@ class pthread_create(angr.SimProcedure):
 
     # pylint: disable=unused-argument,arguments-differ
     def run(self, thread, attr, start_routine, arg):
-        self.call(start_routine, (arg,), 'terminate_thread')
+        self.call(start_routine, (arg,), 'terminate_thread', func_ty='void *start_routine(void*)')
         self.ret(self.state.solver.BVV(0, self.state.arch.bits))
 
     def terminate_thread(self, thread, attr, start_routine, arg):
@@ -86,7 +86,7 @@ class pthread_once(angr.SimProcedure):
 
         controlword |= 2
         self.state.mem[control].char = controlword
-        self.call(func, (), 'retsite')
+        self.call(func, (), 'retsite', func_ty='void x()')
 
     def retsite(self, control, func):
         return 0

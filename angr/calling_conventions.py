@@ -780,9 +780,9 @@ class SimCC:
         Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
         """
         if return_val is not None:
-            loc = self.return_val(func_ty.returnty)
-            loc.set_value(state, return_val)
+            self.set_return_val(state, return_val, func_ty.returnty)
             # ummmmmmmm hack
+            loc = self.return_val(func_ty.returnty)
             if isinstance(loc, SimReferenceArgument):
                 self.RETURN_VAL.set_value(state, loc.ptr_loc.get_value(state))
 
@@ -1014,6 +1014,7 @@ class SimLyingRegArg(SimRegArg):
         return val
 
     def set_value(self, state, val, **kwargs):  # pylint:disable=arguments-differ
+        val = self.check_value_set(val, state.arch)
         if self._real_size == 4:
             val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_DOUBLE)
         state.registers.store(self.reg_name, val)
