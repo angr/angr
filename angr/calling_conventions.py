@@ -548,6 +548,8 @@ class SimCC:
         """
         The location the return value is stored, based on its type.
         """
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
         if isinstance(ty, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(f"{self} doesn't know how to return aggregate types. Consider overriding return_val to "
                             "implement its ABI logic")
@@ -1079,6 +1081,8 @@ class SimCCCdecl(SimCC):
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL, self.OVERFLOW_RETURN_VAL], ty)
 
     def return_in_implicit_outparam(self, ty):
+        if isinstance(ty, SimTypeBottom):
+            return False
         return isinstance(ty, SimStruct) and ty.size > self.STRUCT_RETURN_THRESHOLD
 
 class SimCCMicrosoftCdecl(SimCCCdecl):
@@ -1135,6 +1139,8 @@ class SimCCMicrosoftAMD64(SimCC):
         return reference_loc
 
     def return_in_implicit_outparam(self, ty):
+        if isinstance(ty, SimTypeBottom):
+            return False
         return not isinstance(ty, SimTypeFloat) and ty.size > 64
 
 
@@ -1311,6 +1317,8 @@ class SimCCSystemVAMD64(SimCC):
             return refine_locs_with_struct_type(self.arch, mapped_classes, ty)
 
     def return_in_implicit_outparam(self, ty):
+        if isinstance(ty, SimTypeBottom):
+            return False
         # :P
         return isinstance(self.return_val(ty), SimReferenceArgument)
 

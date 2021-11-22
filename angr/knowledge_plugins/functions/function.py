@@ -1371,11 +1371,7 @@ class Function(Serializable):
             return
 
         proto = library.get_prototype(self.name)
-        self.prototype = proto
-        if self.calling_convention is not None:
-            self.calling_convention.args = self.calling_convention.arg_locs(
-                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proto.args])
-            self.calling_convention.set_func_type_with_arch(proto)
+        self.prototype = proto.with_arch(self.project.arch)
 
     @staticmethod
     def _addr_to_funcloc(addr):

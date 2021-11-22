@@ -243,11 +243,12 @@ class SimEngineRDAIL(
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
         codeloc = self._codeloc()
-        size = self.project.arch.bits // 8
 
         cc = None
+        func_ty = None
         if self.state.analysis.subject.type == SubjectType.Function:
             cc = self.state.analysis.subject.content.calling_convention
+            func_ty = self.state.analysis.subject.content.prototype
             # import ipdb; ipdb.set_trace()
 
         if cc is None:
@@ -280,9 +281,14 @@ class SimEngineRDAIL(
         # consume registers that are potentially useful
 
         # return value
-        if cc is not None and cc.ret_val is not None:
-            if isinstance(cc.ret_val, SimRegArg):
-                offset = cc.ret_val._fix_offset(None, size, arch=self.project.arch)
+        if cc is not None and func_ty is not None and func_ty.returnty is not None:
+            ret_val = cc.return_val(func_ty.returnty)
+            if isinstance(ret_val, SimRegArg):
+                if ret_val.clear_entire_reg:
+                    offset, size = cc.arch.registers[ret_val.reg_name]
+                else:
+                    offset = cc.arch.registers[ret_val.reg_name][0] + ret_val.reg_offset
+                    size = ret_val.size
                 self.state.add_use(Register(offset, size), codeloc)
             else:
                 l.error("Cannot handle CC with non-register return value location")

@@ -7,7 +7,7 @@ import ailment
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...calling_conventions import SimRegArg
-from ...sim_type import SimTypeFunction
+from ...sim_type import SimTypeFunction, SimTypeBottom
 from ...engines.light import SimEngineLightAILMixin
 from ...errors import SimMemoryMissingError
 from ..typehoon import typeconsts, typevars
@@ -87,8 +87,12 @@ class SimEngineVRAIL(
                 ret_reg_offset = ret_expr.reg_offset
             else:
                 if stmt.calling_convention is not None:
-                    # return value
-                    ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
+                    if stmt.prototype is None:
+                        ret_expr: SimRegArg = stmt.calling_convention.RETURN_VAL
+                    elif stmt.prototype.returnty is None or type(stmt.prototype.returnty) is SimTypeBottom:
+                        ret_expr = None
+                    else:
+                        ret_expr: SimRegArg = stmt.calling_convention.return_val(stmt.prototype.returnty)
                 else:
                     l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
@@ -101,8 +105,8 @@ class SimEngineVRAIL(
 
         # discover the prototype
         prototype: Optional[SimTypeFunction] = None
-        if stmt.calling_convention is not None:
-            prototype = stmt.calling_convention.func_ty
+        if stmt.prototype is not None:
+            prototype = stmt.prototype
         elif isinstance(stmt.target, ailment.Expr.Const):
             func_addr = stmt.target.value
             if func_addr in self.kb.functions:

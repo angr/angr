@@ -512,9 +512,10 @@ class Clinic(Analysis):
         def _handle_Return(stmt_idx: int, stmt: ailment.Stmt.Return, block: Optional[ailment.Block]):  # pylint:disable=unused-argument
             if block is not None \
                     and not stmt.ret_exprs \
-                    and self.function.calling_convention.ret_val is not None:
+                    and self.function.prototype is not None \
+                    and type(self.function.prototype.returnty) is not SimTypeBottom:
                 new_stmt = stmt.copy()
-                ret_val = self.function.calling_convention.ret_val
+                ret_val = self.function.calling_convention.return_val(self.function.prototype.returnty)
                 if isinstance(ret_val, SimRegArg):
                     reg = self.project.arch.registers[ret_val.reg_name]
                     new_stmt.ret_exprs.append(ailment.Expr.Register(
@@ -525,6 +526,7 @@ class Clinic(Analysis):
                         reg_name=self.project.arch.translate_register_name(reg[0], reg[1])
                     ))
                 else:
+                    breakpoint()
                     l.warning("Unsupported type of return expression %s.",
                               type(self.function.calling_convention.ret_val))
                 block.statements[stmt_idx] = new_stmt

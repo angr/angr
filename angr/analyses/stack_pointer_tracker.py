@@ -504,7 +504,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                 callees = self._find_callees(node)
                 if callees:
                     callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
-                                       callee.calling_convention.args is not None and
                                        callee.calling_convention.CALLEE_CLEANUP]
                     if callee_cleanups:
                         # found callee clean-up cases...
