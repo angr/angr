@@ -2,19 +2,18 @@ import os
 import string
 import logging
 
-from common import skip_if_not_linux
 import unittest
 
 import angr
 import claripy
-
 
 l = logging.getLogger('angr.tests.scanf')
 test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 class Checker:
-    def __init__(self, check_func, length=None, base=10, dummy: bool=False, multi: bool=False, delimiter: str=None):
+    def __init__(self, check_func, length=None, base=10, dummy: bool = False, multi: bool = False,
+                 delimiter: str = None):
         self._check_func = check_func
         self._length = length
         self._base = base
@@ -43,7 +42,7 @@ class Checker:
                     component = s[:i]
                     break
             else:
-                if c in charset and s[i:i+2] not in ("0x", "0X"):
+                if c in charset and s[i:i + 2] not in ("0x", "0X"):
                     digit_start_pos = c
 
         if not component:
@@ -61,7 +60,7 @@ class Checker:
         if not self._multi:
             stdin_input = path.posix.stdin.content[1][0]  # skip the first char used in switch
         else:
-            stdin_input = claripy.Concat(*[ part[0] for part in path.posix.stdin.content[1:] ])
+            stdin_input = claripy.Concat(*[part[0] for part in path.posix.stdin.content[1:]])
         some_strings = path.solver.eval_upto(stdin_input, 1000, cast_to=bytes)
         some_strings = [x.decode() for x in some_strings]
 
@@ -70,7 +69,7 @@ class Checker:
         for s in some_strings:
 
             if self._length is not None:
-                s = s[ : self._length]
+                s = s[: self._length]
 
             if not self._multi:
                 # single part
@@ -93,27 +92,26 @@ class Checker:
         return check_passes
 
 
-<<<<<<< HEAD
 class TestScanf(unittest.TestCase):
 
     def test_scanf(self):
         test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_test")
-        b = angr.Project(test_bin)
+        b = angr.Project(test_bin, auto_load_libs=False)
 
         pg = b.factory.simulation_manager()
 
         # find the end of main
         expected_outputs = {
-            b"%%07x\n":                      Checker(lambda s: int(s, 16) == 0xaaaa, length=7, base=16),
+            b"%%07x\n": Checker(lambda s: int(s, 16) == 0xaaaa, length=7, base=16),
             b"%%07x and negative numbers\n": Checker(lambda s: int(s, 16) == -0xcdcd, length=7, base=16),
-            b"nope 0\n":                     Checker(None, dummy=True),
-            b"%%d\n":                        Checker(lambda s: int(s) == 133337),
-            b"%%d and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 1337),
-            b"nope 1\n":                     Checker(None, dummy=True),
-            b"%%u\n":                        Checker(lambda s: int(s) == 0xaaaa),
-            b"%%u and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 0xcdcd),
-            b"nope 2\n":                     Checker(None, dummy=True),
-            b"Unsupported switch\n":         Checker(None, dummy=True),
+            b"nope 0\n": Checker(None, dummy=True),
+            b"%%d\n": Checker(lambda s: int(s) == 133337),
+            b"%%d and negative numbers\n": Checker(lambda s: int(s) == 2 ** 32 - 1337),
+            b"nope 1\n": Checker(None, dummy=True),
+            b"%%u\n": Checker(lambda s: int(s) == 0xaaaa),
+            b"%%u and negative numbers\n": Checker(lambda s: int(s) == 2 ** 32 - 0xcdcd),
+            b"nope 2\n": Checker(None, dummy=True),
+            b"Unsupported switch\n": Checker(None, dummy=True),
         }
         pg.explore(find=0x4007f3, num_find=len(expected_outputs))
 
@@ -129,10 +127,9 @@ class TestScanf(unittest.TestCase):
         # check that all of the outputs were seen
         assert total_outputs == len(expected_outputs)
 
-
     def test_scanf_multi(self):
         test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_multi_test")
-        b = angr.Project(test_bin)
+        b = angr.Project(test_bin, auto_load_libs=False)
 
         pg = b.factory.simulation_manager()
 
@@ -200,112 +197,6 @@ class TestScanf(unittest.TestCase):
 
         # check that all of the outputs were seen
         assert total_outputs == len(expected_outputs)
-=======
-def test_scanf():
-    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_test")
-    b = angr.Project(test_bin, auto_load_libs=False)
-
-    pg = b.factory.simulation_manager()
-
-    # find the end of main
-    expected_outputs = {
-        b"%%07x\n":                      Checker(lambda s: int(s, 16) == 0xaaaa, length=7, base=16),
-        b"%%07x and negative numbers\n": Checker(lambda s: int(s, 16) == -0xcdcd, length=7, base=16),
-        b"nope 0\n":                     Checker(None, dummy=True),
-        b"%%d\n":                        Checker(lambda s: int(s) == 133337),
-        b"%%d and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 1337),
-        b"nope 1\n":                     Checker(None, dummy=True),
-        b"%%u\n":                        Checker(lambda s: int(s) == 0xaaaa),
-        b"%%u and negative numbers\n":   Checker(lambda s: int(s) == 2**32 - 0xcdcd),
-        b"nope 2\n":                     Checker(None, dummy=True),
-        b"Unsupported switch\n":         Checker(None, dummy=True),
-    }
-    pg.explore(find=0x4007f3, num_find=len(expected_outputs))
-
-    # check the outputs
-    total_outputs = 0
-    for path in pg.found:
-        test_output = path.posix.dumps(1)
-        if test_output in expected_outputs:
-            assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
-
-        total_outputs += 1
-
-    # check that all of the outputs were seen
-    assert total_outputs == len(expected_outputs)
-
-
-def test_scanf_multi():
-    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "scanf_multi_test")
-    b = angr.Project(test_bin, auto_load_libs=False)
-
-    pg = b.factory.simulation_manager()
-
-    expected_outputs = {
-        b"%%04x.%%04x.%%04x\n":
-            Checker([lambda x: int(x, 16) == 0xaaaa,
-                     lambda x: int(x, 16) == 0xbbbb,
-                     lambda x: int(x, 16) == 0xcccc,
-                     ],
-                    base=16,
-                    multi=True,
-                    delimiter=".",
-                    ),
-        b"%%04x.%%04x.%%04x and negative numbers\n":
-            Checker([lambda x: int(x, 16) == -0xcd] * 3,
-                    base=16,
-                    multi=True,
-                    delimiter=".",
-                    ),
-        b"%%d.%%d.%%d\n":
-            Checker([lambda x: int(x, 10) == 133337,
-                     lambda x: int(x, 10) == 1337,
-                     lambda x: int(x, 10) == 13337],
-                    base=10,
-                    multi=True,
-                    delimiter=".",
-                    ),
-        b"%%d.%%d.%%d and negative numbers\n":
-            Checker([lambda x: int(x, 10) == 2 ** 32 - 1337] * 3,
-                    base=10,
-                    multi=True,
-                    delimiter=".",
-                    ),
-        b"%%u\n":
-            Checker([lambda x: int(x) == 0xaaaa,
-                     lambda x: int(x) == 0xbbbb,
-                     lambda x: int(x) == 0xcccc],
-                    base=10,
-                    multi=True,
-                    delimiter=".",
-                    ),
-        b"%%u and negative numbers\n":
-            Checker([lambda s: int(s) == 2 ** 32 - 0xcdcd] * 3,
-                    base=10,
-                    multi=True,
-                    delimiter=".",
-                    ),
-        b"Unsupported switch\n":
-            Checker(None, dummy=True),
-    }
-    pg.explore(find=0x40083e,
-               avoid=(0x4006db, 0x400776, 0x40080b,),  # avoid all "nope N" branches
-               num_find=len(expected_outputs)
-               )
-
-    # check the outputs
-    total_outputs = 0
-    for path in pg.found:
-        test_input = path.posix.dumps(0)
-        test_output = path.posix.dumps(1)
-        if test_output in expected_outputs:
-            assert expected_outputs[test_output].check(path), "Test case failed. Output is %s." % test_output
-
-        total_outputs += 1
-
-    # check that all of the outputs were seen
-    assert total_outputs == len(expected_outputs)
->>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
 
 if __name__ == "__main__":

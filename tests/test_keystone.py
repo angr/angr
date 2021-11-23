@@ -20,17 +20,6 @@ insn_texts = {
     'mips': b"addi $1, $1, 0xf"
 }
 
-<<<<<<< HEAD
-=======
-def run_keystone(arch):
-    proj_arch = arch
-    is_thumb = False
-    if arch == "armel_thumb":
-        is_thumb = True
-        proj_arch = "armel"
-    p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"), auto_load_libs=False)
-    addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
->>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
 
 class TestKeystone(unittest.TestCase):
     def run_keystone(self, arch):
@@ -39,7 +28,7 @@ class TestKeystone(unittest.TestCase):
         if arch == "armel_thumb":
             is_thumb = True
             proj_arch = "armel"
-        p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"))
+        p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"), auto_load_libs=False)
         addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
 
         sm = p.factory.simulation_manager()

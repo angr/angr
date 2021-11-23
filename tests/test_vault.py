@@ -114,40 +114,6 @@ def test_ast_vault():
 
 
 def test_project():
-<<<<<<< HEAD
-    v = angr.vaults.VaultDir()
-    p = angr.Project("/bin/false")
-    ps = v.store(p)
-    pp = v.load(ps)
-    assert p is pp
-    assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
-
-    pstring = v.dumps(p)
-    assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
-    pp2 = v.loads(pstring)
-    assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
-    assert p is pp
-
-    p._asdf = "fdsa"
-    del pp2
-    del pp
-    del p
-    import gc
-
-    gc.collect()
-
-    p = v.load(ps)
-    # assert not hasattr(p, '_asdf')
-    assert sum(1 for k in v.keys() if k.startswith("Project")) == 1
-
-
-if __name__ == "__main__":
-    for _a, _b in test_vault():
-        _a(_b)
-    for _a, _b in test_ast_vault():
-        _a(_b)
-    test_project()
-=======
 	v = angr.vaults.VaultDir()
 	p = angr.Project("/bin/false", auto_load_libs=False)
 	ps = v.store(p)
@@ -180,4 +146,3 @@ if __name__ == '__main__':
 	for _a,_b in test_ast_vault():
 		_a(_b)
 	test_project()
->>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1

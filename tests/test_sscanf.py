@@ -19,14 +19,7 @@ class TestSscanf(unittest.TestCase):
             return
 
         test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
-        b = angr.Project(test_bin)
-
-<<<<<<< HEAD
-        pg = b.factory.simulation_manager()
-=======
-    test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
-    b = angr.Project(test_bin, auto_load_libs=False)
->>>>>>> c8e763d028ecd4f5c5b28468bf65adaf24d4efa1
+        b = angr.Project(test_bin, auto_load_libs=False)
 
         # find the end of main
         expected_outputs = {
