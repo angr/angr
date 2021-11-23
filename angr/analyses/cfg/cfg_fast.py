@@ -3642,11 +3642,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     else:
                         distance = min(distance, distance_to_func)
 
-            # in the end, check the distance between `addr` and the closest occupied region in segment list
+            # also check the distance between `addr` and the closest occupied region in segment list
             next_noncode_addr = self._seg_list.next_pos_with_sort_not_in(addr, { "code" }, max_distance=distance)
             if next_noncode_addr is not None:
                 distance_to_noncode_addr = next_noncode_addr - real_addr
                 distance = min(distance, distance_to_noncode_addr)
+
+            # in the end, check the distance between `addr` and region it belongs to
+            try:
+                region_start_addr = next(self._regions.irange(maximum=addr, reverse=True))
+            except StopIteration:
+                pass
+            else:
+                region_end_addr = self._regions[region_start_addr]
+                distance = min(distance, region_end_addr - addr)
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
