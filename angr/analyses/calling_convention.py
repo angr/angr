@@ -6,6 +6,7 @@ import networkx
 from archinfo.arch_arm import is_arm_arch
 
 from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
+from ..sim_type import SimTypeInt
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -327,9 +328,9 @@ class CallingConventionAnalysis(Analysis):
         defs_by_stack_offset = dict((-d.atom.addr.offset, d) for d in all_stack_defs
                                     if isinstance(d.atom, MemoryLocation) and isinstance(d.atom.addr, SpOffset))
 
-        arg_session = default_cc.arg_session
+        arg_session = default_cc.arg_session(SimTypeInt().with_arch(self.project.arch))
         for _ in range(30):  # at most 30 arguments
-            arg_loc = arg_session.next_arg(False)
+            arg_loc = default_cc.next_arg(arg_session, SimTypeInt().with_arch(self.project.arch))
             if isinstance(arg_loc, SimRegArg):
                 reg_offset = self.project.arch.registers[arg_loc.reg_name][0]
                 # is it initialized?

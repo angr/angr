@@ -431,8 +431,8 @@ class Clinic(Analysis):
 
     @timethis
     def _make_argument_list(self) -> List[SimVariable]:
-        if self.function.calling_convention is not None:
-            args: List[SimFunctionArgument] = self.function.calling_convention.args
+        if self.function.calling_convention is not None and self.function.prototype is not None:
+            args: List[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
             arg_vars: List[SimVariable] = [ ]
             if args:
                 for idx, arg in enumerate(args):
@@ -576,10 +576,8 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        if self.function.calling_convention is not None and self.function.calling_convention.ret_val is None:
-            returnty = SimTypeBottom(label="void")
-        else:
-            returnty = SimTypeInt()
+        # TODO: need a new method of determining whether a function returns void
+        returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
 

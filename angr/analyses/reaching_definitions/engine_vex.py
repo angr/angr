@@ -1076,6 +1076,7 @@ class SimEngineRDVEX(
 
     def _handle_function_cc(self, func_addr: Optional[MultiValues]):
         _cc = None
+        proto = None
         func_addr_int: Optional[Union[int,Undefined]] = None
         if func_addr is not None and self.functions is not None:
             func_addr_v = func_addr.one_value()
@@ -1083,6 +1084,7 @@ class SimEngineRDVEX(
                 func_addr_int = func_addr_v._model_concrete.value
                 if self.functions.contains_addr(func_addr_int):
                     _cc = self.functions[func_addr_int].calling_convention
+                    proto = self.functions[func_addr_int].prototype
 
         cc: SimCC = _cc or DEFAULT_CC.get(self.arch.name, None)(self.arch)
 
@@ -1090,9 +1092,9 @@ class SimEngineRDVEX(
         # - add uses for arguments
         # - kill return value registers
         # - caller-saving registers
-        if cc.args:
+        if proto and proto.args:
             code_loc = self._codeloc()
-            for arg in cc.args:
+            for arg in cc.arg_locs(proto):
                 if isinstance(arg, SimRegArg):
                     reg_offset, reg_size = self.arch.registers[arg.reg_name]
                     atom = Register(reg_offset, reg_size)
