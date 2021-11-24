@@ -300,7 +300,7 @@ class Call(Expression, Statement):
         if self.args is None:
             if self.calling_convention is not None:
                 s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention,
-                                                                           self.calling_convention.arg_locs())
+                                                                           self.calling_convention.arg_locs(self.prototype))
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
