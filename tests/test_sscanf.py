@@ -20,7 +20,7 @@ class TestSscanf(unittest.TestCase):
 
         test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
         b = angr.Project(test_bin, auto_load_libs=False)
-
+        pg = b.factory.simulation_manager()
         # find the end of main
         expected_outputs = {
             b"0x worked\n", b"+0x worked\n", b"base +16 worked\n", b"base 16 worked\n",

@@ -40,7 +40,7 @@ class TestSubject(unittest.TestCase):
         assert subject.content == block
         assert subject.type == SubjectType.Block
 
-    def test_fails_when_instanciated_with_an_inadequate_object(self, _):
+    def test_fails_when_instanciated_with_an_inadequate_object(self):
         self.assertRaises(TypeError, Subject, 'test-me', None)
 
     @mock.patch.object(Function, '_get_initial_binary_name', return_value='binary')
