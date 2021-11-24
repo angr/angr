@@ -14,12 +14,12 @@ class sprintf(FormatParser):
 
     def run(self, dst_ptr, fmt):  # pylint:disable=unused-argument
         # The format str is at index 1
-        fmt_str = self._parse(1)
-        out_str = fmt_str.replace(2, self.arg)
+        fmt_str = self._parse(fmt)
+        out_str = fmt_str.replace(self.va_arg)
         self.state.memory.store(dst_ptr, out_str)
 
         # place the terminating null byte
         self.state.memory.store(dst_ptr + (out_str.size() // 8), self.state.solver.BVV(0, 8))
 
         # size_t has size arch.bits
-        return self.state.solver.BVV(out_str.size()//8, self.state.arch.bits)
+        return out_str.size()//8

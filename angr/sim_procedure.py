@@ -1,4 +1,5 @@
 import inspect
+import typing
 import copy
 import itertools
 import logging
@@ -79,6 +80,8 @@ class SimProcedure:
     :ivar state:            The SimState we should be mutating to perform the procedure
     :ivar successors:       The SimSuccessors associated with the current step
     :ivar arguments:        The function arguments, deserialized from the state
+    :ivar arg_session:      The ArgSession that was used to parse arguments out of the state, in case you need it for
+                            varargs
     :ivar use_state_arguments:
                             Whether we're using arguments extracted from the state or manually provided
     :ivar ret_to:           The current return address
@@ -142,7 +145,7 @@ class SimProcedure:
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
-        self.arg_session = None
+        self.arg_session: typing.Union[None, ArgSession, int] = None
 
     def __repr__(self):
         return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
@@ -237,6 +240,7 @@ class SimProcedure:
                     inst.use_state_arguments = False
                     sim_args = arguments[:inst.num_args]
                     inst.arguments = arguments
+                    inst.arg_session = 0
 
             # run it
             l.debug("Executing %s%s%s%s%s with %s, %s", *(inst._describe_me() + (sim_args, inst.kwargs)))
@@ -325,6 +329,23 @@ class SimProcedure:
         arg_session = self.cc.arg_session(self.func_ty.returnty)
         for arg, ty in zip(args, self.func_ty.args):
             self.cc.next_arg(arg_session, ty).set_value(self.state, arg)
+
+    def va_arg(self, ty, index=None):
+        if not self.use_state_arguments:
+            if index is not None:
+                return self.arguments[self.num_args + index]
+
+            result = self.arguments[self.num_args + self.arg_session]
+            self.arg_session += 1
+            return result
+
+
+        if index is not None:
+            raise Exception("you think you're so fucking smart? you implement this logic then")
+
+        if type(ty) is str:
+            ty = parse_type(ty, arch=self.arch)
+        return self.cc.next_arg(self.arg_session, ty).get_value(self.state)
 
     #
     # Control Flow
@@ -490,7 +511,7 @@ class SimProcedure:
 
     @argument_types.setter
     def argument_types(self, v):  # pylint: disable=unused-argument,no-self-use
-        l.critical("SimProcedure.argument_types is deprecated. specify the function signature in the cc")
+        l.critical("SimProcedure.argument_types is deprecated. specify the function signature in the func_ty param")
 
     @property
     def return_type(self):  # pylint: disable=no-self-use
@@ -498,12 +519,12 @@ class SimProcedure:
 
     @return_type.setter
     def return_type(self, v):  # pylint: disable=unused-argument,no-self-use
-        l.critical("SimProcedure.return_type is deprecated. specify the function signature in the cc")
+        l.critical("SimProcedure.return_type is deprecated. specify the function signature in the func_ty param")
 
 
 from . import sim_options as o
 from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowStackError
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeFunction, SimTypePointer, SimTypeChar
+from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
-from .sim_type import parse_signature
+from .sim_type import parse_signature, parse_type
