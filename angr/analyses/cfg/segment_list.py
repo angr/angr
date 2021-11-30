@@ -1,3 +1,4 @@
+# pylint:disable=no-else-break
 import logging
 from typing import Optional, Tuple, List
 
@@ -210,7 +211,7 @@ class SegmentList:
                         s0 = new_segments[i]
                         s1 = new_segments[i + 1]
                         if s0.sort == s1.sort:
-                            new_segments = new_segments[ : i] + [ Segment(s0.start, s1.end, s0.sort) ] + new_segments[i + 2 : ]
+                            new_segments = new_segments[:i] + [Segment(s0.start, s1.end, s0.sort)] + new_segments[i+2:]
                         else:
                             i += 1
 
