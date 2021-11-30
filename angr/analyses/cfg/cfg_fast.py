@@ -3807,7 +3807,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # if we get a single block that getting decoded to svcmi under ARM mode, we treat it as nodecode
                     if addr % 4 == 0 and irsb.jumpkind == "Ijk_Sys_syscall" and irsb.instructions == 1 \
                             and irsb.size == 4:
-                        if lifted_block.capstone.insns[0].mnemonic == "svcmi":
+                        if lifted_block.capstone.insns and lifted_block.capstone.insns[0].mnemonic == "svcmi":
                             nodecode = True
 
                     if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and switch_mode_on_nodecode:
