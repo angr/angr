@@ -624,9 +624,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_elf_eh_frame = elf_eh_frame
         self._use_exceptions = exceptions
 
-        self._nodecode_window_size = 8192
-        self._nodecode_threshold = 20
-        self._recent_nodecode_addrs = [ ]
+        self._nodecode_window_size = 512
+        self._nodecode_threshold = 0.3
+        self._nodecode_step = 8192
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
@@ -1006,13 +1006,38 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if not self._seg_list.is_occupied(addr):
                 return addr
 
+    def _nodecode_bytes_ratio(self, cutoff_addr: int, window_size: int) -> float:
+        idx = self._seg_list.search(cutoff_addr - 1)
+        if idx is None or idx >= len(self._seg_list):
+            return 0.0
+        segment = self._seg_list[idx]
+        if segment.sort != "nodecode":
+            return 0.0
+
+        total_bytes = 0
+        nodecode_bytes = 0
+        while idx >= 0:
+            segment = self._seg_list[idx]
+            if segment.sort == "nodecode":
+                nodecode_bytes += segment.size
+            total_bytes += segment.size
+            if total_bytes >= window_size:
+                break
+            idx -= 1
+
+        if total_bytes < window_size:
+            return 0.0
+
+        return nodecode_bytes / total_bytes
+
     def _next_code_addr_smart(self) -> Optional[int]:
         # in the smart scanning mode, if there are more than N consecutive no-decode cases, we skip an entire window of
         # bytes.
-
-        if len(self._recent_nodecode_addrs) >= self._nodecode_threshold:
-            next_allowed_addr = max(self._recent_nodecode_addrs) + self._nodecode_window_size
-            self._recent_nodecode_addrs.clear()
+        nodecode_bytes_ratio = 0.0 if self._next_addr is None else self._nodecode_bytes_ratio(
+            self._next_addr,
+            self._nodecode_window_size)
+        if nodecode_bytes_ratio >= self._nodecode_threshold:
+            next_allowed_addr = self._next_addr + self._nodecode_step
         else:
             next_allowed_addr = 0
 
@@ -1028,8 +1053,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # if the new address is already occupied
             if not self._seg_list.is_occupied(addr):
                 if addr < next_allowed_addr:
-                    print(f"Skipping {hex(addr)}...")
-                    self._seg_list.occupy(addr, 1, 'skip')
+                    self._seg_list.occupy(addr, self.project.arch.instruction_alignment, 'skip')
                     continue
                 return addr
 
@@ -2990,6 +3014,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             del self._nodes[b.addr]
                         if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
                             self._nodes_by_addr[b.addr].remove(b)
+                            if not self._nodes_by_addr[b.addr]:
+                                del self._nodes_by_addr[b.addr]
 
                         self.graph.remove_node(b)
 
@@ -3015,6 +3041,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         del self._nodes[b.addr]
                     if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
                         self._nodes_by_addr[b.addr].remove(b)
+                        if not self._nodes_by_addr[b.addr]:
+                            del self._nodes_by_addr[b.addr]
 
                     self.graph.remove_node(b)
 
@@ -3113,6 +3141,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             del self._nodes[node.addr]
         if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
             self._nodes_by_addr[node.addr].remove(node)
+            if not self._nodes_by_addr[node.addr]:
+                del self._nodes_by_addr[node.addr]
 
         # remove the old node form the graph
         self.graph.remove_node(node)
@@ -3746,6 +3776,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     assumption = self._decoding_assumptions[real_addr]
                     if assumption.attempted_thumb and assumption.attempted_arm:
                         # unfortunately, we have attempted both, and it couldn't be decoded as any. time to give up
+                        self._seg_list.occupy(real_addr, self.project.arch.instruction_alignment, "nodecode")
                         return None, None, None, None
                     if assumption.attempted_thumb and addr % 2 == 1:
                         # we have attempted THUMB mode. time to try ARM mode instead.
@@ -3826,8 +3857,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         # take the existing one and update it
                         assumption = self._decoding_assumptions[real_addr]
                         if assumption.attempted_thumb and assumption.attempted_arm:
-                            print("FUCK...")
-                            import ipdb; ipdb.set_trace()
+                            l.error("Unreachable reached. Please report to GitHub.")
                             return None, None, None, None
 
                         assumption.mode = ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM
@@ -3910,24 +3940,28 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             valid_ins = True
                             nodecode_size = 4
 
-                self._seg_list.occupy(real_addr, irsb_size, 'code')
-                self._seg_list.occupy(real_addr + irsb_size, nodecode_size, 'nodecode')
                 if not valid_ins:
                     l.error("Decoding error occurred at address %#x of function %#x.",
                             addr + irsb_size,
                             current_function_addr
                             )
 
-                    self._recent_nodecode_addrs.append(addr)
-                    self._recent_nodecode_addrs = self._recent_nodecode_addrs[-self._nodecode_threshold:]
                     if is_arm_arch(self.project.arch):
-                        # remove and re-lift all previous blocks that have the same assumption
                         if real_addr in self._decoding_assumptions:
+                            # remove and re-lift all previous blocks that have the same assumption
                             self._cascading_remove_lifted_blocks(real_addr)
+                        else:
+                            # in ARM, we do not allow half-decoded blocks
+                            self._seg_list.occupy(real_addr, irsb_size + nodecode_size, 'nodecode')
+                    else:
+                        self._seg_list.occupy(real_addr, irsb_size, 'code')
+                        self._seg_list.occupy(real_addr + irsb_size, nodecode_size, 'nodecode')
 
                     return None, None, None, None
 
-            self._recent_nodecode_addrs = [ ]
+                else:
+                    self._seg_list.occupy(real_addr, irsb_size, 'code')
+                    self._seg_list.occupy(real_addr + irsb_size, nodecode_size, 'nodecode')
 
             # Occupy the block in segment list
             if irsb.size > 0:
@@ -4003,7 +4037,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 break
 
             removed.add(assumption.addr)
-            print(f"Release {hex(assumption.addr)}-{assumption.size}")
             self._seg_list.release(assumption.addr, assumption.size)
             if assumption.data_segs:
                 for data_seg_addr, data_seg_size in assumption.data_segs:
@@ -4026,14 +4059,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     existing_node = None
 
             if existing_node is not None:
+                # remove the node from the graph
                 if existing_node in self.graph:
                     self.graph.remove_node(existing_node)
+                # remove the function (if exists)
                 if existing_node.addr in self.functions:
                     del self.functions[existing_node.addr]
 
                 # update indirect_jumps_to_resolve
                 self._indirect_jumps_to_resolve = { ij for ij in self._indirect_jumps_to_resolve
                                                     if ij.addr != existing_node.addr }
+
+                # remove jobs
+                self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == existing_node.addr)
 
             addr = assumption.parent_block_addr
             if addr is None or addr in removed:
