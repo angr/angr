@@ -59,7 +59,7 @@ class TestKeystone(unittest.TestCase):
             return
 
         for arch_name in insn_texts:
-            yield run_keystone, arch_name
+            yield self.run_keystone, arch_name
 
 if __name__ == "__main__":
     for arch_name in insn_texts:
