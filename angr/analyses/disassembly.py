@@ -844,7 +844,10 @@ class Disassembly(Analysis):
             else:
                 self._graph = cfg.graph
                 for start, end in ranges:
-                    assert(start < end)
+                    if start == end:
+                        continue
+                    assert start < end
+
                     # Grab all blocks that intersect target range
                     blocks = sorted([n.block.codenode
                                      for n in self._graph.nodes() if not (n.addr + n.size <= start or n.addr >= end)],
