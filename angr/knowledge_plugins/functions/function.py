@@ -1415,11 +1415,11 @@ class Function(Serializable):
 
         # If it is a subclass of SimCC we can instantiate it
         elif isinstance(calling_convention, type) and issubclass(calling_convention, SimCC):
-            self.calling_convention = calling_convention(self.project.arch, prototype=ty)
+            self.calling_convention = calling_convention(self.project.arch)
 
         # If none is specified default to something
         elif calling_convention is None:
-            self.calling_convention = self.project.factory.cc(prototype=ty)
+            self.calling_convention = self.project.factory.cc()
 
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")

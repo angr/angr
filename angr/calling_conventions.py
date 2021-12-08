@@ -688,10 +688,6 @@ class SimCC:
 
         # STEP 0: clerical work
 
-        if isinstance(self, SimCCSoot):
-            SootMixin.setup_callsite(state, args, ret_addr)
-            return
-
         allocator = AllocHelper(self.arch.bits)
         prototype = prototype.with_arch(self.arch)
 
@@ -781,7 +777,7 @@ class SimCC:
         TODO: support the stack_base parameter from setup_callsite...? Does that make sense in this context?
         Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
         """
-        if return_val is not None:
+        if return_val is not None and not isinstance(prototype.returnty, SimTypeBottom):
             self.set_return_val(state, return_val, prototype.returnty)
             # ummmmmmmm hack
             loc = self.return_val(prototype.returnty)
@@ -1627,6 +1623,9 @@ class SimCCPowerPC64LinuxSyscall(SimCCSyscall):
 class SimCCSoot(SimCC):
     ARCH = archinfo.ArchSoot
     ARG_REGS = []
+
+    def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
+        SootMixin.setup_callsite(state, args, ret_addr)
 
 
 class SimCCUnknown(SimCC):

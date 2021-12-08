@@ -9,6 +9,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 if TYPE_CHECKING:
     import angr
+    import archinfo
 
 l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()
@@ -101,7 +102,7 @@ class SimProcedure:
     ):
         # WE'LL FIGURE IT OUT
         self.project = project # type: angr.Project
-        self.arch = project.arch if project is not None else None
+        self.arch = project.arch if project is not None else None  # type: archinfo.arch.Arch
         self.addr = None
         self.cc = cc # type: angr.SimCC
         if type(prototype) is str:

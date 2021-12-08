@@ -181,11 +181,10 @@ def test_fp():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'), auto_load_libs=False)
 
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
-        cc = p.factory.cc(prototype=type_cache[function])
-        args = list(range(len(cc.prototype.args)))
+        args = list(range(len(type_cache[function].args)))
         answer = float(sum(args))
         addr = p.loader.find_symbol(function).rebased_addr
-        my_callable = p.factory.callable(addr, cc=cc)
+        my_callable = p.factory.callable(addr, prototype=type_cache[function])
         my_callable.set_base_state(p.factory.blank_state(add_options=so.unicorn))
         result = my_callable(*args)
         nose.tools.assert_false(result.symbolic)

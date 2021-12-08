@@ -212,7 +212,7 @@ class SimJavaVM(SimOS):
             else:
                 state = state.copy()
                 state.regs.ip = addr
-            cc.setup_callsite(state, ret_addr, args)
+            cc.setup_callsite(state, ret_addr, args, kwargs.pop('prototype', None))
             return state
 
         else:
@@ -251,13 +251,13 @@ class SimJavaVM(SimOS):
             # setup function prototype, so the SimCC know how to init the callsite
             arg_types = [self.get_native_type(arg.type) for arg in args]
             prototype = SimTypeFunction(args=arg_types, returnty=native_ret_type)
-            native_cc = self.get_native_cc(prototype=prototype)
+            native_cc = self.get_native_cc()
 
             # setup native invoke state
             return self.native_simos.state_call(addr, *native_arg_values,
                                                 base_state=state,
                                                 ret_addr=self.native_return_hook_addr,
-                                                cc=native_cc, **kwargs)
+                                                cc=native_cc, prototype=prototype, **kwargs)
 
     #
     # MISC
@@ -429,12 +429,12 @@ class SimJavaVM(SimOS):
         """
         return self.native_simos.arch
 
-    def get_native_cc(self, prototype=None):
+    def get_native_cc(self):
         """
         :return: SimCC object for the native simos.
         """
         native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
-        return native_cc_cls(self.native_simos.arch, prototype=prototype)
+        return native_cc_cls(self.native_simos.arch)
 
 def prepare_native_return_state(native_state):
     """
