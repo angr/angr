@@ -19,7 +19,6 @@ class sprintf(FormatParser):
         self.state.memory.store(dst_ptr, out_str)
 
         # place the terminating null byte
-        self.state.memory.store(dst_ptr + (out_str.size() // 8), self.state.solver.BVV(0, 8))
+        self.state.memory.store(dst_ptr + (out_str.size() // self.arch.byte_width), self.state.solver.BVV(0, self.arch.byte_width))
 
-        # size_t has size arch.bits
-        return out_str.size()//8
+        return out_str.size()//self.arch.byte_width
