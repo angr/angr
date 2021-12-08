@@ -626,7 +626,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         self._nodecode_window_size = 512
         self._nodecode_threshold = 0.3
-        self._nodecode_step = 8192
+        self._nodecode_step = 16384
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
@@ -1334,6 +1334,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if self.project.arch.name in ('X86', 'AMD64', 'MIPS32'):
             self._remove_redundant_overlapping_blocks()
+        elif is_arm_arch(self.project.arch):
+            self._remove_redundant_overlapping_blocks(function_alignment=4, is_arm=True)
 
         self._updated_nonreturning_functions = set()
         # Revisit all edges and rebuild all functions to correctly handle returning/non-returning functions.
@@ -2869,14 +2871,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Removers
 
-    def _remove_redundant_overlapping_blocks(self):
+    def _remove_redundant_overlapping_blocks(self, function_alignment: int=16, is_arm: bool=False):
         """
         On some architectures there are sometimes garbage bytes (usually nops) between functions in order to properly
         align the succeeding function. CFGFast does a linear sweeping which might create duplicated blocks for
         function epilogues where one block starts before the garbage bytes and the other starts after the garbage bytes.
 
-        This method enumerates all blocks and remove overlapping blocks if one of them is aligned to 0x10 and the other
-        contains only garbage bytes.
+        This method enumerates all blocks and remove overlapping blocks if one of them is aligned to the specified
+        alignment and the other contains only garbage bytes.
 
         :return: None
         """
@@ -2898,8 +2900,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if not any([data['jumpkind'] == 'Ijk_Call' for _, _, data in all_in_edges]):
                     # no one is calling it
                     # this function might be created from linear sweeping
+                    a_real_addr = a.addr & 0xffff_fffe if is_arm else a.addr
                     try:
-                        block = self._lift(a.addr, size=0x10 - (a.addr % 0x10))
+                        block = self._lift(a.addr, size=function_alignment - (a_real_addr % function_alignment))
                     except SimTranslationError:
                         continue
 
@@ -2954,7 +2957,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # append all new nodes to sorted nodes
         if nodes_to_append:
-            sorted_nodes = sorted(sorted_nodes + list(nodes_to_append.values()), key=lambda n: n.addr if n is not None else 0)
+            sorted_nodes = sorted(sorted_nodes + list(nodes_to_append.values()),
+                                  key=lambda n: n.addr if n is not None else 0)
 
         removed_nodes = set()
 
@@ -3073,6 +3077,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self.graph.remove_node(node)
         if node.addr in self._nodes:
             del self._nodes[node.addr]
+
+        if node.addr in self._nodes_by_addr:
+            self._nodes_by_addr[node.addr].remove(node)
+            if not self._nodes_by_addr[node.addr]:
+                del self._nodes_by_addr[node.addr]
 
         # We wanna remove the function as well
         if node.addr in self.kb.functions:
@@ -3778,14 +3787,26 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         # unfortunately, we have attempted both, and it couldn't be decoded as any. time to give up
                         self._seg_list.occupy(real_addr, self.project.arch.instruction_alignment, "nodecode")
                         return None, None, None, None
-                    if assumption.attempted_thumb and addr % 2 == 1:
-                        # we have attempted THUMB mode. time to try ARM mode instead.
-                        addr &= ~1
+                    if assumption.attempted_thumb:
                         switch_mode_on_nodecode = False
-                    elif assumption.attempted_arm and addr % 2 == 0:
-                        # we have attempted ARM mode. time to try THUMB mode instead.
-                        addr |= 1
+                        if addr % 2 == 1 and cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
+                            # we have attempted THUMB mode. time to try ARM mode instead.
+                            if current_function_addr == addr:
+                                current_function_addr &= ~1
+                            addr &= ~1
+                        else:
+                            # we have attempted THUMB mode and failed to decode.
+                            return None, None, None, None
+                    elif assumption.attempted_arm:
                         switch_mode_on_nodecode = False
+                        if addr % 2 == 0 and cfg_job.job_type == CFGJob.JOB_TYPE_COMPLETE_SCANNING:
+                            # we have attempted ARM mode. time to try THUMB mode instead.
+                            if current_function_addr == addr:
+                                current_function_addr |= 1
+                            addr |= 1
+                        else:
+                            # we have attempted ARM mode and failed to decode.
+                            return None, None, None, None
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
@@ -3803,11 +3824,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # special logic during the complete scanning phase
 
                 if is_arm_arch(self.project.arch):
-                    # it's way too easy to incorrectly disassemble THUMB code contains 0x4f as ARM code svcmi #????
-                    # if we get a single block that getting decoded to svcmi under ARM mode, we treat it as nodecode
-                    if addr % 4 == 0 and irsb.jumpkind == "Ijk_Sys_syscall" and irsb.instructions == 1 \
-                            and irsb.size == 4:
-                        if lifted_block.capstone.insns and lifted_block.capstone.insns[0].mnemonic == "svcmi":
+                    # it's way too easy to incorrectly disassemble THUMB code contains 0x4f as ARM code svc?? #????
+                    # if we get a single block that getting decoded to svc?? under ARM mode, we treat it as nodecode
+                    if addr % 4 == 0 and irsb.jumpkind == "Ijk_Sys_syscall":
+                        if lifted_block.capstone.insns \
+                                and lifted_block.capstone.insns[-1].mnemonic.startswith("svc") \
+                                and lifted_block.capstone.insns[-1].operands[0].imm > 255:
                             nodecode = True
 
                     if (nodecode or irsb.size == 0 or irsb.jumpkind == 'Ijk_NoDecode') and switch_mode_on_nodecode:
@@ -3847,9 +3869,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if cfg_job.src_node is not None:
                     src_node_realaddr = cfg_job.src_node.addr & 0xffff_fffe
                     if src_node_realaddr in self._decoding_assumptions:
-                        assumption = DecodingAssumption(real_addr, max(irsb.size, 1) if irsb is not None else 1,
-                                                        src_node_realaddr,
-                                                        ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
+                        assumption = DecodingAssumption(
+                            real_addr,
+                            max(irsb.size, 1) if irsb is not None else 1,
+                            src_node_realaddr if cfg_job.jumpkind != "Ijk_FakeRet" else None,
+                            ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
                         self._decoding_assumptions[real_addr] = assumption
                 elif cfg_job.job_type in (CFGJob.JOB_TYPE_FUNCTION_PROLOGUE, CFGJob.JOB_TYPE_COMPLETE_SCANNING):
                     # this is the source of assumptions. it might be wrong!
@@ -4072,6 +4096,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # remove jobs
                 self._remove_job(lambda j: j.src_node is not None and j.src_node.addr == existing_node.addr)
+
+                # remove traced addresses
+                self._traced_addresses.discard(assumption.addr)
 
             addr = assumption.parent_block_addr
             if addr is None or addr in removed:
