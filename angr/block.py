@@ -180,7 +180,7 @@ class Block(Serializable):
         self._instructions = num_inst
         self._instruction_addrs = [] # type: List[int]
 
-        self._parse_vex_info()
+        self._parse_vex_info(self._vex)
 
         if byte_string is None:
             if backup_state is not None:
@@ -202,19 +202,11 @@ class Block(Serializable):
             # size will ALWAYS be known at this point
             self._bytes = str(pyvex.ffi.buffer(byte_string, self.size))
 
-    def _parse_vex_info(self):
-        vex = self._vex
-        if vex is not None:
-            self._instructions = vex.instructions
-            self._instruction_addrs = []
-            self.size = vex.size
-
-            for stmt in vex.statements:
-                if stmt.tag != 'Ist_IMark':
-                    continue
-                if self.addr is None:
-                    self.addr = stmt.addr + stmt.delta
-                self._instruction_addrs.append(stmt.addr + stmt.delta)
+    def _parse_vex_info(self, vex_block):
+        if vex_block is not None:
+            self._instructions = vex_block.instructions
+            self._instruction_addrs = vex_block.instruction_addresses
+            self.size = vex_block.size
 
     def __repr__(self):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
@@ -268,7 +260,7 @@ class Block(Serializable):
                     strict_block_end=self._strict_block_end,
                     cross_insn_opt=self._cross_insn_opt,
             )
-            self._parse_vex_info()
+            self._parse_vex_info(self._vex)
 
         return self._vex
 
@@ -294,6 +286,7 @@ class Block(Serializable):
             strict_block_end=self._strict_block_end,
             cross_insn_opt=self._cross_insn_opt,
         )
+        self._parse_vex_info(self._vex_nostmt)
         return self._vex_nostmt
 
     @property
