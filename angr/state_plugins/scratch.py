@@ -5,7 +5,11 @@ import claripy
 
 from .plugin import SimStatePlugin
 
+
 class SimStateScratch(SimStatePlugin):
+    """
+    Implements the scratch state plugin.
+    """
     def __init__(self, scratch=None):
         super().__init__()
 
@@ -94,10 +98,10 @@ class SimStateScratch(SimStatePlugin):
         try:
             v = self.temps[tmp]
             if v is None:
-                raise SimValueError('VEX temp variable %d does not exist. This is usually the result of an incorrect '
-                                    'slicing.' % tmp)
+                raise SimMissingTempError('VEX temp variable %d does not exist. This is usually the result of an '
+                                          'incorrect slicing.' % tmp)
         except IndexError:
-            raise SimValueError("Accessing a temp that is illegal in this tyenv")
+            raise SimMissingTempError("Accessing a temp that is illegal in this tyenv")
         self.state._inspect('tmp_read', BP_AFTER, tmp_read_expr=v)
         return v
 
@@ -148,7 +152,7 @@ class SimStateScratch(SimStatePlugin):
         self.jumpkind = j # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
 
 from .sim_action import SimActionObject, SimActionData
-from ..errors import SimValueError
+from ..errors import SimValueError, SimMissingTempError
 from .. import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
 
