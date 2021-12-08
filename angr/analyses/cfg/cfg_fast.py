@@ -465,7 +465,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  force_smart_scan=True,
                  force_complete_scan=False,
                  indirect_jump_target_limit=100000,
-                 data_references=False,
+                 data_references=True,
                  cross_references=False,
                  normalize=False,
                  start_at_entry=True,
@@ -485,6 +485,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  use_patches=False,
                  elf_eh_frame=True,
                  exceptions=True,
+                 nodecode_window_size=512,
+                 nodecode_threshold=0.3,
+                 nodecode_step=16483,
                  start=None,  # deprecated
                  end=None,  # deprecated
                  collect_data_references=None, # deprecated
@@ -587,6 +590,19 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 l.warning('"regions", "start", and "end" are all specified. Ignoring "start" and "end".')
 
+        # data references collection and force smart scan mst be enabled at the same time. otherwise decoding errors
+        # caused by decoding data will lead to incorrect cascading re-lifting, which is suboptimal
+        if force_smart_scan and not data_references:
+            l.warning('It is recommended to enable "data_references" if "force_smart_scan" is enabled for best '
+                      'result. Otherwise you may want to disable "force_smart_scan" or enable '
+                      '"force_complete_scan".')
+
+        # smart complete scanning and naive complete scanning cannot be enabled at the same time
+        if force_smart_scan and force_complete_scan:
+            l.warning('You cannot enable "force_smart_scan" and "force_complete_scan" at the same time. I am disabling '
+                      '"force_complete_scan".')
+            force_complete_scan = False
+
         if binary is not None and not objects:
             objects = [ binary ]
         regions = regions if regions is not None else self._executable_memory_regions(objects=objects,
@@ -624,9 +640,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._use_elf_eh_frame = elf_eh_frame
         self._use_exceptions = exceptions
 
-        self._nodecode_window_size = 512
-        self._nodecode_threshold = 0.3
-        self._nodecode_step = 16384
+        self._nodecode_window_size = nodecode_window_size
+        self._nodecode_threshold = nodecode_threshold
+        self._nodecode_step = nodecode_step
 
         if heuristic_plt_resolving is None:
             # If unspecified, we only enable heuristic PLT resolving when there is at least one binary loaded with the
