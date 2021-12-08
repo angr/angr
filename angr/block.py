@@ -1,21 +1,21 @@
+# pylint:disable=wrong-import-position,arguments-differ
 import logging
 from typing import List
 
+import pyvex
 from pyvex import IRSB
+from archinfo import ArchARM
 
 try:
     from .engines import pcode
 except ImportError:
     pcode = None
 
-l = logging.getLogger(name=__name__)
-
-import pyvex
-from archinfo import ArchARM
-
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
 from .engines.vex import VEXLifter
+
+l = logging.getLogger(name=__name__)
 
 DEFAULT_VEX_ENGINE = VEXLifter(None)  # this is only used when Block is not initialized with a project
 
@@ -49,6 +49,8 @@ class DisassemblerInsn:
     Helper class to represent a disassembled target architecture instruction
     """
 
+    __slots__ = ()
+
     @property
     def size(self) -> int:
         raise NotImplementedError()
@@ -78,8 +80,15 @@ class CapstoneBlock(DisassemblerBlock):
     outside of capstone itself
     """
 
+    __slots__ = ()
+
 
 class CapstoneInsn(DisassemblerInsn):
+    """
+    Represents a capstone instruction.
+    """
+
+    __slots__ = ("insn", )
 
     def __init__(self, capstone_insn):
         self.insn = capstone_insn
@@ -109,6 +118,10 @@ class CapstoneInsn(DisassemblerInsn):
 
 
 class Block(Serializable):
+    """
+    Represents a basic block in a binary or a program.
+    """
+
     BLOCK_MAX_SIZE = 4096
 
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_disassembly', '_capstone',
@@ -117,9 +130,9 @@ class Block(Serializable):
                  '_cross_insn_opt',
                  ]
 
-    def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
-                 extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0, strict_block_end=None,
-                 collect_data_refs=False, cross_insn_opt=True):
+    def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False,
+                 backup_state=None, extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
+                 strict_block_end=None, collect_data_refs=False, cross_insn_opt=True):
 
         # set up arch
         if project is not None:
@@ -307,7 +320,8 @@ class Block(Serializable):
 
     @property
     def capstone(self):
-        if self._capstone: return self._capstone
+        if self._capstone:
+            return self._capstone
 
         cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb
 
@@ -374,6 +388,10 @@ class Block(Serializable):
 
 
 class SootBlock:
+    """
+    Represents a Soot IR basic block.
+    """
+
     def __init__(self, addr, project=None, arch=None):
 
         self.addr = addr
@@ -385,8 +403,7 @@ class SootBlock:
     def _soot_engine(self):
         if self._project is None:
             raise Exception('SHIIIIIIIT')
-        else:
-            return self._project.factory.default_engine
+        return self._project.factory.default_engine
 
     @property
     def soot(self):
@@ -403,5 +420,6 @@ class SootBlock:
         stmts = None if self.soot is None else self.soot.statements
         stmts_len = len(stmts) if stmts else 0
         return SootBlockNode(self.addr, stmts_len, stmts=stmts)
+
 
 from .codenode import BlockNode, SootBlockNode
