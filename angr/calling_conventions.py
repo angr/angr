@@ -615,20 +615,20 @@ class SimCC:
                 (isinstance(val, claripy.ast.Base) and val.op == 'Reverse' and val.args[0].op.startswith('fp'))
 
     @staticmethod
-    def guess_prototype(args, func_ty=None):
+    def guess_prototype(args, prototype=None):
         """
         Come up with a plausible SimTypeFunction for the given args (as would be passed to e.g. setup_callsite).
 
         You can pass a variadic function prototype in the `base_type` parameter and all its arguments will be used,
         only guessing types for the variadic arguments.
         """
-        if type(func_ty) is str:
-            func_ty = parse_signature(func_ty)
-        elif func_ty is None:
-            l.warning("Guessing call prototype. Please specify func_ty.")
+        if type(prototype) is str:
+            prototype = parse_signature(prototype)
+        elif prototype is None:
+            l.warning("Guessing call prototype. Please specify prototype.")
 
         charp = SimTypePointer(SimTypeChar())
-        result = func_ty if func_ty is not None else SimTypeFunction([], charp)
+        result = prototype if prototype is not None else SimTypeFunction([], charp)
         for arg in args[len(result.args):]:
             if type(arg) in (int, bytes, PointerWrapper):
                 result.args.append(charp)
@@ -648,26 +648,26 @@ class SimCC:
 
         return result
 
-    def arg_locs(self, func_ty):
-        session = self.arg_session(func_ty.returnty)
-        return [self.next_arg(session, arg_ty) for arg_ty in func_ty.args]
+    def arg_locs(self, prototype):
+        session = self.arg_session(prototype.returnty)
+        return [self.next_arg(session, arg_ty) for arg_ty in prototype.args]
 
-    def get_args(self, state, func_ty, stack_base=None):
-        arg_locs = self.arg_locs(func_ty)
+    def get_args(self, state, prototype, stack_base=None):
+        arg_locs = self.arg_locs(prototype)
         return [loc.get_value(state, stack_base=stack_base) for loc in arg_locs]
 
     def set_return_val(self, state, val, ty, stack_base=None, perspective_returned=False):
         loc = self.return_val(ty, perspective_returned=perspective_returned)
         loc.set_value(state, val, stack_base=stack_base)
 
-    def setup_callsite(self, state, ret_addr, args, func_ty, stack_base=None, alloc_base=None, grow_like_stack=True):
+    def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
         """
         This function performs the actions of the caller getting ready to jump into a function.
 
         :param state:           The SimState to operate on
         :param ret_addr:        The address to return to when the called function finishes
         :param args:            The list of arguments that that the called function will see
-        :param func_ty:         The signature of the call you're making. Should include variadic args concretely.
+        :param prototype:         The signature of the call you're making. Should include variadic args concretely.
         :param stack_base:      An optional pointer to use as the top of the stack, circa the function entry point
         :param alloc_base:      An optional pointer to use as the place to put excess argument data
         :param grow_like_stack: When allocating data at alloc_base, whether to allocate at decreasing addresses
@@ -693,7 +693,7 @@ class SimCC:
             return
 
         allocator = AllocHelper(self.arch.bits)
-        func_ty = func_ty.with_arch(self.arch)
+        prototype = prototype.with_arch(self.arch)
 
         #
         # STEP 1: convert all values into serialized form
@@ -702,8 +702,8 @@ class SimCC:
         # This is also where we compute arg locations (arg_locs)
         #
 
-        vals = [self._standardize_value(arg, ty, state, allocator.dump) for arg, ty in zip(args, func_ty.args)]
-        arg_locs = self.arg_locs(func_ty)
+        vals = [self._standardize_value(arg, ty, state, allocator.dump) for arg, ty in zip(args, prototype.args)]
+        arg_locs = self.arg_locs(prototype)
 
         # step 1.5, gotta handle the SimReferenceArguments correctly
         for i, (loc, val) in enumerate(zip(arg_locs, vals)):
@@ -714,8 +714,8 @@ class SimCC:
             arg_locs[i] = val.ptr_loc
 
         # step 1.75 allocate implicit outparam stuff
-        if self.return_in_implicit_outparam(func_ty.returnty):
-            loc = self.return_val(func_ty.returnty)
+        if self.return_in_implicit_outparam(prototype.returnty):
+            loc = self.return_val(prototype.returnty)
             assert isinstance(loc, SimReferenceArgument)
             # hack: because the allocator gives us a pointer that needs to be translated, we need to shove it into
             # the args list so it'll be translated and stored once everything is laid out
@@ -767,14 +767,14 @@ class SimCC:
             loc.set_value(state, val, stack_base=stack_base)
         self.return_addr.set_value(state, ret_addr, stack_base=stack_base)
 
-    def teardown_callsite(self, state, return_val=None, func_ty=None, force_callee_cleanup=False):
+    def teardown_callsite(self, state, return_val=None, prototype=None, force_callee_cleanup=False):
         """
         This function performs the actions of the callee as it's getting ready to return.
         It returns the address to return to.
 
         :param state:                   The state to mutate
         :param return_val:              The value to return
-        :param func_ty:                 The prototype of the given function
+        :param prototype:                 The prototype of the given function
         :param force_callee_cleanup:    If we should clean up the stack allocation for the arguments even if it's not
                                         the callee's job to do so
 
@@ -782,9 +782,9 @@ class SimCC:
         Maybe it could make sense by saying that you pass it in as something like the "saved base pointer" value?
         """
         if return_val is not None:
-            self.set_return_val(state, return_val, func_ty.returnty)
+            self.set_return_val(state, return_val, prototype.returnty)
             # ummmmmmmm hack
-            loc = self.return_val(func_ty.returnty)
+            loc = self.return_val(prototype.returnty)
             if isinstance(loc, SimReferenceArgument):
                 self.RETURN_VAL.set_value(state, loc.ptr_loc.get_value(state))
 
@@ -792,12 +792,12 @@ class SimCC:
 
         if state.arch.sp_offset is not None:
             if force_callee_cleanup or self.CALLEE_CLEANUP:
-                session = self.arg_session(func_ty.returnty)
-                if self.return_in_implicit_outparam(func_ty.returnty):
-                    extra = [self.return_val(func_ty.returnty).ptr_loc]
+                session = self.arg_session(prototype.returnty)
+                if self.return_in_implicit_outparam(prototype.returnty):
+                    extra = [self.return_val(prototype.returnty).ptr_loc]
                 else:
                     extra = []
-                state.regs.sp += self.stack_space(extra + [self.next_arg(session, x) for x in func_ty.args])
+                state.regs.sp += self.stack_space(extra + [self.next_arg(session, x) for x in prototype.args])
             else:
                 state.regs.sp += self.STACKARG_SP_DIFF
 
@@ -985,19 +985,19 @@ class SimCC:
         return None
 
 
-    def get_arg_info(self, state, func_ty):
+    def get_arg_info(self, state, prototype):
         """
         This is just a simple wrapper that collects the information from various locations
-        func_ty is as passed to self.arg_locs and self.get_args
+        prototype is as passed to self.arg_locs and self.get_args
         :param angr.SimState state: The state to evaluate and extract the values from
         :return:    A list of tuples, where the nth tuple is (type, name, location, value) of the nth argument
         """
 
-        argument_locations = self.arg_locs(func_ty)
-        argument_values = self.get_args(state, func_ty)
+        argument_locations = self.arg_locs(prototype)
+        argument_values = self.get_args(state, prototype)
 
-        argument_types = func_ty.args
-        argument_names = func_ty.arg_names if func_ty.arg_names else ['unknown'] * len(func_ty.args)
+        argument_types = prototype.args
+        argument_names = prototype.arg_names if prototype.arg_names else ['unknown'] * len(prototype.args)
         return list(zip(argument_types, argument_names, argument_locations, argument_values))
 
 class SimLyingRegArg(SimRegArg):

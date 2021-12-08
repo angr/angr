@@ -38,7 +38,7 @@ def run_fauxware(arch):
     p = angr.Project(os.path.join(location, 'tests', arch, 'fauxware'))
     charstar = SimTypePointer(SimTypeChar())
     prototype = SimTypeFunction((charstar, charstar), SimTypeInt(False))
-    authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, func_ty=prototype)
+    authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, prototype=prototype)
     nose.tools.assert_equal(authenticate("asdf", "SOSNEAKY")._model_concrete.value, 1)
     nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
 
@@ -46,7 +46,7 @@ def run_fauxware(arch):
 def run_callable_c_fauxware(arch):
     addr = addresses_fauxware[arch]
     p = angr.Project(os.path.join(location, 'tests', arch, 'fauxware'))
-    authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, func_ty="int f(char*, char*)")
+    authenticate = p.factory.callable(addr, toc=0x10018E80 if arch == 'ppc64' else None, concrete_only=True, prototype="int f(char*, char*)")
     retval = authenticate.call_c('("asdf", "SOSNEAKY")')
     nose.tools.assert_equal(retval._model_concrete.value, 1)
     nose.tools.assert_raises(AngrCallableMultistateError, authenticate, "asdf", "NOSNEAKY")
@@ -57,7 +57,7 @@ def run_manysum(arch):
     p = angr.Project(os.path.join(location, 'tests', arch, 'manysum'))
     inttype = SimTypeInt()
     prototype = SimTypeFunction([inttype]*11, inttype)
-    sumlots = p.factory.callable(addr, func_ty=prototype)
+    sumlots = p.factory.callable(addr, prototype=prototype)
     result = sumlots(1,2,3,4,5,6,7,8,9,10,11)
     nose.tools.assert_false(result.symbolic)
     nose.tools.assert_equal(result._model_concrete.value, sum(range(12)))
@@ -66,7 +66,7 @@ def run_manysum(arch):
 def run_callable_c_manysum(arch):
     addr = addresses_manysum[arch]
     p = angr.Project(os.path.join(location, 'tests', arch, 'manysum'))
-    sumlots = p.factory.callable(addr, func_ty="int f(int, int, int, int, int, int, int, int, int, int, int)")
+    sumlots = p.factory.callable(addr, prototype="int f(int, int, int, int, int, int, int, int, int, int, int)")
     result = sumlots.call_c("(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11)")
     nose.tools.assert_false(result.symbolic)
     nose.tools.assert_equal(result._model_concrete.value, sum(range(12)))
@@ -84,7 +84,7 @@ def run_manyfloatsum(arch):
         args = list(range(len(type_cache[function].args)))
         answer = float(sum(args))
         addr = p.loader.main_object.get_symbol(function).rebased_addr
-        my_callable = p.factory.callable(addr, func_ty=type_cache[function])
+        my_callable = p.factory.callable(addr, prototype=type_cache[function])
         result = my_callable(*args)
         nose.tools.assert_false(result.symbolic)
         result_concrete = result.args[0]
@@ -101,7 +101,7 @@ def run_manyfloatsum_symbolic(arch):
     function = 'sum_doubles'
     args = [claripy.FPS('arg_%d' % i, claripy.FSORT_DOUBLE) for i in range(len(type_cache[function].args))]
     addr = p.loader.main_object.get_symbol(function).rebased_addr
-    my_callable = p.factory.callable(addr, func_ty=type_cache[function])
+    my_callable = p.factory.callable(addr, prototype=type_cache[function])
     result = my_callable(*args)
     nose.tools.assert_true(result.symbolic)
 
@@ -150,12 +150,12 @@ def test_callable_c_manyfloatsum():
 def test_setup_callsite():
     p = angr.load_shellcode(b'b', arch=archinfo.ArchX86())
 
-    s = p.factory.call_state(0, "hello", func_ty='void x(char*)', stack_base=0x1234, alloc_base=0x5678, grow_like_stack=False)
+    s = p.factory.call_state(0, "hello", prototype='void x(char*)', stack_base=0x1234, alloc_base=0x5678, grow_like_stack=False)
     assert (s.regs.sp == 0x1234).is_true()
     assert (s.mem[0x1234 + 4].long.resolved == 0x5678).is_true()
     assert (s.memory.load(0x5678, 5) == b'hello').is_true()
 
-    s = p.factory.call_state(0, "hello", func_ty='void x(char*)', stack_base=0x1234)
+    s = p.factory.call_state(0, "hello", prototype='void x(char*)', stack_base=0x1234)
     assert (s.regs.sp == 0x1234).is_true()
     assert (s.mem[0x1234 + 4].long.resolved == 0x1234 + 8).is_true()
     assert (s.memory.load(0x1234 + 8, 5) == b'hello').is_true()

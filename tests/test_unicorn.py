@@ -181,8 +181,8 @@ def test_fp():
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'), auto_load_libs=False)
 
     for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
-        cc = p.factory.cc(func_ty=type_cache[function])
-        args = list(range(len(cc.func_ty.args)))
+        cc = p.factory.cc(prototype=type_cache[function])
+        args = list(range(len(cc.prototype.args)))
         answer = float(sum(args))
         addr = p.loader.find_symbol(function).rebased_addr
         my_callable = p.factory.callable(addr, cc=cc)

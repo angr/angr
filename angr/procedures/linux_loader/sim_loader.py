@@ -21,7 +21,7 @@ class LinuxLoader(angr.SimProcedure):
             addr = self.initializers[0]
             self.initializers = self.initializers[1:]
             self.call(addr, (self.state.posix.argc, self.state.posix.argv, self.state.posix.environ), 'run_initializer',
-                func_ty = 'int main(int argc, char **argv, char **envp)')
+                prototype = 'int main(int argc, char **argv, char **envp)')
 
 class IFuncResolver(angr.SimProcedure):
     NO_RET = True
@@ -30,7 +30,7 @@ class IFuncResolver(angr.SimProcedure):
     # pylint: disable=arguments-differ,unused-argument
     def run(self, funcaddr=None, gotaddr=None, funcname=None):
         self.saved_regs = {reg.name: self.state.registers.load(reg.name) for reg in self.arch.register_list if reg.argument}
-        self.call(funcaddr, (), continue_at='after_call', cc=self.cc, func_ty='void *x()')
+        self.call(funcaddr, (), continue_at='after_call', cc=self.cc, prototype='void *x()')
 
     def after_call(self, funcaddr=None, gotaddr=None, funcname=None):
         value = self.cc.return_val(angr.sim_type.SimTypePointer(angr.sim_type.SimTypeBottom())).get_value(self.state)

@@ -206,8 +206,8 @@ class Runner(object):
                 mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
-        func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
-        cc = self.project.factory.cc(func_ty=func_ty)
+        prototype = SimTypeFunction([inttype] * len(mapped_input), inttype)
+        cc = self.project.factory.cc(prototype=prototype)
         call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=test_data.max_steps)
         return call.get_base_state(*mapped_input)
@@ -239,8 +239,8 @@ class Runner(object):
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
-        func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
-        cc = self.project.factory.cc(func_ty=func_ty)
+        prototype = SimTypeFunction([inttype] * len(mapped_input), inttype)
+        cc = self.project.factory.cc(prototype=prototype)
         try:
             call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                             cc=cc, base_state=s, max_steps=test_data.max_steps)
@@ -337,8 +337,8 @@ class Runner(object):
                     mapped_input.append(i)
 
         inttype = SimTypeInt(self.project.arch.bits, False)
-        func_ty = SimTypeFunction([inttype] * len(mapped_input), inttype)
-        cc = self.project.factory.cc(func_ty=func_ty)
+        prototype = SimTypeFunction([inttype] * len(mapped_input), inttype)
+        cc = self.project.factory.cc(prototype=prototype)
         try:
             call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                             cc=cc, base_state=s, max_steps=test_data.max_steps)

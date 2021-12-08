@@ -17,7 +17,7 @@ def test_function_prototype():
     func.prototype = angr.SIM_LIBRARIES['libc.so.6'].prototypes[func.name]
     func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](
         proj.arch,
-        func_ty=func.prototype,
+        prototype=func.prototype,
     )
 
 

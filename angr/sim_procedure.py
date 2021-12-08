@@ -94,7 +94,7 @@ class SimProcedure:
 
     """
     def __init__(
-        self, project=None, cc=None, func_ty=None, symbolic_return=None,
+        self, project=None, cc=None, prototype=None, symbolic_return=None,
         returns=None, is_syscall=False, is_stub=False,
         num_args=None, display_name=None, library_name=None,
         is_function=None, **kwargs
@@ -104,9 +104,9 @@ class SimProcedure:
         self.arch = project.arch if project is not None else None
         self.addr = None
         self.cc = cc # type: angr.SimCC
-        if type(func_ty) is str:
-            func_ty = parse_signature(func_ty)
-        self.func_ty = func_ty  # type: angr.sim_type.SimTypeFunction
+        if type(prototype) is str:
+            prototype = parse_signature(prototype)
+        self.prototype = prototype  # type: angr.sim_type.SimTypeFunction
         self.canonical = self
 
         self.kwargs = kwargs
@@ -132,9 +132,9 @@ class SimProcedure:
         else:
             self.num_args = num_args
 
-        if self.func_ty is None:
+        if self.prototype is None:
             charp = SimTypePointer(SimTypeChar())
-            self.func_ty = SimTypeFunction([charp] * self.num_args, charp)
+            self.prototype = SimTypeFunction([charp] * self.num_args, charp)
 
         # runtime values
         self.state = None
@@ -182,8 +182,8 @@ class SimProcedure:
             else:
                 raise SimProcedureError('There is no default calling convention for architecture %s.'
                                         ' You must specify a calling convention.' % self.arch.name)
-        if self.func_ty._arch is None:
-            self.func_ty = self.func_ty.with_arch(self.arch)
+        if self.prototype._arch is None:
+            self.prototype = self.prototype.with_arch(self.arch)
 
         inst = copy.copy(self)
         inst.state = state
@@ -233,8 +233,8 @@ class SimProcedure:
             else:
                 if arguments is None:
                     inst.use_state_arguments = True
-                    inst.arg_session = inst.cc.arg_session(inst.func_ty.returnty)
-                    sim_args = [inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in inst.func_ty.args]
+                    inst.arg_session = inst.cc.arg_session(inst.prototype.returnty)
+                    sim_args = [inst.cc.next_arg(inst.arg_session, ty).get_value(inst.state) for ty in inst.prototype.args]
                     inst.arguments = sim_args
                 else:
                     inst.use_state_arguments = False
@@ -326,8 +326,8 @@ class SimProcedure:
         raise SimProcedureError("the java-specific _compute_ret_addr() method was invoked on a non-Java SimProcedure.")
 
     def set_args(self, args):
-        arg_session = self.cc.arg_session(self.func_ty.returnty)
-        for arg, ty in zip(args, self.func_ty.args):
+        arg_session = self.cc.arg_session(self.prototype.returnty)
+        for arg, ty in zip(args, self.prototype.args):
             self.cc.next_arg(arg_session, ty).set_value(self.state, arg)
 
     def va_arg(self, ty, index=None):
@@ -398,7 +398,7 @@ class SimProcedure:
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr) #pylint:disable=assignment-from-no-return
         elif self.use_state_arguments:
-            ret_addr = self.cc.teardown_callsite(self.state, expr, func_ty=self.func_ty)
+            ret_addr = self.cc.teardown_callsite(self.state, expr, prototype=self.prototype)
 
         if not self.should_add_successors:
             l.debug("Returning without setting exits due to 'internal' call.")
@@ -416,7 +416,7 @@ class SimProcedure:
         self.successors.add_successor(self.state, ret_addr, self.state.solver.true, 'Ijk_Ret')
 
 
-    def call(self, addr, args, continue_at, cc=None, func_ty=None):
+    def call(self, addr, args, continue_at, cc=None, prototype=None):
         """
         Add an exit representing calling another function via pointer.
 
@@ -426,13 +426,13 @@ class SimProcedure:
                             procedure will continue in the named method.
         :param cc:          Optional: use this calling convention for calling the new function.
                             Default is to use the current convention.
-        :param func_ty:     Optional: The prototype to use for the call. Will default to all-ints.
+        :param prototype:     Optional: The prototype to use for the call. Will default to all-ints.
         """
         self.inhibit_autoret = True
 
         if cc is None:
             cc = self.cc
-        func_ty = cc.guess_prototype(args, func_ty)
+        prototype = cc.guess_prototype(args, prototype)
 
         call_state = self.state.copy()
         ret_addr = self.make_continuation(continue_at)
@@ -442,7 +442,7 @@ class SimProcedure:
                               saved_local_vars,
                               self.state.regs.lr if self.state.arch.lr_offset is not None else None,
                               ret_addr)
-        cc.setup_callsite(call_state, ret_addr, args, func_ty)
+        cc.setup_callsite(call_state, ret_addr, args, prototype)
         call_state.callstack.top.procedure_data = simcallstack_entry
 
         # TODO: Move this to setup_callsite?
@@ -460,7 +460,7 @@ class SimProcedure:
         if o.DO_RET_EMULATION in self.state.options:
             # we need to set up the call because the continuation will try to tear it down
             ret_state = self.state.copy()
-            cc.setup_callsite(ret_state, ret_addr, args, func_ty)
+            cc.setup_callsite(ret_state, ret_addr, args, prototype)
             ret_state.callstack.top.procedure_data = simcallstack_entry
             guard = ret_state.solver.true if o.TRUE_RET_EMULATION_GUARD in ret_state.options else ret_state.solver.false
             self.successors.add_successor(ret_state, ret_addr, guard, 'Ijk_FakeRet')
@@ -511,7 +511,7 @@ class SimProcedure:
 
     @argument_types.setter
     def argument_types(self, v):  # pylint: disable=unused-argument,no-self-use
-        l.critical("SimProcedure.argument_types is deprecated. specify the function signature in the func_ty param")
+        l.critical("SimProcedure.argument_types is deprecated. specify the function signature in the prototype param")
 
     @property
     def return_type(self):  # pylint: disable=no-self-use
@@ -519,7 +519,7 @@ class SimProcedure:
 
     @return_type.setter
     def return_type(self, v):  # pylint: disable=unused-argument,no-self-use
-        l.critical("SimProcedure.return_type is deprecated. specify the function signature in the func_ty param")
+        l.critical("SimProcedure.return_type is deprecated. specify the function signature in the prototype param")
 
 
 from . import sim_options as o

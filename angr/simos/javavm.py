@@ -251,7 +251,7 @@ class SimJavaVM(SimOS):
             # setup function prototype, so the SimCC know how to init the callsite
             arg_types = [self.get_native_type(arg.type) for arg in args]
             prototype = SimTypeFunction(args=arg_types, returnty=native_ret_type)
-            native_cc = self.get_native_cc(func_ty=prototype)
+            native_cc = self.get_native_cc(prototype=prototype)
 
             # setup native invoke state
             return self.native_simos.state_call(addr, *native_arg_values,
@@ -429,12 +429,12 @@ class SimJavaVM(SimOS):
         """
         return self.native_simos.arch
 
-    def get_native_cc(self, func_ty=None):
+    def get_native_cc(self, prototype=None):
         """
         :return: SimCC object for the native simos.
         """
         native_cc_cls = DEFAULT_CC[self.native_simos.arch.name]
-        return native_cc_cls(self.native_simos.arch, func_ty=func_ty)
+        return native_cc_cls(self.native_simos.arch, prototype=prototype)
 
 def prepare_native_return_state(native_state):
     """

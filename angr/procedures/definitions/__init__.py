@@ -181,12 +181,12 @@ class SimLibrary:
         if proc.cc is None and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name](arch)
         if proc.display_name in self.prototypes:
-            proc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
-            if proc.func_ty.arg_names is None:
+            proc.prototype = self.prototypes[proc.display_name].with_arch(arch)
+            if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
-                proc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
+                proc.prototype.arg_names = inspect.getfullargspec(proc.run).args[1:]
             if not proc.ARGS_MISMATCH:
-                proc.num_args = len(proc.func_ty.args)
+                proc.num_args = len(proc.prototype.args)
         if proc.display_name in self.non_returning:
             proc.returns = False
         proc.library_name = self.name
@@ -336,12 +336,12 @@ class SimCppLibrary(SimLibrary):
         # try to determine a prototype from the function name if possible
         if demangled_name != name:
             # itanium-mangled function name
-            stub.func_ty = self._proto_from_demangled_name(demangled_name)
-            if stub.func_ty is not None:
-                stub.func_ty = stub.func_ty.with_arch(arch)
+            stub.prototype = self._proto_from_demangled_name(demangled_name)
+            if stub.prototype is not None:
+                stub.prototype = stub.prototype.with_arch(arch)
                 if not stub.ARGS_MISMATCH:
-                    stub.cc.num_args = len(stub.func_ty.args)
-                    stub.num_args = len(stub.func_ty.args)
+                    stub.cc.num_args = len(stub.prototype.args)
+                    stub.num_args = len(stub.prototype.args)
         return stub
 
     def get_prototype(self, name: str, arch=None) -> Optional[SimTypeFunction]:
@@ -514,7 +514,7 @@ class SimSyscallLibrary(SimLibrary):
         # a bit of a hack.
         name = proc.display_name
         if self.syscall_prototypes[abi].get(name, None) is not None:
-            proc.func_ty = self.syscall_prototypes[abi][name].with_arch(arch)
+            proc.prototype = self.syscall_prototypes[abi][name].with_arch(arch)
 
     # pylint: disable=arguments-differ
     def get(self, number, arch, abi_list=()):

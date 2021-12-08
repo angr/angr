@@ -13,17 +13,17 @@ def test_ret_float():
 
     p = angr.load_shellcode(b'X', arch='i386')
 
-    p.hook(0x1000, F1(func_ty='float (x)();'))
-    p.hook(0x2000, F1(func_ty='double (x)();'))
+    p.hook(0x1000, F1(prototype='float (x)();'))
+    p.hook(0x2000, F1(prototype='double (x)();'))
 
-    s = p.factory.call_state(addr=0x1000, ret_addr=0, func_ty='float(x)()')
+    s = p.factory.call_state(addr=0x1000, ret_addr=0, prototype='float(x)()')
     succ = s.step()
     nose.tools.assert_equal(len(succ.successors), 1)
     s2 = succ.flat_successors[0]
     nose.tools.assert_false(s2.regs.st0.symbolic)
     nose.tools.assert_equal(s2.solver.eval(s2.regs.st0.raw_to_fp()), 12.5)
 
-    s = p.factory.call_state(addr=0x2000, ret_addr=0, func_ty='double(x)()')
+    s = p.factory.call_state(addr=0x2000, ret_addr=0, prototype='double(x)()')
     succ = s.step()
     nose.tools.assert_equal(len(succ.successors), 1)
     s2 = succ.flat_successors[0]
@@ -32,10 +32,10 @@ def test_ret_float():
 
     p = angr.load_shellcode(b'X', arch='amd64')
 
-    p.hook(0x1000, F1(func_ty='float (x)();'))
-    p.hook(0x2000, F1(func_ty='double (x)();'))
+    p.hook(0x1000, F1(prototype='float (x)();'))
+    p.hook(0x2000, F1(prototype='double (x)();'))
 
-    s = p.factory.call_state(addr=0x1000, ret_addr=0, func_ty='float(x)()')
+    s = p.factory.call_state(addr=0x1000, ret_addr=0, prototype='float(x)()')
     succ = s.step()
     nose.tools.assert_equal(len(succ.successors), 1)
     s2 = succ.flat_successors[0]
@@ -43,7 +43,7 @@ def test_ret_float():
     nose.tools.assert_false(res.symbolic)
     nose.tools.assert_equal(s2.solver.eval(res), 12.5)
 
-    s = p.factory.call_state(addr=0x2000, ret_addr=0, func_ty='double(x)()')
+    s = p.factory.call_state(addr=0x2000, ret_addr=0, prototype='double(x)()')
     succ = s.step()
     nose.tools.assert_equal(len(succ.successors), 1)
     s2 = succ.flat_successors[0]

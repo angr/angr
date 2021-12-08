@@ -173,7 +173,7 @@ class SimEngineRDAIL(
             # getting used expressions from stmt.args
             used_exprs = stmt.args
         elif stmt.calling_convention is not None and (
-                stmt.calling_convention.func_ty is not None or stmt.calling_convention.args is not None):
+                stmt.calling_convention.prototype is not None or stmt.calling_convention.args is not None):
             # getting used expressions from the function prototype, its arguments, and the calling convention
             used_exprs = [ ]
             for arg_loc in stmt.calling_convention.arg_locs():
@@ -245,10 +245,10 @@ class SimEngineRDAIL(
         codeloc = self._codeloc()
 
         cc = None
-        func_ty = None
+        prototype = None
         if self.state.analysis.subject.type == SubjectType.Function:
             cc = self.state.analysis.subject.content.calling_convention
-            func_ty = self.state.analysis.subject.content.prototype
+            prototype = self.state.analysis.subject.content.prototype
             # import ipdb; ipdb.set_trace()
 
         if cc is None:
@@ -281,8 +281,8 @@ class SimEngineRDAIL(
         # consume registers that are potentially useful
 
         # return value
-        if cc is not None and func_ty is not None and func_ty.returnty is not None:
-            ret_val = cc.return_val(func_ty.returnty)
+        if cc is not None and prototype is not None and prototype.returnty is not None:
+            ret_val = cc.return_val(prototype.returnty)
             if isinstance(ret_val, SimRegArg):
                 if ret_val.clear_entire_reg:
                     offset, size = cc.arch.registers[ret_val.reg_name]

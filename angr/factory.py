@@ -186,13 +186,13 @@ class AngrObjectFactory:
         """
         return self.simulation_manager(*args, **kwargs)
 
-    def callable(self, addr, func_ty=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
+    def callable(self, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
 
         :param addr:            The address of the function to use
-        :param func_ty:         The prototype of the call to use, as a string or a SimTypeFunction
+        :param prototype:         The prototype of the call to use, as a string or a SimTypeFunction
         :param concrete_only:   Throw an exception if the execution splits into multiple states
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
@@ -204,7 +204,7 @@ class AngrObjectFactory:
         """
         return Callable(self.project,
                         addr=addr,
-                        func_ty=func_ty,
+                        prototype=prototype,
                         concrete_only=concrete_only,
                         perform_merge=perform_merge,
                         base_state=base_state,
@@ -223,7 +223,7 @@ class AngrObjectFactory:
 
         return self._default_cc(arch=self.project.arch)
 
-    def cc_from_arg_kinds(self, fp_args, ret_fp=None, sizes=None, sp_delta=None, func_ty=None):
+    def cc_from_arg_kinds(self, fp_args, ret_fp=None, sizes=None, sp_delta=None, prototype=None):
         """
         Get a SimCC (calling convention) that will extract floating-point/integral args correctly.
 
@@ -234,10 +234,10 @@ class AngrObjectFactory:
         :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
                             size of the corresponding argument in bytes.
         :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
+        :param prototype:     A SimType for the function itself or a C-style function declaration that can be parsed into
                             a SimTypeFunction instance.
 
-        Example func_ty strings:
+        Example prototype strings:
         >>> "int func(char*, int)"
         >>> "int f(int, int, int*);"
         Function names are ignored.
@@ -248,7 +248,7 @@ class AngrObjectFactory:
                 ret_fp=ret_fp,
                 sizes=sizes,
                 sp_delta=sp_delta,
-                func_ty=func_ty)
+                prototype=prototype)
 
     #pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
