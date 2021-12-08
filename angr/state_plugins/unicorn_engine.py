@@ -364,6 +364,7 @@ def _load_native():
         _setup_prototype(h, 'syscall_count', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'step', ctypes.c_uint64, state_t)
         _setup_prototype(h, 'activate_page', None, state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)
+        _setup_prototype(h, 'set_last_block_details', None, state_t, ctypes.c_uint64, ctypes.c_int64, ctypes.c_int64)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
         _setup_prototype(h, 'uncache_pages_touching_region', None, state_t, ctypes.c_uint64, ctypes.c_uint64)
@@ -674,6 +675,9 @@ class Unicorn(SimStatePlugin):
     def _setup_unicorn(self):
         if self.state.arch.uc_mode is None:
             raise SimUnicornUnsupport("unsupported architecture %r" % self.state.arch)
+
+    def set_last_block_details(self, details):
+        _UC_NATIVE.set_last_block_details(self._uc_state, details["addr"], details["curr_count"], details["tot_count"])
 
     def set_stops(self, stop_points):
         _UC_NATIVE.set_stops(self._uc_state,

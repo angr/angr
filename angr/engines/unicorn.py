@@ -169,6 +169,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             return super().process_successors(successors, **kwargs)
 
         extra_stop_points = kwargs.get('extra_stop_points', None)
+        last_block_details = kwargs.get('last_block_details', None)
         step = kwargs.get('step', None)
         if extra_stop_points is None:
             extra_stop_points = set(self.project._sim_procedures)
@@ -210,6 +211,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         try:
             state.unicorn.set_stops(extra_stop_points)
+            if last_block_details is not None:
+                state.unicorn.set_last_block_details(last_block_details)
             state.unicorn.set_tracking(track_bbls=o.UNICORN_TRACK_BBL_ADDRS in state.options,
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()

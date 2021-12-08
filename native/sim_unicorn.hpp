@@ -518,6 +518,10 @@ class State {
 	//std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
+	address_t trace_last_block_addr;
+	int64_t trace_last_block_curr_count;
+	int64_t trace_last_block_tot_count;
+
 	address_t taint_engine_next_instr_address, taint_engine_stop_mem_read_instruction;
 	uint32_t taint_engine_stop_mem_read_size;
 	bool symbolic_read_in_progress;
@@ -733,6 +737,11 @@ class State {
 		 * record consecutive dirty bit range, return a linked list of ranges
 		 */
 		mem_update_t *sync();
+
+		/*
+		 * set details of the last block of trace
+		 */
+		void set_last_block_details(address_t block_addr, int64_t curr_count, int64_t tot_count);
 
 		/*
 		 * set a list of stops to stop execution at
