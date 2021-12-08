@@ -313,7 +313,10 @@ class Block(Serializable):
 
         insns = []
 
-        for cs_insn in cs.disasm(self.bytes, self.addr):
+        block_bytes = self.bytes
+        if self.size is not None:
+            block_bytes = block_bytes[:self.size]
+        for cs_insn in cs.disasm(block_bytes, self.addr):
             insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
