@@ -33,7 +33,8 @@ class strlen(angr.SimProcedure):
             # Make sure to convert s to ValueSet
             addr_desc: AbstractAddressDescriptor = self.state.memory._normalize_address(s)
 
-            length = self.state.solver.ESI(self.arch.sizeof['int'])
+            # size_t
+            length = self.state.solver.ESI(self.arch.bits)
             for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
 
                 s_ptr = s_aw.to_valueset(self.state)
@@ -67,7 +68,7 @@ class strlen(angr.SimProcedure):
 
             self.max_null_index = max(i)
             self.state.add_constraints(*c)
-            result = (r - s)[self.arch.sizeof['int'] - 1:0]
+            result = r - s
             if result.depth > 3:
                 rresult = self.state.solver.BVS('strlen', len(result), key=('api', 'strlen'))
                 self.state.add_constraints(result == rresult)

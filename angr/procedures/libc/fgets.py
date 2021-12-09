@@ -12,6 +12,8 @@ class fgets(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
     def run(self, dst, size, file_ptr):
+        size = size.zero_extend(self.arch.bits - self.arch.sizeof['int'])
+
         # let's get the memory back for the file we're interested in and find the newline
         fd_offset = io_file_data_for_arch(self.state.arch)['fd']
         fd = self.state.mem[file_ptr + fd_offset:].int.resolved
