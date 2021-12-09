@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Callable
 
 import networkx
 
@@ -479,3 +479,21 @@ class ForwardAnalysis:
             return self._job_info_queue[pos].job
 
         raise IndexError()
+
+    def _remove_job(self, predicate: Callable) -> None:
+        """
+        Remove jobs that satisfy certain criteria from job_info_queue.
+
+        :param predicate:   A method that determines if a job should be removed or not.
+        """
+
+        to_remove = [ ]
+        for job_info in self._job_info_queue:
+            if predicate(job_info.job):
+                to_remove.append(job_info)
+
+        for job_info in to_remove:
+            self._job_info_queue.remove(job_info)
+            key = self._job_key(job_info.job)
+            if key in self._job_map:
+                del self._job_map[key]

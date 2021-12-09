@@ -20,7 +20,8 @@ def test_thumb_firmware_cfg():
 
     # This is the canonical way to carve up a nasty firmware thing.
 
-    cfg = p.analyses.CFGFast(resolve_indirect_jumps=True, force_complete_scan=False, normalize=True)
+    cfg = p.analyses.CFGFast(resolve_indirect_jumps=True, force_smart_scan=False, force_complete_scan=False,
+                             normalize=True)
 
     # vfprintf should return; this function has a weird C++ thing that gets compiled as a tail-call.
     # The function itself must return, and _NOT_ contain its callee.
