@@ -12,6 +12,7 @@ from ...errors import AngrCFGError, SimMemoryError, SimEngineError
 from ...codenode import HookNode, SootBlockNode
 from ...knowledge_plugins.cfg import CFGNode
 from .. import register_analysis
+from ..soot_class_hierarchy import NoConcreteDispatch
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 
 l = logging.getLogger(name=__name__)
@@ -28,7 +29,7 @@ except ImportError:
 
 class CFGFastSoot(CFGFast):
 
-    def __init__(self, support_jni=False, **kwargs):
+    def __init__(self, skip_android_classes=False, support_jni=False, **kwargs):
 
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")
@@ -37,6 +38,7 @@ class CFGFastSoot(CFGFast):
             raise AngrCFGError('CFGFastSoot only supports analyzing Soot programs.')
 
         self._soot_class_hierarchy = self.project.analyses.SootClassHierarchy()
+        self.skip_android_classes = skip_android_classes
         self.support_jni = support_jni
         super(CFGFastSoot, self).__init__(regions=SortedDict({}), **kwargs)
 
@@ -55,6 +57,8 @@ class CFGFastSoot(CFGFast):
         self._updated_nonreturning_functions = set()
 
         self._function_returns = defaultdict(set)
+
+        self._thread_methods = dict()
 
         entry = self.project.entry  # type:SootAddressDescriptor
         entry_func = entry.method
@@ -92,6 +96,9 @@ class CFGFastSoot(CFGFast):
         # add all other methods as well
         for cls in self.project.loader.main_object.classes.values():
             for method in cls.methods:
+                if self.skip_android_classes and (method.class_name.startswith("android") or \
+                                                  method.class_name.startswith("com.google.android")):
+                    continue
                 total_methods += 1
                 if method.blocks:
                     method_des = SootMethodDescriptor(cls.name, method.name, method.params)
@@ -119,7 +126,9 @@ class CFGFastSoot(CFGFast):
 
     def _generate_cfgnode(self, cfg_job, current_function_addr):
         addr = cfg_job.addr
-
+        if self.skip_android_classes and (addr.method.class_name.startswith("android") or \
+                                          addr.method.class_name.startswith("com.google.android")):
+            return None, None, None, None
         try:
 
             cfg_node = self.model.get_node(addr)
@@ -152,10 +161,17 @@ class CFGFastSoot(CFGFast):
         # soot method
         method = self.project.loader.main_object.get_soot_method(function_id)
 
-        # native method has no soot block
-        if self.support_jni and block is None:
-            successors = self._native_method_successors(addr, method)
-            return successors
+        if block is None:
+            # abstarct method has no soot block
+            if 'ABSTRACT' in method.attrs:
+                return None
+            # native method has no soot block
+            elif 'NATIVE' in method.attrs and self.support_jni:
+                successors = self._native_method_successors(addr, method)
+                return successors
+            # undefined case
+            else:
+                return None
 
         block_id = block.idx
 
@@ -186,16 +202,15 @@ class CFGFastSoot(CFGFast):
                 invoke_expr = stmt.invoke_expr
 
                 # add special successors
-                if self.support_jni:
-                    succs = self._special_invoke_successors(stmt, addr, block)
-                    if succs:
-                        successors.extend(succs)
-
-                succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
+                succs = self._special_invoke_successors(stmt, addr, block)
                 if succs:
                     successors.extend(succs)
+
+                succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
+                if isinstance(succs, list):
+                    successors.extend(succs)
                     has_default_exit = False
-                    break
+                    continue
 
             elif isinstance(stmt, GotoStmt):
                 target = stmt.target
@@ -205,7 +220,7 @@ class CFGFastSoot(CFGFast):
 
                 # blocks ending with a GoTo should not have a default exit
                 has_default_exit = False
-                break
+                continue
 
             elif isinstance(stmt, AssignStmt):
 
@@ -217,10 +232,10 @@ class CFGFastSoot(CFGFast):
                         successors.extend(succs)
 
                     succs = self._soot_create_invoke_successors(stmt, addr, expr)
-                    if succs:
+                    if isinstance(succs, list):
                         successors.extend(succs)
                         has_default_exit = False
-                        break
+                        continue
 
 
         if has_default_exit:
@@ -235,28 +250,89 @@ class CFGFastSoot(CFGFast):
     def _native_method_successors(self, addr, method):
         class_name = "nativemethod"
         # e.g., Java_com_example_nativemedia_NativeMedia_shutdown
-        method_name = "Java_" +  method.class_name.replace('.', '_') + '_' + method.name
+        method_name = self.rename_jni_method(method.name, class_name=method.class_name)
         params = method.params
-        dummy_expr = SootStaticInvokeExpr("void", class_name, method_name, params, {"jni"})
+        ret = method.ret
+        dummy_expr = SootStaticInvokeExpr(ret, class_name, method_name, params, {"jni"})
         dummy_stmt = InvokeStmt(0, 0, dummy_expr)
         succs_native = self._soot_create_invoke_successors(dummy_stmt, addr, dummy_expr)
 
         return succs_native
 
+    def rename_jni_method(self, method, class_name=None):
+        if class_name is not None:
+            method = class_name + '.' + method
+
+        return "Java_" + method.replace('_', '_1').replace(';', '_2').replace('[', '_3').replace('.', '_')
+
     def _special_invoke_successors(self, stmt, addr, block):
         invoke_expr = stmt.invoke_expr if isinstance(stmt, InvokeStmt) else stmt.right_op
-        succs = None
+        succs = [ ]
+        #if invoke_expr.class_name == "android.content.Intent" and invoke_expr.method_name == "setComponent":
+        #    print(invoke_expr)
 
         # add <clinit>
         # many class using jni are loading the library in static method
         if invoke_expr.method_name == '<init>':
             clinit_invoke_expr = copy(invoke_expr)
             clinit_invoke_expr.method_name = '<clinit>'
-            succs = self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr)
+            clinit_invoke_expr.method_params = tuple()
+            succs.extend(self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr))
+
+            # register thread
+            cls = self.project.loader.main_object.classes.get(invoke_expr.class_name)
+            super_class = cls.super_class if cls is not None else ''
+            if invoke_expr.class_name == 'java.lang.Thread' or super_class == 'java.lang.Thread':
+                param_type = invoke_expr.method_params[0] if len(invoke_expr.method_params) > 0 else None
+                param = invoke_expr.args[0] if len(invoke_expr.args) > 0 else None
+                caller = addr.method.fullname + invoke_expr.base.name
+                caller = addr.method.class_name # fix hint
+                callee_type = param.type if param is not None else ''
+                self._thread_methods[caller] = callee_type
+            elif super_class == 'android.os.AsyncTask':
+                asynctask_callbacks = {'onPreExecute':     (),
+                                       'doInBackground':   ('java.lang.Object[]',),
+                                       'onProgressUpdate': ('java.lang.Object[]',),
+                                       'onCancelled':      (),
+                                       'onPostExecute':    ('java.lang.Object',)
+                                       }
+
+                for method_name, params in asynctask_callbacks.items():
+                    callback_invoke_expr = copy(invoke_expr)
+                    callback_invoke_expr.class_name = invoke_expr.class_name
+                    callback_invoke_expr.method_name = method_name
+                    callback_invoke_expr.method_params = params
+                    succs.extend(self._soot_create_invoke_successors(stmt, addr, callback_invoke_expr))
+
+        # add thread.start()
+        # it may occur that block is NoneType when thread call native method.
+        # so only use on support_jni condition
+        # format: <classname>.run()
+        elif invoke_expr.method_name == 'start':
+            # Runnable arg case
+            caller = addr.method.fullname + invoke_expr.base.name
+            caller = addr.method.class_name # fix hint
+
+            thread_invoke_expr = copy(invoke_expr)
+            thread_invoke_expr.class_name = self._thread_methods.get(caller)
+            if thread_invoke_expr.class_name is not None:
+                thread_invoke_expr.method_name = 'run'
+                succs.extend(self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr))
+            else:
+                print("%s is missing!" % caller)
+
+        elif invoke_expr.class_name == 'java.util.concurrent.Executor' and invoke_expr.method_name == 'execute':
+            if len(invoke_expr.args) > 0:
+                thread_invoke_expr = copy(invoke_expr)
+                thread_invoke_expr.class_name = invoke_expr.args[0].type
+                thread_invoke_expr.method_name = 'run'
+                thread_invoke_expr.method_params = tuple()
+                succs.extend(self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr))
+
 
         # convert 'System.loadLibrary' to JNI_OnLoad of library name
         # format: <libname>.JNI_OnLoad(java.lang.String)
-        elif invoke_expr.class_name == 'System' and invoke_expr.method_name == 'loadLibrary':
+        elif invoke_expr.class_name == 'java.lang.System' and invoke_expr.method_name == 'loadLibrary':
             # Todo: restrictly set condition System.loadlibrary
             try:
                 native_lib_name = invoke_expr.args[0].value.replace('"', '').replace("'", "")
@@ -264,34 +340,8 @@ class CFGFastSoot(CFGFast):
             except AttributeError:
                 pass
             invoke_expr.method_name = 'JNI_OnLoad'
-            succs = self._soot_create_invoke_successors(stmt, addr, invoke_expr)
-
-        # add thread.start()
-        # it may occur that block is NoneType when thread call native method.
-        # so only use on support_jni condition
-        # format: <classname>.run()
-        elif invoke_expr.class_name == 'java.lang.Thread' and invoke_expr.method_name == 'start':
-            # Runnable arg case
-            if invoke_expr.base.type == 'java.lang.Thread':
-                thread_class_name = None
-                args = []
-                for before_stmt in block.statements[:block.statements.index(stmt)]:
-                    if isinstance(before_stmt, InvokeStmt):
-                        args.extend(before_stmt.invoke_expr.args)
-
-                # match arg.name == base.name
-                for name in [arg.name for arg in args if isinstance(arg, SootLocal)]:
-                    thread_class_name = name if name == invoke_expr.base.name else None
-
-            # Basic case
-            else:
-                thread_class_name = invoke_expr.base.type
-
-            if thread_class_name is not None:
-                thread_invoke_expr = copy(invoke_expr)
-                thread_invoke_expr.class_name = thread_class_name
-                thread_invoke_expr.method_name = 'run'
-                succs = self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr)
+            invoke_expr.method_params = tuple()
+            succs.extend(self._soot_create_invoke_successors(stmt, addr, invoke_expr))
 
         return succs
 
@@ -300,7 +350,8 @@ class CFGFastSoot(CFGFast):
         method_class = invoke_expr.class_name
         method_name = invoke_expr.method_name
         method_params = invoke_expr.method_params
-        method_desc = SootMethodDescriptor(method_class, method_name, method_params)
+        method_ret = invoke_expr.type
+        method_desc = SootMethodDescriptor(method_class, method_name, method_params, ret_type=method_ret)
 
         callee_soot_method = self.project.loader.main_object.get_soot_method(method_desc, none_if_missing=True)
         caller_soot_method = self.project.loader.main_object.get_soot_method(addr.method)
@@ -309,7 +360,10 @@ class CFGFastSoot(CFGFast):
             # this means the called method is external
             return [(stmt.label, addr, SootAddressDescriptor(method_desc, 0, 0), 'Ijk_Call')]
 
-        targets = self._soot_class_hierarchy.resolve_invoke(invoke_expr, callee_soot_method, caller_soot_method)
+        try:
+            targets = self._soot_class_hierarchy.resolve_invoke(invoke_expr, callee_soot_method, caller_soot_method)
+        except NoConcreteDispatch:
+            return None
 
         successors = []
         for target in targets:
@@ -440,6 +494,8 @@ class CFGFastSoot(CFGFast):
 
         entries = [ ]
 
+        if successors is None:
+            return [ ]
         for suc in successors:
             stmt_idx, stmt_addr, target, jumpkind = suc
 

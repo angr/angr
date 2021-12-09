@@ -147,7 +147,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             func.add_retout_site(from_node)
 
         # is there any existing edge on the callgraph?
-        edge_data = {'type': 'call'}
+        edge_data = {'type': 'call', 'stmt_idx': stmt_idx}
         if function_addr not in self.callgraph or \
                 to_addr not in self.callgraph[function_addr] or \
                 edge_data not in self.callgraph[function_addr][to_addr].values():

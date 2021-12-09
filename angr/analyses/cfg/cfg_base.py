@@ -1565,9 +1565,9 @@ class CFGBase(Analysis):
                     next_block_irsb = next_block.vex_nostmt
                     if next_block_irsb.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                         break
-                    if not isinstance(next_block_irsb.next, pyvex.IRExpr.Const):
+                    if not isinstance(next_block_irsb.target_apk, pyvex.IRExpr.Const):
                         break
-                    suc_addr = next_block_irsb.next.con.value
+                    suc_addr = next_block_irsb.target_apk.con.value
                     if max(startpoint_addr, the_endpoint.addr - 0x40) <= suc_addr < the_endpoint.addr + the_endpoint.size:
                         # increment the endpoint_addr
                         endpoint_addr = next_block.addr + next_block.size
@@ -1666,7 +1666,7 @@ class CFGBase(Analysis):
                 if self._is_noop_block(self.project.arch, block):
                     continue
 
-                target = block.vex.next
+                target = block.vex.target_apk
                 if isinstance(target, pyvex.IRExpr.Const):  # pylint: disable=unidiomatic-typecheck
                     target_addr = target.con.value
                 elif type(target) in (pyvex.IRConst.U16, pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
@@ -2213,7 +2213,7 @@ class CFGBase(Analysis):
         # the block is a noop block if it only has IMark statements **and** it jumps to its immediate successor. VEX
         # will generate such blocks when opt_level==1 and cross_insn_opt is True
         fallthrough_addr = block.addr + block.size
-        next_ = block.vex.next
+        next_ = block.vex.target_apk
         if isinstance(next_, pyvex.IRExpr.Const) and next_.con.value == fallthrough_addr:
             if all((type(stmt) is pyvex.IRStmt.IMark) for stmt in block.vex.statements):
                 return True
@@ -2337,9 +2337,9 @@ class CFGBase(Analysis):
         # pre-check: if re-lifting the block with full optimization (cross-instruction-optimization enabled) gives us
         # a constant next expression, we don't need to resolve it
         relifted = self.project.factory.block(block.addr, size=block.size, opt_level=1, cross_insn_opt=True).vex
-        if isinstance(relifted.next, pyvex.IRExpr.Const):
+        if isinstance(relifted.target_apk, pyvex.IRExpr.Const):
             # yes!
-            return True, [relifted.next.con.value]
+            return True, [relifted.target_apk.con.value]
 
         if block.statements is None:
             # make sure there are statements
