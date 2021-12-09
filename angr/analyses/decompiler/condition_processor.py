@@ -74,7 +74,7 @@ class ConditionProcessor:
         else:
             _g = region.graph
         end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
-        inverted_graph = shallow_reverse(_g)
+        inverted_graph: networkx.DiGraph = shallow_reverse(_g)
         if end_nodes:
             if len(end_nodes) > 1:
                 # make sure there is only one end node

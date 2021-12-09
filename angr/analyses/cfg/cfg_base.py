@@ -320,7 +320,7 @@ class CFGBase(Analysis):
         return self._model.get_exit_stmt_idx(src_block, dst_block)
 
     @property
-    def graph(self):
+    def graph(self) -> networkx.DiGraph:
         raise NotImplementedError()
 
     def remove_edge(self, block_from, block_to):
@@ -1036,7 +1036,7 @@ class CFGBase(Analysis):
 
         self._normalized = True
 
-    def _normalize_core(self, graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes):
+    def _normalize_core(self, graph: networkx.DiGraph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes):
 
         # Break other nodes
         for n in other_nodes:
