@@ -24,6 +24,7 @@ from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
     from ...knowledge_plugins import FunctionManager
+    from .function_handler import FunctionHandler
 
 
 l = logging.getLogger(name=__name__)
@@ -44,7 +45,7 @@ class SimEngineRDVEX(
         self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
         self.functions: Optional['FunctionManager'] = functions
-        self._function_handler = function_handler
+        self._function_handler: "FunctionHandler" = function_handler
         self._visited_blocks = None
         self._dep_graph = None
 
@@ -1044,7 +1045,7 @@ class SimEngineRDVEX(
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
                 codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
-                executed_rda, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
+                executed_rda, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
                     self.state,
                     func_addr_int,
                     self._call_stack,

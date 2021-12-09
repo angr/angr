@@ -1,7 +1,7 @@
 
 import logging
 from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 import ailment
 import pyvex
@@ -22,12 +22,14 @@ from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
-
+    from .function_handler import FunctionHandler
+    from typing import Literal, Iterable
+    ObservationPoint = Tuple[Literal['insn', 'node'], int, Literal[0, 1]]
 
 l = logging.getLogger(name=__name__)
 
 
-class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
+class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState], Analysis):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a
     function or a block. It supports both VEX and AIL. By registering observers to observation points, users may use
@@ -49,10 +51,10 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=
             track_tmps=False,
             track_calls=None,
             track_consts=False,
-            observation_points=None,
+            observation_points: "Iterable[ObservationPoint]" =None,
             init_state: ReachingDefinitionsState=None,
             cc=None,
-            function_handler=None,
+            function_handler: "Optional[FunctionHandler]" = None,
             call_stack: Optional[List[int]]=None,
             maximum_local_call_depth=5,
             observe_all=False,

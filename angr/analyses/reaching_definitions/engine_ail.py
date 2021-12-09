@@ -18,6 +18,7 @@ from ...knowledge_plugins.key_definitions.live_definitions import Definition
 from .subject import SubjectType
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
+from .function_handler import FunctionHandler
 
 l = logging.getLogger(name=__name__)
 
@@ -30,7 +31,8 @@ class SimEngineRDAIL(
     arch: archinfo.Arch
     state: ReachingDefinitionsState
 
-    def __init__(self, project, call_stack, maximum_local_call_depth, function_handler=None):
+    def __init__(self, project, call_stack, maximum_local_call_depth,
+                 function_handler: Optional[FunctionHandler] = None):
         super().__init__()
         self.project = project
         self._call_stack = call_stack
@@ -884,7 +886,7 @@ class SimEngineRDAIL(
         elif is_internal is True:
             handler_name = 'handle_local_function'
             if hasattr(self._function_handler, handler_name):
-                is_updated, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
+                is_updated, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
                     self.state,
                     ip_addr,
                     self._call_stack,

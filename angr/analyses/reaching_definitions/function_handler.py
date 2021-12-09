@@ -1,10 +1,16 @@
-from typing import TYPE_CHECKING, List, Set, Optional
+from typing import TYPE_CHECKING, List, Set, Optional, Tuple, Union
 from abc import ABC, abstractmethod
+
 
 if TYPE_CHECKING:
     from angr.code_location import CodeLocation
     from angr.analyses.reaching_definitions.dep_graph import DepGraph
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
+    from angr.analyses.ddg import LiveDefinitions
+    from angr import Block
+    from angr.codenode import CodeNode
+    from angr.knowledge_plugins.cfg import CFGNode
+    from ailment import Block as AILBlock
 
 
 class FunctionHandler(ABC):
@@ -29,10 +35,11 @@ class FunctionHandler(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def handle_local_function(self, state: 'ReachingDefinitionsState', function_address: int, call_stack: List,
+    def handle_local_function(self, state: 'ReachingDefinitionsState', function_address: int, call_stack: Optional[List],
                               maximum_local_call_depth: int, visited_blocks: Set[int], dep_graph: 'DepGraph',
-                              src_ins_addr: Optional[int]=None,
-                              codeloc: Optional['CodeLocation']=None):
+                              src_ins_addr: Optional[int] = None,
+                              codeloc: Optional['CodeLocation'] = None) -> Tuple[
+        bool, "ReachingDefinitionsState", "Set[int]", "DepGraph"]:
         """
         :param state: The state at the entry of the function, i.e. the function's input state.
         :param function_address: The address of the function to handle.
@@ -41,7 +48,5 @@ class FunctionHandler(ABC):
         :param visited_blocks: A set of the addresses of the previously visited blocks.
         :param dep_graph: A definition-use graph, where nodes represent definitions, and edges represent uses.
         :param codeloc: The code location of the call to the analysed function.
-
-        :return Tuple[Boolean,LiveDefinitions,List<ailment.Block|Block|CodeNode|CFGNode>,DepGraph]:
         """
         raise NotImplementedError()
