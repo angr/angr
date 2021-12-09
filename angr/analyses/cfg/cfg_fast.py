@@ -2435,7 +2435,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         for i, data_addr in enumerate(keys):
             data = self._memory_data[data_addr]
             if self._addr_in_exec_memory_regions(data.address):
-                # TODO: Handle data among code regions (or executable regions)
+                # TODO: Handle data in code regions (or executable regions)
                 pass
             else:
                 if i + 1 != len(keys):
@@ -2786,6 +2786,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # occupy the jump table region
             if jump.jumptable_addr is not None:
                 self._seg_list.occupy(jump.jumptable_addr, jump.jumptable_size, "data")
+                if self._collect_data_ref:
+                    if jump.jumptable_addr in self._memory_data:
+                        memory_data = self._memory_data[jump.jumptable_addr]
+                        memory_data.size = jump.jumptable_size
+                        memory_data.sort = "data"
+                    else:
+                        memory_data = MemoryData(jump.jumptable_addr, jump.jumptable_size, "data")
+                        self._memory_data[jump.jumptable_addr] = memory_data
 
         jump.resolved_targets = targets
         all_targets = set(targets)
