@@ -2621,30 +2621,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Nothing much you can do
             return None, None
 
-        pointers_count = 0
-
-        max_pointer_array_size = min(512 * pointer_size, max_size)
-        for i in range(0, max_pointer_array_size, pointer_size):
-            ptr = self._fast_memory_load_pointer(data_addr + i)
-
-            if ptr is not None:
-                #if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
-                #    # it's a code reference
-                #    # TODO: Further check if it's the beginning of an instruction
-                #    pass
-                if self.project.loader.find_section_containing(ptr) is not None or \
-                        self.project.loader.find_segment_containing(ptr) is not None or \
-                        (self._extra_memory_regions and
-                         next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None)
-                         ):
-                    # it's a pointer of some sort
-                    # TODO: Determine what sort of pointer it is
-                    pointers_count += 1
-                else:
-                    break
-
-        if pointers_count:
-            return MemoryDataSort.PointerArray, pointer_size * pointers_count
+        r = self._guess_data_type_pointer_array(data_addr, pointer_size, max_size)
+        if r is not None:
+            return r
 
         try:
             data = self.project.loader.memory.load(data_addr, 1024)
@@ -2697,6 +2676,34 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 return sort, size
 
         return None, None
+
+    def _guess_data_type_pointer_array(self, data_addr: int, pointer_size: int, max_size: int):
+        pointers_count = 0
+
+        max_pointer_array_size = min(512 * pointer_size, max_size)
+        for i in range(0, max_pointer_array_size, pointer_size):
+            ptr = self._fast_memory_load_pointer(data_addr + i)
+
+            if ptr is not None:
+                #if self._seg_list.is_occupied(ptr) and self._seg_list.occupied_by_sort(ptr) == 'code':
+                #    # it's a code reference
+                #    # TODO: Further check if it's the beginning of an instruction
+                #    pass
+                if self.project.loader.find_section_containing(ptr) is not None or \
+                        self.project.loader.find_segment_containing(ptr) is not None or \
+                        (self._extra_memory_regions and
+                         next(((a < ptr < b) for (a, b) in self._extra_memory_regions), None)
+                         ):
+                    # it's a pointer of some sort
+                    # TODO: Determine what sort of pointer it is
+                    pointers_count += 1
+                else:
+                    break
+
+        if pointers_count:
+            return MemoryDataSort.PointerArray, pointer_size * pointers_count
+
+        return None
 
     def _guess_data_type_elfheader(self, data_addr, max_size):
         """
@@ -2790,9 +2797,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     if jump.jumptable_addr in self._memory_data:
                         memory_data = self._memory_data[jump.jumptable_addr]
                         memory_data.size = jump.jumptable_size
-                        memory_data.sort = "data"
+                        memory_data.max_size = jump.jumptable_size
+                        memory_data.sort = MemoryDataSort.Unknown
                     else:
-                        memory_data = MemoryData(jump.jumptable_addr, jump.jumptable_size, "data")
+                        memory_data = MemoryData(jump.jumptable_addr, jump.jumptable_size, MemoryDataSort.Unknown,
+                                                 max_size=jump.jumptable_size)
                         self._memory_data[jump.jumptable_addr] = memory_data
 
         jump.resolved_targets = targets
