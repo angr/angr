@@ -9,8 +9,9 @@ from claripy import BVV, StrSubstr
 
 from ...calling_conventions import DefaultCC
 from ...sim_procedure import SimProcedure
-from ...sim_type import SimTypeFunction
+from ...sim_type import SimTypeFunction, SimTypeReg
 from ...state_plugins.sim_action_object import SimActionObject
+import angr
 
 l = logging.getLogger('angr.procedures.java_jni')
 
@@ -32,8 +33,11 @@ class JNISimProcedure(SimProcedure):
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
         elif self.return_ty != 'void':
+            reg = SimTypeReg(size=64)
             func_ty = SimTypeFunction(args=[],
-                                      returnty=state.project.simos.get_native_type(self.return_ty))
+                                                  returnty=reg)
+            """func_ty = SimTypeFunction(args=[],
+                                      returnty=state.project.simos.get_native_type(self.return_ty))"""
             self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)
         super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
 

@@ -1579,7 +1579,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self._collect_data_references(irsb, addr)
 
         # Get all possible successors
-        irsb_next, jumpkind = irsb.target_apk, irsb.jumpkind
+        irsb_next, jumpkind = irsb.next, irsb.jumpkind
         successors = [ ]
 
         if irsb.statements:
@@ -3538,8 +3538,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         # loading things into sp
                         last_sp = tmps[stmt.data.tmp]
 
-        if last_sp is not None and isinstance(tmp_irsb.target_apk, pyvex.IRExpr.RdTmp):
-            val = tmps.get(tmp_irsb.target_apk.tmp, None)
+        if last_sp is not None and isinstance(tmp_irsb.next, pyvex.IRExpr.RdTmp):
+            val = tmps.get(tmp_irsb.next.tmp, None)
             # val being None means there are statements that we do not handle
             if isinstance(val, tuple) and val[0] == 'load':
                 # the value comes from memory

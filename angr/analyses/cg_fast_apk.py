@@ -4,6 +4,7 @@ from networkx import union
 from ..project import Project
 from ..sim_options import refs
 from . import Analysis, register_analysis
+import time
 
 l = logging.getLogger(name=__name__)
 
@@ -36,23 +37,31 @@ class CGFastAPK(Analysis):
         # use for future works
         self.native_entrypoints = [ ]
 
+        self.benchmark = dict()
+        t_start = time.process_time()
         self.project.analyses.CFGFastSoot(skip_android_classes=True, support_jni=support_jni)
+        time_cfg_fast_soot = time.process_time() - t_start
+        self.benchmark['cfg_soot'] = time_cfg_fast_soot
 
         if self.native_project is not None:
             self._pre_collect()
             self._merge_callgraph()
         else:
             l.warning('Cannot find native project.')
+            self.callgraphs = [self.project.kb.functions.callgraph]
             self.full_callgraph = self.project.kb.functions.callgraph # Dummy
 
     def _gen_native_project(self):
         # just support first of native libraries
         # multiple libraries make node confliction, it says how to resolve same addr but different library?
+        l.info("Finding elf objects ...")
         elf_objects = self.project.loader.all_elf_objects
 
         if len(elf_objects) < 1:
+            l.info("There is no native library.")
             return None
 
+        l.info("Constructing native project ...")
         main_lib = elf_objects[0]
         other_libs = [lib for lib in elf_objects[1:]]
         other_lib_binaries = [lib.binary for lib in other_libs]
@@ -86,6 +95,7 @@ class CGFastAPK(Analysis):
         find_native_symbol = self.native_project.loader.find_symbol
 
         # get native node in soot callgraph
+        l.info("Collecting symbols of JNI methods in soot callgraph...")
         for soot_node in soot_callgraph.nodes():
             if soot_node.name == 'JNI_OnLoad':
                 native_symbol = self.get_special_symbol(soot_node)
@@ -106,15 +116,22 @@ class CGFastAPK(Analysis):
             else:
                 l.warning('Cannot find address of %s in native project.', soot_node.name)
 
+        l.info("Generating native CFG ...")
+        t_start = time.process_time()
         cfg = self.native_project.analyses.CFGEmulated(keep_state=True,
                                                        context_sensitivity_level=2,
                                                        state_add_options=refs,
                                                        starts=native_addr_list)
+        time_cfg_native = time.process_time() - t_start
+        self.benchmark['cfg_native'] = time_cfg_native
+        l.debug("Native CFG generation time: %f" % time_cfg_native)
         self.native_cfg = cfg
         native_callgraph = cfg.kb.callgraph
         self.callgraphs[1] = native_callgraph
 
         # get native node in native callgraph
+        l.debug("Merging Callgraph ...")
+        t_start = time.process_time()
         for native_node in native_callgraph.nodes():
             try:
                 idx = native_addr_list.index(native_node)
@@ -126,6 +143,9 @@ class CGFastAPK(Analysis):
                 continue
         self.full_callgraph.add_nodes_from(native_callgraph.nodes())
         self.full_callgraph.add_edges_from(native_callgraph.edges())
+        time_merge_cg = time.process_time() - t_start
+        self.benchmark['merge'] = time_merge_cg
+        l.debug("Callgraph merge time: %f" % time_merge_cg)
 
     def get_special_symbol(self, soot_node):
         if soot_node.name == "JNI_OnLoad":

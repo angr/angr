@@ -34,7 +34,12 @@ class NameResolutionMixin(MemoryMixin):
                     self.store('cc_op', 0)
                     return self.state.arch.registers['cc_dep1']
 
-            return self.state.arch.registers[name]
+            reg = self.state.arch.registers.get(name)
+            if reg is None:
+                reg = self.state.arch.registers['rax']
+            return reg
+
+#            return self.state.arch.registers[name]
         elif name[0] == '*':
             return self.state.registers.load(name[1:]), None
         else:

@@ -267,7 +267,7 @@ class CFGFastSoot(CFGFast):
 
     def _special_invoke_successors(self, stmt, addr, block):
         invoke_expr = stmt.invoke_expr if isinstance(stmt, InvokeStmt) else stmt.right_op
-        succs = [ ]
+        special_succs = [ ]
         #if invoke_expr.class_name == "android.content.Intent" and invoke_expr.method_name == "setComponent":
         #    print(invoke_expr)
 
@@ -277,11 +277,17 @@ class CFGFastSoot(CFGFast):
             clinit_invoke_expr = copy(invoke_expr)
             clinit_invoke_expr.method_name = '<clinit>'
             clinit_invoke_expr.method_params = tuple()
-            succs.extend(self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr))
+            succs = self._soot_create_invoke_successors(stmt, addr, clinit_invoke_expr)
+
+            if succs is None:
+                return special_succs
+
+            special_succs.extend(succs)
 
             # register thread
             cls = self.project.loader.main_object.classes.get(invoke_expr.class_name)
             super_class = cls.super_class if cls is not None else ''
+
             if invoke_expr.class_name == 'java.lang.Thread' or super_class == 'java.lang.Thread':
                 param_type = invoke_expr.method_params[0] if len(invoke_expr.method_params) > 0 else None
                 param = invoke_expr.args[0] if len(invoke_expr.args) > 0 else None
@@ -302,7 +308,7 @@ class CFGFastSoot(CFGFast):
                     callback_invoke_expr.class_name = invoke_expr.class_name
                     callback_invoke_expr.method_name = method_name
                     callback_invoke_expr.method_params = params
-                    succs.extend(self._soot_create_invoke_successors(stmt, addr, callback_invoke_expr))
+                    special_succs.extend(self._soot_create_invoke_successors(stmt, addr, callback_invoke_expr))
 
         # add thread.start()
         # it may occur that block is NoneType when thread call native method.
@@ -310,14 +316,13 @@ class CFGFastSoot(CFGFast):
         # format: <classname>.run()
         elif invoke_expr.method_name == 'start':
             # Runnable arg case
-            caller = addr.method.fullname + invoke_expr.base.name
             caller = addr.method.class_name # fix hint
 
             thread_invoke_expr = copy(invoke_expr)
             thread_invoke_expr.class_name = self._thread_methods.get(caller)
             if thread_invoke_expr.class_name is not None:
                 thread_invoke_expr.method_name = 'run'
-                succs.extend(self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr))
+                special_succs.extend(self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr))
             else:
                 print("%s is missing!" % caller)
 
@@ -327,7 +332,7 @@ class CFGFastSoot(CFGFast):
                 thread_invoke_expr.class_name = invoke_expr.args[0].type
                 thread_invoke_expr.method_name = 'run'
                 thread_invoke_expr.method_params = tuple()
-                succs.extend(self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr))
+                special_succs.extend(self._soot_create_invoke_successors(stmt, addr, thread_invoke_expr))
 
 
         # convert 'System.loadLibrary' to JNI_OnLoad of library name
@@ -341,9 +346,9 @@ class CFGFastSoot(CFGFast):
                 pass
             invoke_expr.method_name = 'JNI_OnLoad'
             invoke_expr.method_params = tuple()
-            succs.extend(self._soot_create_invoke_successors(stmt, addr, invoke_expr))
+            special_succs.extend(self._soot_create_invoke_successors(stmt, addr, invoke_expr))
 
-        return succs
+        return special_succs
 
     def _soot_create_invoke_successors(self, stmt, addr, invoke_expr):
 

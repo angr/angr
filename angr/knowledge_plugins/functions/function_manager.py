@@ -10,7 +10,7 @@ from ..plugin import KnowledgeBasePlugin
 from .function import Function
 from .soot_function import SootFunction
 
-from archinfo.arch_soot import SootMethodDescriptor
+from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -147,7 +147,11 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             func.add_retout_site(from_node)
 
         # is there any existing edge on the callgraph?
-        edge_data = {'type': 'call', 'stmt_idx': stmt_idx}
+        if isinstance(ins_addr, SootAddressDescriptor):
+            edge_data = {'type': 'call', 'stmt_idx': stmt_idx}
+        else:
+            edge_data = {'type': 'call'}
+
         if function_addr not in self.callgraph or \
                 to_addr not in self.callgraph[function_addr] or \
                 edge_data not in self.callgraph[function_addr][to_addr].values():
