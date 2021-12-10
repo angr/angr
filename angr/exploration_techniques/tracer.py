@@ -672,8 +672,8 @@ class Tracer(ExplorationTechnique):
 
             curr_block_addr = curr_block.addr + curr_block.size
 
-        for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
-            if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
+        for last_contain_index in range(trace_match_idx + 1, trace_curr_idx + 1):
+            if self._trace[last_contain_index] <= big_block_start or self._trace[last_contain_index] > big_block_end:
                 # This qemu block is not contained in the bigger block
                 return (False, -1)
 
