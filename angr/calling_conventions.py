@@ -649,6 +649,8 @@ class SimCC:
         return result
 
     def arg_locs(self, prototype):
+        if prototype._arch is None:
+            prototype = prototype.with_arch(self.arch)
         session = self.arg_session(prototype.returnty)
         return [self.next_arg(session, arg_ty) for arg_ty in prototype.args]
 
@@ -812,10 +814,10 @@ class SimCC:
             if not isinstance(ty, SimTypePointer):
                 raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty.name)
 
-            if arg.buffer:
+            if arg.buffer or type(arg.value) in (bytes, str):
                 if isinstance(arg.value, claripy.Bits):
                     real_value = arg.value.chop(state.arch.byte_width)
-                elif type(arg.value) is bytes:
+                elif type(arg.value) in (bytes, str):
                     real_value = claripy.BVV(arg.value).chop(8)
                 else:
                     raise TypeError("PointerWrapper(buffer=True) can only be used with a bitvector or a bytestring")
