@@ -62,9 +62,7 @@ class CallMethodBase(JNISimProcedure):
         self.call(invoke_addr, java_args, "return_from_invocation", cc=SimCCSoot(ArchSoot()))
 
     def _get_arg_values(self, no_of_args):
-        # why tf are you too good to just use the args I've passed you
-        new_prototype = self.cc.guess_prototype([0]*no_of_args)
-        return self.cc.get_args(self.state, new_prototype)
+        return [self.va_arg('void*') for _ in range(no_of_args)]
 
     def _get_arg_values_from_array(self, array, no_of_args):
         return self._load_from_native_memory(addr=array, data_size=self.arch.bytes,

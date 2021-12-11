@@ -6,6 +6,7 @@ from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor,
                                 SootNullConstant)
 from claripy import BVS, BVV, StringS, StringV, FSORT_FLOAT, FSORT_DOUBLE, FPV, FPS
 from claripy.ast.fp import FP, fpToIEEEBV
+from claripy.ast.bv import BV
 
 from ..calling_conventions import DEFAULT_CC, SimCCSoot
 from ..engines.soot import SootMixin
@@ -217,9 +218,24 @@ class SimJavaVM(SimOS):
 
         else:
             # NATIVE CALLSITE
+
+            # setup native return type
+            # TODO roll this into protytype
+            ret_type = kwargs.pop('ret_type')
+            native_ret_type = self.get_native_type(ret_type)
+
+            # setup function prototype, so the SimCC know how to init the callsite
+            prototype = kwargs.pop('prototype', None)
+            if prototype is None:
+                arg_types = [self.get_native_type(arg.type) for arg in args]
+                prototype = SimTypeFunction(args=arg_types, returnty=native_ret_type)
+            native_cc = kwargs.pop('cc', None)
+            if native_cc is None:
+                native_cc = self.get_native_cc()
+
             # setup native argument values
             native_arg_values = []
-            for arg in args:
+            for arg, arg_ty in zip(args, prototype.args):
                 if arg.type in ArchSoot.primitive_types or \
                    arg.type == "JNIEnv":
                     # the value of primitive types and the JNIEnv pointer
@@ -228,7 +244,8 @@ class SimJavaVM(SimOS):
                     if self.arch.bits == 32 and arg.type == "long":
                         # On 32 bit architecture, long values (w/ 64 bit) are copied
                         # as two 32 bit integer
-                        # TODO is this correct?
+                        # TODO I _think_ all this logic can go away as long as the cc knows how to store large values
+                        # TODO this has been mostly implemented 11 Dec 2021
                         upper = native_arg_value.get_bytes(0, 4)
                         lower = native_arg_value.get_bytes(4, 4)
                         idx = args.index(arg)
@@ -237,21 +254,15 @@ class SimJavaVM(SimOS):
                                + args[idx+1:]
                         native_arg_values += [upper, lower]
                         continue
+                    if type(arg.value) is BV and len(arg.value) > arg_ty.size:
+                        # hack??? all small primitives are passed around as 32bit but cc won't like that
+                        native_arg_value = native_arg_value[arg_ty.size - 1:0]
                 else:
                     # argument has a relative type
                     # => map Java reference to an opaque reference, which the native code
                     #    can use to access the Java object through the JNI interface
                     native_arg_value = state.jni_references.create_new_reference(obj=arg.value)
                 native_arg_values += [native_arg_value]
-
-            # setup native return type
-            ret_type = kwargs.pop('ret_type')
-            native_ret_type = self.get_native_type(ret_type)
-
-            # setup function prototype, so the SimCC know how to init the callsite
-            arg_types = [self.get_native_type(arg.type) for arg in args]
-            prototype = SimTypeFunction(args=arg_types, returnty=native_ret_type)
-            native_cc = self.get_native_cc()
 
             # setup native invoke state
             return self.native_simos.state_call(addr, *native_arg_values,
@@ -269,9 +280,9 @@ class SimJavaVM(SimOS):
         Java specify defaults values for primitive and reference types. This
         method returns the default value for a given type.
 
-        :param str type_:   Name of type.
-        :param str state:   Current SimState.
-        :return:            Default value for this type.
+        :param str type_:       Name of type.
+        :param SimState state:  Current SimState.
+        :return:                Default value for this type.
         """
         if options.ZERO_FILL_UNCONSTRAINED_MEMORY not in state.options:
             return SimJavaVM._get_default_symbolic_value_by_type(type_, state)
@@ -421,6 +432,9 @@ class SimJavaVM(SimOS):
             # if it's not a primitive type, we treat it as a reference
             jni_type_size = self.native_simos.arch.bits
         return SimTypeNum(size=jni_type_size)
+
+    def get_method_native_type(self, method):
+        return SimTypeFunction
 
     @property
     def native_arch(self):

@@ -670,7 +670,7 @@ class SimCC:
         :param state:           The SimState to operate on
         :param ret_addr:        The address to return to when the called function finishes
         :param args:            The list of arguments that that the called function will see
-        :param prototype:         The signature of the call you're making. Should include variadic args concretely.
+        :param prototype:       The signature of the call you're making. Should include variadic args concretely.
         :param stack_base:      An optional pointer to use as the top of the stack, circa the function entry point
         :param alloc_base:      An optional pointer to use as the place to put excess argument data
         :param grow_like_stack: When allocating data at alloc_base, whether to allocate at decreasing addresses
@@ -1639,6 +1639,11 @@ class SimCCSoot(SimCC):
 
     def setup_callsite(self, state, ret_addr, args, prototype, stack_base=None, alloc_base=None, grow_like_stack=True):
         SootMixin.setup_callsite(state, args, ret_addr)
+
+    @staticmethod
+    def guess_prototype(args, prototype=None):
+        # uhhhhhhhhhhhhhhhh
+        return None
 
 
 class SimCCUnknown(SimCC):

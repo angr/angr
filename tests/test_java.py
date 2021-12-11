@@ -248,7 +248,7 @@ def test_jni_primitive_datatypes():
 
     run_method(project=project,
                method="MixedJava.test_short",
-               assert_locals={'s3': 0x1000, 's0': 11, 's5': 0xfffff000, 's9': 0})
+               assert_locals={'s3': 0x1000, 's5': 0xfffff000, 's0': 11, 's9': 0})
 
     run_method(project=project,
                method="MixedJava.test_int",
