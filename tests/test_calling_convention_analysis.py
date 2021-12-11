@@ -98,7 +98,8 @@ def check_args(func_name, args, expected_arg_strs):
 
 
 def _a(funcs, func_name):
-    return funcs[func_name].calling_convention.args
+    func = funcs[func_name]
+    return func.calling_convention.arg_locs(func.prototype)
 
 
 def test_x8664_dir_gcc_O0():
