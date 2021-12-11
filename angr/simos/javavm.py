@@ -246,6 +246,7 @@ class SimJavaVM(SimOS):
                         # as two 32 bit integer
                         # TODO I _think_ all this logic can go away as long as the cc knows how to store large values
                         # TODO this has been mostly implemented 11 Dec 2021
+                        # unfortunately no test cases hit this branch so I don't wanna touch it :(
                         upper = native_arg_value.get_bytes(0, 4)
                         lower = native_arg_value.get_bytes(4, 4)
                         idx = args.index(arg)
