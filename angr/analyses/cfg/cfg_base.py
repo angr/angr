@@ -1691,9 +1691,12 @@ class CFGBase(Analysis):
 
                 # Merge block addr_0 and block addr_1
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
-                self._merge_cfgnodes(cfgnode_0, cfgnode_1)
-                adjusted_cfgnodes.add(cfgnode_0)
-                adjusted_cfgnodes.add(cfgnode_1)
+
+                # we only merge two CFG nodes if the first one does not end with a branch instruction
+                if self.project.factory.block(cfgnode_0.addr).size > cfgnode_0.size:
+                    self._merge_cfgnodes(cfgnode_0, cfgnode_1)
+                    adjusted_cfgnodes.add(cfgnode_0)
+                    adjusted_cfgnodes.add(cfgnode_1)
 
                 # Merge it
                 func_1 = functions[addr_1]
