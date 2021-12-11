@@ -548,7 +548,7 @@ class Clinic(Analysis):
 
     @timethis
     def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
-        if self.function.prototype is not None:
+        if self.function.prototype is not None and not self.function.is_prototype_guessed:
             # do not overwrite an existing function prototype
             # if you want to re-generate the prototype, clear the existing one first
             return
@@ -580,6 +580,7 @@ class Clinic(Analysis):
         returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
+        self.function.is_prototype_guessed = False
 
     @timethis
     def _recover_and_link_variables(self, ail_graph, arg_list):

@@ -42,7 +42,7 @@ class Function(Serializable):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags', 'alignment',
+                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
@@ -97,6 +97,7 @@ class Function(Serializable):
         self.calling_convention = None  # type: Optional[SimCC]
         # Function prototype
         self.prototype = None  # type: Optional[SimTypeFunction]
+        self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
         self.prepared_registers = set()

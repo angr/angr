@@ -68,6 +68,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                     _l.info("Determined calling convention and prototype for %r.", func)
                     func.calling_convention = cc_analysis.cc
                     func.prototype = cc_analysis.prototype
+                    func.is_prototype_guessed = True
                 else:
                     _l.info("Cannot determine calling convention for %r.", func)
 
