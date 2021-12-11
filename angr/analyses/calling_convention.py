@@ -5,8 +5,8 @@ import logging
 import networkx
 from archinfo.arch_arm import is_arm_arch
 
-from ..calling_conventions import SimRegArg, SimStackArg, SimCC, DefaultCC
-from ..sim_type import SimTypeInt
+from ..calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg, SimCC, DefaultCC
+from ..sim_type import SimTypeInt, SimTypeFunction, SimType, SimTypeLongLong, SimTypeShort, SimTypeChar, SimTypeBottom
 from ..sim_variable import SimStackVariable, SimRegisterVariable
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation, SpOffset
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
@@ -47,7 +47,7 @@ class UpdateArgumentsOption:
 
 class CallingConventionAnalysis(Analysis):
     """
-    Analyze the calling convention of functions.
+    Analyze the calling convention of a function and guess a probable prototype.
 
     The calling convention of a function can be inferred at both its call sites and the function itself. At call sites,
     we consider all register and stack variables that are not alive after the function call as parameters to this
@@ -73,6 +73,7 @@ class CallingConventionAnalysis(Analysis):
         self.analyze_callsites = analyze_callsites
 
         self.cc: Optional[SimCC] = None
+        self.prototype: Optional[SimTypeFunction] = None
 
         if self._cfg is None and 'CFGFast' in self.kb.cfgs:
             self._cfg = self.kb.cfgs['CFGFast']
@@ -86,28 +87,37 @@ class CallingConventionAnalysis(Analysis):
 
         if self._function.is_simprocedure:
             self.cc = self._function.calling_convention
+            self.prototype = self._function.prototype
             if self.cc is None:
                 callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
                 cc = DefaultCC[self.project.arch.name](self.project.arch)
-                cc = self._adjust_cc(cc, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+                prototype = self._adjust_prototype(self.prototype, callsite_facts,
+                                                   update_arguments=UpdateArgumentsOption.AlwaysUpdate)
                 self.cc = cc
+                self.prototype = prototype
             return
         if self._function.is_plt:
-            self.cc = self._analyze_plt()
+            r = self._analyze_plt()
+            if r is not None:
+                self.cc, self.prototype = r
             return
 
-        cc = self._analyze_function()
-        if self.analyze_callsites:
-            # only take the first 3 because running reaching definition analysis on all functions is costly
-            callsite_facts = self._analyze_callsites(max_analyzing_callsites=3)
-            cc = self._adjust_cc(cc, callsite_facts, update_arguments=UpdateArgumentsOption.UpdateWhenCCHasNoArgs)
-
-        if cc is None:
+        r = self._analyze_function()
+        if r is None:
             l.warning('Cannot determine calling convention for %r.', self._function)
+        else:
+            # adjust prototype if needed
+            cc, prototype = r
+            if self.analyze_callsites:
+                # only take the first 3 because running reaching definition analysis on all functions is costly
+                callsite_facts = self._analyze_callsites(max_analyzing_callsites=3)
+                prototype = self._adjust_prototype(prototype, callsite_facts,
+                                                   update_arguments=UpdateArgumentsOption.UpdateWhenCCHasNoArgs)
 
-        self.cc = cc
+            self.cc = cc
+            self.prototype = prototype
 
-    def _analyze_plt(self) -> Optional[SimCC]:
+    def _analyze_plt(self) -> Optional[Tuple[SimCC,SimTypeFunction]]:
         """
         Get the calling convention for a PLT stub.
 
@@ -137,17 +147,19 @@ class CallingConventionAnalysis(Analysis):
             if real_func.is_simprocedure and self.project.is_hooked(real_func.addr):
                 hooker = self.project.hooked_by(real_func.addr)
                 if hooker is not None and (not hooker.is_stub or real_func.calling_convention.func_ty is not None):
-                    return real_func.calling_convention
+                    return real_func.calling_convention, real_func.prototype
             else:
-                return real_func.calling_convention
+                return real_func.calling_convention, real_func.prototype
 
         # determine the calling convention by analyzing its callsites
         callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
         cc = DefaultCC[self.project.arch.name](self.project.arch)
-        cc = self._adjust_cc(cc, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate)
-        return cc
+        prototype = SimTypeFunction([ ], None)
+        prototype = self._adjust_prototype(prototype, callsite_facts,
+                                           update_arguments=UpdateArgumentsOption.AlwaysUpdate)
+        return cc, prototype
 
-    def _analyze_function(self) -> Optional[SimCC]:
+    def _analyze_function(self) -> Optional[Tuple[SimCC,SimTypeFunction]]:
         """
         Go over the variable information in variable manager for this function, and return all uninitialized
         register/stack variables.
@@ -175,15 +187,13 @@ class CallingConventionAnalysis(Analysis):
         if cc is None:
             l.warning('_analyze_function(): Cannot find a calling convention for %r that fits the given arguments.',
                       self._function)
+            return None
         else:
             # reorder args
             args = self._reorder_args(input_args, cc)
-            cc.args = args
+            prototype = SimTypeFunction([self._guess_arg_type(arg) for arg in args], SimTypeInt())
 
-            # set return value
-            cc.ret_val = cc.return_val
-
-        return cc
+        return cc, prototype
 
     def _analyze_callsites(self, max_analyzing_callsites: int=3) -> List[CallSiteFact]:  # pylint:disable=no-self-use
         """
@@ -348,28 +358,25 @@ class CallingConventionAnalysis(Analysis):
             else:
                 break
 
-    @staticmethod
-    def _adjust_cc(cc: SimCC, facts: List[CallSiteFact],
-                   update_arguments: int=UpdateArgumentsOption.DoNotUpdate):
+    def _adjust_prototype(self, proto: Optional[SimTypeFunction], facts: List[CallSiteFact],
+                          update_arguments: int=UpdateArgumentsOption.DoNotUpdate) -> Optional[SimTypeFunction]:
 
-        if cc is None:
-            return cc
+        if proto is None:
+            return None
 
         # is the return value used anywhere?
         if facts and all(fact.return_value_used is False for fact in facts):
-            cc.ret_val = None
-        else:
-            cc.ret_val = cc.RETURN_VAL
+            proto.returnty = None
 
         if update_arguments == UpdateArgumentsOption.AlwaysUpdate or (
                 update_arguments == UpdateArgumentsOption.UpdateWhenCCHasNoArgs and
-                not cc.args
+                not proto.args
         ):
             if len(set(len(fact.args) for fact in facts)) == 1:
                 fact = next(iter(facts))
-                cc.args = fact.args
+                proto.args = [self._guess_arg_type(arg) for arg in fact.args]
 
-        return cc
+        return proto
 
     def _args_from_vars(self, variables: List, var_manager):
         """
@@ -516,6 +523,19 @@ class CallingConventionAnalysis(Analysis):
         args = [ a for a in args if not isinstance(a, SimStackArg) ]
 
         return reg_args + args + stack_args
+
+    def _guess_arg_type(self, arg: SimFunctionArgument) -> SimType:
+        if arg.size == 4:
+            return SimTypeInt()
+        elif arg.size == 8:
+            return SimTypeLongLong()
+        elif arg.size == 2:
+            return SimTypeShort()
+        elif arg.size == 1:
+            return SimTypeChar()
+        else:
+            # Unsupported for now
+            return SimTypeBottom()
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")

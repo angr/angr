@@ -6,7 +6,7 @@ import claripy
 import archinfo
 from archinfo import RegisterName
 
-from .sim_type import SimTypeChar, SimTypePointer, SimTypeFixedSizeArray, SimTypeArray, SimTypeString, \
+from .sim_type import SimType, SimTypeChar, SimTypePointer, SimTypeFixedSizeArray, SimTypeArray, SimTypeString, \
     SimTypeFunction, SimTypeFloat, SimTypeDouble, SimTypeReg, SimStruct, SimStructValue, SimTypeInt, SimTypeNum, \
     SimUnion, SimTypeBottom, parse_signature
 
@@ -510,7 +510,8 @@ class SimCC:
         return None
 
     ArgSession = ArgSession     # import this from global scope so SimCC subclasses can subclass it if they like
-    def arg_session(self, ret_ty):
+
+    def arg_session(self, ret_ty: Optional[SimType]):
         """
         Return an arg session.
 
@@ -1289,7 +1290,9 @@ class SimCCSystemVAMD64(SimCC):
 
         return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
 
-    def return_val(self, ty, perspective_returned=False):
+    def return_val(self, ty: Optional[SimType], perspective_returned=False):
+        if ty is None:
+            return None
         if ty._arch is None:
             ty = ty.with_arch(self.arch)
         classification = self._classify(ty)

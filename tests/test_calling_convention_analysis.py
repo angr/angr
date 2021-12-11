@@ -199,27 +199,30 @@ def test_x86_saved_regs():
     proj.analyses.VariableRecoveryFast(func)
     cca = proj.analyses.CallingConvention(func)
     cc = cca.cc
+    prototype = cca.prototype
 
     assert cc is not None, "Calling convention analysis failed to determine the calling convention of function " \
                            "0x80494f0."
     assert isinstance(cc, SimCCCdecl)
-    assert len(cc.args) == 3
-    assert cc.args[0] == SimStackArg(4, 4)
-    assert cc.args[1] == SimStackArg(8, 4)
-    assert cc.args[2] == SimStackArg(12, 4)
+    assert len(prototype.args) == 3
+    arg_locs = cc.arg_locs(prototype)
+    assert next(arg_locs) == SimStackArg(4, 4)
+    assert next(arg_locs) == SimStackArg(8, 4)
+    assert next(arg_locs) == SimStackArg(12, 4)
 
     func_exit = cfg.functions[0x804a1a9]  # exit
 
     proj.analyses.VariableRecoveryFast(func_exit)
     cca = proj.analyses.CallingConvention(func_exit)
     cc = cca.cc
+    prototype = cca.prototype
 
     assert func_exit.returning is False
     assert cc is not None, "Calling convention analysis failed to determine the calling convention of function " \
                            "0x804a1a9."
     assert isinstance(cc, SimCCCdecl)
-    assert len(cc.args) == 1
-    assert cc.args[0] == SimStackArg(4, 4)
+    assert len(prototype.args) == 1
+    assert next(cc.arg_locs(prototype)) == SimStackArg(4, 4)
 
 
 def test_callsite_inference_amd64():
@@ -232,7 +235,7 @@ def test_callsite_inference_amd64():
 
     func = cfg.functions.function(name='mosquitto_publish', plt=True)
     cca = proj.analyses.CallingConvention(func)
-    assert len(cca.cc.args) == 6
+    assert len(cca.prototype.args) == 6
 
 
 def run_all():

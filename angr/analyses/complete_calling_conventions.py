@@ -65,8 +65,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 cc_analysis = self.project.analyses.CallingConvention(func, cfg=self._cfg,
                                                                       analyze_callsites=self._analyze_callsites)
                 if cc_analysis.cc is not None:
-                    _l.info("Determined calling convention for %r.", func)
+                    _l.info("Determined calling convention and prototype for %r.", func)
                     func.calling_convention = cc_analysis.cc
+                    func.prototype = cc_analysis.prototype
                 else:
                     _l.info("Cannot determine calling convention for %r.", func)
 
