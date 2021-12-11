@@ -205,9 +205,7 @@ class Runner(object):
                     raise Exception("Expected int/bytes got %s" % type(i))
                 mapped_input.append(i)
 
-        inttype = SimTypeInt(self.project.arch.bits, False)
-        prototype = SimTypeFunction([inttype] * len(mapped_input), inttype)
-        cc = self.project.factory.cc(prototype=prototype)
+        cc = self.project.factory.cc()
         call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=test_data.max_steps)
         return call.get_base_state(*mapped_input)
@@ -238,9 +236,7 @@ class Runner(object):
                         raise Exception("Expected int/str got %s" % type(i))
                     mapped_input.append(i)
 
-        inttype = SimTypeInt(self.project.arch.bits, False)
-        prototype = SimTypeFunction([inttype] * len(mapped_input), inttype)
-        cc = self.project.factory.cc(prototype=prototype)
+        cc = self.project.factory.cc()
         try:
             call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                             cc=cc, base_state=s, max_steps=test_data.max_steps)
@@ -336,9 +332,7 @@ class Runner(object):
                         raise Exception("Expected int/bytes got %s" % type(i))
                     mapped_input.append(i)
 
-        inttype = SimTypeInt(self.project.arch.bits, False)
-        prototype = SimTypeFunction([inttype] * len(mapped_input), inttype)
-        cc = self.project.factory.cc(prototype=prototype)
+        cc = self.project.factory.cc()
         try:
             call = IdentifierCallable(self.project, function.startpoint.addr, concrete_only=True,
                             cc=cc, base_state=s, max_steps=test_data.max_steps)
