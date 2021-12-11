@@ -339,6 +339,9 @@ class SimEngineVRVEX(
                      typevar=r0.typevar,
                      )
 
+    def _handle_16HLto32(self, expr):
+        return RichR(self.state.top(32))
+
     def _handle_CmpEQ(self, expr):
         arg0, arg1 = expr.args
         _ = self._expr(arg0)
