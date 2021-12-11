@@ -9,6 +9,7 @@ from ... import sim_options as o
 from ...errors import SimEngineError, SimTranslationError
 from cle import CLEError
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
+from ...sim_type import SimTypeNum
 from ..engine import SuccessorsMixin
 from ..procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
@@ -350,7 +351,9 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         if ret_var is not None:
             # get return symbol from native state
             native_cc = javavm_simos.get_native_cc()
-            ret_symbol = native_cc.get_return_val(native_state).to_claripy()
+            ret_symbol = native_cc.return_val(
+                javavm_simos.get_native_type(ret_var.type)
+            ).get_value(native_state).to_claripy()
             # convert value to java type
             if ret_var.type in ArchSoot.primitive_types:
                 # return value has a primitive type

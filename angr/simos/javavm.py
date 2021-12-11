@@ -17,7 +17,7 @@ from ..engines.soot.values import (SimSootValue_ArrayRef,
 from ..errors import AngrSimOSError
 from ..procedures.java_jni import jni_functions
 from ..sim_state import SimState
-from ..sim_type import SimTypeFunction, SimTypeReg
+from ..sim_type import SimTypeFunction, SimTypeNum
 from .simos import SimOS
 
 l = logging.getLogger('angr.simos.JavaVM')
@@ -420,7 +420,7 @@ class SimJavaVM(SimOS):
         else:
             # if it's not a primitive type, we treat it as a reference
             jni_type_size = self.native_simos.arch.bits
-        return SimTypeReg(size=jni_type_size)
+        return SimTypeNum(size=jni_type_size)
 
     @property
     def native_arch(self):
