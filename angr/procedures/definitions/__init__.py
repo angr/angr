@@ -174,6 +174,11 @@ class SimLibrary:
             new_procedure = copy.deepcopy(old_procedure)
             new_procedure.display_name = alt
             self.procedures[alt] = new_procedure
+            if name in self.prototypes:
+                self.prototypes[alt] = self.prototypes[name]
+            if name in self.non_returning:
+                self.non_returning.add(alt)
+
 
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:

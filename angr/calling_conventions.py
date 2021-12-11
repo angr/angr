@@ -691,7 +691,10 @@ class SimCC:
         # STEP 0: clerical work
 
         allocator = AllocHelper(self.arch.bits)
-        prototype = prototype.with_arch(self.arch)
+        if type(prototype) is str:
+            prototype = parse_signature(prototype, arch=self.arch)
+        elif prototype._arch is None:
+            prototype = prototype.with_arch(self.arch)
 
         #
         # STEP 1: convert all values into serialized form
@@ -814,7 +817,7 @@ class SimCC:
             if not isinstance(ty, SimTypePointer):
                 raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty.name)
 
-            if arg.buffer or type(arg.value) in (bytes, str):
+            if arg.buffer:
                 if isinstance(arg.value, claripy.Bits):
                     real_value = arg.value.chop(state.arch.byte_width)
                 elif type(arg.value) in (bytes, str):
@@ -822,7 +825,8 @@ class SimCC:
                 else:
                     raise TypeError("PointerWrapper(buffer=True) can only be used with a bitvector or a bytestring")
             else:
-                real_value = SimCC._standardize_value(arg.value, ty.pts_to, state, alloc)
+                child_type = SimTypeArray(ty.pts_to) if type(arg.value) in (str, bytes, list) else ty.pts_to
+                real_value = SimCC._standardize_value(arg.value, child_type, state, alloc)
             return alloc(real_value, state)
 
         elif isinstance(arg, (str, bytes)):
@@ -1061,6 +1065,8 @@ class SimCCCdecl(SimCC):
     STRUCT_RETURN_THRESHOLD = 32
 
     def return_val(self, ty, perspective_returned=False):
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
         if not isinstance(ty, SimStruct):
             return super().return_val(ty, perspective_returned)
 
@@ -1284,6 +1290,8 @@ class SimCCSystemVAMD64(SimCC):
         return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
 
     def return_val(self, ty, perspective_returned=False):
+        if ty._arch is None:
+            ty = ty.with_arch(self.arch)
         classification = self._classify(ty)
         if any(cls == 'MEMORY' for cls in classification):
             assert all(cls == 'MEMORY' for cls in classification)
@@ -1640,7 +1648,7 @@ class SimCCUnknown(SimCC):
         return True
 
     def __repr__(self):
-        return f"<SimCCUnknown - {self.arch.name} {self.args}>"
+        return f"<SimCCUnknown - {self.arch.name}>"
 
 
 class SimCCS390X(SimCC):

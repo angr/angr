@@ -1676,7 +1676,13 @@ def parse_signature(defn, preprocess=True, predefined_types=None, arch=None):
     Parse a single function prototype and return its type
     """
     try:
-        return next(iter(parse_file(defn.strip(' \n\t;') + ';')[0].values()))
+        parsed = parse_file(
+            defn.strip(' \n\t;') + ';',
+            preprocess=preprocess,
+            predefined_types=predefined_types,
+            arch=arch
+        )
+        return next(iter(parsed[0].values()))
     except StopIteration as e:
         raise ValueError("No declarations found") from e
 
@@ -1718,7 +1724,7 @@ def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
         if isinstance(piece, pycparser.c_ast.FuncDef):
             out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
         elif isinstance(piece, pycparser.c_ast.Decl):
-            ty = _decl_to_type(piece.type, extra_types)
+            ty = _decl_to_type(piece.type, extra_types, arch=arch)
             if piece.name is not None:
                 out[piece.name] = ty
 
@@ -1732,7 +1738,7 @@ def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
                             i.members = ty.members
 
         elif isinstance(piece, pycparser.c_ast.Typedef):
-            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types))
+            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
             extra_types[piece.name].label = piece.name
 
     return out, extra_types

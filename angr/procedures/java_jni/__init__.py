@@ -32,9 +32,10 @@ class JNISimProcedure(SimProcedure):
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
         elif self.return_ty != 'void':
-            prototype = SimTypeFunction(args=[],
+            prototype = SimTypeFunction(args=self.prototype.args,
                                       returnty=state.project.simos.get_native_type(self.return_ty))
-            self.cc = DefaultCC[state.arch.name](state.arch, prototype=prototype)
+            self.cc = DefaultCC[state.arch.name](state.arch)
+            self.prototype = prototype
         super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
 
     #
