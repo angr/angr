@@ -13,8 +13,8 @@ class strncmp(angr.SimProcedure):
         a_strlen = a_len if a_len is not None else self.inline_call(strlen, a_addr, wchar=wchar)
         b_strlen = b_len if b_len is not None else self.inline_call(strlen, b_addr, wchar=wchar)
 
-        a_len = a_strlen.ret_expr.zero_extend(self.arch.bits - self.arch.sizeof['int'])
-        b_len = b_strlen.ret_expr.zero_extend(self.arch.bits - self.arch.sizeof['int'])
+        a_len = a_strlen.ret_expr
+        b_len = b_strlen.ret_expr
 
         match_constraints = [ ]
         variables = a_len.variables | b_len.variables | limit.variables
