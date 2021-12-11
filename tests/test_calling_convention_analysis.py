@@ -180,10 +180,11 @@ def test_x8664_void():
         if func.name in groundtruth:
             r = groundtruth[func.name]
             if r is None:
-                assert func.calling_convention.ret_val is None
+                assert func.prototype.returnty is None
             else:
-                assert isinstance(func.calling_convention.ret_val, SimRegArg)
-                assert func.calling_convention.ret_val.reg_name == r
+                ret_val = func.calling_convention.return_val(func.prototype.returnty)
+                assert isinstance(ret_val, SimRegArg)
+                assert ret_val.reg_name == r
 
 
 def test_x86_saved_regs():
@@ -206,9 +207,9 @@ def test_x86_saved_regs():
     assert isinstance(cc, SimCCCdecl)
     assert len(prototype.args) == 3
     arg_locs = cc.arg_locs(prototype)
-    assert next(arg_locs) == SimStackArg(4, 4)
-    assert next(arg_locs) == SimStackArg(8, 4)
-    assert next(arg_locs) == SimStackArg(12, 4)
+    assert arg_locs[0] == SimStackArg(4, 4)
+    assert arg_locs[1] == SimStackArg(8, 4)
+    assert arg_locs[2] == SimStackArg(12, 4)
 
     func_exit = cfg.functions[0x804a1a9]  # exit
 
@@ -222,7 +223,7 @@ def test_x86_saved_regs():
                            "0x804a1a9."
     assert isinstance(cc, SimCCCdecl)
     assert len(prototype.args) == 1
-    assert next(cc.arg_locs(prototype)) == SimStackArg(4, 4)
+    assert cc.arg_locs(prototype)[0] == SimStackArg(4, 4)
 
 
 def test_callsite_inference_amd64():
