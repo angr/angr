@@ -82,7 +82,8 @@ class VEXLifter(SimEngineBase):
              strict_block_end=None,
              skip_stmts=False,
              collect_data_refs=False,
-             cross_insn_opt=None):
+             cross_insn_opt=None,
+             load_from_ro_regions=False):
 
         """
         Lift an IRSB.
@@ -245,6 +246,7 @@ class VEXLifter(SimEngineBase):
                                   strict_block_end=strict_block_end,
                                   skip_stmts=skip_stmts,
                                   collect_data_refs=collect_data_refs,
+                                  load_from_ro_regions=load_from_ro_regions,
                                   cross_insn_opt=cross_insn_opt
                                   )
 
