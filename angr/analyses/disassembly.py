@@ -149,13 +149,9 @@ class BlockStart(DisassemblyPiece):
 
 
 class Hook(DisassemblyPiece):
-    def __init__(self, addr, parentblock):
-        self.addr = addr
-        self.parentblock = parentblock
-        if parentblock and parentblock.parentfunc:
-            simproc_name = str(parentblock.parentfunc.sim_procedure)
-        else:
-            simproc_name = "Unknown"
+    def __init__(self, block):
+        self.addr = block.addr
+        simproc_name = str(block.sim_procedure)
         self.name = simproc_name.split()[-1].strip("'<>")
         self.short_name = simproc_name.strip("'<>").split('.')[-1]
 
@@ -844,21 +840,27 @@ class Disassembly(Analysis):
             else:
                 self._graph = cfg.graph
                 for start, end in ranges:
-                    assert(start < end)
+                    if start == end:
+                        continue
+                    assert start < end
+
                     # Grab all blocks that intersect target range
-                    blocks = sorted([n.block.codenode
-                                     for n in self._graph.nodes() if not (n.addr + n.size <= start or n.addr >= end)],
+                    blocks = sorted([n.to_codenode()
+                                     for n in self._graph.nodes() if not (n.addr + (n.size or 1) <= start or
+                                                                          n.addr >= end)],
                                     key=lambda node: (node.addr, not node.is_hook))
 
                     # Trim blocks that are not within range
                     for i, block in enumerate(blocks):
-                        if block.addr < start:
+                        if block.size and block.addr < start:
                             delta = start - block.addr
-                            blocks[i] = BlockNode(block.addr + delta, block.size - delta, block.bytestr[delta:])
+                            block_bytes = block.bytestr[delta:] if block.bytestr else None
+                            blocks[i] = BlockNode(block.addr + delta, block.size - delta, block_bytes)
                     for i, block in enumerate(blocks):
-                        if block.addr + block.size > end:
+                        if block.size and block.addr + block.size > end:
                             delta = block.addr + block.size - end
-                            blocks[i] = BlockNode(block.addr, block.size - delta, block.bytestr[0:-delta])
+                            block_bytes = block.bytestr[0:-delta] if block.bytestr else None
+                            blocks[i] = BlockNode(block.addr, block.size - delta, block_bytes)
 
                     for block in blocks:
                         self.parse_block(block)
@@ -925,7 +927,7 @@ class Disassembly(Analysis):
         self.raw_result.append(bs)
 
         if block.is_hook:
-            hook = Hook(block.addr, bs)
+            hook = Hook(block)
             self.raw_result.append(hook)
             self.raw_result_map['hooks'][block.addr] = hook
         elif self.project.arch.capstone_support:
@@ -986,6 +988,7 @@ class Disassembly(Analysis):
                     ConstantOperand: 'cyan',
                     MemoryOperand:   'yellow',
                     Comment:         'gray',
+                    Hook:            'green',
                 } if ansi_color_enabled else {},
                 'format_callback': lambda item, s: ansi_color(s, formatting['colors'].get(type(item), None))
             }
@@ -1023,6 +1026,9 @@ class Disassembly(Analysis):
                 buf.append(pad + item.render(formatting)[0])
             elif isinstance(item, Comment):
                 comment = item
+            elif isinstance(item, Hook):
+                a2ln[item.addr].append(len(buf))
+                buf.append(format_address(item.addr) + item.render(formatting)[0])
             elif isinstance(item, Instruction):
                 a2ln[item.addr].append(len(buf))
                 lines = []
@@ -1062,12 +1068,14 @@ class Disassembly(Analysis):
 
                 buf.extend(lines)
             else:
-                buf.append(item.render(formatting))
+                buf.append(''.join(item.render(formatting)))
 
         if self._graph is not None and show_edges and buf:
             edges_by_line = set()
             for edge in self._graph.edges.items():
                 from_block, to_block = edge[0]
+                if from_block.size is None:
+                    continue
                 if to_block.addr != from_block.addr + from_block.size:
                     from_addr = edge[1]['ins_addr']
                     to_addr = to_block.addr

@@ -613,6 +613,11 @@ class SimEngineRDVEX(
 
         return r
 
+    def _handle_Mull(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        bits = expr.result_size(self.tyenv)
+        return MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
     def _handle_Div(self, expr):
         expr0, expr1 = self._expr(expr.args[0]), self._expr(expr.args[1])
         bits = expr.result_size(self.tyenv)

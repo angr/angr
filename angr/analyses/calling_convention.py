@@ -135,7 +135,7 @@ class CallingConventionAnalysis(Analysis):
         if real_func is not None:
             if real_func.is_simprocedure and self.project.is_hooked(real_func.addr):
                 hooker = self.project.hooked_by(real_func.addr)
-                if hooker is not None and not hooker.is_stub:
+                if hooker is not None and (not hooker.is_stub or real_func.calling_convention.func_ty is not None):
                     return real_func.calling_convention
             else:
                 return real_func.calling_convention

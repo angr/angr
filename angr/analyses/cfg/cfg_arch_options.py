@@ -20,11 +20,11 @@ class CFGArchOptions(object):
             # branches by VEX
             'ret_jumpkind_heuristics': (bool, True),
             # Whether to switch between ARM mode and THUMB mode when VEX fails to decode a block
-            'switch_mode_on_nodecode': (bool, False),
+            'switch_mode_on_nodecode': (bool, True),
         },
         'ARMHF': {
             'ret_jumpkind_heuristics': (bool, True),
-            'switch_mode_on_nodecode': (bool, False),
+            'switch_mode_on_nodecode': (bool, True),
         },
         'ARMCortexM': {
             'ret_jumpkind_heuristics': (bool, True),
