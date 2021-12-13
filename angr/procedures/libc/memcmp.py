@@ -19,10 +19,11 @@ class memcmp(angr.SimProcedure):
 
         l.debug("Definite size %s and conditional size: %s", definite_size, conditional_size)
 
+        int_bits = self.arch.sizeof['int']
         if definite_size > 0:
             s1_part = self.state.memory.load(s1_addr, definite_size, endness='Iend_BE')
             s2_part = self.state.memory.load(s2_addr, definite_size, endness='Iend_BE')
-            cases = [ [s1_part == s2_part, self.state.solver.BVV(0, self.state.arch.bits)], [self.state.solver.ULT(s1_part, s2_part), self.state.solver.BVV(-1, self.state.arch.bits)], [self.state.solver.UGT(s1_part, s2_part), self.state.solver.BVV(1, self.state.arch.bits) ] ]
+            cases = [ [s1_part == s2_part, self.state.solver.BVV(0, int_bits)], [self.state.solver.ULT(s1_part, s2_part), self.state.solver.BVV(-1, int_bits)], [self.state.solver.UGT(s1_part, s2_part), self.state.solver.BVV(1, int_bits) ] ]
             definite_answer = self.state.solver.ite_cases(cases, 2)
             constraint = self.state.solver.Or(*[c for c,_ in cases])
             self.state.add_constraints(constraint)
@@ -31,7 +32,7 @@ class memcmp(angr.SimProcedure):
             l.debug("Created constraint: %s", constraint)
             l.debug("... crom cases: %s", cases)
         else:
-            definite_answer = self.state.solver.BVV(0, self.state.arch.bits)
+            definite_answer = self.state.solver.BVV(0, int_bits)
 
         if not self.state.solver.symbolic(definite_answer) and self.state.solver.eval(definite_answer) != 0:
             return definite_answer
@@ -44,7 +45,7 @@ class memcmp(angr.SimProcedure):
             for byte, bit in zip(range(conditional_size), range(conditional_size*8, 0, -8)):
                 s1_part = s1_all[conditional_size*8-1 : bit-8]
                 s2_part = s2_all[conditional_size*8-1 : bit-8]
-                cases = [ [s1_part == s2_part, self.state.solver.BVV(0, self.state.arch.bits)], [self.state.solver.ULT(s1_part, s2_part), self.state.solver.BVV(-1, self.state.arch.bits)], [self.state.solver.UGT(s1_part, s2_part), self.state.solver.BVV(1, self.state.arch.bits) ] ]
+                cases = [ [s1_part == s2_part, self.state.solver.BVV(0, int_bits)], [self.state.solver.ULT(s1_part, s2_part), self.state.solver.BVV(-1, int_bits)], [self.state.solver.UGT(s1_part, s2_part), self.state.solver.BVV(1, int_bits) ] ]
                 conditional_rets[byte+1] = self.state.solver.ite_cases(cases, 0)
                 self.state.add_constraints(self.state.solver.Or(*[c for c,_ in cases]))
 

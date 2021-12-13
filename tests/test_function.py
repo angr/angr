@@ -22,6 +22,7 @@ def test_function_serialization():
     f = angr.knowledge_plugins.Function.parse(s)
     nose.tools.assert_equal(func_main.addr, f.addr)
     nose.tools.assert_equal(func_main.name, f.name)
+    nose.tools.assert_equal(func_main.is_prototype_guessed, f.is_prototype_guessed)
 
 def test_function_definition_application():
     p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)

@@ -23,6 +23,7 @@ def test_callsite_maker():
                 cc_analysis = project.analyses.CallingConvention(func)
                 if cc_analysis.cc is not None:
                     func.calling_convention = cc_analysis.cc
+                    func.prototype = cc_analysis.prototype
                     new_cc_found = True
 
     main_func = cfg.kb.functions['main']

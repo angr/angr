@@ -18,7 +18,7 @@ class getrlimit(angr.SimProcedure):
             return 0
         else:
             l.debug('running getrlimit(other)')
-            return self.state.solver.Unconstrained("rlimit", self.state.arch.bits, key=('api', 'rlimit', 'other'))
+            return self.state.solver.Unconstrained("rlimit", self.arch.sizeof['int'], key=('api', 'rlimit', 'other'))
 
 class ugetrlimit(getrlimit):
     pass

@@ -62,8 +62,8 @@ class memcpy(Func):
         s = runner.get_base_call_state(func, test)
         s.memory.store(0x2000, "ABC\x00\x00\x00\x00\x00")
         inttype = SimTypeInt(runner.project.arch.bits, False)
-        func_ty = SimTypeFunction([inttype] * 3, inttype)
-        cc = runner.project.factory.cc(func_ty=func_ty)
+        prototype = SimTypeFunction([inttype] * 3, inttype)
+        cc = runner.project.factory.cc(prototype=prototype)
         call = IdentifierCallable(runner.project, func.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2003, 0x2000, 5])
@@ -73,8 +73,8 @@ class memcpy(Func):
         s = runner.get_base_call_state(func, test)
         s.memory.store(0x2000, "\x00\x00\x00\x00\x00CBA")
         inttype = SimTypeInt(runner.project.arch.bits, False)
-        func_ty = SimTypeFunction([inttype] * 3, inttype)
-        cc = runner.project.factory.cc(func_ty=func_ty)
+        prototype = SimTypeFunction([inttype] * 3, inttype)
+        cc = runner.project.factory.cc(prototype=prototype)
         call = IdentifierCallable(runner.project, func.startpoint.addr, concrete_only=True,
                         cc=cc, base_state=s, max_steps=20)
         _ = call(*[0x2000, 0x2003, 5])

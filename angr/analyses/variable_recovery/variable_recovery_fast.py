@@ -428,11 +428,6 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                 sp_v = next(iter(next(iter(sp.values.values()))))
 
             adjusted = False
-            cc = self._node_to_cc[block.addr]
-            if cc is not None and cc.sp_delta is not None:
-                sp_v += cc.sp_delta
-                adjusted = True
-                l.debug('Adjusting stack pointer at end of block %#x with offset %+#x.', block.addr, cc.sp_delta)
 
             if not adjusted:
                 # make a guess

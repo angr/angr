@@ -57,16 +57,14 @@ class FormatString:
 
         return self.parser.state.memory.load(str_addr, max_length)
 
-    def replace(self, startpos, args):
+    def replace(self, va_arg):
         """
         Implement printf - based on the stored format specifier information, format the values from the arg getter function `args` into a string.
 
-        :param startpos:        The index of the first argument to be used by the first element of the format string
-        :param args:            A function which, given an argument index, returns the integer argument to the current function at that index
+        :param va_arg:          A function which takes a type and returns the next argument of that type
         :return:                The result formatted string
         """
 
-        argpos = startpos
         string = None
 
         for component in self.components:
@@ -83,15 +81,15 @@ class FormatString:
                 fmt_spec = component
                 if fmt_spec.spec_type == b's':
                     if fmt_spec.length_spec == b".*":
-                        str_length = args(argpos)
-                        argpos += 1
+                        str_length = va_arg('size_t')
                     else:
                         str_length = None
-                    str_ptr = args(argpos)
+                    str_ptr = va_arg('char*')
                     string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
                 else:
-                    i_val = args(argpos)
+                    # ummmmmmm this is a cheap translation but I think it should work
+                    i_val = va_arg('void*')
                     c_val = int(self.parser.state.solver.eval(i_val))
                     c_val &= (1 << (fmt_spec.size * 8)) - 1
                     if fmt_spec.signed and (c_val & (1 << ((fmt_spec.size * 8) - 1))):
@@ -117,23 +115,20 @@ class FormatString:
 
                     string = self._add_to_string(string, self.parser.state.solver.BVV(s_val.encode()))
 
-                argpos += 1
-
         return string
 
-    def interpret(self, startpos, args, addr=None, simfd=None):
+    def interpret(self, va_arg, addr=None, simfd=None):
         """
         implement scanf - extract formatted data from memory or a file according to the stored format
         specifiers and store them into the pointers extracted from `args`.
 
-        :param startpos:    The index of the first argument corresponding to the first format element
-        :param args:        A function which, given the index of an argument to the function, returns that argument
+        :param va_arg:      A function which, given a type, returns the next argument of that type
         :param addr:        The address in the memory to extract data from, or...
         :param simfd:       A file descriptor to use for reading data from
         :return:            The number of arguments parsed
         """
+        num_args = 0
         if simfd is not None and isinstance(simfd.read_storage, SimPackets):
-            argnum = startpos
             for component in self.components:
                 if type(component) is bytes:
                     sdata, _ = simfd.read_data(len(component), short_reads=False)
@@ -148,13 +143,14 @@ class FormatString:
                         sdata, slen = simfd.read_data(component.length_spec)
                     for byte in sdata.chop(8):
                         self.state.add_constraints(claripy.And(*[byte != char for char in self.SCANF_DELIMITERS]))
-                    self.state.memory.store(args(argnum), sdata, size=slen)
-                    self.state.memory.store(args(argnum) + slen, claripy.BVV(0, 8))
-                    argnum += 1
+                    ptr = va_arg('char*')
+                    self.state.memory.store(ptr, sdata, size=slen)
+                    self.state.memory.store(ptr + slen, claripy.BVV(0, 8))
+                    num_args += 1
                 elif component.spec_type == b'c':
                     sdata, _ = simfd.read_data(1, short_reads=False)
-                    self.state.memory.store(args(argnum), sdata)
-                    argnum += 1
+                    self.state.memory.store(va_arg('char*'), sdata)
+                    num_args += 1
                 else:
                     bits = component.size * 8
                     if component.spec_type == b'x':
@@ -166,7 +162,7 @@ class FormatString:
 
                     # here's the variable representing the result of the parsing
                     target_variable = self.state.solver.BVS('scanf_' + component.string.decode(), bits,
-                            key=('api', 'scanf', argnum - startpos, component.string))
+                            key=('api', 'scanf', num_args, component.string))
                     negative = claripy.SLT(target_variable, 0)
 
                     # how many digits does it take to represent this variable fully?
@@ -214,10 +210,11 @@ class FormatString:
 
                         self.state.add_constraints(digit == digit_ascii[7:0])
 
-                    self.state.memory.store(args(argnum), target_variable, endness=self.state.arch.memory_endness)
-                    argnum += 1
+                    # again, a cheap hack
+                    self.state.memory.store(va_arg('void*'), target_variable, endness=self.state.arch.memory_endness)
+                    num_args += 1
 
-            return argnum - startpos
+            return num_args
 
         if simfd is not None:
             region = simfd.read_storage
@@ -226,8 +223,7 @@ class FormatString:
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.solver.BVV(0, bits)
-        argpos = startpos
+        failed = self.parser.state.solver.BVV(0, 32)
         position = addr
         for component in self.components:
             if isinstance(component, bytes):
@@ -237,7 +233,7 @@ class FormatString:
             else:
                 fmt_spec = component
                 try:
-                    dest = args(argpos)
+                    dest = va_arg('void*')
                 except SimProcedureArgumentError:
                     dest = None
                 if fmt_spec.spec_type == b's':
@@ -297,13 +293,13 @@ class FormatString:
                     i = self.parser.state.solver.Extract(fmt_spec.size*8-1, 0, i)
                     self.parser.state.memory.store(dest, i, size=fmt_spec.size, endness=self.parser.state.arch.memory_endness)
 
-                argpos += 1
+                num_args += 1
 
         if simfd is not None:
             _, realsize = simfd.read_data(position - addr)
             self.state.add_constraints(realsize == position - addr)
 
-        return (argpos - startpos) - failed
+        return num_args - failed
 
     def __repr__(self):
         outstr = ""
@@ -569,16 +565,14 @@ class FormatParser(SimProcedure):
 
         return self.inline_call(strlen, str_addr).ret_expr
 
-    def _parse(self, fmt_idx):
+    def _parse(self, fmtstr_ptr):
         """
         Parse format strings.
 
-        :param fmt_idx: The index of the (pointer to the) format string in the arguments list.
+        :param fmt_idx: The pointer to the format string from the arguments list.
         :returns:       A FormatString object which can be used for replacing the format specifiers with arguments or
                         for scanning into arguments.
         """
-
-        fmtstr_ptr = self.arg(fmt_idx)
 
         if self.state.solver.symbolic(fmtstr_ptr):
             raise SimProcedureError("Symbolic pointer to (format) string :(")
