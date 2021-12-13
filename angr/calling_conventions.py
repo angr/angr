@@ -227,7 +227,10 @@ class SimRegArg(SimFunctionArgument):
     Represents a function argument that has been passed in a register.
 
     :ivar string reg_name:    The name of the represented register.
-    :ivar int size:           The size of the register, in number of bytes.
+    :ivar int size:           The size of the data to store, in number of bytes.
+    :ivar reg_offset:         The offset into the register to start storing data.
+    :ivar clear_entire_reg:   Whether a store to this register should zero the unused parts of the register.
+    :ivar bool is_fp:  Whether loads from this location should return a floating point bitvector
     """
     def __init__(self, reg_name: RegisterName, size: int, reg_offset=0, is_fp=False, clear_entire_reg=False):
         super().__init__(size, is_fp)
@@ -280,6 +283,7 @@ class SimStackArg(SimFunctionArgument):
 
     :var int stack_offset:    The position of the argument relative to the stack pointer after the function prelude.
     :ivar int size:           The size of the argument, in number of bytes.
+    :ivar bool is_fp:  Whether loads from this location should return a floating point bitvector
     """
     def __init__(self, stack_offset, size, is_fp=False):
         SimFunctionArgument.__init__(self, size, is_fp)
@@ -345,8 +349,14 @@ class SimComboArg(SimFunctionArgument):
         return self.check_value_get(state.solver.Concat(*vals))
 
 class SimStructArg(SimFunctionArgument):
-    def __init__(self, struct, locs):
-        super().__init__(sum(loc.size for loc in locs))
+    """
+    An argument which de/serializes a struct from a list of storage locations
+
+    :ivar struct:   The simtype describing the structure
+    :ivar locs:     The storage locations to use
+    """
+    def __init__(self, struct: SimStruct, locs: Dict[str, SimFunctionArgument]):
+        super().__init__(sum(loc.size for loc in locs.values()))
         self.struct = struct
         self.locs = locs
 
@@ -374,6 +384,13 @@ class SimArrayArg(SimFunctionArgument):
             setter.set_value(state, subvalue, **kwargs)
 
 class SimReferenceArgument(SimFunctionArgument):
+    """
+    A function argument which is passed by reference.
+
+    :ivar ptr_loc:      The location the reference's pointer is stored
+    :ivar main_loc:     A SimStackArgument describing how to load the argument's value as if it were stored at offset
+                        zero on the stack. It will be passed ``stack_base=ptr_loc.get_value(state)``
+    """
     def __init__(self, ptr_loc, main_loc):
         super().__init__(ptr_loc.size)  # ???
         self.ptr_loc = ptr_loc
@@ -411,6 +428,9 @@ class ArgSession:
         self.both_iter.setstate(both)
 
 class UsercallArgSession:
+    """
+    An argsession for use with SimCCUsercall
+    """
     __slots__ = ('cc', 'real_args', )
 
     def __init__(self, cc):
