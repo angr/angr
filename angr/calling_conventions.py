@@ -120,7 +120,7 @@ def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimT
         # TODO explicit stride
         locs = [
             refine_locs_with_struct_type(arch, locs, arg_type.elem_type,
-                                         offset=offset + i * arg_type.size // arch.byte_width)
+                                         offset=offset + i * arg_type.elem_type.size // arch.byte_width)
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs)

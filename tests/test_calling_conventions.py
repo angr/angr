@@ -1,7 +1,7 @@
 from unittest import TestCase
 
 import archinfo
-from angr.calling_conventions import SimType, SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64
+from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction
 
 import logging
 l = logging.getLogger("angr.tests.test_simcc")
@@ -35,3 +35,11 @@ class TestCallingConvention(TestCase):
         for v in flattened_array.values():
             for subtype in v:
                 self.assertIsInstance(subtype, SimTypeInt)
+
+    def test_arg_locs_array(self):
+        arch = archinfo.arch_from_id("amd64")
+        cc = SimCCSystemVAMD64(arch)
+        proto = SimTypeFunction([SimTypeFixedSizeArray(SimTypeInt().with_arch(arch), 2).with_arch(arch)], None)
+
+        # It should not raise any exception!
+        cc.arg_locs(proto)
