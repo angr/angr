@@ -44,7 +44,7 @@ class Assignment(Statement):
     __slots__ = ('dst', 'src', )
 
     def __init__(self, idx, dst, src, **kwargs):
-        super(Assignment, self).__init__(idx, **kwargs)
+        super().__init__(idx, **kwargs)
 
         self.dst = dst
         self.src = src
@@ -94,7 +94,7 @@ class Store(Statement):
     __slots__ = ('addr', 'size', 'data', 'endness', 'variable', 'offset', 'guard', )
 
     def __init__(self, idx, addr, data, size, endness, guard=None, variable=None, offset=None, **kwargs):
-        super(Store, self).__init__(idx, **kwargs)
+        super().__init__(idx, **kwargs)
 
         self.addr = addr
         self.data = data
@@ -167,7 +167,7 @@ class Jump(Statement):
     __slots__ = ('target', )
 
     def __init__(self, idx, target, **kwargs):
-        super(Jump, self).__init__(idx, **kwargs)
+        super().__init__(idx, **kwargs)
 
         self.target = target
 
@@ -208,7 +208,7 @@ class ConditionalJump(Statement):
     __slots__ = ('condition', 'true_target', 'false_target', )
 
     def __init__(self, idx, condition, true_target, false_target, **kwargs):
-        super(ConditionalJump, self).__init__(idx, **kwargs)
+        super().__init__(idx, **kwargs)
 
         self.condition = condition
         self.true_target = true_target
@@ -299,8 +299,8 @@ class Call(Expression, Statement):
         cc = "Unknown CC" if self.calling_convention is None else "%s" % self.calling_convention
         if self.args is None:
             if self.calling_convention is not None:
-                s = ("%s" % cc) if self.prototype is None else "%s: %s" % (self.calling_convention,
-                                                                           self.calling_convention.arg_locs(self.prototype))
+                s = ("%s" % cc) if self.prototype is None else \
+                    "%s: %s" % (self.calling_convention, self.calling_convention.arg_locs(self.prototype))
             else:
                 s = ("%s" % cc) if self.prototype is None else repr(self.prototype)
         else:
@@ -458,7 +458,7 @@ class DirtyStatement(Statement):
     __slots__ = ('dirty_stmt', )
 
     def __init__(self, idx, dirty_stmt, **kwargs):
-        super(DirtyStatement, self).__init__(idx, **kwargs)
+        super().__init__(idx, **kwargs)
         self.dirty_stmt = dirty_stmt
 
     def _hash_core(self):
