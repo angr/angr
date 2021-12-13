@@ -91,7 +91,8 @@ class AllocHelper:
             })
         raise TypeError(type(val))
 
-def refine_locs_with_struct_type(arch, locs, arg_type, offset=0):
+
+def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int=0):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
@@ -118,13 +119,16 @@ def refine_locs_with_struct_type(arch, locs, arg_type, offset=0):
     if isinstance(arg_type, SimTypeFixedSizeArray):
         # TODO explicit stride
         locs = [
-            refine_locs_with_struct_type(locs, arg_type.elem_type, offset + i * arg_type.size // arch.byte_width)
+            refine_locs_with_struct_type(arch, locs, arg_type.elem_type,
+                                         offset=offset + i * arg_type.size // arch.byte_width)
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs)
     if isinstance(arg_type, SimStruct):
         locs = {
-            field: refine_locs_with_struct_type(locs, field_ty, offset + arg_type.offsets[field]) for field, field_ty in arg_type.fields.items()
+            field: refine_locs_with_struct_type(
+                arch, locs, field_ty,
+                offset=offset + arg_type.offsets[field]) for field, field_ty in arg_type.fields.items()
         }
         return SimStructArg(arg_type, locs)
     raise TypeError("I don't know how to lay out a %s" % arg_type)
@@ -1386,8 +1390,8 @@ class SimCCSystemVAMD64(SimCC):
         else:
             raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
 
-    def _flatten(self, ty):
-        result = defaultdict(list)
+    def _flatten(self, ty) -> Optional[Dict[int,List[SimType]]]:
+        result: Dict[int,List[SimType]] = defaultdict(list)
         if isinstance(ty, SimStruct):
             if ty.packed:
                 return None
@@ -1396,23 +1400,23 @@ class SimCCSystemVAMD64(SimCC):
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
-                for suboffset, subsubty in subresult.items():
-                    result[offset + suboffset].append(subsubty)
+                for suboffset, subsubty_list in subresult.items():
+                    result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
-            for suboffset, subsubty in subresult.items():
+            for suboffset, subsubty_list in subresult.items():
                 for idx in range(ty.length):
                     # TODO I think we need an explicit stride field on array types
-                    result[idx * ty.elem_type.size // self.arch.byte_width + suboffset].append(subsubty)
+                    result[idx * ty.elem_type.size // self.arch.byte_width + suboffset] += subsubty_list
         elif isinstance(ty, SimUnion):
             for field, subty in ty.members.items():
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
-                for suboffset, subsubty in subresult.items():
-                    result[suboffset].append(subsubty)
+                for suboffset, subsubty_list in subresult.items():
+                    result[suboffset] += subsubty_list
         else:
             result[0].append(ty)
         return result
