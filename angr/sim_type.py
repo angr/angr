@@ -1223,7 +1223,7 @@ class SimStructValue:
         """
         self._struct = struct
         # since the keys are specified, also support specifying the values as just a list
-        if values is not None and type(values) is not dict and hasattr(values, '__iter__'):
+        if values is not None and hasattr(values, '__iter__') and not hasattr(values, 'items'):
             values = dict(zip(struct.fields.keys(), values))
         self._values = defaultdict(lambda: None, values or ())
 

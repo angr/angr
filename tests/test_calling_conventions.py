@@ -2,6 +2,8 @@ from unittest import TestCase
 
 import archinfo
 from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction
+from angr.sim_type import parse_file, SimStructValue
+from angr import Project
 
 import logging
 l = logging.getLogger("angr.tests.test_simcc")
@@ -43,3 +45,18 @@ class TestCallingConvention(TestCase):
 
         # It should not raise any exception!
         cc.arg_locs(proto)
+
+    def test_struct_ffi(self):
+        with open(os.path.join(test_location, '../tests_src/test_structs.c')) as fp:
+            decls = parse_file(fp.read())
+
+        p = Project(os.path.join(test_location, 'x86_64/test_structs.o'), auto_load_libs=False)
+
+        def make_callable(name):
+            return p.factory.callable(p.loader.find_symbol(name).rebased_addr, decls[0][name])
+
+        test_small_struct_return = make_callable('test_small_struct_return')
+        result = test_small_struct_return()
+        self.assertIsInstance(result, SimStructValue)
+        self.assertTrue((result.a == 1).is_true())
+        self.assertTrue((result.b == 2).is_true())
