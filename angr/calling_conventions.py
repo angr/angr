@@ -1366,8 +1366,8 @@ class SimCCSystemVAMD64(SimCC):
         else:
             raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
 
-    def _flatten(self, ty):
-        result = defaultdict(list)
+    def _flatten(self, ty) -> Optional[Dict[int,List[SimType]]]:
+        result: Dict[int,List[SimType]] = defaultdict(list)
         if isinstance(ty, SimStruct):
             if ty.packed:
                 return None
@@ -1376,23 +1376,23 @@ class SimCCSystemVAMD64(SimCC):
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
-                for suboffset, subsubty in subresult.items():
-                    result[offset + suboffset].append(subsubty)
+                for suboffset, subsubty_list in subresult.items():
+                    result[offset + suboffset] += subsubty_list
         elif isinstance(ty, SimTypeFixedSizeArray):
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
-            for suboffset, subsubty in subresult.items():
+            for suboffset, subsubty_list in subresult.items():
                 for idx in range(ty.length):
                     # TODO I think we need an explicit stride field on array types
-                    result[idx * ty.elem_type.size // self.arch.byte_width + suboffset].append(subsubty)
+                    result[idx * ty.elem_type.size // self.arch.byte_width + suboffset] += subsubty_list
         elif isinstance(ty, SimUnion):
             for field, subty in ty.members.items():
                 subresult = self._flatten(subty)
                 if subresult is None:
                     return None
-                for suboffset, subsubty in subresult.items():
-                    result[suboffset].append(subsubty)
+                for suboffset, subsubty_list in subresult.items():
+                    result[suboffset] += subsubty_list
         else:
             result[0].append(ty)
         return result
