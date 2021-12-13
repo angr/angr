@@ -13,25 +13,25 @@ BASE_LATTICE_64 = networkx.DiGraph()
 BASE_LATTICE_64.add_edge(TopType, Int)
 BASE_LATTICE_64.add_edge(Int, Int64)
 BASE_LATTICE_64.add_edge(Int, Int32)
-BASE_LATTICE_64.add_edge(Int64, Pointer64)
-BASE_LATTICE_64.add_edge(Pointer64, BottomType)
+BASE_LATTICE_64.add_edge(Int, Int16)
+BASE_LATTICE_64.add_edge(Int, Int8)
 BASE_LATTICE_64.add_edge(Int32, BottomType)
 BASE_LATTICE_64.add_edge(Int16, BottomType)
-BASE_LATTICE_64.add_edge(Int, Int16)
 BASE_LATTICE_64.add_edge(Int8, BottomType)
-BASE_LATTICE_64.add_edge(Int, Int8)
+BASE_LATTICE_64.add_edge(Int64, Pointer64)
+BASE_LATTICE_64.add_edge(Pointer64, BottomType)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
 BASE_LATTICE_32.add_edge(TopType, Int)
 BASE_LATTICE_32.add_edge(Int, Int32)
+BASE_LATTICE_32.add_edge(Int, Int16)
+BASE_LATTICE_32.add_edge(Int, Int8)
 BASE_LATTICE_32.add_edge(Int32, Pointer32)
 BASE_LATTICE_32.add_edge(Int64, BottomType)
 BASE_LATTICE_32.add_edge(Pointer32, BottomType)
 BASE_LATTICE_32.add_edge(Int16, BottomType)
-BASE_LATTICE_32.add_edge(Int, Int16)
 BASE_LATTICE_32.add_edge(Int8, BottomType)
-BASE_LATTICE_32.add_edge(Int, Int8)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,
@@ -206,8 +206,8 @@ class SimpleSolver:
 
         ptr_class = self._pointer_class()
 
-        subtypevars = defaultdict(set)  # (k,v): all vars in value are sub-types of k
-        supertypevars = defaultdict(set)  # (k,v): all vars in value are super-types of k
+        subtypevars = defaultdict(set)  # (k,v): all vars in v are sub-types of k
+        supertypevars = defaultdict(set)  # (k,v): all vars in v are super-types of k
 
         while constraints:
             constraint = constraints.pop()
@@ -414,9 +414,9 @@ class SimpleSolver:
         if t1 == t2:
             return t1
         if isinstance(t1, TopType):
-            return t2
-        elif isinstance(t2, TopType):
             return t1
+        elif isinstance(t2, TopType):
+            return t2
 
         if isinstance(t1, TypeVariableReference) and not isinstance(t2, TypeVariableReference):
             return t1
@@ -494,9 +494,9 @@ class SimpleSolver:
         if t1 == t2:
             return t1
         elif isinstance(t1, BottomType):
-            return t2
-        elif isinstance(t2, BottomType):
             return t1
+        elif isinstance(t2, BottomType):
+            return t2
 
         if isinstance(t1, TypeVariableReference) and not isinstance(t2, TypeVariableReference):
             return t1
