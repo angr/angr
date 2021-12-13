@@ -91,7 +91,8 @@ class AllocHelper:
             })
         raise TypeError(type(val))
 
-def refine_locs_with_struct_type(arch, locs, arg_type, offset=0):
+
+def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int=0):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
@@ -118,13 +119,16 @@ def refine_locs_with_struct_type(arch, locs, arg_type, offset=0):
     if isinstance(arg_type, SimTypeFixedSizeArray):
         # TODO explicit stride
         locs = [
-            refine_locs_with_struct_type(locs, arg_type.elem_type, offset + i * arg_type.size // arch.byte_width)
+            refine_locs_with_struct_type(arch, locs, arg_type.elem_type,
+                                         offset=offset + i * arg_type.size // arch.byte_width)
             for i in range(arg_type.length)
         ]
         return SimArrayArg(locs)
     if isinstance(arg_type, SimStruct):
         locs = {
-            field: refine_locs_with_struct_type(locs, field_ty, offset + arg_type.offsets[field]) for field, field_ty in arg_type.fields.items()
+            field: refine_locs_with_struct_type(
+                arch, locs, field_ty,
+                offset=offset + arg_type.offsets[field]) for field, field_ty in arg_type.fields.items()
         }
         return SimStructArg(arg_type, locs)
     raise TypeError("I don't know how to lay out a %s" % arg_type)
