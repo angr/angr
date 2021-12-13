@@ -10,7 +10,7 @@ from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.vex.claripy.irop import operations as vex_operations
 from ...errors import SimEngineError, SimMemoryMissingError
-from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC
+from ...calling_conventions import DEFAULT_CC, SimRegArg, SimStackArg, SimCC, SimStructArg, SimArrayArg
 from ...utils.constants import DEFAULT_STATEMENT
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.tag import LocalVariableTag, ParameterTag, ReturnValueTag, Tag
@@ -1098,14 +1098,59 @@ class SimEngineRDVEX(
                 if isinstance(arg, SimRegArg):
                     reg_offset, reg_size = self.arch.registers[arg.reg_name]
                     atom = Register(reg_offset, reg_size)
+                    self.state.add_use(atom, code_loc)
+                    self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStackArg):
                     atom = MemoryLocation(SpOffset(self.arch.bits,
                                           arg.stack_offset),
                                           arg.size * self.arch.byte_width)
+                    self.state.add_use(atom, code_loc)
+                    self._tag_definitions_of_atom(atom, func_addr_int)
+                elif isinstance(arg, SimStructArg):
+                    min_stack_offset = None
+                    for subargfield, subargloc in arg.locs.items():
+                        if not isinstance(subargloc, SimStackArg):
+                            raise TypeError(f"Unexpected: Field {subargfield} in {arg} is not a stack location.")
+                        if min_stack_offset is None:
+                            min_stack_offset = subargloc.stack_offset
+                        elif min_stack_offset > subargloc.stack_offset:
+                            min_stack_offset = subargloc.stack_offset
+
+                    if min_stack_offset is not None:
+                        atom = MemoryLocation(SpOffset(self.arch.bits,
+                                              min_stack_offset),
+                                              arg.size * self.arch.byte_width)
+                        self.state.add_use(atom, code_loc)
+                        self._tag_definitions_of_atom(atom, func_addr_int)
+                elif isinstance(arg, SimArrayArg):
+                    min_stack_offset = None
+                    max_stack_loc = None
+                    for subargloc in arg.locs:
+                        if isinstance(subargloc, SimRegArg):
+                            atom = Register(subargloc.reg_offset, subargloc.size)
+                            self.state.add_use(atom, code_loc)
+                            self._tag_definitions_of_atom(atom, func_addr_int)
+                        elif isinstance(subargloc, SimStackArg):
+                            if min_stack_offset is None:
+                                min_stack_offset = subargloc.stack_offset
+                            elif min_stack_offset > subargloc.stack_offset:
+                                min_stack_offset = subargloc.stack_offset
+                            if max_stack_loc is None:
+                                max_stack_loc = subargloc.stack_offset + subargloc.size
+                            elif max_stack_loc < subargloc.stack_offset + subargloc.size:
+                                max_stack_loc = subargloc.stack_offset + subargloc.size
+                        else:
+                            raise TypeError("Unsupported argument type %s" % type(subargloc))
+
+                    if min_stack_offset is not None:
+                        atom = MemoryLocation(SpOffset(self.arch.bits,
+                                              min_stack_offset),
+                                              max_stack_loc - min_stack_offset)
+                        self.state.add_use(atom, code_loc)
+                        self._tag_definitions_of_atom(atom, func_addr_int)
                 else:
                     raise TypeError("Unsupported argument type %s" % type(arg))
-                self.state.add_use(atom, code_loc)
-                self._tag_definitions_of_atom(atom, func_addr_int)
+
 
         if cc.RETURN_VAL is not None:
             if isinstance(cc.RETURN_VAL, SimRegArg):
