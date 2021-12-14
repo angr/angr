@@ -7,9 +7,6 @@ l = logging.getLogger("angr.tests")
 import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-arches = ( "armel", "i386", "mips", "mipsel", "ppc64", "ppc", "x86_64" )
-# TODO: arches += ( "armhf", )
-
 class TestCeckbyte(unittest.TestCase):
     def _run_checkbyte(self,arch):
         p = angr.Project(os.path.join(test_location, arch, "checkbyte"), auto_load_libs=False)
