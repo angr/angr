@@ -280,7 +280,8 @@ class ConditionProcessor:
         elif isinstance(node, LoopNode):
 
             result = node.copy()
-            result.condition = self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None else None
+            result.condition = self.convert_claripy_bool_ast(node.condition, memo=memo) if node.condition is not None \
+                else None
             result.sequence_node = self.remove_claripy_bool_asts(node.sequence_node, memo=memo)
             return result
 
@@ -449,8 +450,12 @@ class ConditionProcessor:
             # TODO: THIS IS ABSOLUTELY A HACK. AT THIS MOMENT YOU SHOULD NOT ATTEMPT TO MAKE SENSE OF EXCEPTION EDGES.
             self.EXC_COUNTER += 1
             return self.claripy_ast_from_ail_condition(
-                ailment.Expr.BinaryOp(None, 'CmpEQ', (ailment.Expr.Register(0x400000 + self.EXC_COUNTER, None, self.EXC_COUNTER, 64),
-                                                      ailment.Expr.Const(None, None, self.EXC_COUNTER, 64)), False)
+                ailment.Expr.BinaryOp(
+                    None,
+                    'CmpEQ',
+                    (ailment.Expr.Register(0x400000 + self.EXC_COUNTER, None, self.EXC_COUNTER, 64),
+                     ailment.Expr.Const(None, None, self.EXC_COUNTER, 64)),
+                    False)
             )
 
         if type(src_block) is ConditionalBreakNode:
@@ -487,7 +492,7 @@ class ConditionProcessor:
     # Expression conversion
     #
 
-    def _convert_extract(self, hi, lo, expr, annotations, memo=None):
+    def _convert_extract(self, hi, lo, expr, memo=None):
         # ailment does not support Extract. We translate Extract to Convert and shift.
         if lo == 0:
             # TODO: Keep track of tags
@@ -750,6 +755,8 @@ class ConditionProcessor:
                 new_args.append(arg)
             return claripy.And(*new_args)
 
+        return None
+
     @staticmethod
     def _revert_short_circuit_conditions(cond):
 
@@ -872,7 +879,8 @@ class ConditionProcessor:
             new_args = [ ]
             for arg in args:
                 if arg.op == "And":
-                    new_subexprs = [ subexpr for subexpr in arg.args if not _expr_inside_collection(subexpr, common_exprs) ]
+                    new_subexprs = [ subexpr for subexpr in arg.args
+                                     if not _expr_inside_collection(subexpr, common_exprs) ]
                     new_args.append(claripy.And(*new_subexprs))
                 elif arg in common_exprs:
                     continue
@@ -928,8 +936,10 @@ class ConditionProcessor:
                     r1,
                     r1_with),))
         else:
-            if ast is r0: return r0_with
-            if ast is r1: return r1_with
+            if ast is r0:
+                return r0_with
+            if ast is r1:
+                return r1_with
             return ast
 
     @staticmethod
@@ -977,5 +987,6 @@ class ConditionProcessor:
             # TODO: Finish the implementation
             print(term, "is redundant")
 
+
 # delayed import
-from .region_identifier import GraphRegion, MultiNode
+from .region_identifier import GraphRegion, MultiNode  # pylint:disable=wrong-import-position
