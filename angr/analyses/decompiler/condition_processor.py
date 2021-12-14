@@ -723,7 +723,22 @@ class ConditionProcessor:
         cond = simplified if simplified is not None else cond
         # simplified = ConditionProcessor._remove_redundant_terms(cond)
         # cond = simplified if simplified is not None else cond
+        # in the end, use claripy's simplification to handle really easy cases again
+        simplified = ConditionProcessor._simplify_trivial_cases(cond)
+        cond = simplified if simplified is not None else cond
         return cond
+
+    @staticmethod
+    def _simplify_trivial_cases(cond):
+
+        if cond.op == "And":
+            new_args = [ ]
+            for arg in cond.args:
+                claripy_simplified = claripy.simplify(arg)
+                if claripy.is_true(claripy_simplified):
+                    continue
+                new_args.append(arg)
+            return claripy.And(*new_args)
 
     @staticmethod
     def _revert_short_circuit_conditions(cond):
@@ -816,6 +831,13 @@ class ConditionProcessor:
                     return True
             return False
 
+        def _ast_wo_annotations(ast):
+            if ast.op == "Not" and ast.args[0].annotations:
+                subast = ast.args[0].remove_annotations(ast.args[0].annotations)
+                return claripy.simplify(claripy.Not(subast)), ast.annotations
+            else:
+                return ast.remove_annotations(ast.annotations), ast.annotations
+
         # (A && B) || (A && C) => A && (B || C)
         if cond.op == "And":
             args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
@@ -825,28 +847,50 @@ class ConditionProcessor:
 
         if cond.op == "Or":
             args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
-            args = [ (arg if arg is not None else ori_arg) for arg, ori_arg in zip(args, cond.args) ]
+
+            # we must strip all annotations from these arguments, do our analysis, and then put the annotations back on
+            args_wo_annotations = [ ]
+            ast2annotations = { }
+            for arg, ori_arg in zip(args, cond.args):
+                if arg is not None:
+                    new_arg, annotations = _ast_wo_annotations(arg)
+                else:
+                    new_arg, annotations = _ast_wo_annotations(ori_arg)
+                args_wo_annotations.append(new_arg)
+                ast2annotations[new_arg] = annotations
 
             expr_ctrs = defaultdict(int)
-            for arg in args:
+            for arg in args_wo_annotations:
                 if arg.op == "And":
                     for subexpr in arg.args:
-                        expr_ctrs[subexpr] += 1
+                        subexpr_wo_annotations, annotations = _ast_wo_annotations(subexpr)
+                        ast2annotations[subexpr_wo_annotations] = annotations
+                        expr_ctrs[subexpr_wo_annotations] += 1
                 else:
                     expr_ctrs[arg] += 1
 
             common_exprs = [ ]
+            common_exprs_wo_annotations = set()
             for expr, ctr in expr_ctrs.items():
-                if ctr == len(args):
-                    common_exprs.append(expr)
+                if ctr == len(args_wo_annotations):
+                    # found a common one
+                    common_exprs_wo_annotations.add(expr)
+                    if expr in ast2annotations:
+                        common_exprs.append(expr.append_annotations(ast2annotations[expr]))
+                    else:
+                        common_exprs.append(expr)
 
             if not common_exprs:
-                return claripy.Or(*args)
+                return claripy.Or(*(new_arg.append_annotations(ast2annotations[new_arg]) for new_arg in args_wo_annotations))
 
             new_args = [ ]
-            for arg in args:
+            for arg in args_wo_annotations:
                 if arg.op == "And":
-                    new_subexprs = [ subexpr for subexpr in arg.args if not _expr_inside_collection(subexpr, common_exprs) ]
+                    new_subexprs = [ ]
+                    for subexpr in arg.args:
+                        subexpr_wo_annotations, _ = _ast_wo_annotations(subexpr)
+                        if not _expr_inside_collection(subexpr_wo_annotations, common_exprs_wo_annotations):
+                            new_subexprs.append(subexpr)
                     new_args.append(claripy.And(*new_subexprs))
                 elif arg in common_exprs:
                     continue
