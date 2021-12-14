@@ -1,9 +1,10 @@
 from collections import defaultdict
-from typing import Iterable, Generator, Dict, Any
+from typing import Generator, Dict, Any
 import operator
 import logging
 
 import networkx
+import sympy
 
 import claripy
 import ailment
@@ -18,27 +19,6 @@ from .utils import extract_jump_targets, switch_extract_cmp_bounds
 l = logging.getLogger(__name__)
 
 
-class TagsAnnotation(claripy.Annotation):
-    def __init__(self, **tags):
-        self.tags = tags
-        super().__init__()
-
-    def __hash__(self):
-        keys = list(sorted(self.tags.keys()))
-        return hash(tuple((k, self.tags[k]) for k in keys))
-
-    @property
-    def eliminatable(self):
-        return False
-
-    @property
-    def relocatable(self):
-        return True
-
-    def relocate(self, src, dst):
-        return self
-
-
 class ConditionProcessor:
     """
     Convert between claripy AST and AIL expressions. Also calculates reaching conditions of all nodes on a graph.
@@ -47,11 +27,13 @@ class ConditionProcessor:
         self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
         self.reaching_conditions = {}
         self.guarding_conditions = {}
+        self._ast2annotations = {}
 
     def clear(self):
-        self._condition_mapping.clear()
-        self.reaching_conditions.clear()
-        self.guarding_conditions.clear()
+        self._condition_mapping = {}
+        self.reaching_conditions = {}
+        self.guarding_conditions = {}
+        self._ast2annotations = {}
 
     def recover_reaching_conditions(self, region, with_successors=False, jump_tables=None):
 
@@ -503,14 +485,9 @@ class ConditionProcessor:
     def _convert_extract(self, hi, lo, expr, annotations, memo=None):
         # ailment does not support Extract. We translate Extract to Convert and shift.
         if lo == 0:
-            try:
-                tag_annotation = next(iter(anno for anno in annotations if isinstance(anno, TagsAnnotation)))
-                tags = tag_annotation.tags
-            except StopIteration:
-                tags = {}
+            # TODO: Keep track of tags
             return ailment.Expr.Convert(None, expr.size(), hi + 1, False,
                                         self.convert_claripy_bool_ast(expr, memo=memo),
-                                        **tags,
                                         )
 
         raise NotImplementedError("This case will be implemented once encountered.")
@@ -539,62 +516,52 @@ class ConditionProcessor:
         if cond.args[0] in self._condition_mapping:
             return self._condition_mapping[cond.args[0]]
 
-        def _binary_op_reduce(op, args, annotations: Iterable[claripy.Annotation], signed=False):
+        def _binary_op_reduce(op, args, signed=False):
             r = None
             for arg in args:
                 if r is None:
                     r = self.convert_claripy_bool_ast(arg, memo=memo)
                 else:
-                    try:
-                        tag_annotation = next(iter(anno for anno in annotations if isinstance(anno, TagsAnnotation)))
-                        tags = tag_annotation.tags
-                    except StopIteration:
-                        tags = {}
-                    r = ailment.Expr.BinaryOp(None, op, (r, self.convert_claripy_bool_ast(arg, memo=memo)), signed,
-                                              **tags
-                                              )
+                    # TODO: Keep track of tags
+                    r = ailment.Expr.BinaryOp(None, op, (r, self.convert_claripy_bool_ast(arg, memo=memo)), signed)
             return r
 
-        def _unary_op_reduce(op, arg, annotations: Iterable[claripy.Annotation]):
+        def _unary_op_reduce(op, arg):
             r = self.convert_claripy_bool_ast(arg, memo=memo)
-            try:
-                tag_annotation = next(iter(anno for anno in annotations if isinstance(anno, TagsAnnotation)))
-                tags = tag_annotation.tags
-            except StopIteration:
-                tags = {}
-            return ailment.Expr.UnaryOp(None, op, r, **tags)
+            # TODO: Keep track of tags
+            return ailment.Expr.UnaryOp(None, op, r)
 
         _mapping = {
-            'Not': lambda cond_: _unary_op_reduce('Not', cond_.args[0], cond_.annotations),
-            'And': lambda cond_: _binary_op_reduce('LogicalAnd', cond_.args, cond_.annotations),
-            'Or': lambda cond_: _binary_op_reduce('LogicalOr', cond_.args, cond_.annotations),
-            '__le__': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, cond_.annotations, signed=True),
-            'SLE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, cond_.annotations, signed=True),
-            '__lt__': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, cond_.annotations, signed=True),
-            'SLT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, cond_.annotations, signed=True),
-            'UGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, cond_.annotations),
-            'UGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, cond_.annotations),
-            '__gt__': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, cond_.annotations, signed=True),
-            '__ge__': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, cond_.annotations, signed=True),
-            'SGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, cond_.annotations, signed=True),
-            'SGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, cond_.annotations, signed=True),
-            'ULT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, cond_.annotations),
-            'ULE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, cond_.annotations),
-            '__eq__': lambda cond_: _binary_op_reduce('CmpEQ', cond_.args, cond_.annotations),
-            '__ne__': lambda cond_: _binary_op_reduce('CmpNE', cond_.args, cond_.annotations),
-            '__add__': lambda cond_: _binary_op_reduce('Add', cond_.args, cond_.annotations, signed=False),
-            '__sub__': lambda cond_: _binary_op_reduce('Sub', cond_.args, cond_.annotations),
-            '__mul__': lambda cond_: _binary_op_reduce('Mul', cond_.args, cond_.annotations),
-            '__xor__': lambda cond_: _binary_op_reduce('Xor', cond_.args, cond_.annotations),
-            '__or__': lambda cond_: _binary_op_reduce('Or', cond_.args, cond_.annotations, signed=False),
-            '__and__': lambda cond_: _binary_op_reduce('And', cond_.args, cond_.annotations),
-            '__lshift__': lambda cond_: _binary_op_reduce('Shl', cond_.args, cond_.annotations),
-            '__rshift__': lambda cond_: _binary_op_reduce('Sar', cond_.args, cond_.annotations),
-            'LShR': lambda cond_: _binary_op_reduce('Shr', cond_.args, cond_.annotations),
+            'Not': lambda cond_: _unary_op_reduce('Not', cond_.args[0]),
+            'And': lambda cond_: _binary_op_reduce('LogicalAnd', cond_.args),
+            'Or': lambda cond_: _binary_op_reduce('LogicalOr', cond_.args),
+            '__le__': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, signed=True),
+            'SLE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args, signed=True),
+            '__lt__': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, signed=True),
+            'SLT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args, signed=True),
+            'UGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args),
+            'UGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args),
+            '__gt__': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, signed=True),
+            '__ge__': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, signed=True),
+            'SGT': lambda cond_: _binary_op_reduce('CmpGT', cond_.args, signed=True),
+            'SGE': lambda cond_: _binary_op_reduce('CmpGE', cond_.args, signed=True),
+            'ULT': lambda cond_: _binary_op_reduce('CmpLT', cond_.args),
+            'ULE': lambda cond_: _binary_op_reduce('CmpLE', cond_.args),
+            '__eq__': lambda cond_: _binary_op_reduce('CmpEQ', cond_.args),
+            '__ne__': lambda cond_: _binary_op_reduce('CmpNE', cond_.args),
+            '__add__': lambda cond_: _binary_op_reduce('Add', cond_.args, signed=False),
+            '__sub__': lambda cond_: _binary_op_reduce('Sub', cond_.args),
+            '__mul__': lambda cond_: _binary_op_reduce('Mul', cond_.args),
+            '__xor__': lambda cond_: _binary_op_reduce('Xor', cond_.args),
+            '__or__': lambda cond_: _binary_op_reduce('Or', cond_.args, signed=False),
+            '__and__': lambda cond_: _binary_op_reduce('And', cond_.args),
+            '__lshift__': lambda cond_: _binary_op_reduce('Shl', cond_.args),
+            '__rshift__': lambda cond_: _binary_op_reduce('Sar', cond_.args),
+            'LShR': lambda cond_: _binary_op_reduce('Shr', cond_.args),
             'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
             'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
                                                                         else ailment.Expr.Const(None, None, False, 1),
-            'Extract': lambda cond_: self._convert_extract(*cond_.args, cond_.annotations, memo=memo),
+            'Extract': lambda cond_: self._convert_extract(*cond_.args, memo=memo),
         }
 
         if cond.op in _mapping:
@@ -696,9 +663,8 @@ class ConditionProcessor:
         if r is NotImplemented:
             r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
             self._condition_mapping[r.args[0]] = condition
-        else:
-            # don't lose tags
-            r = r.annotate(TagsAnnotation(**condition.tags))
+        # don't lose tags
+        self._ast2annotations[r] = condition.tags
         return r
 
     #
@@ -706,7 +672,47 @@ class ConditionProcessor:
     #
 
     @staticmethod
+    def claripy_ast_to_sympy_expr(ast, memo=None):
+        if ast.op == "And":
+            return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
+        if ast.op == "Or":
+            return sympy.Or(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
+        if ast.op == "Not":
+            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0], memo=memo))
+        if ast.op == "__ne__":
+            # simplify it to __eq__
+            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0] == ast.args[1], memo=memo))
+        if ast.op == "SLE":
+            # simplify it to SGT
+            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(claripy.SGT(ast.args[0], ast.args[1]), memo=memo))
+
+        if memo is not None and ast in memo:
+            return memo[ast]
+        symbol = sympy.Symbol(str(hash(ast)))
+        if memo is not None:
+            memo[symbol] = ast
+        return symbol
+
+    @staticmethod
+    def sympy_expr_to_claripy_ast(expr, memo: Dict):
+        if expr.is_Symbol:
+            return memo[expr]
+        if isinstance(expr, sympy.Or):
+            return claripy.Or(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
+        if isinstance(expr, sympy.And):
+            return claripy.And(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
+        if isinstance(expr, sympy.Not):
+            return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
+        raise RuntimeError("Unreachable reached")
+
+    @staticmethod
     def simplify_condition(cond):
+        memo = { }
+        sympy_expr = ConditionProcessor.claripy_ast_to_sympy_expr(cond, memo=memo)
+        return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr), memo)
+
+    @staticmethod
+    def simplify_condition_deprecated(cond):
 
         # Z3's simplification may yield weird and unreadable results
         # hence we mostly rely on our own simplification. we only use Z3's simplification results when it returns a
@@ -831,13 +837,6 @@ class ConditionProcessor:
                     return True
             return False
 
-        def _ast_wo_annotations(ast):
-            if ast.op == "Not" and ast.args[0].annotations:
-                subast = ast.args[0].remove_annotations(ast.args[0].annotations)
-                return claripy.simplify(claripy.Not(subast)), ast.annotations
-            else:
-                return ast.remove_annotations(ast.annotations), ast.annotations
-
         # (A && B) || (A && C) => A && (B || C)
         if cond.op == "And":
             args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
@@ -847,50 +846,29 @@ class ConditionProcessor:
 
         if cond.op == "Or":
             args = [ ConditionProcessor._extract_common_subexpressions(arg) for arg in cond.args ]
-
-            # we must strip all annotations from these arguments, do our analysis, and then put the annotations back on
-            args_wo_annotations = [ ]
-            ast2annotations = { }
-            for arg, ori_arg in zip(args, cond.args):
-                if arg is not None:
-                    new_arg, annotations = _ast_wo_annotations(arg)
-                else:
-                    new_arg, annotations = _ast_wo_annotations(ori_arg)
-                args_wo_annotations.append(new_arg)
-                ast2annotations[new_arg] = annotations
+            args = [(arg if arg is not None else ori_arg) for arg, ori_arg in zip(args, cond.args)]
 
             expr_ctrs = defaultdict(int)
-            for arg in args_wo_annotations:
+            for arg in args:
                 if arg.op == "And":
                     for subexpr in arg.args:
-                        subexpr_wo_annotations, annotations = _ast_wo_annotations(subexpr)
-                        ast2annotations[subexpr_wo_annotations] = annotations
-                        expr_ctrs[subexpr_wo_annotations] += 1
+                        expr_ctrs[subexpr] += 1
                 else:
                     expr_ctrs[arg] += 1
 
             common_exprs = [ ]
-            common_exprs_wo_annotations = set()
             for expr, ctr in expr_ctrs.items():
-                if ctr == len(args_wo_annotations):
+                if ctr == len(args):
                     # found a common one
-                    common_exprs_wo_annotations.add(expr)
-                    if expr in ast2annotations:
-                        common_exprs.append(expr.append_annotations(ast2annotations[expr]))
-                    else:
-                        common_exprs.append(expr)
+                    common_exprs.append(expr)
 
             if not common_exprs:
-                return claripy.Or(*(new_arg.append_annotations(ast2annotations[new_arg]) for new_arg in args_wo_annotations))
+                return claripy.Or(*args)
 
             new_args = [ ]
-            for arg in args_wo_annotations:
+            for arg in args:
                 if arg.op == "And":
-                    new_subexprs = [ ]
-                    for subexpr in arg.args:
-                        subexpr_wo_annotations, _ = _ast_wo_annotations(subexpr)
-                        if not _expr_inside_collection(subexpr_wo_annotations, common_exprs_wo_annotations):
-                            new_subexprs.append(subexpr)
+                    new_subexprs = [ subexpr for subexpr in arg.args if not _expr_inside_collection(subexpr, common_exprs) ]
                     new_args.append(claripy.And(*new_subexprs))
                 elif arg in common_exprs:
                     continue
