@@ -242,7 +242,7 @@ class AngrObjectFactory:
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False
               ):
 
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
@@ -268,7 +268,7 @@ class AngrObjectFactory:
                      extra_stop_points=extra_stop_points, thumb=thumb, backup_state=backup_state,
                      opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
                      strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
-                     cross_insn_opt=cross_insn_opt,
+                     cross_insn_opt=cross_insn_opt, load_from_ro_regions=load_from_ro_regions,
          )
 
     def fresh_block(self, addr, size, backup_state=None):

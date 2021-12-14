@@ -699,6 +699,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_returns = None
         self._function_exits = None
         self._gp_value: Optional[int] = None
+        self._ro_region_cdata_cache: Optional[List] = None
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -1157,6 +1158,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # assumption management
         self._decoding_assumptions: Dict[int,DecodingAssumption] = { }
 
+        # register read-only regions to PyVEX
+        self._lifter_register_readonly_regions()
+
     def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
         Some pre job-processing tasks, like update progress bar.
@@ -1434,6 +1438,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # Clean up
         self._traced_addresses = None
+        self._lifter_deregister_readonly_regions()
 
         self._finish_progress()
 
@@ -3718,6 +3723,22 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # the jumpkind should be Ret instead of boring
                     irsb.jumpkind = 'Ijk_Ret'
 
+    def _lifter_register_readonly_regions(self):
+        pyvex.pvc.deregister_all_readonly_regions()
+
+        if is_arm_arch(self.project.arch):
+            self._ro_region_cdata_cache = [ ]
+            for segment in self.project.loader.main_object.segments:
+                if segment.is_readable and not segment.is_writable:
+                    content = self.project.loader.memory.load(segment.vaddr, segment.memsize)
+                    content_buf = pyvex.ffi.from_buffer(content)
+                    self._ro_region_cdata_cache.append(content_buf)
+                    pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
+
+    def _lifter_deregister_readonly_regions(self):
+        pyvex.pvc.deregister_all_readonly_regions()
+        self._ro_region_cdata_cache = None
+
     #
     # Other methods
     #
@@ -3847,7 +3868,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             irsb_string = None
             lifted_block = None
             try:
-                lifted_block = self._lift(addr, size=distance, collect_data_refs=True, strict_block_end=True)
+                lifted_block = self._lift(addr, size=distance, collect_data_refs=True, strict_block_end=True,
+                                          load_from_ro_regions=True)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -3880,7 +3902,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             return addr_0, cfg_node.function_address, cfg_node, irsb
 
                         try:
-                            lifted_block = self._lift(addr_0, size=distance, collect_data_refs=True, strict_block_end=True)
+                            lifted_block = self._lift(addr_0, size=distance, collect_data_refs=True,
+                                                      strict_block_end=True, load_from_ro_regions=True)
                             irsb = lifted_block.vex_nostmt
                             irsb_string = lifted_block.bytes[:irsb.size]
                         except SimTranslationError:
