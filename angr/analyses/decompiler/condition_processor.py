@@ -19,6 +19,11 @@ from .utils import extract_jump_targets, switch_extract_cmp_bounds
 l = logging.getLogger(__name__)
 
 
+_UNIFIABLE_COMPARISONS = {
+    '__ne__', '__gt__', '__ge__', 'UGT', 'UGE', 'SGT', 'SGE',
+}
+
+
 class ConditionProcessor:
     """
     Convert between claripy AST and AIL expressions. Also calculates reaching conditions of all nodes on a graph.
@@ -679,12 +684,11 @@ class ConditionProcessor:
             return sympy.Or(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
         if ast.op == "Not":
             return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0], memo=memo))
-        if ast.op == "__ne__":
-            # simplify it to __eq__
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(ast.args[0] == ast.args[1], memo=memo))
-        if ast.op == "SLE":
-            # simplify it to SGT
-            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(claripy.SGT(ast.args[0], ast.args[1]), memo=memo))
+
+        if ast.op in _UNIFIABLE_COMPARISONS:
+            # unify comparisons to enable more simplification opportunities without going "deep" in sympy
+            inverse_op = getattr(ast.args[0], claripy.operations.inverse_operations[ast.op])
+            return sympy.Not(ConditionProcessor.claripy_ast_to_sympy_expr(inverse_op(ast.args[1]), memo=memo))
 
         if memo is not None and ast in memo:
             return memo[ast]
