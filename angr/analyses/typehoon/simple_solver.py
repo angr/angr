@@ -1,6 +1,6 @@
 import itertools
 from collections import defaultdict
-from typing import Union, Type
+from typing import Union, Type, Callable
 
 import networkx
 
@@ -70,8 +70,8 @@ class SimpleSolver:
         self.solution = self.determine()
 
     def solve(self):
-        # import pprint
-        # pprint.pprint(self._constraints)
+        import pprint
+        pprint.pprint(self._constraints)
 
         constraints = self._handle_equivalence()
         subtype_constraints = self._subtype_constraints_from_add()
@@ -80,13 +80,6 @@ class SimpleSolver:
         self._find_recursive_types(subtypevars)
         self._compute_lower_upper_bounds(subtypevars, supertypevars)
         # self._unify_struct_fields()
-        # import pprint
-        # print("Lower bounds")
-        # pprint.pprint(self._lower_bounds)
-        # print("Upper bounds")
-        # pprint.pprint(self._upper_bounds)
-
-
         # import pprint
         # print("Lower bounds")
         # pprint.pprint(self._lower_bounds)
@@ -116,13 +109,13 @@ class SimpleSolver:
             if v not in solution:
                 solution[v] = solution.get(self._equivalence[v], None)
 
-        # import pprint
-        # print("Lower bounds")
-        # pprint.pprint(self._lower_bounds)
-        # print("Upper bounds")
-        # pprint.pprint(self._upper_bounds)
-        # print("Solution")
-        # pprint.pprint(solution)
+        import pprint
+        print("Lower bounds")
+        pprint.pprint(self._lower_bounds)
+        print("Upper bounds")
+        pprint.pprint(self._upper_bounds)
+        print("Solution")
+        pprint.pprint(solution)
         return solution
 
     def _handle_equivalence(self):
@@ -206,8 +199,8 @@ class SimpleSolver:
 
         ptr_class = self._pointer_class()
 
-        subtypevars = defaultdict(set)  # (k,v): all vars in v are sub-types of k
-        supertypevars = defaultdict(set)  # (k,v): all vars in v are super-types of k
+        subtypevars = defaultdict(set)  # {k: {v}}: v <: k
+        supertypevars = defaultdict(set)  # {k: {v}}: k <: v
 
         while constraints:
             constraint = constraints.pop()
@@ -313,43 +306,34 @@ class SimpleSolver:
                 if ub is not None:
                     self._upper_bounds[v] = ub
 
-        if v not in self._upper_bounds:
-            self._upper_bounds[v] = TopType()
+        # if all that failed, let the defaultdict generate a Top
         return self._upper_bounds[v]
 
     def _compute_lower_upper_bounds(self, subtypevars, supertypevars):
 
         # compute the least upper bound for each type variable
-        for typevar, vars_ in supertypevars.items():
+        for typevar, upper_bounds in supertypevars.items():
             if typevar is None:
                 continue
             if isinstance(typevar, TypeConstant):
                 continue
-            supermum = BottomType() if typevar not in self._upper_bounds else self._upper_bounds[typevar]
-            # attempt to update the upper bound of the supertype variable
-            for subtypevar in vars_:
-                supermum = self._join(subtypevar, supermum, self._get_upper_bound)
-            self._upper_bounds[typevar] = supermum
+            self._upper_bounds[typevar] = self._meet(typevar, *upper_bounds, translate=self._get_upper_bound)
 
         # compute the greatest lower bound for each type variable
-        for typevar, vars_ in subtypevars.items():
+        for typevar, lower_bounds in subtypevars.items():
             if isinstance(typevar, TypeConstant):
                 continue
-            infimum = TopType() if typevar not in self._lower_bounds else self._lower_bounds[typevar]
-            # attempt to update the lower bound of the subtype variable
-            for supertypevar in vars_:
-                infimum = self._meet(supertypevar, infimum, self._get_lower_bound)
-            self._lower_bounds[typevar] = infimum
+            self._lower_bounds[typevar] = self._join(typevar, *lower_bounds, translate=self._get_lower_bound)
 
             # because of T-InheritR, fields are propagated *both ways* in a subtype relation
-            for subtypevar in vars_:
-                if isinstance(typevar, TypeVariable):
-                    subtype_infimum = TopType() if subtypevar not in self._lower_bounds else \
-                        self._lower_bounds[subtypevar]
-                    if isinstance(subtype_infimum, Pointer) and \
-                            isinstance(subtype_infimum.basetype, Struct):
-                        subtype_infimum = self._meet(subtypevar, infimum, self._get_lower_bound)
-                        self._lower_bounds[subtypevar] = subtype_infimum
+            for subtypevar in lower_bounds:
+                if not isinstance(subtypevar, TypeVariable):
+                    continue
+                subtype_infimum = self._lower_bounds[subtypevar]
+                if isinstance(subtype_infimum, Pointer) and \
+                        isinstance(subtype_infimum.basetype, Struct):
+                    subtype_infimum = self._join(subtypevar, typevar, translate=self._get_lower_bound)
+                    self._lower_bounds[subtypevar] = subtype_infimum
 
     def _unify_struct_fields(self):
 
@@ -368,7 +352,7 @@ class SimpleSolver:
                     if isinstance(ptrv_subtype, Pointer):
                         if isinstance(ptrv_subtype.basetype, Struct):
                             the_field = ptrv_subtype.basetype.fields[v.label.offset]
-                            new_field = self._join(the_field, v_subtype, self._get_lower_bound)
+                            new_field = self._join(the_field, v_subtype, translate=self._get_lower_bound)
                             if new_field != the_field:
                                 new_fields = ptrv_subtype.basetype.fields.copy()
                                 new_fields.update(
@@ -387,7 +371,7 @@ class SimpleSolver:
         if n_cls is ptr_class:
             if isinstance(t1, ptr_class) and isinstance(t2, ptr_class):
                 # we need to merge them
-                return ptr_class(join_or_meet(t1.basetype, t2.basetype, translate))
+                return ptr_class(join_or_meet(t1.basetype, t2.basetype, translate=translate))
             if isinstance(t1, ptr_class):
                 return t1
             elif isinstance(t2, ptr_class):
@@ -398,26 +382,35 @@ class SimpleSolver:
 
         return n_cls()
 
-    def _join(self, t1, t2, translate):
+    def _join(self, *args, translate:Callable):
         """
-        Get the least upper bound of t1 and t2.
+        Get the least upper bound (V, maximum) of the arguments.
+        """
 
-        :param t1:
-        :param t2:
-        :return:
-        """
+        if len(args) == 0:
+            return BottomType()
+        if len(args) == 1:
+            return translate(args[0])
+        if len(args) > 2:
+            split = len(args) // 2
+            first = self._join(*args[:split], translate=translate)
+            second = self._join(*args[split:], translate=translate)
+            return self._join(first, second, translate=translate)
+
+        t1 = translate(args[0])
+        t2 = translate(args[1])
 
         # Trivial cases
-        t1 = translate(t1)
-        t2 = translate(t2)
-
         if t1 == t2:
             return t1
         if isinstance(t1, TopType):
             return t1
         elif isinstance(t2, TopType):
             return t2
-
+        if isinstance(t1, BottomType):
+            return t2
+        elif isinstance(t2, BottomType):
+            return t1
         if isinstance(t1, TypeVariableReference) and not isinstance(t2, TypeVariableReference):
             return t1
         elif isinstance(t2, TypeVariableReference) and not isinstance(t1, TypeVariableReference):
@@ -443,7 +436,7 @@ class SimpleSolver:
             fields = { }
             for offset in sorted(set(itertools.chain(t1.fields.keys(), t2.fields.keys()))):
                 if offset in t1.fields and offset in t2.fields:
-                    v = self._join(t1.fields[offset], t2.fields[offset], translate)
+                    v = self._join(t1.fields[offset], t2.fields[offset], translate=translate)
                 elif offset in t1.fields:
                     v = t1.fields[offset]
                 elif offset in t2.fields:
@@ -459,7 +452,7 @@ class SimpleSolver:
             t1, t1_cls, t2, t2_cls = t2, t2_cls, t1, t1_cls
         if issubclass(t1_cls, Int) and t2_cls is Struct and len(t2.fields) == 1 and 0 in t2.fields:
             # e.g., char & struct {0: char}
-            return Struct(fields={0: self._join(t1, t2.fields[0], translate)})
+            return Struct(fields={0: self._join(t1, t2.fields[0], translate=translate)})
 
         ptr_class = self._pointer_class()
 
@@ -479,25 +472,35 @@ class SimpleSolver:
         # import ipdb; ipdb.set_trace()
         return TopType()
 
-    def _meet(self, t1, t2, translate):
+    def _meet(self, *args, translate:Callable):
         """
-        Get the greatest lower bound of t1 and t2.
-
-        :param t1:
-        :param t2:
-        :return:
+        Get the greatest lower bound (^, minimum) of the arguments.
         """
 
-        t1 = translate(t1)
-        t2 = translate(t2)
+        if len(args) == 0:
+            return TopType()
+        if len(args) == 1:
+            return translate(args[0])
+        if len(args) > 2:
+            split = len(args) // 2
+            first = self._meet(*args[:split], translate=translate)
+            second = self._meet(*args[split:], translate=translate)
+            return self._meet(first, second, translate=translate)
 
+        t1 = translate(args[0])
+        t2 = translate(args[1])
+
+        # Trivial cases
         if t1 == t2:
             return t1
         elif isinstance(t1, BottomType):
             return t1
         elif isinstance(t2, BottomType):
             return t2
-
+        if isinstance(t1, TopType):
+            return t2
+        elif isinstance(t2, TopType):
+            return t1
         if isinstance(t1, TypeVariableReference) and not isinstance(t2, TypeVariableReference):
             return t1
         elif isinstance(t2, TypeVariableReference) and not isinstance(t1, TypeVariableReference):
@@ -523,7 +526,7 @@ class SimpleSolver:
             fields = { }
             for offset in sorted(set(itertools.chain(t1.fields.keys(), t2.fields.keys()))):
                 if offset in t1.fields and offset in t2.fields:
-                    v = self._meet(t1.fields[offset], t2.fields[offset], translate)
+                    v = self._meet(t1.fields[offset], t2.fields[offset], translate=translate)
                 elif offset in t1.fields:
                     v = t1.fields[offset]
                 elif offset in t2.fields:
@@ -539,7 +542,7 @@ class SimpleSolver:
             t1, t1_cls, t2, t2_cls = t2, t2_cls, t1, t1_cls
         if issubclass(t1_cls, Int) and t2_cls is Struct and len(t2.fields) == 1 and 0 in t2.fields:
             # e.g., char & struct {0: char}
-            return Struct(fields={0: self._meet(t1, t2.fields[0], translate)})
+            return Struct(fields={0: self._meet(t1, t2.fields[0], translate=translate)})
 
         ptr_class = self._pointer_class()
 
