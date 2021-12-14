@@ -40,7 +40,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         for idx, func_addr in enumerate(reversed(sorted_funcs)):
             func = self.kb.functions.get_by_addr(func_addr)
 
-            if func.calling_convention is None or self._force:
+            if (func.calling_convention is None or func.prototype is None) or self._force:
                 if func.alignment:
                     # skip all alignments
                     continue
