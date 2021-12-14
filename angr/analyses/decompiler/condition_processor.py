@@ -712,6 +712,10 @@ class ConditionProcessor:
             return claripy.And(*(ConditionProcessor.sympy_expr_to_claripy_ast(arg, memo) for arg in expr.args))
         if isinstance(expr, sympy.Not):
             return claripy.Not(ConditionProcessor.sympy_expr_to_claripy_ast(expr.args[0], memo))
+        if isinstance(expr, sympy.logic.boolalg.BooleanTrue):
+            return claripy.true
+        if isinstance(expr, sympy.logic.boolalg.BooleanFalse):
+            return claripy.false
         raise RuntimeError("Unreachable reached")
 
     @staticmethod
