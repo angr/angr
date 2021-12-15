@@ -263,6 +263,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield loc_repr, None
             yield "\n", None
 
+        if unified_to_var_and_types:
+            yield "\n", None
+
     def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent)
@@ -304,7 +307,6 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield "{", brace
         yield "\n", None
         yield from self.variable_list_repr_chunks(indent=indent + INDENT_DELTA)
-        yield "\n", None
         yield from self.statements.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
         yield "}", brace
