@@ -10,6 +10,7 @@ from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
 from ....errors import UnsupportedNodeTypeError
+from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
 from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
@@ -1445,6 +1446,13 @@ class CConstant(CExpression):
         return f"\"{base_str}\""
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+
+        # default priority: string references -> variables -> other reference values
+        if self.reference_values is not None:
+            for ty, v in self.reference_values.items():
+                if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
+                    yield CConstant.str_to_c_str(v.content.decode('utf-8')), self
+                    return
 
         if self.variable is not None:
             yield from self.variable.c_repr_chunks()
