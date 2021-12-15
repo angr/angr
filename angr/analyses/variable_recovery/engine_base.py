@@ -126,66 +126,91 @@ class SimEngineVRBase(SimEngineLight):
 
     def _reference(self, richr: RichR, codeloc: CodeLocation, src=None):
         data: claripy.ast.Base = richr.data
-        # extract stack offset
-        if data is not None and self.state.is_stack_address(data):
-            # this is a stack address
-            stack_offset: Optional[int] = self.state.get_stack_offset(data)
-        else:
+
+        if data is None:
             return
 
-        var_candidates: List[Tuple[SimVariable,int]] = self.variable_manager[self.func_addr].find_variables_by_stmt(
-            self.block.addr,
-            self.stmt_idx,
-            'memory')
+        if self.state.is_stack_address(data):
+            # this is a stack address
+            # extract stack offset
+            stack_offset: Optional[int] = self.state.get_stack_offset(data)
 
-        # find the correct variable
-        existing_vars: List[Tuple[SimVariable,int]] = [ ]
-        for candidate, offset in var_candidates:
-            if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
-                existing_vars.append((candidate, offset))
-        variable = None
-        if existing_vars:
-            variable, _ = existing_vars[0]
+            variable_manager = self.variable_manager[self.func_addr]
+            var_candidates: List[Tuple[SimVariable, int]] = variable_manager.find_variables_by_stmt(
+                self.block.addr,
+                self.stmt_idx,
+                'memory')
 
-        vs = None
-        if stack_offset is not None:
-            stack_addr = self.state.stack_addr_from_offset(stack_offset)
-            if variable is None:
-                # TODO: how to determine the size for a lea?
-                try:
-                    vs: Optional[MultiValues] = self.state.stack_region.load(stack_addr, size=1)
-                except SimMemoryMissingError:
-                    vs = None
+            # find the correct variable
+            existing_vars: List[Tuple[SimVariable, int]] = []
+            for candidate, offset in var_candidates:
+                if isinstance(candidate, SimStackVariable) and candidate.offset == stack_offset:
+                    existing_vars.append((candidate, offset))
+            variable = None
+            if existing_vars:
+                variable, _ = existing_vars[0]
 
-                if vs is not None:
-                    # extract variables
-                    for values in vs.values.values():
-                        for v in values:
-                            for var_stack_offset, var in self.state.extract_variables(v):
-                                existing_vars.append((var, var_stack_offset))
+            vs = None
+            if stack_offset is not None:
+                stack_addr = self.state.stack_addr_from_offset(stack_offset)
+                if variable is None:
+                    # TODO: how to determine the size for a lea?
+                    try:
+                        vs: Optional[MultiValues] = self.state.stack_region.load(stack_addr, size=1)
+                    except SimMemoryMissingError:
+                        vs = None
 
-                if not existing_vars:
-                    # no variables exist
-                    lea_size = 1
-                    variable = SimStackVariable(stack_offset, lea_size, base='bp',
-                                                ident=self.variable_manager[self.func_addr].next_variable_ident(
-                                                    'stack'),
-                                                region=self.func_addr,
-                                                )
-                    self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-                    existing_vars.append((variable, 0))
+                    if vs is not None:
+                        # extract variables
+                        for values in vs.values.values():
+                            for v in values:
+                                for var_stack_offset, var in self.state.extract_variables(v):
+                                    existing_vars.append((var, var_stack_offset))
 
-                else:
-                    # FIXME: Why is it only taking the first variable?
-                    variable = next(iter(existing_vars))[0]
+                    if not existing_vars:
+                        # no variables exist
+                        lea_size = 1
+                        variable = SimStackVariable(stack_offset, lea_size, base='bp',
+                                                    ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                        'stack'),
+                                                    region=self.func_addr,
+                                                    )
+                        self.variable_manager[self.func_addr].add_variable('stack', stack_offset, variable)
+                        l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                        existing_vars.append((variable, 0))
 
-            # write the variable back to stack
-            if vs is None:
-                top = self.state.top(self.arch.byte_width)
-                top = self.state.annotate_with_variables(top, [(0, variable)])
-                vs = MultiValues(offset_to_values={0: {top}})
-            self.state.stack_region.store(stack_addr, vs)
+                    else:
+                        # FIXME: Why is it only taking the first variable?
+                        variable = next(iter(existing_vars))[0]
+
+                # write the variable back to stack
+                if vs is None:
+                    top = self.state.top(self.arch.byte_width)
+                    top = self.state.annotate_with_variables(top, [(0, variable)])
+                    vs = MultiValues(offset_to_values={0: {top}})
+                self.state.stack_region.store(stack_addr, vs)
+
+        elif self.state.is_global_variable_address(data):
+            # this is probably an address for a global variable
+            global_var_addr = data._model_concrete.value
+
+            variable_manager = self.variable_manager['global']
+
+            # special case for global variables: find existing variable by base address
+            existing_vars = list((var, 0) for var in variable_manager.get_global_variables(global_var_addr))
+
+            if not existing_vars:
+                variable = SimMemoryVariable(global_var_addr, 1,
+                                             ident=variable_manager.next_variable_ident('global'),
+                                             )
+                variable_manager.set_variable('global', global_var_addr, variable)
+                l.debug('Identified a new global variable %s at %#x.', variable, self.ins_addr)
+                existing_vars = [ (variable, 0) ]
+            else:
+                variable, _ = next(iter(existing_vars))
+
+        else:
+            return
 
         if self.state.typevars.has_type_variable_for(variable, codeloc):
             variable_typevar = self.state.typevars.get_type_variable(variable, codeloc)
@@ -200,7 +225,7 @@ class SimEngineVRBase(SimEngineLight):
         for var, offset in existing_vars:
             if offset == 0:
                 offset = None
-            self.variable_manager[self.func_addr].reference_at(var, offset, codeloc, atom=src)
+            variable_manager.reference_at(var, offset, codeloc, atom=src)
 
     def _assign_to_register(self, offset, richr, size, src=None, dst=None):
         """
