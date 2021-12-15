@@ -1,13 +1,14 @@
 import logging
 import os
-import angr
 import unittest
+
+import angr
 
 l = logging.getLogger("angr.tests")
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-class TestCase(unittest.TestCase):
+class TestRelro(unittest.TestCase):
     def _run_fauxware_relro(self,arch):
         p = angr.Project(os.path.join(test_location, arch, 'fauxware'), use_sim_procedures=False)
         s = p.factory.full_init_state(add_options={angr.options.STRICT_PAGE_ACCESS})
