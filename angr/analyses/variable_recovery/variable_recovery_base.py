@@ -221,6 +221,15 @@ class VariableRecoveryStateBase:
     def is_stack_address(addr: claripy.ast.Base) -> bool:
         return "stack_base" in addr.variables
 
+    def is_global_variable_address(self, addr: claripy.ast.Base) -> bool:
+        if addr.op == "BVV":
+            addr_v = addr._model_concrete.value
+            # make sure it is within a mapped region
+            obj = self.project.loader.find_object_containing(addr_v)
+            if obj is not None:
+                return True
+        return False
+
     def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
         if "stack_base" in addr.variables:
             r = None

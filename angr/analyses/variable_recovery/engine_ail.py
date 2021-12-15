@@ -188,8 +188,10 @@ class SimEngineVRAIL(
         return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_Const(self, expr):
-        return RichR(claripy.BVV(expr.value, expr.size * self.state.arch.byte_width),
-                     typevar=typeconsts.int_type(expr.size * self.state.arch.byte_width))
+        v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
+        r = RichR(v, typevar=typeconsts.int_type(expr.size * self.state.arch.byte_width))
+        self._reference(r, self._codeloc())
+        return r
 
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)
