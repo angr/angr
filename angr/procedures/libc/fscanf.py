@@ -14,6 +14,6 @@ class fscanf(ScanfFormatParser):
         if simfd is None:
             return -1
 
-        fmt_str = self._parse(1)
-        items = fmt_str.interpret(2, self.arg, simfd=simfd)
+        fmt_str = self._parse(fmt)
+        items = fmt_str.interpret(self.va_arg, simfd=simfd)
         return items

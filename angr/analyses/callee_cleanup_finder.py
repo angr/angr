@@ -27,13 +27,14 @@ class CalleeCleanupFinder(Analysis):
                     l.error("Function at %#x has a misaligned return?", addr)
                     continue
                 args = size // self.project.arch.bytes
-                cc = self.project.factory.cc_from_arg_kinds([False]*args)
+                cc = self.project.factory.cc()
+                prototype = cc.guess_prototype([0]*args)
                 cc.CALLEE_CLEANUP = True
                 sym = self.project.loader.find_symbol(addr)
                 name = sym.name if sym is not None else None
                 lib = self.project.loader.find_object_containing(addr)
                 libname = lib.provides if lib is not None else None
-                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, display_name=name, library_name=libname, is_stub=True))
+                self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained'](cc=cc, prototype=prototype, display_name=name, library_name=libname, is_stub=True))
 
     def analyze(self, addr):
         seen = set()

@@ -173,6 +173,10 @@ class Tracer(ExplorationTechnique):
         # whether we should follow the trace
         self._no_follow = self._trace is None
 
+        # Keep track of count of termination point
+        self._last_block_total_count = self._trace.count(self._trace[-1])
+        self._last_block_seen_count = 0
+
         # sanity check: copy_states must be enabled in Permissive mode since we may need to backtrack from a previous
         # state.
         if self._mode == TracingMode.Permissive and not self._copy_states:
@@ -343,8 +347,17 @@ class Tracer(ExplorationTechnique):
                 self.project.hook(state.addr, RepHook(insn.mnemonic.split(" ")[1]).run, length=insn.size)
 
         # perform the step. ask qemu to stop at the termination point.
-        stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
-        succs_dict = simgr.step_state(state, extra_stop_points=stops, **kwargs)
+        # if termination point occurs multiple times in trace, pass details to SimEngineUnicorn's native interface so
+        # that it can stop at last block
+        if self._last_block_total_count > 1:
+            stops = set(kwargs.pop('extra_stop_points', ()))
+            last_block_details = {"addr": self._trace[-1], "tot_count": self._last_block_total_count,
+                                  "curr_count": self._last_block_seen_count}
+        else:
+            stops = set(kwargs.pop('extra_stop_points', ())) | {self._trace[-1]}
+            last_block_details = None
+
+        succs_dict = simgr.step_state(state, extra_stop_points=stops, last_block_details=last_block_details, **kwargs)
         if None not in succs_dict and simgr.errored:
             raise simgr.errored[-1].error
         sat_succs = succs_dict[None]  # satisfiable states
@@ -472,6 +485,8 @@ class Tracer(ExplorationTechnique):
         idx = state.globals['trace_idx']
         sync = state.globals['sync_idx']
         timer = state.globals['sync_timer']
+
+        self._last_block_seen_count += state.history.recent_bbl_addrs.count(self._trace[-1])
 
         if state.history.recent_block_count > 1:
             # multiple blocks were executed this step. they should follow the trace *perfectly*
@@ -657,8 +672,8 @@ class Tracer(ExplorationTechnique):
 
             curr_block_addr = curr_block.addr + curr_block.size
 
-        for last_contain_index in range(trace_match_idx, trace_curr_idx + 1):
-            if self._trace[last_contain_index] < big_block_start or self._trace[last_contain_index] > big_block_end:
+        for last_contain_index in range(trace_match_idx + 1, trace_curr_idx + 1):
+            if self._trace[last_contain_index] <= big_block_start or self._trace[last_contain_index] > big_block_end:
                 # This qemu block is not contained in the bigger block
                 return (False, -1)
 

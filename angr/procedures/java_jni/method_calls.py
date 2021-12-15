@@ -62,7 +62,7 @@ class CallMethodBase(JNISimProcedure):
         self.call(invoke_addr, java_args, "return_from_invocation", cc=SimCCSoot(ArchSoot()))
 
     def _get_arg_values(self, no_of_args):
-        return [ self.arg(self.num_args+idx).to_claripy() for idx in range(no_of_args) ]
+        return [self.va_arg('void*') for _ in range(no_of_args)]
 
     def _get_arg_values_from_array(self, array, no_of_args):
         return self._load_from_native_memory(addr=array, data_size=self.arch.bytes,

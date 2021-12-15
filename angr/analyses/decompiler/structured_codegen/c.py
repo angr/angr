@@ -2186,16 +2186,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif isinstance(type_, SimTypeInt):
                 # int
                 reference_values[type_] = expr.value
-            elif type_ is None:
-                # we don't know the type of this argument
-                # pure guessing: is it possible that it's a string?
-                if self._cfg is not None and \
-                        expr.bits == self.project.arch.bits and \
-                        expr.value > 0x10000 and \
-                        expr.value in self._cfg.memory_data and \
-                        self._cfg.memory_data[expr.value].sort == 'string':
-                    type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
-                    reference_values[type_] = self._cfg.memory_data[expr.value]
+
+            # we don't know the type of this argument, or the type is not what we are expecting
+            # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
+            # (BOT*) instead of a char*.
+
+            # pure guessing: is it possible that it's a string?
+            if self._cfg is not None and \
+                    expr.bits == self.project.arch.bits and \
+                    expr.value > 0x10000 and \
+                    expr.value in self._cfg.memory_data and \
+                    self._cfg.memory_data[expr.value].sort == 'string':
+                type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                reference_values[type_] = self._cfg.memory_data[expr.value]
 
         if type_ is None:
             # default to int

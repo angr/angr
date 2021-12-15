@@ -40,7 +40,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         for idx, func_addr in enumerate(reversed(sorted_funcs)):
             func = self.kb.functions.get_by_addr(func_addr)
 
-            if func.calling_convention is None or self._force:
+            if (func.calling_convention is None or func.prototype is None) or self._force:
                 if func.alignment:
                     # skip all alignments
                     continue
@@ -65,8 +65,10 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 cc_analysis = self.project.analyses.CallingConvention(func, cfg=self._cfg,
                                                                       analyze_callsites=self._analyze_callsites)
                 if cc_analysis.cc is not None:
-                    _l.info("Determined calling convention for %r.", func)
+                    _l.info("Determined calling convention and prototype for %r.", func)
                     func.calling_convention = cc_analysis.cc
+                    func.prototype = cc_analysis.prototype
+                    func.is_prototype_guessed = True
                 else:
                     _l.info("Cannot determine calling convention for %r.", func)
 

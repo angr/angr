@@ -17,7 +17,7 @@ class fgetc(angr.SimProcedure):
             return -1
 
         data, real_length, = simfd.read_data(1)
-        return self.state.solver.If(real_length == 0, -1, data.zero_extend(self.state.arch.bits - 8))
+        return self.state.solver.If(real_length == 0, -1, data.zero_extend(self.arch.sizeof['int'] - 8))
 
 getc = fgetc
 fgetc_unlocked = fgetc

@@ -20,8 +20,8 @@ class fprintf(FormatParser):
             return -1
 
         # The format str is at index 1
-        fmt_str = self._parse(1)
-        out_str = fmt_str.replace(2, self.arg)
+        fmt_str = self._parse(fmt)
+        out_str = fmt_str.replace(self.va_arg)
 
         simfd.write_data(out_str, out_str.size() // 8)
 

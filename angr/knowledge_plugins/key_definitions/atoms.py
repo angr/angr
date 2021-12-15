@@ -3,7 +3,7 @@ from typing import Dict, Tuple, Union, Optional
 import claripy
 import ailment
 
-from ...calling_conventions import SimFunctionArgument, SimRegArg
+from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -32,6 +32,8 @@ class Atom:
         """
         if isinstance(argument, SimRegArg):
             return Register(registers[argument.reg_name][0], argument.size)
+        elif isinstance(argument, SimStackArg):
+            return MemoryLocation(registers["sp"][0] + argument.stack_offset, argument.size)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
