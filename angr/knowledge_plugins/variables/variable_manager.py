@@ -417,6 +417,9 @@ class VariableManagerInternal(Serializable):
 
         return self._atom_to_variable[key][atom_hash]
 
+    def find_variables_by_stack_offset(self, offset: int) -> Set[SimVariable]:
+        return self._stack_region.get_variables_by_offset(offset)
+
     def get_variable_accesses(self, variable: SimVariable, same_name: bool=False) -> List[VariableAccess]:
 
         if not same_name:
