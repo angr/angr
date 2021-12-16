@@ -23,7 +23,7 @@ l = logging.getLogger(name=__name__)
 
 class RichR:
     """
-    A rich representation of calculation results.
+    A rich representation of calculation results. The variable recovery data domain.
     """
 
     __slots__ = ('data', 'variable', 'typevar', 'type_constraints', )
@@ -50,6 +50,10 @@ class RichR:
 
 
 class SimEngineVRBase(SimEngineLight):
+    """
+    The base class for variable recovery analyses. Contains methods for basic interactions with the state, like loading
+    and storing data.
+    """
 
     state: 'VariableRecoveryStateBase'
 
@@ -260,7 +264,8 @@ class SimEngineVRBase(SimEngineLight):
         else:
             variable, _ = next(iter(existing_vars))
 
-        annotated_data = self.state.annotate_with_variables(data, [(0, variable)])  # FIXME: The offset does not have to be 0
+        # FIXME: The offset does not have to be 0
+        annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
         v = MultiValues(offset_to_values={0: {annotated_data}})
         self.state.register_region.store(offset, v)
         # register with the variable manager
@@ -295,7 +300,7 @@ class SimEngineVRBase(SimEngineLight):
             stored = True
         elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
             # we are storing to a concrete global address with an offset
-            base_addr, offset, elem_size = parsed = self._parse_offseted_addr(addr)
+            base_addr, offset, elem_size = self._parse_offseted_addr(addr)
             self._store_to_global(base_addr._model_concrete.value, data, size,
                                   stmt=stmt, offset=offset, elem_size=elem_size)
             stored = True

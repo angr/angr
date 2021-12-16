@@ -105,9 +105,9 @@ class SimpleSolver:
                 if not isinstance(ub, TopType):
                     solution[v] = ub
 
-        for v in self._equivalence:
+        for v, e in self._equivalence.items():
             if v not in solution:
-                solution[v] = solution.get(self._equivalence[v], None)
+                solution[v] = solution.get(e, None)
 
         import pprint
         print("Lower bounds")
@@ -338,7 +338,7 @@ class SimpleSolver:
 
     def _unify_struct_fields(self):
 
-        for v in self._lower_bounds.keys():
+        for v, ptrv_subtype in self._lower_bounds.items():
             if isinstance(v, DerivedTypeVariable) and isinstance(v.label, HasField):
                 # unpack v
                 ptrv = v.type_var.type_var
@@ -347,7 +347,6 @@ class SimpleSolver:
                     # unification
 
                     v_subtype = self._lower_bounds[v]
-                    ptrv_subtype = self._lower_bounds[ptrv]
 
                     # make sure it's a pointer at the offset that v.label specifies
                     if isinstance(ptrv_subtype, Pointer):

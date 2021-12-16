@@ -5,11 +5,9 @@ import logging
 import claripy
 import ailment
 
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction, SimTypeBottom
 from ...engines.light import SimEngineLightAILMixin
-from ...errors import SimMemoryMissingError
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
@@ -94,7 +92,8 @@ class SimEngineVRAIL(
                     else:
                         ret_expr: SimRegArg = stmt.calling_convention.return_val(stmt.prototype.returnty)
                 else:
-                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
+                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.",
+                            target)
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
 
                 if ret_expr is not None:
@@ -219,9 +218,13 @@ class SimEngineVRAIL(
         r = self._expr(expr.operand)
         typevar = None
         if r.typevar is not None:
-            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ReinterpretAs):
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and \
+                    isinstance(r.typevar.label, typevars.ReinterpretAs):
                 # there is already a reinterpretas - overwrite it
-                typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+                typevar = typevars.DerivedTypeVariable(
+                    r.typevar.type_var,
+                    typevars.ReinterpretAs(expr.to_type, expr.to_bits)
+                )
             else:
                 typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
 
