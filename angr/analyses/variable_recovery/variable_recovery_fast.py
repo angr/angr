@@ -13,7 +13,7 @@ from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
 from ...engines.vex.claripy.irop import vexop_to_simop
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ..typehoon.typevars import Equivalence, TypeVariable
+from ..typehoon.typevars import Equivalence, TypeVariable, Subtype
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
@@ -29,11 +29,13 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
     :ivar KeyedRegion register_region:  The register store.
     """
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, stack_offset_typevars=None,
+                 project=None):
 
         super().__init__(block_addr, analysis, arch, func, stack_region=stack_region, register_region=register_region,
                          global_region=global_region, typevars=typevars, type_constraints=type_constraints,
-                         delayed_type_constraints=delayed_type_constraints, project=project)
+                         delayed_type_constraints=delayed_type_constraints, stack_offset_typevars=stack_offset_typevars,
+                         project=project)
 
     def __repr__(self):
         return "<VRAbstractState@%#x: %d register variables, %d stack variables>" % (
@@ -57,6 +59,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             typevars=self.typevars.copy(),
             type_constraints=self.type_constraints.copy(),
             delayed_type_constraints=self.delayed_type_constraints.copy(),
+            stack_offset_typevars=dict(self.stack_offset_typevars),
             project=self.project,
         )
 
@@ -122,6 +125,25 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
                                       )
             delayed_typeconstraints[v1].add(equivalence)
 
+        stack_offset_typevars = {}
+        all_stack_addr_typevar_offsets = set(self.stack_offset_typevars)
+        for other in others:
+            all_stack_addr_typevar_offsets.update(other.stack_offset_typevars)
+        for offset in all_stack_addr_typevar_offsets:
+            all_typevars = set()
+            for state in (self,) + others:
+                typevar = state.stack_offset_typevars.get(offset, None)
+                if typevar is not None:
+                    all_typevars.add(typevar)
+
+            if len(all_typevars) == 1:
+                typevar = all_typevars.pop()
+            else:
+                typevar = TypeVariable()
+                for orig_typevar in all_typevars:
+                    merged_typeconstraints.add(Subtype(orig_typevar, typevar))
+            stack_offset_typevars[offset] = typevar
+
         # clean up
         self.phi_variables = {}
         self.successor_block_addr = None
@@ -137,6 +159,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             typevars=merged_typevars,
             type_constraints=merged_typeconstraints,
             delayed_type_constraints=delayed_typeconstraints,
+            stack_offset_typevars=stack_offset_typevars,
             project=self.project,
         )
 

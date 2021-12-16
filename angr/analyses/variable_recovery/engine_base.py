@@ -551,21 +551,23 @@ class SimEngineVRBase(SimEngineLight):
                                 all_vars.add((var_offset, var_))
 
                 if not all_vars:
-                    variable = SimStackVariable(concrete_offset, size, base='bp',
-                                                ident=self.variable_manager[self.func_addr].next_variable_ident(
-                                                    'stack'),
-                                                region=self.func_addr,
-                                                )
-                    v = self.state.top(size * self.state.arch.byte_width)
-                    v = self.state.annotate_with_variables(v, [(0, variable)])
-                    stack_addr = self.state.stack_addr_from_offset(concrete_offset)
-                    self.state.stack_region.store(stack_addr, v, endness=self.state.arch.memory_endness)
+                    variables = self.variable_manager[self.func_addr].find_variables_by_stack_offset(concrete_offset)
+                    if not variables:
+                        variable = SimStackVariable(concrete_offset, size, base='bp',
+                                                    ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                        'stack'),
+                                                    region=self.func_addr,
+                                                    )
+                        self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
+                        variables = {variable}
+                        l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                    for variable in variables:
+                        v = self.state.top(size * self.state.arch.byte_width)
+                        v = self.state.annotate_with_variables(v, [(0, variable)])
+                        stack_addr = self.state.stack_addr_from_offset(concrete_offset)
+                        self.state.stack_region.store(stack_addr, v, endness=self.state.arch.memory_endness)
 
-                    self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
-
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-
-                    all_vars = { (0, variable) }
+                    all_vars = {(0, variable) for variable in variables}
 
                 if len(all_vars) > 1:
                     # overlapping variables

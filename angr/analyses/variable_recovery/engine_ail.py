@@ -228,33 +228,12 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        try:
-            values: MultiValues = self.state.stack_region.load(self.state.stack_addr_from_offset(expr.offset),
-                                                               size=1,
-                                                               endness=self.state.arch.memory_endness)
-            vs = set()
-            for v_set in values.values.values():
-                vs.update(v_set)
-        except SimMemoryMissingError:
-            vs = None
+        typevar = self.state.stack_offset_typevars.get(expr.offset, None)
 
-        typevar_set = set()
-        if vs:
-            for value in vs:
-                for _, v in self.state.extract_variables(value):
-                    try:
-                        typevar = self.state.typevars.get_type_variable(v, self._codeloc())
-                        typevar_set.add(typevar)
-                    except KeyError:
-                        pass
-
-        if not typevar_set:
+        if typevar is None:
             # allocate a new type variable
             typevar = typevars.TypeVariable()
-        else:
-            # TODO: Assign multiple typevars to the same typevar
-            # FIXME
-            typevar = next(iter(typevar_set))
+            self.state.stack_offset_typevars[expr.offset] = typevar
 
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=typevar)

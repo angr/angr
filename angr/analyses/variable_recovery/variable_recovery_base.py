@@ -13,7 +13,7 @@ from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
 from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
-from ..typehoon.typevars import TypeVariables
+from ..typehoon.typevars import TypeVariables, TypeVariable
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject
@@ -126,7 +126,8 @@ class VariableRecoveryStateBase:
     _tops = {}
 
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, stack_offset_typevars=None,
+                 project=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
@@ -172,6 +173,8 @@ class VariableRecoveryStateBase:
         self.type_constraints = set() if type_constraints is None else type_constraints
         self.delayed_type_constraints = DefaultChainMapCOW(set, collapse_threshold=25) \
             if delayed_type_constraints is None else delayed_type_constraints
+        self.stack_offset_typevars: Dict[int, TypeVariable] = {} if stack_offset_typevars is None else \
+            stack_offset_typevars
 
     def _get_weakref(self):
         return weakref.proxy(self)
