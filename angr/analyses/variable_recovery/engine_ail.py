@@ -140,7 +140,7 @@ class SimEngineVRAIL(
                 if arg.typevar is not None:
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
                     type_constraint = typevars.Subtype(
-                        arg_ty, arg.typevar
+                        arg.typevar, arg_ty
                     )
                     self.state.add_type_constraint(type_constraint)
 
@@ -305,9 +305,6 @@ class SimEngineVRAIL(
         if r0.data is not None and r1.data is not None:
             sum_ = r0.data + r1.data
 
-        if r0.typevar is not None and r1.typevar is not None:
-            type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
-
         return RichR(sum_,
                      typevar=typevar,
                      type_constraints=type_constraints,
@@ -320,9 +317,13 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        typevar = None
+        type_constraints = set()
         if r0.typevar is not None and r1.data.concrete:
             typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
+        else:
+            typevar = typevars.TypeVariable()
+            if r0.typevar is not None and r1.typevar is not None:
+                type_constraints.add(typevars.Sub(r0.typevar, r1.typevar, typevar))
 
         sub = None
         if r0.data is not None and r1.data is not None:
@@ -330,7 +331,7 @@ class SimEngineVRAIL(
 
         return RichR(sub,
                      typevar=typevar,
-                     type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) },
+                     type_constraints=type_constraints,
                      )
 
     def _ail_handle_Mul(self, expr):

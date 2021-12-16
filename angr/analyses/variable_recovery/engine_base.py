@@ -218,7 +218,7 @@ class SimEngineVRBase(SimEngineLight):
             variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
         addr_typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-        type_constraint = typevars.Subtype(typeconsts.Pointer64(variable_typevar), addr_typevar)
+        type_constraint = typevars.Subtype(addr_typevar, typeconsts.Pointer64(variable_typevar) if self.state.arch.bits == 64 else typeconsts.Pointer32(variable_typevar))
         self.state.add_type_constraint(type_constraint)
 
         # find all variables
@@ -268,8 +268,10 @@ class SimEngineVRBase(SimEngineLight):
                 typevar = typevars.TypeVariable()
                 self.state.typevars.add_type_variable(variable, codeloc, typevar)
                 # create constraints
-                self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
-                self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
+            else:
+                typevar = self.state.typevars.get_type_variable(variable, codeloc)
+            self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
     def _store(self, richr_addr: RichR, data: RichR, size, stmt=None):  # pylint:disable=unused-argument
         """

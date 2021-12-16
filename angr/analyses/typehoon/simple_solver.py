@@ -199,6 +199,7 @@ class SimpleSolver:
 
         ptr_class = self._pointer_class()
 
+        # a mapping from type variables to all the variables which are {super,sub}types of them
         subtypevars = defaultdict(set)  # {k: {v}}: v <: k
         supertypevars = defaultdict(set)  # {k: {v}}: k <: v
 
@@ -421,7 +422,7 @@ class SimpleSolver:
         t2_cls = self._abstract(t2)
 
         if t1_cls in self._base_lattice and t2_cls in self._base_lattice:
-            queue = [ t1_cls ]
+            queue = [t1_cls]
             while queue:
                 n = queue[0]
                 queue = queue[1:]
