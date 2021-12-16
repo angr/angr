@@ -1,7 +1,7 @@
+import angr
+
 import os
 import unittest
-
-import angr
 
 test_location = os.path.join(os.path.dirname(__file__), '..', '..', 'binaries', 'tests')
 
