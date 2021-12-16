@@ -1,10 +1,11 @@
-import angr
+import os
+import logging
 import unittest
 
-import logging
+import angr
+
 l = logging.getLogger("angr.tests")
 
-import os
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 class TestCeckbyte(unittest.TestCase):
@@ -19,7 +20,7 @@ class TestCeckbyte(unittest.TestCase):
 
     def test_checkbyte_armel(self):
         self._run_checkbyte("armel")
-        
+
     def test_checkbyte_i386(self):
         self._run_checkbyte("i386")
 
