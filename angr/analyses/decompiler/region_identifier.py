@@ -587,7 +587,12 @@ class RegionIdentifier(Analysis):
         else:
             return None
 
-    def _abstract_acyclic_region(self, graph: networkx.DiGraph, region, frontier, dummy_endnode=None, secondary_graph=None):
+    def _abstract_acyclic_region(self,
+                                 graph: networkx.DiGraph,
+                                 region,
+                                 frontier,
+                                 dummy_endnode=None,
+                                 secondary_graph=None):
 
         in_edges = self._region_in_edges(graph, region, data=True)
         out_edges = self._region_out_edges(graph, region, data=True)
@@ -617,7 +622,8 @@ class RegionIdentifier(Analysis):
             self._abstract_acyclic_region(secondary_graph, region, { })
 
     @staticmethod
-    def _abstract_cyclic_region(graph: networkx.DiGraph, loop_nodes, head, normal_entries, abnormal_entries, normal_exit_node,
+    def _abstract_cyclic_region(graph: networkx.DiGraph, loop_nodes, head, normal_entries, abnormal_entries,
+                                normal_exit_node,
                                 abnormal_exit_nodes):
         region = GraphRegion(head, None, None, None, True)
 

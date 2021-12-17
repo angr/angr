@@ -1,5 +1,4 @@
-from typing import TYPE_CHECKING, List, Set, Optional, Tuple, Union
-from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, List, Set, Optional, Tuple
 import logging
 
 from cle import Symbol
@@ -12,6 +11,7 @@ if TYPE_CHECKING:
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 
 
+# pylint: disable=unused-argument, no-self-use
 class FunctionHandler:
     """
     An abstract base class for function handlers.
@@ -110,10 +110,8 @@ class FunctionHandler:
         :return:
         """
         if symbol.name:
-            self.handle_external_function_name(state, symbol.name, src_codeloc)
             return self.handle_external_function_name(state, symbol.name, src_codeloc)
         else:
-            l.warning('Symbol for external function has no name, falling back to generic handler',
             l.warning('Symbol %s for external function has no name, falling back to generic handler',
                       symbol)
             return self.handle_external_function_fallback(state, src_codeloc)

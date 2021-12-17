@@ -19,7 +19,7 @@ class VariableTypes:
 
 class AnnotatedVariable:
 
-    __slots__ = [ 'variable', 'type' ]
+    __slots__ = ['variable', 'type']
 
     def __init__(self, variable, type_):
         self.variable = variable
@@ -71,7 +71,7 @@ class SootBlockProcessor:
             raise AngrLoopAnalysisError("Got an unexpected type of block %s." % type(self.block))
 
         if not self.block.stmts:
-            return
+            return None
 
         for stmt in self.block.stmts:
 

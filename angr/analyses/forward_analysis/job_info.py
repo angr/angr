@@ -63,5 +63,3 @@ class JobInfo(Generic[JobKey, JobType]):
         elif widened:
             job_type = 'widened'
         self.jobs.append((job, job_type))
-
-

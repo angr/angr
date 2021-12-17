@@ -1148,7 +1148,8 @@ class SimEngineRDVEX(
                 atom = Register(reg_offset, reg_size)
                 self.state.kill_and_add_definition(atom,
                                                    self._codeloc(),
-                                                   MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                                                   MultiValues(offset_to_values=
+                                                               {0: {self.state.top(reg_size * self.arch.byte_width)}}),
                                                    )
 
         if self.arch.call_pushes_ret is True:

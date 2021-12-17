@@ -1,7 +1,7 @@
 
 import logging
 from typing import Optional, DefaultDict, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 import ailment
 import pyvex
@@ -30,7 +30,8 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
-class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState], Analysis):  # pylint:disable=abstract-method
+class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState],
+                                  Analysis):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a
     function or a block. It supports both VEX and AIL. By registering observers to observation points, users may use
@@ -311,7 +312,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState], Ana
     def _pre_analysis(self):
         pass
 
-    def _initial_abstract_state(self, node) -> ReachingDefinitionsState:
+    def _initial_abstract_state(self, _node) -> ReachingDefinitionsState:
         if self._init_state is not None:
             return self._init_state
         else:
@@ -320,7 +321,8 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState], Ana
                 track_consts=self._track_consts, analysis=self, canonical_size=self._canonical_size,
             )
 
-    def _merge_states(self, node, *states: ReachingDefinitionsState):
+    # pylint: disable=no-self-use
+    def _merge_states(self, _node, *states: ReachingDefinitionsState):
         merged_state, merge_occurred = states[0].merge(*states[1:])
         return merged_state, not merge_occurred
 

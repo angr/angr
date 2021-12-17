@@ -874,7 +874,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         arg = self._expr(expr.operand)
 
-        if isinstance(arg, int) and expr.from_bits == 32 and expr.from_type == "I" and expr.to_bits == 32 and expr.to_type == "F":
+        if isinstance(arg, int) and (expr.from_bits == 32
+                                     and expr.from_type == "I"
+                                     and expr.to_bits == 32
+                                     and expr.to_type == "F"):
             # int -> float
             b = struct.pack("<I", arg)
             f = struct.unpack("<f", b)[0]

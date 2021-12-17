@@ -31,14 +31,14 @@ class UnmatchedStatementsException(Exception):
 
 
 # statement difference classes
-class Difference(object):
+class Difference:
     def __init__(self, diff_type, value_a, value_b):
         self.type = diff_type
         self.value_a = value_a
         self.value_b = value_b
 
 
-class ConstantChange(object):
+class ConstantChange:
     def __init__(self, offset, value_a, value_b):
         self.offset = offset
         self.value_a = value_a
@@ -249,7 +249,7 @@ def compare_statement_dict(statement_1, statement_2):
     return differences
 
 
-class NormalizedBlock(object):
+class NormalizedBlock:
     # block may span multiple calls
     def __init__(self, block, function):
         addresses = [block.addr]
@@ -288,7 +288,7 @@ class NormalizedBlock(object):
         return '<Normalized Block for %#x, %d bytes>' % (self.addr, size)
 
 
-class NormalizedFunction(object):
+class NormalizedFunction:
     # a more normalized function
     def __init__(self, function: "Function"):
         # start by copying the graph
@@ -344,7 +344,7 @@ class NormalizedFunction(object):
                 self.call_sites[n] = call_targets
 
 
-class FunctionDiff(object):
+class FunctionDiff:
     """
     This class computes the a diff between two functions.
     """

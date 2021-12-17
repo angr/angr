@@ -1,18 +1,22 @@
 from collections import defaultdict
-from typing import Dict, Any, List, Callable, Optional, Generic, TypeVar, Tuple, Set
+from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING
 
 import networkx
 
-from .visitors.graph import GraphVisitor, NodeType
+from .visitors.graph import NodeType
 from ...errors import AngrForwardAnalysisError
 from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
 from ...utils.algo import binary_insert
 from .job_info import JobInfo
 
+if TYPE_CHECKING:
+    from .visitors.graph import GraphVisitor
+
 AnalysisState = TypeVar("AnalysisState")
 NodeKey = TypeVar("NodeKey")
 JobType = TypeVar("JobType")
 JobKey = TypeVar("JobKey")
+
 
 class ForwardAnalysis(Generic[AnalysisState]):
     """

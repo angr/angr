@@ -363,7 +363,8 @@ class TestReachingDefinitions(TestCase):
         cfg = project.analyses.CFGFast()
         main = cfg.functions['main']
 
-        # build a def-use graph for main() of /bin/true without tmps. check that the only dependency of the first block's
+        # build a def-use graph for main() of /bin/true without tmps.
+        # check that the only dependency of the first block's
         # guard is the four cc registers
         rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
         guard_use = list(filter(
@@ -406,7 +407,9 @@ class TestReachingDefinitions(TestCase):
         cfg = project.analyses.CFGFast()
         main = cfg.functions['authenticate']
 
-        rda: ReachingDefinitionsAnalysis = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
+        rda: ReachingDefinitionsAnalysis = project.analyses.ReachingDefinitions(subject=main,
+                                                                                track_tmps=False,
+                                                                                dep_graph=DepGraph())
         dep_graph = rda.dep_graph
         open_rdi = next(iter(filter(
             lambda def_: isinstance(def_.atom, Register) and def_.atom.reg_offset == arch.registers['rdi'][0]
