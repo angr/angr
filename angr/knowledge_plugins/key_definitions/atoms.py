@@ -15,6 +15,9 @@ class Atom:
 
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
+
+    __slots__ = ()
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -42,6 +45,8 @@ class GuardUse(Atom):
     """
     Implements a guard use.
     """
+    __slots__ = ("target",)
+
     def __init__(self, target):
         self.target = target
 
@@ -54,6 +59,8 @@ class GuardUse(Atom):
 
 
 class FunctionCall(Atom):
+    __slots__ = ('target', 'callsite')
+
     def __init__(self, target, callsite):
         self.target = target
         self.callsite = callsite
@@ -82,6 +89,8 @@ class FunctionCall(Atom):
 
 
 class ConstantSrc(Atom):
+    __slots__ = ('const',)
+
     def __init__(self, const):
         self.const = const
 
