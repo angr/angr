@@ -1,15 +1,16 @@
 import inspect
-import typing
 import copy
 import itertools
 import logging
 from typing import TYPE_CHECKING
+
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
 if TYPE_CHECKING:
     import angr
     import archinfo
+    from angr import SimState
 
 l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()
@@ -94,6 +95,7 @@ class SimProcedure:
                             you want to extract variadic args.
 
     """
+    state: "SimState"
     def __init__(
         self, project=None, cc=None, prototype=None, symbolic_return=None,
         returns=None, is_syscall=False, is_stub=False,
