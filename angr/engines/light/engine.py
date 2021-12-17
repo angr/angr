@@ -18,7 +18,7 @@ from ..engine import SimEngine
 
 class SimEngineLightMixin:
     def __init__(self, *args, logger=None, **kwargs):
-        self.arch: archinfo.Arch = None
+        self.arch: Optional[archinfo.Arch] = None
         self.l = logger
         super().__init__(*args, **kwargs)
 
@@ -234,6 +234,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.l.error('Unsupported expression type %s.', type(expr).__name__)
         return None
 
+    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
+        self.l.error('Unsupported Triop %s.', expr.op)
+        return None
+
     def _handle_RdTmp(self, expr):
         tmp = expr.tmp
 
@@ -292,7 +296,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.l.error('Unsupported Unop %s.', expr.op)
             return None
 
-    def _handle_Binop(self, expr):
+    def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
         handler = None
         if expr.op.startswith('Iop_And'):
             handler = '_handle_And'
@@ -730,7 +734,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_MBE(self, expr):
+    def _handle_MBE(self, _expr: pyvex.IRStmt.MBE):
         # Yeah.... no.
         return None
 
@@ -811,7 +815,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     #
 
     def _codeloc(self):
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context,
+        # noinspection PyUnresolvedReferences
+        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr,
+                            context=self._context,
                             block_idx=self.block.idx)
 
     #
