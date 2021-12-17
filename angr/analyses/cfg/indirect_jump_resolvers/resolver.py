@@ -1,10 +1,13 @@
+import typing
 
 from ....errors import SimMemoryError
 
+if typing.TYPE_CHECKING:
+    from .... import Project
 
 class IndirectJumpResolver:
     def __init__(self, project, timeless=False, base_state=None):
-        self.project = project
+        self.project: "Project" = project
         self.timeless = timeless
         self.base_state = base_state
 
