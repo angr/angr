@@ -218,7 +218,11 @@ class SimEngineVRBase(SimEngineLight):
             variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
         addr_typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-        type_constraint = typevars.Subtype(addr_typevar, typeconsts.Pointer64(variable_typevar) if self.state.arch.bits == 64 else typeconsts.Pointer32(variable_typevar))
+        derived_typevar = typevars.DerivedTypeVariable(
+            typevars.DerivedTypeVariable(addr_typevar, typevars.Load()),
+            typevars.HasField(1 * 8, 0)  # at least one byte
+        )
+        type_constraint = typevars.Subtype(variable_typevar, derived_typevar)
         self.state.add_type_constraint(type_constraint)
 
         # find all variables
