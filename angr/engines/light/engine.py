@@ -127,6 +127,7 @@ class SimEngineLight(
                             )
 
 
+# noinspection PyPep8Naming
 class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
@@ -705,27 +706,27 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         return expr_0 > expr_1
 
-    def _handle_CmpEQ_v(self, expr, vector_size, vector_count):
+    def _handle_CmpEQ_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpNE_v(self, expr, vector_size, vector_count):
+    def _handle_CmpNE_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpLE_v(self, expr, vector_size, vector_count):
+    def _handle_CmpLE_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpGE_v(self, expr, vector_size, vector_count):
+    def _handle_CmpGE_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpLT_v(self, expr, vector_size, vector_count):
+    def _handle_CmpLT_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpGT_v(self, expr, vector_size, vector_count):
+    def _handle_CmpGT_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
@@ -753,6 +754,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         return self._top(expr.result_size(self.tyenv))
 
 
+# noinspection PyPep8Naming
 class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
