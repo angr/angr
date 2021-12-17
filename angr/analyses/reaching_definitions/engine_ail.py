@@ -866,41 +866,32 @@ class SimEngineRDAIL(
             return None
 
         is_internal = False
-        ext_func_name = None
+        ext_func_name: Optional[str] = None
+        symbol = None
         if self.project.loader.main_object.contains_addr(ip_addr) is True:
             ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
             if ext_func_name is None:
                 is_internal = True
         else:
             symbol = self.project.loader.find_symbol(ip_addr)
-            if symbol is not None:
-                ext_func_name = symbol.name
-
-        if ext_func_name is not None:
-            handler_name = 'handle_%s' % ext_func_name
-            if hasattr(self._function_handler, handler_name):
-                getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-            else:
-                l.warning('Please implement the external function handler for %s() with your own logic.',
-                          ext_func_name)
+        if symbol is not None:
+            self._function_handler.handle_external_function_symbol(self.state, symbol, self._codeloc())
+        elif ext_func_name is not None:
+            self._function_handler.handle_external_function_name(self.state, ext_func_name, self._codeloc())
         elif is_internal is True:
-            handler_name = 'handle_local_function'
-            if hasattr(self._function_handler, handler_name):
-                is_updated, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
-                    self.state,
-                    ip_addr,
-                    self._call_stack,
-                    self._maximum_local_call_depth,
-                    self._visited_blocks,
-                    self._dep_graph,
-                )
+            is_updated, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
+                self.state,
+                ip_addr,
+                self._call_stack,
+                self._maximum_local_call_depth,
+                self._visited_blocks,
+                self._dep_graph,
+            )
 
-                if is_updated is True:
-                    self.state = state
-                    self._visited_blocks = visited_blocks
-                    self._dep_graph = dep_graph
-            else:
-                l.warning('Please implement the local function handler with your own logic.')
+            if is_updated is True:
+                self.state = state
+                self._visited_blocks = visited_blocks
+                self._dep_graph = dep_graph
         else:
             l.warning('Could not find function name for external function at address %#x.', ip_addr)
         return None

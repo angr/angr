@@ -20,9 +20,10 @@ from .engine_ail import SimEngineRDAIL
 from .engine_vex import SimEngineRDVEX
 from .rd_state import ReachingDefinitionsState
 from .subject import Subject, SubjectType
+from .function_handler import FunctionHandler
+
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
-    from .function_handler import FunctionHandler
     from typing import Literal, Iterable
     ObservationPoint = Tuple[Literal['insn', 'node'], int, Literal[0, 1]]
 
@@ -116,7 +117,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState], Ana
         self._dep_graph = dep_graph
 
         if function_handler is None:
-            self._function_handler = function_handler
+            self._function_handler = FunctionHandler().hook(self)
         else:
             self._function_handler = function_handler.hook(self)
 
