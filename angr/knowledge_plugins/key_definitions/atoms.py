@@ -15,6 +15,9 @@ class Atom:
 
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
+
+    __slots__ = ()
+
     def __repr__(self):
         raise NotImplementedError()
 
