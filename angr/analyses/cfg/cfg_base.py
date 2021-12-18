@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long,multiple-statements
 from typing import Dict, Tuple, List, Optional, Union, Set
 import logging
 from collections import defaultdict
@@ -347,7 +348,6 @@ class CFGBase(Analysis):
         """
 
         assert cfgnode_0.addr + cfgnode_0.size == cfgnode_1.addr
-        addr0, addr1 = cfgnode_0.addr, cfgnode_1.addr
         new_node = cfgnode_0.merge(cfgnode_1)
 
         # Update the graph and the nodes dict accordingly
