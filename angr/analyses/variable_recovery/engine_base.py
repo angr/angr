@@ -23,7 +23,7 @@ l = logging.getLogger(name=__name__)
 
 class RichR:
     """
-    A rich representation of calculation results.
+    A rich representation of calculation results. The variable recovery data domain.
     """
 
     __slots__ = ('data', 'variable', 'typevar', 'type_constraints', )
@@ -50,6 +50,10 @@ class RichR:
 
 
 class SimEngineVRBase(SimEngineLight):
+    """
+    The base class for variable recovery analyses. Contains methods for basic interactions with the state, like loading
+    and storing data.
+    """
 
     state: 'VariableRecoveryStateBase'
 
@@ -218,7 +222,11 @@ class SimEngineVRBase(SimEngineLight):
             variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
         addr_typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-        type_constraint = typevars.Subtype(typeconsts.Pointer64(variable_typevar), addr_typevar)
+        derived_typevar = typevars.DerivedTypeVariable(
+            typevars.DerivedTypeVariable(addr_typevar, typevars.Load()),
+            typevars.HasField(1 * 8, 0)  # at least one byte
+        )
+        type_constraint = typevars.Subtype(variable_typevar, derived_typevar)
         self.state.add_type_constraint(type_constraint)
 
         # find all variables
@@ -256,7 +264,8 @@ class SimEngineVRBase(SimEngineLight):
         else:
             variable, _ = next(iter(existing_vars))
 
-        annotated_data = self.state.annotate_with_variables(data, [(0, variable)])  # FIXME: The offset does not have to be 0
+        # FIXME: The offset does not have to be 0
+        annotated_data = self.state.annotate_with_variables(data, [(0, variable)])
         v = MultiValues(offset_to_values={0: {annotated_data}})
         self.state.register_region.store(offset, v)
         # register with the variable manager
@@ -268,8 +277,10 @@ class SimEngineVRBase(SimEngineLight):
                 typevar = typevars.TypeVariable()
                 self.state.typevars.add_type_variable(variable, codeloc, typevar)
                 # create constraints
-                self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
-                self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
+            else:
+                typevar = self.state.typevars.get_type_variable(variable, codeloc)
+            self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+            self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
     def _store(self, richr_addr: RichR, data: RichR, size, stmt=None):  # pylint:disable=unused-argument
         """
@@ -289,7 +300,7 @@ class SimEngineVRBase(SimEngineLight):
             stored = True
         elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
             # we are storing to a concrete global address with an offset
-            base_addr, offset, elem_size = parsed = self._parse_offseted_addr(addr)
+            base_addr, offset, elem_size = self._parse_offseted_addr(addr)
             self._store_to_global(base_addr._model_concrete.value, data, size,
                                   stmt=stmt, offset=offset, elem_size=elem_size)
             stored = True
@@ -549,21 +560,23 @@ class SimEngineVRBase(SimEngineLight):
                                 all_vars.add((var_offset, var_))
 
                 if not all_vars:
-                    variable = SimStackVariable(concrete_offset, size, base='bp',
-                                                ident=self.variable_manager[self.func_addr].next_variable_ident(
-                                                    'stack'),
-                                                region=self.func_addr,
-                                                )
-                    v = self.state.top(size * self.state.arch.byte_width)
-                    v = self.state.annotate_with_variables(v, [(0, variable)])
-                    stack_addr = self.state.stack_addr_from_offset(concrete_offset)
-                    self.state.stack_region.store(stack_addr, v, endness=self.state.arch.memory_endness)
+                    variables = self.variable_manager[self.func_addr].find_variables_by_stack_offset(concrete_offset)
+                    if not variables:
+                        variable = SimStackVariable(concrete_offset, size, base='bp',
+                                                    ident=self.variable_manager[self.func_addr].next_variable_ident(
+                                                        'stack'),
+                                                    region=self.func_addr,
+                                                    )
+                        self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
+                        variables = {variable}
+                        l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
+                    for variable in variables:
+                        v = self.state.top(size * self.state.arch.byte_width)
+                        v = self.state.annotate_with_variables(v, [(0, variable)])
+                        stack_addr = self.state.stack_addr_from_offset(concrete_offset)
+                        self.state.stack_region.store(stack_addr, v, endness=self.state.arch.memory_endness)
 
-                    self.variable_manager[self.func_addr].add_variable('stack', concrete_offset, variable)
-
-                    l.debug('Identified a new stack variable %s at %#x.', variable, self.ins_addr)
-
-                    all_vars = { (0, variable) }
+                    all_vars = {(0, variable) for variable in variables}
 
                 if len(all_vars) > 1:
                     # overlapping variables
