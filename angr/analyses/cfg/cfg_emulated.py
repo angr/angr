@@ -1155,8 +1155,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                                             depth=depth
                                             )
 
-            self._nodes[block_id] = cfg_node
-            self._nodes_by_addr[cfg_node.addr].append(cfg_node)
+            self._model.add_node(block_id, cfg_node)
 
         else:
             # each block_id should only correspond to one CFGNode
@@ -1946,8 +1945,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
                 # PathTerminator). This is just a trick to make get_any_irsb() happy.
                 pt.input_state = self.project.factory.entry_state()
                 pt.input_state.ip = pt.addr
-            self._nodes[node_key] = pt
-            self._nodes_by_addr[pt.addr].append(pt)
+            self._model.add_node(node_key, pt)
 
             if is_thumb:
                 self._thumb_addrs.add(addr)

@@ -1583,9 +1583,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                    no_ret=procedure.NO_RET,
                                    block_id=addr,
                                    )
-
-                self._nodes[addr] = cfg_node
-                self._nodes_by_addr[addr].append(cfg_node)
+                self._model.add_node(addr, cfg_node)
 
             else:
                 cfg_node = self._nodes[addr]
@@ -2868,8 +2866,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # add the dst_node to self._nodes
         if unresolvable_target_addr not in self._nodes:
-            self._nodes[unresolvable_target_addr] = dst_node
-            self._nodes_by_addr[unresolvable_target_addr].append(dst_node)
+            self.model.add_node(unresolvable_target_addr, dst_node)
 
         self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.ins_addr, jump.stmt_idx)
         # mark it as a jumpout site for that function
@@ -3029,8 +3026,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     # It's a big nop - no function starts with nop
 
                     # add b to indices
-                    self._nodes[b.addr] = b
-                    self._nodes_by_addr[b.addr].append(b)
+                    self._model.add_node(b.addr, b)
 
                     # shrink a
                     self._shrink_node(a, b.addr - a.addr, remove_function=False)
@@ -3052,13 +3048,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         for _, dst, data in self.graph.out_edges([b], data=True):
                             self.graph.add_edge(a, dst, **data)
 
-                        if b.addr in self._nodes:
-                            del self._nodes[b.addr]
-                        if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
-                            self._nodes_by_addr[b.addr].remove(b)
-                            if not self._nodes_by_addr[b.addr]:
-                                del self._nodes_by_addr[b.addr]
-
+                        self._model.remove_node(b.addr, b)
                         self.graph.remove_node(b)
 
                         if b.addr in all_functions:
@@ -3079,13 +3069,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                # misdecoded
 
                     # totally remove b
-                    if b.addr in self._nodes:
-                        del self._nodes[b.addr]
-                    if b.addr in self._nodes_by_addr and b in self._nodes_by_addr[b.addr]:
-                        self._nodes_by_addr[b.addr].remove(b)
-                        if not self._nodes_by_addr[b.addr]:
-                            del self._nodes_by_addr[b.addr]
-
+                    self._model.remove_node(b.addr, b)
                     self.graph.remove_node(b)
 
                     if b.addr in all_functions:
@@ -3113,13 +3097,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         self.graph.remove_node(node)
-        if node.addr in self._nodes:
-            del self._nodes[node.addr]
-
-        if node.addr in self._nodes_by_addr:
-            self._nodes_by_addr[node.addr].remove(node)
-            if not self._nodes_by_addr[node.addr]:
-                del self._nodes_by_addr[node.addr]
+        self._model.remove_node(node.addr, node)
 
         # We wanna remove the function as well
         if node.addr in self.kb.functions:
@@ -3184,19 +3162,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 self.graph.add_edge(successor, dst, **data)
 
         # remove the old node from indices
-        if node.addr in self._nodes and self._nodes[node.addr] is node:
-            del self._nodes[node.addr]
-        if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
-            self._nodes_by_addr[node.addr].remove(node)
-            if not self._nodes_by_addr[node.addr]:
-                del self._nodes_by_addr[node.addr]
+        self._model.remove_node(node.addr, node)
 
         # remove the old node form the graph
         self.graph.remove_node(node)
 
         # add the new node to indices
-        self._nodes[new_node.addr] = new_node
-        self._nodes_by_addr[new_node.addr].append(new_node)
+        self._model.add_node(new_node.addr, new_node)
 
         # the function starting at this point is probably totally incorrect
         # hopefull future call to `make_functions()` will correct everything
@@ -4058,8 +4030,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if self._cfb is not None:
                 self._cfb.add_obj(real_addr, lifted_block)
 
-            self._nodes[addr] = cfg_node
-            self._nodes_by_addr[addr].append(cfg_node)
+            self._model.add_node(addr, cfg_node)
 
             return addr, current_function_addr, cfg_node, irsb
 
@@ -4123,18 +4094,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
             try:
-                existing_node = self._nodes.pop(addr)
-                self._nodes_by_addr[addr].remove(existing_node)
-                if not self._nodes_by_addr[addr]:
-                    del self._nodes_by_addr[addr]
+                existing_node = self._nodes[addr]
+                self._model.remove_node(addr, existing_node)
             except KeyError:
                 existing_node = None
             if existing_node is None:
                 try:
-                    existing_node = self._nodes.pop(addr + 1)
-                    self._nodes_by_addr[addr + 1].remove(existing_node)
-                    if not self._nodes_by_addr[addr + 1]:
-                        del self._nodes_by_addr[addr + 1]
+                    existing_node = self._nodes[addr + 1]
+                    self._model.remove_node(addr + 1, existing_node)
                 except KeyError:
                     existing_node = None
 
