@@ -53,8 +53,8 @@ class Typehoon(Analysis):
         # a bunch of arguments to tweak with
         self._prioritize_char_array_over_struct = prioritize_char_array_over_struct
 
-        import pprint
-        pprint.pprint(self._var_mapping)
+        # import pprint
+        # pprint.pprint(self._var_mapping)
         # pprint.pprint(self._constraints)
         self._analyze()
         # pprint.pprint(self.solution)
