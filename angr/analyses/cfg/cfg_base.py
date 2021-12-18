@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long,multiple-statements
 from typing import Dict, Tuple, List, Optional, Union, Set
 import logging
 from collections import defaultdict
@@ -347,20 +348,11 @@ class CFGBase(Analysis):
         """
 
         assert cfgnode_0.addr + cfgnode_0.size == cfgnode_1.addr
-        addr0, addr1 = cfgnode_0.addr, cfgnode_1.addr
         new_node = cfgnode_0.merge(cfgnode_1)
 
         # Update the graph and the nodes dict accordingly
-        if addr1 in self._nodes_by_addr:
-            self._nodes_by_addr[addr1].remove(cfgnode_1)
-            if not self._nodes_by_addr[addr1]:
-                del self._nodes_by_addr[addr1]
-        del self._nodes[cfgnode_1.block_id]
-
-        self._nodes_by_addr[addr0].remove(cfgnode_0)
-        if not self._nodes_by_addr[addr0]:
-            del self._nodes_by_addr[addr0]
-        del self._nodes[cfgnode_0.block_id]
+        self._model.remove_node(cfgnode_1.block_id, cfgnode_1)
+        self._model.remove_node(cfgnode_0.block_id, cfgnode_0)
 
         in_edges = list(self.graph.in_edges(cfgnode_0, data=True))
         out_edges = list(self.graph.out_edges(cfgnode_1, data=True))
@@ -375,8 +367,7 @@ class CFGBase(Analysis):
             self.graph.add_edge(new_node, dst, **data)
 
         # Put the new node into node dicts
-        self._nodes[new_node.block_id] = new_node
-        self._nodes_by_addr[addr0].append(new_node)
+        self._model.add_node(new_node.block_id, new_node)
 
     def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
         """
@@ -1128,10 +1119,8 @@ class CFGBase(Analysis):
                 graph.remove_node(n)
 
             # Update nodes dict
-            self._nodes[n.block_id] = new_node
-            if n in self._nodes_by_addr[n.addr]:
-                self._nodes_by_addr[n.addr] = [node for node in self._nodes_by_addr[n.addr] if node is not n]
-                self._nodes_by_addr[n.addr].append(new_node)
+            self._model.remove_node(n.block_id, n)
+            self._model.add_node(n.block_id, new_node)
 
             for p, _, data in original_predecessors:
                 # Consider the following case: two basic blocks ending at the same position, where A is larger, and
