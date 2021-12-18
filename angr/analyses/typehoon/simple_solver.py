@@ -70,8 +70,8 @@ class SimpleSolver:
         self.solution = self.determine()
 
     def solve(self):
-        import pprint
-        pprint.pprint(self._constraints)
+        # import pprint
+        # pprint.pprint(self._constraints)
 
         constraints = self._handle_equivalence()
         subtype_constraints = self._subtype_constraints_from_add()
@@ -109,13 +109,13 @@ class SimpleSolver:
             if v not in solution:
                 solution[v] = solution.get(e, None)
 
-        import pprint
-        print("Lower bounds")
-        pprint.pprint(self._lower_bounds)
-        print("Upper bounds")
-        pprint.pprint(self._upper_bounds)
-        print("Solution")
-        pprint.pprint(solution)
+        # import pprint
+        # print("Lower bounds")
+        # pprint.pprint(self._lower_bounds)
+        # print("Upper bounds")
+        # pprint.pprint(self._upper_bounds)
+        # print("Solution")
+        # pprint.pprint(solution)
         return solution
 
     def _handle_equivalence(self):
