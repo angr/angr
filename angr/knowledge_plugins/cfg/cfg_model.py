@@ -194,11 +194,13 @@ class CFGModel(Serializable):
     def add_node(self, block_id: int, node: CFGNode) -> None:
         self._nodes[block_id] = node
         self._nodes_by_addr[node.addr].append(node)
-        pos = bisect.bisect_left(self._node_addrs, node.addr)
-        if pos >= len(self._node_addrs):
-            self._node_addrs.append(node.addr)
-        elif self._node_addrs[pos] != node.addr:
-            self._node_addrs.insert(pos, node.addr)
+
+        if isinstance(node.addr, int):
+            pos = bisect.bisect_left(self._node_addrs, node.addr)
+            if pos >= len(self._node_addrs):
+                self._node_addrs.append(node.addr)
+            elif self._node_addrs[pos] != node.addr:
+                self._node_addrs.insert(pos, node.addr)
 
     def remove_node(self, block_id: int, node: CFGNode) -> None:
         if block_id in self._nodes:
@@ -208,9 +210,11 @@ class CFGModel(Serializable):
             self._nodes_by_addr[node.addr].remove(node)
             if not self._nodes_by_addr[node.addr]:
                 del self._nodes_by_addr[node.addr]
-                pos = bisect.bisect_left(self._node_addrs, node.addr)
-                if pos < len(self._node_addrs) and self._node_addrs[pos] == node.addr:
-                    self._node_addrs.pop(pos)
+
+                if isinstance(node.addr, int):
+                    pos = bisect.bisect_left(self._node_addrs, node.addr)
+                    if pos < len(self._node_addrs) and self._node_addrs[pos] == node.addr:
+                        self._node_addrs.pop(pos)
 
     #
     # CFG View
@@ -257,32 +261,33 @@ class CFGModel(Serializable):
         if force_fastpath:
             return None
 
-        # slower path
-        # find all potential addresses that the block may cover
-        pos = bisect.bisect_left(self._node_addrs, max(addr - 400, 0))
+        if isinstance(addr, int):
+            # slower path
+            # find all potential addresses that the block may cover
+            pos = bisect.bisect_left(self._node_addrs, max(addr - 400, 0))
 
-        is_cfgemulated = self.ident == "CFGEmulated"
+            is_cfgemulated = self.ident == "CFGEmulated"
 
-        while pos < len(self._node_addrs):
-            n = self._nodes_by_addr[self._node_addrs[pos]][0]
-            if n.addr > addr:
-                break
+            while pos < len(self._node_addrs):
+                n = self._nodes_by_addr[self._node_addrs[pos]][0]
+                if n.addr > addr:
+                    break
 
-            if is_cfgemulated:
-                cond = n.looping_times == 0
-            else:
-                cond = True
-            if anyaddr and n.size is not None:
-                cond = cond and (addr == n.addr or n.addr <= addr < n.addr + n.size)
-            else:
-                cond = cond and (addr == n.addr)
-            if cond:
-                if is_syscall is None:
-                    return n
-                if n.is_syscall == is_syscall:
-                    return n
+                if is_cfgemulated:
+                    cond = n.looping_times == 0
+                else:
+                    cond = True
+                if anyaddr and n.size is not None:
+                    cond = cond and (addr == n.addr or n.addr <= addr < n.addr + n.size)
+                else:
+                    cond = cond and (addr == n.addr)
+                if cond:
+                    if is_syscall is None:
+                        return n
+                    if n.is_syscall == is_syscall:
+                        return n
 
-            pos += 1
+                pos += 1
 
         return None
 
