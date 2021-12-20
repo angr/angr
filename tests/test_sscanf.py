@@ -14,10 +14,8 @@ test_location = os.path.dirname(os.path.realpath(__file__))
 
 
 class TestSscanf(unittest.TestCase):
+    @unittest.skipUnless(sys.platform.startswith('linux'), "linux only")
     def test_sscanf(self):
-        if not sys.platform.startswith('linux'):
-            return
-
         test_bin = os.path.join(test_location, "..", "..", "binaries", "tests", "x86_64", "sscanf_test")
         b = angr.Project(test_bin, auto_load_libs=False)
         pg = b.factory.simulation_manager()

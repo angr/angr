@@ -33,7 +33,7 @@ def test_thumb_firmware_cfg():
     assert succ.addr == 0x080081dd
     f2 = p.kb.functions[succ.addr]
     assert f2.name == '_vfprintf_r'
-    assert f2.returning 
+    assert f2.returning
 
 if __name__ == "__main__":
     test_thumb_firmware_cfg()
