@@ -10,6 +10,7 @@ from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable
 from ....utils.constants import is_alignment_mask
 from ....utils.library import get_cpp_function_name
 from ....errors import UnsupportedNodeTypeError
+from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from ... import Analysis, register_analysis
 from ..region_identifier import MultiNode
 from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, BreakNode,
@@ -262,6 +263,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield loc_repr, None
             yield "\n", None
 
+        if unified_to_var_and_types:
+            yield "\n", None
+
     def c_repr_chunks(self, indent=0, asexpr=False):
 
         indent_str = self.indent_str(indent)
@@ -303,7 +307,6 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield "{", brace
         yield "\n", None
         yield from self.variable_list_repr_chunks(indent=indent + INDENT_DELTA)
-        yield "\n", None
         yield from self.statements.c_repr_chunks(indent=indent + INDENT_DELTA)
         yield indent_str, None
         yield "}", brace
@@ -1446,6 +1449,13 @@ class CConstant(CExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
 
+        # default priority: string references -> variables -> other reference values
+        if self.reference_values is not None:
+            for ty, v in self.reference_values.items():
+                if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
+                    yield CConstant.str_to_c_str(v.content.decode('utf-8')), self
+                    return
+
         if self.variable is not None:
             yield from self.variable.c_repr_chunks()
 
@@ -2186,16 +2196,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif isinstance(type_, SimTypeInt):
                 # int
                 reference_values[type_] = expr.value
-            elif type_ is None:
-                # we don't know the type of this argument
-                # pure guessing: is it possible that it's a string?
-                if self._cfg is not None and \
-                        expr.bits == self.project.arch.bits and \
-                        expr.value > 0x10000 and \
-                        expr.value in self._cfg.memory_data and \
-                        self._cfg.memory_data[expr.value].sort == 'string':
-                    type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
-                    reference_values[type_] = self._cfg.memory_data[expr.value]
+
+            # we don't know the type of this argument, or the type is not what we are expecting
+            # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
+            # (BOT*) instead of a char*.
+
+            # pure guessing: is it possible that it's a string?
+            if self._cfg is not None and \
+                    expr.bits == self.project.arch.bits and \
+                    expr.value > 0x10000 and \
+                    expr.value in self._cfg.memory_data and \
+                    self._cfg.memory_data[expr.value].sort == 'string':
+                type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                reference_values[type_] = self._cfg.memory_data[expr.value]
 
         if type_ is None:
             # default to int

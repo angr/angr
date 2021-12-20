@@ -303,6 +303,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_Add'
         elif expr.op.startswith('Iop_Sub'):
             handler = '_handle_Sub'
+        elif expr.op.startswith('Iop_Mull'):
+            handler = "_handle_Mull"
         elif expr.op.startswith('Iop_Mul'):
             handler = "_handle_Mul"
         elif expr.op.startswith('Iop_DivMod'):

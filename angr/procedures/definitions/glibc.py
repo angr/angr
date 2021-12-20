@@ -21,12 +21,8 @@ libc.add_all_from_dict(P['libc'])
 libc.add_all_from_dict(P['posix'])
 libc.add_all_from_dict(P['glibc'])
 libc.add_all_from_dict(P['uclibc']) # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming conflicts in the functions.
-libc.add_alias('abort', '__assert_fail', '__stack_chk_fail')
-libc.add_alias('memcpy', 'memmove', 'bcopy')
-libc.add_alias('getc', '_IO_getc')
-libc.add_alias('putc', '_IO_putc')
 libc.set_non_returning('exit_group', 'exit', 'abort', 'pthread_exit', '__assert_fail',
-    'longjmp', 'siglongjmp', '__longjmp_chk', '__siglongjmp_chk')
+                       'longjmp', 'siglongjmp', '__longjmp_chk', '__siglongjmp_chk')
 
 
 #
@@ -3086,6 +3082,11 @@ for name, proto in _libc_decls.items():
 
 _l.debug("Libc provides %d function prototypes, and has %d unsupported function prototypes.",
          proto_count, unsupported_count)
+
+libc.add_alias('abort', '__assert_fail', '__stack_chk_fail')
+libc.add_alias('memcpy', 'memmove', 'bcopy')
+libc.add_alias('getc', '_IO_getc')
+libc.add_alias('putc', '_IO_putc')
 
 
 #

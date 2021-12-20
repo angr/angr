@@ -52,6 +52,9 @@ State::State(uc_engine *_uc, uint64_t cache_key):uc(_uc) {
 	mode = *((uc_mode*)((uc_arch*)uc + 1));
 	curr_block_details.reset();
 	symbolic_read_in_progress = false;
+	trace_last_block_addr = 0;
+	trace_last_block_tot_count = -1;
+	trace_last_block_curr_count = -1;
 }
 
 /*
@@ -204,6 +207,11 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 		if (stop_point != stop_points.end() && *stop_point < current_address + real_size) {
 			stop(STOP_STOPPOINT);
 		}
+		else if ((trace_last_block_tot_count > 0) && (trace_last_block_addr >= current_address) &&
+		  (trace_last_block_addr < current_address + real_size) && (trace_last_block_curr_count == trace_last_block_tot_count - 1)) {
+			// Executing last block in trace. Stop.
+			stop(STOP_STOPPOINT);
+		}
 	}
 }
 
@@ -249,6 +257,9 @@ void State::commit() {
 			save_concrete_memory_deps(symbolic_instr);
 		}
 		blocks_with_symbolic_instrs.emplace_back(curr_block_details);
+	}
+	if (curr_block_details.block_addr == trace_last_block_addr) {
+		trace_last_block_curr_count += 1;
 	}
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
@@ -386,6 +397,13 @@ mem_update_t *State::sync() {
 	}
 
 	return mem_updates_head;
+}
+
+void State::set_last_block_details(address_t block_addr, int64_t curr_count, int64_t tot_count) {
+	trace_last_block_addr = block_addr;
+	trace_last_block_curr_count = curr_count;
+	trace_last_block_tot_count = tot_count;
+	return;
 }
 
 void State::set_stops(uint64_t count, address_t *stops) {
@@ -2382,6 +2400,11 @@ mem_update_t *simunicorn_sync(State *state) {
 extern "C"
 uint64_t simunicorn_step(State *state) {
 	return state->cur_steps;
+}
+
+extern "C"
+void simunicorn_set_last_block_details(State *state, address_t block_addr, uint64_t curr_count, uint64_t total_count) {
+	state->set_last_block_details(block_addr, curr_count, total_count);
 }
 
 extern "C"

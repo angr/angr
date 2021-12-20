@@ -7,6 +7,6 @@ class fflush(angr.SimProcedure):
     #pylint:disable=arguments-differ,unused-argument
 
     def run(self, fd):
-        return self.state.solver.BVV(0, self.state.arch.bits)
+        return 0
 
 fflush_unlocked = fflush

@@ -173,7 +173,7 @@ class SimEngineRDAIL(
             # getting used expressions from stmt.args
             used_exprs = stmt.args
         elif stmt.calling_convention is not None and (
-                stmt.calling_convention.func_ty is not None or stmt.calling_convention.args is not None):
+                stmt.calling_convention.prototype is not None or stmt.calling_convention.args is not None):
             # getting used expressions from the function prototype, its arguments, and the calling convention
             used_exprs = [ ]
             for arg_loc in stmt.calling_convention.arg_locs():
@@ -243,11 +243,12 @@ class SimEngineRDAIL(
     def _ail_handle_Return(self, stmt: ailment.Stmt.Return):  # pylint:disable=unused-argument
 
         codeloc = self._codeloc()
-        size = self.project.arch.bits // 8
 
         cc = None
+        prototype = None
         if self.state.analysis.subject.type == SubjectType.Function:
             cc = self.state.analysis.subject.content.calling_convention
+            prototype = self.state.analysis.subject.content.prototype
             # import ipdb; ipdb.set_trace()
 
         if cc is None:
@@ -280,9 +281,14 @@ class SimEngineRDAIL(
         # consume registers that are potentially useful
 
         # return value
-        if cc is not None and cc.ret_val is not None:
-            if isinstance(cc.ret_val, SimRegArg):
-                offset = cc.ret_val._fix_offset(None, size, arch=self.project.arch)
+        if cc is not None and prototype is not None and prototype.returnty is not None:
+            ret_val = cc.return_val(prototype.returnty)
+            if isinstance(ret_val, SimRegArg):
+                if ret_val.clear_entire_reg:
+                    offset, size = cc.arch.registers[ret_val.reg_name]
+                else:
+                    offset = cc.arch.registers[ret_val.reg_name][0] + ret_val.reg_offset
+                    size = ret_val.size
                 self.state.add_use(Register(offset, size), codeloc)
             else:
                 l.error("Cannot handle CC with non-register return value location")

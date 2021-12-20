@@ -431,8 +431,8 @@ class Clinic(Analysis):
 
     @timethis
     def _make_argument_list(self) -> List[SimVariable]:
-        if self.function.calling_convention is not None:
-            args: List[SimFunctionArgument] = self.function.calling_convention.args
+        if self.function.calling_convention is not None and self.function.prototype is not None:
+            args: List[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
             arg_vars: List[SimVariable] = [ ]
             if args:
                 for idx, arg in enumerate(args):
@@ -512,9 +512,10 @@ class Clinic(Analysis):
         def _handle_Return(stmt_idx: int, stmt: ailment.Stmt.Return, block: Optional[ailment.Block]):  # pylint:disable=unused-argument
             if block is not None \
                     and not stmt.ret_exprs \
-                    and self.function.calling_convention.ret_val is not None:
+                    and self.function.prototype is not None \
+                    and type(self.function.prototype.returnty) is not SimTypeBottom:
                 new_stmt = stmt.copy()
-                ret_val = self.function.calling_convention.ret_val
+                ret_val = self.function.calling_convention.return_val(self.function.prototype.returnty)
                 if isinstance(ret_val, SimRegArg):
                     reg = self.project.arch.registers[ret_val.reg_name]
                     new_stmt.ret_exprs.append(ailment.Expr.Register(
@@ -546,7 +547,7 @@ class Clinic(Analysis):
 
     @timethis
     def _make_function_prototype(self, arg_list: List[SimVariable], variable_kb):
-        if self.function.prototype is not None:
+        if self.function.prototype is not None and not self.function.is_prototype_guessed:
             # do not overwrite an existing function prototype
             # if you want to re-generate the prototype, clear the existing one first
             return
@@ -574,12 +575,11 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        if self.function.calling_convention is not None and self.function.calling_convention.ret_val is None:
-            returnty = SimTypeBottom(label="void")
-        else:
-            returnty = SimTypeInt()
+        # TODO: need a new method of determining whether a function returns void
+        returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
+        self.function.is_prototype_guessed = False
 
     @timethis
     def _recover_and_link_variables(self, ail_graph, arg_list):

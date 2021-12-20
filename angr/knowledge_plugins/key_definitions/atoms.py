@@ -3,7 +3,7 @@ from typing import Dict, Tuple, Union, Optional
 import claripy
 import ailment
 
-from ...calling_conventions import SimFunctionArgument, SimRegArg
+from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -15,6 +15,9 @@ class Atom:
 
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
+
+    __slots__ = ()
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -32,6 +35,8 @@ class Atom:
         """
         if isinstance(argument, SimRegArg):
             return Register(registers[argument.reg_name][0], argument.size)
+        elif isinstance(argument, SimStackArg):
+            return MemoryLocation(registers["sp"][0] + argument.stack_offset, argument.size)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
@@ -40,6 +45,8 @@ class GuardUse(Atom):
     """
     Implements a guard use.
     """
+    __slots__ = ("target",)
+
     def __init__(self, target):
         self.target = target
 
@@ -52,6 +59,8 @@ class GuardUse(Atom):
 
 
 class FunctionCall(Atom):
+    __slots__ = ('target', 'callsite')
+
     def __init__(self, target, callsite):
         self.target = target
         self.callsite = callsite
@@ -80,6 +89,8 @@ class FunctionCall(Atom):
 
 
 class ConstantSrc(Atom):
+    __slots__ = ('const',)
+
     def __init__(self, const):
         self.const = const
 

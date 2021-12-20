@@ -21,7 +21,7 @@ def test_alignment():
             st.regs.sp = -1
 
             # setup callsite with one argument (0x1337), "returning" to 0
-            cc.setup_callsite(st, 0, [0x1337])
+            cc.setup_callsite(st, 0, [0x1337], 'void foo(int x)')
 
             # ensure stack alignment is correct
             assert st.solver.is_true(
@@ -37,7 +37,7 @@ def test_sys_v_abi_compliance():
     st.regs.sp = -1
 
     # setup callsite with one argument (0x1337), "returning" to 0
-    cc.setup_callsite(st, 0, [0x1337])
+    cc.setup_callsite(st, 0, [0x1337], 'void foo(int x)')
 
     # (rsp+8) must be aligned to 16 as required by System V ABI.
     # ref: https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf , page 18t
@@ -51,7 +51,7 @@ def test_initial_allocation():
         auto_load_libs=False,
     )
     s = p.factory.entry_state(add_options={o.STRICT_PAGE_ACCESS})
-    s.memory.load(s.regs.sp - 0x10000, 4)
+    s.memory.load(s.regs.sp - 0x10000, size=4)
 
 
 if __name__ == "__main__":

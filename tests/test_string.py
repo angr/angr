@@ -322,7 +322,7 @@ def test_memcpy():
     s = SimState(arch="AMD64", mode="symbolic", remove_options=angr.options.simplification)
     s.memory._maximum_symbolic_size = 0x2000000
     size = s.solver.BVV(0x1000000, 64)
-    data = s.solver.BVS('giant', 8*0x1000000)
+    data = s.solver.BVS('giant', 8*0x1_000_000)
     dst_addr = s.solver.BVV(0x2000000, 64)
     src_addr = s.solver.BVV(0x4000000, 64)
     s.memory.store(src_addr, data)
@@ -906,7 +906,7 @@ def test_strcmp():
     s.memory.store(b_addr, b"heck\x00")
 
     r = strcmp(s, arguments=[a_addr, b_addr])
-    assert s.solver.eval_upto(r, 2) == [0xffffffffffffffff]
+    assert s.solver.eval_upto(r, 2) == [0xffffffff]
 
     l.info("empty a, empty b")
     s = SimState(arch="AMD64", mode="symbolic")

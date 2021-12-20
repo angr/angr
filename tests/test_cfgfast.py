@@ -698,13 +698,13 @@ def test_tail_call_optimization_detection_armel():
     )
     proj = angr.Project(path, auto_load_libs=False)
 
-    cfg = proj.analyses.CFGFast(
-        resolve_indirect_jumps=True,
-        force_complete_scan=False,
-        normalize=True,
-        symbols=False,
-        detect_tail_calls=True,
-    )
+    cfg = proj.analyses.CFGFast(resolve_indirect_jumps=True,
+                                force_complete_scan=False,
+                                normalize=True,
+                                symbols=False,
+                                detect_tail_calls=True,
+                                data_references=True,
+                                )
 
     all_func_addrs = set(cfg.functions.keys())
     assert 0x80010B5 not in all_func_addrs

@@ -24,6 +24,7 @@ def test_function_serialization():
     f = angr.knowledge_plugins.Function.parse(s)
     assert func_main.addr == f.addr
     assert func_main.name == f.name
+    assert func_main.is_prototype_guessed == f.is_prototype_guessed
 
 
 def test_function_definition_application():

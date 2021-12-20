@@ -59,9 +59,7 @@ def test_stops():
     )
 
     # test STOP_STOPPOINT on an address that is not a basic block start
-    s_stoppoints = p.factory.call_state(
-        p.loader.find_symbol("main").rebased_addr, 1, [], add_options=so.unicorn
-    )
+    s_stoppoints = p.factory.call_state(p.loader.find_symbol("main").rebased_addr, 1, angr.PointerWrapper([]), add_options=so.unicorn)
 
     # this address is right before/after the bb for the stop_normal() function ends
     # we should not stop there, since that code is never hit
@@ -289,19 +287,11 @@ def test_fp():
         type_cache = angr.sim_type.parse_defns(fp.read())
     p = angr.Project(os.path.join(test_location, 'binaries', 'tests', 'i386', 'manyfloatsum'), auto_load_libs=False)
 
-    for function in (
-        "sum_floats",
-        "sum_combo",
-        "sum_segregated",
-        "sum_doubles",
-        "sum_combo_doubles",
-        "sum_segregated_doubles",
-    ):
-        cc = p.factory.cc(func_ty=type_cache[function])
-        args = list(range(len(cc.func_ty.args)))
+    for function in ('sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
+        args = list(range(len(type_cache[function].args)))
         answer = float(sum(args))
         addr = p.loader.find_symbol(function).rebased_addr
-        my_callable = p.factory.callable(addr, cc=cc)
+        my_callable = p.factory.callable(addr, prototype=type_cache[function])
         my_callable.set_base_state(p.factory.blank_state(add_options=so.unicorn))
         result = my_callable(*args)
         assert not result.symbolic
@@ -385,7 +375,7 @@ def test_inspect():
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
         main_addr = p.loader.find_symbol("main").rebased_addr
-        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+        return p.factory.call_state(main_addr, argc, angr.PointerWrapper([]), add_options=add_options)
 
     # test breaking on specific addresses
     s_break_addr = main_state(1)
@@ -442,7 +432,7 @@ def test_explore():
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
         main_addr = p.loader.find_symbol("main").rebased_addr
-        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+        return p.factory.call_state(main_addr, argc, angr.PointerWrapper([]), add_options=add_options)
 
     addr = 0x08048479
     s_explore = main_state(1)
@@ -464,7 +454,7 @@ def test_single_step():
     def main_state(argc, add_options=None):
         add_options = add_options or so.unicorn
         main_addr = p.loader.find_symbol("main").rebased_addr
-        return p.factory.call_state(main_addr, argc, [], add_options=add_options)
+        return p.factory.call_state(main_addr, argc, angr.PointerWrapper([]), add_options=add_options)
 
     s_main = main_state(1)
 
@@ -509,5 +499,5 @@ if __name__ == "__main__":
                     for ft in res:
                         fo = ft[0]
                         fa = ft[1:]
-                        print("...", fa)
+                        print('...', fa)
                         fo(*fa)

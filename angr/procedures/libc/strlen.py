@@ -33,7 +33,8 @@ class strlen(angr.SimProcedure):
             # Make sure to convert s to ValueSet
             addr_desc: AbstractAddressDescriptor = self.state.memory._normalize_address(s)
 
-            length = self.state.solver.ESI(self.state.arch.bits)
+            # size_t
+            length = self.state.solver.ESI(self.arch.bits)
             for s_aw in self.state.memory._concretize_address_descriptor(addr_desc, None):
 
                 s_ptr = s_aw.to_valueset(self.state)

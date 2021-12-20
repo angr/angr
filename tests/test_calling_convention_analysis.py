@@ -54,27 +54,12 @@ def test_fauxware():
     amd64 = archinfo.arch_from_id("amd64")
 
     args = {
-        "i386": [
-            (
-                "authenticate",
-                SimCCCdecl(
-                    archinfo.arch_from_id("i386"),
-                    args=[SimStackArg(4, 4), SimStackArg(8, 4)],
-                    sp_delta=4,
-                    ret_val=SimRegArg("eax", 4),
-                ),
-            ),
+        'i386': [
+            ('authenticate', SimCCCdecl( archinfo.arch_from_id('i386'), ) ),
         ],
-        "x86_64": [
-            (
-                "authenticate",
-                SimCCSystemVAMD64(
-                    amd64,
-                    args=[SimRegArg("rdi", 8), SimRegArg("rsi", 8)],
-                    sp_delta=8,
-                    ret_val=SimRegArg("rax", 8),
-                ),
-            ),
+        'x86_64': [
+            ('authenticate', SimCCSystemVAMD64( amd64, )
+             ),
         ],
     }
 
@@ -130,7 +115,8 @@ def check_args(func_name, args, expected_arg_strs):
 
 
 def _a(funcs, func_name):
-    return funcs[func_name].calling_convention.args
+    func = funcs[func_name]
+    return func.calling_convention.arg_locs(func.prototype)
 
 
 def test_x8664_dir_gcc_O0():
@@ -214,10 +200,11 @@ def test_x8664_void():
         if func.name in groundtruth:
             r = groundtruth[func.name]
             if r is None:
-                assert func.calling_convention.ret_val is None
+                assert func.prototype.returnty is None
             else:
-                assert isinstance(func.calling_convention.ret_val, SimRegArg)
-                assert func.calling_convention.ret_val.reg_name == r
+                ret_val = func.calling_convention.return_val(func.prototype.returnty)
+                assert isinstance(ret_val, SimRegArg)
+                assert ret_val.reg_name == r
 
 
 def test_x86_saved_regs():
@@ -233,22 +220,25 @@ def test_x86_saved_regs():
     proj.analyses.VariableRecoveryFast(func)
     cca = proj.analyses.CallingConvention(func)
     cc = cca.cc
+    prototype = cca.prototype
 
     assert cc is not None, (
         "Calling convention analysis failed to determine the calling convention of function "
         "0x80494f0."
     )
     assert isinstance(cc, SimCCCdecl)
-    assert len(cc.args) == 3
-    assert cc.args[0] == SimStackArg(4, 4)
-    assert cc.args[1] == SimStackArg(8, 4)
-    assert cc.args[2] == SimStackArg(12, 4)
+    assert len(prototype.args) == 3
+    arg_locs = cc.arg_locs(prototype)
+    assert arg_locs[0] == SimStackArg(4, 4)
+    assert arg_locs[1] == SimStackArg(8, 4)
+    assert arg_locs[2] == SimStackArg(12, 4)
 
     func_exit = cfg.functions[0x804A1A9]  # exit
 
     proj.analyses.VariableRecoveryFast(func_exit)
     cca = proj.analyses.CallingConvention(func_exit)
     cc = cca.cc
+    prototype = cca.prototype
 
     assert func_exit.returning is False
     assert cc is not None, (
@@ -256,8 +246,8 @@ def test_x86_saved_regs():
         "0x804a1a9."
     )
     assert isinstance(cc, SimCCCdecl)
-    assert len(cc.args) == 1
-    assert cc.args[0] == SimStackArg(4, 4)
+    assert len(prototype.args) == 1
+    assert cc.arg_locs(prototype)[0] == SimStackArg(4, 4)
 
 
 def test_callsite_inference_amd64():
@@ -270,7 +260,7 @@ def test_callsite_inference_amd64():
 
     func = cfg.functions.function(name="mosquitto_publish", plt=True)
     cca = proj.analyses.CallingConvention(func)
-    assert len(cca.cc.args) == 6
+    assert len(cca.prototype.args) == 6
 
 
 def run_all():
