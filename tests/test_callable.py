@@ -92,7 +92,6 @@ class TestCallable(unittest.TestCase):
             result_concrete = result.args[0]
             assert answer == result_concrete
 
-    @slow_test
     def run_manyfloatsum_symbolic(self, arch):
         global type_cache
         if type_cache is None:
