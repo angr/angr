@@ -1,8 +1,15 @@
-class JobInfo:
+from typing import Generic, TypeVar
+
+# from angr.analyses.forward_analysis.forward_analysis import JobType, JobKey
+
+JobType = TypeVar("JobType")
+JobKey = TypeVar("JobKey")
+
+class JobInfo(Generic[JobKey, JobType]):
     """
     Stores information of each job.
     """
-    def __init__(self, key, job):
+    def __init__(self, key: "JobKey", job: "JobType"):
         self.key = key
         self.jobs = [(job, '')]
 
@@ -20,7 +27,7 @@ class JobInfo:
         return s
 
     @property
-    def job(self):
+    def job(self) -> "JobType":
         """
         Get the latest available job.
 

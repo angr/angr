@@ -48,17 +48,18 @@ class CFGBase(Analysis):
         :param cle.backends.Backend binary:         The binary to recover CFG on. By default the main binary is used.
         :param bool force_segment:                  Force CFGFast to rely on binary segments instead of sections.
         :param angr.SimState base_state:            A state to use as a backer for all memory loads.
-        :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps. This is necessary to resolve jump
-                                                    targets from jump tables, etc.
-        :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers. If this list is None or empty,
-                                                    default indirect jump resolvers specific to this architecture and binary
-                                                    types will be loaded.
+        :param bool resolve_indirect_jumps:         Whether to try to resolve indirect jumps.
+                                                    This is necessary to resolve jump targets from jump tables, etc.
+        :param list indirect_jump_resolvers:        A custom list of indirect jump resolvers.
+                                                    If this list is None or empty, default indirect jump resolvers
+                                                    specific to this architecture and binary types will be loaded.
         :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
         :param bool detect_tail_calls:              Aggressive tail-call optimization detection. This option is only
                                                     respected in make_functions().
-        :param bool sp_tracking_track_memory:       Whether or not to track memory writes when tracking the stack pointer. This
-                                                    increases the accuracy of stack pointer tracking, especially for architectures
-                                                    without a base pointer. Only used if detect_tail_calls is enabled.
+        :param bool sp_tracking_track_memory:       Whether or not to track memory writes if tracking the stack pointer.
+                                                    This increases the accuracy of stack pointer tracking,
+                                                    especially for architectures without a base pointer.
+                                                    Only used if detect_tail_calls is enabled.
         :param None or CFGModel model:              The CFGModel instance to write to. A new CFGModel instance will be
                                                     created and registered with the knowledge base if `model` is None.
 
@@ -320,7 +321,7 @@ class CFGBase(Analysis):
         return self._model.get_exit_stmt_idx(src_block, dst_block)
 
     @property
-    def graph(self):
+    def graph(self) -> networkx.DiGraph:
         raise NotImplementedError()
 
     def remove_edge(self, block_from, block_to):
@@ -1036,7 +1037,12 @@ class CFGBase(Analysis):
 
         self._normalized = True
 
-    def _normalize_core(self, graph, callstack_key, smallest_node, other_nodes, smallest_nodes, end_addresses_to_nodes):
+    def _normalize_core(self, graph: networkx.DiGraph,
+                        callstack_key,
+                        smallest_node,
+                        other_nodes,
+                        smallest_nodes,
+                        end_addresses_to_nodes):
 
         # Break other nodes
         for n in other_nodes:
@@ -1350,7 +1356,7 @@ class CFGBase(Analysis):
                 self._release_gil(i, 20)
 
             if self._show_progressbar or self._progress_callback:
-                progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1.0 / nodes_count)
+                progress = min_stage_2_progress + (max_stage_2_progress - min_stage_2_progress) * (i * 1. / nodes_count)
                 self._update_progress(progress)
 
             self._graph_bfs_custom(self.graph, [ fn ], self._graph_traversal_handler, blockaddr_to_function,
@@ -1382,7 +1388,7 @@ class CFGBase(Analysis):
         for i, fn in enumerate(sorted(secondary_function_nodes, key=lambda n: n.addr)):
 
             if self._show_progressbar or self._progress_callback:
-                progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (i * 1.0 / nodes_count)
+                progress = min_stage_3_progress + (max_stage_3_progress - min_stage_3_progress) * (i * 1. / nodes_count)
                 self._update_progress(progress)
 
             self._graph_bfs_custom(self.graph, [fn], self._graph_traversal_handler, blockaddr_to_function,
@@ -1784,7 +1790,8 @@ class CFGBase(Analysis):
             is_syscall = self.project.simos.is_syscall_addr(addr)
 
             n = self.model.get_any_node(addr, is_syscall=is_syscall)
-            if n is None: node = addr
+            if n is None:
+                node = addr
             else: node = self._to_snippet(n)
 
             if isinstance(addr, SootAddressDescriptor):
@@ -1939,8 +1946,10 @@ class CFGBase(Analysis):
 
         if src_addr not in src_function.block_addrs_set:
             n = self.model.get_any_node(src_addr)
-            if n is None: node = src_addr
-            else: node = self._to_snippet(n)
+            if n is None:
+                node = src_addr
+            else:
+                node = self._to_snippet(n)
             self.kb.functions._add_node(src_function.addr, node)
 
         if data is None:
@@ -1951,8 +1960,10 @@ class CFGBase(Analysis):
 
         if jumpkind == 'Ijk_Ret':
             n = self.model.get_any_node(src_addr)
-            if n is None: from_node = src_addr
-            else: from_node = self._to_snippet(n)
+            if n is None:
+                from_node = src_addr
+            else:
+                from_node = self._to_snippet(n)
             self.kb.functions._add_return_from(src_function.addr, from_node, None)
 
         if dst is None:
@@ -1972,7 +1983,8 @@ class CFGBase(Analysis):
             dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             n = self.model.get_any_node(src_addr)
-            if n is None: src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
+            if n is None:
+                src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
             else:
                 src_snippet = self._to_snippet(cfg_node=n)
 
@@ -1993,8 +2005,8 @@ class CFGBase(Analysis):
             if isinstance(dst_addr, SootAddressDescriptor):
                 dst_addr = dst_addr.method
 
-            self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet, syscall=is_syscall,
-                                           ins_addr=ins_addr, stmt_idx=stmt_idx)
+            self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet,
+                                           syscall=is_syscall, ins_addr=ins_addr, stmt_idx=stmt_idx)
 
             if dst_function.returning:
                 returning_target = src.addr + src.size
@@ -2025,12 +2037,16 @@ class CFGBase(Analysis):
 
             # convert src_addr and dst_addr to CodeNodes
             n = self.model.get_any_node(src_addr)
-            if n is None: src_node = src_addr
-            else: src_node = self._to_snippet(cfg_node=n)
+            if n is None:
+                src_node = src_addr
+            else:
+                src_node = self._to_snippet(cfg_node=n)
 
             n = self.model.get_any_node(dst_addr)
-            if n is None: dst_node = dst_addr
-            else: dst_node = self._to_snippet(cfg_node=n)
+            if n is None:
+                dst_node = dst_addr
+            else:
+                dst_node = self._to_snippet(cfg_node=n)
 
             # pre-check: if source and destination do not belong to the same section, it must be jumping to another
             # function

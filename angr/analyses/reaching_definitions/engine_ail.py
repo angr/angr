@@ -18,6 +18,7 @@ from ...knowledge_plugins.key_definitions.live_definitions import Definition
 from .subject import SubjectType
 from .external_codeloc import ExternalCodeLocation
 from .rd_state import ReachingDefinitionsState
+from .function_handler import FunctionHandler
 
 l = logging.getLogger(name=__name__)
 
@@ -30,7 +31,8 @@ class SimEngineRDAIL(
     arch: archinfo.Arch
     state: ReachingDefinitionsState
 
-    def __init__(self, project, call_stack, maximum_local_call_depth, function_handler=None):
+    def __init__(self, project, call_stack, maximum_local_call_depth,
+                 function_handler: Optional[FunctionHandler] = None):
         super().__init__()
         self.project = project
         self._call_stack = call_stack
@@ -581,13 +583,15 @@ class SimEngineRDAIL(
             # each value in expr0 >> expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
                 if all(v.concrete for v in expr0.values[0]):
-                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
+                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
+                          for v in expr0.values[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
                 if all(v.concrete for v in expr1.values[0]):
-                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
+                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
+                          for v in expr1.values[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -613,13 +617,15 @@ class SimEngineRDAIL(
             # each value in expr0 >> expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
                 if all(v.concrete for v in expr0.values[0]):
-                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
+                    vs = {(claripy.LShR(v, expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
+                          for v in expr0.values[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
                 if all(v.concrete for v in expr1.values[0]):
-                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
+                    vs = {(claripy.LShR(expr0_v, v._model_concrete.value) if v.concrete else self.state.top(bits))
+                          for v in expr1.values[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -645,13 +651,15 @@ class SimEngineRDAIL(
             # each value in expr0 << expr1_v
             if len(expr0.values) == 1 and 0 in expr0.values:
                 if all(v.concrete for v in expr0.values[0]):
-                    vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr0.values[0]}
+                    vs = {((v << expr1_v._model_concrete.value) if v.concrete else self.state.top(bits))
+                          for v in expr0.values[0]}
                     r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # expr0_v >> each value in expr1
             if len(expr1.values) == 1 and 0 in expr1.values:
                 if all(v.concrete for v in expr1.values[0]):
-                    vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits)) for v in expr1.values[0]}
+                    vs = {((expr0_v << v._model_concrete.value) if v.concrete else self.state.top(bits))
+                          for v in expr1.values[0]}
                     r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
@@ -834,7 +842,9 @@ class SimEngineRDAIL(
         stack_addr = self.state.stack_address(expr.offset)
         return MultiValues(offset_to_values={0: {stack_addr}})
 
-    def _ail_handle_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> MultiValues:  # pylint:disable=no-self-use
+    def _ail_handle_DirtyExpression(self,
+                                    expr: ailment.Expr.DirtyExpression
+                                    ) -> MultiValues:  # pylint:disable=no-self-use
         # FIXME: DirtyExpression needs .bits
         top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
@@ -864,41 +874,32 @@ class SimEngineRDAIL(
             return None
 
         is_internal = False
-        ext_func_name = None
+        ext_func_name: Optional[str] = None
+        symbol = None
         if self.project.loader.main_object.contains_addr(ip_addr) is True:
             ext_func_name = self.project.loader.find_plt_stub_name(ip_addr)
             if ext_func_name is None:
                 is_internal = True
         else:
             symbol = self.project.loader.find_symbol(ip_addr)
-            if symbol is not None:
-                ext_func_name = symbol.name
-
-        if ext_func_name is not None:
-            handler_name = 'handle_%s' % ext_func_name
-            if hasattr(self._function_handler, handler_name):
-                getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-            else:
-                l.warning('Please implement the external function handler for %s() with your own logic.',
-                          ext_func_name)
+        if symbol is not None:
+            self._function_handler.handle_external_function_symbol(self.state, symbol, self._codeloc())
+        elif ext_func_name is not None:
+            self._function_handler.handle_external_function_name(self.state, ext_func_name, self._codeloc())
         elif is_internal is True:
-            handler_name = 'handle_local_function'
-            if hasattr(self._function_handler, handler_name):
-                is_updated, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
-                    self.state,
-                    ip_addr,
-                    self._call_stack,
-                    self._maximum_local_call_depth,
-                    self._visited_blocks,
-                    self._dep_graph,
-                )
+            is_updated, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
+                self.state,
+                ip_addr,
+                self._call_stack,
+                self._maximum_local_call_depth,
+                self._visited_blocks,
+                self._dep_graph,
+            )
 
-                if is_updated is True:
-                    self.state = state
-                    self._visited_blocks = visited_blocks
-                    self._dep_graph = dep_graph
-            else:
-                l.warning('Please implement the local function handler with your own logic.')
+            if is_updated is True:
+                self.state = state
+                self._visited_blocks = visited_blocks
+                self._dep_graph = dep_graph
         else:
             l.warning('Could not find function name for external function at address %#x.', ip_addr)
         return None

@@ -89,7 +89,8 @@ class Project:
     :ivar storage:      Dictionary of things that should be loaded/stored with the Project.
     :type storage:      defaultdict(list)
     """
-
+    analyses: "AnalysesHub"
+    arch: archinfo.Arch
     def __init__(self, thing,
                  default_analysis_mode=None,
                  ignore_functions=None,

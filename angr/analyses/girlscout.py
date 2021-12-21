@@ -78,7 +78,7 @@ class GirlScout(Analysis):
         self._reconnoiter()
 
     @property
-    def call_map(self):
+    def call_map(self) -> networkx.DiGraph:
         return self.call_map
 
     def _get_next_addr_to_search(self, alignment=None):

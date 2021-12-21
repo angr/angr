@@ -1,3 +1,5 @@
+from typing import Optional
+
 import logging
 
 import networkx
@@ -27,9 +29,9 @@ class CDG(Analysis):
 
         self._ancestor = None
         self._semi = None
-        self._post_dom = None
+        self._post_dom: Optional[networkx.DiGraph] = None
 
-        self._graph = None
+        self._graph: Optional[networkx.DiGraph] = None
         self._normalized_cfg = None
 
         if not no_construct:
@@ -103,7 +105,7 @@ class CDG(Analysis):
         # Construct post-dominator tree
         self._pd_construct()
 
-        self._graph = networkx.DiGraph()
+        self._graph: networkx.DiGraph  = networkx.DiGraph()
 
         # Construct the reversed dominance frontier mapping
         rdf = compute_dominance_frontier(self._normalized_cfg, self._post_dom)
