@@ -70,7 +70,7 @@ class DefaultFillerMixin(MemoryMixin):
                 reg_str = self.state.arch.translate_register_name(addr, size=size)
                 l.warning("Filling register %s with %d unconstrained bytes referenced from %#x (%s)", reg_str, size, refplace_int, refplace_str)
                 if name is None and not reg_str.isdigit():
-                    name = reg_str
+                    name = 'reg_' + reg_str
 
         if name is None:
             if type(addr) is int:
