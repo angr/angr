@@ -479,7 +479,7 @@ class PagedMemoryMixin(MemoryMixin):
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
-        difference = my_pages.symmetric_difference(other_pages)
+        difference = my_pages.difference(other_pages)
 
         changes = set()
         for pageno in difference:
@@ -502,8 +502,8 @@ class PagedMemoryMixin(MemoryMixin):
         my_pages = set(self._pages)
         other_pages = set(other._pages)
         intersection = my_pages.intersection(other_pages)
-        difference = my_pages.difference(other_pages) | other_pages.difference(my_pages)
-
+        difference = my_pages.symmetric_difference(other_pages)
+        
         changes: Dict[int,Optional[Set[int]]] = dict((d, None) for d in difference)
 
         for pageno in intersection:
