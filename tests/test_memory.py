@@ -48,8 +48,10 @@ def test_copy():
 
     nose.tools.assert_equal(sorted(s.solver.eval_upto(x, 100)), list(range(10)))
     result = s.memory.load(0x200, 5)
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)),
+        [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])),
+        [ b"ABCXX" ])
 
     s = SimState(arch="AMD64", mode="symbolic")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content=b'ABCDEFGHIJKLMNOP', has_end=True)))
@@ -60,8 +62,10 @@ def test_copy():
     s.posix.get_fd(0).read(0x200, x)
     nose.tools.assert_equal(sorted(s.solver.eval_upto(x, 100)), list(range(10)))
     result = s.memory.load(0x200, 5)
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)),
+        [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])),
+        [ b"ABCXX" ])
 
     s = SimState(arch="AMD64", mode="symbolic")
     s.register_plugin('posix', SimSystemPosix(stdin=SimFile(name='stdin', content=b'ABCDEFGHIJKLMNOP')))
@@ -73,11 +77,14 @@ def test_copy():
     ret_x = read_proc.execute(s, arguments=(0, 0x200, x)).ret_expr
     nose.tools.assert_equal(sorted(s.solver.eval_upto(x, 100)), list(range(10)))
     result = s.memory.load(0x200, 5)
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)), [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])), [ b"ABCXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes)),
+        [ b"ABCDE", b"ABCDX", b"ABCXX", b"ABXXX", b"AXXXX", b"XXXXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[x==3])),
+        [ b"ABCXX" ])
 
     nose.tools.assert_equal(sorted(s.solver.eval_upto(ret_x, 100)), list(range(10)))
-    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[ret_x==3])), [ b"ABCXX" ])
+    nose.tools.assert_equal(sorted(s.solver.eval_upto(result, 100, cast_to=bytes, extra_constraints=[ret_x==3])),
+        [ b"ABCXX" ])
 
 def _concrete_memory_tests(s):
     # Store a 4-byte variable to memory directly...
@@ -813,7 +820,7 @@ def test_multivalued_list_page():
 
 def test_conditional_concretization():
     class ZeroFillerMemory(UltraPageMemory):
-        def _default_value(self, size=None, *args, **kwargs):
+        def _default_value(self, *args, size=None, **kwargs):
             return self.state.solver.BVV(0, size)
 
     state = SimState(arch='AMD64', mode='symbolic', plugins={'memory': ZeroFillerMemory()})

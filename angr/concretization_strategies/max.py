@@ -13,7 +13,8 @@ class SimConcretizationStrategyMax(SimConcretizationStrategy):
         super().__init__()
         self._max_addr = max_addr
 
-    def _concretize(self, memory, addr, extra_constraints=None, **kwargs):
+    def _concretize(self, memory, addr, **kwargs):
+        extra_constraints = kwargs.pop('extra_constraints', None)
         extra_constraints = tuple(extra_constraints) if extra_constraints is not None else ()
         if self._max_addr is None:
             return [ self._max(memory, addr, extra_constraints=extra_constraints, **kwargs) ]

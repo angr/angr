@@ -1,4 +1,5 @@
 from . import SimConcretizationStrategy
+from ..errors import SimMergeError
 
 class SimConcretizationStrategyNorepeatsRange(SimConcretizationStrategy):
     """
@@ -6,13 +7,14 @@ class SimConcretizationStrategyNorepeatsRange(SimConcretizationStrategy):
     """
 
     def __init__(self, repeat_expr, min=None, granularity=None, **kwargs): #pylint:disable=redefined-builtin
-        super(SimConcretizationStrategyNorepeatsRange, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._repeat_expr = repeat_expr
         self._repeat_min = min
         self._repeat_granularity = granularity
 
-    def _concretize(self, memory, addr, extra_constraints=None, **kwargs):
+    def _concretize(self, memory, addr, **kwargs):
         child_constraints = (addr >= self._repeat_min, addr < self._repeat_min + self._repeat_granularity)
+        extra_constraints = kwargs.pop('extra_constraints', None)
         if extra_constraints is not None:
             child_constraints += tuple(extra_constraints)
         c = self._any(memory, addr, extra_constraints=child_constraints)
@@ -36,5 +38,3 @@ class SimConcretizationStrategyNorepeatsRange(SimConcretizationStrategy):
             self._repeat_granularity,
             max(o._repeat_granularity for o in others)
         )
-
-from ..errors import SimMergeError

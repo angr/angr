@@ -9,13 +9,14 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
     memory.
     """
     def __init__(self, limit, fixed_addrs, **kwargs):
-        super(SimConcretizationStrategyControlledData, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._limit = limit
         self._fixed_addrs = fixed_addrs
 
-    def _concretize(self, memory, addr, extra_constraints=None, **kwargs):
+    def _concretize(self, memory, addr, **kwargs):
         # Get all symbolic variables in memory
-        symbolic_vars = filter(lambda key: not key.startswith("reg_") and not key.startswith("mem_"), memory._name_mapping.keys())
+        symbolic_vars = filter(lambda key: not key.startswith("reg_") and not key.startswith("mem_"),
+            memory._name_mapping.keys())
         controlled_addrs = sorted([_addr for s_var in symbolic_vars for _addr in memory.addrs_for_name(s_var)])
         controlled_addrs.extend(self._fixed_addrs)
 
@@ -36,11 +37,12 @@ class SimConcretizationStrategyControlledData(SimConcretizationStrategy):
 
         # create constraints from intervals
         for base, length in intervals:
-           constraints.append(memory.state.solver.And(addr >= base, addr < base+length))
+            constraints.append(memory.state.solver.And(addr >= base, addr < base+length))
 
         # try to get solutions for controlled memory
         ored_constraints = memory.state.solver.Or(*constraints)
         child_constraints = (ored_constraints,)
+        extra_constraints = kwargs.pop('extra_constraints', None)
         if extra_constraints is not None:
             child_constraints += tuple(extra_constraints)
         solutions = self._eval(memory, addr, self._limit, extra_constraints=child_constraints, **kwargs)
