@@ -67,7 +67,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             global_end_addr = end
             global_start_addr = result[-1][0]
             size = global_end_addr - global_start_addr
-            new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr),  # pylint: disable=assignment-from-no-return
+            new_ast = self._default_value(global_start_addr, size,  # pylint: disable=assignment-from-no-return
                     key=(self.category, global_start_addr), memory=memory, endness=endness, **kwargs)
             new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness)
             self.symbolic_data[global_start_addr - page_addr] = new_item
