@@ -811,8 +811,25 @@ def test_multivalued_list_page():
     assert next(iter(a.values[0])) is A[7:0]
     assert len(a.values[1]) == 2
 
+def test_conditional_concretization():
+    class ZeroFillerMemory(UltraPageMemory):
+        def _default_value(self, size=None, *args, **kwargs):
+            return self.state.solver.BVV(0, size)
+
+    state = SimState(arch='AMD64', mode='symbolic', plugins={'memory': ZeroFillerMemory()})
+    state.options.add(o.ZERO_FILL_UNCONSTRAINED_MEMORY)
+
+    cond = state.solver.BoolS('cond')
+    addr = state.solver.BVS('addr', 32)
+    
+    state.memory.store(addr, 0x12345678, size=4, condition=cond, endness=state.arch.memory_endness)
+    val = state.memory.load(addr, size=4, condition=cond, endness=state.arch.memory_endness)
+    assert set(state.solver.eval_upto(cond, 2)) == {True, False}
+    assert (val == 0x12345678).is_true()
+
 
 if __name__ == '__main__':
+    test_conditional_concretization()
     test_multivalued_list_page()
     test_address_wrap()
     test_concrete_load()
