@@ -74,7 +74,7 @@ class DefaultFillerMixin(MemoryMixin):
 
         if name is None:
             if type(addr) is int:
-                name = '%s_%x' % (self.category, addr)
+                name = '%s_%x' % (self.id, addr)
             else:
                 name = self.category
 

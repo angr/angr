@@ -34,6 +34,9 @@ class UnderconstrainedMixin(MemoryMixin):
             else:
                 uc_alloc_depth = 0
 
+            if name is None:
+                name = 'mem_%x' % addr
+
             bits = size * self.state.arch.byte_width
             return self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events, uc_alloc_depth=uc_alloc_depth)
 
