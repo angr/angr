@@ -1,9 +1,12 @@
 from ...analysis import Analysis
+from ..empty_node_remover import EmptyNodeRemover
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
 from .ifelse import IfElseFlattener
 from .loop import LoopSimplifier
+from .expr_folding import ExpressionCounter, ExpressionFolder
+from .cascading_cond_transformer import CascadingConditionTransformer
 
 
 class RegionSimplifier(Analysis):
@@ -22,6 +25,12 @@ class RegionSimplifier(Analysis):
         """
 
         r = self.region
+        # Fold expressions that are only used once into their use sites
+        r = self._fold_oneuse_expressions(r)
+        # Remove empty nodes
+        r = self._remove_empty_nodes(r)
+        # Find nested if-else constructs and convert them into CascadingIfs
+        r = self._transform_to_cascading_ifs(r)
         # Remove unnecessary Jump statements
         r = self._simplify_gotos(r)
         # Remove unnecessary jump or conditional jump statements if they jump to the successor right afterwards
@@ -38,6 +47,30 @@ class RegionSimplifier(Analysis):
     #
     # Simplifiers
     #
+
+    @staticmethod
+    def _fold_oneuse_expressions(region):
+        expr_counter = ExpressionCounter(region)
+
+        variable_assignments = {}
+        variable_uses = {}
+        for var, uses in expr_counter.uses.items():
+            if len(uses) == 1 and var in expr_counter.assignments:
+                variable_assignments[var] = expr_counter.assignments[var]
+                variable_uses[var] = next(iter(expr_counter.uses[var]))
+
+        # replace them
+        ExpressionFolder(variable_assignments, variable_uses, region)
+        return region
+
+    @staticmethod
+    def _remove_empty_nodes(region):
+        return EmptyNodeRemover(region).result
+
+    @staticmethod
+    def _transform_to_cascading_ifs(region):
+        CascadingConditionTransformer(region)
+        return region
 
     @staticmethod
     def _simplify_gotos(region):

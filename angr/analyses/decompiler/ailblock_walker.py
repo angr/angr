@@ -41,10 +41,11 @@ class AILBlockWalker:
             i += 1
 
     def walk_statement(self, stmt: Statement):
-        self._handle_stmt(0, stmt, None)
+        return self._handle_stmt(0, stmt, None)
 
-    def walk_expression(self, expr: Expression):
-        self._handle_expr(0, expr, 0, None, None)
+    def walk_expression(self, expr: Expression, stmt_idx: Optional[int]=None, stmt: Optional[int]=None,
+                        block: Optional[Block]=None):
+        return self._handle_expr(0, expr, stmt_idx, stmt, block)
 
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Optional[Block]) -> Any:
         try:

@@ -52,7 +52,9 @@ class SequenceWalker:
         nodes_copy = list(node.nodes)
         while i < len(nodes_copy):
             node_ = nodes_copy[i]
-            self._handle(node_, parent=node, index=i)
+            new_node = self._handle(node_, parent=node, index=i)
+            if new_node is not None:
+                node.nodes[i] = new_node
             i += 1
         return None
 
