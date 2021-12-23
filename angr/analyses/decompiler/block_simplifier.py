@@ -226,10 +226,6 @@ class BlockSimplifier(Analysis):
                 if idx in dead_defs_stmt_idx:
                     continue
 
-                # is it an assignment to an artificial register?
-                if type(stmt.dst) is Register and self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size):
-                    continue
-
                 if stmt.src == stmt.dst:
                     continue
 

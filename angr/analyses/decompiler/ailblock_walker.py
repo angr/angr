@@ -3,7 +3,7 @@ from typing import Dict, Type, Callable, Any, Optional
 
 from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE
+from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE, DirtyExpression
 
 
 class AILBlockWalker:
@@ -27,6 +27,7 @@ class AILBlockWalker:
             UnaryOp: self._handle_UnaryOp,
             Convert: self._handle_Convert,
             ITE: self._handle_ITE,
+            DirtyExpression: self._handle_DirtyExpression,
         }
 
         self.stmt_handlers: Dict[Type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -67,7 +68,7 @@ class AILBlockWalker:
             if expr is not None:
                 r = self._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
                 return r if r is not None else expr
-        return None
+        return None  # unchanged
 
     #
     # Default handlers
@@ -273,4 +274,9 @@ class AILBlockWalker:
             new_expr.iftrue = iftrue
             new_expr.iffalse = iffalse
             return new_expr
+        return None
+
+    def _handle_DirtyExpression(self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement,
+                                block: Optional[Block]):
+        # TODO: Implement the logic
         return None

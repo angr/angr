@@ -145,19 +145,12 @@ class SimEngineRDAIL(
 
     def _ail_handle_ConditionalJump(self, stmt):
 
-        cond = self._expr(stmt.condition)  # pylint:disable=unused-variable
-        true_target = self._expr(stmt.true_target)  # pylint:disable=unused-variable
-        false_target = self._expr(stmt.false_target)  # pylint:disable=unused-variable
+        _ = self._expr(stmt.condition)  # pylint:disable=unused-variable
+        _ = self._expr(stmt.true_target)  # pylint:disable=unused-variable
+        _ = self._expr(stmt.false_target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
         self.state.kill_definitions(ip)
-
-        # kill all cc_ops
-        if 'cc_op' in self.arch.registers:
-            self.state.kill_definitions(Register(*self.arch.registers['cc_op']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep1']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_dep2']))
-            self.state.kill_definitions(Register(*self.arch.registers['cc_ndep']))
 
     def _ail_handle_Call(self, stmt: ailment.Stmt.Call):
         self._handle_Call_base(stmt, is_expr=False)
@@ -174,11 +167,10 @@ class SimEngineRDAIL(
         if stmt.args is not None:
             # getting used expressions from stmt.args
             used_exprs = stmt.args
-        elif stmt.calling_convention is not None and (
-                stmt.calling_convention.prototype is not None or stmt.calling_convention.args is not None):
+        elif stmt.calling_convention is not None and stmt.prototype is not None:
             # getting used expressions from the function prototype, its arguments, and the calling convention
             used_exprs = [ ]
-            for arg_loc in stmt.calling_convention.arg_locs():
+            for arg_loc in stmt.calling_convention.arg_locs(stmt.prototype):
                 if isinstance(arg_loc, SimRegArg):
                     used_exprs.append(Register(self.arch.registers[arg_loc.reg_name][0], arg_loc.size))
                 elif isinstance(arg_loc, SimStackArg):
@@ -845,7 +837,11 @@ class SimEngineRDAIL(
     def _ail_handle_DirtyExpression(self,
                                     expr: ailment.Expr.DirtyExpression
                                     ) -> MultiValues:  # pylint:disable=no-self-use
-        # FIXME: DirtyExpression needs .bits
+
+        if isinstance(expr.dirty_expr, ailment.Expr.VEXCCallExpression):
+            for operand in expr.dirty_expr.operands:
+                self._expr(operand)
+
         top = self.state.top(expr.bits)
         return MultiValues(offset_to_values={0: {top}})
 
