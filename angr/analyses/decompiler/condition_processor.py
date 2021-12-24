@@ -645,11 +645,11 @@ class ConditionProcessor:
             # convert is special. if it generates a 1-bit variable, it should be treated as a BVS
             if condition.to_bits == 1:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0])
-                name = 'ailcond_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
+                name = 'ailcond_Conv(%d->%d, %d)' % (condition.from_bits, condition.to_bits, hash(var_))
                 var = claripy.BoolS(name, explicit_name=True)
             else:
                 var_ = self.claripy_ast_from_ail_condition(condition.operands[0])
-                name = 'ailexpr_Conv(%d->%d, %s)' % (condition.from_bits, condition.to_bits, repr(var_))
+                name = 'ailexpr_Conv(%d->%d, %d)' % (condition.from_bits, condition.to_bits, hash(var_))
                 var = claripy.BVS(name, condition.to_bits, explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
