@@ -3,7 +3,7 @@ from typing import Dict, Type, Callable, Any, Optional
 
 from ailment import Block
 from ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE, DirtyExpression
+from ailment.expression import Load, Expression, BinaryOp, UnaryOp, Convert, ITE, DirtyExpression, VEXCCallExpression
 
 
 class AILBlockWalker:
@@ -28,6 +28,7 @@ class AILBlockWalker:
             Convert: self._handle_Convert,
             ITE: self._handle_ITE,
             DirtyExpression: self._handle_DirtyExpression,
+            VEXCCallExpression: self._handle_VEXCCallExpression,
         }
 
         self.stmt_handlers: Dict[Type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
@@ -279,5 +280,27 @@ class AILBlockWalker:
 
     def _handle_DirtyExpression(self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement,
                                 block: Optional[Block]):
-        # TODO: Implement the logic
+        new_dirty_expr = self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
+        if new_dirty_expr is not None and new_dirty_expr is not expr.operand:
+            new_expr = expr.copy()
+            new_expr.dirty_expr = new_dirty_expr
+            return new_expr
+        return None
+
+    def _handle_VEXCCallExpression(self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement,
+                                   block: Optional[Block]):
+        changed = False
+        new_operands = [ ]
+        for idx, operand in enumerate(expr.operands):
+            new_operand = self._handle_expr(idx, operand, stmt_idx, stmt, block)
+            if new_operand is not None and new_operand is not operand:
+                changed = True
+                new_operands.append(new_operand)
+            else:
+                new_operands.append(operand)
+
+        if changed:
+            new_expr = expr.copy()
+            new_expr.operands = tuple(new_operands)
+            return new_expr
         return None
