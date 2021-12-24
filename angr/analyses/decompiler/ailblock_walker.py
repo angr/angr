@@ -281,7 +281,7 @@ class AILBlockWalker:
     def _handle_DirtyExpression(self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement,
                                 block: Optional[Block]):
         new_dirty_expr = self._handle_expr(0, expr.dirty_expr, stmt_idx, stmt, block)
-        if new_dirty_expr is not None and new_dirty_expr is not expr.operand:
+        if new_dirty_expr is not None and new_dirty_expr is not expr.dirty_expr:
             new_expr = expr.copy()
             new_expr.dirty_expr = new_dirty_expr
             return new_expr
