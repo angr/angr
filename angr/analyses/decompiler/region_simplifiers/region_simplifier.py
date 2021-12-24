@@ -55,8 +55,8 @@ class RegionSimplifier(Analysis):
         variable_assignments = {}
         variable_uses = {}
         for var, uses in expr_counter.uses.items():
-            if len(uses) == 1 and var in expr_counter.assignments:
-                variable_assignments[var] = expr_counter.assignments[var]
+            if len(uses) == 1 and var in expr_counter.assignments and len(expr_counter.assignments[var]) == 1:
+                variable_assignments[var] = next(iter(expr_counter.assignments[var]))
                 variable_uses[var] = next(iter(expr_counter.uses[var]))
 
         # replace them

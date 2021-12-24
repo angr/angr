@@ -61,10 +61,11 @@ class ExpressionUseFinder(AILBlockWalker):
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
                      block: Optional[Block]) -> Any:
         if isinstance(expr, ailment.Register) and expr.variable is not None:
-            if block is not None:
-                self.uses[expr.variable].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
-            else:
-                self.uses[expr.variable].add((expr, None))
+            if not (isinstance(stmt, ailment.Stmt.Assignment) and stmt.dst is expr):
+                if block is not None:
+                    self.uses[expr.variable].add((expr, ExpressionLocation(block.addr, block.idx, stmt_idx, expr_idx)))
+                else:
+                    self.uses[expr.variable].add((expr, None))
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -78,7 +79,7 @@ class ExpressionCounter(SequenceWalker):
             ailment.Block: self._handle_Block,
         }
 
-        self.assignments = { }
+        self.assignments = defaultdict(set)
         self.uses = { }
 
         super().__init__(handlers)
@@ -89,11 +90,11 @@ class ExpressionCounter(SequenceWalker):
         for idx, stmt in enumerate(node.statements):
             if isinstance(stmt, ailment.Stmt.Assignment):
                 if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                    self.assignments[stmt.dst.variable] = (stmt.src, StatementLocation(node.addr, node.idx, idx))
+                    self.assignments[stmt.dst.variable].add((stmt.src, StatementLocation(node.addr, node.idx, idx)))
             if (isinstance(stmt, ailment.Stmt.Call)
                     and isinstance(stmt.ret_expr, ailment.Expr.Register)
                     and stmt.ret_expr.variable is not None):
-                self.assignments[stmt.ret_expr.variable] = (stmt, StatementLocation(node.addr, node.idx, idx))
+                self.assignments[stmt.ret_expr.variable].add((stmt, StatementLocation(node.addr, node.idx, idx)))
 
         # walk the block and find uses of variables
         use_finder = ExpressionUseFinder()
