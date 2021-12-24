@@ -1,3 +1,5 @@
+import ailment
+
 from ....analyses import AnalysesHub
 from ...analysis import Analysis
 from ..empty_node_remover import EmptyNodeRemover
@@ -60,7 +62,11 @@ class RegionSimplifier(Analysis):
         variable_uses = {}
         for var, uses in expr_counter.uses.items():
             if len(uses) == 1 and var in expr_counter.assignments and len(expr_counter.assignments[var]) == 1:
-                variable_assignments[var] = next(iter(expr_counter.assignments[var]))
+                definition, loc = next(iter(expr_counter.assignments[var]))
+                if isinstance(definition, ailment.Stmt.Call):
+                    # clear the existing variable since we no longer write to this variable after expression folding
+                    definition.ret_expr.variable = None
+                variable_assignments[var] = definition, loc
                 variable_uses[var] = next(iter(expr_counter.uses[var]))
 
         # replace them
