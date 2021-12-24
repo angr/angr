@@ -626,9 +626,6 @@ class DirtyExpression(Expression):
         super().__init__(idx, 1, **kwargs)
         self.dirty_expr = dirty_expr
 
-    def replace(self, old_expr, new_expr):
-        return False, self
-
     def likes(self, other):
         return type(other) is DirtyExpression and other.dirty_expr == self.dirty_expr
 
@@ -646,10 +643,74 @@ class DirtyExpression(Expression):
     def copy(self) -> 'DirtyExpression':
         return DirtyExpression(self.idx, self.dirty_expr, **self.tags)
 
+    def replace(self, old_expr, new_expr):
+        if old_expr is self.dirty_expr:
+            return True, DirtyExpression(self.idx, new_expr, **self.tags)
+
+        replaced, new_dirty_expr = self.dirty_expr.replace(old_expr, new_expr)
+        if replaced:
+            return True, DirtyExpression(self.idx, new_dirty_expr, **self.tags)
+        else:
+            return False, self
+
     @property
     def size(self):
         return self.bits // 8
 
+
+class VEXCCallExpression(Expression):
+
+    __slots__ = ('cee_name', 'operands', )
+
+    def __init__(self, idx, cee_name, operands, **kwargs):
+        super().__init__(idx, max(operand.depth for operand in operands), **kwargs)
+        self.cee_name = cee_name
+        self.operands = operands
+
+    def likes(self, other):
+        return type(other) is VEXCCallExpression and \
+               other.cee_name == self.cee_name and \
+               len(self.operands) == len(other.operands) and \
+               all(op1.likes(op2) for op1, op2 in zip(other.operands, self.operands))
+
+    __hash__ = TaggedObject.__hash__
+
+    def _hash_core(self):
+        return stable_hash((VEXCCallExpression, self.cee_name, tuple(self.operands)))
+
+    def __repr__(self):
+        return f"VEXCCallExpression [{self.cee_name}]"
+
+    def __str__(self):
+        operands_str = ", ".join(repr(op) for op in self.operands)
+        return f"{self.cee_name}({operands_str})"
+
+    def copy(self) -> 'VEXCCallExpression':
+        return VEXCCallExpression(self.idx, self.cee_name, self.operands, **self.tags)
+
+    def replace(self, old_expr, new_expr):
+        new_operands = [ ]
+        replaced = False
+        for operand in self.operands:
+            if operand is old_expr:
+                new_operands.append(new_expr)
+                replaced = True
+            else:
+                operand_replaced, new_operand = operand.replace(old_expr, new_expr)
+                if operand_replaced:
+                    new_operands.append(new_operand)
+                    replaced = True
+                else:
+                    new_operands.append(operand)
+
+        if replaced:
+            return True, VEXCCallExpression(self.idx, self.cee_name, tuple(new_operands), **self.tags)
+        else:
+            return False, self
+
+    @property
+    def size(self):
+        return self.bits // 8
 
 #
 # Special (Dummy) expressions

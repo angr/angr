@@ -6,7 +6,8 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 
 from .block import Block
 from .statement import Assignment, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
-from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE, Reinterpret
+from .expression import Const, Register, Tmp, DirtyExpression, UnaryOp, Convert, BinaryOp, Load, ITE, Reinterpret, \
+    VEXCCallExpression
 from .converter_common import SkipConversionNotice, Converter
 
 
@@ -36,6 +37,12 @@ class VEXExprConverter(Converter):
 
         if isinstance(expr, pyvex.const.IRConst):
             return VEXExprConverter.const_n(expr, manager)
+
+        if isinstance(expr, pyvex.IRExpr.CCall):
+            operands = tuple(VEXExprConverter.convert(arg, manager) for arg in expr.args)
+            ccall = VEXCCallExpression(manager.next_atom(), expr.cee.name, operands,
+                                       bits=expr.result_size(manager.tyenv))
+            return DirtyExpression(manager.next_atom(), ccall, bits=expr.result_size(manager.tyenv))
 
         l.warning("VEXExprConverter: Unsupported VEX expression of type %s.", type(expr))
         return DirtyExpression(manager.next_atom(), expr, bits=expr.result_size(manager.tyenv))
