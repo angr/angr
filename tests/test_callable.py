@@ -34,6 +34,8 @@ addresses_manysum = {
     'x86_64': 0x4004ca
 }
 
+type_cache = None
+
 
 class TestCallable(unittest.TestCase):
     def run_fauxware(self, arch):
@@ -72,8 +74,6 @@ class TestCallable(unittest.TestCase):
         assert not result.symbolic
         assert result._model_concrete.value == sum(range(12))
 
-    type_cache = None
-
     def run_manyfloatsum(self, arch):
         global type_cache
         if type_cache is None:
@@ -82,7 +82,8 @@ class TestCallable(unittest.TestCase):
 
         p = angr.Project(os.path.join(location, 'tests', arch, 'manyfloatsum'))
         for function in (
-        'sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles', 'sum_segregated_doubles'):
+                'sum_floats', 'sum_combo', 'sum_segregated', 'sum_doubles', 'sum_combo_doubles',
+                'sum_segregated_doubles'):
             args = list(range(len(type_cache[function].args)))
             answer = float(sum(args))
             addr = p.loader.main_object.get_symbol(function).rebased_addr
