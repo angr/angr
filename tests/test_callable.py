@@ -121,30 +121,30 @@ class TestCallable(unittest.TestCase):
 
     def test_fauxware(self):
         for arch in addresses_fauxware:
-            yield run_fauxware, arch
+            yield self.run_fauxware, arch
 
     def test_manysum(self):
         for arch in addresses_manysum:
-            yield run_manysum, arch
+            yield self.run_manysum, arch
 
     def test_manyfloatsum(self):
         for arch in ('i386', 'x86_64'):
-            yield run_manyfloatsum, arch
+            yield self.run_manyfloatsum, arch
 
     @slow_test
     def test_manyfloatsum_symbolic(self):
         # doesn't have to be slow but it might be
         # https://github.com/Z3Prover/z3/issues/2584
         for arch in ('i386', 'x86_64'):
-            yield run_manyfloatsum_symbolic, arch
+            yield self.run_manyfloatsum_symbolic, arch
 
     def test_callable_c_fauxware(self):
         for arch in addresses_fauxware:
-            yield run_callable_c_fauxware, arch
+            yield self.run_callable_c_fauxware, arch
 
     def test_callable_c_manyfloatsum(self):
         for arch in addresses_manysum:
-            yield run_callable_c_manysum, arch
+            yield self.run_callable_c_manysum, arch
 
     def test_setup_callsite(self):
         p = angr.load_shellcode(b'b', arch=archinfo.ArchX86())
