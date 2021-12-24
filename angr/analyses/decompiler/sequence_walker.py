@@ -92,7 +92,8 @@ class SequenceWalker:
             self._handle(node.else_node, parent=node, index=-1)
         return None
 
-    def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
+    @staticmethod
+    def _handle_ConditionalBreak(node: ConditionalBreakNode, **kwargs):
         return None
 
     @staticmethod
