@@ -1,3 +1,4 @@
+from ....analyses import AnalysesHub
 from ...analysis import Analysis
 from ..empty_node_remover import EmptyNodeRemover
 from .goto import GotoSimplifier
@@ -10,6 +11,9 @@ from .cascading_cond_transformer import CascadingConditionTransformer
 
 
 class RegionSimplifier(Analysis):
+    """
+    Simplifies a given region.
+    """
     def __init__(self, region):
         self.region = region
 
@@ -97,5 +101,4 @@ class RegionSimplifier(Analysis):
         return region
 
 
-from ....analyses import AnalysesHub
 AnalysesHub.register_default('RegionSimplifier', RegionSimplifier)

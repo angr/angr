@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,unused-argument
 from collections import defaultdict
 from typing import Optional, Any, Dict
 
@@ -7,7 +8,7 @@ from ailment.statement import Statement
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, CascadingConditionNode
+from ..structurer_nodes import ConditionNode
 
 
 class LocationBase:

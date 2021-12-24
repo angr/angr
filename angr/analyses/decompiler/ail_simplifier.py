@@ -22,7 +22,9 @@ from .ccall_rewriters import CCALL_REWRITERS
 
 
 class HasCallNotification(Exception):
-    pass
+    """
+    Notifies the existence of a call statement.
+    """
 
 
 class AILSimplifier(Analysis):
@@ -233,14 +235,17 @@ class AILSimplifier(Analysis):
 
                 if defs and len(defs) == 1:
                     stackvar_def = defs[0]
-                    if isinstance(stackvar_def.atom, atoms.MemoryLocation) and isinstance(stackvar_def.atom.addr, SpOffset):
+                    if isinstance(stackvar_def.atom, atoms.MemoryLocation) \
+                            and isinstance(stackvar_def.atom.addr, SpOffset):
                         # found the stack variable
                         # Make sure there is no other write to this location
-                        if any((def_ != stackvar_def and def_.atom == stackvar_def.atom) for def_ in rd.all_definitions if isinstance(def_.atom, atoms.MemoryLocation)):
+                        if any((def_ != stackvar_def and def_.atom == stackvar_def.atom)
+                               for def_ in rd.all_definitions if isinstance(def_.atom, atoms.MemoryLocation)):
                             continue
 
                         # Make sure the register is never updated across this function
-                        if any((def_ != the_def and def_.atom == the_def.atom) for def_ in rd.all_definitions if isinstance(def_.atom, atoms.Register)):
+                        if any((def_ != the_def and def_.atom == the_def.atom)
+                               for def_ in rd.all_definitions if isinstance(def_.atom, atoms.Register)):
                             continue
 
                         # find all its uses
@@ -249,8 +254,8 @@ class AILSimplifier(Analysis):
                         for use in all_stackvar_uses:
                             all_uses_with_def.add((stackvar_def, use))
 
-                        to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
-                                          endness=self.project.arch.memory_endness)
+                        to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
+                                          eq.atom0.size, endness=self.project.arch.memory_endness)
                         replace_with = eq.atom1
                         remove_initial_assignment = True
 
@@ -267,8 +272,8 @@ class AILSimplifier(Analysis):
                 if isinstance(eq.atom0, SimStackVariable):
                     # create the memory loading expression
                     to_replace = eq.atom1
-                    replace_with = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset), eq.atom0.size,
-                               endness=self.project.arch.memory_endness)
+                    replace_with = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
+                                        eq.atom0.size, endness=self.project.arch.memory_endness)
                 elif isinstance(eq.atom0, Register):
                     if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
                         to_replace = eq.atom0
@@ -553,9 +558,13 @@ class AILSimplifier(Analysis):
         walker = None
 
         class _any_update:
+            """
+            Dummy class for storing if any result has been updated.
+            """
             v = False
 
-        def _handle_expr(expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> Optional[Expression]:
+        def _handle_expr(expr_idx: int, expr: Expression, stmt_idx: int,
+                         stmt: Statement, block) -> Optional[Expression]:
 
             if isinstance(expr, DirtyExpression) and isinstance(expr.dirty_expr, VEXCCallExpression):
                 rewriter = rewriter_cls(expr.dirty_expr)

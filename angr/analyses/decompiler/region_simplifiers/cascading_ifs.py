@@ -50,14 +50,17 @@ class CascadingIfsRemover(SequenceWalker):
         if node.true_node is not None and node.false_node is None:
             if isinstance(node.true_node, SequenceNode):
                 last_node = None
-                if len(node.true_node.nodes) > 1 and all(self.is_empty_node(node_) for node_ in node.true_node.nodes[:-1]):
+                if len(node.true_node.nodes) > 1 and \
+                        all(self.is_empty_node(node_) for node_ in node.true_node.nodes[:-1]):
                     last_node = node.true_node.nodes[-1]
                 elif len(node.true_node.nodes) == 1:
                     last_node = node.true_node.nodes[0]
 
                 true_node = last_node
 
-                if isinstance(true_node, ConditionNode) and true_node.true_node is not None and true_node.false_node is None:
+                if isinstance(true_node, ConditionNode) and \
+                        true_node.true_node is not None and \
+                        true_node.false_node is None:
                     node.condition = ailment.BinaryOp(None, "LogicalAnd", (node.condition, true_node.condition), False,
                                                       **node.condition.tags)
                     node.true_node = true_node.true_node

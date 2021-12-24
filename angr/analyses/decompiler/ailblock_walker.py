@@ -1,4 +1,4 @@
-# pylint:disable=unused-argument
+# pylint:disable=unused-argument,no-self-use
 from typing import Dict, Type, Callable, Any, Optional
 
 from ailment import Block

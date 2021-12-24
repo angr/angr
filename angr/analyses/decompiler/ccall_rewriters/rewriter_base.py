@@ -4,6 +4,9 @@ import ailment
 
 
 class CCallRewriterBase:
+    """
+    The base class for CCall rewriters.
+    """
 
     __slots__ = ('result', )
 

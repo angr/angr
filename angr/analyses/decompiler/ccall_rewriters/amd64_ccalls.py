@@ -2,14 +2,21 @@ from typing import Optional
 
 from ailment import Expr
 
-from .rewriter_base import CCallRewriterBase
 from angr.engines.vex.claripy.ccall import data
+from .rewriter_base import CCallRewriterBase
+
 
 AMD64_CondTypes = data['AMD64']['CondTypes']
 AMD64_OpTypes = data['AMD64']['OpTypes']
 
 
 class AMD64CCallRewriter(CCallRewriterBase):
+    """
+    Implements ccall rewriter for AMD64.
+    """
+
+    __slots__ = ()
+
     def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Optional[Expr.Expression]:
         if ccall.cee_name == "amd64g_calculate_condition":
             cond = ccall.operands[0]

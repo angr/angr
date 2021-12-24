@@ -5,11 +5,14 @@ from typing import Dict, List
 import ailment
 
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, EmptyBlockNotice, \
-    ContinueNode, CascadingConditionNode
+from ..structurer_nodes import SequenceNode, CodeNode, MultiNode, LoopNode, ConditionNode, ContinueNode, \
+    CascadingConditionNode
 
 
 class LoopSimplifier(SequenceWalker):
+    """
+    Simplifies loops.
+    """
     def __init__(self, node):
         handlers = {
             SequenceNode: self._handle_sequencenode,
@@ -39,9 +42,11 @@ class LoopSimplifier(SequenceWalker):
 
     def _handle_conditionnode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
         if node.true_node is not None:
-            self._handle(node.true_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
+            self._handle(node.true_node, predecessor=predecessor, successor=successor, loop=loop,
+                         loop_successor=loop_successor)
         if node.false_node is not None:
-            self._handle(node.false_node, predecessor=predecessor, successor=successor, loop=loop, loop_successor=loop_successor)
+            self._handle(node.false_node, predecessor=predecessor, successor=successor, loop=loop,
+                         loop_successor=loop_successor)
 
     def _handle_cascadingconditionnode(self, node: CascadingConditionNode, predecessor=None, successor=None, loop=None,
                                        loop_successor=None, **kwargs):
@@ -53,8 +58,10 @@ class LoopSimplifier(SequenceWalker):
             self._handle(node.else_node, predecessor=predecessor, successor=successor, loop=loop,
                          loop_successor=loop_successor)
 
-    def _handle_loopnode(self, node: LoopNode, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):
-        self._handle(node.sequence_node, predecessor=predecessor, successor=successor, loop=node, loop_successor=successor)
+    def _handle_loopnode(self, node: LoopNode, predecessor=None, successor=None, loop=None, loop_successor=None,
+                         **kwargs):
+        self._handle(node.sequence_node, predecessor=predecessor, successor=successor, loop=node,
+                     loop_successor=successor)
 
         # find for-loop iterators
         if node.sort == 'while' and self.continue_preludes[node] and \

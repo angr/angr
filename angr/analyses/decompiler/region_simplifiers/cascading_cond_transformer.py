@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use,arguments-renamed,isinstance-second-argument-not-valid-type
 from typing import Optional
 
 import ailment
@@ -8,6 +9,10 @@ from ..sequence_walker import SequenceWalker
 
 
 class CascadingConditionTransformer(SequenceWalker):
+    """
+    Identifies and transforms `if { ... } else { if { ... } else { ... } }` to
+    `if { ... } else if { ... } else if { ... }`.
+    """
     def __init__(self, node):
         handlers = {
             ConditionNode: self._handle_Condition,
@@ -88,5 +93,3 @@ class CascadingConditionTransformer(SequenceWalker):
             raise RuntimeError("Impossible happened")
 
         return CascadingConditionNode(cond_node.addr, cond_and_nodes, else_node=else_node)
-
-
