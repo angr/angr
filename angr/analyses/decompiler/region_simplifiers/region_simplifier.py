@@ -65,6 +65,8 @@ class RegionSimplifier(Analysis):
                 definition, loc = next(iter(expr_counter.assignments[var]))
                 if isinstance(definition, ailment.Stmt.Call):
                     # clear the existing variable since we no longer write to this variable after expression folding
+                    definition = definition.copy()
+                    definition.ret_expr = definition.ret_expr.copy()
                     definition.ret_expr.variable = None
                 variable_assignments[var] = definition, loc
                 variable_uses[var] = next(iter(expr_counter.uses[var]))
