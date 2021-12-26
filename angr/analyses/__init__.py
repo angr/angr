@@ -1,6 +1,5 @@
 # pylint:disable=wrong-import-position
 from .analysis import Analysis, AnalysesHub
-from ..misc.ux import deprecated
 
 
 def register_analysis(cls, name):
@@ -43,4 +42,4 @@ from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
 from .flirt import FlirtAnalysis
-from .data_dependency_graph import DataDependencyGraphAnalysis
+from .data_dependency import DataDependencyGraphAnalysis
