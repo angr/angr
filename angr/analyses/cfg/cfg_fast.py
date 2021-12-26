@@ -1661,15 +1661,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
         addr, function_addr, cfg_node, irsb = self._generate_cfgnode(cfg_job, current_func_addr)
 
-        # Add edges going to this node in function graphs
-        cfg_job.apply_function_edges(self, clear=True)
-
         # function_addr and current_function_addr can be different. e.g. when tracing an optimized tail-call that jumps
         # into another function that has been identified before.
 
         if cfg_node is None:
             # exceptions occurred, or we cannot get a CFGNode for other reasons
             return [ ]
+
+        # Add edges going to this node in function graphs
+        cfg_job.apply_function_edges(self, clear=True)
 
         self._graph_add_edge(cfg_node, cfg_job.src_node, cfg_job.jumpkind, cfg_job.src_ins_addr,
                              cfg_job.src_stmt_idx
@@ -3415,7 +3415,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _function_add_transition_edge(self, dst_addr, src_node, src_func_addr, to_outside=False, dst_func_addr=None,
                                       stmt_idx=None, ins_addr=None, is_exception=False):
         """
-        Add a transition edge to the function transiton map.
+        Add a transition edge to the function transition map.
 
         :param int dst_addr: Address that the control flow transits to.
         :param CFGNode src_node: The source node that the control flow transits from.
