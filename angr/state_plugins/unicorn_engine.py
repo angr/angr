@@ -1423,11 +1423,21 @@ class Unicorn(SimStatePlugin):
             symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
             num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
 
+            # If any VEX cc_dep registers are symbolic, mark VEX cc_op register as symbolic so that it would be saved
+            # and restored for future use if needed
+            symbolic_list = symbolic_list[:num_regs]
+            for reg in self.state.arch.vex_cc_regs[1:]:
+                if reg.vex_offset in symbolic_list:
+                    cc_op_reg = self.state.arch.vex_cc_regs[0]
+                    if cc_op_reg.vex_offset not in symbolic_list:
+                        symbolic_list.extend(range(cc_op_reg.vex_offset, cc_op_reg.vex_offset + cc_op_reg.size))
+                    break
+
             # we take the approach of saving off the symbolic regs and then writing them back
 
             cur_group = None
             last = None
-            for i in sorted(symbolic_list[:num_regs]):
+            for i in sorted(symbolic_list):
                 if cur_group is None:
                     cur_group = i
                 elif i != last + 1 or cur_group//self.state.arch.bytes != i//self.state.arch.bytes:

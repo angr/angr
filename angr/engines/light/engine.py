@@ -18,7 +18,7 @@ from ..engine import SimEngine
 
 class SimEngineLightMixin:
     def __init__(self, *args, logger=None, **kwargs):
-        self.arch: archinfo.Arch = None
+        self.arch: Optional[archinfo.Arch] = None
         self.l = logger
         super().__init__(*args, **kwargs)
 
@@ -127,6 +127,7 @@ class SimEngineLight(
                             )
 
 
+# noinspection PyPep8Naming
 class SimEngineLightVEXMixin(SimEngineLightMixin):
 
     def _process(self, state, successors, *args, block, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
@@ -233,6 +234,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.l.error('Unsupported expression type %s.', type(expr).__name__)
         return None
 
+    def _handle_Triop(self, expr: pyvex.IRExpr.Triop):
+        self.l.error('Unsupported Triop %s.', expr.op)
+        return None
+
     def _handle_RdTmp(self, expr):
         tmp = expr.tmp
 
@@ -291,7 +296,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.l.error('Unsupported Unop %s.', expr.op)
             return None
 
-    def _handle_Binop(self, expr):
+    def _handle_Binop(self, expr: pyvex.IRExpr.Binop):
         handler = None
         if expr.op.startswith('Iop_And'):
             handler = '_handle_And'
@@ -705,31 +710,31 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
 
         return expr_0 > expr_1
 
-    def _handle_CmpEQ_v(self, expr, vector_size, vector_count):
+    def _handle_CmpEQ_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpNE_v(self, expr, vector_size, vector_count):
+    def _handle_CmpNE_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpLE_v(self, expr, vector_size, vector_count):
+    def _handle_CmpLE_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpGE_v(self, expr, vector_size, vector_count):
+    def _handle_CmpGE_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpLT_v(self, expr, vector_size, vector_count):
+    def _handle_CmpLT_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_CmpGT_v(self, expr, vector_size, vector_count):
+    def _handle_CmpGT_v(self, expr, _vector_size, _vector_count):
         _, _ = self._binop_get_args(expr)
         return self._top(expr.result_size(self.tyenv))
 
-    def _handle_MBE(self, expr):
+    def _handle_MBE(self, _expr: pyvex.IRStmt.MBE):
         # Yeah.... no.
         return None
 
@@ -753,6 +758,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         return self._top(expr.result_size(self.tyenv))
 
 
+# noinspection PyPep8Naming
 class SimEngineLightAILMixin(SimEngineLightMixin):
 
     def _process(self, state, successors, *args, block=None, whitelist=None, **kwargs):  # pylint:disable=arguments-differ
@@ -809,7 +815,9 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     #
 
     def _codeloc(self):
-        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr, context=self._context,
+        # noinspection PyUnresolvedReferences
+        return CodeLocation(self.block.addr, self.stmt_idx, ins_addr=self.ins_addr,
+                            context=self._context,
                             block_idx=self.block.idx)
 
     #
@@ -866,7 +874,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
     def _ail_handle_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         arg = self._expr(expr.operand)
 
-        if isinstance(arg, int) and expr.from_bits == 32 and expr.from_type == "I" and expr.to_bits == 32 and expr.to_type == "F":
+        if isinstance(arg, int) and (expr.from_bits == 32
+                                     and expr.from_type == "I"
+                                     and expr.to_bits == 32
+                                     and expr.to_type == "F"):
             # int -> float
             b = struct.pack("<I", arg)
             f = struct.unpack("<f", b)[0]

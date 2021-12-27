@@ -35,7 +35,7 @@ class DepGraph:
         if graph and not all(map(_is_definition, graph.nodes)):
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
-        self._graph = graph if graph is not None else networkx.DiGraph()
+        self._graph: networkx.DiGraph = graph if graph is not None else networkx.DiGraph()
 
     @property
     def graph(self) -> networkx.DiGraph:

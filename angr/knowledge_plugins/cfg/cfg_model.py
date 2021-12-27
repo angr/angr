@@ -356,7 +356,10 @@ class CFGModel(Serializable):
                 predecessors.append(pred)
         return predecessors
 
-    def get_successors(self, node, excluding_fakeret=True, jumpkind=None):
+    def get_successors(self, node: CFGNode,
+                       excluding_fakeret: bool = True,
+                       jumpkind: Optional[str] = None
+                       ) -> List[CFGNode]:
         """
         Get successors of a node in the control flow graph.
 

@@ -152,7 +152,6 @@ class NewFunctionHandler(FunctionHandler):
         executed_rda = True
         return executed_rda, state, visited_blocks, dep_graph
 
-
 class StaticObjectFinder(Analysis):
     """
     This analysis tries to find objects on the heap based on calls to new(), and subsequent calls to constructors with

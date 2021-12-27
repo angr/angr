@@ -692,7 +692,7 @@ def test_decompiling_amp_challenge03_arm():
     # make sure there are no empty code blocks
     code = code.replace(" ", "").replace("\n", "")
     assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some assignments " \
-                             " are incorrectly removed."
+                             "are incorrectly removed."
 
 
 def test_decompiling_fauxware_mipsel():

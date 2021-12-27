@@ -1,6 +1,8 @@
 import os
 import importlib
 import logging
+from typing import Optional, Callable
+
 
 l = logging.getLogger(name=__name__)
 
@@ -28,13 +30,16 @@ def auto_import_packages(base_module, base_path, ignore_dirs=(), ignore_files=()
                         setattr(package, name, mod)
             yield lib_module_name, package
 
-def auto_import_modules(base_module, base_path, ignore_files=()):
+
+def auto_import_modules(base_module, base_path, ignore_files=(), filter_func: Optional[Callable]=None):
     for proc_file_name in os.listdir(base_path):
         if not proc_file_name.endswith('.py'):
             continue
         if proc_file_name in ignore_files or proc_file_name == '__init__.py':
             continue
         proc_module_name = proc_file_name[:-3]
+        if filter_func is not None and not filter_func(proc_module_name):
+            continue
 
         try:
             proc_module = importlib.import_module(".%s" % proc_module_name, base_module)

@@ -150,7 +150,7 @@ class AddressConcretizationMixin(MemoryMixin):
             merged_strategies.append(unique[0])
         return merged_strategies
 
-    def _apply_concretization_strategies(self, addr, strategies, action):
+    def _apply_concretization_strategies(self, addr, strategies, action, condition):
         """
         Applies concretization strategies on the address until one of them succeeds.
         """
@@ -173,7 +173,7 @@ class AddressConcretizationMixin(MemoryMixin):
 
             # let's try to apply it!
             try:
-                a = s.concretize(self, e)
+                a = s.concretize(self, e, extra_constraints=(condition,) if condition is not None else ())
             except SimUnsatError:
                 a = None
 
@@ -193,12 +193,13 @@ class AddressConcretizationMixin(MemoryMixin):
             "Unable to concretize address for %s with the provided strategies." % action
         )
 
-    def concretize_write_addr(self, addr, strategies=None):
+    def concretize_write_addr(self, addr, strategies=None, condition=None):
         """
         Concretizes an address meant for writing.
 
         :param addr:            An expression for the address.
         :param strategies:      A list of concretization strategies (to override the default).
+        :param condition:       Any extra constraints that should be observed when determining address satisfiability
         :returns:               A list of concrete addresses.
         """
 
@@ -208,9 +209,9 @@ class AddressConcretizationMixin(MemoryMixin):
             return [ self.state.solver.eval(addr) ]
 
         strategies = self.write_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(addr, strategies, 'store')
+        return self._apply_concretization_strategies(addr, strategies, 'store', condition)
 
-    def concretize_read_addr(self, addr, strategies=None):
+    def concretize_read_addr(self, addr, strategies=None, condition=None):
         """
         Concretizes an address meant for reading.
 
@@ -225,7 +226,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return [ self.state.solver.eval(addr) ]
 
         strategies = self.read_strategies if strategies is None else strategies
-        return self._apply_concretization_strategies(addr, strategies, 'load')
+        return self._apply_concretization_strategies(addr, strategies, 'load', condition)
 
     #
     # Real shit
@@ -279,7 +280,7 @@ class AddressConcretizationMixin(MemoryMixin):
             return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)
 
         try:
-            concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr)))
+            concrete_addrs = self._interleave_ints(sorted(self.concretize_read_addr(addr, condition=condition)))
         except SimMemoryError:
             if options.CONSERVATIVE_READ_STRATEGY in self.state.options:
                 return self._default_value(None, size, name='symbolic_read_unconstrained', **kwargs)

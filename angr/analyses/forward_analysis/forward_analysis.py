@@ -1,15 +1,24 @@
 from collections import defaultdict
-from typing import Dict, Any, List, Callable
+from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING
 
 import networkx
 
+from .visitors.graph import NodeType
 from ...errors import AngrForwardAnalysisError
 from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
 from ...utils.algo import binary_insert
 from .job_info import JobInfo
 
+if TYPE_CHECKING:
+    from .visitors.graph import GraphVisitor
 
-class ForwardAnalysis:
+AnalysisState = TypeVar("AnalysisState")
+NodeKey = TypeVar("NodeKey")
+JobType = TypeVar("JobType")
+JobKey = TypeVar("JobKey")
+
+
+class ForwardAnalysis(Generic[AnalysisState]):
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.
@@ -30,7 +39,7 @@ class ForwardAnalysis:
     """
 
     def __init__(self, order_jobs=False, allow_merging=False, allow_widening=False, status_callback=None,
-                 graph_visitor=None
+                 graph_visitor: "Optional[GraphVisitor[NodeType]]" = None
                  ):
         """
         Constructor
@@ -57,15 +66,15 @@ class ForwardAnalysis:
         self._should_abort = False
 
         # All remaining jobs
-        self._job_info_queue = [ ]
+        self._job_info_queue: List[JobType] = []
 
         # A map between job key to job. Jobs with the same key will be merged by calling _merge_jobs()
-        self._job_map = { }
+        self._job_map: Dict[JobKey, JobType] = {}
 
         # A mapping between node and its input states
-        self._input_states: Dict[Any,List[Any]] = defaultdict(list)
+        self._input_states: Dict[NodeKey, List[AnalysisState]] = defaultdict(list)
         # A mapping between node and its output state
-        self._output_state: Dict[Any,Any] = {}
+        self._output_state: Dict[NodeKey, AnalysisState] = {}
 
         # The graph!
         # Analysis results (nodes) are stored here
@@ -85,7 +94,7 @@ class ForwardAnalysis:
         return self._should_abort
 
     @property
-    def graph(self):
+    def graph(self) -> networkx.DiGraph:
         return self._graph
 
     @property
@@ -105,7 +114,7 @@ class ForwardAnalysis:
 
         self._should_abort = True
 
-    def has_job(self, job):
+    def has_job(self, job: JobType) -> bool:
         """
         Checks whether there exists another job which has the same job key.
         :param job: The job to check.
@@ -125,43 +134,43 @@ class ForwardAnalysis:
 
     # Common interfaces
 
-    def _pre_analysis(self):
+    def _pre_analysis(self) -> None:
         raise NotImplementedError('_pre_analysis() is not implemented.')
 
-    def _intra_analysis(self):
+    def _intra_analysis(self) -> None:
         raise NotImplementedError('_intra_analysis() is not implemented.')
 
-    def _post_analysis(self):
+    def _post_analysis(self) -> None:
         raise NotImplementedError('_post_analysis() is not implemented.')
 
-    def _job_key(self, job):
+    def _job_key(self, job: JobType) -> JobKey:
         raise NotImplementedError('_job_key() is not implemented.')
 
-    def _get_successors(self, job):
+    def _get_successors(self, job: JobType) -> List[JobType]:
         raise NotImplementedError('_get_successors() is not implemented.')
 
-    def _pre_job_handling(self, job):
+    def _pre_job_handling(self, job: JobType) -> None:
         raise NotImplementedError('_pre_job_handling() is not implemented.')
 
-    def _post_job_handling(self, job, new_jobs, successors):
+    def _post_job_handling(self, job: JobType, new_jobs, successors):
         raise NotImplementedError('_post_job_handling() is not implemented.')
 
-    def _handle_successor(self, job, successor, successors):
+    def _handle_successor(self, job: JobType, successor: JobType, successors: List[JobType]) -> List[JobType]:
         raise NotImplementedError('_handle_successor() is not implemented.')
 
-    def _job_queue_empty(self):
+    def _job_queue_empty(self) -> None:
         raise NotImplementedError('_job_queue_empty() is not implemented.')
 
-    def _initial_abstract_state(self, node):
+    def _initial_abstract_state(self, node: NodeType) -> AnalysisState:
         raise NotImplementedError('_initial_abstract_state() is not implemented.')
 
-    def _node_key(self, node) -> Any:  # pylint:disable=no-self-use
+    def _node_key(self, node: NodeType) -> NodeKey:  # pylint:disable=no-self-use
         """
         Override this method if hash(node) is slow for the type of node that are in use.
         """
         return node
 
-    def _run_on_node(self, node, state):
+    def _run_on_node(self, node: NodeType, state: AnalysisState) -> Tuple[bool, AnalysisState]:
         """
         The analysis routine that runs on each node in the graph.
 
@@ -179,7 +188,7 @@ class ForwardAnalysis:
 
         raise NotImplementedError('_run_on_node() is not implemented.')
 
-    def _merge_states(self, node, *states):
+    def _merge_states(self, node: NodeType, *states: AnalysisState) -> Tuple[AnalysisState, bool]:
         """
         Merge multiple abstract states into one.
 
@@ -191,28 +200,28 @@ class ForwardAnalysis:
 
         raise NotImplementedError('_merge_states() is not implemented.')
 
-    def _widen_states(self, *states):
+    def _widen_states(self, *states: AnalysisState) -> AnalysisState:
         raise NotImplementedError('_widen_states() is not implemented.')
 
     # Special interfaces for non-graph-traversal mode
 
-    def _merge_jobs(self, *jobs):
+    def _merge_jobs(self, *jobs: JobType):
         raise NotImplementedError('_merge_jobs() is not implemented.')
 
-    def _should_widen_jobs(self, *jobs):
+    def _should_widen_jobs(self, *jobs: JobType):
         raise NotImplementedError('_should_widen_jobs() is not implemented.')
 
-    def _widen_jobs(self, *jobs):
+    def _widen_jobs(self, *jobs: JobType):
         raise NotImplementedError('_widen_jobs() is not implemented.')
 
-    def _job_sorting_key(self, job):
+    def _job_sorting_key(self, job: JobType) -> int:
         raise NotImplementedError('_job_sorting_key() is not implemented.')
 
     #
     # Private methods
     #
 
-    def _analyze(self):
+    def _analyze(self) -> None:
         """
         The main analysis routine.
 
@@ -235,13 +244,13 @@ class ForwardAnalysis:
 
         self._post_analysis()
 
-    def _analysis_core_graph(self):
+    def _analysis_core_graph(self) -> None:
 
         while not self.should_abort:
 
             self._intra_analysis()
 
-            n = self._graph_visitor.next_node()
+            n: NodeType = self._graph_visitor.next_node()
 
             if n is None:
                 break
@@ -281,13 +290,12 @@ class ForwardAnalysis:
                     for succ in successors_to_visit:
                         self._graph_visitor.revisit_node(succ)
 
-    def _add_input_state(self, node, input_state):
+    def _add_input_state(self, node: NodeType, input_state: AnalysisState) -> Set[NodeType]:
         """
         Add the input state to all successors of the given node.
 
         :param node:        The node whose successors' input states will be touched.
         :param input_state: The state that will be added to successors of the node.
-        :return:            None
         """
 
         successors = set(self._graph_visitor.successors(node))
@@ -304,7 +312,7 @@ class ForwardAnalysis:
 
         return successors
 
-    def _get_and_update_input_state(self, node):
+    def _get_and_update_input_state(self, node: NodeType) -> Optional[AnalysisState]:
         """
         Get the input abstract state for this node, and remove it from the state map.
 
@@ -314,11 +322,11 @@ class ForwardAnalysis:
 
         if self._node_key(node) in self._input_states:
             input_state = self._get_input_state(node)
-            self._input_states[self._node_key(node)] = [ input_state ]
+            self._input_states[self._node_key(node)] = [input_state]
             return input_state
         return None
 
-    def _get_input_state(self, node):
+    def _get_input_state(self, node: NodeType) -> Optional[AnalysisState]:
         """
         Get the input abstract state for this node.
 
@@ -335,7 +343,7 @@ class ForwardAnalysis:
         merged_state, _ = self._merge_states(node, *all_input_states)
         return merged_state
 
-    def _analysis_core_baremetal(self):
+    def _analysis_core_baremetal(self) -> None:
 
         if not self._job_info_queue:
             self._job_queue_empty()
@@ -382,7 +390,7 @@ class ForwardAnalysis:
 
             self._intra_analysis()
 
-    def _process_job_and_get_successors(self, job_info):
+    def _process_job_and_get_successors(self, job_info: JobInfo[JobKey, JobType]) -> None:
         """
         Process a job, get all successors of this job, and call _handle_successor() to handle each successor.
 
@@ -407,7 +415,7 @@ class ForwardAnalysis:
 
         self._post_job_handling(job, all_new_jobs, successors)
 
-    def _insert_job(self, job):
+    def _insert_job(self, job: JobType) -> None:
         """
         Insert a new job into the job queue. If the job queue is ordered, this job will be inserted at the correct
         position.
@@ -466,7 +474,7 @@ class ForwardAnalysis:
         else:
             self._job_info_queue.append(job_info)
 
-    def _peek_job(self, pos):
+    def _peek_job(self, pos: int) -> JobType:
         """
         Return the job currently at position `pos`, but still keep it in the job queue. An IndexError will be raised
         if that position does not currently exist in the job list.

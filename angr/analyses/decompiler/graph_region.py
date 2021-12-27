@@ -23,7 +23,7 @@ class GraphRegion:
 
     __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', )
 
-    def __init__(self, head, graph, successors: Optional[set], graph_with_successors, cyclic):
+    def __init__(self, head, graph, successors: Optional[set], graph_with_successors: networkx.DiGraph, cyclic):
         self.head = head
         self.graph = graph
         self.successors = successors
@@ -31,7 +31,7 @@ class GraphRegion:
         # successors inside graph_with_successors are *not* deep copied. therefore, you should never modify any
         # successor node in graph_with_successors. to avoid potential programming errors, just treat
         # graph_with_successors as read-only.
-        self.graph_with_successors = graph_with_successors
+        self.graph_with_successors: networkx.DiGraph = graph_with_successors
         self.cyclic = cyclic
 
     def __repr__(self):
@@ -66,7 +66,7 @@ class GraphRegion:
         return GraphRegion(nodes_map[self.head], new_graph, successors, new_graph_with_successors, self.cyclic)
 
     @staticmethod
-    def _recursive_copy(old_graph, nodes_map, ignored_nodes=None):
+    def _recursive_copy(old_graph, nodes_map, ignored_nodes=None) -> networkx.DiGraph:
         new_graph = networkx.DiGraph()
 
         # make copy of each node and add the mapping from old nodes to new nodes into nodes_map
@@ -143,7 +143,7 @@ class GraphRegion:
             self._replace_node_in_graph(self.graph_with_successors, sub_region, replace_with)
 
     @staticmethod
-    def _replace_node_in_graph(graph, node, replace_with):
+    def _replace_node_in_graph(graph: networkx.DiGraph, node, replace_with):
 
         in_edges = list(graph.in_edges(node))
         out_edges = list(graph.out_edges(node))
