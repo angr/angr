@@ -334,6 +334,25 @@ def test_single_step():
     nose.tools.assert_equal(len(successors2), 1)
     nose.tools.assert_equal(successors2[0].addr, step5)
 
+
+def test_symbolic_flags_preserved_on_stop():
+    """
+    Test if symbolic flags are preserved when unicorn engine stops. This is needed for cases where compare is performed
+    in one block and conditional jump in another.
+    """
+
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "x86_64", "test_symbolic_flags_in_unicorn"))
+    init_state = p.factory.full_init_state(add_options=angr.options.unicorn)
+    simgr = p.factory.simgr(init_state)
+    simgr.run()
+    result = None
+    for final_state in simgr.deadended:
+        if b"Congrats" in final_state.posix.dumps(1):
+            result = final_state.posix.dumps(0)
+            break
+
+    nose.tools.assert_equal(result, b'FLAG{l00ps_4r3_t00_34sy_r1gh7??}')
+
 if __name__ == '__main__':
     import logging
     logging.getLogger('angr.state_plugins.unicorn_engine').setLevel('DEBUG')
