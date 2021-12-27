@@ -18,6 +18,7 @@ from ..errors import (
 from .. import sim_options as o
 from ..tablespecs import StringTableSpec
 from ..procedures import SIM_LIBRARIES as L
+from ..procedures.definitions import load_win32api_definitions
 from .simos import SimOS
 
 _l = logging.getLogger(name=__name__)
@@ -40,10 +41,12 @@ class SecurityCookieInit(enum.Enum):
 
 class SimWindows(SimOS):
     """
-    Environemnt for the Windows Win32 subsystem. Does not support syscalls currently.
+    Environment for the Windows Win32 subsystem. Does not support syscalls currently.
     """
     def __init__(self, project):
         super(SimWindows, self).__init__(project, name='Win32')
+
+        load_win32api_definitions()
 
         self._exception_handler = None
         self.fmode_ptr = None
