@@ -16,7 +16,7 @@ import pyvex
 from . import Analysis
 
 from angr.analyses.cfg.cfg_fast import SegmentList
-from .. import options as o
+from .. import sim_options as o
 from ..annocfg import AnnotatedCFG
 from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, SimIRSBError, SimSolverModeError, \
     SimError

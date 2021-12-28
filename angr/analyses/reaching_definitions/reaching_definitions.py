@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import ailment
 import pyvex
+from ..forward_analysis.visitors.graph import NodeType
 
 from ...block import Block
 from ...knowledge_plugins.cfg.cfg_node import CFGNode
@@ -12,7 +13,7 @@ from ...codenode import CodeNode
 from ...engines.light import SimEngineLight
 from ...knowledge_plugins.functions import Function
 from ...knowledge_plugins.key_definitions import ReachingDefinitionsModel, LiveDefinitions
-from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
+from ...knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER, ObservationPointType
 from ...misc.ux import deprecated
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis
@@ -25,12 +26,12 @@ from .function_handler import FunctionHandler
 if TYPE_CHECKING:
     from .dep_graph import DepGraph
     from typing import Literal, Iterable
-    ObservationPoint = Tuple[Literal['insn', 'node'], int, Literal[0, 1]]
+    ObservationPoint = Tuple[Literal['insn', 'node'], int, ObservationPointType]
 
 l = logging.getLogger(name=__name__)
 
 
-class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState],
+class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, NodeType],
                                   Analysis):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a
@@ -240,14 +241,14 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState],
 
         return self.observed_results[key]
 
-    def node_observe(self, node_addr: int, state: ReachingDefinitionsState, op_type: int) -> None:
+    def node_observe(self, node_addr: int, state: ReachingDefinitionsState, op_type: ObservationPointType) -> None:
         """
         :param node_addr:   Address of the node.
         :param state:       The analysis state.
         :param op_type:     Type of the bbservation point. Must be one of the following: OP_BEFORE, OP_AFTER.
         """
 
-        key = 'node', node_addr, op_type
+        key: ObservationPoint = ('node', node_addr, op_type)
 
         observe = False
 
@@ -261,8 +262,13 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState],
         if observe:
             self.observed_results[key] = state.live_definitions
 
-    def insn_observe(self, insn_addr: int, stmt: Union[ailment.Stmt.Statement,pyvex.stmt.IRStmt],
-                     block: Union[Block,ailment.Block], state: ReachingDefinitionsState, op_type: int) -> None:
+    def insn_observe(self,
+                     insn_addr: int,
+                     stmt: Union[ailment.Stmt.Statement, pyvex.stmt.IRStmt],
+                     block: Union[Block, ailment.Block],
+                     state: ReachingDefinitionsState,
+                     op_type: ObservationPointType,
+                     ) -> None:
         """
         :param insn_addr:   Address of the instruction.
         :param stmt:        The statement.
@@ -271,7 +277,7 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState],
         :param op_type:     Type of the observation point. Must be one of the following: OP_BEORE, OP_AFTER.
         """
 
-        key = 'insn', insn_addr, op_type
+        key: ObservationPoint = ('insn', insn_addr, op_type)
         observe = False
 
         if self._observe_all:

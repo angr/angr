@@ -6,11 +6,12 @@ import pickle
 import string
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
+from .sim_procedure import SimProcedure
 
 from .misc.ux import deprecated
 from .errors import AngrNoPluginError
@@ -458,7 +459,7 @@ class Project:
 
         self._sim_procedures[addr] = hook
 
-    def is_hooked(self, addr):
+    def is_hooked(self, addr) -> bool:
         """
         Returns True if `addr` is hooked.
 
@@ -467,7 +468,7 @@ class Project:
         """
         return addr in self._sim_procedures
 
-    def hooked_by(self, addr):
+    def hooked_by(self, addr) -> Optional[SimProcedure]:
         """
         Returns the current hook for `addr`.
 

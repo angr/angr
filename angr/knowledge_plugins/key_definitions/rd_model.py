@@ -17,3 +17,10 @@ class ReachingDefinitionsModel:
             "[func %#x]" if self.func_addr is not None else "",
             len(self.observed_results),
         )
+
+    def copy(self) -> "ReachingDefinitionsModel":
+        new = ReachingDefinitionsModel(self.func_addr)
+        new.observed_results = self.observed_results.copy()
+        new.all_definitions = self.all_definitions.copy()
+        new.all_uses = self.all_uses.copy()
+        return new

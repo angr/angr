@@ -2,7 +2,7 @@ import inspect
 import copy
 import itertools
 import logging
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Tuple
 
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
@@ -10,7 +10,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 if TYPE_CHECKING:
     import angr
     import archinfo
-    from angr import SimState
+    from angr.sim_state import SimState
 
 l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()
@@ -287,7 +287,7 @@ class SimProcedure:
     IS_FUNCTION = True
     ARGS_MISMATCH = False
     ALT_NAMES = None  # alternative names
-    local_vars = ()
+    local_vars: Tuple[str, ...] = ()
 
     def run(self, *args, **kwargs): # pylint: disable=unused-argument
         """

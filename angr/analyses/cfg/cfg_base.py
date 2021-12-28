@@ -17,7 +17,7 @@ from ...knowledge_plugins.functions import FunctionManager, Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
 from ...utils.constants import DEFAULT_STATEMENT
-from ... import SIM_PROCEDURES
+from ...procedures.procedure_dict import SIM_PROCEDURES
 from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError, \
     SimError
 from ...codenode import HookNode, BlockNode

@@ -38,7 +38,7 @@ class KeyDefinitionManager(KnowledgeBasePlugin):
     """
     def __init__(self, kb: 'KnowledgeBase'):
         self.kb = kb
-        self.model_by_funcaddr: Dict[int,ReachingDefinitionsModel] = {}
+        self.model_by_funcaddr: Dict[int, ReachingDefinitionsModel] = {}
 
     def has_model(self, func_addr: int):
         return func_addr in self.model_by_funcaddr
