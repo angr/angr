@@ -1,12 +1,11 @@
 import logging
-import nose
 import os
 
 from angr.calling_conventions import DEFAULT_CC, SimCCUnknown
 from angr import SimState, sim_options as o, Project
 from archinfo import all_arches, ArchAMD64, ArchSoot
 
-l = logging.getLogger('angr.tests.test_stack_alignment')
+l = logging.getLogger("angr.tests.test_stack_alignment")
 
 
 def test_alignment():
@@ -25,8 +24,9 @@ def test_alignment():
             cc.setup_callsite(st, 0, [0x1337], 'void foo(int x)')
 
             # ensure stack alignment is correct
-            nose.tools.assert_true(st.solver.is_true(((st.regs.sp + cc.STACKARG_SP_DIFF) % cc.STACK_ALIGNMENT == 0)),
-                                   'non-zero stack alignment after setup_callsite for %s'%cc)
+            assert st.solver.is_true(
+                ((st.regs.sp + cc.STACKARG_SP_DIFF) % cc.STACK_ALIGNMENT == 0)
+            ), ("non-zero stack alignment after setup_callsite for %s" % cc)
 
 
 def test_sys_v_abi_compliance():
@@ -41,14 +41,18 @@ def test_sys_v_abi_compliance():
 
     # (rsp+8) must be aligned to 16 as required by System V ABI.
     # ref: https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf , page 18t
-    nose.tools.assert_true(st.solver.is_true(((st.regs.rsp + 8) % 16 == 0)),
-                           'System V ABI calling convention violated!')
+    assert st.solver.is_true(((st.regs.rsp + 8) % 16 == 0)),  'System V ABI calling convention violated!'
+
 
 def test_initial_allocation():
     # not strictly about alignment but it's about stack initialization so whatever
-    p = Project(os.path.join(os.path.dirname(__file__), '../../binaries/tests/x86_64/true'), auto_load_libs=False)
+    p = Project(
+        os.path.join(os.path.dirname(__file__), "../../binaries/tests/x86_64/true"),
+        auto_load_libs=False,
+    )
     s = p.factory.entry_state(add_options={o.STRICT_PAGE_ACCESS})
     s.memory.load(s.regs.sp - 0x10000, size=4)
+
 
 if __name__ == "__main__":
     test_alignment()

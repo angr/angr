@@ -3,7 +3,6 @@ import sys
 import os
 
 import networkx
-import nose.tools
 
 import angr
 from angr.analyses.cdg import TemporaryNode
@@ -85,8 +84,8 @@ def test_graph_0():
     for node, cd_nodes in standard_result.items():
         # Each node in set `cd_nodes` is control dependent on `node`
         for n in cd_nodes:
-            nose.tools.assert_true(cdg.graph.has_edge(TemporaryNode(node), TemporaryNode(n)))
-        nose.tools.assert_equal(len(cdg.graph.out_edges(TemporaryNode(node))), len(cd_nodes))
+            assert cdg.graph.has_edge(TemporaryNode(node), TemporaryNode(n))
+        assert len(cdg.graph.out_edges(TemporaryNode(node))) == len(cd_nodes)
 
 
 def test_dominance_frontiers():
@@ -153,7 +152,7 @@ def test_dominance_frontiers():
         'Entry': set(),
         'Exit': set()
     }
-    nose.tools.assert_equal(df, standard_df)
+    assert df == standard_df
 
 
 def run_all():

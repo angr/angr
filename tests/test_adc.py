@@ -1,5 +1,4 @@
 import angr
-import nose
 import os
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
@@ -17,7 +16,7 @@ def test_adc_i386():
 
     found_state = pg.found[0]
     result = found_state.solver.eval(found_state.regs.eax)
-    nose.tools.assert_equal(result, 0x1)
+    assert result == 0x1
 
 def test_all():
     test_adc_i386()

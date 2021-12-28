@@ -1,7 +1,6 @@
 
 import os
 
-import nose.tools
 import networkx
 
 import angr
@@ -57,7 +56,7 @@ def test_region_identifier_0():
 
     ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
-    nose.tools.assert_equal(len(region.graph.nodes()), 2)
+    assert len(region.graph.nodes()) == 2
 
 
 def test_region_identifier_1():
@@ -87,7 +86,7 @@ def test_region_identifier_1():
 
     ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
-    nose.tools.assert_equal((len(region.graph.nodes())), 2)
+    assert len(region.graph.nodes()) == 2
 
 
 def test_smoketest():
@@ -173,8 +172,8 @@ def test_simple_loop():
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
     print(codegen.text)
 
-    nose.tools.assert_greater(len(codegen.map_pos_to_node._posmap), 1)
-    nose.tools.assert_greater(len(codegen.map_ast_to_pos), 1)
+    assert len(codegen.map_pos_to_node._posmap) > 1
+    assert len(codegen.map_ast_to_pos) > 1
 
 
 def test_recursive_structuring():
