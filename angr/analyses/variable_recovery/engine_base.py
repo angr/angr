@@ -244,6 +244,15 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
+        if self.arch.is_artificial_register(offset, size):
+            # skip all writes to artificial registers
+            return
+        if offset in (self.arch.ip_offset, self.arch.sp_offset):
+            # only store the value. don't worry about variables.
+            v = MultiValues(offset_to_values={0: {richr.data}})
+            self.state.register_region.store(offset, v)
+            return
+
         codeloc: CodeLocation = self._codeloc()
         data: claripy.ast.Base = richr.data
 
@@ -271,7 +280,7 @@ class SimEngineVRBase(SimEngineLight):
         # register with the variable manager
         self.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst)
 
-        if not self.arch.is_artificial_register(offset, size) and richr.typevar is not None:
+        if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable, codeloc):
                 # assign a new type variable to it
                 typevar = typevars.TypeVariable()
@@ -735,6 +744,18 @@ class SimEngineVRBase(SimEngineLight):
             values: Optional[MultiValues] = self.state.register_region.load(offset, size=size)
         except SimMemoryMissingError:
             values = None
+
+        if self.arch.is_artificial_register(offset, size):
+            # don't even load values for artificial registers
+            r_value = self.state.top(size * self.arch.byte_width)
+            return RichR(r_value, variable=None, typevar=None)
+        if offset in (self.arch.sp_offset, self.arch.ip_offset):
+            # load values. don't worry about variables
+            if values is None:
+                r_value = self.state.top(size * self.arch.byte_width)
+            else:
+                r_value = next(iter(next(iter(values.values.values()))))
+            return RichR(r_value, variable=None, typevar=None)
 
         if not values:
             # the value does not exist. create a new variable
