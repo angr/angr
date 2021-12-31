@@ -7,7 +7,6 @@ import claripy
 
 from angr.storage.memory_mixins import MemoryMixin
 from angr.storage.memory_mixins.paged_memory.pages import PageType, ListPage, UltraPage, MVListPage
-from angr.storage.memory_object import SimLabeledMemoryObject
 from ....errors import SimMemoryError
 
 # yeet
@@ -511,6 +510,8 @@ class PagedMemoryMixin(MemoryMixin):
                 changes.update(range(pageno * self.page_size, (pageno + 1) * self.page_size))
             elif my_page is None:
                 pass
+            elif my_page is other_page:
+                pass
             else:
                 changes.update(my_page.changed_bytes(other_page, page_addr=pageno * self.page_size))
 
@@ -531,6 +532,8 @@ class PagedMemoryMixin(MemoryMixin):
             if (my_page is None) ^ (other_page is None):
                 changes[pageno] = None
             elif my_page is None:
+                pass
+            elif my_page is other_page:
                 pass
             else:
                 changed_offsets = my_page.changed_bytes(other_page, page_addr=pageno * self.page_size)
