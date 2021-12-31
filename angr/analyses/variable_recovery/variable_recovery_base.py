@@ -71,6 +71,9 @@ class VariableAnnotation(Annotation):
     def __hash__(self):
         return hash(('Va', tuple(self.addr_and_variables)))
 
+    def __repr__(self):
+        return f"<VariableAnnotation: {self.addr_and_variables}>"
+
 
 class VariableRecoveryBase(Analysis):
     """
@@ -202,16 +205,7 @@ class VariableRecoveryStateBase:
     @staticmethod
     def annotate_with_variables(expr: claripy.ast.Base,
                                 addr_and_variables: Iterable[Tuple[int,Union[SimVariable,SpOffset]]]) -> claripy.ast.Base:
-
-        annotations_to_remove = [ ]
-        for anno in expr.annotations:
-            if isinstance(anno, VariableAnnotation):
-                annotations_to_remove.append(anno)
-
-        if annotations_to_remove:
-            expr = expr.remove_annotations(annotations_to_remove)
-
-        expr = expr.annotate(VariableAnnotation(list(addr_and_variables)))
+        expr = expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
         return expr
 
     def stack_address(self, offset: int) -> claripy.ast.Base:
