@@ -7,12 +7,17 @@ import angr
 from common import bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
 
 
-def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False):
+def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False, read_strategies=None,
+               write_strategies=None):
     p = angr.Project(filename)
     p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"])
 
     trace, magic, crash_mode, crash_addr = do_trace(p, test_name, stdin)
     s = p.factory.entry_state(mode="tracing", stdin=angr.SimFileStream, flag_page=magic)
+    if read_strategies is not None:
+        s.memory.read_strategies = read_strategies
+    if write_strategies is not None:
+        s.memory.write_strategies = write_strategies
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(
@@ -37,10 +42,13 @@ def trace_cgc_with_pov_file(
         pov_file: str,
         output_initial_bytes: bytes,
         copy_states=False,
+        read_strategies=None,
+        write_strategies=None
 ):
     assert os.path.isfile(pov_file)
     pov = load_cgc_pov(pov_file)
-    trace_result = tracer_cgc(binary, test_name, b"".join(pov.writes), copy_states)
+    trace_result = tracer_cgc(binary, test_name, b''.join(pov.writes), copy_states, read_strategies=read_strategies,
+                              write_strategies=write_strategies)
     simgr = trace_result[0]
     simgr.run()
     assert "traced" in simgr.stashes
@@ -263,7 +271,9 @@ def test_floating_point_memory_reads():
     )
     output = b"\x00" * 36
     trace_cgc_with_pov_file(
-        binary, "tracer_floating_point_memory_reads", pov_file, output
+        binary, "tracer_floating_point_memory_reads", pov_file, output,
+        read_strategies=[angr.concretization_strategies.SimConcretizationStrategyAny(exact=True)],
+        write_strategies=[angr.concretization_strategies.SimConcretizationStrategyAny(exact=True)],
     )
 
 
