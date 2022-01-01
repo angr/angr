@@ -120,7 +120,8 @@ class SimEngineVRVEX(
         return None
 
     def _handle_Const(self, expr):
-        return RichR(claripy_value(expr.con.type, expr.con.value), typevar=typeconsts.int_type(expr.con.size))
+        return RichR(claripy_value(expr.con.type, expr.con.value, size=expr.con.size),
+                     typevar=typeconsts.int_type(expr.con.size))
 
     def _handle_Add(self, expr):
         arg0, arg1 = expr.args
