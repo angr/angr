@@ -494,14 +494,14 @@ class SimEngineRDVEX(
 
         return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
-    def _handle_Clz64(self, expr):
+    def _handle_Clz(self, expr):
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
         return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
-    def _handle_Ctz64(self, expr):
+    def _handle_Ctz(self, expr):
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)

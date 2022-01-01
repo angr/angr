@@ -339,8 +339,26 @@ class SimEngineVRVEX(
                      typevar=r0.typevar,
                      )
 
+    def _handle_CmpF(self, expr):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
     def _handle_16HLto32(self, expr):
         return RichR(self.state.top(32))
+
+    def _handle_Add_v(self, expr, vector_size, vector_count):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+    def _handle_QSub_v(self, expr, vector_size, vector_count):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+    def _handle_HAdd_v(self, expr, vector_size, vector_count):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+    def _handle_Clz(self, expr):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+    def _handle_Mull(self, expr):
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
 
     def _handle_CmpEQ(self, expr):
         arg0, arg1 = expr.args
@@ -383,3 +401,13 @@ class SimEngineVRVEX(
         _ = self._expr(arg1)
 
         return RichR(self.state.top(1))
+
+    def _handle_Cmp_v(self, expr, vector_size, vector_count):
+        return RichR(self.state.top(1))
+
+    _handle_CmpEQ_v = _handle_Cmp_v
+    _handle_CmpNE_v = _handle_Cmp_v
+    _handle_CmpLE_v = _handle_Cmp_v
+    _handle_CmpLT_v = _handle_Cmp_v
+    _handle_CmpGE_v = _handle_Cmp_v
+    _handle_CmpGT_v = _handle_Cmp_v
