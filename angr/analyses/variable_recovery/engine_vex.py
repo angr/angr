@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument
 from typing import TYPE_CHECKING
 
 import claripy
@@ -16,6 +17,9 @@ class SimEngineVRVEX(
     SimEngineLightVEXMixin,
     SimEngineVRBase,
 ):
+    """
+    Implements the VEX engine for variable recovery analysis.
+    """
     state: 'VariableRecoveryStateBase'
 
     # Statement handlers
