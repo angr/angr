@@ -285,10 +285,10 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_Not1'
         elif expr.op.startswith('Iop_Not'):
             handler = '_handle_Not'
-        elif expr.op.startswith('Iop_Clz64'):
-            handler = '_handle_Clz64'
-        elif expr.op.startswith('Iop_Ctz64'):
-            handler = '_handle_Ctz64'
+        elif expr.op.startswith('Iop_Clz'):
+            handler = '_handle_Clz'
+        elif expr.op.startswith('Iop_Ctz'):
+            handler = '_handle_Ctz'
 
         if handler is not None and hasattr(self, handler):
             return getattr(self, handler)(expr)
@@ -306,8 +306,12 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_Or'
         elif expr.op.startswith('Iop_Add'):
             handler = '_handle_Add'
+        elif expr.op.startswith('Iop_HAdd'):
+            handler = '_handle_HAdd'
         elif expr.op.startswith('Iop_Sub'):
             handler = '_handle_Sub'
+        elif expr.op.startswith('Iop_QSub'):
+            handler = '_handle_QSub'
         elif expr.op.startswith('Iop_Mull'):
             handler = "_handle_Mull"
         elif expr.op.startswith('Iop_Mul'):
@@ -341,6 +345,8 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             handler = '_handle_CmpGT'
         elif expr.op.startswith('Iop_CmpORD'):
             handler = '_handle_CmpORD'
+        elif expr.op.startswith('Iop_CmpF'):
+            handler = '_handle_CmpF'
         elif expr.op == 'Iop_32HLto64':
             handler = '_handle_32HLto64'
         elif expr.op.startswith('Const'):
@@ -353,7 +359,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
         vector_size, vector_count = None, None
         if handler is not None:
             # vector information
-            m = re.match(r"Iop_[^\d]+(\d+)x(\d+)", expr.op)
+            m = re.match(r"Iop_[^\d]+(\d+)U{0,1}x(\d+)", expr.op)
             if m is not None:
                 vector_size = int(m.group(1))
                 vector_count = int(m.group(2))
@@ -471,7 +477,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             self.l.exception(e)
             return None
 
-    def _handle_Clz64(self, expr):
+    def _handle_Clz(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
         if expr_0 is None:
@@ -480,7 +486,7 @@ class SimEngineLightVEXMixin(SimEngineLightMixin):
             return self._top(expr_0.size())
         return self._top(expr_0.size())
 
-    def _handle_Ctz64(self, expr):
+    def _handle_Ctz(self, expr):
         arg0 = expr.args[0]
         expr_0 = self._expr(arg0)
         if expr_0 is None:
