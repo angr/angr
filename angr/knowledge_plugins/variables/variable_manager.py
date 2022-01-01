@@ -65,7 +65,6 @@ class VariableManagerInternal(Serializable):
 
         self._variable_accesses: Dict[SimVariable,Set[VariableAccess]] = defaultdict(set)
         self._insn_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
-        self._block_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
         self._stmt_to_variable: Dict[Tuple[int,int],Set[Tuple[SimVariable,int]]] = defaultdict(set)
         self._atom_to_variable: Dict[Tuple[int,int],Dict[int,Set[Tuple[SimVariable,int]]]] = \
             defaultdict(_defaultdict_set)
@@ -187,7 +186,6 @@ class VariableManagerInternal(Serializable):
 
             model._variable_accesses[variable_access.variable].add(variable_access)
             model._insn_to_variable[variable_access.location.ins_addr].add(tpl)
-            model._block_to_variable[variable_access.location.block_addr].add(tpl)
             loc = (variable_access.location.block_addr, variable_access.location.stmt_idx)
             model._stmt_to_variable[loc].add(tpl)
             if variable_access.atom_hash is not None:
@@ -298,14 +296,12 @@ class VariableManagerInternal(Serializable):
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}
-            self._block_to_variable[location.block_addr] = {var_and_offset}
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {var_and_offset}
             if atom_hash is not None:
                 self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash] = { var_and_offset }
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
             self._insn_to_variable[location.ins_addr].add(var_and_offset)
-            self._block_to_variable[location.block_addr].add(var_and_offset)
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add(var_and_offset)
             if atom_hash is not None:
                 self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash].add(var_and_offset)
