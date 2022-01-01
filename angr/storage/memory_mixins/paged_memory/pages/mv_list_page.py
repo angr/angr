@@ -247,28 +247,9 @@ class MVListPage(
         return merged_offsets
 
     def changed_bytes(self, other: 'MVListPage', page_addr: int = None):
-
-        candidates: Set[int] = set()
-
-        self_parent_list = list(self.parents())
-        other_parent_list = list(other.parents())
-        if self_parent_list and other_parent_list and self_parent_list[-1] is other_parent_list[-1]:
-            # two pages have the same root. we can get a list of candidate offsets this way
-
-            # find the common ancestor
-            i = len(self_parent_list) - 1
-            j = len(other_parent_list) - 1
-            while i >= 0 and j >= 0:
-                if self_parent_list[i] is not other_parent_list[j]:
-                    break
-                i -= 1
-                j -= 1
-
-            for page_ in [self] + self_parent_list[:i+1]:
-                candidates |= page_._changed_offsets
-            for page_ in [other] + other_parent_list[:j+1]:
-                candidates |= page_._changed_offsets
-        else:
+        candidates: Set[int] = super().changed_bytes(other)
+        if candidates is None:
+            candidates: Set[int] = set()
             # resort to the slower solution
             if self.sinkhole is None:
                 candidates |= self.stored_offset
