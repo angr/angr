@@ -1,4 +1,4 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,arguments-differ
 import logging
 from typing import Optional, List, Set, Tuple, Union, Callable
 
@@ -166,7 +166,7 @@ class MVListPage(
             mo_lengths = set(mo.length for mo, _ in memory_objects)
             endnesses = set(mo.endness for mo in mos)
 
-            if not unconstrained_in and not (mos - merged_objects):
+            if not unconstrained_in and not (mos - merged_objects):  # pylint:disable=superfluous-parens
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects

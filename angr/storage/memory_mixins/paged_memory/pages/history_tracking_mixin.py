@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ,unused-argument
 from typing import Set, Optional
 
 from angr.storage.memory_mixins import MemoryMixin
@@ -29,7 +30,7 @@ class HistoryTrackingMixin(MemoryMixin):
             yield parent
             parent = parent._parent
 
-    def changed_bytes(self, other) -> Optional[Set[int]]:
+    def changed_bytes(self, other, **kwargs) -> Optional[Set[int]]:
         candidates: Set[int] = set()
 
         self_history_list = [self] + list(self.parents())
