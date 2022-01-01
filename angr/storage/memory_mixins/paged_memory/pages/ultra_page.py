@@ -104,6 +104,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def store(self, addr, data: Union[int,SimMemoryObject], size: int=None, endness=None, memory=None, page_addr=None,  # pylint: disable=arguments-differ
               cooperate=False, **kwargs):
+        super().store(addr, data, size=size, endness=endness, memory=memory, cooperate=cooperate, page_addr=page_addr,
+                      **kwargs)
+
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, page_addr=page_addr, memory=memory,
                                                  **kwargs)
