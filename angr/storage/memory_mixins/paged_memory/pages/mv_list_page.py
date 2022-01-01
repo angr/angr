@@ -89,6 +89,8 @@ class MVListPage(
         result[-1] = (global_start_addr, new_item)
 
     def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, weak=False, **kwargs):
+        super().store(addr, data, size=size, endness=endness, memory=memory, cooperate=cooperate, weak=weak, **kwargs)
+
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
 
@@ -247,19 +249,40 @@ class MVListPage(
     def changed_bytes(self, other: 'MVListPage', page_addr: int = None):
 
         candidates: Set[int] = set()
-        if self.sinkhole is None:
-            candidates |= self.stored_offset
-        else:
-            for i in range(len(self.content)):
-                if self._contains(i, page_addr):
-                    candidates.add(i)
 
-        if other.sinkhole is None:
-            candidates |= other.stored_offset
+        self_parent_list = list(self.parents())
+        other_parent_list = list(other.parents())
+        if self_parent_list and other_parent_list and self_parent_list[-1] is other_parent_list[-1]:
+            # two pages have the same root. we can get a list of candidate offsets this way
+
+            # find the common ancestor
+            i = len(self_parent_list) - 1
+            j = len(other_parent_list) - 1
+            while i >= 0 and j >= 0:
+                if self_parent_list[i] is not other_parent_list[j]:
+                    break
+                i -= 1
+                j -= 1
+
+            for page_ in [self] + self_parent_list[:i+1]:
+                candidates |= page_._changed_offsets
+            for page_ in [other] + other_parent_list[:j+1]:
+                candidates |= page_._changed_offsets
         else:
-            for i in range(len(other.content)):
-                if other._contains(i, page_addr):
-                    candidates.add(i)
+            # resort to the slower solution
+            if self.sinkhole is None:
+                candidates |= self.stored_offset
+            else:
+                for i in range(len(self.content)):
+                    if self._contains(i, page_addr):
+                        candidates.add(i)
+
+            if other.sinkhole is None:
+                candidates |= other.stored_offset
+            else:
+                for i in range(len(other.content)):
+                    if other._contains(i, page_addr):
+                        candidates.add(i)
 
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
         differences: Set[int] = set()
