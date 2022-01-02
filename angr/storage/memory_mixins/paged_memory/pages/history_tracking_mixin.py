@@ -2,15 +2,20 @@
 from typing import Set, Optional
 
 from angr.storage.memory_mixins import MemoryMixin
+from .refcount_mixin import RefcountMixin
 
 
-class HistoryTrackingMixin(MemoryMixin):
+MAX_HISTORY_DEPTH = 50
+
+
+class HistoryTrackingMixin(RefcountMixin, MemoryMixin):
     """
     Tracks the history of memory writes.
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._parent = None
+        self._history_depth = 0
         self._changed_offsets = set()
 
     def store(self, addr, data, size=None, **kwargs):
@@ -20,9 +25,21 @@ class HistoryTrackingMixin(MemoryMixin):
 
     def copy(self, memo):
         o = super().copy(memo)
-        o._parent = self
-        o._changed_offsets = set()
         return o
+
+    def acquire_unique(self):
+        page = super().acquire_unique()
+        if page is not self:
+            page._history_depth = self._history_depth + 1
+            if page._history_depth > MAX_HISTORY_DEPTH:
+                # collapse
+                page._changed_offsets = self.all_bytes_changed_in_history()
+                page._parent = None
+                page._history_depth = 0
+            else:
+                page._parent = self
+                page._changed_offsets = set()
+        return page
 
     def parents(self):
         parent = self._parent
@@ -54,3 +71,12 @@ class HistoryTrackingMixin(MemoryMixin):
             return candidates
 
         return None
+
+    def all_bytes_changed_in_history(self) -> Set[int]:
+        changed_bytes: Set[int] = self._changed_offsets.copy()
+
+        parent = self._parent
+        while parent is not None:
+            changed_bytes |= parent._changed_offsets
+            parent = parent._parent
+        return changed_bytes
