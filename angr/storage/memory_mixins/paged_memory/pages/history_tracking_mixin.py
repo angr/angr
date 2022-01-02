@@ -1,4 +1,4 @@
-# pylint:disable=arguments-differ,unused-argument
+# pylint:disable=arguments-differ,unused-argument,no-member
 from typing import Set, Optional
 
 from angr.storage.memory_mixins import MemoryMixin
