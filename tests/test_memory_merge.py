@@ -1,4 +1,4 @@
-# pylint:disable=isinstance-second-argument-not-valid-type
+# pylint:disable=isinstance-second-argument-not-valid-type,missing-class-docstring,no-self-use
 import unittest
 from unittest import TestCase
 
@@ -70,7 +70,7 @@ class TestMemoryMerge(TestCase):
         state2.memory.store(state2.regs.rsp + 1, 0xBB, 1)
 
         state3, _, __ = state1.merge(state2)
-        vals = [v for v in state3.solver.eval_upto(state3.memory.load(state3.regs.rsp, 2), 10)]
+        vals = (v for v in state3.solver.eval_upto(state3.memory.load(state3.regs.rsp, 2), 10))
         assert set([0x1122, 0xaabb]) == set(vals)
 
     def test_history_tracking(self):
