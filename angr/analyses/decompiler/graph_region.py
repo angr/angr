@@ -23,7 +23,7 @@ class GraphRegion:
 
     __slots__ = ('head', 'graph', 'successors', 'graph_with_successors', 'cyclic', )
 
-    def __init__(self, head, graph, successors: Optional[set], graph_with_successors: networkx.DiGraph, cyclic):
+    def __init__(self, head, graph, successors: Optional[list], graph_with_successors: networkx.DiGraph, cyclic):
         self.head = head
         self.graph = graph
         self.successors = successors

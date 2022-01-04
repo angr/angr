@@ -1067,6 +1067,7 @@ class SimEngineRDVEX(
         # - add uses for arguments
         # - kill return value registers
         # - caller-saving registers
+        atom: Atom
         if proto and proto.args:
             code_loc = self._codeloc()
             for arg in cc.arg_locs(proto):
