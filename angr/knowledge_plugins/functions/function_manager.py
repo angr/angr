@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, Set, Optional
 import logging
 import collections.abc
 from sortedcontainers import SortedDict
@@ -70,11 +70,31 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
         self._function_map: Dict[int,Function] = FunctionDict(self, key_types=self.function_address_types)
+        self.function_addrs_set: Set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
+
+    def __setstate__(self, state):
+        self.kb = state["_kb"]
+        self.function_address_types = state["function_address_types"]
+        self.address_types = state["address_types"]
+        self._function_map = state["_function_map"]
+        self.callgraph = state["callgraph"]
+        self.block_map = state["block_map"]
+
+    def __getstate__(self):
+        s = {
+            "_kb": self._kb,
+            "function_address_types": self.function_address_types,
+            "address_types": self.address_types,
+            "_function_map": self._function_map,
+            "callgraph": self.callgraph,
+            "block_map": self.block_map,
+        }
+        return s
 
     def copy(self):
         fm = FunctionManager(self._kb)
@@ -83,13 +103,15 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             fm._function_map[address] = function.copy()
         fm.callgraph = networkx.MultiDiGraph(self.callgraph)
         fm._arg_registers = self._arg_registers.copy()
+        fm.function_addrs_set = self.function_addrs_set.copy()
 
         return fm
 
     def clear(self):
-        self._function_map.clear()
+        self._function_map = FunctionDict(self, key_types=self.function_address_types)
         self.callgraph = networkx.MultiDiGraph()
         self.block_map.clear()
+        self.function_addrs_set = set()
 
     def _genenare_callmap_sif(self, filepath):
         """
@@ -268,8 +290,10 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             del self._function_map[k]
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
+            self.function_addrs_set.discard(k)
         else:
-            raise ValueError("FunctionManager.__delitem__ only accepts int as key")
+            raise ValueError(f"FunctionManager.__delitem__ only accepts the following address types: "
+                             f"{self.function_address_types}")
 
     def __len__(self):
         return len(self._function_map)
@@ -288,6 +312,9 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         :param func:   The Function instance being added.
         :return:       None
         """
+
+        # Add the function address to the set of function addresses
+        self.function_addrs_set.add(func.addr)
 
         # make sure all functions exist in the call graph
         self.callgraph.add_node(func.addr)
