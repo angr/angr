@@ -1,16 +1,18 @@
+# pylint:disable=raise-missing-from
 from typing import Dict, Set, Optional
 import logging
 import collections.abc
 from sortedcontainers import SortedDict
+
 import networkx
+
+from archinfo.arch_soot import SootMethodDescriptor
 
 from ...errors import SimEngineError
 from ..plugin import KnowledgeBasePlugin
-
 from .function import Function
 from .soot_function import SootFunction
 
-from archinfo.arch_soot import SootMethodDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -23,14 +25,14 @@ class FunctionDict(SortedDict):
     def __init__(self, backref, *args, **kwargs):
         self._backref = backref
         self._key_types = kwargs.pop('key_types', int)
-        super(FunctionDict, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, addr):
         try:
-            return super(FunctionDict, self).__getitem__(addr)
-        except KeyError:
+            return super().__getitem__(addr)
+        except KeyError as ex:
             if not isinstance(addr, self._key_types):
-                raise TypeError("FunctionDict only supports %s as key type" % self._key_types)
+                raise TypeError("FunctionDict only supports %s as key type" % self._key_types) from ex
 
             if isinstance(addr, SootMethodDescriptor):
                 t = SootFunction(self._backref, addr)
@@ -38,13 +40,13 @@ class FunctionDict(SortedDict):
                 t = Function(self._backref, addr)
             try:
                 self[addr] = t
-            except:
+            except Exception:  # pylint:disable=broad-except
                 pass
             self._backref._function_added(t)
             return t
 
     def get(self, addr):
-        return super(FunctionDict, self).__getitem__(addr)
+        return super().__getitem__(addr)
 
     def floor_addr(self, addr):
         try:
@@ -65,7 +67,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     results during CFG generation, and manages a function map of the binary.
     """
     def __init__(self, kb):
-        super(FunctionManager, self).__init__()
+        super().__init__()
         self._kb = kb
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
@@ -78,7 +80,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self._arg_registers = kb._project.arch.argument_registers
 
     def __setstate__(self, state):
-        self.kb = state["_kb"]
+        self._kb = state["_kb"]
         self.function_address_types = state["function_address_types"]
         self.address_types = state["address_types"]
         self._function_map = state["_function_map"]
@@ -133,8 +135,8 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         dst_func._register_nodes(True, node)
         self.block_map[node.addr] = node
 
-    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None, ins_addr=None,
-                     return_to_outside=False):
+    def _add_call_to(self, function_addr, from_node, to_addr, retn_node=None, syscall=None, stmt_idx=None,
+                     ins_addr=None, return_to_outside=False):
         """
         Add a call to a function.
 
