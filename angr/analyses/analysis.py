@@ -224,7 +224,7 @@ class Analysis:
         :return:            None
         """
 
-        if ctr % freq == 0:
+        if ctr != 0 and ctr % freq == 0:
             time.sleep(sleep_time)
 
     def __repr__(self):

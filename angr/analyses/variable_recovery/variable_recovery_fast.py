@@ -257,7 +257,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
     def _pre_job_handling(self, job):
         self._job_ctr += 1
         if self._low_priority:
-            self._release_gil(self._job_ctr, 5, 0.000001)
+            self._release_gil(self._job_ctr, 100, 0.000001)
 
     def _initial_abstract_state(self, node):
         state = VariableRecoveryFastState(node.addr, self, self.project.arch, self.function, project=self.project,
