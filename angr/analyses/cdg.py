@@ -36,7 +36,10 @@ class CDG(Analysis):
 
         if not no_construct:
             if self._cfg is None:
-                self._cfg = self.project.analyses.CFGEmulated()
+                # This leads to import cycles otherwise
+                # pylint: disable=import-outside-toplevel
+                from angr.analyses.cfg.cfg_emulated import CFGEmulated
+                self._cfg = self.project.analyses[CFGEmulated].prep()()
 
             # FIXME: We should not use get_any_irsb in such a real setting...
             self._entry = self._cfg.model.get_any_node(self._start)
@@ -191,7 +194,6 @@ class CDG(Analysis):
                     self._post_dom.add_edge(b1, b2)
                 else:
                     _l.debug("%s is not in post dominator dict.", b2)
-
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CDG', CDG)

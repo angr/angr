@@ -5,11 +5,11 @@ from collections import defaultdict
 from functools import reduce
 from typing import Dict
 
+import angr
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
-
 
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
@@ -29,6 +29,11 @@ from ..forward_analysis import ForwardAnalysis
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils
+
+from ..cdg import CDG
+from ..ddg import DDG
+from ..backward_slice import BackwardSlice
+from ..loopfinder import LoopFinder
 
 l = logging.getLogger(name=__name__)
 
@@ -314,7 +319,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         Make a copy of the CFG.
 
         :return: A copy of the CFG instance.
-        :rtype: angr.analyses.CFG
+        :rtype: angr.analyses[CFG].prep()
         """
         new_cfg = CFGEmulated.__new__(CFGEmulated)
         super(CFGEmulated, self).make_copy(new_cfg)
@@ -719,7 +724,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     #
 
     def __setstate__(self, s):
-        self.project = s['project']
+        self.project: angr.Project = s['project']
         self.indirect_jumps: Dict[int,IndirectJump] = s['indirect_jumps']
         self._loop_back_edges = s['_loop_back_edges']
         self._thumb_addrs = s['_thumb_addrs']
@@ -2426,15 +2431,16 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
-        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
+        cdg = self.project.analyses[CDG].prep(fail_fast=self._fail_fast)(cfg=self)
+        ddg = self.project.analyses[DDG].prep(fail_fast=self._fail_fast)(cfg=self,
+                                                                         start=current_function_addr,
+                                                                         call_depth=0)
 
-        bc = self.project.analyses.BackwardSlice(self,
+        bc = self.project.analyses[BackwardSlice].prep(fail_fast=self._fail_fast)(self,
                                                  cdg,
                                                  ddg,
                                                  targets=[(cfgnode, stmt_id)],
-                                                 same_function=True,
-                                                 fail_fast=self._fail_fast)
+                                                 same_function=True)
         taint_graph = bc.taint_graph
         # Find the correct taint
         next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
@@ -3115,7 +3121,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False, fail_fast=self._fail_fast)
+        loop_finder = self.project.analyses[LoopFinder].prep(kb=self.kb, fail_fast=self._fail_fast)(normalize=False)
 
         if loop_callback is not None:
             graph_copy = networkx.DiGraph(self._graph)
@@ -3457,6 +3463,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         state.set_mode(mode)
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
+
+
+
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CFGEmulated', CFGEmulated)

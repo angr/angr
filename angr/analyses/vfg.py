@@ -5,7 +5,7 @@ import archinfo
 from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
-from . import Analysis
+from . import Analysis, CFGEmulated
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
@@ -462,7 +462,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             l.debug("Generating a CFG, since none was given...")
             # TODO: can we use a fast CFG instead? note that fast CFG does not care of context sensitivity at all, but
             # TODO: for state merging, we also don't really care about context sensitivity.
-            self._cfg = self.project.analyses.CFGEmulated(context_sensitivity_level=self._context_sensitivity_level,
+            self._cfg = self.project.analyses[CFGEmulated].prep()(
+                context_sensitivity_level=self._context_sensitivity_level,
                 starts=(self._start,)
             )
 

@@ -13,7 +13,8 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.functions import FunctionManager, Function
+from ...knowledge_plugins.functions.function_manager import FunctionManager
+from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
 from ...utils.constants import DEFAULT_STATEMENT
@@ -23,6 +24,7 @@ from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngi
 from ...codenode import HookNode, BlockNode
 from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from .. import Analysis
+from ..stack_pointer_tracker import StackPointerTracker
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger(name=__name__)
@@ -1925,9 +1927,9 @@ class CFGBase(Analysis):
                 regs = {self.project.arch.sp_offset}
                 if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
                     regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses.StackPointerTracker(src_function, regs,
-                                                                      track_memory=self._sp_tracking_track_memory)
-
+                sptracker = self.project.analyses[StackPointerTracker]                    .prep()(
+    src_function, re                    =self._sp_tracking_track_memory
+                )
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True

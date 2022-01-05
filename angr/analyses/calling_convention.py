@@ -16,8 +16,8 @@ from ..knowledge_plugins.variables.variable_access import VariableAccessSort
 from ..utils.constants import DEFAULT_STATEMENT
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
+from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from .reaching_definitions.function_handler import FunctionHandler
-from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
     from ..knowledge_plugins.functions import Function
@@ -265,7 +265,7 @@ class CallingConventionAnalysis(Analysis):
                 func = self.kb.functions[caller.addr]
                 subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
 
-                rda = self.project.analyses.ReachingDefinitions(
+                rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
                     func,
                     func_graph=subgraph,
                     observation_points=[

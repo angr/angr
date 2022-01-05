@@ -7,7 +7,7 @@ from unittest import TestCase
 
 import ailment
 import angr
-from angr.analyses import ReachingDefinitionsAnalysis
+from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
 from angr.code_location import CodeLocation
 from angr.analyses.reaching_definitions.external_codeloc import ExternalCodeLocation
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
@@ -51,10 +51,10 @@ class InsnAndNodeObserveTestingUtils():
     def setup(observation_points):
         binary_path = _binary_path('all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
 
         main_function = cfg.kb.functions['main']
-        reaching_definitions = project.analyses.ReachingDefinitions(
+        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_function, observation_points=observation_points, call_stack=[],
         )
 
@@ -84,8 +84,8 @@ def _result_path(binary_results_name):
 class TestReachingDefinitions(TestCase):
     def _run_reaching_definition_analysis_test(self, project, function, result_path, _extract_result):
         tmp_kb = angr.KnowledgeBase(project)
-        reaching_definition = project.analyses.ReachingDefinitions(
-            subject=function, kb=tmp_kb, observe_all=True, call_stack=[],
+        reaching_definition = project.analyses[ReachingDefinitionsAnalysis].prep(kb=tmp_kb)(
+            subject=function, observe_all=True, call_stack=[],
         )
 
         result = _extract_result(reaching_definition)
@@ -121,9 +121,12 @@ class TestReachingDefinitions(TestCase):
         def _result_extractor(rda):
             unsorted_result = map(
                 lambda x: {'key': x[0],
-                           'register_definitions': self._extract_all_definitions_from_storage(x[1].register_definitions),
-                           'stack_definitions': self._extract_all_definitions_from_storage(x[1].stack_definitions),
-                           'memory_definitions': self._extract_all_definitions_from_storage(x[1].memory_definitions),
+                           'register_definitions':
+                               self._extract_all_definitions_from_storage(x[1].register_definitions),
+                           'stack_definitions':
+                               self._extract_all_definitions_from_storage(x[1].stack_definitions),
+                           'memory_definitions':
+                               self._extract_all_definitions_from_storage(x[1].memory_definitions),
                            },
                 rda.observed_results.items()
             )
@@ -139,7 +142,7 @@ class TestReachingDefinitions(TestCase):
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={'auto_load_libs': False})
-            cfg = project.analyses.CFGFast()
+            cfg = project.analyses[CFGFast].prep()()
             function = cfg.kb.functions['main']
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
@@ -155,7 +158,7 @@ class TestReachingDefinitions(TestCase):
 
         for binary, result_path in binaries_and_results:
             project = angr.Project(binary, load_options={'auto_load_libs': False})
-            cfg = project.analyses.CFGFast()
+            cfg = project.analyses[CFGFast].prep()()
             function = cfg.kb.functions['main']
 
             self._run_reaching_definition_analysis_test(project, function, result_path, _result_extractor)
@@ -257,7 +260,7 @@ class TestReachingDefinitions(TestCase):
     def test_init_the_call_stack_with_a_block_as_subject_add_its_owning_function_to_the_call_stack(self):
         binary_path = _binary_path('all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
 
         _start = cfg.kb.functions['_start']
         __libc_start_main = cfg.kb.functions['__libc_start_main']
@@ -267,7 +270,9 @@ class TestReachingDefinitions(TestCase):
         main_address = main_function.addr
         main_block = Block(addr=main_address, project=project)
 
-        reaching_definitions = project.analyses.ReachingDefinitions(subject=main_block, call_stack=call_stack)
+        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
+            subject=main_block, call_stack=call_stack
+        )
         expected_call_stack = call_stack + [ main_function.addr ]
 
         self.assertEqual(reaching_definitions._call_stack, expected_call_stack)
@@ -275,7 +280,7 @@ class TestReachingDefinitions(TestCase):
     def test_init_the_call_stack_with_another_block_as_subject_does_not_deepen_the_call_stack(self):
         binary_path = _binary_path('all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
 
         _start = cfg.kb.functions['_start']
         __libc_start_main = cfg.kb.functions['__libc_start_main']
@@ -286,12 +291,12 @@ class TestReachingDefinitions(TestCase):
         main_block = Block(addr=main_address, project=project)
         another_block_in_main = Block(addr=0x4006fd, project=project)
 
-        new_call_stack = project.analyses.ReachingDefinitions(
+        new_call_stack = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_block,
             call_stack=initial_call_stack
         )._call_stack
 
-        reaching_definitions = project.analyses.ReachingDefinitions(
+        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=another_block_in_main,
             call_stack=new_call_stack
         )
@@ -302,7 +307,7 @@ class TestReachingDefinitions(TestCase):
     def test_init_the_call_stack_with_a_function_as_subject_adds_it_to_the_call_stack(self):
         binary_path = _binary_path('all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
 
         _start = cfg.kb.functions['_start']
         __libc_start_main = cfg.kb.functions['__libc_start_main']
@@ -310,7 +315,7 @@ class TestReachingDefinitions(TestCase):
 
         main_function = cfg.kb.functions['main']
 
-        reaching_definitions = project.analyses.ReachingDefinitions(
+        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_function,
             call_stack=initial_call_stack
         )
@@ -321,10 +326,10 @@ class TestReachingDefinitions(TestCase):
     def test_reaching_definition_analysis_exposes_its_subject(self):
         binary_path = _binary_path('all')
         project = angr.Project(binary_path, load_options={'auto_load_libs': False})
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
 
         main_function = cfg.kb.functions['main']
-        reaching_definitions = project.analyses.ReachingDefinitions(
+        reaching_definitions = project.analyses[ReachingDefinitionsAnalysis].prep()(
             subject=main_function
         )
 
@@ -333,12 +338,12 @@ class TestReachingDefinitions(TestCase):
     def test_get_the_sp_from_a_reaching_definition(self):
         binary = _binary_path('all')
         project = angr.Project(binary, auto_load_libs=False)
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
 
         tmp_kb = angr.KnowledgeBase(project)
         main_func = cfg.kb.functions['main']
-        rda = project.analyses.ReachingDefinitions(
-            subject=main_func, kb=tmp_kb, observe_all=True
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep(kb=tmp_kb)(
+            subject=main_func, observe_all=True
         )
 
         def _is_right_before_main_node(definition):
@@ -360,13 +365,13 @@ class TestReachingDefinitions(TestCase):
 
     def test_dep_graph(self):
         project = angr.Project(_binary_path('true'), auto_load_libs=False)
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
         main = cfg.functions['main']
 
         # build a def-use graph for main() of /bin/true without tmps.
         # check that the only dependency of the first block's
         # guard is the four cc registers
-        rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, dep_graph=DepGraph())
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main, track_tmps=False, dep_graph=DepGraph())
         guard_use = list(filter(
             lambda def_: type(def_.atom) is GuardUse and def_.codeloc.block_addr == main.addr,
             rda.dep_graph._graph.nodes()
@@ -386,7 +391,7 @@ class TestReachingDefinitions(TestCase):
         )
 
         # build a def-use graph for main() of /bin/true. check that t7 in the first block is only used by the guard
-        rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=True, dep_graph=DepGraph())
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main, track_tmps=True, dep_graph=DepGraph())
         tmp_7 = list(filter(
             lambda def_: type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main.addr,
             rda.dep_graph._graph.nodes()
@@ -404,10 +409,10 @@ class TestReachingDefinitions(TestCase):
         bin_path = _binary_path('fauxware')
         project = angr.Project(bin_path, auto_load_libs=False)
         arch = project.arch
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
         main = cfg.functions['authenticate']
 
-        rda: ReachingDefinitionsAnalysis = project.analyses.ReachingDefinitions(subject=main,
+        rda: ReachingDefinitionsAnalysis = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main,
                                                                                 track_tmps=False,
                                                                                 dep_graph=DepGraph())
         dep_graph = rda.dep_graph
@@ -446,11 +451,11 @@ class TestReachingDefinitions(TestCase):
         bin_path = _binary_path('fauxware')
         project = angr.Project(bin_path, auto_load_libs=False)
         arch = project.arch
-        cfg = project.analyses.CFGFast()
+        cfg = project.analyses[CFGFast].prep()()
         main = cfg.functions['main']
 
-        project.analyses.CompleteCallingConventions(recover_variables=True)
-        rda = project.analyses.ReachingDefinitions(subject=main, track_tmps=False, call_stack=[])
+        project.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
+        rda = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=main, track_tmps=False, call_stack=[])
 
         # 4007ae
         # rsi and rdi are all used by authenticate()
@@ -478,4 +483,4 @@ class TestReachingDefinitions(TestCase):
         project = angr.Project(bin_path, auto_load_libs=False)
 
         block = project.factory.block(project.entry, cross_insn_opt=False)
-        _ = project.analyses.ReachingDefinitions(subject=block, track_tmps=False)  # it should not crash
+        _ = project.analyses[ReachingDefinitionsAnalysis].prep()(subject=block, track_tmps=False)  # it should not crash

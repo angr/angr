@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
-from . import Analysis
+from . import Analysis, CFGEmulated
 
 from ..errors import SimEngineError, SimMemoryError
 
@@ -853,12 +853,12 @@ class BinDiff(Analysis):
         if cfg_a is None:
             #self.cfg_a = self.project.analyses.CFG(resolve_indirect_jumps=True)
             #self.cfg_b = other_project.analyses.CFG(resolve_indirect_jumps=True)
-            self.cfg_a = self.project.analyses.CFGEmulated(context_sensitivity_level=1,
+            self.cfg_a = self.project.analyses[CFGEmulated].prep()(context_sensitivity_level=1,
                                                             keep_state = True,
                                                             enable_symbolic_back_traversal = back_traversal,
                                                             enable_advanced_backward_slicing = enable_advanced_backward_slicing)
 
-            self.cfg_b = other_project.analyses.CFGEmulated(context_sensitivity_level=1,
+            self.cfg_b = other_project.analyses[CFGEmulated].prep()(context_sensitivity_level=1,
                                                             keep_state = True,
                                                             enable_symbolic_back_traversal = back_traversal,
                                                             enable_advanced_backward_slicing = enable_advanced_backward_slicing)
