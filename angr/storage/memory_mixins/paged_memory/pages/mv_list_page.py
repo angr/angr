@@ -23,6 +23,85 @@ class MVListPage(
     or not.
     Each load() returns an iterator of all values stored at that location.
     """
+
+    @classmethod
+    def _compose_objects(cls, objects: List[List[Tuple[int, Set[SimMemoryObject]]]], size, endness=None,
+                         memory=None, **kwargs):
+        c_objects: List[Tuple[int, Union[SimMemoryObject, Set[SimMemoryObject]]]] = []
+        for objlist in objects:
+            for element in objlist:
+                if not c_objects or element[1] is not c_objects[-1][1]:
+                    c_objects.append(element)
+
+        mask = (1 << memory.state.arch.bits) - 1
+        elements: List[Set[claripy.ast.Base]] = []
+        for i, (a, objs) in enumerate(c_objects):
+            chopped_set = set()
+            if not type(objs) is set:
+                objs = {objs}
+            for o in objs:
+                if o.includes(a):
+                    chopped = o.bytes_at(
+                        a,
+                        ((c_objects[i + 1][0] - a) & mask) if i != len(c_objects) - 1 else (
+                                    (c_objects[0][0] + size - a) & mask),
+                        endness=endness
+                    )
+                    chopped_set.add(chopped)
+            if chopped_set:
+                elements.append(chopped_set)
+
+        if len(elements) == 0:
+            # nothing is read out
+            return MultiValues(offset_to_values={0: {claripy.BVV(0, 0)}})
+
+        if len(elements) == 1:
+            return MultiValues(offset_to_values={0: elements[0]})
+
+        if endness == 'Iend_LE':
+            elements = list(reversed(elements))
+
+        mv = MultiValues()
+        offset = 0
+        start_offset = 0
+        prev_value = ...
+        for i, value_set in enumerate(elements):
+            if len(value_set) == 1:
+                if prev_value is ...:
+                    prev_value = next(iter(value_set))
+                    start_offset = offset
+                else:
+                    prev_value = prev_value.concat(next(iter(value_set)))
+            else:
+                if prev_value is not ...:
+                    mv.add_value(start_offset, prev_value)
+                    prev_value = ...
+
+                for value in value_set:
+                    mv.add_value(offset, value)
+
+            offset += next(iter(value_set)).size() // memory.state.arch.byte_width
+
+        if prev_value is not ...:
+            mv.add_value(start_offset, prev_value)
+            prev_value = ...
+
+        # we should concat all the possibilities of mv
+        if len(mv.values) > 1:
+            concated_values = set()
+            for k in sorted(mv.values.keys()):
+                if not len(concated_values):
+                    concated_values = mv.values[k]
+                else:
+                    new_concated_valus = set()
+                    upper_values = mv.values[k]
+                    for uv in upper_values:
+                        for cv in concated_values:
+                            new_concated_valus.add(uv.concat(cv))
+                    concated_values = new_concated_valus
+            mv = MultiValues(offset_to_values={0: concated_values})
+        return mv
+
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
