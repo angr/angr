@@ -700,6 +700,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._function_exits = None
         self._gp_value: Optional[int] = None
         self._ro_region_cdata_cache: Optional[List] = None
+        self._job_ctr = 0
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -1161,6 +1162,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # register read-only regions to PyVEX
         self._lifter_register_readonly_regions()
 
+        self._job_ctr = 0
+
     def _pre_job_handling(self, job):  # pylint:disable=arguments-differ
         """
         Some pre job-processing tasks, like update progress bar.
@@ -1169,8 +1172,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :return: None
         """
 
+        self._job_ctr += 1
         if self._low_priority:
-            self._release_gil(len(self._nodes), 20, 0.000001)
+            self._release_gil(self._job_ctr, 2000, 0.000001)
 
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)

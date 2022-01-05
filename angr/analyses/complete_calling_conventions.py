@@ -111,7 +111,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             percentage = (idx + 1) / total_funcs * 100.0
             self._update_progress(percentage)
             if self._low_priority:
-                self._release_gil(idx, 1, 0.000001)
+                self._release_gil(idx, 10, 0.000001)
 
     #
     # Static methods
