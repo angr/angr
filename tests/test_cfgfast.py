@@ -1042,6 +1042,29 @@ def test_starting_point_ordering():
     assert n.successors[0].successors[0].successors[0].addr == 0x103D4
 
 
+class TestCFGFastReturningFunctions(unittest.TestCase):
+    def test_kepler_server_armhf(self):
+        binary_path = os.path.join(test_location, "armhf", "kepler_server")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+
+        func_main = cfg.kb.functions[0x10329]
+        assert func_main.returning is False
+
+        func_0 = cfg.kb.functions[0x15ee9]
+        assert func_0.returning is False
+        assert len(func_0.block_addrs_set) == 1
+
+        func_1 = cfg.kb.functions[0x15d2d]
+        assert func_1.returning is False
+
+        func_2 = cfg.kb.functions[0x228c5]
+        assert func_2.returning is False
+
+        func_3 = cfg.kb.functions[0x12631]
+        assert func_3.returning is True
+
+
 def run_all():
 
     g = globals()
@@ -1091,6 +1114,8 @@ def run_all():
     test_plt_stub_has_one_jumpout_site()
     test_load_from_shellcode()
     test_starting_point_ordering()
+
+    TestCFGFastReturningFunctions().test_kepler_server_armhf()
 
 
 def main():
