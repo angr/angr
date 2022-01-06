@@ -199,12 +199,16 @@ class SimEngineVRAIL(
         return r
 
     def _ail_handle_Const(self, expr):
-        if self.project.loader.find_segment_containing(expr.value) is not None:
-            r = self._load_from_global(expr.value, 1, expr=expr)
-            ty = r.typevar
+        if isinstance(expr.value, float):
+            v = claripy.FPV(expr.value, claripy.FSORT_DOUBLE if expr.bits == 64 else claripy.FSORT_FLOAT)
+            ty = typeconsts.float_type(expr.bits)
         else:
-            ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
-        v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
+            if self.project.loader.find_segment_containing(expr.value) is not None:
+                r = self._load_from_global(expr.value, 1, expr=expr)
+                ty = r.typevar
+            else:
+                ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
+            v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
         r = RichR(v, typevar=ty)
         self._reference(r, self._codeloc())
         return r
@@ -592,12 +596,27 @@ class SimEngineVRAIL(
         arg = expr.operands[0]
         expr = self._expr(arg)
 
-
         result_size = arg.bits
 
         if expr.data.concrete:
             return RichR(
                 ~expr.data,
+                typevar=typeconsts.int_type(result_size),
+                type_constraints=None,
+            )
+
+        r = self.state.top(result_size)
+        return RichR(r, typevar=expr.typevar)
+
+    def _ail_handle_Neg(self, expr):
+        arg = expr.operands[0]
+        expr = self._expr(arg)
+
+        result_size = arg.bits
+
+        if expr.data.concrete:
+            return RichR(
+                -expr.data,
                 typevar=typeconsts.int_type(result_size),
                 type_constraints=None,
             )

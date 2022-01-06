@@ -432,7 +432,8 @@ class ConditionProcessor:
                     'CmpEQ',
                     (ailment.Expr.Register(0x400000 + self.EXC_COUNTER, None, self.EXC_COUNTER, 64),
                      ailment.Expr.Const(None, None, self.EXC_COUNTER, 64)),
-                    False)
+                    False,
+                ),
             )
 
         if type(src_block) is ConditionalBreakNode:
@@ -522,6 +523,7 @@ class ConditionProcessor:
 
         _mapping = {
             'Not': lambda cond_, tags: _unary_op_reduce('Not', cond_.args[0], tags),
+            'Neg': lambda cond_, tags: _unary_op_reduce('Neg', cond_.args[0], tags),
             'And': lambda cond_, tags: _binary_op_reduce('LogicalAnd', cond_.args, tags),
             'Or': lambda cond_, tags: _binary_op_reduce('LogicalOr', cond_.args, tags),
             '__le__': lambda cond_, tags: _binary_op_reduce('CmpLE', cond_.args, tags, signed=True),

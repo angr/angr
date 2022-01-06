@@ -557,6 +557,20 @@ class SimEngineRDAIL(
 
         return r
 
+    def _ail_handle_Neg(self, expr: ailment.Expr.UnaryOp) -> MultiValues:
+        operand: MultiValues = self._expr(expr.operand)
+        bits = expr.bits
+
+        r = None
+        operand_v = operand.one_value()
+
+        if operand_v is not None and operand_v.concrete:
+            r = MultiValues(offset_to_values={0: {-operand_v}})
+        else:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
     def _ail_handle_BinaryOp(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         r = super()._ail_handle_BinaryOp(expr)
         if isinstance(r, ailment.Expr.BinaryOp):
@@ -675,6 +689,37 @@ class SimEngineRDAIL(
         bits = expr.bits
 
         r = MultiValues(self.state.top(bits))
+        return r
+
+    def _ail_handle_Mul(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete:
+            r = MultiValues(offset_to_values={0: {expr0_v * expr1_v}})
+        else:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
+        return r
+
+    def _ail_handle_Div(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
+        expr0: MultiValues = self._expr(expr.operands[0])
+        expr1: MultiValues = self._expr(expr.operands[1])
+        bits = expr.bits
+
+        expr0_v = expr0.one_value()
+        expr1_v = expr1.one_value()
+
+        if expr0_v is not None and expr1_v is not None and expr0_v.concrete and expr1_v.concrete \
+                and expr1_v._model_concrete.value != 0:
+            r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
+        else:
+            r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+
         return r
 
     def _ail_handle_Shr(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
@@ -968,6 +1013,14 @@ class SimEngineRDAIL(
     _ail_handle_CmpGEs = _ail_handle_Cmp
     _ail_handle_CmpGT = _ail_handle_Cmp
     _ail_handle_CmpGTs = _ail_handle_Cmp
+
+    def _ail_handle_TernaryOp(self, expr) -> MultiValues:
+        op0 = self._expr(expr.operands[0])
+        op1 = self._expr(expr.operands[1])
+        op2 = self._expr(expr.operands[2])
+
+        top = self.state.top(expr.bits)
+        return MultiValues(offset_to_values={0: {top}})
 
     def _ail_handle_Const(self, expr) -> MultiValues:
         self.state.mark_const(self._codeloc(), expr)

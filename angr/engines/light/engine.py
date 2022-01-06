@@ -916,6 +916,16 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
 
         return handler(expr)
 
+    def _ail_handle_TernaryOp(self, expr):
+        handler_name = '_ail_handle_%s' % expr.op
+        try:
+            handler = getattr(self, handler_name)
+        except AttributeError:
+            self.l.warning('Unsupported Ternary %s.', expr.op)
+            return None
+
+        return handler(expr)
+
     #
     # Binary operation handlers
     #
@@ -950,7 +960,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 + expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Add', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Add', [expr_0, expr_1], expr.signed,
+                                         floating_point=expr.floating_point,
+                                         rounding_mode=expr.rounding_mode,
+                                         **expr.tags)
 
     def _ail_handle_Sub(self, expr):
 
@@ -973,7 +986,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 - expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Sub', [expr_0, expr_1], expr.signed,
+                                         floating_point=expr.floating_point,
+                                         rounding_mode=expr.rounding_mode,
+                                         **expr.tags)
 
     def _ail_handle_Div(self, expr):
 
@@ -990,7 +1006,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 // expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], expr.signed, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Div', [expr_0, expr_1], expr.signed,
+                                         floating_point=expr.floating_point,
+                                         rounding_mode=expr.rounding_mode,
+                                         **expr.tags)
 
     def _ail_handle_DivMod(self, expr):
 
@@ -1024,7 +1043,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, bits=expr.bits, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Mul', [expr_0, expr_1], expr.signed, bits=expr.bits,
+                                         floating_point=expr.floating_point,
+                                         rounding_mode=expr.rounding_mode,
+                                         **expr.tags)
 
     def _ail_handle_Mull(self, expr):
 
@@ -1041,7 +1063,10 @@ class SimEngineLightAILMixin(SimEngineLightMixin):
         try:
             return expr_0 * expr_1
         except TypeError:
-            return ailment.Expr.BinaryOp(expr.idx, 'Mull', [expr_0, expr_1], expr.signed, bits=expr.bits, **expr.tags)
+            return ailment.Expr.BinaryOp(expr.idx, 'Mull', [expr_0, expr_1], expr.signed, bits=expr.bits,
+                                         floating_point=expr.floating_point,
+                                         rounding_mode=expr.rounding_mode,
+                                         **expr.tags)
 
     def _ail_handle_And(self, expr):
 

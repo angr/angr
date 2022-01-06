@@ -1284,6 +1284,7 @@ class CUnaryOp(CExpression):
 
         OP_MAP = {
             'Not': self._c_repr_chunks_not,
+            'Neg': self._c_repr_chunks_neg,
             'Reference': self._c_repr_chunks_reference,
             'Dereference': self._c_repr_chunks_dereference,
         }
@@ -1301,6 +1302,13 @@ class CUnaryOp(CExpression):
     def _c_repr_chunks_not(self):
         paren = CClosingObject("(")
         yield "!", self
+        yield "(", paren
+        yield from CExpression._try_c_repr_chunks(self.operand)
+        yield ")", paren
+
+    def _c_repr_chunks_neg(self):
+        paren = CClosingObject("(")
+        yield "-", self
         yield "(", paren
         yield from CExpression._try_c_repr_chunks(self.operand)
         yield ")", paren

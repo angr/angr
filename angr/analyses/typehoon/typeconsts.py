@@ -43,7 +43,6 @@ class Int(TypeConstant):
         return "intbase"
 
 
-
 class Int1(Int):
     SIZE = 1
 
@@ -81,6 +80,26 @@ class Int128(Int):
 
     def __repr__(self):
         return "int128"
+
+
+class FloatBase(TypeConstant):
+
+    def __repr__(self):
+        return "floatbase"
+
+
+class Float(FloatBase):
+    SIZE = 4
+
+    def __repr__(self):
+        return "float"
+
+
+class Double(FloatBase):
+    SIZE = 8
+
+    def __repr__(self):
+        return "double"
 
 
 class Pointer(TypeConstant):
@@ -174,7 +193,7 @@ class TypeVariableReference(TypeConstant):
 # Methods
 #
 
-def int_type(bits):
+def int_type(bits: int) -> Optional[Int]:
     mapping = {
         1: Int1,
         8: Int8,
@@ -185,4 +204,12 @@ def int_type(bits):
     }
     if bits in mapping:
         return mapping[bits]()
+    return None
+
+
+def float_type(bits: int) -> Optional[FloatBase]:
+    if bits == 32:
+        return Float()
+    elif bits == 64:
+        return Double()
     return None
