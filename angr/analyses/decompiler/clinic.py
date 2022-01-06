@@ -526,8 +526,7 @@ class Clinic(Analysis):
                         reg_name=self.project.arch.translate_register_name(reg[0], reg[1])
                     ))
                 else:
-                    l.warning("Unsupported type of return expression %s.",
-                              type(self.function.calling_convention.ret_val))
+                    l.warning("Unsupported type of return expression %s.", type(ret_val))
                 block.statements[stmt_idx] = new_stmt
 
 

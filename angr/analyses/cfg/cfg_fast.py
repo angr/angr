@@ -114,7 +114,7 @@ class PendingJobs:
         return self._job_count > 0
     __nonzero__ = __bool__
 
-    def _pop_job(self, func_addr):
+    def _pop_job(self, func_addr: Optional[int]):
 
         jobs = self._jobs[func_addr]
         j = jobs.pop(-1)
@@ -146,6 +146,10 @@ class PendingJobs:
             return None
 
         if not returning:
+            if None in self._jobs:
+                # return sites for indirect calls are all put under the None key. in the majority of cases, indirect
+                # calls are returning.
+                return self._pop_job(None)
             return self._pop_job(next(reversed(self._jobs.keys())))
 
         # Prioritize returning functions
@@ -1683,6 +1687,25 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self.functions.get_by_addr(function_addr).returning is not True:
             self._updated_nonreturning_functions.add(function_addr)
 
+        if current_func_addr != function_addr:
+            # the function address is updated by _generate_cfgnode() because the CFG node has been assigned to a
+            # different function (`function_addr`) before. this can happen when the beginning block of a function is
+            # first reached through a direct jump (as the result of tail-call optimization) and then reached through a
+            # call.
+            # this is very likely to be fixed during the second phase of CFG traversal, so we can just let it be.
+            # however, extra call edges pointing to the expected function address (`current_func_addr`) will lead to
+            # the creation of an empty function in function manager, and because the function is empty, we cannot
+            # determine if the function will return or not!
+            # assuming tail-call optimization is what is causing this situation, and if the original function has been
+            # determined to be returning, we update the newly created function's returning status here.
+            # this is still a hack. the complete solution is to record this situation and account for it when CFGBase
+            # analyzes the returning status of each function. we will cross that bridge when we encounter such cases.
+            if self.kb.functions[function_addr].returning is not None \
+                    and self.kb.functions.contains_addr(current_func_addr):
+                self.kb.functions[current_func_addr].returning = self.kb.functions[function_addr].returning
+                if self.kb.functions[current_func_addr].returning:
+                    self._pending_jobs.add_returning_function(current_func_addr)
+
         # If we have traced it before, don't trace it anymore
         real_addr = get_real_address_if_arm(self.project.arch, addr)
         if real_addr in self._traced_addresses:
@@ -2063,6 +2086,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._pending_jobs.add_job(ce)
                     # register this job to this function
                     self._register_analysis_job(current_function_addr, ce)
+                    # since the callee must return, we should let the pending_jobs be aware of it
+                    self._pending_jobs.add_returning_function(new_function_addr)
                 elif callee_function is not None and callee_function.returning is False:
                     pass # Don't go past a call that does not return!
                 else:
@@ -2873,13 +2898,21 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             self.model.add_node(unresolvable_target_addr, dst_node)
 
         self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.ins_addr, jump.stmt_idx)
-        # mark it as a jumpout site for that function
-        self._function_add_transition_edge(unresolvable_target_addr, src_node, jump.func_addr,
-                                           to_outside=True,
-                                           dst_func_addr=unresolvable_target_addr,
-                                           ins_addr=jump.ins_addr,
-                                           stmt_idx=jump.stmt_idx,
-                                           )
+
+        if jump.jumpkind == 'Ijk_Boring':
+            # mark it as a jumpout site for that function
+            self._function_add_transition_edge(unresolvable_target_addr, src_node, jump.func_addr,
+                                               to_outside=True,
+                                               dst_func_addr=unresolvable_target_addr,
+                                               ins_addr=jump.ins_addr,
+                                               stmt_idx=jump.stmt_idx,
+                                               )
+        else:  # jump.jumpkind == 'Ijk_Call'
+            # mark it as a call site for that function
+            self._function_add_call_edge(unresolvable_target_addr, src_node, jump.func_addr,
+                                         ins_addr=jump.ins_addr,
+                                         stmt_idx=jump.stmt_idx,
+                                         )
 
         self._deregister_analysis_job(jump.func_addr, jump)
 
