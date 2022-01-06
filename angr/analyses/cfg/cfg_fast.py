@@ -3811,9 +3811,12 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # is there a section?
                 has_executable_section = self._object_has_executable_sections(obj)
                 section = obj.find_section_containing(addr)
-                # is there a segment?
-                segment = obj.find_segment_containing(addr)
-                if has_executable_section and section is None and segment is None:
+                # If section is None, is there a segment?
+                if section is None:
+                    has_executable_segment = self._object_has_executable_segments(obj)
+                    segment = obj.find_segment_containing(addr)
+                if (has_executable_section and section is None) and \
+                   (section is None and has_executable_segment and segment is None):
                     # the basic block should not exist here...
                     return None, None, None, None
                 if section is not None:
@@ -3822,8 +3825,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         return None, None, None, None
                     distance_ = section.vaddr + section.memsize - real_addr
                     distance = min(distance_, VEX_IRSB_MAX_SIZE)
-                # TODO: handle segment information as well
-                if segment is not None:
+                elif segment is not None:
                     if not segment.is_executable:
                         # the segment is not executable...
                         return None, None, None, None
