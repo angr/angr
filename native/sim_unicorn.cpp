@@ -2236,6 +2236,8 @@ void State::perform_cgc_transmit() {
 		symbolic_registers.erase(9);
 		symbolic_registers.erase(10);
 		symbolic_registers.erase(11);
+		interrupt_handled = true;
+		syscall_count++;
 		return;
 	}
 }
@@ -2319,8 +2321,6 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			//printf("SYSCALL: %d\n", sysno);
 			if (sysno == state->cgc_transmit_sysno) {
 				state->perform_cgc_transmit();
-				state->interrupt_handled = true;
-				state->syscall_count++;
 			}
 		}
 	}
