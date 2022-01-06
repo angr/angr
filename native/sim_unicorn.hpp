@@ -797,7 +797,19 @@ class State {
 
 		address_t get_stack_pointer() const;
 
+		// CGC syscall handlers
+
+		void perform_cgc_transmit();
+
 		// Inline functions
+
+		inline simos_t get_simos() const {
+			return simos;
+		}
+
+		inline angr_mode_t get_angr_mode() const {
+			return angr_mode;
+		}
 
 		inline bool is_tracing_mode() const {
 			return (angr_mode == MODE_TRACE);
