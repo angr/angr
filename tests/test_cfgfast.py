@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
 import os
 import logging
 import sys
@@ -5,9 +6,9 @@ import unittest
 
 import archinfo
 import angr
-
 from angr.analyses.cfg.cfg_fast import SegmentList
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
+
 from common import slow_test
 
 l = logging.getLogger("angr.tests.test_cfgfast")
@@ -422,7 +423,7 @@ def test_segment_list_0():
     assert seg_list._list[0].end == 1
     assert seg_list._list[1].end == 5
     assert seg_list.is_occupied(4)
-    assert seg_list.is_occupied(5) == False
+    assert seg_list.is_occupied(5) is False
 
 
 def test_segment_list_1():
