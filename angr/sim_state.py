@@ -20,6 +20,7 @@ from .misc.plugins import PluginHub, PluginPreset
 from .sim_state_options import SimStateOptions
 from .state_plugins import SimStatePlugin
 
+
 def arch_overrideable(f):
     @functools.wraps(f)
     def wrapped_f(self, *args, **kwargs):
@@ -71,6 +72,7 @@ class SimState(PluginHub):
     history: 'SimStateHistory'
     inspect: 'SimInspector'
     jni_references: "SimStateJNIReferences"
+    scratch: "SimStateScratch"
     def __init__(
             self,
             project=None,
@@ -984,4 +986,5 @@ if TYPE_CHECKING:
     from .state_plugins.view import SimRegNameView, SimMemView
     from .state_plugins.callstack import CallStack
     from .state_plugins.inspect import SimInspector
-    from .state_plugins import SimStateJNIReferences
+    from .state_plugins.jni_references import SimStateJNIReferences
+    from .state_plugins.scratch import SimStateScratch

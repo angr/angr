@@ -626,7 +626,7 @@ class SimCC:
         """
         return self.RETURN_ADDR
 
-    def next_arg(self, session, arg_type):
+    def next_arg(self, session: ArgSession, arg_type: SimType):
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
                             "implement its ABI logic")

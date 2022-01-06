@@ -35,7 +35,7 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
 
-    tag = None
+    tag: Optional[str] = None
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
@@ -1927,9 +1927,8 @@ class CFGBase(Analysis):
                 regs = {self.project.arch.sp_offset}
                 if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
                     regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses[StackPointerTracker]                    .prep()(
-    src_function, re                    =self._sp_tracking_track_memory
-                )
+                sptracker = self.project.analyses[StackPointerTracker].prep()(src_function, regs,
+                                                                            track_memory=self._sp_tracking_track_memory)
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True
