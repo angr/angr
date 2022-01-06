@@ -558,6 +558,19 @@ class CFGBase(Analysis):
 
         return False
 
+    def _should_add_executable_region(self, region_start):
+        """
+        Before adding the region with user-provide address, we should check whether the region exists or not.
+
+        :param int region_start: Address of the beginning of the region.
+        :return:                 True/False
+        :rtype:                  bool
+        """
+        obj = self.project.loader.find_object_containing(region_start, membership_check=False)
+        if obj is None:
+            return False
+        return True
+
     def _executable_memory_regions(self, objects=None, force_segment=False):
         """
         Get all executable memory regions from the binaries
