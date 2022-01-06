@@ -185,6 +185,15 @@ class StopDetails(ctypes.Structure):
         ('block_size', ctypes.c_uint64),
     ]
 
+class SimOSEnum:
+    SIMOS_CGC   = 0
+    SIMOS_LINUX = 1
+    SIMOS_OTHER = 2
+
+class AngrMode:
+    MODE_SYMBOLIC = 0
+    MODE_TRACING  = 1
+
 #
 # Memory mapping errors - only used internally
 #
@@ -351,7 +360,7 @@ def _load_native():
             getattr(handle, func).argtypes = argtypes
 
         #_setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
-        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64)
+        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_uint64)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
         _setup_prototype(h, 'unhook', None, state_t)
@@ -1019,8 +1028,21 @@ class Unicorn(SimStatePlugin):
             # reset the state and re-raise
             self.uc.reset()
             raise
+
+        if self.state.os_name == "CGC":
+            simos_val = SimOSEnum.SIMOS_CGC
+        elif self.state.os.name == "Linux":
+            simos_val = SimOSEnum.SIMOS_LINUX
+        else:
+            simos_val = SimOSEnum.SIMOS_OTHER
+
+        if self.state.mode == "tracing":
+            angr_mode = AngrMode.MODE_TRACING
+        else:
+            angr_mode = AngrMode.MODE_SYMBOLIC
+
         # tricky: using unicorn handle from unicorn.Uc object
-        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val, angr_mode)
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:

@@ -24,7 +24,7 @@ extern "C" {
 #include "sim_unicorn.hpp"
 //#include "log.h"
 
-State::State(uc_engine *_uc, uint64_t cache_key):uc(_uc) {
+State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, angr_mode_t mode): uc(_uc), simos(curr_os), angr_mode(mode) {
 	hooked = false;
 	h_read = h_write = h_block = h_prot = 0;
 	max_steps = cur_steps = 0;
@@ -49,7 +49,7 @@ State::State(uc_engine *_uc, uint64_t cache_key):uc(_uc) {
 		page_cache = it->second.page_cache;
 	}
 	arch = *((uc_arch*)uc); // unicorn hides all its internals...
-	mode = *((uc_mode*)((uc_arch*)uc + 1));
+	unicorn_mode = *((uc_mode*)((uc_arch*)uc + 1));
 	curr_block_details.reset();
 	symbolic_read_in_progress = false;
 	trace_last_block_addr = 0;
@@ -2342,8 +2342,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key) {
-	State *state = new State(uc, cache_key);
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, angr_mode_t angr_mode) {
+	State *state = new State(uc, cache_key, simos, angr_mode);
 	return state;
 }
 

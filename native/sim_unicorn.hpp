@@ -22,6 +22,17 @@ typedef uint64_t unicorn_reg_id_t;
 typedef int64_t vex_reg_offset_t;
 typedef int64_t vex_tmp_id_t;
 
+enum simos_t: uint8_t {
+	SIMOS_CGC = 0,
+	SIMOS_LINUX = 1,
+	SIMOS_OTHER = 2,
+};
+
+enum angr_mode_t: uint8_t {
+	MODE_SYMBOLIC = 0,
+	MODE_TRACE = 1,
+};
+
 enum taint_t: uint8_t {
 	TAINT_NONE = 0,
 	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
@@ -536,6 +547,12 @@ class State {
 	// Pointer to memory writes' data passed to Python land
 	mem_update_t *mem_updates_head;
 
+	// OS being simulated
+	simos_t simos;
+
+	// Mode angr is running in
+	angr_mode_t angr_mode;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -592,13 +609,13 @@ class State {
 	inline unsigned int arch_pc_reg_vex_offset() const {
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
+				return unicorn_mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
 			case UC_ARCH_ARM:
 				return OFFSET_arm_R15T;
 			case UC_ARCH_ARM64:
 				return OFFSET_arm64_PC;
 			case UC_ARCH_MIPS:
-				return mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
+				return unicorn_mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
 			default:
 				return -1;
 		}
@@ -607,7 +624,7 @@ class State {
 	inline int arch_pc_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
+				return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
 			case UC_ARCH_ARM:
 				return UC_ARM_REG_PC;
 			case UC_ARCH_ARM64:
@@ -622,7 +639,7 @@ class State {
 	inline int arch_sp_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
+				return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
 			case UC_ARCH_ARM:
 				return UC_ARM_REG_SP;
 			case UC_ARCH_ARM64:
@@ -659,7 +676,7 @@ class State {
 		int32_t cur_size;
 
 		uc_arch arch;
-		uc_mode mode;
+		uc_mode unicorn_mode;
 		bool interrupt_handled;
 		uint32_t transmit_sysno;
 		uint32_t transmit_bbl_addr;
@@ -688,7 +705,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, angr_mode_t mode);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
@@ -781,6 +798,10 @@ class State {
 		address_t get_stack_pointer() const;
 
 		// Inline functions
+
+		inline bool is_tracing_mode() const {
+			return (angr_mode == MODE_TRACE);
+		}
 
 		/*
 		* Feasibility checks for unicorn
