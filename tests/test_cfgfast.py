@@ -960,6 +960,29 @@ def test_starting_point_ordering():
     nose.tools.assert_true(len(n.successors[0].successors[0].successors) > 0)
     nose.tools.assert_equal(n.successors[0].successors[0].successors[0].addr, 0x103D4)
 
+def test_func_in_added_segment_by_patcherex_arm():
+    path = os.path.join(test_location, "armel", "patcherex", "replace_function_patch_with_function_reference")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(normalize=True,
+                             function_starts={0xa00081},
+                             extra_executable_regions=[(0xa00080, 0xa00080 + 0x3e)])
+
+    # Check whether the target function is in the functions list
+    nose.tools.assert_in(0xa00081, cfg.kb.functions, "Function 0xa00081 does not exist.")
+    # Check the number of basic blocks
+    nose.tools.assert_equal(len(list(cfg.functions[0xa00081].blocks)), 8, "Function 0xa00081 should have 8 blocks.")
+
+def test_func_in_added_segment_by_patcherex_x64():
+    path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(normalize=True,
+                             function_starts={0xa0013d},
+                             extra_executable_regions=[(0xa00130, 0xa00130 + 0x95)])
+
+    # Check whether the target function is in the functions list
+    nose.tools.assert_in(0xa0013d, cfg.kb.functions, "Function 0xa0013d does not exist.")
+    # Check the number of basic blocks
+    nose.tools.assert_equal(len(list(cfg.functions[0xa0013d].blocks)), 7, "Function 0xa0013d should have 7 blocks.")
 
 def run_all():
 
@@ -1006,6 +1029,8 @@ def run_all():
     test_plt_stub_has_one_jumpout_site()
     test_load_from_shellcode()
     test_starting_point_ordering()
+    test_func_in_added_segment_by_patcherex_arm()
+    test_func_in_added_segment_by_patcherex_x64()
 
 
 def main():
