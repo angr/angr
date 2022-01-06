@@ -497,7 +497,7 @@ class Tracer(ExplorationTechnique):
             assert state.history.recent_block_count == len(state.history.recent_bbl_addrs)
 
             for addr_idx, addr in enumerate(state.history.recent_bbl_addrs):
-                if addr == state.unicorn.transmit_addr:
+                if addr == state.unicorn.cgc_transmit_addr:
                     continue
 
                 if sync is not None and sync != 'entry':

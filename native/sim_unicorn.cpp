@@ -33,7 +33,6 @@ State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, angr_mode_t mo
 	ignore_next_block = false;
 	ignore_next_selfmod = false;
 	interrupt_handled = false;
-	transmit_sysno = -1;
 	vex_guest = VexArch_INVALID;
 	syscall_count = 0;
 	uc_context_alloc(uc, &saved_regs);
@@ -2213,7 +2212,7 @@ void State::perform_cgc_transmit() {
 			return;
 		}
 
-		step(transmit_bbl_addr, 0, false);
+		step(cgc_transmit_bbl, 0, false);
 		commit();
 		if (stopped) {
 			//printf("... stopped after step()\n");
@@ -2318,7 +2317,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			uint32_t sysno;
 			uc_reg_read(uc, UC_X86_REG_EAX, &sysno);
 			//printf("SYSCALL: %d\n", sysno);
-			if (sysno == state->transmit_sysno) {
+			if (sysno == state->cgc_transmit_sysno) {
 				state->perform_cgc_transmit();
 				state->interrupt_handled = true;
 				state->syscall_count++;
@@ -2501,9 +2500,11 @@ bool simunicorn_is_interrupt_handled(State *state) {
 }
 
 extern "C"
-void simunicorn_set_transmit_sysno(State *state, uint32_t sysno, uint64_t bbl_addr) {
-	state->transmit_sysno = sysno;
-	state->transmit_bbl_addr = bbl_addr;
+void simunicorn_set_cgc_syscall_details(State *state, uint32_t transmit_num, uint64_t transmit_bbl, uint32_t receive_num, uint64_t receive_bbl) {
+	state->cgc_receive_sysno = receive_num;
+	state->cgc_receive_bbl = receive_bbl;
+	state->cgc_transmit_sysno = transmit_num;
+	state->cgc_transmit_bbl = transmit_bbl;
 }
 
 extern "C"

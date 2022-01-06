@@ -678,8 +678,10 @@ class State {
 		uc_arch arch;
 		uc_mode unicorn_mode;
 		bool interrupt_handled;
-		uint32_t transmit_sysno;
-		uint32_t transmit_bbl_addr;
+		uint32_t cgc_receive_sysno;
+		uint64_t cgc_receive_bbl;
+		uint32_t cgc_transmit_sysno;
+		uint64_t cgc_transmit_bbl;
 
 		VexArch vex_guest;
 		VexArchInfo vex_archinfo;

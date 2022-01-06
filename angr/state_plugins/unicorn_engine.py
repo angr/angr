@@ -383,7 +383,7 @@ def _load_native():
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
-        _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
+        _setup_prototype(h, 'set_cgc_syscall_details', None, state_t, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
@@ -516,7 +516,10 @@ class Unicorn(SimStatePlugin):
         self._concretized_asts = set() if concretized_asts is None else concretized_asts
 
         # the address to use for concrete transmits
-        self.transmit_addr = None
+        self.cgc_transmit_addr = None
+
+        # the address for CGC receive
+        self.cgc_receive_addr = None
 
         self.time = None
 
@@ -547,7 +550,8 @@ class Unicorn(SimStatePlugin):
         u.countdown_symbolic_stop = self.countdown_symbolic_stop
         u.countdown_unsupported_stop = self.countdown_unsupported_stop
         u.countdown_stop_point = self.countdown_stop_point
-        u.transmit_addr = self.transmit_addr
+        u.cgc_receive_addr = self.cgc_receive_addr
+        u.cgc_transmit_addr = self.cgc_transmit_addr
         u._uncache_regions = list(self._uncache_regions)
         u.gdt = self.gdt
         return u
@@ -1064,10 +1068,15 @@ class Unicorn(SimStatePlugin):
 
         # set (cgc, for now) transmit syscall handler
         if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
-            if self.transmit_addr is None:
+            if self.cgc_transmit_addr is None:
                 l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
-                self.transmit_addr = 0
-            _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
+                self.cgc_transmit_addr = 0
+
+            if self.cgc_receive_addr is None:
+                l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
+                self.cgc_receive_addr = 0
+
+            _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, self.cgc_transmit_addr, 3, self.cgc_receive_addr)
 
         # set memory map callback so we can call it explicitly
         _UC_NATIVE.set_map_callback(self._uc_state, self._bullshit_cb)
