@@ -1054,6 +1054,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         strict_block_end: Optional[bool] = None,
         skip_stmts: bool = False,
         collect_data_refs: bool = False,
+        load_from_ro_regions: bool = False,
         cross_insn_opt: Optional[bool] = None,
     ):
         """
@@ -1074,6 +1075,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
             strict_block_end,
             skip_stmts,
             collect_data_refs,
+            load_from_ro_regions,
             cross_insn_opt)
 
     def lift_pcode(
@@ -1092,6 +1094,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         strict_block_end: Optional[bool] = None,
         skip_stmts: bool = False,
         collect_data_refs: bool = False,
+        load_from_ro_regions: bool = False,
         cross_insn_opt: Optional[bool] = None,
     ):
         """
@@ -1116,9 +1119,12 @@ class PcodeLifterEngineMixin(SimEngineBase):
         :param num_inst:        The maximum number of instructions.
         :param traceflags:      Unused by P-Code lifter
         :param strict_block_end: Unused by P-Code lifter
+        :param load_from_ro_regions: Unused by P-Code lifter
         """
         if cross_insn_opt:
             l.debug('cross_insn_opt is ignored for p-code lifter')
+        if load_from_ro_regions:
+            l.debug('load_from_ro_regions is ignored for p-code lifter')
 
         # phase 0: sanity check
         if not state and not clemory and not insn_bytes:
