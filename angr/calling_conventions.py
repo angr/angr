@@ -603,6 +603,10 @@ class SimCC:
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
                             "implement its ABI logic")
+        if isinstance(arg_type, SimTypeBottom):
+            # This is usually caused by failures or mistakes during type inference
+            l.warning("Function argument type cannot be BOT. Treating it as a 32-bit int.")
+            arg_type = SimTypeInt().with_arch(self.arch)
         is_fp = isinstance(arg_type, SimTypeFloat)
         size = arg_type.size // self.arch.byte_width
         try:
