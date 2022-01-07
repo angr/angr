@@ -1,3 +1,4 @@
+# pylint:disable=superfluous-parens
 import itertools
 import logging
 import math
@@ -6,6 +7,7 @@ import string
 from typing import List, Set, Dict, Optional
 from collections import defaultdict, OrderedDict
 
+import networkx
 from sortedcontainers import SortedDict
 
 import claripy
@@ -49,10 +51,9 @@ class DecodingAssumption:
     """
     Describes the decoding mode (ARM/THUMB) for a given basic block identified by its address.
     """
-    def __init__(self, addr: int, size: int, parent_block_addr: Optional[int], mode: int):
+    def __init__(self, addr: int, size: int, mode: int):
         self.addr = addr
         self.size = size
-        self.parent_block_addr = parent_block_addr
         self.mode = mode
         self.attempted_arm = mode == ARMDecodingMode.ARM
         self.attempted_thumb = mode == ARMDecodingMode.THUMB
@@ -628,7 +629,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     new_regions.append((start_, end_))
             regions = new_regions
         if not regions and self.project.arch.name != 'Soot':
-            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
+            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify "
+                               "regions.")
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
         self._regions_size = sum((b - a) for a, b in regions)
@@ -705,6 +707,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._gp_value: Optional[int] = None
         self._ro_region_cdata_cache: Optional[List] = None
         self._job_ctr = 0
+        self._decoding_assumptions: Dict[int,DecodingAssumption] = { }
+        self._decoding_assumption_relations = None
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -1162,6 +1166,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # assumption management
         self._decoding_assumptions: Dict[int,DecodingAssumption] = { }
+        self._decoding_assumption_relations = networkx.DiGraph()
 
         # register read-only regions to PyVEX
         self._lifter_register_readonly_regions()
@@ -1488,7 +1493,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Pre-compile all regexes
-        regexes = list()
+        regexes = [ ]
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.append(r)
@@ -1496,7 +1501,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # way to handle CPU modes that affect instruction decoding.
         # Since the only one we care about is ARM/Thumb right now
         # we have this gross hack. Sorry about that.
-        thumb_regexes = list()
+        thumb_regexes = [ ]
         if hasattr(self.project.arch, 'thumb_prologs'):
             for ins_regex in self.project.arch.thumb_prologs:
                 # Thumb prologues are found at even addrs, but their actual addr is odd!
@@ -1791,16 +1796,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         successors = self._post_process_successors(irsb, successors)
 
         # Process each successor
+        is_arm = is_arm_arch(self.project.arch)
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_jobs(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
+            new_jobs = self._create_jobs(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
                                          stmt_idx
                                          )
+            entries += new_jobs
+            if is_arm:
+                for job in new_jobs:
+                    if job.jumpkind in {"Ijk_Boring", "Ijk_FakeRet"}:
+                        self._decoding_assumption_relations.add_edge(real_addr, job.addr & 0xffff_fffe)
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
+    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+                     stmt_idx) -> List[CFGJob]:
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -1814,7 +1826,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param int ins_addr:        Address of the source instruction.
         :param int stmt_idx:        ID of the source statement.
         :return:                    a list of CFGJobs
-        :rtype:                     list
         """
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
@@ -2340,7 +2351,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
                             _process(stmt_idx, loc, instr_addr, next_instr_addr)
                             continue
-                        elif is_arm_arch(self.project.arch) and \
+                        if is_arm_arch(self.project.arch) and \
                                 isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and stmt.data.args[0].tmp in tmps and \
                                 type(stmt.data.args[1]) is pyvex.expr.Const:
                             # perform the addition
@@ -2957,7 +2968,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
 
-        all_plt_stub_addrs = set(itertools.chain.from_iterable(obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
+        all_plt_stub_addrs = set(itertools.chain.from_iterable(
+            obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
 
         # go over the list. for each node that is the beginning of a function and is not properly aligned, if its
         # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the
@@ -3827,7 +3839,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # we don't want to have a basic block that spans across function boundaries
             next_func = self.functions.ceiling_func(addr + 1)
             if next_func is not None:
-                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) - real_addr
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) \
+                                   - real_addr
                 if distance_to_func != 0:
                     if distance is None:
                         distance = distance_to_func
@@ -3859,6 +3872,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             addr &= ~1
                         else:
                             # we have attempted THUMB mode and failed to decode.
+                            if cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL and \
+                                    cfg_job.jumpkind in {'Ijk_Boring', 'Ijk_FakeRet'} and \
+                                    cfg_job.src_node is not None:
+                                self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xffff_fffe)
                             return None, None, None, None
                     elif assumption.attempted_arm:
                         switch_mode_on_nodecode = False
@@ -3869,6 +3886,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             addr |= 1
                         else:
                             # we have attempted ARM mode and failed to decode.
+                            if cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL and \
+                                    cfg_job.jumpkind == 'Ijk_Boring' and \
+                                    cfg_job.src_node is not None:
+                                self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xffff_fffe)
                             return None, None, None, None
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
@@ -3937,8 +3958,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         assumption = DecodingAssumption(
                             real_addr,
                             max(irsb.size, 1) if irsb is not None else 1,
-                            src_node_realaddr if cfg_job.jumpkind != "Ijk_FakeRet" else None,
                             ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
+                        if cfg_job.jumpkind != "Ijk_Call":
+                            self._decoding_assumption_relations.add_edge(src_node_realaddr, real_addr)
                         self._decoding_assumptions[real_addr] = assumption
                 elif cfg_job.job_type in (CFGJob.JOB_TYPE_FUNCTION_PROLOGUE, CFGJob.JOB_TYPE_COMPLETE_SCANNING):
                     # this is the source of assumptions. it might be wrong!
@@ -3955,7 +3977,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         else:
                             assumption.attempted_arm = True
                     else:
-                        assumption = DecodingAssumption(real_addr, max(irsb.size, 1) if irsb is not None else 1, None,
+                        assumption = DecodingAssumption(real_addr, max(irsb.size, 1) if irsb is not None else 1,
                                                         ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
                         self._decoding_assumptions[real_addr] = assumption
 
@@ -4016,7 +4038,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             # UND xx for THUMB-16
                             valid_ins = True
                             nodecode_size = 2
-                        elif trailing[0] == 0xf7 and (trailing[1] & 0xf0) == 0xf0 and (trailing[2] & 0xf0) == 0xa0 and (trailing[3] & 0xf0) == 0xf0:
+                        elif trailing[0] == 0xf7 and \
+                                (trailing[1] & 0xf0) == 0xf0 and \
+                                (trailing[2] & 0xf0) == 0xa0 and \
+                                (trailing[3] & 0xf0) == 0xf0:
                             # UND xxx for THUMB-32
                             valid_ins = True
                             nodecode_size = 4
@@ -4117,28 +4142,63 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     gp_value = self._gp_value  # fallback to a previously found value
                 func.info['gp'] = gp_value
 
-    def _cascading_remove_lifted_blocks(self, addr: int):
-        removed = set()
-        while True:
-            assumption = self._decoding_assumptions.get(addr)
-            if assumption is None:
-                break
+    def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> Set[int]:
+        to_remove = {addr}
+        queue = [addr]
+        while queue:
+            assumption_addr = queue.pop(0)
+            # find parents of this assumption
+            if assumption_addr in self._decoding_assumption_relations:
+                for pred_addr in self._decoding_assumption_relations.predecessors(assumption_addr):
+                    if pred_addr not in to_remove and pred_addr not in queue:
+                        to_remove.add(pred_addr)
+                        queue.append(pred_addr)
+                # find children of this assumption
+                if include_successors:
+                    for succ_addr in self._decoding_assumption_relations.successors(assumption_addr):
+                        if succ_addr not in to_remove and succ_addr not in queue:
+                            to_remove.add(succ_addr)
+                            queue.append(succ_addr)
+        return to_remove
 
-            removed.add(assumption.addr)
+    def _cascading_remove_lifted_blocks(self, addr: int):
+
+        # first let's consider both predecessors and successors
+        to_remove = self._extract_node_cluster_by_dependency(addr, include_successors=True)
+
+        BLOCK_REMOVAL_LIMIT = 20
+        if len(to_remove) > BLOCK_REMOVAL_LIMIT:
+            # we are removing too many blocks, which means we are probably removing legitimate blocks
+            # let's try only considering predecessors
+            to_remove = self._extract_node_cluster_by_dependency(addr, include_successors=False)
+
+            if len(to_remove) > BLOCK_REMOVAL_LIMIT:
+                # still too many... give up
+                return
+
+        for assumption_addr in to_remove:
+            # remove this assumption from the graph (since we may have new relationships formed later)
+            if assumption_addr in self._decoding_assumption_relations:
+                self._decoding_assumption_relations.remove_node(assumption_addr)
+
+            assumption = self._decoding_assumptions.get(assumption_addr)
+            if assumption is None:
+                continue
+
             self._seg_list.release(assumption.addr, assumption.size)
             if assumption.data_segs:
                 for data_seg_addr, data_seg_size in assumption.data_segs:
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
             try:
-                existing_node = self._nodes[addr]
-                self._model.remove_node(addr, existing_node)
+                existing_node = self._nodes[assumption_addr]
+                self._model.remove_node(assumption_addr, existing_node)
             except KeyError:
                 existing_node = None
             if existing_node is None:
                 try:
-                    existing_node = self._nodes[addr + 1]
-                    self._model.remove_node(addr + 1, existing_node)
+                    existing_node = self._nodes[assumption_addr + 1]
+                    self._model.remove_node(assumption_addr + 1, existing_node)
                 except KeyError:
                     existing_node = None
 
@@ -4159,10 +4219,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # remove traced addresses
                 self._traced_addresses.discard(assumption.addr)
-
-            addr = assumption.parent_block_addr
-            if addr is None or addr in removed:
-                break
 
     def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> Optional[int]:
         # check if gp is being written to
@@ -4234,10 +4290,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         byte_string += self._fast_memory_load_bytes(offset, p.addr - offset)
                         offset = p.addr
                     assert p.addr <= offset < p.addr + len(p)
-                    byte_string += p.new_bytes[offset - p.addr: min(VEX_IRSB_MAX_SIZE - (offset-addr), p.addr + len(p) - offset)]
+                    byte_string += p.new_bytes[offset - p.addr: min(VEX_IRSB_MAX_SIZE - (offset-addr),
+                                                                    p.addr + len(p) - offset)]
                     offset = p.addr + len(p)
                 kwargs['byte_string'] = byte_string
-        return super(CFGFast, self)._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
+        return super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
 
     #
     # Public methods
