@@ -2207,13 +2207,15 @@ class CFGBase(Analysis):
                     THUMB_NOOPS = {
                         b"\xc0\x46",  # mov r8, r8
                         b"\xb0\x00",  # add sp, #0
+                        b"\x00\xbf",  # nop
                     }
                 else:
                     THUMB_NOOPS = {
                         b"\x46\xc0",  # mov r8, r8
                         b"\x00\xb0",  # add sp, #0
+                        b"\xbf\x00",  # nop
                     }
-                insns = set(block.bytes[i:i+4] for i in range(0, block.size, 4))
+                insns = set(block.bytes[i:i+2] for i in range(0, block.size, 2))
                 if THUMB_NOOPS.issuperset(insns):
                     return True
 
