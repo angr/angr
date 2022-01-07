@@ -929,7 +929,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             addr += 1
 
         if sz and is_sz:
-            l.debug("Got a string of %d chars: [%s]", len(sz), bytes(sz).decode())
+            # avoid commonly seen ambiguous cases
+            if is_arm_arch(self.project.arch):
+                # little endian
+                sz_bytes = bytes(sz)
+                if self.project.arch.memory_endness == Endness.LE:
+                    if b"\x70\x47" in sz_bytes:  # bx lr
+                        return 0
+                if self.project.arch.memory_endness == Endness.BE:
+                    if b"\x47\x70" in sz_bytes:  # bx lr
+                        return 0
+            l.debug("Got a string of %d chars", len(sz))
             string_length = len(sz) + 1
             return string_length
 
