@@ -21,6 +21,7 @@ from ...procedures.procedure_dict import SIM_PROCEDURES
 from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError, \
     SimError
 from ...codenode import HookNode, BlockNode
+from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from .. import Analysis
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
@@ -1859,10 +1860,22 @@ class CFGBase(Analysis):
             out_edges = list(filter(lambda x: g.get_edge_data(*x)['jumpkind'] != 'Ijk_FakeRet', g.out_edges(node_)))
             return len(out_edges) > 1
 
+        if len(src_function.block_addrs_set) > 10:
+            # ignore functions unless they are extremely small
+            return False
+
         if len(all_edges) == 1 and dst_addr != src_addr:
             the_edge = next(iter(all_edges))
             _, dst, data = the_edge
             if data.get('stmt_idx', None) != DEFAULT_STATEMENT:
+                return False
+
+            # relift the source node to make sure it's not a fall-through target
+            full_src_node = self.project.factory.block(src_addr)
+            if full_src_node.size >= VEX_IRSB_MAX_SIZE or full_src_node.instructions >= VEX_IRSB_MAX_INST:
+                # we are probably hitting the max-block limit in VEX
+                return False
+            if full_src_node.addr <= dst_addr < full_src_node.addr + full_src_node.size:
                 return False
 
             dst_in_edges = g.in_edges(dst, data=True)
@@ -1896,7 +1909,9 @@ class CFGBase(Analysis):
                 regs = {self.project.arch.sp_offset}
                 if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
                     regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses.StackPointerTracker(src_function, regs, track_memory=self._sp_tracking_track_memory)
+                sptracker = self.project.analyses.StackPointerTracker(src_function, regs,
+                                                                      track_memory=self._sp_tracking_track_memory)
+
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True
