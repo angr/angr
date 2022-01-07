@@ -1,3 +1,4 @@
+# pylint:disable=superfluous-parens
 import itertools
 import logging
 import math
@@ -628,7 +629,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     new_regions.append((start_, end_))
             regions = new_regions
         if not regions and self.project.arch.name != 'Soot':
-            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify regions.")
+            raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify "
+                               "regions.")
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
         self._regions_size = sum((b - a) for a, b in regions)
@@ -705,6 +707,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._gp_value: Optional[int] = None
         self._ro_region_cdata_cache: Optional[List] = None
         self._job_ctr = 0
+        self._decoding_assumptions: Dict[int,DecodingAssumption] = { }
+        self._decoding_assumption_relations = None
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -1489,7 +1493,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Pre-compile all regexes
-        regexes = list()
+        regexes = [ ]
         for ins_regex in self.project.arch.function_prologs:
             r = re.compile(ins_regex)
             regexes.append(r)
@@ -1497,7 +1501,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # way to handle CPU modes that affect instruction decoding.
         # Since the only one we care about is ARM/Thumb right now
         # we have this gross hack. Sorry about that.
-        thumb_regexes = list()
+        thumb_regexes = [ ]
         if hasattr(self.project.arch, 'thumb_prologs'):
             for ins_regex in self.project.arch.thumb_prologs:
                 # Thumb prologues are found at even addrs, but their actual addr is odd!
@@ -2347,7 +2351,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             loc = stmt.data.args[0].con.value + stmt.data.args[1].con.value
                             _process(stmt_idx, loc, instr_addr, next_instr_addr)
                             continue
-                        elif is_arm_arch(self.project.arch) and \
+                        if is_arm_arch(self.project.arch) and \
                                 isinstance(stmt.data.args[0], pyvex.expr.RdTmp) and stmt.data.args[0].tmp in tmps and \
                                 type(stmt.data.args[1]) is pyvex.expr.Const:
                             # perform the addition
@@ -2964,7 +2968,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
 
-        all_plt_stub_addrs = set(itertools.chain.from_iterable(obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
+        all_plt_stub_addrs = set(itertools.chain.from_iterable(
+            obj.reverse_plt.keys() for obj in self.project.loader.all_objects if isinstance(obj, cle.MetaELF)))
 
         # go over the list. for each node that is the beginning of a function and is not properly aligned, if its
         # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the
@@ -3834,7 +3839,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # we don't want to have a basic block that spans across function boundaries
             next_func = self.functions.ceiling_func(addr + 1)
             if next_func is not None:
-                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) - real_addr
+                distance_to_func = (next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr) \
+                                   - real_addr
                 if distance_to_func != 0:
                     if distance is None:
                         distance = distance_to_func
@@ -4032,7 +4038,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             # UND xx for THUMB-16
                             valid_ins = True
                             nodecode_size = 2
-                        elif trailing[0] == 0xf7 and (trailing[1] & 0xf0) == 0xf0 and (trailing[2] & 0xf0) == 0xa0 and (trailing[3] & 0xf0) == 0xf0:
+                        elif trailing[0] == 0xf7 and \
+                                (trailing[1] & 0xf0) == 0xf0 and \
+                                (trailing[2] & 0xf0) == 0xa0 and \
+                                (trailing[3] & 0xf0) == 0xf0:
                             # UND xxx for THUMB-32
                             valid_ins = True
                             nodecode_size = 4
@@ -4281,10 +4290,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         byte_string += self._fast_memory_load_bytes(offset, p.addr - offset)
                         offset = p.addr
                     assert p.addr <= offset < p.addr + len(p)
-                    byte_string += p.new_bytes[offset - p.addr: min(VEX_IRSB_MAX_SIZE - (offset-addr), p.addr + len(p) - offset)]
+                    byte_string += p.new_bytes[offset - p.addr: min(VEX_IRSB_MAX_SIZE - (offset-addr),
+                                                                    p.addr + len(p) - offset)]
                     offset = p.addr + len(p)
                 kwargs['byte_string'] = byte_string
-        return super(CFGFast, self)._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
+        return super()._lift(addr, *args, opt_level=opt_level, cross_insn_opt=cross_insn_opt, **kwargs)
 
     #
     # Public methods
