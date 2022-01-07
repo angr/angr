@@ -1792,16 +1792,23 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         successors = self._post_process_successors(irsb, successors)
 
         # Process each successor
+        is_arm = is_arm_arch(self.project.arch)
         for suc in successors:
             stmt_idx, ins_addr, target, jumpkind = suc
 
-            entries += self._create_jobs(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
+            new_jobs = self._create_jobs(target, jumpkind, function_addr, irsb, addr, cfg_node, ins_addr,
                                          stmt_idx
                                          )
+            entries += new_jobs
+            if is_arm:
+                for job in new_jobs:
+                    if job.jumpkind in {"Ijk_Boring", "Ijk_FakeRet"}:
+                        self._decoding_assumption_relations.add_edge(real_addr, job.addr & 0xffff_fffe)
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx):
+    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
+                     stmt_idx) -> List[CFGJob]:
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -1815,7 +1822,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param int ins_addr:        Address of the source instruction.
         :param int stmt_idx:        ID of the source statement.
         :return:                    a list of CFGJobs
-        :rtype:                     list
         """
 
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
