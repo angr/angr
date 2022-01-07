@@ -3024,6 +3024,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             snippet = self._to_snippet(addr=next_node_addr, size=next_node_size,
                                                        base_state=self._base_state)
                             self.functions._add_node(next_node_addr, snippet)
+                            # if there are outside transitions, copy them as well
+                            for src, dst, data in self.functions[a.addr].transition_graph.edges(data=True):
+                                if src.addr == a.addr \
+                                        and data.get('type', None) == 'transition' \
+                                        and data.get('outside', False) is True:
+                                    stmt_idx = data.get('stmt_idx', None)
+                                    if stmt_idx != DEFAULT_STATEMENT:
+                                        # since we are relifting the block from a new starting address, we should only
+                                        # keep stmt_idx if it is the default exit.
+                                        stmt_idx = None
+                                    self.functions._add_outside_transition_to(next_node_addr, snippet, dst,
+                                                                              to_function_addr=dst.addr,
+                                                                              ins_addr=data.get('ins_addr', None),
+                                                                              stmt_idx=stmt_idx)
                         except (SimEngineError, SimMemoryError):
                             continue
 
