@@ -1035,7 +1035,7 @@ class Unicorn(SimStatePlugin):
 
         if self.state.os_name == "CGC":
             simos_val = SimOSEnum.SIMOS_CGC
-        elif self.state.os.name == "Linux":
+        elif self.state.os_name == "Linux":
             simos_val = SimOSEnum.SIMOS_LINUX
         else:
             simos_val = SimOSEnum.SIMOS_OTHER
