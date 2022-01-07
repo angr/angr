@@ -1911,12 +1911,6 @@ class CFGBase(Analysis):
                     regs.add(self.project.arch.bp_offset)
                 sptracker = self.project.analyses.StackPointerTracker(src_function, regs,
                                                                       track_memory=self._sp_tracking_track_memory)
-                # if there is more than one block in the source function before reaching src_addr, make sure the stack
-                # pointer is actually changing
-                if src_addr != src_function.addr:
-                    sp_delta_first_block = sptracker.offset_after_block(src_function.addr, self.project.arch.sp_offset)
-                    if sp_delta_first_block == 0:
-                        return False
 
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
