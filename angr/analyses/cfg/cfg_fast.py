@@ -358,6 +358,7 @@ class CFGJob:
     JOB_TYPE_NORMAL = "Normal"
     JOB_TYPE_FUNCTION_PROLOGUE = "Function-prologue"
     JOB_TYPE_COMPLETE_SCANNING = "Complete-scanning"
+    JOB_TYPE_IFUNC_HINTS = "ifunc-hints"
 
     def __init__(self, addr: int, func_addr: int, jumpkind: str,
                  ret_target: Optional[int]=None, last_addr: Optional[int]=None,
@@ -1730,7 +1731,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if self.project.arch.name in {'MIPS32', 'MIPS64'}:
             # the caller might have gp passed on
             caller_gp = cfg_job.gp
-        self._process_block_arch_specific(addr, irsb, function_addr, caller_gp=caller_gp)
+        self._process_block_arch_specific(addr, cfg_node, irsb, function_addr, caller_gp=caller_gp)
 
         # Scan the basic block to collect data references
         if self._collect_data_ref:
@@ -4099,7 +4100,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         except (SimMemoryError, SimEngineError):
             return None, None, None, None
 
-    def _process_block_arch_specific(self, addr: int, irsb: pyvex.IRSB, func_addr: int,
+    def _process_block_arch_specific(self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int,
                                      caller_gp: Optional[int]=None) -> None:  # pylint: disable=unused-argument
         """
         According to arch types ['ARMEL', 'ARMHF', 'MIPS32'] does different
@@ -4113,6 +4114,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         to use a conrete global pointer
 
         :param addr: irsb address
+        :param cfg_node:    The corresponding CFG node object.
         :param irsb: irsb
         :param func_addr: function address
         :param caller_gp:   The gp register value that the caller function has. MIPS-specific.
@@ -4129,6 +4131,36 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         isinstance(irsb.next, pyvex.IRExpr.RdTmp):
                     # do a bunch of checks to avoid unnecessary simulation from happening
                     self._arm_track_read_lr_from_stack(irsb, self.functions[func_addr])
+
+            if self._arch_options.pattern_match_ifuncs:
+                # e.g.
+                # memcpy_ifunc:
+                #   tst.w   r0, #0x1000
+                #   movw    r3, #0xe80
+                #   movt    r3, #0x10   -> 0x100e80
+                #   movw    r0, #0x1380
+                #   movt    r0, #0x10   -> 0x101380
+                #   it      ne
+                #   movne   r0, r3
+                #   bx      lr
+
+                if addr % 2 == 1 \
+                        and len(cfg_node.byte_string) == 26 \
+                        and irsb.instructions == 8 \
+                        and irsb.jumpkind == "Ijk_Ret":
+                    block = self.project.factory.block(addr, opt_level=1, cross_insn_opt=True, collect_data_refs=True)
+                    insn_mnemonics = [ insn.mnemonic for insn in block.capstone.insns ]
+                    if insn_mnemonics == ["tst.w", "movw", "movt", "movw", "movt", "it", "movne", "bx"]:
+                        # extract data refs with vex-optimization enabled
+                        added_addrs = set()
+                        for ref in block.vex_nostmt.data_refs:
+                            if ref.data_addr not in added_addrs:
+                                sec = self.project.loader.find_section_containing(ref.data_addr)
+                                if sec is not None and sec.is_executable:
+                                    job = CFGJob(ref.data_addr, ref.data_addr, 'Ijk_Call',
+                                                 job_type=CFGJob.JOB_TYPE_IFUNC_HINTS)
+                                    self._insert_job(job)
+                                    added_addrs.add(ref.data_addr)
 
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
             func = self.kb.functions.function(func_addr)
