@@ -21,14 +21,18 @@ class CFGArchOptions(object):
             'ret_jumpkind_heuristics': (bool, True),
             # Whether to switch between ARM mode and THUMB mode when VEX fails to decode a block
             'switch_mode_on_nodecode': (bool, True),
+            # Whether we should use byte-based pattern-matching to identify ifuncs
+            'pattern_match_ifuncs': (bool, True),
         },
         'ARMHF': {
             'ret_jumpkind_heuristics': (bool, True),
             'switch_mode_on_nodecode': (bool, True),
+            'pattern_match_ifuncs': (bool, True),
         },
         'ARMCortexM': {
             'ret_jumpkind_heuristics': (bool, True),
             'switch_mode_on_nodecode': (bool, False),
+            'pattern_match_ifuncs': (bool, True),
         },
     }
 
