@@ -277,17 +277,17 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     def __init__(self, func: Function, reg_offsets: Set[int], track_memory=True):
 
+        if not func.normalized:
+            # Make a copy before normalizing the function
+            func = func.copy()
+            func.normalize()
+
         super().__init__(
             order_jobs=False,
             allow_merging=True,
             allow_widening=track_memory,
             graph_visitor=FunctionGraphVisitor(func)
         )
-
-        if not func.normalized:
-            # Make a copy before normalizing the function
-            func = func.copy()
-            func.normalize()
 
         self.track_mem = track_memory
         self._func = func
