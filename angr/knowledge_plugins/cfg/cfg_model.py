@@ -26,12 +26,13 @@ class CFGModel(Serializable):
     """
 
     __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr',
-                 '_nodes', '_cfg_manager', '_iropt_level', '_node_addrs')
+                 '_nodes', '_cfg_manager', '_iropt_level', '_node_addrs', 'is_arm')
 
-    def __init__(self, ident, cfg_manager=None):
+    def __init__(self, ident, cfg_manager=None, is_arm=False):
 
         self.ident = ident
         self._cfg_manager = cfg_manager
+        self.is_arm = is_arm
 
         # Necessary settings
         self._iropt_level = None
@@ -177,7 +178,7 @@ class CFGModel(Serializable):
     #
 
     def copy(self):
-        model = CFGModel(self.ident, cfg_manager=self._cfg_manager)
+        model = CFGModel(self.ident, cfg_manager=self._cfg_manager, is_arm=self.is_arm)
         model.graph = networkx.DiGraph(self.graph)
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
@@ -270,7 +271,8 @@ class CFGModel(Serializable):
 
             while pos < len(self._node_addrs):
                 n = self._nodes_by_addr[self._node_addrs[pos]][0]
-                if n.addr > addr:
+                actual_addr = n.addr if not self.is_arm else n.addr & 0xffff_fffe
+                if actual_addr > addr:
                     break
 
                 if is_cfgemulated:
@@ -278,9 +280,9 @@ class CFGModel(Serializable):
                 else:
                     cond = True
                 if anyaddr and n.size is not None:
-                    cond = cond and (addr == n.addr or n.addr <= addr < n.addr + n.size)
+                    cond = cond and (addr == actual_addr or actual_addr <= addr < actual_addr + n.size)
                 else:
-                    cond = cond and (addr == n.addr)
+                    cond = cond and (addr == actual_addr)
                 if cond:
                     if is_syscall is None:
                         return n
