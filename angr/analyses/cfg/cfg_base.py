@@ -1632,7 +1632,6 @@ class CFGBase(Analysis):
         If the following conditions are met, we will remove the second function and merge it into the first function:
         - The second function is not called by other code.
         - The first function has only one jumpout site, which points to the second function.
-        - The first function and the second function are adjacent.
 
         :param FunctionManager functions:   All functions that angr recovers.
         :return:                            A set of addresses of all removed functions.
@@ -1647,48 +1646,72 @@ class CFGBase(Analysis):
         for addr_0, addr_1 in zip(addrs[:-1], addrs[1:]):
             if addr_1 in predetermined_function_addrs:
                 continue
+            if addr_0 in functions_to_remove:
+                continue
 
             func_0 = functions[addr_0]
 
-            if len(func_0.block_addrs) == 1:
-                block = next(func_0.blocks)
-                if block.size == 0:
+            if 1 <= len(func_0.block_addrs_set) <= 4:
+                if len(func_0.jumpout_sites) != 1:
+                    continue
+                block_node = func_0.jumpout_sites[0]
+                if block_node is None:
+                    continue
+                if block_node.size == 0:
                     # skip empty blocks (that are usually caused by lifting failures)
                     continue
+                block = func_0.get_block(block_node.addr, block_node.size)
                 if block.vex.jumpkind not in ('Ijk_Boring', 'Ijk_InvalICache'):
                     continue
                 # Skip alignment blocks
                 if self._is_noop_block(self.project.arch, block):
                     continue
 
-                target = block.vex.next
-                if isinstance(target, pyvex.IRExpr.Const):  # pylint: disable=unidiomatic-typecheck
-                    target_addr = target.con.value
-                elif type(target) in (pyvex.IRConst.U16, pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
-                    target_addr = target.value
-                elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
-                    target_addr = target
-                else:
+                # does the first block transition to the next function?
+                transition_found = False
+                out_edges = list(func_0.transition_graph.out_edges(block_node, data=True))
+                for _, dst_node, data in out_edges:
+                    if dst_node.addr == addr_1 and \
+                            data.get('type', None) == "transition" and \
+                            data.get('outside', False) is True:
+                        transition_found = True
+                        break
+
+                if not transition_found:
                     continue
 
-                if target_addr != addr_1:
-                    continue
-
-                cfgnode_0 = self.model.get_any_node(addr_0)
+                cfgnode_0 = self.model.get_any_node(block_node.addr)
                 cfgnode_1 = self.model.get_any_node(addr_1)
 
                 if cfgnode_0 is None or cfgnode_1 is None:
                     continue
 
-                # Are func_0 adjacent to func_1?
-                if cfgnode_0.addr + cfgnode_0.size != addr_1:
+                # who's jumping to or calling cfgnode_1?
+                cfgnode_1_preds = self.model.get_predecessors_and_jumpkinds(cfgnode_1, excluding_fakeret=True)
+                func_1 = functions[addr_1]
+                abort = False
+                for pred, jumpkind in cfgnode_1_preds:
+                    if pred.addr in func_0.block_addrs_set and jumpkind == "Ijk_Boring":
+                        # this is the transition from function 0
+                        continue
+                    if pred.addr in func_1.block_addrs_set:
+                        # this is a transition from function 1 itself
+                        continue
+                    # found an unexpected edge. give up
+                    abort = True
+                    break
+                if abort:
                     continue
 
                 # Merge block addr_0 and block addr_1
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
 
+                cfgnode_1_merged = False
                 # we only merge two CFG nodes if the first one does not end with a branch instruction
-                if self.project.factory.block(cfgnode_0.addr).size > cfgnode_0.size:
+                if len(func_0.block_addrs_set) == 1 and \
+                        len(out_edges) == 1 and \
+                        self.project.factory.block(cfgnode_0.addr, strict_block_end=True).size > cfgnode_0.size:
+                    cfgnode_1_merged = True
                     self._merge_cfgnodes(cfgnode_0, cfgnode_1)
                     adjusted_cfgnodes.add(cfgnode_0)
                     adjusted_cfgnodes.add(cfgnode_1)
@@ -1696,7 +1719,7 @@ class CFGBase(Analysis):
                 # Merge it
                 func_1 = functions[addr_1]
                 for block_addr in func_1.block_addrs:
-                    if block_addr == addr_1:
+                    if block_addr == addr_1 and cfgnode_1_merged:
                         # Skip addr_1 (since it has been merged to the preceding block)
                         continue
                     merge_with = self._addr_to_function(addr_0, blockaddr_to_function, functions)
