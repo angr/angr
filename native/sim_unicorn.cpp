@@ -544,15 +544,15 @@ int64_t State::find_tainted(address_t address, int size) {
 	return -1;
 }
 
-void State::handle_write(address_t address, int size, bool is_interrupt) {
+void State::handle_write(address_t address, int size, bool is_interrupt = false, bool interrupt_value_symbolic = false) {
 	// If the write spans a page, chop it up
 	if ((address & 0xfff) + size > 0x1000) {
 		int chopsize = 0x1000 - (address & 0xfff);
-		handle_write(address, chopsize, is_interrupt);
+		handle_write(address, chopsize, is_interrupt, interrupt_value_symbolic);
 		if (stopped) {
 			return;
 		}
-		handle_write(address + chopsize, size - chopsize, is_interrupt);
+		handle_write(address + chopsize, size - chopsize, is_interrupt, interrupt_value_symbolic);
 		return;
 	}
 
@@ -588,7 +588,10 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 	}
 
 	clean = 0;
-	if (is_interrupt || is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed) {
+	if (is_interrupt) {
+		is_dst_symbolic = interrupt_value_symbolic;
+	}
+	else if (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed) {
 		// If symbolic tracking is disabled, all writes are concrete
 		// is_interrupt flag is a workaround for CGC transmit syscall, which never passes symbolic data
 		// If VEX lift failed, then write is definitely concrete since execution continues only
@@ -638,7 +641,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt) {
 			}
 		}
 	}
-	if (is_dst_symbolic) {
+	if (is_dst_symbolic && !is_interrupt) {
 		// Save the details of memory location written to in the instruction details
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
 			if (symbolic_instr.instr_addr == curr_instr_addr) {
@@ -2274,7 +2277,7 @@ static void hook_mem_write(uc_engine *uc, uc_mem_type type, uint64_t address, in
 		state->ignore_next_block = true;
 	}
 
-	state->handle_write(address, size, false);
+	state->handle_write(address, size);
 }
 
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data) {

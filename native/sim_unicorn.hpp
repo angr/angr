@@ -783,7 +783,7 @@ class State {
 		// Returns -1 if no tainted data is present.
 		int64_t find_tainted(address_t address, int size);
 
-		void handle_write(address_t address, int size, bool is_interrupt);
+		void handle_write(address_t address, int size, bool is_interrupt, bool interrupt_value_symbolic);
 
 		void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
 
