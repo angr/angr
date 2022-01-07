@@ -6,6 +6,7 @@ import string
 from typing import List, Set, Dict, Optional
 from collections import defaultdict, OrderedDict
 
+import networkx
 from sortedcontainers import SortedDict
 
 import claripy
@@ -49,10 +50,9 @@ class DecodingAssumption:
     """
     Describes the decoding mode (ARM/THUMB) for a given basic block identified by its address.
     """
-    def __init__(self, addr: int, size: int, parent_block_addr: Optional[int], mode: int):
+    def __init__(self, addr: int, size: int, mode: int):
         self.addr = addr
         self.size = size
-        self.parent_block_addr = parent_block_addr
         self.mode = mode
         self.attempted_arm = mode == ARMDecodingMode.ARM
         self.attempted_thumb = mode == ARMDecodingMode.THUMB
@@ -1162,6 +1162,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         # assumption management
         self._decoding_assumptions: Dict[int,DecodingAssumption] = { }
+        self._decoding_assumption_relations = networkx.DiGraph()
 
         # register read-only regions to PyVEX
         self._lifter_register_readonly_regions()
@@ -3859,6 +3860,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             addr &= ~1
                         else:
                             # we have attempted THUMB mode and failed to decode.
+                            if cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL and \
+                                    cfg_job.jumpkind in {'Ijk_Boring', 'Ijk_FakeRet'} and \
+                                    cfg_job.src_node is not None:
+                                self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xffff_fffe)
                             return None, None, None, None
                     elif assumption.attempted_arm:
                         switch_mode_on_nodecode = False
@@ -3869,6 +3874,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             addr |= 1
                         else:
                             # we have attempted ARM mode and failed to decode.
+                            if cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL and \
+                                    cfg_job.jumpkind == 'Ijk_Boring' and \
+                                    cfg_job.src_node is not None:
+                                self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xffff_fffe)
                             return None, None, None, None
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
@@ -3937,8 +3946,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         assumption = DecodingAssumption(
                             real_addr,
                             max(irsb.size, 1) if irsb is not None else 1,
-                            src_node_realaddr if cfg_job.jumpkind != "Ijk_FakeRet" else None,
                             ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
+                        if cfg_job.jumpkind != "Ijk_Call":
+                            self._decoding_assumption_relations.add_edge(src_node_realaddr, real_addr)
                         self._decoding_assumptions[real_addr] = assumption
                 elif cfg_job.job_type in (CFGJob.JOB_TYPE_FUNCTION_PROLOGUE, CFGJob.JOB_TYPE_COMPLETE_SCANNING):
                     # this is the source of assumptions. it might be wrong!
@@ -3955,7 +3965,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         else:
                             assumption.attempted_arm = True
                     else:
-                        assumption = DecodingAssumption(real_addr, max(irsb.size, 1) if irsb is not None else 1, None,
+                        assumption = DecodingAssumption(real_addr, max(irsb.size, 1) if irsb is not None else 1,
                                                         ARMDecodingMode.THUMB if is_thumb else ARMDecodingMode.ARM)
                         self._decoding_assumptions[real_addr] = assumption
 
@@ -4117,28 +4127,63 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     gp_value = self._gp_value  # fallback to a previously found value
                 func.info['gp'] = gp_value
 
-    def _cascading_remove_lifted_blocks(self, addr: int):
-        removed = set()
-        while True:
-            assumption = self._decoding_assumptions.get(addr)
-            if assumption is None:
-                break
+    def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> Set[int]:
+        to_remove = {addr}
+        queue = [addr]
+        while queue:
+            assumption_addr = queue.pop(0)
+            # find parents of this assumption
+            if assumption_addr in self._decoding_assumption_relations:
+                for pred_addr in self._decoding_assumption_relations.predecessors(assumption_addr):
+                    if pred_addr not in to_remove and pred_addr not in queue:
+                        to_remove.add(pred_addr)
+                        queue.append(pred_addr)
+                # find children of this assumption
+                if include_successors:
+                    for succ_addr in self._decoding_assumption_relations.successors(assumption_addr):
+                        if succ_addr not in to_remove and succ_addr not in queue:
+                            to_remove.add(succ_addr)
+                            queue.append(succ_addr)
+        return to_remove
 
-            removed.add(assumption.addr)
+    def _cascading_remove_lifted_blocks(self, addr: int):
+
+        # first let's consider both predecessors and successors
+        to_remove = self._extract_node_cluster_by_dependency(addr, include_successors=True)
+
+        BLOCK_REMOVAL_LIMIT = 20
+        if len(to_remove) > BLOCK_REMOVAL_LIMIT:
+            # we are removing too many blocks, which means we are probably removing legitimate blocks
+            # let's try only considering predecessors
+            to_remove = self._extract_node_cluster_by_dependency(addr, include_successors=False)
+
+            if len(to_remove) > BLOCK_REMOVAL_LIMIT:
+                # still too many... give up
+                return
+
+        for assumption_addr in to_remove:
+            # remove this assumption from the graph (since we may have new relationships formed later)
+            if assumption_addr in self._decoding_assumption_relations:
+                self._decoding_assumption_relations.remove_node(assumption_addr)
+
+            assumption = self._decoding_assumptions.get(assumption_addr)
+            if assumption is None:
+                continue
+
             self._seg_list.release(assumption.addr, assumption.size)
             if assumption.data_segs:
                 for data_seg_addr, data_seg_size in assumption.data_segs:
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
             try:
-                existing_node = self._nodes[addr]
-                self._model.remove_node(addr, existing_node)
+                existing_node = self._nodes[assumption_addr]
+                self._model.remove_node(assumption_addr, existing_node)
             except KeyError:
                 existing_node = None
             if existing_node is None:
                 try:
-                    existing_node = self._nodes[addr + 1]
-                    self._model.remove_node(addr + 1, existing_node)
+                    existing_node = self._nodes[assumption_addr + 1]
+                    self._model.remove_node(assumption_addr + 1, existing_node)
                 except KeyError:
                     existing_node = None
 
@@ -4159,10 +4204,6 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                 # remove traced addresses
                 self._traced_addresses.discard(assumption.addr)
-
-            addr = assumption.parent_block_addr
-            if addr is None or addr in removed:
-                break
 
     def _mips_determine_function_gp(self, addr: int, irsb: pyvex.IRSB, func_addr: int) -> Optional[int]:
         # check if gp is being written to
