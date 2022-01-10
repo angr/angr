@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long,missing-class-docstring
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
@@ -1452,7 +1453,7 @@ class CConstant(CExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for ty, v in self.reference_values.items():
+            for ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode('utf-8')), self
                     return
@@ -1785,9 +1786,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         base = expr.lhs
                         offset = expr.rhs
                 elif isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CVariable):
-                        # GUESS: we need some guessing here
-                        base = expr.lhs
-                        offset = expr.rhs
+                    # GUESS: we need some guessing here
+                    base = expr.lhs
+                    offset = expr.rhs
                 return base, offset
         elif isinstance(expr, CVariable):
             return expr, 0
