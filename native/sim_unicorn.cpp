@@ -2191,9 +2191,7 @@ uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
 	// Truncate count of bytes to read if request exceeds number left in the "stream"
 	auto actual_count = std::min(count, fd_det.len - fd_det.curr_pos);
 	memcpy(buf, fd_det.bytes + fd_det.curr_pos, actual_count);
-	if (!stopped) {
-		fd_det.curr_pos += actual_count;
-	}
+	fd_det.curr_pos += actual_count;
 	return actual_count;
 }
 
