@@ -4,6 +4,10 @@ from .base import PeepholeOptimizationExprBase
 
 
 class ConstantDereferences(PeepholeOptimizationExprBase):
+    """
+    Dereferences constant memory loads from read-only memory regions.
+    """
+
     __slots__ = ()
 
     name = "Dereference constant references"
@@ -21,6 +25,6 @@ class ConstantDereferences(PeepholeOptimizationExprBase):
                 except KeyError:
                     return expr
 
-                return Const(None, None, val, expr.size * self.project.arch.byte_width, **expr.tags)
+                return Const(None, None, val, expr.bits, **expr.tags)
 
         return None

@@ -4,6 +4,9 @@ from .base import PeepholeOptimizationExprBase
 
 
 class EagerEvaluation(PeepholeOptimizationExprBase):
+    """
+    Eagerly evaluates certain types of expressions.
+    """
     __slots__ = ()
 
     name = "Eager expression evaluation"
@@ -14,7 +17,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
         if expr.op == "Add" \
                 and isinstance(expr.operands[0], Const) \
                 and isinstance(expr.operands[1], Const):
-            mask = (2 >> expr.bits) - 1
+            mask = (2 << expr.bits) - 1
             new_expr = Const(expr.idx, None,
                              (expr.operands[0].value + expr.operands[1].value) & mask,
                              expr.bits,
