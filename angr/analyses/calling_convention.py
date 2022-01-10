@@ -15,6 +15,7 @@ from ..knowledge_plugins.variables.variable_access import VariableAccessSort
 from ..utils.constants import DEFAULT_STATEMENT
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
+from .reaching_definitions.function_handler import FunctionHandler
 from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
@@ -24,7 +25,6 @@ if TYPE_CHECKING:
     from ..knowledge_plugins.key_definitions.definition import Definition
 
 l = logging.getLogger(name=__name__)
-
 
 
 class CallSiteFact:
@@ -43,6 +43,19 @@ class UpdateArgumentsOption:
     DoNotUpdate = 0
     AlwaysUpdate = 1
     UpdateWhenCCHasNoArgs = 2
+
+
+class DummyFunctionHandler(FunctionHandler):
+    def handle_local_function(self,
+                              state: 'ReachingDefinitionsState',
+                              function_address: int, call_stack: Optional[List],
+                              maximum_local_call_depth: int,
+                              visited_blocks: Set[int],
+                              dep_graph: 'DepGraph',
+                              src_ins_addr: Optional[int] = None,
+                              codeloc: Optional['CodeLocation'] = None
+                              ) -> Tuple[bool, "ReachingDefinitionsState", "Set[int]", "DepGraph"]:
+        return False, state, visited_blocks, dep_graph
 
 
 class CallingConventionAnalysis(Analysis):
@@ -246,6 +259,7 @@ class CallingConventionAnalysis(Analysis):
                         ('insn', call_insn_addr, OP_BEFORE),
                         ('node', caller_block_addr, OP_AFTER)
                     ],
+                    function_handler=DummyFunctionHandler(),
                 )
                 # rda_model: Optional[ReachingDefinitionsModel] = self.kb.defs.get_model(caller.addr)
                 fact = self._analyze_callsite(caller_block_addr, call_insn_addr, rda.model)
