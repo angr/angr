@@ -324,13 +324,13 @@ class VariableManagerInternal(Serializable):
                 non_phis.add(var)
         if len(existing_phis) == 1:
             existing_phi = next(iter(existing_phis))
-            if non_phis.issubset(self.get_phi_subvariables(existing_phi)):
-                return existing_phi
-            else:
-                # Update phi variables
-                self._phi_variables[existing_phi] |= non_phis
+            if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
+                if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
+                    # Update the variables that this phi variable represents
+                    self._phi_variables[existing_phi] |= non_phis
                 return existing_phi
 
+        # allocate a new phi variable
         repre = next(iter(variables))
         repre_type = type(repre)
         if repre_type is SimRegisterVariable:
