@@ -727,13 +727,28 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 0:
-                # this is a local variable
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
-                if 'reference_variable' in expr.addr.tags and expr.addr.reference_variable is not None:
-                    # copy over the variable to this expr since the variable on a constant is supposed to be a
-                    # reference variable.
-                    expr.variable = expr.addr.reference_variable
-                    expr.variable_offset = expr.addr.reference_variable_offset
+                # if it's a constant addr, maybe it's referencing an extern location
+                if isinstance(expr.addr, ailment.Expr.Const):
+                    symbol = self.project.loader.find_symbol(expr.addr.value)
+                    if symbol is not None:
+                        print(symbol)
+                        # Create a new global variable if there isn't one already
+                        global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                        if global_vars:
+                            global_var = next(iter(global_vars))
+                        else:
+                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                            global_variables.add_variable('global', global_var.addr, global_var)
+                        expr.variable = global_var
+                        expr.variable_offset = 0
+                else:
+                    # this is a local variable
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
+                    if 'reference_variable' in expr.addr.tags and expr.addr.reference_variable is not None:
+                        # copy over the variable to this expr since the variable on a constant is supposed to be a
+                        # reference variable.
+                        expr.variable = expr.addr.reference_variable
+                        expr.variable_offset = expr.addr.reference_variable_offset
             else:
                 if len(variables) > 1:
                     l.error("More than one variable are available for atom %s. Consider fixing it using phi nodes.",
@@ -795,8 +810,6 @@ class Clinic(Analysis):
                 var = next(iter(variables))
                 expr.tags['reference_variable'] = var
                 expr.tags['reference_variable_offset'] = None
-                expr.variable = var
-                expr.variable_offset = None
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
