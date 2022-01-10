@@ -106,7 +106,7 @@ def test_smoketest():
     st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
 
     # simplify it
-    _ = p.analyses.RegionSimplifier(st.result)
+    _ = p.analyses.RegionSimplifier(main_func, st.result)
 
 
 def test_smoketest_cm3_firmware():
@@ -144,7 +144,7 @@ def test_simple():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(main_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg)
     print(codegen.text)
@@ -167,7 +167,7 @@ def test_simple_loop():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
     print(codegen.text)
@@ -193,7 +193,7 @@ def test_recursive_structuring():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
     print(codegen.text)
@@ -216,7 +216,7 @@ def test_while_true_break():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
 
@@ -240,7 +240,7 @@ def test_while():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
 
