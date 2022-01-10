@@ -1061,17 +1061,18 @@ class CVariable(CExpression):
             yield from self._c_repr_array_access_with_offset(v, v_type, self_type, offset)
             return
 
+        elif isinstance(v, SimMemoryVariable) and isinstance(v.addr, int):
+            # loading from a global memory variable
+            yield from self._c_repr_variable(v)
+            return
+
         #
         # other cases
         #
         bracket = CClosingObject("[")
-        paren = CClosingObject("(")
 
         # cast the variable to a pointer
-        yield "(unsigned int *)", None
-        yield "(", paren
         yield from self._c_repr_variable(v)
-        yield ")", paren
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.offset)
         yield "]", bracket
