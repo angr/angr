@@ -1260,6 +1260,30 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                                                     lambda tpl: tpl[3],
                                                                     )
 
+            # make sure we don't jump to the beginning of another function with a different mode
+            filtered_successors = [ ]
+            for successor in successors:
+                addr_v = successor[2]
+                if isinstance(addr_v, pyvex.expr.Const):
+                    addr = addr_v.con.value
+                elif isinstance(addr_v, int):
+                    addr = addr_v
+                else:
+                    # do nothing
+                    filtered_successors.append(successor)
+                    continue
+                if addr % 2 == 1:
+                    # THUMB mode - test if there is an existing ARM function
+                    addr_to_test = addr - 1
+                else:
+                    # ARM mode - test if there is an existing THUMB function
+                    addr_to_test = addr + 1
+                if self.functions.contains_addr(addr_to_test):
+                    # oops. skip it
+                    continue
+                filtered_successors.append(successor)
+            successors = filtered_successors
+
         return successors
 
     def _post_job_handling(self, job, new_jobs, successors):
@@ -1345,6 +1369,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # if this is ARM and addr % 4 != 0, it has to be THUMB
                 if is_arm_arch(self.project.arch):
                     if addr % 2 == 0 and addr % 4 != 0:
+                        # it's not aligned by 4, so it's definitely not ARM mode
                         addr |= 1
                     else:
                         # load 8 bytes and test with THUMB-mode prologues
@@ -1355,14 +1380,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if any(re.match(prolog, bytes_prefix) for prolog in self.project.arch.thumb_prologs):
                             addr |= 1
 
-                    # another heuristics: take a look at the closest function. if it's THUMB mode, this address should
-                    # be THUMB, too.
-                    func = self.functions.floor_func(addr)
-                    if func is None:
-                        func = self.functions.ceiling_func(addr)
-                    if func is not None and func.addr % 2 == 1:
-                        addr |= 1
-                        # print(f"GUESSING: {hex(addr)} because of function {repr(func)}.")
+                    if addr % 2 == 0:
+                        # another heuristics: take a look at the closest function. if it's THUMB mode, this address should
+                        # be THUMB, too.
+                        func = self.functions.floor_func(addr)
+                        if func is None:
+                            func = self.functions.ceiling_func(addr)
+                        if func is not None and func.addr % 2 == 1:
+                            addr |= 1
+                            # print(f"GUESSING: {hex(addr)} because of function {repr(func)}.")
 
                 job = CFGJob(addr, addr, "Ijk_Boring", last_addr=None, job_type=CFGJob.JOB_TYPE_COMPLETE_SCANNING)
                 self._insert_job(job)
@@ -3072,6 +3098,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         removed_nodes = set()
 
         a = None  # it always hold the very recent non-removed node
+        is_arm = is_arm_arch(self.project.arch)
 
         for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
 
@@ -3087,12 +3114,20 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 # skip all removed nodes
                 continue
 
-            if a.addr <= b.addr and \
-                    (a.addr + a.size > b.addr):
+            # handle ARM vs THUMB...
+            if is_arm:
+                a_real_addr = a.addr & 0xffff_fffe
+                b_real_addr = b.addr & 0xffff_fffe
+            else:
+                a_real_addr = a.addr
+                b_real_addr = b.addr
+
+            if a_real_addr <= b_real_addr < a_real_addr + a.size:
                 # They are overlapping
 
                 try:
-                    block = self.project.factory.fresh_block(a.addr, b.addr - a.addr, backup_state=self._base_state)
+                    block = self.project.factory.fresh_block(a.addr, b_real_addr - a_real_addr,
+                                                             backup_state=self._base_state)
                 except SimTranslationError:
                     a = b
                     continue
@@ -3837,7 +3872,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     return None, None, None, None
 
             distance = VEX_IRSB_MAX_SIZE
-            # if there is exception handling code, check the distance between `addr` and the cloest ending address
+            # if there is exception handling code, check the distance between `addr` and the closest ending address
             if self._exception_handling_by_endaddr:
                 next_end = next(self._exception_handling_by_endaddr.irange(minimum=real_addr), None)
                 if next_end is not None:
