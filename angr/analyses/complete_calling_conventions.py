@@ -98,7 +98,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         continue
 
                 # determine the calling convention of each function
-                cc_analysis = self.project.analyses.CallingConvention(func, cfg=self._cfg,
+                cc_analysis = self.project.analyses.CallingConvention(func, cfg=self._cfg, kb=self.kb,
                                                                       analyze_callsites=self._analyze_callsites)
                 if cc_analysis.cc is not None:
                     _l.info("Determined calling convention and prototype for %r.", func)

@@ -205,15 +205,13 @@ class SimEngineRDVEX(
                     tags = None
                 elif self.state.is_stack_address(a):
                     atom = MemoryLocation(SpOffset(self.arch.bits, self.state.get_stack_offset(a)), size)
-                    function_address = (
-                        self.project.kb
-                            .cfgs.get_most_accurate()
-                            .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
-                            .function_address
-                    )
+                    function_address = None  # we cannot get the function address in the middle of a store if a CFG
+                                             # does not exist. you should backpatch the function address later using
+                                             # the 'ins_addr' metadata entry.
                     tags = {LocalVariableTag(
                         function=function_address,
-                        metadata={'tagged_by': 'SimEngineRDVEX._store_core'}
+                        metadata={'tagged_by': 'SimEngineRDVEX._store_core',
+                                  'ins_addr': self.ins_addr}
                     )}
 
                 elif self.state.is_heap_address(a):
