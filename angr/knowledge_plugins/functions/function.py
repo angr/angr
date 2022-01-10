@@ -19,7 +19,6 @@ from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 from ...protos import function_pb2
 from ...calling_conventions import DEFAULT_CC
-from ...sim_type import SimTypeFloat, SimTypeDouble
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
@@ -1372,7 +1371,16 @@ class Function(Serializable):
             return
 
         proto = library.get_prototype(self.name)
+        if self.project is None:
+            # we need to get arch from self.project
+            l.warning("Function %s does not have .project set. A possible prototype is found, but we cannot set it "
+                      "without .project.arch.")
+            return
         self.prototype = proto.with_arch(self.project.arch)
+
+        # update self.calling_convention if necessary
+        if self.calling_convention is None and self.project.arch.name in library.default_ccs:
+            self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
 
     @staticmethod
     def _addr_to_funcloc(addr):

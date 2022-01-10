@@ -86,9 +86,14 @@ class CallingConventionAnalysis(Analysis):
         """
 
         if self._function.is_simprocedure:
+            if self._function.prototype is None:
+                # try our luck
+                self._function.find_declaration()
+
             self.cc = self._function.calling_convention
             self.prototype = self._function.prototype
-            if self.cc is None:
+
+            if self.cc is None or self.prototype is None:
                 callsite_facts = self._analyze_callsites(max_analyzing_callsites=1)
                 cc = DefaultCC[self.project.arch.name](self.project.arch)
                 prototype = self._adjust_prototype(self.prototype, callsite_facts,
@@ -144,9 +149,13 @@ class CallingConventionAnalysis(Analysis):
             real_func = None
 
         if real_func is not None:
-            if real_func.is_simprocedure and self.project.is_hooked(real_func.addr):
-                hooker = self.project.hooked_by(real_func.addr)
-                if hooker is not None and not hooker.is_stub:
+            if real_func.is_simprocedure:
+                if self.project.is_hooked(real_func.addr):
+                    # prioritize the hooker
+                    hooker = self.project.hooked_by(real_func.addr)
+                    if hooker is not None and not hooker.is_stub:
+                        return real_func.calling_convention, real_func.prototype
+                if real_func.calling_convention and real_func.prototype:
                     return real_func.calling_convention, real_func.prototype
             else:
                 return real_func.calling_convention, real_func.prototype
