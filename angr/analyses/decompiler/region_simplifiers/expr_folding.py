@@ -100,7 +100,7 @@ class ExpressionCounter(SequenceWalker):
 
         self.assignments = defaultdict(set)
         self.uses = { }
-        self._variable_manger: VariableManagerInternal = variable_manager
+        self._variable_manger: 'VariableManagerInternal' = variable_manager
 
         super().__init__(handlers)
         self.walk(node)
