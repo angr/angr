@@ -39,10 +39,17 @@ l = logging.getLogger(name=__name__)
 
 
 class ContinueScanningNotification(RuntimeError):
+    """
+    A notification raised by _next_code_addr_core() to indicate no code address is found and _next_code_addr_core()
+    should be invoked again.
+    """
     pass
 
 
 class ARMDecodingMode:
+    """
+    Enums indicating decoding mode for ARM code.
+    """
     ARM = 0
     THUMB = 1
 
@@ -242,6 +249,9 @@ class PendingJobs:
 
 
 class FunctionEdge:
+    """
+    Describes an edge in functions' transition graphs. Base class for all types of edges.
+    """
     __slots__ = ('src_func_addr', 'stmt_idx', 'ins_addr',)
 
     def apply(self, cfg):
@@ -249,6 +259,9 @@ class FunctionEdge:
 
 
 class FunctionTransitionEdge(FunctionEdge):
+    """
+    Describes a transition edge in functions' transition graphs.
+    """
 
     __slots__ = ('src_node', 'dst_addr', 'src_func_addr', 'to_outside', 'dst_func_addr', 'is_exception', )
 
@@ -283,6 +296,9 @@ class FunctionTransitionEdge(FunctionEdge):
 
 
 class FunctionCallEdge(FunctionEdge):
+    """
+    Describes a call edge in functions' transition graphs.
+    """
 
     __slots__ = ('src_node', 'dst_addr', 'ret_addr', 'syscall')
 
@@ -307,6 +323,9 @@ class FunctionCallEdge(FunctionEdge):
 
 
 class FunctionFakeRetEdge(FunctionEdge):
+    """
+    Describes a FakeReturn (also called fall-through) edge in functions' transition graphs.
+    """
 
     __slots__ = ('src_node', 'dst_addr', 'confirmed')
 
@@ -326,6 +345,9 @@ class FunctionFakeRetEdge(FunctionEdge):
 
 
 class FunctionReturnEdge(FunctionEdge):
+    """
+    Describes a return (from a function call or a syscall) edge in functions' transition graphs.
+    """
 
     __slots__ = ('ret_from_addr', 'ret_to_addr', 'dst_func_addr')
 
@@ -1381,8 +1403,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             addr |= 1
 
                     if addr % 2 == 0:
-                        # another heuristics: take a look at the closest function. if it's THUMB mode, this address should
-                        # be THUMB, too.
+                        # another heuristics: take a look at the closest function. if it's THUMB mode, this address
+                        # should be THUMB, too.
                         func = self.functions.floor_func(addr)
                         if func is None:
                             func = self.functions.ceiling_func(addr)
