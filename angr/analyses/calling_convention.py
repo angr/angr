@@ -230,9 +230,9 @@ class CallingConventionAnalysis(Analysis):
             edge_type = data.get('jumpkind', 'Ijk_Call')
             if edge_type != 'Ijk_Call':
                 continue
-            if not self.project.kb.functions.contains_addr(src.function_address):
+            if not self.kb.functions.contains_addr(src.function_address):
                 continue
-            caller = self.project.kb.functions[src.function_address]
+            caller = self.kb.functions[src.function_address]
             if caller.is_simprocedure:
                 # do not analyze SimProcedures
                 continue
@@ -249,7 +249,7 @@ class CallingConventionAnalysis(Analysis):
             # call.
             for call_site_tuple in call_site_tuples:
                 caller_block_addr, call_insn_addr = call_site_tuple
-                func = self.project.kb.functions[caller.addr]
+                func = self.kb.functions[caller.addr]
                 subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
 
                 rda = self.project.analyses.ReachingDefinitions(
