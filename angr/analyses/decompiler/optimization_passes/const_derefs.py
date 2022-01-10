@@ -105,7 +105,7 @@ class BlockWalker(AILBlockWalker):
                                                             )
                 if w is not None:
                     # nice! replace it with the actual value
-                    return Const(None, None, w, expr.size, **expr.tags)
+                    return Const(None, None, w, expr.bits, **expr.tags)
         elif isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
             if isinstance(expr.addr.addr, Const):
                 # *(*(const_addr))
