@@ -2237,10 +2237,12 @@ void State::perform_cgc_receive() {
 		free(tmp_buf);
 		return;
 	}
-	uc_mem_write(uc, buf, tmp_buf, actual_count);
+	if (actual_count > 0) {
+		uc_mem_write(uc, buf, tmp_buf, actual_count);
+		// Mark buf as symbolic
+		handle_write(buf, actual_count, true, true);
+	}
 	free(tmp_buf);
-	// Mark buf as symbolic
-	handle_write(buf, actual_count, true, true);
 	err = uc_mem_write(uc, rx_bytes, &actual_count, 4);
 	if (err == UC_ERR_OK) {
 		// Setting rx_bytes succeeded. Mark rx_bytes as concrete.
@@ -2251,44 +2253,46 @@ void State::perform_cgc_receive() {
 	uc_reg_write(uc, UC_X86_REG_EAX, &count);
 	step(cgc_receive_bbl, 0, false);
 	commit();
-	// Save a block with an instruction to track that the receive syscall needs to be re-executed. The instruction data
-	// is used only to work with existing mechanism to return data to python.
-	// Save all non-symbolic register arguments needed for syscall.
-	block_details_t block_for_receive;
-	block_for_receive.block_addr = cgc_receive_bbl;
-	block_for_receive.block_size = 0;
-	instr_details_t instr_for_receive;
-	// First argument: ebx
-	register_value_t reg_val;
-	if (!is_symbolic_register(20, 4)) {
-		reg_val.offset = 20;
-		reg_val.size = 4;
-		get_register_value(reg_val.offset, reg_val.value);
-		instr_for_receive.reg_deps.emplace(reg_val);
+	if (actual_count > 0) {
+		// Save a block with an instruction to track that the receive syscall needs to be re-executed. The instruction
+		// data is used only to work with existing mechanism to return data to python.
+		// Save all non-symbolic register arguments needed for syscall.
+		block_details_t block_for_receive;
+		block_for_receive.block_addr = cgc_receive_bbl;
+		block_for_receive.block_size = 0;
+		instr_details_t instr_for_receive;
+		// First argument: ebx
+		register_value_t reg_val;
+		if (!is_symbolic_register(20, 4)) {
+			reg_val.offset = 20;
+			reg_val.size = 4;
+			get_register_value(reg_val.offset, reg_val.value);
+			instr_for_receive.reg_deps.emplace(reg_val);
+		}
+		// Second argument: ecx
+		if (!is_symbolic_register(12, 4)) {
+			reg_val.offset = 12;
+			reg_val.size = 4;
+			get_register_value(reg_val.offset, reg_val.value);
+			instr_for_receive.reg_deps.emplace(reg_val);
+		}
+		// Third argument: edx
+		if (!is_symbolic_register(16, 4)) {
+			reg_val.offset = 16;
+			reg_val.size = 4;
+			get_register_value(reg_val.offset, reg_val.value);
+			instr_for_receive.reg_deps.emplace(reg_val);
+		}
+		// Fourth argument: esi
+		if (!is_symbolic_register(32, 4)) {
+			reg_val.offset = 32;
+			reg_val.size = 4;
+			get_register_value(reg_val.offset, reg_val.value);
+			instr_for_receive.reg_deps.emplace(reg_val);
+		}
+		block_for_receive.symbolic_instrs.emplace_back(instr_for_receive);
+		blocks_with_symbolic_instrs.emplace_back(block_for_receive);
 	}
-	// Second argument: ecx
-	if (!is_symbolic_register(12, 4)) {
-		reg_val.offset = 12;
-		reg_val.size = 4;
-		get_register_value(reg_val.offset, reg_val.value);
-		instr_for_receive.reg_deps.emplace(reg_val);
-	}
-	// Third argument: edx
-	if (!is_symbolic_register(16, 4)) {
-		reg_val.offset = 16;
-		reg_val.size = 4;
-		get_register_value(reg_val.offset, reg_val.value);
-		instr_for_receive.reg_deps.emplace(reg_val);
-	}
-	// Fourth argument: esi
-	if (!is_symbolic_register(32, 4)) {
-		reg_val.offset = 32;
-		reg_val.size = 4;
-		get_register_value(reg_val.offset, reg_val.value);
-		instr_for_receive.reg_deps.emplace(reg_val);
-	}
-	block_for_receive.symbolic_instrs.emplace_back(instr_for_receive);
-	blocks_with_symbolic_instrs.emplace_back(block_for_receive);
 	interrupt_handled = true;
 	syscall_count++;
 	return;
