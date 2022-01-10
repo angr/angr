@@ -94,7 +94,19 @@ class BlockWalker(AILBlockWalker):
         return None
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block):
-        if isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
+        if isinstance(expr.addr, Const):
+            # *(const_addr)
+            # does it belong to a read-only section/segment?
+            if self._addr_belongs_to_got(expr.addr.value) or \
+                    self._addr_belongs_to_ro_region(expr.addr.value):
+                w = self._project.loader.memory.unpack_word(expr.addr.value,
+                                                            expr.addr.bits // self._project.arch.byte_width,
+                                                            endness=self._project.arch.memory_endness
+                                                            )
+                if w is not None:
+                    # nice! replace it with the actual value
+                    return Const(None, None, w, expr.size, **expr.tags)
+        elif isinstance(expr.addr, Load) and expr.addr.bits == self._project.arch.bits:
             if isinstance(expr.addr.addr, Const):
                 # *(*(const_addr))
                 # does it belong to a read-only section/segment?
@@ -116,14 +128,16 @@ class BlockWalker(AILBlockWalker):
                                     alt=expr.alt,
                                     **expr.tags
                                     )
-        return None
+
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block):
         new_operands = [ self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block),
                          self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block),
                          ]
         if any(op is not None for op in new_operands):
-            new_operands = [(new_op if new_op is not None else old_op) for new_op, old_op in zip(new_operands, expr.operands)]
+            new_operands = [(new_op if new_op is not None else old_op) for new_op, old_op in zip(new_operands,
+                                                                                                 expr.operands)]
             return BinaryOp(expr.idx, expr.op,
                             new_operands,
                             expr.signed,
@@ -168,7 +182,7 @@ class ConstantDereferencesSimplifier(OptimizationPass):
     """
 
     # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = ["X86", "AMD64", "ARM"]
+    ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM"]
     PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
