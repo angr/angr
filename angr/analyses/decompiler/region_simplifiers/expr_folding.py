@@ -1,6 +1,6 @@
 # pylint:disable=missing-class-docstring,unused-argument
 from collections import defaultdict
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, TYPE_CHECKING
 
 import ailment
 from ailment import Expression, Block
@@ -8,7 +8,11 @@ from ailment.statement import Statement
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import ConditionNode, ConditionalBreakNode
+from ..structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode
+
+if TYPE_CHECKING:
+    from angr.sim_variable import SimVariable
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 
 class LocationBase:
@@ -86,43 +90,77 @@ class ExpressionCounter(SequenceWalker):
     """
     Find all expressions that are assigned once and only used once.
     """
-    def __init__(self, node):
+    def __init__(self, node, variable_manager):
         handlers = {
             ConditionalBreakNode: self._handle_ConditionalBreak,
+            ConditionNode: self._handle_Condition,
+            LoopNode: self._handle_Loop,
             ailment.Block: self._handle_Block,
         }
 
         self.assignments = defaultdict(set)
         self.uses = { }
+        self._variable_manger: 'VariableManagerInternal' = variable_manager
 
         super().__init__(handlers)
         self.walk(node)
+
+    def _u(self, v) -> Optional['SimVariable']:
+        """
+        Get unified variable for a given variable.
+        """
+
+        return self._variable_manger.unified_variable(v)
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # find assignments
         for idx, stmt in enumerate(node.statements):
             if isinstance(stmt, ailment.Stmt.Assignment):
                 if isinstance(stmt.dst, ailment.Expr.Register) and stmt.dst.variable is not None:
-                    self.assignments[stmt.dst.variable].add((stmt.src, StatementLocation(node.addr, node.idx, idx)))
+                    u = self._u(stmt.dst.variable)
+                    if u is not None:
+                        # dependency
+                        dependencies = [ ]
+                        if isinstance(stmt.src, ailment.Expr.Register):
+                            dep_u = self._u(stmt.src.variable)
+                            if dep_u is not None:
+                                dependencies.append(dep_u)
+                        # TODO: Replace the above logic with an expression walker
+                        self.assignments[u].add((stmt.src,
+                                                 tuple(dependencies),
+                                                 StatementLocation(node.addr, node.idx, idx)))
             if (isinstance(stmt, ailment.Stmt.Call)
                     and isinstance(stmt.ret_expr, ailment.Expr.Register)
                     and stmt.ret_expr.variable is not None):
-                self.assignments[stmt.ret_expr.variable].add((stmt, StatementLocation(node.addr, node.idx, idx)))
+                u = self._u(stmt.ret_expr.variable)
+                if u is not None:
+                    self.assignments[u].add((stmt,
+                                             (),
+                                             StatementLocation(node.addr, node.idx, idx)))
 
         # walk the block and find uses of variables
         use_finder = ExpressionUseFinder()
         use_finder.walk(node)
-        self.uses.update(dict(use_finder.uses))
+
+        for v, content in use_finder.uses.items():
+            u = self._u(v)
+            if u is not None:
+                if u not in self.uses:
+                    self.uses[u] = set()
+                self.uses[u] |= content
 
     def _collect_uses(self, expr: Expression, loc: LocationBase):
         use_finder = ExpressionUseFinder()
         use_finder.walk_expression(expr, stmt_idx=-1)
 
         for var, uses in use_finder.uses.items():
+            u = self._u(var)
+            if u is None:
+                continue
             for use in uses:
-                if var not in self.uses:
-                    self.uses[var] = set()
-                self.uses[var].add((use[0], loc))
+                if u not in self.uses:
+                    self.uses[u] = set()
+                self.uses[u].add((use[0], loc))
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         # collect uses on the condition expression
@@ -133,6 +171,16 @@ class ExpressionCounter(SequenceWalker):
         # collect uses on the condition expression
         self._collect_uses(node.condition, ConditionLocation(node.addr))
         return super()._handle_Condition(node, **kwargs)
+
+    def _handle_Loop(self, node: LoopNode, **kwargs):
+        # collect uses on the condition expression
+        if node.initializer is not None:
+            self._collect_uses(node.initializer, ConditionLocation(node.addr))
+        if node.iterator is not None:
+            self._collect_uses(node.iterator, ConditionLocation(node.addr))
+        if node.condition is not None:
+            self._collect_uses(node.condition, ConditionLocation(node.addr))
+        return super()._handle_Loop(node, **kwargs)
 
 
 class ExpressionReplacer(AILBlockWalker):
@@ -198,3 +246,26 @@ class ExpressionFolder(SequenceWalker):
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_Condition(node, **kwargs)
+
+    def _handle_Loop(self, node: LoopNode, **kwargs):
+        replacer = ExpressionReplacer(self._assignments, self._uses)
+
+        # iterator
+        if node.iterator is not None:
+            r = replacer.walk_expression(node.iterator)
+            if r is not None and r is not node.iterator:
+                node.iterator = r
+
+        # initializer
+        if node.initializer is not None:
+            r = replacer.walk_expression(node.initializer)
+            if r is not None and r is not node.initializer:
+                node.initializer = r
+
+        # condition
+        if node.condition is not None:
+            r = replacer.walk_expression(node.condition)
+            if r is not None and r is not node.condition:
+                node.condition = r
+
+        return super()._handle_Loop(node, **kwargs)
