@@ -688,6 +688,9 @@ class SimEngineVRBase(SimEngineLight):
             existing_vars = { (var, (offset, elem_size)) for var in variable_manager.get_global_variables(addr) }
 
         if not existing_vars:
+            # is this address mapped?
+            if self.project.loader.find_object_containing(addr) is None:
+                return
             variable = SimMemoryVariable(addr, size,
                                          ident=variable_manager.next_variable_ident('global'),
                                          )
