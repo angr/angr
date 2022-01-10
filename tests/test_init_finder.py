@@ -1,7 +1,6 @@
 
 import os
 
-import nose.tools
 
 import angr
 
@@ -22,11 +21,11 @@ def test_p2im_drone():
     overlay = init_finder.overlay
 
     # h12c1.Instance
-    nose.tools.assert_equal(state.solver.eval_one(overlay.load(0x20001500, 4, endness='Iend_LE')), 0x40005400)
+    assert state.solver.eval_one(overlay.load(0x20001500, 4, endness='Iend_LE')) == 0x40005400
     # hi2c1.Init.AddressingMode
-    nose.tools.assert_equal(state.solver.eval_one(overlay.load(0x20001500+4+0xc, 4, endness='Iend_LE')), 0x4000)
+    assert state.solver.eval_one(overlay.load(0x20001500+4+0xc, 4, endness='Iend_LE')) == 0x4000
     # h12c1.Init.NoStretchMode
-    nose.tools.assert_equal(state.solver.eval_one(overlay.load(0x20001500+4+0x1c, 4, endness='Iend_LE')), 0)
+    assert state.solver.eval_one(overlay.load(0x20001500+4+0x1c, 4, endness='Iend_LE')) == 0
 
 
 if __name__ == "__main__":

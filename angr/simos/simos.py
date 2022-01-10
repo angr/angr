@@ -58,7 +58,12 @@ class SimOS:
 
             base_state = self.state_blank(addr=0,
                 add_options={o.SYMBOL_FILL_UNCONSTRAINED_MEMORY, o.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
-            resolver = self.project.factory.callable(resolver_addr, concrete_only=True, base_state=base_state)
+            prototype = 'void *x(long)' if isinstance(self.arch, ArchS390X) else 'void *x(void)'
+            resolver = self.project.factory.callable(
+                resolver_addr,
+                concrete_only=True,
+                base_state=base_state,
+                prototype=prototype)
             try:
                 if isinstance(self.arch, ArchS390X):
                     # On s390x ifunc resolvers expect hwcaps.
@@ -246,6 +251,7 @@ class SimOS:
         stack_base = kwargs.pop('stack_base', None)
         alloc_base = kwargs.pop('alloc_base', None)
         grow_like_stack = kwargs.pop('grow_like_stack', True)
+        prototype = angr.calling_conventions.SimCC.guess_prototype(args, kwargs.pop('prototype', None)).with_arch(self.arch)
 
         if state is None:
             if stack_base is not None:
@@ -254,7 +260,7 @@ class SimOS:
         else:
             state = state.copy()
             state.regs.ip = addr
-        cc.setup_callsite(state, ret_addr, args, stack_base, alloc_base, grow_like_stack)
+        cc.setup_callsite(state, ret_addr, args, prototype, stack_base, alloc_base, grow_like_stack)
 
         if state.arch.name == 'PPC64' and toc is not None:
             state.regs.r2 = toc

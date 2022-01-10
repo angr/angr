@@ -16,6 +16,6 @@ class feof(angr.SimProcedure):
         simfd = self.state.posix.get_fd(fileno)
         if simfd is None:
             return None
-        return self.state.solver.If(simfd.eof(), self.state.solver.BVV(1, self.state.arch.bits), 0)
+        return self.state.solver.If(simfd.eof(), self.state.solver.BVV(1, self.arch.sizeof['int']), 0)
 
 feof_unlocked = feof

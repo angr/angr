@@ -1,8 +1,9 @@
 # pylint:disable=no-member
 import pickle
 import logging
-from typing import Optional, List, Dict, Tuple, TYPE_CHECKING
+from typing import Optional, List, Dict, Tuple
 from collections import defaultdict
+import bisect
 
 import networkx
 
@@ -25,12 +26,13 @@ class CFGModel(Serializable):
     """
 
     __slots__ = ('ident', 'graph', 'jump_tables', 'memory_data', 'insn_addr_to_memory_data', '_nodes_by_addr',
-                 '_nodes', '_cfg_manager', '_iropt_level', )
+                 '_nodes', '_cfg_manager', '_iropt_level', '_node_addrs', 'is_arm')
 
-    def __init__(self, ident, cfg_manager=None):
+    def __init__(self, ident, cfg_manager=None, is_arm=False):
 
         self.ident = ident
         self._cfg_manager = cfg_manager
+        self.is_arm = is_arm
 
         # Necessary settings
         self._iropt_level = None
@@ -51,6 +53,8 @@ class CFGModel(Serializable):
         self._nodes_by_addr = defaultdict(list)
         # CFGNodes dict indexed by block ID. Don't serialize
         self._nodes = { }
+        # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
+        self._node_addrs = [ ]
 
     #
     # Properties
@@ -144,6 +148,8 @@ class CFGModel(Serializable):
                     l.warning("Importing a CFG with more than one node for a given address is currently unsupported. "
                               "The resulting graph may be broken.")
 
+        model._node_addrs = list(sorted(model._nodes_by_addr.keys()))
+
         # edges
         for edge_pb2 in cmsg.edges:
             # more than one node at a given address is unsupported, grab the first one
@@ -172,7 +178,7 @@ class CFGModel(Serializable):
     #
 
     def copy(self):
-        model = CFGModel(self.ident, cfg_manager=self._cfg_manager)
+        model = CFGModel(self.ident, cfg_manager=self._cfg_manager, is_arm=self.is_arm)
         model.graph = networkx.DiGraph(self.graph)
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
@@ -181,6 +187,35 @@ class CFGModel(Serializable):
         model._nodes = self._nodes.copy()
 
         return model
+
+    #
+    # Node insertion and removal
+    #
+
+    def add_node(self, block_id: int, node: CFGNode) -> None:
+        self._nodes[block_id] = node
+        self._nodes_by_addr[node.addr].append(node)
+
+        if isinstance(node.addr, int):
+            pos = bisect.bisect_left(self._node_addrs, node.addr)
+            if pos >= len(self._node_addrs):
+                self._node_addrs.append(node.addr)
+            elif self._node_addrs[pos] != node.addr:
+                self._node_addrs.insert(pos, node.addr)
+
+    def remove_node(self, block_id: int, node: CFGNode) -> None:
+        if block_id in self._nodes:
+            del self._nodes[block_id]
+
+        if node.addr in self._nodes_by_addr:
+            self._nodes_by_addr[node.addr].remove(node)
+            if not self._nodes_by_addr[node.addr]:
+                del self._nodes_by_addr[node.addr]
+
+                if isinstance(node.addr, int):
+                    pos = bisect.bisect_left(self._node_addrs, node.addr)
+                    if pos < len(self._node_addrs) and self._node_addrs[pos] == node.addr:
+                        self._node_addrs.pop(pos)
 
     #
     # CFG View
@@ -211,16 +246,14 @@ class CFGModel(Serializable):
                                 isn't a syscall node.
         :param anyaddr:         If anyaddr is True, then addr doesn't have to be the beginning address of a basic
                                 block. By default the entire graph.nodes() will be iterated, and the first node
-                                containing the specific address is returned, which is slow. If you need to do many such
-                                queries, you may first call `generate_index()` to create some indices that may speed up
-                                the query.
+                                containing the specific address is returned, which can be slow.
         :param force_fastpath:  If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
                                 dict.
         :return:                A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
         # fastpath: directly look in the nodes list
-        if not anyaddr:
+        if not anyaddr or addr in self._nodes_by_addr:
             try:
                 return self._nodes_by_addr[addr][0]
             except (KeyError, IndexError):
@@ -229,33 +262,34 @@ class CFGModel(Serializable):
         if force_fastpath:
             return None
 
-        # slower path
-        #if self._node_lookup_index is not None:
-        #    pass
+        if isinstance(addr, int):
+            # slower path
+            # find all potential addresses that the block may cover
+            pos = bisect.bisect_left(self._node_addrs, max(addr - 400, 0))
 
-        # the slowest path
-        # try to show a warning first
-        # TODO: re-enable it once the segment tree is implemented
-        #if self._node_lookup_index_warned == False:
-        #    l.warning('Calling get_any_node() with anyaddr=True is slow on large programs. '
-        #              'For better performance, you may first call generate_index() to generate some indices that may '
-        #              'speed the node lookup.')
-        #    self._node_lookup_index_warned = True
+            is_cfgemulated = self.ident == "CFGEmulated"
 
-        for n in self.graph.nodes():
-            if self.ident == "CFGEmulated":
-                cond = n.looping_times == 0
-            else:
-                cond = True
-            if anyaddr and n.size is not None:
-                cond = cond and (addr == n.addr or n.addr <= addr < n.addr + n.size)
-            else:
-                cond = cond and (addr == n.addr)
-            if cond:
-                if is_syscall is None:
-                    return n
-                if n.is_syscall == is_syscall:
-                    return n
+            while pos < len(self._node_addrs):
+                n = self._nodes_by_addr[self._node_addrs[pos]][0]
+                actual_addr = n.addr if not self.is_arm else n.addr & 0xffff_fffe
+                if actual_addr > addr:
+                    break
+
+                if is_cfgemulated:
+                    cond = n.looping_times == 0
+                else:
+                    cond = True
+                if anyaddr and n.size is not None:
+                    cond = cond and (addr == actual_addr or actual_addr <= addr < actual_addr + n.size)
+                else:
+                    cond = cond and (addr == actual_addr)
+                if cond:
+                    if is_syscall is None:
+                        return n
+                    if n.is_syscall == is_syscall:
+                        return n
+
+                pos += 1
 
         return None
 
@@ -324,7 +358,10 @@ class CFGModel(Serializable):
                 predecessors.append(pred)
         return predecessors
 
-    def get_successors(self, node, excluding_fakeret=True, jumpkind=None):
+    def get_successors(self, node: CFGNode,
+                       excluding_fakeret: bool = True,
+                       jumpkind: Optional[str] = None
+                       ) -> List[CFGNode]:
         """
         Get successors of a node in the control flow graph.
 

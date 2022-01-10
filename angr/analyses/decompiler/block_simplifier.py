@@ -16,7 +16,7 @@ from .ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
-    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions
+    from angr.knowledge_plugins.key_definitions.live_definitions import LiveDefinitions, Definition
     from ailment.block import Block
 
 
@@ -167,7 +167,7 @@ class BlockSimplifier(Analysis):
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
-        all_defs = rd.all_definitions
+        all_defs: Iterable['Definition'] = rd.all_definitions
         stackarg_offsets = set(tpl[1] for tpl in self._stack_arg_offsets) \
             if self._stack_arg_offsets is not None else None
         for d in all_defs:
@@ -224,10 +224,6 @@ class BlockSimplifier(Analysis):
 
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
-                    continue
-
-                # is it an assignment to an artificial register?
-                if type(stmt.dst) is Register and self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size):
                     continue
 
                 if stmt.src == stmt.dst:

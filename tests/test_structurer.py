@@ -1,7 +1,6 @@
 
 import os
 
-import nose.tools
 import networkx
 
 import angr
@@ -57,7 +56,7 @@ def test_region_identifier_0():
 
     ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
-    nose.tools.assert_equal(len(region.graph.nodes()), 2)
+    assert len(region.graph.nodes()) == 2
 
 
 def test_region_identifier_1():
@@ -87,7 +86,7 @@ def test_region_identifier_1():
 
     ri = angr.analyses.decompiler.RegionIdentifier(None, graph=g)
     region = ri.region
-    nose.tools.assert_equal((len(region.graph.nodes())), 2)
+    assert len(region.graph.nodes()) == 2
 
 
 def test_smoketest():
@@ -107,7 +106,7 @@ def test_smoketest():
     st = p.analyses.Structurer(ri.region)  # pylint:disable=unused-variable
 
     # simplify it
-    _ = p.analyses.RegionSimplifier(st.result)
+    _ = p.analyses.RegionSimplifier(main_func, st.result)
 
 
 def test_smoketest_cm3_firmware():
@@ -145,7 +144,7 @@ def test_simple():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(main_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg)
     print(codegen.text)
@@ -168,13 +167,13 @@ def test_simple_loop():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
     print(codegen.text)
 
-    nose.tools.assert_greater(len(codegen.map_pos_to_node._posmap), 1)
-    nose.tools.assert_greater(len(codegen.map_ast_to_pos), 1)
+    assert len(codegen.map_pos_to_node._posmap) > 1
+    assert len(codegen.map_ast_to_pos) > 1
 
 
 def test_recursive_structuring():
@@ -194,7 +193,7 @@ def test_recursive_structuring():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
     print(codegen.text)
@@ -217,7 +216,7 @@ def test_while_true_break():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
 
@@ -241,7 +240,7 @@ def test_while():
     rs = p.analyses.RecursiveStructurer(ri.region)
 
     # simplify it
-    s = p.analyses.RegionSimplifier(rs.result)
+    s = p.analyses.RegionSimplifier(test_func, rs.result)
 
     codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg)
 

@@ -10,7 +10,8 @@ class SimConcretizationStrategySolutions(SimConcretizationStrategy):
         super(SimConcretizationStrategySolutions, self).__init__(**kwargs)
         self._limit = limit
 
-    def _concretize(self, memory, addr):
-        addrs = self._eval(memory, addr, self._limit + 1)
+    def _concretize(self, memory, addr, **kwargs):
+        addrs = self._eval(memory, addr, self._limit + 1, **kwargs)
         if len(addrs) <= self._limit:
             return addrs
+        return None

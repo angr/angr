@@ -8,15 +8,16 @@ class SimConcretizationStrategyNorepeats(SimConcretizationStrategy):
     """
 
     def __init__(self, repeat_expr, repeat_constraints=None, **kwargs):
-        super(SimConcretizationStrategyNorepeats, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self._repeat_constraints = [ ] if repeat_constraints is None else repeat_constraints
         self._repeat_expr = repeat_expr
 
-    def _concretize(self, memory, addr):
-        c = self._any(
-            memory, addr,
-            extra_constraints = self._repeat_constraints + [ addr == self._repeat_expr ]
-        )
+    def _concretize(self, memory, addr, **kwargs):
+        child_constraints = tuple(self._repeat_constraints) + (addr == self._repeat_expr,)
+        extra_constraints = kwargs.pop('extra_constraints', None)
+        if extra_constraints is not None:
+            child_constraints += tuple(extra_constraints)
+        c = self._any(memory, addr, extra_constraints=child_constraints, **kwargs)
         self._repeat_constraints.append(self._repeat_expr != c)
         return [ c ]
 

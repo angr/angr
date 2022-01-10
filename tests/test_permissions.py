@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import logging
@@ -12,13 +11,13 @@ def test_nx():
     es = nx_amd64.factory.entry_state()
 
     # .text should be PROT_READ|PROT_EXEC
-    nose.tools.assert_equal(es.solver.eval(es.memory.permissions(nx_amd64.entry)), 5)
+    assert es.solver.eval(es.memory.permissions(nx_amd64.entry)) == 5
 
     # load stack to initialize page
     es.memory.load(es.regs.sp, 4)
 
     # stack should be PROT_READ|PROT_WRITE
-    nose.tools.assert_equal(es.solver.eval(es.memory.permissions(es.regs.sp)), 3)
+    assert es.solver.eval(es.memory.permissions(es.regs.sp)) == 3
 
 if __name__ == "__main__":
     test_nx()

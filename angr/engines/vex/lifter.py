@@ -18,7 +18,11 @@ l = logging.getLogger(__name__)
 VEX_IRSB_MAX_SIZE = 400
 VEX_IRSB_MAX_INST = 99
 
+
 class VEXLifter(SimEngineBase):
+    """
+    Implements the VEX lifter engine mixin.
+    """
     def __init__(self, project,
                  use_cache=None,
                  cache_size=50000,
@@ -82,7 +86,8 @@ class VEXLifter(SimEngineBase):
              strict_block_end=None,
              skip_stmts=False,
              collect_data_refs=False,
-             cross_insn_opt=None):
+             cross_insn_opt=None,
+             load_from_ro_regions=False):
 
         """
         Lift an IRSB.
@@ -221,11 +226,12 @@ class VEXLifter(SimEngineBase):
         # phase 4: get bytes
         if buff is NO_OVERRIDE:
             if insn_bytes is not None:
-                buff, size, offset = insn_bytes, len(insn_bytes), offset
+                buff, size = insn_bytes, len(insn_bytes)
+                # offset stays unchanged
             else:
                 buff, size, offset = self._load_bytes(addr, size, state, clemory)
 
-        if isinstance(buff, claripy.ast.BV):
+        if isinstance(buff, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
             if len(buff) == 0:
                 raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
         elif not buff:
@@ -245,6 +251,7 @@ class VEXLifter(SimEngineBase):
                                   strict_block_end=strict_block_end,
                                   skip_stmts=skip_stmts,
                                   collect_data_refs=collect_data_refs,
+                                  load_from_ro_regions=load_from_ro_regions,
                                   cross_insn_opt=cross_insn_opt
                                   )
 
@@ -299,13 +306,8 @@ class VEXLifter(SimEngineBase):
                             buff = pyvex.ffi.from_buffer(backer)
                             size = len(backer) - offset
                         elif isinstance(backer, list):
-                            raise SimTranslationError("Cannot lift block for arch with strange byte width. If you think you ought to be able to, open an issue.")
-                            #buff_lst = backer[offset:offset+max_size]
-                            #if self.project is None:
-                            #    raise ValueError("You must set self.project if a list of integers are used as backers.")
-                            #byte_width = self.project.arch.byte_width
-                            #buff = claripy.Concat(*map(lambda v: claripy.BVV(v, byte_width), buff_lst))
-                            #size = len(buff_lst)
+                            raise SimTranslationError("Cannot lift block for arch with strange byte width. If you "
+                                                      "think you ought to be able to, open an issue.")
                         else:
                             raise TypeError("Unsupported backer type %s." % type(backer))
             elif state:

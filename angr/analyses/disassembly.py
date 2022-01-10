@@ -247,8 +247,7 @@ class Instruction(DisassemblyPiece):
                         insn_pieces[i-1] = ''
                     cur_operand.append(Value(intc, with_sign))
                 else:
-                    # XXX STILL A HACK
-                    cur_operand.append(c if c[-1] == ':' else c + ' ')
+                    cur_operand.append(c)
 
             elif c == ',' and not nested_mem:
                 cs_op_num -= 1
@@ -558,7 +557,7 @@ class Operand(DisassemblyPiece):
                 # Indirect addressing in x86_64
                 # 400520  push [rip+0x200782] ==>  400520  push [0x600ca8]
                 absolute_addr = parentinsn.addr + parentinsn.size + op1.val
-                return MemoryOperand(1, ['[', Value(absolute_addr, False), ']'], parentinsn)
+                return MemoryOperand(1, operand.prefix + ['[', Value(absolute_addr, False), ']'], parentinsn)
 
         return operand
 
@@ -683,7 +682,7 @@ class MemoryOperand(Operand):
                 try: custom_values_str = formatting['custom_values_str'][self.ident]
                 except KeyError: pass
 
-            prefix_str = " ".join(self.prefix) + " " if show_prefix else ""
+            prefix_str = " ".join(self.prefix) + " " if show_prefix and self.prefix else ""
             if custom_values_str is not None:
                 value_str = custom_values_str
             else:

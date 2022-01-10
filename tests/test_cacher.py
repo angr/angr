@@ -2,7 +2,6 @@ import tempfile
 import os
 import logging
 
-import nose
 
 import angr
 
@@ -23,14 +22,14 @@ def broken_cacher():
 
     pg2 = p.factory.simulation_manager()
     pg2.use_technique(angr.exploration_techniques.Cacher(container=container))
-    nose.tools.assert_equal(pg2.active[0].addr, 0x4006ed)
+    assert pg2.active[0].addr == 0x4006ed
 
     pg2.run()
 
-    nose.tools.assert_equal(len(pg2.deadended), len(pg.deadended))
-    nose.tools.assert_true(pg2.deadended[0].addr in [s.addr for s in pg.deadended])
-    nose.tools.assert_true(pg2.deadended[1].addr in [s.addr for s in pg.deadended])
-    nose.tools.assert_true(pg2.deadended[2].addr in [s.addr for s in pg.deadended])
+    assert len(pg2.deadended) == len(pg.deadended)
+    assert pg2.deadended[0].addr in [s.addr for s in pg.deadended]
+    assert pg2.deadended[1].addr in [s.addr for s in pg.deadended]
+    assert pg2.deadended[2].addr in [s.addr for s in pg.deadended]
 
 if __name__ == "__main__":
     broken_cacher()

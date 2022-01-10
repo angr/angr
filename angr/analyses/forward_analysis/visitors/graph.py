@@ -1,8 +1,12 @@
+from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict
+
 from ....misc.ux import deprecated
 from ....utils.algo import binary_insert
 
+NodeType = TypeVar("NodeType")
 
-class GraphVisitor:
+
+class GraphVisitor(Generic[NodeType]):
     """
     A graph visitor takes a node in the graph and returns its successors. Typically it visits a control flow graph, and
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
@@ -11,16 +15,16 @@ class GraphVisitor:
     __slots__ = ('_sorted_nodes', '_nodes_set', '_node_to_index', '_reached_fixedpoint', )
 
     def __init__(self):
-        self._sorted_nodes = [ ]
-        self._nodes_set = set()
-        self._node_to_index = { }
-        self._reached_fixedpoint = set()
+        self._sorted_nodes: List[NodeType] = [ ]
+        self._nodes_set: Set[NodeType] = set()
+        self._node_to_index: Dict[NodeType, int] = { }
+        self._reached_fixedpoint: Set[NodeType] = set()
 
     #
     # Interfaces
     #
 
-    def successors(self, node):
+    def successors(self, node: NodeType) -> List[NodeType]:
         """
         Get successors of a node. The node should be in the graph.
 
@@ -31,7 +35,7 @@ class GraphVisitor:
 
         raise NotImplementedError()
 
-    def predecessors(self, node):
+    def predecessors(self, node: NodeType) -> List[NodeType]:
         """
         Get predecessors of a node. The node should be in the graph.
 
@@ -42,7 +46,7 @@ class GraphVisitor:
 
         raise NotImplementedError()
 
-    def sort_nodes(self, nodes=None):
+    def sort_nodes(self, nodes: Optional[Collection[NodeType]] = None) -> List[NodeType]:
         """
         Get a list of all nodes sorted in an optimal traversal order.
 
@@ -57,7 +61,7 @@ class GraphVisitor:
     # Public methods
     #
 
-    def nodes(self):
+    def nodes(self) -> Iterator[NodeType]:
         """
         Return an iterator of nodes following an optimal traversal order.
 
@@ -94,7 +98,7 @@ class GraphVisitor:
             binary_insert(self._sorted_nodes, n, lambda elem: self._node_to_index[elem])
             self._nodes_set.add(n)
 
-    def next_node(self):
+    def next_node(self) -> Optional[NodeType]:
         """
         Get the next node to visit.
 
@@ -108,7 +112,7 @@ class GraphVisitor:
         self._nodes_set.remove(node)
         return node
 
-    def all_successors(self, node, skip_reached_fixedpoint=False):
+    def all_successors(self, node: NodeType, skip_reached_fixedpoint=False) -> Set[NodeType]:
         """
         Returns all successors to the specific node.
 
@@ -130,7 +134,7 @@ class GraphVisitor:
 
         return successors
 
-    def revisit_successors(self, node, include_self=True):
+    def revisit_successors(self, node: NodeType, include_self=True) -> None:
         """
         Revisit a node in the future. As a result, the successors to this node will be revisited as well.
 
@@ -150,7 +154,7 @@ class GraphVisitor:
                 binary_insert(self._sorted_nodes, succ, lambda elem: self._node_to_index[elem])
                 self._nodes_set.add(succ)
 
-    def revisit_node(self, node):
+    def revisit_node(self, node: NodeType) -> None:
         """
         Revisit a node in the future. Do not include its successors immediately.
 
@@ -162,7 +166,7 @@ class GraphVisitor:
             binary_insert(self._sorted_nodes, node, lambda elem: self._node_to_index[elem])
             self._nodes_set.add(node)
 
-    def reached_fixedpoint(self, node):
+    def reached_fixedpoint(self, node: NodeType) -> None:
         """
         Mark a node as reached fixed-point. This node as well as all its successors will not be visited in the future.
 

@@ -186,12 +186,13 @@ class AngrObjectFactory:
         """
         return self.simulation_manager(*args, **kwargs)
 
-    def callable(self, addr, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
+    def callable(self, addr, prototype=None, concrete_only=False, perform_merge=True, base_state=None, toc=None, cc=None):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
         function.
 
         :param addr:            The address of the function to use
+        :param prototype:         The prototype of the call to use, as a string or a SimTypeFunction
         :param concrete_only:   Throw an exception if the execution splits into multiple states
         :param perform_merge:   Merge all result states into one at the end (only relevant if concrete_only=False)
         :param base_state:      The state from which to do these runs
@@ -203,26 +204,16 @@ class AngrObjectFactory:
         """
         return Callable(self.project,
                         addr=addr,
+                        prototype=prototype,
                         concrete_only=concrete_only,
                         perform_merge=perform_merge,
                         base_state=base_state,
                         toc=toc,
                         cc=cc)
 
-    def cc(self, args=None, ret_val=None, sp_delta=None, func_ty=None):
+    def cc(self):
         """
-        Return a SimCC (calling convention) parametrized for this project and, optionally, a given function.
-
-        :param args:        A list of argument storage locations, as SimFunctionArguments.
-        :param ret_val:     The return value storage location, as a SimFunctionArgument.
-        :param sp_delta:    Does this even matter??
-        :param func_ty:     The prototype for the given function, as a SimType or a C-style function declaration that
-                            can be parsed into a SimTypeFunction instance.
-
-        Example func_ty strings:
-        >>> "int func(char*, int)"
-        >>> "int f(int, int, int*);"
-        Function names are ignored.
+        Return a SimCC (calling convention) parametrized for this project.
 
         Relevant subclasses of SimFunctionArgument are SimRegArg and SimStackArg, and shortcuts to them can be found on
         this `cc` object.
@@ -230,38 +221,7 @@ class AngrObjectFactory:
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
 
-        return self._default_cc(arch=self.project.arch,
-                                  args=args,
-                                  ret_val=ret_val,
-                                  sp_delta=sp_delta,
-                                  func_ty=func_ty)
-
-    def cc_from_arg_kinds(self, fp_args, ret_fp=None, sizes=None, sp_delta=None, func_ty=None):
-        """
-        Get a SimCC (calling convention) that will extract floating-point/integral args correctly.
-
-        :param arch:        The Archinfo arch for this CC
-        :param fp_args:     A list, with one entry for each argument the function can take. True if the argument is fp,
-                            false if it is integral.
-        :param ret_fp:      True if the return value for the function is fp.
-        :param sizes:       Optional: A list, with one entry for each argument the function can take. Each entry is the
-                            size of the corresponding argument in bytes.
-        :param sp_delta:    The amount the stack pointer changes over the course of this function - CURRENTLY UNUSED
-        :param func_ty:     A SimType for the function itself or a C-style function declaration that can be parsed into
-                            a SimTypeFunction instance.
-
-        Example func_ty strings:
-        >>> "int func(char*, int)"
-        >>> "int f(int, int, int*);"
-        Function names are ignored.
-
-        """
-        return self._default_cc.from_arg_kinds(arch=self.project.arch,
-                fp_args=fp_args,
-                ret_fp=ret_fp,
-                sizes=sizes,
-                sp_delta=sp_delta,
-                func_ty=func_ty)
+        return self._default_cc(arch=self.project.arch)
 
     #pylint: disable=unused-argument, no-self-use, function-redefined
     @overload
@@ -282,7 +242,7 @@ class AngrObjectFactory:
     def block(self, addr, size=None, max_size=None, byte_string=None, vex=None, thumb=False, backup_state=None,
               extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
               insn_bytes=None, insn_text=None,  # backward compatibility
-              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True,
+              strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False
               ):
 
         if isinstance(self.project.arch, ArchSoot) and isinstance(addr, SootAddressDescriptor):
@@ -308,7 +268,7 @@ class AngrObjectFactory:
                      extra_stop_points=extra_stop_points, thumb=thumb, backup_state=backup_state,
                      opt_level=opt_level, num_inst=num_inst, traceflags=traceflags,
                      strict_block_end=strict_block_end, collect_data_refs=collect_data_refs,
-                     cross_insn_opt=cross_insn_opt,
+                     cross_insn_opt=cross_insn_opt, load_from_ro_regions=load_from_ro_regions,
          )
 
     def fresh_block(self, addr, size, backup_state=None):

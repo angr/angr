@@ -15,7 +15,7 @@ class Uses:
         self._uses_by_definition: Dict['Definition',Set[CodeLocation]] = defaultdict(set)
         self._uses_by_location: Dict[CodeLocation, Set['Definition']] = defaultdict(set)
 
-    def add_use(self, definition, codeloc: CodeLocation):
+    def add_use(self, definition: "Definition", codeloc: CodeLocation):
         """
         Add a use for a given definition.
 
@@ -25,7 +25,7 @@ class Uses:
         self._uses_by_definition[definition].add(codeloc)
         self._uses_by_location[codeloc].add(definition)
 
-    def get_uses(self, definition: 'Definition'):
+    def get_uses(self, definition: 'Definition') -> Set[CodeLocation]:
         """
         Retrieve the uses of a given definition.
 

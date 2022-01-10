@@ -119,6 +119,15 @@ class SimType:
     def copy(self):
         raise NotImplementedError()
 
+    def extract_claripy(self, bits):
+        """
+        Given a bitvector `bits` which was loaded from memory in a big-endian fashion, return a more appropriate or
+        structured representation of the data.
+
+        A type must have an arch associated in order to use this method.
+        """
+        raise NotImplementedError(f"extract_claripy is not implemented for {self}")
+
 class TypeRef(SimType):
     """
     A TypeRef is a reference to a type with a name. This allows for interactivity in type analysis, by storing a type
@@ -1068,6 +1077,10 @@ class SimStruct(NamedTypeMixin, SimType):
         self._arch_memo = {}
 
     @property
+    def packed(self):
+        return self._pack
+
+    @property
     def offsets(self) -> Dict[str,int]:
         offsets = {}
         offset_so_far = 0
@@ -1209,7 +1222,14 @@ class SimStructValue:
         :param values:      A mapping from struct fields to values
         """
         self._struct = struct
+        # since the keys are specified, also support specifying the values as just a list
+        if values is not None and hasattr(values, '__iter__') and not hasattr(values, 'items'):
+            values = dict(zip(struct.fields.keys(), values))
         self._values = defaultdict(lambda: None, values or ())
+
+    @property
+    def struct(self):
+        return self._struct
 
     def __indented_repr__(self, indent=0):
         fields = []
@@ -1651,6 +1671,22 @@ def do_preprocess(defn, include_path=()):
     return ''.join(tok.value for tok in p.parser if tok.type not in p.ignore)
 
 
+def parse_signature(defn, preprocess=True, predefined_types=None, arch=None):
+    """
+    Parse a single function prototype and return its type
+    """
+    try:
+        parsed = parse_file(
+            defn.strip(' \n\t;') + ';',
+            preprocess=preprocess,
+            predefined_types=predefined_types,
+            arch=arch
+        )
+        return next(iter(parsed[0].values()))
+    except StopIteration as e:
+        raise ValueError("No declarations found") from e
+
+
 def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
@@ -1688,7 +1724,7 @@ def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
         if isinstance(piece, pycparser.c_ast.FuncDef):
             out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
         elif isinstance(piece, pycparser.c_ast.Decl):
-            ty = _decl_to_type(piece.type, extra_types)
+            ty = _decl_to_type(piece.type, extra_types, arch=arch)
             if piece.name is not None:
                 out[piece.name] = ty
 
@@ -1702,7 +1738,7 @@ def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
                             i.members = ty.members
 
         elif isinstance(piece, pycparser.c_ast.Typedef):
-            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types))
+            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
             extra_types[piece.name].label = piece.name
 
     return out, extra_types

@@ -402,8 +402,13 @@ class SimEnginePropagatorAIL(
         return PropValue.from_value_and_details(claripy.BVV(expr.value, expr.bits), expr.size, expr, self._codeloc())
 
     def _ail_handle_DirtyExpression(self, expr: Expr.DirtyExpression) -> Optional[PropValue]:  # pylint:disable=no-self-use
+
+        if isinstance(expr.dirty_expr, Expr.VEXCCallExpression):
+            for operand in expr.dirty_expr.operands:
+                _ = self._expr(operand)
+
         return PropValue.from_value_and_details(
-            self.state.top(expr.bits),expr.size, expr, self._codeloc()
+            self.state.top(expr.bits), expr.size, expr, self._codeloc()
         )
 
     def _ail_handle_ITE(self, expr: Expr.ITE) -> Optional[PropValue]:
