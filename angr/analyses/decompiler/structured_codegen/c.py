@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long,missing-class-docstring
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
@@ -1061,17 +1062,18 @@ class CVariable(CExpression):
             yield from self._c_repr_array_access_with_offset(v, v_type, self_type, offset)
             return
 
+        elif isinstance(v, SimMemoryVariable) and isinstance(v.addr, int):
+            # loading from a global memory variable
+            yield from self._c_repr_variable(v)
+            return
+
         #
         # other cases
         #
         bracket = CClosingObject("[")
-        paren = CClosingObject("(")
 
         # cast the variable to a pointer
-        yield "(unsigned int *)", None
-        yield "(", paren
         yield from self._c_repr_variable(v)
-        yield ")", paren
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.offset)
         yield "]", bracket
@@ -1421,16 +1423,16 @@ class CTypeCast(CExpression):
 
 class CConstant(CExpression):
 
-    __slots__ = ('value', 'reference_values', 'variable', 'tags', )
+    __slots__ = ('value', 'reference_values', 'reference_variable', 'tags', )
 
-    def __init__(self, value, type_, reference_values=None, variable=None, tags: Optional[Dict]=None, **kwargs):
+    def __init__(self, value, type_, reference_values=None, reference_variable=None, tags: Optional[Dict]=None, **kwargs):
 
         super().__init__(**kwargs)
 
         self.value = value
         self._type = type_
         self.reference_values = reference_values
-        self.variable = variable
+        self.reference_variable = reference_variable
         self.tags = tags
 
     @property
@@ -1451,13 +1453,14 @@ class CConstant(CExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for ty, v in self.reference_values.items():
+            for ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield CConstant.str_to_c_str(v.content.decode('utf-8')), self
                     return
 
-        if self.variable is not None:
-            yield from self.variable.c_repr_chunks()
+        if self.reference_variable is not None:
+            yield "&", None
+            yield from self.reference_variable.c_repr_chunks()
 
         elif self.reference_values is not None and self._type is not None and self._type in self.reference_values:
             if isinstance(self._type, SimTypeInt):
@@ -1748,43 +1751,52 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 # variable and a const
                 base, offset = None, None
                 if isinstance(expr.lhs, CConstant):
+                    # const + ...
                     if isinstance(expr.rhs, CVariable):
                         offset = expr.lhs.value
                         base = expr.rhs
-                    elif isinstance(expr.lhs.variable, CVariable) and \
-                            isinstance(expr.lhs.variable.variable, SimMemoryVariable):
-                        base = expr.lhs.variable
+                    elif isinstance(expr.lhs.reference_variable, CVariable) and \
+                            isinstance(expr.lhs.reference_variable.variable, SimMemoryVariable):
+                        base = expr.lhs.reference_variable
                         offset = expr.rhs
                 elif isinstance(expr.rhs, CConstant):
+                    # ... + const
                     if isinstance(expr.lhs, CVariable):
                         offset = expr.rhs.value
                         base = expr.lhs
-                    elif isinstance(expr.rhs.variable, CVariable) and \
-                            isinstance(expr.rhs.variable.variable, SimMemoryVariable):
-                        base = expr.rhs.variable
+                    elif isinstance(expr.rhs.reference_variable, CVariable) and \
+                            isinstance(expr.rhs.reference_variable.variable, SimMemoryVariable):
+                        base = expr.rhs.reference_variable
                         offset = expr.lhs
-                # variable and a typecast
-                elif isinstance(expr.lhs, CVariable):
-                    if isinstance(expr.rhs, CTypeCast):
-                        offset = expr.rhs
+                elif isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CTypeCast):
+                    # variable and a typecast
+                    offset = expr.rhs
+                    base = expr.lhs
+                elif isinstance(expr.rhs, CVariable) and isinstance(expr.lhs, CTypeCast):
+                    # variable and a typecast
+                    offset = expr.lhs
+                    base = expr.rhs
+                elif isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CBinaryOp):
+                    # variable (probably a pointer) + var1 * sizeof(pointer_type(variable))
+                    multiplier = None
+                    if expr.rhs.op == "Shl" and isinstance(expr.rhs.rhs, CConstant):
+                        multiplier = expr.rhs.rhs.value ** 2
+                    # TODO: support multiplication
+                    if multiplier is not None:
                         base = expr.lhs
-                elif isinstance(expr.rhs, CVariable):
-                    if isinstance(expr.lhs, CTypeCast):
-                        offset = expr.lhs
-                        base = expr.rhs
-                elif isinstance(expr.lhs, CVariable):
-                    if isinstance(expr.rhs, CVariable):
-                        # GUESS: we need some guessing here
-                        base = expr.lhs
                         offset = expr.rhs
+                elif isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CVariable):
+                    # GUESS: we need some guessing here
+                    base = expr.lhs
+                    offset = expr.rhs
                 return base, offset
         elif isinstance(expr, CVariable):
             return expr, 0
         elif isinstance(expr, CTypeCast):
             return self._parse_addr(expr.expr)
         elif isinstance(expr, CConstant):
-            if expr.variable is not None:
-                return expr.variable, 0
+            if expr.reference_variable is not None:
+                return expr.reference_variable, 0
             else:
                 return None, expr.value
         elif isinstance(expr, int):
@@ -2214,12 +2226,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # default to int
             type_ = int
 
-        if variable is None and expr.variable is not None:
-            variable = self._handle(expr.variable)
+        if variable is None and hasattr(expr, 'reference_variable') and expr.reference_variable is not None:
+            variable = self._handle(expr.reference_variable)
 
         return CConstant(expr.value, type_,
                          reference_values=reference_values,
-                         variable=variable,
+                         reference_variable=variable,
                          tags=expr.tags,
                          codegen=self)
 
