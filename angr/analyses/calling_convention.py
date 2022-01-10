@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use
 from collections import defaultdict
 from typing import Optional, Set, List, Tuple, Dict, TYPE_CHECKING
 import logging
@@ -46,6 +47,9 @@ class UpdateArgumentsOption:
 
 
 class DummyFunctionHandler(FunctionHandler):
+    """
+    A function handler that is used during reaching definition analysis.
+    """
     def handle_local_function(self,
                               state: 'ReachingDefinitionsState',
                               function_address: int, call_stack: Optional[List],
@@ -339,10 +343,9 @@ class CallingConventionAnalysis(Analysis):
                                     fact: CallSiteFact) -> None:
         # determine if potential register and stack arguments are set
         state = rda.observed_results[('insn', call_insn_addr, OP_BEFORE)]
-        defs_by_reg_offset: Dict[int, List[Definition]] = defaultdict(list)
+        defs_by_reg_offset: Dict[int, List['Definition']] = defaultdict(list)
         all_reg_defs: Set['Definition'] = get_all_definitions(state.register_definitions)
         all_stack_defs: Set['Definition'] = get_all_definitions(state.stack_definitions)
-        all_uses: 'Uses' = rda.all_uses
         for d in all_reg_defs:
             if isinstance(d.atom, Register) and \
                     not isinstance(d.codeloc, ExternalCodeLocation) and \
