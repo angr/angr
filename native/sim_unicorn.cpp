@@ -2177,8 +2177,8 @@ address_t State::get_stack_pointer() const {
 	return out;
 }
 
-void State::fd_init_bytes(uint64_t fd, char *bytes, uint64_t len) {
-	fd_details.emplace(fd, fd_data(bytes, len));
+void State::fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos) {
+	fd_details.emplace(fd, fd_data(bytes, len, read_pos));
 	return;
 }
 
@@ -2652,8 +2652,8 @@ transmit_record_t *simunicorn_process_transmit(State *state, uint32_t num) {
  */
 
 extern "C"
-void simunicorn_set_fd_bytes(State *state, uint64_t fd, char *input, uint64_t len) {
-	state->fd_init_bytes(fd, input, len);
+void simunicorn_set_fd_bytes(State *state, uint64_t fd, char *input, uint64_t len, uint64_t read_pos) {
+	state->fd_init_bytes(fd, input, len, read_pos);
 	return;
 }
 

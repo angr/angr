@@ -457,9 +457,9 @@ struct fd_data {
 	uint64_t curr_pos;
 	uint64_t len;
 
-	fd_data(char *fd_bytes, uint64_t fd_len) {
+	fd_data(char *fd_bytes, uint64_t fd_len, uint64_t fd_read_pos) {
 		bytes = fd_bytes;
-		curr_pos = 0;
+		curr_pos = fd_read_pos;
 		len = fd_len;
 	}
 };
@@ -814,7 +814,7 @@ class State {
 
 		address_t get_stack_pointer() const;
 
-		void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len);
+		void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos);
 
 		uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
 
