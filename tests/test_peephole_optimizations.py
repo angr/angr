@@ -1,9 +1,8 @@
 import os
 
-import angr
 import archinfo
 import ailment
-
+import angr
 from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
