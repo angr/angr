@@ -466,7 +466,7 @@ struct fd_data {
 
 struct mem_write_t {
 	address_t address;
-	uint8_t value[MAX_MEM_ACCESS_SIZE]; // assume size of any memory write is no more than 8
+	std::vector<uint8_t> value;
 	int size;
 	std::vector<taint_t> previous_taint;
 };

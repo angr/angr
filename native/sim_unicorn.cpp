@@ -277,7 +277,7 @@ void State::commit() {
 void State::rollback() {
 	// roll back memory changes
 	for (auto rit = mem_writes.rbegin(); rit != mem_writes.rend(); rit++) {
-		uc_err err = uc_mem_write(uc, rit->address, rit->value, rit->size);
+		uc_err err = uc_mem_write(uc, rit->address, rit->value.data(), rit->size);
 		if (err) {
 			//LOG_I("rollback: %s", uc_strerror(err));
 			break;
@@ -561,7 +561,8 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	mem_write_t record;
 	record.address = address;
 	record.size = size;
-	uc_err err = uc_mem_read(uc, address, record.value, size);
+	record.value.resize(size);
+	uc_err err = uc_mem_read(uc, address, record.value.data(), size);
 	if (err == UC_ERR_READ_UNMAPPED) {
 		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)1)) {
 			err = UC_ERR_OK;
