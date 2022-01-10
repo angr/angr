@@ -452,6 +452,18 @@ typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
 typedef std::unordered_map<vex_reg_offset_t, unicorn_reg_id_t> RegisterMap;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
+struct fd_data {
+	char *bytes;
+	uint64_t curr_pos;
+	uint64_t len;
+
+	fd_data(char *fd_bytes, uint64_t fd_len) {
+		bytes = fd_bytes;
+		curr_pos = 0;
+		len = fd_len;
+	}
+};
+
 struct mem_write_t {
 	address_t address;
 	uint8_t value[MAX_MEM_ACCESS_SIZE]; // assume size of any memory write is no more than 8
@@ -546,6 +558,9 @@ class State {
 
 	// Pointer to memory writes' data passed to Python land
 	mem_update_t *mem_updates_head;
+
+	// Input fd bytes for tracing in unicorn
+	std::unordered_map<uint64_t, fd_data> fd_details;
 
 	// OS being simulated
 	simos_t simos;
@@ -799,7 +814,13 @@ class State {
 
 		address_t get_stack_pointer() const;
 
+		void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len);
+
+		uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
+
 		// CGC syscall handlers
+
+		void perform_cgc_receive();
 
 		void perform_cgc_transmit();
 

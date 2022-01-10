@@ -129,7 +129,24 @@ class SimEngineUnicorn(SuccessorsMixin):
     def _execute_symbolic_instrs(self):
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
-                self._execute_block_instrs_in_vex(block_details)
+                if self.state.os_name == "CGC" and block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
+                    # Re-execute receive syscall
+                    reg_vals = dict(block_details["registers"])
+                    curr_regs = self.state.regs
+                    # If any regs are not present in the block details for re-execute, they are probably symbolic and so
+                    # were not saved in native interface. Use current register values in those cases: they should have
+                    # correct values right now.
+                    syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx),
+                                    reg_vals.get("edx", curr_regs.edx), reg_vals.get("esi", curr_regs.esi)]
+                    syscall_simproc = self.state.project.simos.syscall_from_number(3, abi=None)
+                    syscall_simproc.arch = self.state.arch
+                    syscall_simproc.project = self.state.project
+                    syscall_simproc.state = self.state
+                    syscall_simproc.cc = self.state.project.simos.syscall_cc(self.state)
+                    ret_val = getattr(syscall_simproc, syscall_simproc.run_func)(*syscall_args)
+                    self.state.registers.store("eax", ret_val, inspect=False, disable_actions=True)
+                else:
+                    self._execute_block_instrs_in_vex(block_details)
             except SimValueError as e:
                 l.error(e)
 

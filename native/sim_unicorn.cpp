@@ -2176,7 +2176,124 @@ address_t State::get_stack_pointer() const {
 	return out;
 }
 
+void State::fd_init_bytes(uint64_t fd, char *bytes, uint64_t len) {
+	fd_details.emplace(fd, fd_data(bytes, len));
+	return;
+}
+
+uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
+	auto &fd_det = fd_details.at(fd);
+	if (fd_det.curr_pos >= fd_det.len) {
+		// No more bytes to read
+		return 0;
+	}
+	// Truncate count of bytes to read if request exceeds number left in the "stream"
+	auto actual_count = std::min(count, fd_det.len - fd_det.curr_pos);
+	memcpy(buf, fd_det.bytes + fd_det.curr_pos, actual_count);
+	if (!stopped) {
+		fd_det.curr_pos += actual_count;
+	}
+	return actual_count;
+}
+
 // CGC syscall handlers
+
+void State::perform_cgc_receive() {
+	uint32_t fd, buf, count, rx_bytes;
+	uc_err err;
+
+	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
+	if (fd > 2) {
+		// Ignore any fds > 2
+		return;
+	}
+
+	if (fd_details.count(fd) == 0) {
+		// fd stream has not been initialized in native interface. Can't perform receive.
+		return;
+	}
+
+	uc_reg_read(uc, UC_X86_REG_ECX, &buf);
+	uc_reg_read(uc, UC_X86_REG_EDX, &count);
+	uc_reg_read(uc, UC_X86_REG_ESI, &rx_bytes);
+	if (count == 0) {
+		// Requested to read 0 bytes. Set *rx_bytes and syscall return value to 0
+		err = uc_mem_write(uc, rx_bytes, &count, 4);
+		if (err == UC_ERR_OK) {
+			// Setting rx_bytes succeeded. Mark rx_bytes as concrete
+			// Since setting rx_bytes is optional, failed writes are ignored and taint is not updated.
+			handle_write(rx_bytes, 4, true);
+		}
+		uc_reg_write(uc, UC_X86_REG_EAX, &count);
+		interrupt_handled = true;
+		syscall_count++;
+		return;
+	}
+
+	// Perform read
+	char *tmp_buf = (char *)malloc(count);
+	auto actual_count = fd_read(fd, tmp_buf, count);
+	if (stopped) {
+		// Possibly stopped when writing bytes read to memory. Treat as syscall failure.
+		free(tmp_buf);
+		return;
+	}
+	uc_mem_write(uc, buf, tmp_buf, actual_count);
+	free(tmp_buf);
+	// Mark buf as symbolic
+	handle_write(buf, actual_count, true, true);
+	err = uc_mem_write(uc, rx_bytes, &actual_count, 4);
+	if (err == UC_ERR_OK) {
+		// Setting rx_bytes succeeded. Mark rx_bytes as concrete.
+		// Since setting rx_bytes is optional, failed writes are ignored and taint is not updated.
+		handle_write(rx_bytes, 4, true);
+	}
+	count = 0;
+	uc_reg_write(uc, UC_X86_REG_EAX, &count);
+	step(cgc_receive_bbl, 0, false);
+	commit();
+	// Save a block with an instruction to track that the receive syscall needs to be re-executed. The instruction data
+	// is used only to work with existing mechanism to return data to python.
+	// Save all non-symbolic register arguments needed for syscall.
+	block_details_t block_for_receive;
+	block_for_receive.block_addr = cgc_receive_bbl;
+	block_for_receive.block_size = 0;
+	instr_details_t instr_for_receive;
+	// First argument: ebx
+	register_value_t reg_val;
+	if (!is_symbolic_register(20, 4)) {
+		reg_val.offset = 20;
+		reg_val.size = 4;
+		get_register_value(reg_val.offset, reg_val.value);
+		instr_for_receive.reg_deps.emplace(reg_val);
+	}
+	// Second argument: ecx
+	if (!is_symbolic_register(12, 4)) {
+		reg_val.offset = 12;
+		reg_val.size = 4;
+		get_register_value(reg_val.offset, reg_val.value);
+		instr_for_receive.reg_deps.emplace(reg_val);
+	}
+	// Third argument: edx
+	if (!is_symbolic_register(16, 4)) {
+		reg_val.offset = 16;
+		reg_val.size = 4;
+		get_register_value(reg_val.offset, reg_val.value);
+		instr_for_receive.reg_deps.emplace(reg_val);
+	}
+	// Fourth argument: esi
+	if (!is_symbolic_register(32, 4)) {
+		reg_val.offset = 32;
+		reg_val.size = 4;
+		get_register_value(reg_val.offset, reg_val.value);
+		instr_for_receive.reg_deps.emplace(reg_val);
+	}
+	block_for_receive.symbolic_instrs.emplace_back(instr_for_receive);
+	blocks_with_symbolic_instrs.emplace_back(block_for_receive);
+	interrupt_handled = true;
+	syscall_count++;
+	return;
+}
 
 void State::perform_cgc_transmit() {
 	// basically an implementation of the cgc transmit syscall
@@ -2324,6 +2441,9 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			//printf("SYSCALL: %d\n", sysno);
 			if (sysno == state->cgc_transmit_sysno) {
 				state->perform_cgc_transmit();
+			}
+			else if (state->is_tracing_mode() && (sysno == state->cgc_receive_sysno)) {
+				state->perform_cgc_receive();
 			}
 		}
 	}
@@ -2526,6 +2646,15 @@ transmit_record_t *simunicorn_process_transmit(State *state, uint32_t num) {
 	}
 }
 
+/*
+ * Set concrete bytes of an open file for use in tracing
+ */
+
+extern "C"
+void simunicorn_set_fd_bytes(State *state, uint64_t fd, char *input, uint64_t len) {
+	state->fd_init_bytes(fd, input, len);
+	return;
+}
 
 /*
  * Page cache

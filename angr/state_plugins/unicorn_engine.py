@@ -397,6 +397,7 @@ def _load_native():
         _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_unicorn_flags_register_id', None, state_t, ctypes.c_int64)
+        _setup_prototype(h, 'set_fd_bytes', state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -1085,6 +1086,18 @@ class Unicorn(SimStatePlugin):
         if self.gdt is not None:
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
 
+        if self.state.mode == "tracing":
+            # Pass all concrete fd bytes in native interface to handle relevant syscalls there itself
+            # pylint: disable=attribute-defined-outside-init
+            self.fd_bytes = {}
+            if simos_val == SimOSEnum.SIMOS_CGC:
+                # Set stdin bytes in native interface
+                self.fd_bytes[0] = bytearray(self.state.posix.fd.get(0).concretize()[0])
+
+            for fd_num, fd_data in self.fd_bytes.items():
+                fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
+                _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data))
+
         # Initialize list of artificial VEX registers
         artificial_regs_list = self.state.arch.artificial_registers_offsets
         artificial_regs_array = (ctypes.c_uint64 * len(artificial_regs_list))(*map(ctypes.c_uint64, artificial_regs_list))
@@ -1264,6 +1277,10 @@ class Unicorn(SimStatePlugin):
 
         #l.debug("Resetting the unicorn state.")
         self.uc.reset()
+
+        # Cleanup saved fd bytes
+        if self.state.mode == "tracing":
+            del self.fd_bytes
 
     def set_regs(self):
         ''' setting unicorn registers '''
