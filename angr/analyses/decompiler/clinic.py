@@ -731,7 +731,6 @@ class Clinic(Analysis):
                 if isinstance(expr.addr, ailment.Expr.Const):
                     symbol = self.project.loader.find_symbol(expr.addr.value)
                     if symbol is not None:
-                        print(symbol)
                         # Create a new global variable if there isn't one already
                         global_vars = global_variables.get_global_variables(symbol.rebased_addr)
                         if global_vars:
