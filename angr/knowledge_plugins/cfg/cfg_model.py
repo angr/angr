@@ -207,7 +207,7 @@ class CFGModel(Serializable):
         if block_id in self._nodes:
             del self._nodes[block_id]
 
-        if node.addr in self._nodes_by_addr:
+        if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
             self._nodes_by_addr[node.addr].remove(node)
             if not self._nodes_by_addr[node.addr]:
                 del self._nodes_by_addr[node.addr]
