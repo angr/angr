@@ -179,6 +179,8 @@ class MipsElfFastResolver(IndirectJumpResolver):
             if block_addr not in blocks_on_slice:
                 blocks_on_slice[block_addr] = project.factory.block(block_addr, cross_insn_opt=False)
             block = blocks_on_slice[block_addr]
+            if len(block.vex.statements) <= block_stmt_idx:
+                continue
             stmt = block.vex.statements[block_stmt_idx]
             if isinstance(stmt, pyvex.IRStmt.WrTmp) \
                     and isinstance(stmt.data, pyvex.IRExpr.Get) \
