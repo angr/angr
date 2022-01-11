@@ -3,6 +3,7 @@ import os
 
 test_location = os.path.join(os.path.dirname(__file__), '..', '..', 'binaries', 'tests')
 
+
 def run_0div(arch):
     # check that we run in unicorn up to the zero-div site, fall back, try again in angr, and error correctly.
     p = angr.Project(os.path.join(test_location, arch, 'test_0div'), auto_load_libs=False)
@@ -14,9 +15,11 @@ def run_0div(arch):
     assert len(simgr.errored) == 1
     assert isinstance(simgr.errored[0].error, angr.errors.SimZeroDivisionException)
 
+
 def test_0div_exception():
     yield run_0div, 'i386'
     yield run_0div, 'x86_64'
+
 
 def test_symbolic_0div():
     p = angr.load_shellcode(b'X', arch='amd64')
@@ -26,12 +29,13 @@ def test_symbolic_0div():
     s.regs.rdx = s.solver.BVS('rdx', 64)
 
     s.options.add(angr.options.PRODUCE_ZERODIV_SUCCESSORS)
-    successors = s.step(insn_bytes=b'\x48\xf7\xf1') # div rcx
+    successors = s.step(insn_bytes=b'\x48\xf7\xf1')  # div rcx
     assert len(successors.flat_successors) == 2
 
     s.options.discard(angr.options.PRODUCE_ZERODIV_SUCCESSORS)
-    successors = s.step(insn_bytes=b'\x48\xf7\xf1') # div rcx
+    successors = s.step(insn_bytes=b'\x48\xf7\xf1')  # div rcx
     assert len(successors.flat_successors) == 1
+
 
 if __name__ == '__main__':
     for func, arg in test_0div_exception():
