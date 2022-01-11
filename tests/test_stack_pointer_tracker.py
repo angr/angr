@@ -40,22 +40,22 @@ def test_stack_pointer_tracker():
 def test_stack_pointer_tracker_no_mem():
     sp_result, bp_result = run_tracker(track_mem=False, use_bp=True)
     assert sp_result == 8
-    assert bp_result == None
+    assert bp_result is None
 
 def test_stack_pointer_tracker_just_sp():
     sp_result = run_tracker(track_mem=False, use_bp=False)
-    assert sp_result == None
+    assert sp_result is None
 
 def test_stack_pointer_tracker_offset_block():
     sptracker, sp = init_tracker(track_mem=False)
     sp_result = sptracker.offset_after_block(0x40071d, sp)
-    assert sp_result != None
+    assert sp_result is not None
     sp_result = sptracker.offset_after_block(0x400700, sp)
-    assert sp_result == None
+    assert sp_result is None
     sp_result = sptracker.offset_before_block(0x40071d, sp)
-    assert sp_result != None
+    assert sp_result is not None
     sp_result = sptracker.offset_before_block(0x400700, sp)
-    assert sp_result == None
+    assert sp_result is None
 
 if __name__ == '__main__':
     logging.getLogger('angr.analyses.stack_pointer_tracker').setLevel(logging.INFO)
