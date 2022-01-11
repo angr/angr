@@ -1,15 +1,17 @@
-import angr
-import claripy
-
 import logging
 import os
 import unittest
+
+import angr
+import claripy
 
 l = logging.getLogger("angr_tests")
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestArgcSym(unittest.TestCase):
     def _verify_results(self, pg, sargc, length=400):
         argcs = pg.mp_found.solver.eval(sargc)

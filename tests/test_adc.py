@@ -1,11 +1,13 @@
-import angr
-
 import os
 import unittest
+
+import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestAdc(unittest.TestCase):
     def test_adc_i386(self):
         proj = angr.Project(os.path.join(test_location, 'i386', 'test_adc'), load_options={'auto_load_libs': False})

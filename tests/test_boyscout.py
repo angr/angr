@@ -1,8 +1,8 @@
-import angr
-
 import logging
 import os
 import unittest
+
+import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.getLogger('angr.test_boyscout')
@@ -28,6 +28,8 @@ entries = [
 ]
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestBoyScout(unittest.TestCase):
     def test_boyscout(self):
         for a, b, c in entries:

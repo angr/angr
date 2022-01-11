@@ -1,7 +1,7 @@
-import angr
 import os
-
 import unittest
+
+import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests')
 
@@ -18,6 +18,8 @@ arch_data = {  # (steps, [hit addrs], finished)
 }
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestAccuracy(unittest.TestCase):
     def emulate(self, arch, binary, use_sim_procs, steps, hit_addrs, finished):
         # auto_load_libs can't be disabled as the test takes longer time to execute

@@ -10,6 +10,8 @@ l = logging.getLogger("angr_tests.managers")
 location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestCacher(unittest.TestCase):
     def test_broken_cacher(self):
         p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})

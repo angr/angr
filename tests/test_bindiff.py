@@ -1,8 +1,8 @@
-import angr
-
 import logging
 import os
 import unittest
+
+import angr
 
 l = logging.getLogger("angr.tests.test_bindiff")
 
@@ -10,6 +10,8 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 
 # todo make a better test
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestBindiff(unittest.TestCase):
     def test_bindiff_x86_64(self):
         binary_path_1 = os.path.join(test_location, 'x86_64', 'bindiff_a')

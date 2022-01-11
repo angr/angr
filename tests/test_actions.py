@@ -1,12 +1,14 @@
+import unittest
+
 import angr
 from angr import SimState, SIM_PROCEDURES
 from angr.engines import ProcedureEngine
 
-import unittest
-
 FAKE_ADDR = 0x100000
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestActions(unittest.TestCase):
     def test_procedure_actions(self):
         s = SimState(arch='AMD64')

@@ -1,14 +1,16 @@
-import angr
-
 import logging
 import unittest
 import os
+
+import angr
 
 l = logging.getLogger("angr.tests")
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
+# pylint: disable=C0115
+# pylint: disable=R0201
 class TestBlockCache(unittest.TestCase):
     def test_block_cache(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), translation_cache=True,
