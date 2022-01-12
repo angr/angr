@@ -7,8 +7,8 @@ from angr.engines import ProcedureEngine
 FAKE_ADDR = 0x100000
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestActions(unittest.TestCase):
     def test_procedure_actions(self):
         s = SimState(arch='AMD64')

@@ -6,8 +6,8 @@ import angr
 test_location = os.path.join(os.path.dirname(__file__), '..', '..', 'binaries', 'tests')
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class Test0Div(unittest.TestCase):
     def run_0div(self, arch):
         # check that we run in unicorn up to the zero-div site, fall back, try again in angr, and error correctly.

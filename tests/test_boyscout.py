@@ -28,8 +28,8 @@ entries = [
 ]
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestBoyScout(unittest.TestCase):
     def test_boyscout(self):
         for a, b, c in entries:

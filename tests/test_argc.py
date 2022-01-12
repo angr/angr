@@ -9,8 +9,8 @@ l = logging.getLogger("angr_tests")
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestArgc(unittest.TestCase):
     def test_mips(self):
         proj = angr.Project(os.path.join(test_location, 'mips', 'argc_decide'), auto_load_libs=False)

@@ -18,8 +18,8 @@ arch_data = {  # (steps, [hit addrs], finished)
 }
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestAccuracy(unittest.TestCase):
     def emulate(self, arch, binary, use_sim_procs, steps, hit_addrs, finished):
         # auto_load_libs can't be disabled as the test takes longer time to execute

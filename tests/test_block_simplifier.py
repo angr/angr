@@ -16,8 +16,8 @@ def block_simplify(block):
     return bsimp.result_block
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestBlockSimplifier(unittest.TestCase):
 
     def test_simplify_pointless_assign(self):

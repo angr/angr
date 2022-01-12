@@ -39,8 +39,8 @@ def check_bp_save_fauxware(arch):
             )
 
 
-# pylint: disable=C0115
-# pylint: disable=R0201
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestBaseptrSaveSimplifier(unittest.TestCase):
     def test_baseptr_save_simplifier_amd64(self):
 
