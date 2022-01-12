@@ -2,10 +2,11 @@
 Defines the classes used to represent the different type of nodes in a Data Dependency NetworkX graph
 """
 from typing import Optional, Tuple, TYPE_CHECKING
-from .sim_act_location import SimActLocation, DEFAULT_LOCATION
+from copy import copy
 
 if TYPE_CHECKING:
     from claripy.ast.bv import BV
+    from angr.state_plugins import SimActionData
 
 
 class DepNodeTypes:
@@ -22,14 +23,36 @@ class BaseDepNode:
     Base class for all nodes in a data-dependency graph
     """
 
-    def __init__(self, type_: int, loc: 'SimActLocation'):
+    def __init__(self, type_: int, sim_act: 'SimActionData'):
         self._type = type_
-        self._ins_addr = loc.ins_addr
-        self._stmt_idx = loc.stmt_idx
+        self._sim_act = sim_act
+        self._ins_addr = sim_act.ins_addr
+        self._stmt_idx = sim_act.stmt_idx
+        self._action_id: int = sim_act.id
+        self._iteration_num: Optional[int] = None  # Number representing times this instruction has been prev parsed
         self._value: Optional[int] = None
         self._value_ast: Optional['BV'] = None
 
         self._is_tmp = False
+
+    @property
+    def iteration(self) -> Optional[int]:
+        return self._iteration_num
+
+    @iteration.setter
+    def iteration(self, iter_num: int):
+        self._iteration_num = iter_num
+
+    @property
+    def action_id(self) -> Optional[int]:
+        """
+        Uniquely identifies a SimAction
+        """
+        return self._action_id
+
+    @action_id.setter
+    def action_id(self, new_id: int):
+        self._action_id = new_id
 
     @property
     def is_tmp(self) -> bool:
@@ -92,10 +115,10 @@ class BaseDepNode:
         raise NotImplementedError()
 
     def __eq__(self, other):
-        return self.type == other.type and self.ins_addr == other.ins_addr
+        return self.type == other.type and self.ins_addr == other.ins_addr and self.iteration == other.iteration
 
     def __hash__(self):
-        return hash(self.type) ^ hash(self.ins_addr)
+        return hash(self.type) ^ hash(self.ins_addr) ^ hash(self.iteration)
 
 
 class ConstantDepNode(BaseDepNode):
@@ -104,9 +127,12 @@ class ConstantDepNode(BaseDepNode):
     Uniquely identified by its value
     """
 
-    def __init__(self, value: int):
-        super().__init__(DepNodeTypes.Constant, DEFAULT_LOCATION)
+    def __init__(self, sim_act: 'SimActionData', value: int):
+        super().__init__(DepNodeTypes.Constant, sim_act)
         self.value = value
+
+    def __str__(self):
+        return f"Constant {hex(self.value)}"
 
     def __repr__(self):
         return f"Constant{hex(self.value)}"
@@ -146,8 +172,8 @@ class VarDepNode(BaseDepNode):
     Base class for representing SimActions of TYPE tmp or reg
     """
 
-    def __init__(self, loc: 'SimActLocation', offset: 'VarOffset', arch_name: str = ''):
-        super().__init__(DepNodeTypes.Register, loc)
+    def __init__(self, sim_act: 'SimActionData', offset: 'VarOffset', arch_name: str = ''):
+        super().__init__(DepNodeTypes.Register, sim_act)
         self._reg = offset.reg
         self._is_tmp = offset.is_tmp
         self._arch_name = arch_name
@@ -157,6 +183,10 @@ class VarDepNode(BaseDepNode):
         return self._reg
 
     @property
+    def display_name(self) -> str:
+        return self._arch_name if self.arch_name else hex(self.reg)
+
+    @property
     def arch_name(self) -> str:
         return self._arch_name
 
@@ -164,10 +194,12 @@ class VarDepNode(BaseDepNode):
     def arch_name(self, new_arch_name: str):
         self._arch_name = new_arch_name
 
+    def __str__(self):
+        return self.display_name
+
     def __repr__(self):
-        inner = self.arch_name if self.arch_name else hex(self.reg)
         val_str = 'None' if self.value is None else hex(self.value)
-        return f"{inner}@{hex(self.ins_addr)}:{self.stmt_idx}\n{val_str}"
+        return f"{self.display_name}@{hex(self.ins_addr)}:{self.stmt_idx}\n{val_str}"
 
     def __eq__(self, other):
         return super().__eq__(other) and self.reg == other.reg and self.is_tmp == other.is_tmp
@@ -183,7 +215,7 @@ class VarDepWriteNode(VarDepNode):
     """
 
     @classmethod
-    def cast(cls, var_node: VarDepNode):
+    def cast_to_var_write(cls, var_node: VarDepNode):
         """Casts a VarDepNode to a VarDepWriteNode"""
         assert isinstance(var_node, VarDepNode)
         var_node.__class__ = cls
@@ -210,7 +242,7 @@ class VarDepReadNode(VarDepNode):
     """
 
     @classmethod
-    def cast(cls, var_node: VarDepNode):
+    def cast_to_var_read(cls, var_node: VarDepNode):
         """Casts a VarDepNode to a VarDepReadNode"""
         assert isinstance(var_node, VarDepNode)
         var_node.__class__ = cls
@@ -223,9 +255,12 @@ class MemDepNode(BaseDepNode):
     Used to represent SimActions of type MEM
     """
 
-    def __init__(self, loc: 'SimActLocation', addr: int):
-        super().__init__(DepNodeTypes.Memory, loc)
+    def __init__(self, sim_act: 'SimActionData', addr: int):
+        super().__init__(DepNodeTypes.Memory, sim_act)
         self.addr = addr
+
+    def __str__(self):
+        return hex(self.addr)
 
     def __repr__(self):
         val_str = 'None' if self.value is None else hex(self.value)
@@ -238,7 +273,7 @@ class MemDepNode(BaseDepNode):
         return super().__hash__() ^ hash(self.addr)
 
     @classmethod
-    def cast(cls, base_dep_node: BaseDepNode):
+    def cast_to_mem(cls, base_dep_node: BaseDepNode):
         """Casts a BaseDepNode into a MemDepNode"""
         assert isinstance(base_dep_node, BaseDepNode)
         base_dep_node.__class__ = cls
@@ -262,7 +297,7 @@ class MemDepWriteNode(MemDepNode):
         return super().__hash__() ^ hash(self.stmt_idx)
 
     @classmethod
-    def cast(cls, mem_dep_node: MemDepNode):
+    def cast_to_mem_write(cls, mem_dep_node: MemDepNode):
         """Casts a MemDepNode into a MemDepWriteNode"""
         assert isinstance(mem_dep_node, MemDepNode)
         mem_dep_node.__class__ = cls
@@ -276,7 +311,7 @@ class MemDepReadNode(MemDepNode):
     """
 
     @classmethod
-    def cast(cls, mem_dep_node: MemDepNode):
+    def cast_to_mem_read(cls, mem_dep_node: MemDepNode):
         """Casts a MemDepNode into a MemDepReadNode"""
         assert isinstance(mem_dep_node, MemDepNode)
         mem_dep_node.__class__ = cls

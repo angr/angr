@@ -6,10 +6,10 @@ from typing import Optional, List, Union, Dict, Set, Tuple, TYPE_CHECKING
 from networkx import DiGraph
 from claripy.ast.bv import BV
 from .. import Analysis
-from ...errors import AngrDDGError, AngrAnalysisError
+from ...errors import AngrDDGError, AngrAnalysisError, SimValueError
 from ...analyses import AnalysesHub
 from ...state_plugins import SimActionData
-from .sim_act_location import SimActLocation, DEFAULT_LOCATION
+from .sim_act_location import SimActLocation, DEFAULT_LOCATION, ParsedInstruction
 from .dep_nodes import DepNodeTypes, ConstantDepNode, VarDepNode, VarDepReadNode, VarDepWriteNode
 from .dep_nodes import VarOffset, MemDepNode, MemDepReadNode, MemDepWriteNode
 
@@ -39,6 +39,8 @@ class DataDependencyGraphAnalysis(Analysis):
         """
         self._graph: Optional[DiGraph] = None
         self._simplified_graph: Optional[DiGraph] = None
+        self._sub_graph: Optional[DiGraph] = None
+
         self._end_state = end_state
         self._start_from = start_from if start_from else self.project.entry
         self._end_at = end_at
@@ -48,7 +50,7 @@ class DataDependencyGraphAnalysis(Analysis):
         self._actions: List['SimActionData'] = []
 
         # Used by parser to track instruction addresses processed
-        self._parsed_ins_addrs: List[Tuple[int, int, int]] = []  # Instruction address, min stmt_idx, max stmt_idx
+        self._parsed_ins_addrs: List[ParsedInstruction] = []  # Instruction address, min stmt_idx, max stmt_idx
 
         # Parameter sanity check
         if not bool(self._block_addrs) ^ bool(self._end_at):
@@ -63,6 +65,10 @@ class DataDependencyGraphAnalysis(Analysis):
     @property
     def simplified_graph(self) -> Optional[DiGraph]:
         return self._simplified_graph
+
+    @property
+    def sub_graph(self) -> Optional[DiGraph]:
+        return self._sub_graph
 
     def _pop(self) -> Optional['SimActionData']:
         """
@@ -107,26 +113,29 @@ class DataDependencyGraphAnalysis(Analysis):
         """
 
         action = sim_act.action
-        loc = SimActLocation(sim_act.ins_addr, sim_act.stmt_idx)
+
+        iter_num = len([p for p in self._parsed_ins_addrs if p.ins_addr == sim_act.ins_addr])
 
         if type_ is DepNodeTypes.Register:
-            lookup_node = VarDepNode(loc, *constructor_params)
+            lookup_node = VarDepNode(sim_act, *constructor_params)
+            lookup_node.iteration = iter_num
             lookup_node.ast = val[0]
             lookup_node.value = val[1]
             if not lookup_node.arch_name:
                 lookup_node.arch_name = sim_act.storage
             store_node = copy(lookup_node)
-            store_node = VarDepReadNode.cast(store_node) if action is SimActionData.READ\
-                else VarDepWriteNode.cast(store_node)
+            store_node = VarDepReadNode.cast_to_var_read(store_node) if action is SimActionData.READ\
+                else VarDepWriteNode.cast_to_var_write(store_node)
         elif type_ is DepNodeTypes.Memory:
-            lookup_node = MemDepNode(loc, *constructor_params)
+            lookup_node = MemDepNode(sim_act, *constructor_params)
+            lookup_node.iteration = iter_num
             lookup_node.ast = val[0]
             lookup_node.value = val[1]
             store_node = copy(lookup_node)
-            store_node = MemDepReadNode.cast(store_node) if action is SimActionData.READ\
-                else MemDepWriteNode.cast(store_node)
+            store_node = MemDepReadNode.cast_to_mem_read(store_node) if action is SimActionData.READ\
+                else MemDepWriteNode.cast_to_mem_write(store_node)
         elif type_ is DepNodeTypes.Constant:
-            lookup_node = ConstantDepNode(val[1])
+            lookup_node = ConstantDepNode(sim_act, val[1])
             store_node = copy(lookup_node)
         else:
             raise TypeError("Type must be a type of DepNode.")
@@ -209,7 +218,11 @@ class DataDependencyGraphAnalysis(Analysis):
         n2_idx = ext_n2.size() // 8 - cmp_byte_width
         n1_cmp_ast = ext_n1.get_bytes(n1_idx, cmp_byte_width)
         n2_cmp_ast = ext_n2.get_bytes(n2_idx, cmp_byte_width)
-        return self._end_state.solver.eval_one(n1_cmp_ast == n2_cmp_ast)
+        try:
+            return self._end_state.solver.eval_one(n1_cmp_ast == n2_cmp_ast)
+        except SimValueError as s_val_err:
+            logger.error(s_val_err)
+            return False
 
     def _parse_action(self) -> 'BaseDepNode':
         return self._get_generic_node(self._pop())
@@ -224,6 +237,11 @@ class DataDependencyGraphAnalysis(Analysis):
         ancestor_lookup_node = copy(curr_node)
         ancestor_node = None
 
+        # if isinstance(ancestor_lookup_node, VarDepNode):
+        #     ancestor_lookup_node.__class__ = VarDepNode
+        # elif isinstance(ancestor_lookup_node, M):
+        #     ancestor_lookup_node.__class__ = MemDepNode
+
         if go_by_stmt:
             if isinstance(ancestor_lookup_node, VarDepWriteNode):
                 ancestor_lookup_node.__class__ = VarDepNode
@@ -231,29 +249,54 @@ class DataDependencyGraphAnalysis(Analysis):
                 ancestor_lookup_node.__class__ = MemDepNode
 
             ins_addrs = list(self._parsed_ins_addrs)  # Create a local copy
-            curr_start_stmt_idx = ins_addrs[0][2] + 1  # Next statement index after most recent last stmt_idx
+
+            if not ins_addrs:
+                return None
+
+            most_recently_parsed_instruction = ins_addrs[0]
+            # Next statement index after most recent last stmt_idx
+            curr_start_stmt_idx = most_recently_parsed_instruction.max_stmt_idx + 1
+            # ID of first SimAction relevant to this instruction
+            curr_start_action_id = most_recently_parsed_instruction.sorted_action_ids[0] + 1
 
             # Don't want to include current statement in lookup
-            ins_addrs.insert(0, (ancestor_lookup_node.ins_addr, curr_start_stmt_idx, curr_node.stmt_idx - 1))
+            curr_parsed_ins = ParsedInstruction(ancestor_lookup_node.ins_addr,
+                                                curr_start_stmt_idx,
+                                                curr_node.stmt_idx - 1)
+            for curr_parsed_ids in range(curr_start_action_id, curr_node.action_id):
+                curr_parsed_ins.add_action_id(curr_parsed_ids)
 
-            for ins_addr, start_stmt_idx, last_stmt_idx in ins_addrs:
-                ancestor_lookup_node.ins_addr = ins_addr
-                for stmt_idx in range(last_stmt_idx, start_stmt_idx - 1, -1):
+            ins_addrs.insert(0, curr_parsed_ins)
+
+            for parsed_instruction in ins_addrs:
+                ancestor_lookup_node.ins_addr = parsed_instruction.ins_addr
+                for stmt_idx in range(parsed_instruction.max_stmt_idx, parsed_instruction.min_stmt_idx - 1, -1):
                     ancestor_lookup_node.stmt_idx = stmt_idx
+                    for iter_num in range(curr_node.iteration, -1, -1):  # N, N-1, ..., 0
+                        ancestor_lookup_node.iteration = iter_num
+                        if found_node := self._canonical_graph_nodes.get(ancestor_lookup_node, None):
+                            if curr_node != found_node:
+                                # Cannot be the same node
+                                ancestor_node = found_node
+                                break
 
-                    if found_node := self._canonical_graph_nodes.get(ancestor_lookup_node, None):
-                        if curr_node != found_node:
-                            # Cannot be the same node
-                            ancestor_node = found_node
-                            break
-
+                    if ancestor_node:
+                        break
                 if ancestor_node:
                     break
         else:
-            for ins_addr in [x[0] for x in self._parsed_ins_addrs]:
-                ancestor_lookup_node.ins_addr = ins_addr
-                if found_node := self._canonical_graph_nodes.get(ancestor_lookup_node, None):
-                    ancestor_node = found_node
+            for parsed_ins in self._parsed_ins_addrs:
+                ancestor_lookup_node.ins_addr = parsed_ins.ins_addr
+
+                for iter_num in range(curr_node.iteration, -1, -1):  # N, N-1, ..., 0
+                    ancestor_lookup_node.iteration = iter_num
+                    if found_node := self._canonical_graph_nodes.get(ancestor_lookup_node, None):
+                        if curr_node != found_node:
+                            # For loops, same instruction can be in this
+                            # To-Do: Just part of the equation, cannot use stmt_id in the hash check above...
+                            ancestor_node = found_node
+                            break
+                if ancestor_node:
                     break
 
         return ancestor_node
@@ -279,7 +322,7 @@ class DataDependencyGraphAnalysis(Analysis):
         # Determine if read node should be marked a dependency of a constant value
         has_ancestor_and_new_value = not pre_existing_node and read_ancestor \
             and not self._node_value_compare(read_ancestor, read_node)
-        is_orphan_and_new_value = not read_ancestor and not pre_existing_node and ConstantDepNode(
+        is_orphan_and_new_value = not read_ancestor and not pre_existing_node and ConstantDepNode(act,
             read_node.value) not in self._canonical_graph_nodes
         exists_with_new_value = pre_existing_node and not self._node_value_compare(pre_existing_node, read_node)
 
@@ -296,7 +339,7 @@ class DataDependencyGraphAnalysis(Analysis):
 
     def _parse_var_statement(self, read_nodes: Optional[Dict[int, List['BaseDepNode']]] = None) -> SimActLocation:
         act = self._peek()
-        act_loc = SimActLocation(act.ins_addr, act.stmt_idx)
+        act_loc = SimActLocation(act.ins_addr, act.stmt_idx, act.id)
 
         if act.action is SimActionData.WRITE:
             write_node = self._parse_action()
@@ -357,12 +400,12 @@ class DataDependencyGraphAnalysis(Analysis):
 
     def _parse_mem_statement(self, read_nodes: Optional[Dict[int, List['BaseDepNode']]] = None) -> SimActLocation:
         act = self._peek()
-        act_loc = SimActLocation(act.ins_addr, act.stmt_idx)
+        act_loc = SimActLocation(act.ins_addr, act.stmt_idx, act.id)
 
         if act.action is SimActionData.WRITE:
-            mem_node = MemDepNode.cast(self._parse_action())
+            mem_node = MemDepNode.cast_to_mem(self._parse_action())
             if src_nodes := read_nodes.get(mem_node.value, None):
-                # Value being written to address came from previous read
+                # Value being written to, address came from previous read
                 for src_node in src_nodes:
                     self._graph.add_edge(src_node, mem_node, label='val')
             elif len(read_nodes) == 1 and read_nodes.get(mem_node.addr, None):
@@ -441,8 +484,15 @@ class DataDependencyGraphAnalysis(Analysis):
         """
         if self._actions:
             start_stmt_idx = self._peek().stmt_idx
+            start_action_id = self._peek().id
             end_loc = self._parse_instruction()
-            self._parsed_ins_addrs.insert(0, (end_loc.ins_addr, start_stmt_idx, end_loc.stmt_idx))
+            parsed_ins = ParsedInstruction(end_loc.ins_addr, start_stmt_idx, end_loc.stmt_idx)
+
+            for parsed_action_id in range(start_action_id, end_loc.action_id + 1):  # Inclusive
+                parsed_ins.add_action_id(parsed_action_id)
+
+            self._parsed_ins_addrs.insert(0, parsed_ins)
+
             self._parse_instructions()
 
     def _filter_sim_actions(self) -> List[SimActionData]:
@@ -475,36 +525,24 @@ class DataDependencyGraphAnalysis(Analysis):
         self._graph = DiGraph()
         self._actions = self._filter_sim_actions()
 
-        ins_str = ''
-        ins_addr = self._actions[0].ins_addr
-        stmt_addr = self._actions[0].stmt_idx
-
-        for act in self._actions:
-            if act.ins_addr != ins_addr:
-                ins_addr = act.ins_addr
-                print(ins_str)
-                ins_str = f'{hex(ins_addr)}: '
-            if stmt_addr != act.stmt_idx:
-                stmt_addr = act.stmt_idx
-                ins_str += ' '
-
-            ins_str += 'R' if act.action is SimActionData.READ else 'W'
+        # ins_str = curr_node
+        # ins_addr = self._actions[0].ins_addr
+        # stmt_addr = self._actions[0].stmt_idx
+        #
+        # for act in self._actions:
+        #     if act.ins_addr != ins_addr:
+        #         ins_addr = act.ins_addr
+        #         print(ins_str)
+        #         ins_str = f'{hex(ins_addr)}: '
+        #     if stmt_addr != act.stmt_idx:
+        #         stmt_addr = act.stmt_idx
+        #         ins_str += ' '
+        #
+        #     ins_str += 'R' if act.action is SimActionData.READ else 'W'
         self._parse_instructions()
 
         # Create a simplified version of the graph
         self._simplified_graph = self._simplify_graph(self._graph)
-
-    def get_reg_data_dep(self, loc: SimActLocation,
-                         offset: VarOffset, pred_max: Optional[int] = None,
-                         include_tmp_nodes: bool = True) -> Optional[DiGraph]:
-        eq_reg_node = VarDepNode(loc, offset)
-        return self._get_data_dep(eq_reg_node, pred_max, include_tmp_nodes)
-
-    def get_mem_data_dep(self, loc: SimActLocation,
-                         addr: int, pred_max: Optional[int] = None,
-                         include_tmp_nodes: bool = True) -> Optional[DiGraph]:
-        eq_mem_node = MemDepNode(loc, addr)
-        return self._get_data_dep(eq_mem_node, pred_max, include_tmp_nodes)
 
     @staticmethod
     def _simplify_graph(G: DiGraph) -> DiGraph:
@@ -519,9 +557,9 @@ class DataDependencyGraphAnalysis(Analysis):
             # Node must be removed and predecessor(s) connected to successor(s)
             in_edges = list(g0.in_edges(curr_node, data=True))
             out_edges = list(g0.edges(curr_node, data=True))
-
             for pred, _, _ in in_edges:
                 g0.remove_edge(pred, curr_node)
+
             for _, suc, _ in out_edges:
                 g0.remove_edge(curr_node, suc)
 
@@ -545,15 +583,23 @@ class DataDependencyGraphAnalysis(Analysis):
         else:
             return
 
-    def _get_data_dep(self, eq_node: 'BaseDepNode', pred_max: Optional[int],
+    def get_data_dep(self, eq_node: 'BaseDepNode', pred_max: Optional[int],
                       include_tmp_nodes: bool) -> Optional[DiGraph]:
+
+        lookup_node = copy(eq_node)
+        if isinstance(lookup_node, MemDepNode):
+            lookup_node.__class__ = MemDepNode
+        elif isinstance(eq_node, VarDepNode):
+            lookup_node.__class__ = VarDepNode
+
         # TODO: Implement pred_max
-        if g_node := self._canonical_graph_nodes.get(eq_node, None):
+        if g_node := self._canonical_graph_nodes.get(lookup_node, None):
             # We have a matching node and can proceed to build a subgraph
             relevant_nodes = set()
             g = self._graph if include_tmp_nodes else self._simplified_graph
             DataDependencyGraphAnalysis._get_parent_nodes(g, g_node, relevant_nodes)
-            return g.subgraph(relevant_nodes).copy()
+            self._sub_graph = g.subgraph(relevant_nodes).copy()
+            return self._sub_graph
         else:
             logger.error("No node %r in existing graph.", eq_node)
             return None
