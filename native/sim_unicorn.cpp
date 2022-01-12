@@ -558,13 +558,20 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 
 	// From here, we are definitely only dealing with one page
 
+	uint64_t skip_next_map_request;
 	mem_write_t record;
 	record.address = address;
 	record.size = size;
 	record.value.resize(size);
 	uc_err err = uc_mem_read(uc, address, record.value.data(), size);
 	if (err == UC_ERR_READ_UNMAPPED) {
-		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)1)) {
+		if (is_interrupt) {
+			skip_next_map_request = 0;
+		}
+		else {
+			skip_next_map_request = 1;
+		}
+		if (py_mem_callback(uc, UC_MEM_WRITE_UNMAPPED, address, size, 0, (void*)skip_next_map_request)) {
 			err = UC_ERR_OK;
 		}
 	}
