@@ -3,8 +3,9 @@ import os
 import logging
 import unittest
 
-import angr
 from common import broken
+
+import angr
 
 l = logging.getLogger("angr_tests.managers")
 
