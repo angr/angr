@@ -17,8 +17,8 @@ test_location = os.path.join(
 class TestCdg(unittest.TestCase):
     def test_graph_0(self):
 
-        # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron Cytron,
-        # etc.
+        # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron
+        # Cytron, etc.
 
         # Create a project with a random binary - it will not be used anyways
         p = angr.Project(
@@ -96,8 +96,8 @@ class TestCdg(unittest.TestCase):
 
     def test_dominance_frontiers(self):
 
-        # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron Cytron,
-        # etc.
+        # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron
+        # Cytron, etc.
 
         # Create our mock control flow graph
         g = networkx.DiGraph()
