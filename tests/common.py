@@ -2,7 +2,7 @@ import os
 import pickle
 import sys
 
-from unittest import skipIf, skipUnless
+from unittest import skipIf, skipUnless, skip
 
 try:
     import tracer
@@ -16,6 +16,10 @@ if not os.path.isdir(bin_location):
     raise Exception(
         "Can't find the angr/binaries repo for holding testcases. It should be cloned into the same folder as the rest of your angr modules."
     )
+
+
+def broken(func):
+    return skip("Broken test method")(func)
 
 
 def slow_test(func):
