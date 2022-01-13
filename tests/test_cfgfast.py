@@ -1,7 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use,wrong-import-order
 import os
 import logging
-import sys
 import unittest
 
 import archinfo

@@ -7,7 +7,9 @@ import angr
 from angr.analyses.cdg import TemporaryNode
 from angr.utils.graph import compute_dominance_frontier
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
+test_location = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
+)
 
 
 # pylint: disable=missing-class-docstring
@@ -19,9 +21,11 @@ class TestCdg(unittest.TestCase):
         # etc.
 
         # Create a project with a random binary - it will not be used anyways
-        p = angr.Project(os.path.join(test_location, 'x86_64', 'datadep_test'),
-                         load_options={'auto_load_libs': False},
-                         use_sim_procedures=True)
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "datadep_test"),
+            load_options={"auto_load_libs": False},
+            use_sim_procedures=True,
+        )
 
         # Create the CDG analysis
         cfg = p.analyses.CFGEmulated(no_construct=True)
@@ -29,7 +33,7 @@ class TestCdg(unittest.TestCase):
         # Create our mock control flow graph
         g = networkx.DiGraph()
         edges = [
-            ('Entry', 1),
+            ("Entry", 1),
             (1, 2),
             (2, 3),
             (2, 7),
@@ -46,8 +50,8 @@ class TestCdg(unittest.TestCase):
             (10, 11),
             (11, 12),
             (12, 2),
-            (12, 'Exit'),
-            ('Entry', 'Exit')
+            (12, "Exit"),
+            ("Entry", "Exit"),
         ]
 
         for src, dst in edges:
@@ -65,11 +69,11 @@ class TestCdg(unittest.TestCase):
 
         # Call _construct()
         cdg = p.analyses.CDG(cfg=cfg, no_construct=True)
-        cdg._entry = TemporaryNode('Entry')
+        cdg._entry = TemporaryNode("Entry")
         cdg._construct()
 
         standard_result = {
-            'Entry': {1, 2, 8, 9, 11, 12},
+            "Entry": {1, 2, 8, 9, 11, 12},
             1: set(),
             2: {3, 6, 7},
             3: {4, 5},
@@ -81,7 +85,7 @@ class TestCdg(unittest.TestCase):
             9: {10},
             10: set(),
             11: {9, 11},
-            12: {2, 8, 9, 11, 12}
+            12: {2, 8, 9, 11, 12},
         }
 
         for node, cd_nodes in standard_result.items():
@@ -97,7 +101,7 @@ class TestCdg(unittest.TestCase):
 
         # Create our mock control flow graph
         g = networkx.DiGraph()
-        g.add_edge('Entry', 1)
+        g.add_edge("Entry", 1)
         g.add_edge(1, 2)
         g.add_edge(2, 3)
         g.add_edge(2, 7)
@@ -114,12 +118,12 @@ class TestCdg(unittest.TestCase):
         g.add_edge(10, 11)
         g.add_edge(11, 12)
         g.add_edge(12, 2)
-        g.add_edge(12, 'Exit')
-        g.add_edge('Entry', 'Exit')
+        g.add_edge(12, "Exit")
+        g.add_edge("Entry", "Exit")
 
         # Create the mock post-dom graph
         postdom = networkx.DiGraph()
-        postdom.add_edge('Entry', 1)
+        postdom.add_edge("Entry", 1)
         postdom.add_edge(1, 2)
         postdom.add_edge(2, 3)
         postdom.add_edge(3, 4)
@@ -131,26 +135,26 @@ class TestCdg(unittest.TestCase):
         postdom.add_edge(9, 10)
         postdom.add_edge(9, 11)
         postdom.add_edge(11, 12)
-        postdom.add_edge('Entry', 'Exit')
+        postdom.add_edge("Entry", "Exit")
 
         # Call df_construct()
         df = compute_dominance_frontier(g, postdom)
 
         standard_df = {
-            1: {'Exit'},
-            2: {'Exit', 2},
+            1: {"Exit"},
+            2: {"Exit", 2},
             3: {8},
             4: {6},
             5: {6},
             6: {8},
             7: {8},
-            8: {'Exit', 2},
-            9: {'Exit', 2, 9},
+            8: {"Exit", 2},
+            9: {"Exit", 2, 9},
             10: {11},
-            11: {'Exit', 2, 9},
-            12: {'Exit', 2},
-            'Entry': set(),
-            'Exit': set()
+            11: {"Exit", 2, 9},
+            12: {"Exit", 2},
+            "Entry": set(),
+            "Exit": set(),
         }
         assert df == standard_df
 
