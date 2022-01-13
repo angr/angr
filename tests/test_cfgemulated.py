@@ -6,17 +6,19 @@ import logging
 import os
 import unittest
 
-l = logging.getLogger("angr.tests.test_cfgemulated")
-
-test_location = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
-)
 from common import broken
 
 import angr
 from angr import options as o
 
+l = logging.getLogger("angr.tests.test_cfgemulated")
 
+test_location = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
+)
+
+# pylint: disable=missing-class-docstring
+# pylint: disable=no-self-use
 class TestCfgemulate(unittest.TestCase):
     def compare_cfg(self, standard, g, function_list):
         """
@@ -174,10 +176,10 @@ class TestCfgemulate(unittest.TestCase):
             # can automatically find the node 0x4005ad.
         )
 
-        assert cfg.get_any_node(0x400580) != None
-        assert cfg.get_any_node(0x40058F) != None
-        assert cfg.get_any_node(0x40059E) != None
-        assert cfg.get_any_node(0x4005AD) == None
+        assert cfg.get_any_node(0x400580) is not None
+        assert cfg.get_any_node(0x40058F) is not None
+        assert cfg.get_any_node(0x40059E) is not None
+        assert cfg.get_any_node(0x4005AD) is None
 
     def test_not_returning(self):
         # Make sure we are properly labeling functions that do not return in function manager
@@ -191,19 +193,19 @@ class TestCfgemulate(unittest.TestCase):
         )  # pylint:disable=unused-variable
 
         # function_a returns
-        assert proj.kb.functions.function(name="function_a") != None
+        assert proj.kb.functions.function(name="function_a") is not None
         assert proj.kb.functions.function(name="function_a").returning
 
         # function_b does not return
-        assert proj.kb.functions.function(name="function_b") != None
+        assert proj.kb.functions.function(name="function_b") is not None
         assert not proj.kb.functions.function(name="function_b").returning
 
         # function_c does not return
-        assert proj.kb.functions.function(name="function_c") != None
+        assert proj.kb.functions.function(name="function_c") is not None
         assert not proj.kb.functions.function(name="function_c").returning
 
         # main does not return
-        assert proj.kb.functions.function(name="main") != None
+        assert proj.kb.functions.function(name="main") is not None
         assert not proj.kb.functions.function(name="main").returning
 
         # function_d should not be reachable

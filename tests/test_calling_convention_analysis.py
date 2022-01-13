@@ -40,10 +40,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             assert cc == expected_cc
 
     def run_cgc(self, binary_name):
-        binary_path = os.path.join(test_location, '..', 'binaries-private', 'cgc_qualifier_event', 'cgc', binary_name)
-        project = angr.Project(binary_path, auto_load_libs=False)
-
-        categorization = project.analyses.FunctionCategorizationAnalysis()
+        pass
+        # binary_path = os.path.join(test_location, '..', 'binaries-private', 'cgc_qualifier_event', 'cgc', binary_name)
+        # project = angr.Project(binary_path, auto_load_libs=False)
+        #
+        # categorization = project.analyses.FunctionCategorizationAnalysis()
 
         # tag_manager = categorization.function_tag_manager
         # print "INPUT:", map(hex, tag_manager.input_functions())
@@ -107,7 +108,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
                 expected_arg_str,
             )
 
-    def _a(funcs, func_name):
+    def _a(self, funcs, func_name):
         func = funcs[func_name]
         return func.calling_convention.arg_locs(func.prototype)
 
@@ -198,8 +199,8 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def test_x86_saved_regs(self):
 
-        # Calling convention analysis should be able to determine calling convention of functions with registers saved on
-        # the stack.
+        # Calling convention analysis should be able to determine calling convention of functions with registers
+        # saved on the stack.
         binary_path = os.path.join(test_location, "tests", "cgc", "NRFIN_00036")
         proj = angr.Project(binary_path, auto_load_libs=False)
 
@@ -240,8 +241,8 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def test_callsite_inference_amd64(self):
 
-        # Calling convention analysis should be able to determine calling convention of a library function by analyzing its
-        # callsites.
+        # Calling convention analysis should be able to determine calling convention of a library function by
+        # analyzing its callsites.
         binary_path = os.path.join(test_location, "tests", "x86_64", "decompiler", "morton")
         proj = angr.Project(binary_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(data_references=True, normalize=True)

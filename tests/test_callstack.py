@@ -54,4 +54,4 @@ class TestCallstack(unittest.TestCase):
         assert cs.current_stack_pointer == 0
 
 if __name__ == "__main__":
-    test_empty_stack()
+    unittest.main()

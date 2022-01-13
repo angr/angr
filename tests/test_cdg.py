@@ -1,5 +1,3 @@
-
-import sys
 import os
 import unittest
 
@@ -7,8 +5,10 @@ import networkx
 
 import angr
 from angr.analyses.cdg import TemporaryNode
+from angr.utils.graph import compute_dominance_frontier
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests")
+
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
@@ -58,10 +58,10 @@ class TestCdg(unittest.TestCase):
 
         # Manually set the CFG
         cfg.model.graph = g
-        cfg.model._nodes = { }
-        cfg._edge_map = { }
-        cfg._loop_back_edges = [ ]
-        cfg._overlapped_loop_headers = [ ]
+        cfg.model._nodes = {}
+        cfg._edge_map = {}
+        cfg._loop_back_edges = []
+        cfg._overlapped_loop_headers = []
 
         # Call _construct()
         cdg = p.analyses.CDG(cfg=cfg, no_construct=True)
@@ -69,19 +69,19 @@ class TestCdg(unittest.TestCase):
         cdg._construct()
 
         standard_result = {
-            'Entry': { 1, 2, 8, 9, 11, 12 },
+            'Entry': {1, 2, 8, 9, 11, 12},
             1: set(),
-            2: { 3, 6, 7 },
-            3: { 4, 5 },
+            2: {3, 6, 7},
+            3: {4, 5},
             4: set(),
             5: set(),
             6: set(),
             7: set(),
             8: set(),
-            9: { 10 },
+            9: {10},
             10: set(),
-            11: { 9, 11 },
-            12: { 2, 8, 9, 11, 12 }
+            11: {9, 11},
+            12: {2, 8, 9, 11, 12}
         }
 
         for node, cd_nodes in standard_result.items():
@@ -90,10 +90,7 @@ class TestCdg(unittest.TestCase):
                 assert cdg.graph.has_edge(TemporaryNode(node), TemporaryNode(n))
             assert len(cdg.graph.out_edges(TemporaryNode(node))) == len(cd_nodes)
 
-
     def test_dominance_frontiers(self):
-
-        from angr.utils.graph import compute_dominance_frontier
 
         # This graph comes from Fig.1 of paper An Efficient Method of Computing Static Single Assignment Form by Ron Cytron,
         # etc.
@@ -140,18 +137,18 @@ class TestCdg(unittest.TestCase):
         df = compute_dominance_frontier(g, postdom)
 
         standard_df = {
-            1: { 'Exit' },
-            2: { 'Exit', 2 },
-            3: { 8 },
-            4: { 6 },
-            5: { 6 },
-            6: { 8 },
-            7: { 8 },
-            8: { 'Exit', 2 },
-            9: { 'Exit', 2, 9 },
-            10: { 11 },
-            11: { 'Exit', 2, 9 },
-            12: { 'Exit', 2 },
+            1: {'Exit'},
+            2: {'Exit', 2},
+            3: {8},
+            4: {6},
+            5: {6},
+            6: {8},
+            7: {8},
+            8: {'Exit', 2},
+            9: {'Exit', 2, 9},
+            10: {11},
+            11: {'Exit', 2, 9},
+            12: {'Exit', 2},
             'Entry': set(),
             'Exit': set()
         }
