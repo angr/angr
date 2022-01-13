@@ -17,40 +17,6 @@ addresses_veritesting_b = {
     'x86_64': 0x4006af
 }
 
-# <<<<<<< HEAD
-# def run_veritesting_a(arch):
-#     # TODO: Added timeout control, since a failed state merging will result in running for a long time
-
-#     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
-
-#     proj = angr.Project(os.path.join(location, arch, "veritesting_a"),
-#                         load_options={'auto_load_libs': False},
-#                         use_sim_procedures=True
-#                         )
-#     ex = proj.factory.simulation_manager(veritesting=True)
-#     ex.explore(find=addresses_veritesting_a[arch])
-#     assert len(ex.found) != 0
-#     # Make sure the input makes sense
-#     for f in ex.found:
-#         input_str = f.plugins['posix'].dumps(0)
-#         assert input_str.count(b'B') == 10
-
-# def run_veritesting_b(arch):
-#     #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
-
-#     proj = angr.Project(os.path.join(location, arch, "veritesting_b"),
-#                         load_options={'auto_load_libs': False},
-#                         use_sim_procedures=True
-#                         )
-#     ex = proj.factory.simulation_manager()
-#     ex.use_technique(angr.exploration_techniques.Veritesting(enable_function_inlining=True))
-#     ex.explore(find=addresses_veritesting_b[arch])
-#     assert len(ex.found) != 0
-#     # Make sure the input makes sense
-#     for f in ex.found:
-#         input_str = f.plugins['posix'].dumps(0)
-#         assert input_str.count(b'B') == 35
-# =======
 class TestVeritesting(unittest.TestCase):
     def _run_veritesting_a(self,arch):
         # TODO: Added timeout control, since a failed state merging will result in running for a long time
