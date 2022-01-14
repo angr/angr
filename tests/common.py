@@ -22,6 +22,13 @@ def broken(func):
     return skip("Broken test method")(func)
 
 
+def requires_binaries_private(func):
+    return skipIf(not
+                  os.path.exists(
+                      os.path.join(os.path.abspath(os.path.join(__file__, "../../../")), "binaries-private")))(
+        func)
+
+
 def slow_test(func):
     func.slow = True
     slow_test_env = os.environ['SKIP_SLOW_TESTS'].lower() if 'SKIP_SLOW_TESTS' in os.environ else str()

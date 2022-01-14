@@ -2,6 +2,7 @@ import logging
 import os
 import unittest
 
+from common import requires_binaries_private
 import archinfo
 import angr
 from angr.calling_conventions import (
@@ -67,7 +68,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         for arch, lst in args.items():
             yield self.run_fauxware, arch, lst
 
-    @unittest.skip("Skip this test since we do not have the binaries-private repo cloned on Travis CI.")
+    @requires_binaries_private
     def test_cgc(self):
         binaries = [
             "002ba801_01",

@@ -17,6 +17,7 @@ test_location = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
 )
 
+
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCfgemulate(unittest.TestCase):
@@ -127,31 +128,31 @@ class TestCfgemulate(unittest.TestCase):
             l.warning("No standard CFG specified.")
 
     @broken
-    def disabled_cfg_0(self):
+    def test_cfg_0(self):
         binary_path = os.path.join(test_location, "x86_64", "cfg_0")
         cfg_path = binary_path + ".cfg"
         self.perform_single(binary_path, cfg_path)
 
     @broken
-    def disabled_cfg_1(self):
+    def test_cfg_1(self):
         binary_path = os.path.join(test_location, "x86_64", "cfg_1")
         cfg_path = binary_path + ".cfg"
         self.perform_single(binary_path, cfg_path)
 
     @broken
-    def disabled_cfg_2(self):
+    def test_cfg_2(self):
         binary_path = os.path.join(test_location, "armel", "test_division")
         cfg_path = binary_path + ".cfg"
         self.perform_single(binary_path, cfg_path)
 
     @broken
-    def disabled_cfg_3(self):
+    def test_cfg_3(self):
         binary_path = os.path.join(test_location, "mips", "test_arrays")
         cfg_path = binary_path + ".cfg"
         self.perform_single(binary_path, cfg_path)
 
     @broken
-    def disabled_cfg_4(self):
+    def test_cfg_4(self):
         binary_path = os.path.join(test_location, "mipsel", "darpa_ping")
         cfg_path = binary_path + ".cfg"
         self.perform_single(binary_path, cfg_path)
@@ -212,7 +213,7 @@ class TestCfgemulate(unittest.TestCase):
         assert proj.kb.functions.function(name="function_d") == None
 
     @broken
-    def disabled_cfg_5(self):
+    def test_cfg_5(self):
         binary_path = os.path.join(test_location, "mipsel", "busybox")
         cfg_path = binary_path + ".cfg"
 
@@ -289,7 +290,7 @@ class TestCfgemulate(unittest.TestCase):
         self.perform_single(binary_path, cfg_path)
 
     @broken
-    def disabled_loop_unrolling(self):
+    def test_loop_unrolling(self):
         binary_path = os.path.join(test_location, "x86_64", "cfg_loop_unrolling")
 
         p = angr.Project(binary_path, auto_load_libs=True)
