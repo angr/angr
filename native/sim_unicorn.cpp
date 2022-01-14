@@ -1541,7 +1541,10 @@ bool State::is_cpuid_in_block(address_t block_address, int32_t block_size) {
 }
 
 VEXLiftResult* State::lift_block(address_t block_address, int32_t block_size) {
-	VexRegisterUpdates pxControl = VexRegUpdUnwindregsAtMemAccess;
+	// Using the optimized VEX block causes write-write conflicts: an older value becomes current value because the
+	// corresponding instruction is executed as dependency of a symbolic instruction to set some VEX temps. Thus, we use
+	// the unoptimized VEX block.
+	VexRegisterUpdates pxControl = VexRegUpdLdAllregsAtEachInsn;
 	std::unique_ptr<uint8_t[]> instructions(new uint8_t[block_size]);
 	address_t lift_address;
 
