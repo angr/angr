@@ -135,9 +135,10 @@ class SimEngineUnicorn(SuccessorsMixin):
                     curr_regs = self.state.regs
                     # If any regs are not present in the block details for re-execute, they are probably symbolic and so
                     # were not saved in native interface. Use current register values in those cases: they should have
-                    # correct values right now.
+                    # correct values right now. rx_bytes argument is set to 0 since we care about updating symbolic
+                    # values only
                     syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx),
-                                    reg_vals.get("edx", curr_regs.edx), reg_vals.get("esi", curr_regs.esi)]
+                                    reg_vals.get("edx", curr_regs.edx), 0]
                     syscall_simproc = self.state.project.simos.syscall_from_number(3, abi=None)
                     syscall_simproc.arch = self.state.arch
                     syscall_simproc.project = self.state.project

@@ -2290,13 +2290,6 @@ void State::perform_cgc_receive() {
 			get_register_value(reg_val.offset, reg_val.value);
 			instr_for_receive.reg_deps.emplace(reg_val);
 		}
-		// Fourth argument: esi
-		if (!is_symbolic_register(32, 4)) {
-			reg_val.offset = 32;
-			reg_val.size = 4;
-			get_register_value(reg_val.offset, reg_val.value);
-			instr_for_receive.reg_deps.emplace(reg_val);
-		}
 		block_for_receive.symbolic_instrs.emplace_back(instr_for_receive);
 		blocks_with_symbolic_instrs.emplace_back(block_for_receive);
 	}
