@@ -1,6 +1,8 @@
 from typing import Optional
 from functools import reduce
 
+from archinfo.arch_arm import is_arm_arch
+
 from ..plugin import KnowledgeBasePlugin
 from .cfg_model import CFGModel
 
@@ -22,7 +24,11 @@ class CFGManager(KnowledgeBasePlugin):
 
     def __getitem__(self, ident) -> CFGModel:
         if ident not in self.cfgs:
-            self.cfgs[ident] = CFGModel(ident, cfg_manager=self)
+            if self._kb is not None and self._kb._project is not None:
+                is_arm = is_arm_arch(self._kb._project.arch)
+            else:
+                is_arm = False
+            self.cfgs[ident] = CFGModel(ident, cfg_manager=self, is_arm=is_arm)
         return self.cfgs[ident]
 
     def __setitem__(self, ident, model):

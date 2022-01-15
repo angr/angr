@@ -9,8 +9,9 @@ from typing import Optional, Dict, Type, TYPE_CHECKING
 import itanium_demangler
 
 from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeFloat, SimTypeDouble
-from ...calling_conventions import SimCC, DEFAULT_CC
+from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
+from ...misc.ux import once
 from ...sim_type import parse_file
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
@@ -174,25 +175,24 @@ class SimLibrary:
             new_procedure = copy.deepcopy(old_procedure)
             new_procedure.display_name = alt
             self.procedures[alt] = new_procedure
+            if name in self.prototypes:
+                self.prototypes[alt] = self.prototypes[name]
+            if name in self.non_returning:
+                self.non_returning.add(alt)
+
 
     def _apply_metadata(self, proc, arch):
         if proc.cc is None and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-            if proc.cc.func_ty is not None:
-                # Use inspect to extract the parameters from the run python function
-                proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
         if proc.cc is None and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name](arch)
         if proc.display_name in self.prototypes:
-            proc.cc.func_ty = self.prototypes[proc.display_name].with_arch(arch)
-            if proc.cc.func_ty.arg_names is None:
+            proc.prototype = self.prototypes[proc.display_name].with_arch(arch)
+            if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
-                proc.cc.func_ty.arg_names = inspect.getfullargspec(proc.run).args[1:]
-            proc.cc.args = proc.cc.arg_locs(
-                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proc.cc.func_ty.args])
+                proc.prototype.arg_names = inspect.getfullargspec(proc.run).args[1:]
             if not proc.ARGS_MISMATCH:
-                proc.cc.num_args = len(proc.cc.func_ty.args)
-                proc.num_args = len(proc.cc.func_ty.args)
+                proc.num_args = len(proc.prototype.args)
         if proc.display_name in self.non_returning:
             proc.returns = False
         proc.library_name = self.name
@@ -295,13 +295,13 @@ class SimCppLibrary(SimLibrary):
         return name
 
     @staticmethod
-    def _proto_from_demangled_name(name: str) -> Optional[SimCC]:
+    def _proto_from_demangled_name(name: str) -> Optional[SimTypeFunction]:
         """
         Attempt to extract arguments and calling convention information for a C++ function whose name was mangled
         according to the Itanium C++ ABI symbol mangling language.
 
         :param name:    The demangled function name.
-        :return:        A calling convention or None if a calling convention cannot be found.
+        :return:        A prototype or None if a prototype cannot be found.
         """
 
         try:
@@ -342,12 +342,12 @@ class SimCppLibrary(SimLibrary):
         # try to determine a prototype from the function name if possible
         if demangled_name != name:
             # itanium-mangled function name
-            stub.cc.set_func_type_with_arch(self._proto_from_demangled_name(demangled_name))
-            stub.cc.args = stub.cc.arg_locs(
-                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in stub.cc.func_ty.args])
-            if stub.cc.func_ty is not None and not stub.ARGS_MISMATCH:
-                stub.cc.num_args = len(stub.cc.func_ty.args)
-                stub.num_args = len(stub.cc.func_ty.args)
+            stub.prototype = self._proto_from_demangled_name(demangled_name)
+            if stub.prototype is not None:
+                stub.prototype = stub.prototype.with_arch(arch)
+                if not stub.ARGS_MISMATCH:
+                    stub.cc.num_args = len(stub.prototype.args)
+                    stub.num_args = len(stub.prototype.args)
         return stub
 
     def get_prototype(self, name: str, arch=None) -> Optional[SimTypeFunction]:
@@ -516,13 +516,11 @@ class SimSyscallLibrary(SimLibrary):
         proc.abi = abi
         if abi in self.default_cc_mapping:
             cc = self.default_cc_mapping[abi](arch)
-            if proc.cc is not None:
-                cc.set_func_type_with_arch(proc.cc.func_ty)
             proc.cc = cc
         # a bit of a hack.
         name = proc.display_name
-        if self.syscall_prototypes[abi].get(name, None) is not None and proc.cc is not None:
-            proc.cc.func_ty = self.syscall_prototypes[abi][name].with_arch(arch)
+        if self.syscall_prototypes[abi].get(name, None) is not None:
+            proc.prototype = self.syscall_prototypes[abi][name].with_arch(arch)
 
     # pylint: disable=arguments-differ
     def get(self, number, arch, abi_list=()):
@@ -616,5 +614,47 @@ class SimSyscallLibrary(SimLibrary):
         return name in self.syscall_prototypes[abi]
 
 
-for _ in autoimport.auto_import_modules('angr.procedures.definitions', os.path.dirname(os.path.realpath(__file__))):
+#
+# Autoloading
+#
+
+# By default we only load common API definitions (as defined in COMMON_LIBRARIES). For loading more definitions, the
+# following logic is followed:
+# - We will load all Windows APIs them if the loaded binary is a Windows binary, or when load_win32api_definitions() is
+#   called.
+# - We will load all APIs when load_all_definitions() is called.
+
+_DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
+
+
+def load_win32api_definitions():
+    if once('load_win32api_definitions'):
+        for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR,
+                                                filter_func=lambda module_name: module_name.startswith("win32_"),
+                                                ):
+            pass
+
+
+def load_all_definitions():
+    if once('load_all_definitions'):
+        for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR):
+            pass
+
+
+COMMON_LIBRARIES = {
+    # CGC
+    'cgc',
+    # (mostly) Linux
+    'glibc',
+    'libstdcpp',
+    'linux_kernel',
+    'linux_loader',
+    # Windows
+    'msvcr',
+}
+
+
+for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR,
+                                        filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
+                                        ):
     pass

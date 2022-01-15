@@ -257,9 +257,9 @@ class SimLinux(SimUserland):
 
         # Prepare argc
         if argc is None:
-            argc = claripy.BVV(len(args), state.arch.bits)
+            argc = claripy.BVV(len(args), 32)
         elif type(argc) is int:  # pylint: disable=unidiomatic-typecheck
-            argc = claripy.BVV(argc, state.arch.bits)
+            argc = claripy.BVV(argc, 32)
 
         # Make string table for args/env/auxv
         table = StringTableSpec()
@@ -372,6 +372,14 @@ class SimLinux(SimUserland):
                     _l.warning('Unknown entry point register value indicator "%s"', val)
             else:
                 _l.error('What the ass kind of default value is %s?', val)
+
+        if state.arch.name == 'PPC64':
+            # store argc at the top of the stack if the program is statically linked, otherwise 0
+            # see sysdeps/powerpc/powerpc64/dl-machine.h, _dl_start_user
+            #stack_top = state.posix.argc.sign_extend(32) if state.project.loader.linux_loader_object is None else 0
+            # UMMMMMM actually nvm we're going to lie about it
+            stack_top = state.posix.argc.sign_extend(32)
+            state.mem[state.regs.sp].qword = stack_top
 
     def state_full_init(self, **kwargs):
         kwargs['addr'] = self._loader_addr

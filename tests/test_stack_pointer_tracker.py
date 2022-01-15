@@ -1,7 +1,6 @@
 
 import logging
 import os
-import nose
 
 import angr
 
@@ -26,17 +25,17 @@ def run_tracker(track_mem, use_bp):
 
 def test_stack_pointer_tracker():
     sp_result, bp_result = run_tracker(track_mem=True, use_bp=True)
-    nose.tools.assert_equal(sp_result, 8)
-    nose.tools.assert_equal(bp_result, 0)
+    assert sp_result == 8
+    assert bp_result == 0
 
 def test_stack_pointer_tracker_no_mem():
     sp_result, bp_result = run_tracker(track_mem=False, use_bp=True)
-    nose.tools.assert_equal(sp_result, 8)
-    nose.tools.assert_equal(bp_result, None)
+    assert sp_result == 8
+    assert bp_result == None
 
 def test_stack_pointer_tracker_just_sp():
     sp_result = run_tracker(track_mem=False, use_bp=False)
-    nose.tools.assert_equal(sp_result, None)
+    assert sp_result == None
 
 if __name__ == '__main__':
     logging.getLogger('angr.analyses.stack_pointer_tracker').setLevel(logging.INFO)

@@ -127,12 +127,12 @@ class Block(Serializable):
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_disassembly', '_capstone',
                  'addr', 'size', 'arch', '_instructions', '_instruction_addrs',
                  '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
-                 '_cross_insn_opt',
+                 '_cross_insn_opt', '_load_from_ro_regions',
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False,
                  backup_state=None, extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
-                 strict_block_end=None, collect_data_refs=False, cross_insn_opt=True):
+                 strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False):
 
         # set up arch
         if project is not None:
@@ -177,6 +177,7 @@ class Block(Serializable):
                         traceflags=traceflags,
                         strict_block_end=strict_block_end,
                         collect_data_refs=collect_data_refs,
+                        load_from_ro_regions=load_from_ro_regions,
                         cross_insn_opt=cross_insn_opt,
                 )
                 size = vex.size
@@ -189,6 +190,7 @@ class Block(Serializable):
         self._collect_data_refs = collect_data_refs
         self._strict_block_end = strict_block_end
         self._cross_insn_opt = cross_insn_opt
+        self._load_from_ro_regions = load_from_ro_regions
 
         self._instructions = num_inst
         self._instruction_addrs = [] # type: List[int]
@@ -272,6 +274,7 @@ class Block(Serializable):
                     collect_data_refs=self._collect_data_refs,
                     strict_block_end=self._strict_block_end,
                     cross_insn_opt=self._cross_insn_opt,
+                    load_from_ro_regions=self._load_from_ro_regions,
             )
             self._parse_vex_info(self._vex)
 
@@ -298,6 +301,7 @@ class Block(Serializable):
             collect_data_refs=self._collect_data_refs,
             strict_block_end=self._strict_block_end,
             cross_insn_opt=self._cross_insn_opt,
+            load_from_ro_regions=self._load_from_ro_regions,
         )
         self._parse_vex_info(self._vex_nostmt)
         return self._vex_nostmt
@@ -309,7 +313,7 @@ class Block(Serializable):
     @property
     def disassembly(self) -> DisassemblerBlock:
         """
-        Provide a disassebly object using whatever disassembler is available
+        Provide a disassembly object using whatever disassembler is available
         """
         if self._disassembly is None:
             if self._using_pcode_engine:

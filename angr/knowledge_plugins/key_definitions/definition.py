@@ -36,6 +36,14 @@ class Definition:
         else:
             return '<Definition {Tags:%s, Atom:%s, Codeloc:%s}%s>' % (repr(self.tags), self.atom, self.codeloc,
                                                                     "" if not self.dummy else " dummy")
+
+    def __str__(self):
+        pretty_tags = "\n".join([str(tag) for tag in self.tags])
+        return f"Definition:\n" \
+               f"Atom: {self.atom}\n" \
+               f"CodeLoc: {self.codeloc}\n" \
+               f"Tags: {pretty_tags}"
+
     def __hash__(self):
         return hash((self.atom, self.codeloc))
 

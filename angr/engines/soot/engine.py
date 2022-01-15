@@ -9,6 +9,7 @@ from ... import sim_options as o
 from ...errors import SimEngineError, SimTranslationError
 from cle import CLEError
 from ...state_plugins.inspect import BP_AFTER, BP_BEFORE
+from ...sim_type import SimTypeNum, SimTypeFunction, parse_type
 from ..engine import SuccessorsMixin
 from ..procedure import ProcedureMixin
 from .exceptions import BlockTerminationNotice, IncorrectLocationException
@@ -350,7 +351,9 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         if ret_var is not None:
             # get return symbol from native state
             native_cc = javavm_simos.get_native_cc()
-            ret_symbol = native_cc.get_return_val(native_state).to_claripy()
+            ret_symbol = native_cc.return_val(
+                javavm_simos.get_native_type(ret_var.type)
+            ).get_value(native_state).to_claripy()
             # convert value to java type
             if ret_var.type in ArchSoot.primitive_types:
                 # return value has a primitive type
@@ -399,7 +402,14 @@ class SootMixin(SuccessorsMixin, ProcedureMixin):
         # add to args
         final_args = [jni_env, ref] + args
 
+        # Step 3: generate C prototype from java_method
+        voidp = parse_type('void*')
+        arg_types = [voidp, voidp] + [state.project.simos.get_native_type(ty) for ty in java_method.params]
+        ret_type = state.project.simos.get_native_type(java_method.ret)
+        prototype = SimTypeFunction(args=arg_types, returnty=ret_type)
+
         # Step 3: create native invoke state
         return state.project.simos.state_call(native_addr, *final_args,
                                               base_state=state,
+                                              prototype=prototype,
                                               ret_type=java_method.ret)

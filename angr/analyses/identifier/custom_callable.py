@@ -57,24 +57,31 @@ class IdentifierCallable(object):
         self._base_state = state
 
     def __call__(self, *args):
-        self.perform_call(*args)
+        prototype = self._cc.guess_prototype(args)
+        self.perform_call(*args, prototype=prototype)
         if self.result_state is not None:
-            return self.result_state.solver.simplify(self._cc.get_return_val(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
+            loc = self._cc.return_val(prototype.returnty)
+            return self.result_state.solver.simplify(loc.get_value(self.result_state, stack_base=self.result_state.regs.sp - self._cc.STACKARG_SP_DIFF))
         return None
 
     def get_base_state(self, *args):
+        prototype = self._cc.guess_prototype(args)
         self._base_state.ip = self._addr
         state = self._project.factory.call_state(self._addr, *args,
+                    prototype=prototype,
                     cc=self._cc,
                     base_state=self._base_state,
                     ret_addr=self._deadend_addr,
                     toc=self._toc)
         return state
 
-    def perform_call(self, *args):
+    def perform_call(self, *args, prototype=None):
+        if prototype is None:
+            prototype = self._cc.guess_prototype(args)
         self._base_state.ip = self._addr
         state = self._project.factory.call_state(self._addr, *args,
                     cc=self._cc,
+                    prototype=prototype,
                     base_state=self._base_state,
                     ret_addr=self._deadend_addr,
                     toc=self._toc)

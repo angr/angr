@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 
 import claripy
@@ -12,12 +13,14 @@ from .... import sim_options as o
 l = logging.getLogger(__name__)
 zero = claripy.BVV(0, 32)
 
-def value(ty, val):
+def value(ty, val, size: Optional[int]=None):
     if ty == 'Ity_F32':
         return claripy.FPV(float(val), claripy.FSORT_FLOAT)
     elif ty == 'Ity_F64':
         return claripy.FPV(float(val), claripy.FSORT_DOUBLE)
     else:
+        if size is not None:
+            return claripy.BVV(int(val), size)
         return claripy.BVV(int(val), pyvex.get_type_size(ty))
 
 def symbol(ty, name):

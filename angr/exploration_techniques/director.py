@@ -271,12 +271,12 @@ class CallFunctionGoal(BaseGoal):
         # TODO: add calling convention detection to individual functions, and use that instead of the
         # TODO: default calling convention of the platform
 
-        cc = DEFAULT_CC[arch.name](arch)  # type: s_cc.SimCC
+        cc = DEFAULT_CC[arch.name](arch)
+        real_args = cc.get_args(state, cc.guess_prototype([0]*len(self.arguments)))
 
-        for i, expected_arg in enumerate(self.arguments):
+        for i, (expected_arg, real_arg) in enumerate(zip(self.arguments, real_args)):
             if expected_arg is None:
                 continue
-            real_arg = cc.arg(state, i)
 
             expected_arg_type, expected_arg_value = expected_arg
             r = self._compare_arguments(state, expected_arg_type, expected_arg_value, real_arg)

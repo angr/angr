@@ -19,7 +19,6 @@ from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
 from ...protos import function_pb2
 from ...calling_conventions import DEFAULT_CC
-from ...sim_type import SimTypeFloat, SimTypeDouble
 from .function_parser import FunctionParser
 
 l = logging.getLogger(name=__name__)
@@ -39,10 +38,10 @@ class Function(Serializable):
                  'is_syscall', '_project', 'is_plt', 'addr', 'is_simprocedure', '_name', 'is_default_name',
                  'from_signature', 'binary_name',
                  '_argument_registers', '_argument_stack_variables',
-                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', '_cc', '_prototype', '_returning',
+                 'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags', 'alignment',
+                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
@@ -94,9 +93,10 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self._cc = None  # type: Optional[SimCC]
+        self.calling_convention = None  # type: Optional[SimCC]
         # Function prototype
-        self._prototype = None  # type: Optional[SimTypeFunction]
+        self.prototype = None  # type: Optional[SimTypeFunction]
+        self.is_prototype_guessed: bool = True
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
         self.prepared_registers = set()
@@ -191,12 +191,6 @@ class Function(Serializable):
                 arch = self.project.arch
                 if self.project.arch.name in DEFAULT_CC:
                     cc = DEFAULT_CC[arch.name](arch)
-
-            # update cc.args according to num_args
-            # TODO: Handle non-traditional arguments like fp
-            if cc is not None and not cc.args and simproc.num_args:
-                args = cc.arg_locs(is_fp=[False] * simproc.num_args)  # arg_locs() uses cc.args
-                cc.args = args
 
             self.calling_convention = cc
         else:
@@ -333,65 +327,6 @@ class Function(Serializable):
         """
         # TODO: remove link register values
         return [const.value for block in self.blocks for const in block.vex.constants]
-
-    @property
-    def calling_convention(self) -> Optional[SimCC]:
-        """
-        Get the calling convention of this function.
-
-        :return:    The calling convention of this function.
-        """
-        return self._cc
-
-    @calling_convention.setter
-    def calling_convention(self, v):
-        """
-        Set the calling convention of this function. If the new cc has a function prototype, we will clear
-        self._prototype. Otherwise, if self.prototype is set, we will use it to update the function prototype of the new
-        cc, and then clear self._prototype. A warning message will be generated in either case.
-
-        :param Optional[SimCC] v:   The new calling convention.
-        :return:                    None
-        """
-        self._cc = v
-
-        if self._cc is not None:
-            if self._cc.func_ty is None and self._prototype is not None:
-                l.warning("The new calling convention for %r does not have a prototype associated. Using the existing "
-                          "function prototype to update the new calling convention. The existing function prototype "
-                          "will be removed.", self)
-                self._cc.set_func_type_with_arch(self._prototype)
-                self._prototype = None
-            elif self._cc.func_ty is not None and self._prototype is not None:
-                l.warning("The new calling convention for %r already has a prototype associated. The existing function "
-                          "prototype will be removed.", self)
-                self._prototype = None
-
-    @property
-    def prototype(self) -> Optional[SimTypeFunction]:
-        """
-        Get the prototype of this function. We prioritize the function prototype that is set in self.calling_convention.
-
-        :return:    The function prototype.
-        """
-        if self._cc:
-            return self._cc.func_ty
-        else:
-            return self._prototype
-
-    @prototype.setter
-    def prototype(self, proto):
-        """
-        Set a new prototype to this function. If a calling convention is already set to this function, the new prototype
-        will be set to this calling convention instead.
-
-        :param Optional[SimTypeFunction] proto: The new prototype.
-        :return:    None
-        """
-        if self._cc:
-            self._cc.set_func_type_with_arch(proto)
-        else:
-            self._prototype = proto
 
     @classmethod
     def _get_cmsg(cls):
@@ -1436,11 +1371,16 @@ class Function(Serializable):
             return
 
         proto = library.get_prototype(self.name)
-        self.prototype = proto
-        if self.calling_convention is not None:
-            self.calling_convention.args = self.calling_convention.arg_locs(
-                is_fp=[isinstance(arg, (SimTypeFloat, SimTypeDouble)) for arg in proto.args])
-            self.calling_convention.set_func_type_with_arch(proto)
+        if self.project is None:
+            # we need to get arch from self.project
+            l.warning("Function %s does not have .project set. A possible prototype is found, but we cannot set it "
+                      "without .project.arch.")
+            return
+        self.prototype = proto.with_arch(self.project.arch)
+
+        # update self.calling_convention if necessary
+        if self.calling_convention is None and self.project.arch.name in library.default_ccs:
+            self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
 
     @staticmethod
     def _addr_to_funcloc(addr):
@@ -1471,12 +1411,13 @@ class Function(Serializable):
         """
         if not definition.endswith(";"):
             definition += ";"
-        func_def = parse_defns(definition)
+        func_def = parse_defns(definition, arch=self.project.arch)
         if len(func_def.keys()) > 1:
             raise Exception("Too many definitions: %s " % list(func_def.keys()))
 
         name, ty = func_def.popitem() # type: str, SimTypeFunction
         self.name = name
+        self.prototype = ty
         # setup the calling convention
         # If a SimCC object is passed assume that this is sane and just use it
         if isinstance(calling_convention, SimCC):
@@ -1484,11 +1425,11 @@ class Function(Serializable):
 
         # If it is a subclass of SimCC we can instantiate it
         elif isinstance(calling_convention, type) and issubclass(calling_convention, SimCC):
-            self.calling_convention = calling_convention(self.project.arch, func_ty=ty)
+            self.calling_convention = calling_convention(self.project.arch)
 
         # If none is specified default to something
         elif calling_convention is None:
-            self.calling_convention = self.project.factory.cc(func_ty=ty)
+            self.calling_convention = self.project.factory.cc()
 
         else:
             raise TypeError("calling_convention has to be one of: [SimCC, type(SimCC), None]")

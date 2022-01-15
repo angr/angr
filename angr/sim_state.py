@@ -70,6 +70,7 @@ class SimState(PluginHub):
     mem: "SimMemView"
     history: 'SimStateHistory'
     inspect: 'SimInspector'
+    jni_references: "SimStateJNIReferences"
     def __init__(
             self,
             project=None,
@@ -983,3 +984,4 @@ if TYPE_CHECKING:
     from .state_plugins.view import SimRegNameView, SimMemView
     from .state_plugins.callstack import CallStack
     from .state_plugins.inspect import SimInspector
+    from .state_plugins import SimStateJNIReferences

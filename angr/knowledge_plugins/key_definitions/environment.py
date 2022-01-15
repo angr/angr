@@ -52,7 +52,7 @@ class Environment:
     def __repr__(self):
         return "Environment: %s" % self._environment
 
-    def __eq__(self, other: 'Environment') -> bool:
+    def __eq__(self, other: object) -> bool:
         assert isinstance(other, Environment), "Cannot compare Environment with %s" % type(other).__name__
         return self._environment == other._environment
 

@@ -1,6 +1,7 @@
 from angr.storage.memory_mixins import MemoryMixin
 from angr.misc import PicklableLock
 
+
 class RefcountMixin(MemoryMixin):
     """
     This mixin adds a locked reference counter and methods to manipulate it, to facilitate copy-on-write optimizations.

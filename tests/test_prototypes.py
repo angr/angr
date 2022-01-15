@@ -1,7 +1,6 @@
 
 import os
 
-import nose.tools
 
 import angr
 import angr.calling_conventions
@@ -15,10 +14,7 @@ def test_function_prototype():
 
     func = angr.knowledge_plugins.Function(proj.kb.functions, 0x100000, name='strcmp')
     func.prototype = angr.SIM_LIBRARIES['libc.so.6'].prototypes[func.name]
-    func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](
-        proj.arch,
-        func_ty=func.prototype,
-    )
+    func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](proj.arch)
 
 
 def test_find_prototype():
@@ -29,21 +25,19 @@ def test_find_prototype():
     func = cfg.kb.functions.function(name='strcmp', plt=False)
     func.calling_convention = angr.calling_conventions.DEFAULT_CC[proj.arch.name](proj.arch)
 
-    # Calling SimCC.arg_locs() should fail when the function prototype is not provided.
-    nose.tools.assert_raises(ValueError, func.calling_convention.arg_locs)
-
     func.find_declaration()
 
-    arg_locs = func.calling_convention.arg_locs()  # now it won't fail
+    arg_locs = func.calling_convention.arg_locs(func.prototype)
 
-    nose.tools.assert_equal(len(arg_locs), 2)
-    nose.tools.assert_equal(arg_locs[0].reg_name, 'rdi')
-    nose.tools.assert_equal(arg_locs[1].reg_name, 'rsi')
+    assert len(arg_locs) == 2
+    assert arg_locs[0].reg_name == 'rdi'
+    assert arg_locs[1].reg_name == 'rsi'
 
 
 def main():
     test_find_prototype()
     test_function_prototype()
+
 
 if __name__ == "__main__":
     main()

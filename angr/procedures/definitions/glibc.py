@@ -21,12 +21,8 @@ libc.add_all_from_dict(P['libc'])
 libc.add_all_from_dict(P['posix'])
 libc.add_all_from_dict(P['glibc'])
 libc.add_all_from_dict(P['uclibc']) # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming conflicts in the functions.
-libc.add_alias('abort', '__assert_fail', '__stack_chk_fail')
-libc.add_alias('memcpy', 'memmove', 'bcopy')
-libc.add_alias('getc', '_IO_getc')
-libc.add_alias('putc', '_IO_putc')
 libc.set_non_returning('exit_group', 'exit', 'abort', 'pthread_exit', '__assert_fail',
-    'longjmp', 'siglongjmp', '__longjmp_chk', '__siglongjmp_chk')
+                       'longjmp', 'siglongjmp', '__longjmp_chk', '__siglongjmp_chk')
 
 
 #
@@ -858,7 +854,7 @@ _libc_decls = \
         # int shm_unlink (const char *NAME);
         "shm_unlink": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["name"]),
         # int select (int NFDS, fd_set *READ_FDS, fd_set *WRITE_FDS, fd_set *EXCEPT_FDS, struct timeval *TIMEOUT);
-        "select": None,
+        "select": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom()), SimTypePointer(SimTypeBottom()), SimTypePointer(SimTypeBottom()), SimTypePointer(SimTypeBottom())], SimTypeInt(signed=True), arg_names=["nfds", "read_fds", "write_fds", "except_fds", "timeout"]),
         # void sync (void);
         "sync": SimTypeFunction([], SimTypeBottom(label="void")),
         # int fsync (int FILDES);
@@ -3086,6 +3082,11 @@ for name, proto in _libc_decls.items():
 
 _l.debug("Libc provides %d function prototypes, and has %d unsupported function prototypes.",
          proto_count, unsupported_count)
+
+libc.add_alias('abort', '__assert_fail', '__stack_chk_fail')
+libc.add_alias('memcpy', 'memmove', 'bcopy')
+libc.add_alias('getc', '_IO_getc')
+libc.add_alias('putc', '_IO_putc')
 
 
 #
