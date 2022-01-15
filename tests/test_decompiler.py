@@ -853,8 +853,6 @@ def test_single_instruction_loop():
     assert "for(" in code_without_spaces
 
 
-
-
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
