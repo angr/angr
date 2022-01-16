@@ -2,7 +2,6 @@
 Defines the classes used to represent the different type of nodes in a Data Dependency NetworkX graph
 """
 from typing import Optional, Tuple, TYPE_CHECKING
-from copy import copy
 
 if TYPE_CHECKING:
     from claripy.ast.bv import BV
@@ -138,49 +137,6 @@ class TmpDepNode(VarDepNode):
         super().__init__(DepNodeTypes.Tmp, sim_act, reg, arch_name)
 
 
-#
-# class RegDepWriteNode(RegDepNode):
-#     """
-#     Needed as a write should create a new state, so the hash is overriden to include the statement index in equality
-#     and hash checks
-#     """
-#
-#     @classmethod
-#     def cast_to_var_write(cls, var_node: RegDepNode):
-#         """Casts a VarDepNode to a VarDepWriteNode"""
-#         assert isinstance(var_node, RegDepNode)
-#         var_node.__class__ = cls
-#         assert isinstance(var_node, RegDepWriteNode)
-#         return var_node
-#
-#     def __eq__(self, other):
-#         return super().__eq__(other) and self.stmt_idx == other.stmt_idx
-#
-#     def __hash__(self):
-#         """
-#         As each write should be treated as a new "state" for a register or temp var, we need nodes of this type
-#         to hash to a unique bucket in the canonical graph dictionary. To accomplish this, a write node will also include
-#         its statement index in its hash.
-#         Meanwhile, the superclass will resolve to the same node for all statements in the instruction
-#         """
-#         return super().__hash__() ^ hash(self.stmt_idx)
-#
-#
-# class RegDepReadNode(RegDepNode):
-#     """
-#     Created to differentiate from VarDepWriteNodes. Reads shouldn't create a new state, so maintain the same generic
-#     hash inherited from the parent class.
-#     """
-#
-#     @classmethod
-#     def cast_to_var_read(cls, var_node: RegDepNode):
-#         """Casts a VarDepNode to a VarDepReadNode"""
-#         assert isinstance(var_node, RegDepNode)
-#         var_node.__class__ = cls
-#         assert isinstance(var_node, RegDepReadNode)
-#         return var_node
-
-
 class MemDepNode(BaseDepNode):
     """
     Used to represent SimActions of type MEM
@@ -214,40 +170,3 @@ class MemDepNode(BaseDepNode):
         base_dep_node.__class__ = cls
         assert isinstance(base_dep_node, MemDepNode)
         return base_dep_node
-
-# class MemDepWriteNode(MemDepNode):
-#     """
-#     Created for same reason as VarDepWriteNode, a write to a memory address should be treated as a new state and
-#     thus warrants a new node
-#     """
-#
-#     def __eq__(self, other):
-#         return super().__eq__(other) and self.stmt_idx == other.stmt_idx
-#
-#     def __hash__(self):
-#         """
-#         Same story as VarDepWriteNode, we want these to uniquely hash per statement
-#         """
-#         return super().__hash__() ^ hash(self.stmt_idx)
-#
-#     @classmethod
-#     def cast_to_mem_write(cls, mem_dep_node: MemDepNode):
-#         """Casts a MemDepNode into a MemDepWriteNode"""
-#         assert isinstance(mem_dep_node, MemDepNode)
-#         mem_dep_node.__class__ = cls
-#         assert isinstance(mem_dep_node, MemDepWriteNode)
-#         return mem_dep_node
-#
-#
-# class MemDepReadNode(MemDepNode):
-#     """
-#     Same story as VarDepReadNode, we want these to use the generic hash from the parent class
-#     """
-#
-#     @classmethod
-#     def cast_to_mem_read(cls, mem_dep_node: MemDepNode):
-#         """Casts a MemDepNode into a MemDepReadNode"""
-#         assert isinstance(mem_dep_node, MemDepNode)
-#         mem_dep_node.__class__ = cls
-#         assert isinstance(mem_dep_node, MemDepReadNode)
-#         return mem_dep_node
