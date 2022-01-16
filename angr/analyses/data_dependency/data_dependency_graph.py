@@ -311,7 +311,8 @@ class DataDependencyGraphAnalysis(Analysis):
         if act.action == SimActionData.WRITE:
             write_node = self._parse_action()
 
-            if src_nodes := read_nodes.get(write_node.value, None):
+            src_nodes = read_nodes.get(write_node.value, None)
+            if src_nodes:
                 # Write value came from a previous read value
                 for src_node in src_nodes:
                     self._graph.add_edge(src_node, write_node, label='val')
@@ -372,7 +373,8 @@ class DataDependencyGraphAnalysis(Analysis):
 
         if act.action == SimActionData.WRITE:
             mem_node = MemDepNode.cast_to_mem(self._parse_action())
-            if src_nodes := read_nodes.get(mem_node.value, None):
+            src_nodes = read_nodes.get(mem_node.value, None)
+            if src_nodes:
                 # Value being written to, address came from previous read
                 for src_node in src_nodes:
                     self._graph.add_edge(src_node, mem_node, label='val')
@@ -391,7 +393,8 @@ class DataDependencyGraphAnalysis(Analysis):
             ret_val = None if self._peek() and act.stmt_idx == self._peek().stmt_idx else act_loc
 
         # Handle the address of the mem R/W
-        if addr_source_nodes := read_nodes.get(mem_node.addr, None):
+        addr_source_nodes = read_nodes.get(mem_node.addr, None)
+        if addr_source_nodes:
             for addr_source_node in addr_source_nodes:
                 self._graph.add_edge(addr_source_node, mem_node, label='addr_source')
 
