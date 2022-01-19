@@ -287,12 +287,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
             edge = (node, dst)
 
             if edge in edges_to_shrink:
-
-                if dst in supernodes_map:
-                    dst_supernode = supernodes_map[dst]
-                else:
-                    dst_supernode = None
-
+                dst_supernode = supernodes_map.get(dst, None)
                 src_supernode.insert_ailnode(dst)
 
                 # update supernodes map
@@ -355,7 +350,13 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
 
 
 class OutBranch:
+    """
+    Represents a branch at the end of a AILSuperNode.
+    Note: this is not an edge, but instead a branch.
+    """
+
     def __init__(self, ins_addr, stmt_idx, branch_type):
+
         self.ins_addr = ins_addr
         self.stmt_idx = stmt_idx
         self.type = branch_type
@@ -405,6 +406,10 @@ class OutBranch:
 
 
 class SuperAILNode:
+    """
+    A single node in the SuperGraph, which will include various other ail nodes
+    """
+
     def __init__(self, addr):
         self.addr = addr
         self.nodes = []
@@ -438,7 +443,8 @@ class SuperAILNode:
                 # insert before n
                 self.nodes.insert(i, ail_node)
                 break
-            elif ail_node.addr == n.addr:
+
+            if ail_node.addr == n.addr:
                 break
         else:
             self.nodes.append(ail_node)
