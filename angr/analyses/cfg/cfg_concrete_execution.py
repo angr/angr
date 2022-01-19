@@ -968,8 +968,6 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
 
     def _run_on_node(self, node, abstract_state):
         print("Running semantic verification on node: "+str(node))
-        if node.addr == 0x4009b1 and node.block_id.vm_vpc == 10:
-            import ipdb;ipdb.set_trace()
         input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
@@ -993,8 +991,6 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             opt_level=self._iropt_level,
             jumpkind=jumpkind,
             irsb=node.irsb)
-        # if node.addr == 0x400971:
-        #     import ipdb;ipdb.set_trace()
 
         if node.is_simprocedure:
             if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
