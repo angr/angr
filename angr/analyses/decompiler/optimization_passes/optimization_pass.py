@@ -17,6 +17,7 @@ class MultipleBlocksException(Exception):
 class OptimizationPassStage:
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 0
     AFTER_GLOBAL_SIMPLIFICATION = 1
+    AFTER_VARIABLE_RECOVERY = 2
 
 
 class OptimizationPass(Analysis):
@@ -37,12 +38,12 @@ class OptimizationPass(Analysis):
         self.out_graph = None  # type: Optional[networkx.DiGraph]
 
     @property
-    def blocks_by_addr(self):
+    def blocks_by_addr(self) -> Dict[Tuple[int,Optional[int]],Set[ailment.Block]]:
         return self._blocks_by_addr
 
     @property
-    def blocks_by_addr_and_idx(self):
-        return self.blocks_by_addr_and_idx
+    def blocks_by_addr_and_idx(self) -> Dict[int,ailment.Block]:
+        return self._blocks_by_addr_and_idx
 
     def analyze(self):
 

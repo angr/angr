@@ -13,6 +13,7 @@ from ..errors import AngrAnalysisError
 
 if TYPE_CHECKING:
     from ..knowledge_base import KnowledgeBase
+    import angr
 
 l = logging.getLogger(name=__name__)
 
