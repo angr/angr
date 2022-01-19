@@ -1556,7 +1556,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         should_skip = False
         if 'stop_analysis' in job.state.globals and job.state.globals['stop_analysis'] is True:
             should_skip = True
-            import ipdb;ipdb.set_trace()
 
         if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc, job.branch_trace)][addr] >= self._max_iterations:
             l.debug("Block SKIPPED! due to max_iterations")
