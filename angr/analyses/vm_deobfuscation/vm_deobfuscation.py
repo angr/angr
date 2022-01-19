@@ -6,6 +6,7 @@ import networkx as nx
 import re
 import copy
 import os
+import pickle
 from collections import defaultdict, OrderedDict
 from pyvex.stmt import Exit
 from angr.code_location import CodeLocation
@@ -432,17 +433,20 @@ class StatementGraph:
 class VMDeobfuscation(Analysis):
 
     def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_input=None):
+
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
         self.start_addr = start_addr
         self.vm_vpc_addr = vm_vpc_addr
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
+        folder_name = os.path.dirname(self.project.filename)
+        self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
 
         # removing path terminators, cause...............they causing problems
         cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
 
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state)
-        folder_name = os.path.dirname(self.project.filename)
+
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
 
         # all_functions = []
@@ -462,8 +466,12 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
         # DCE commented out temporarily to make testing faster for block simplifications
-        for i in range(11):
-            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+        changed = True
+        i = 0
+        while changed and i < 11:
+            i=i+1
+            new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
         self.draw_graph(new_cfg, os.path.join(folder_name, "DCE_result.svg"))
 
         # Right now cannot do block arithmetic simps after joining blocks because it doesn't reorder instructions correctly (need to make it block_id sensitive)_
@@ -481,28 +489,45 @@ class VMDeobfuscation(Analysis):
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join("dae_result.svg"))
         # DCE again to remove the temp variables remaining after dead assignment elimination, should I just do this along with DSA(being lazy is what it is)
-        for i in range(11):
+        changed = True
+        i = 0
+        while changed and i < 11:
+            i=i+1
             print("DCE round "+str(i))
-            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
-        for i in range(2):
+        changed = True
+        i = 0
+        while changed and i < 3:
+            i=i+1
             print("DCE round "+str(i))
-            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_3_result.svg"))
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_1_result.svg"))
         new_cfg = self.remove_redundant_assignment(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "redun_store_load.svg"))
-        for i in range(3):
+        changed = True
+        i = 0
+        while changed and i < 4:
+            i=i+1
             print("DCE round "+str(i))
-            new_cfg = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
         for i in range(15):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
+
+        changed = True
+        i = 0
+        while changed and i < 5:
+            i=i+1
+            print("DCE round "+str(i))
+            new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i) + "final_dce_result.svg"))
 
 
         self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr, input=verification_input)
@@ -685,24 +710,12 @@ class VMDeobfuscation(Analysis):
         new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
                                                    resolve_indirect_jumps=True)
 
-        rax_loc = start_state.regs.rsp - 0x78
-        rax2_loc = start_state.regs.rsp - 0x68
         for node in new_cfg.graph.nodes():
-            # for i in range(16):
-            #     print(node.input_state.memory.load(start_state.solver.eval(start_state.regs.rsp - (0x40+i*8)), 8))
-            print(node.input_state.memory.load(start_state.solver.eval(rax_loc-0x158), 4, endness="Iend_LE"))
-            print(node.input_state.memory.load(start_state.solver.eval(rax_loc - 0x158), 4, endness="Iend_LE").annotations)
-            print(node.input_state.memory.load(start_state.solver.eval(rax_loc), 4, endness="Iend_LE"))
-            print(node.input_state.memory.load(start_state.solver.eval(rax_loc), 4,
-                                               endness="Iend_LE").annotations)
-            print("next")
-
             succs = new_cfg.model.get_successors(node)
             if len(succs) == 0:
-                final_state = node.final_states[0]
+                final_state = node.input_state
+                print(node)
                 print(final_state.posix.dumps(1))
-
-        import ipdb;ipdb.set_trace()
 
 
     def convert_to_atom(self, vex_inst, tyenv, byte_width):
@@ -939,6 +952,10 @@ class VMDeobfuscation(Analysis):
                 #     if not uses:
                 #         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
                 # else:
+                # if d.codeloc.ins_addr == 0x6f98a5 and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Put):
+                #     import ipdb;
+                #     ipdb.set_trace()
+
                 uses = rd.all_uses.get_uses(d)
                 if not uses:
                     # is entirely possible that at the end of the block, a register definition is not used.
@@ -947,7 +964,7 @@ class VMDeobfuscation(Analysis):
                     defs_ = set()
                     if isinstance(d.atom, atoms.Register):
                         vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
-                    elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                    elif isinstance(d.atom, atoms.MemoryLocation):
                         stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
                         vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
                                                                              endness=d.atom.endness)
@@ -1652,6 +1669,7 @@ class VMDeobfuscation(Analysis):
             main = proj.loader.main_object.get_symbol("main")
             start_addr = main.rebased_addr
         ddg = proj.analyses.DDG(cfg, start_addr)
+        changed = False
 
         node_replace_dict = {}
         for node in list(cfg.graph.nodes()):
@@ -1662,7 +1680,10 @@ class VMDeobfuscation(Analysis):
                 new_stmts = []
                 print(node.irsb.pp())
                 print(node.block_id)
+                cur_ins_addr = None
                 for ind, stmt in enumerate(old_stmts):
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        cur_ins_addr = stmt.addr
                     if isinstance(stmt, pyvex.stmt.IMark) and ind == len(old_stmts)-1:
                         continue
                     elif isinstance(stmt, pyvex.stmt.AbiHint) and ind == len(old_stmts)-1:
@@ -1686,6 +1707,9 @@ class VMDeobfuscation(Analysis):
                         continue
 
                     location = CodeLocation(node.irsb.addr , ind, node.block_id)
+                    # if isinstance(stmt, pyvex.stmt.Put) and cur_ins_addr == 0x6d32fc and isinstance(stmt.data, pyvex.expr.RdTmp) and stmt.offset == 72:
+                    #     import ipdb;
+                    #     ipdb.set_trace()
                     # Check for stmts with no outgoing edges for deadcode
                     if len(ddg._stmt_graph.out_edges([location])) != 0:
                         print("Dependencies of: "+stmt.__str__(arch=node.irsb.arch, tyenv=node.irsb.tyenv))
@@ -1698,6 +1722,8 @@ class VMDeobfuscation(Analysis):
                     # elif isinstance(stmt, pyvex.stmt.WrTmp) and stmt.tmp == 421 and node.addr in [0x6bb92e, 0x6b3241] and node.block_id.vm_vpc in [6736528, 6736645]:
                     #     import ipdb;ipdb.set_trace()
 
+                if new_stmts != node.irsb.statements:
+                    changed = True
                 # Dealing with empty blocks i.e. removing them
                 if len(new_stmts) == 0:
                     succ = cfg.graph.successors(node)
@@ -1750,7 +1776,7 @@ class VMDeobfuscation(Analysis):
                                                            angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS})
         dce_new_model._nodes_by_addr[start_addr][0].input_state = initial_input_state
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=dce_new_model, keep_state=True, iropt_level=1, resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
-        return new_cfg
+        return new_cfg, changed
 
     ### Draw the graph with vex statements
     def draw_graph(self, cfg, filename):
