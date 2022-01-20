@@ -13,7 +13,8 @@ class TestDb(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True,
+                                    normalize=True)  # type: angr.analyses.CFGFast
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
@@ -65,12 +66,12 @@ class TestDb(unittest.TestCase):
 
             assert comment == new_comment
 
-
     def test_angrdb_open_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        _ = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+        _ = proj.analyses.CFGFast(data_references=True, cross_references=True,
+                                  normalize=True)  # type: angr.analyses.CFGFast
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()
@@ -108,12 +109,12 @@ class TestDb(unittest.TestCase):
                     map(lambda x: x.addr, new_func.transition_graph.nodes()))
                 assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
-
     def test_angrdb_save_multiple_times(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
-        _ = proj.analyses.CFGFast(data_references=True, cross_references=True, normalize=True)  # type: angr.analyses.CFGFast
+        _ = proj.analyses.CFGFast(data_references=True, cross_references=True,
+                                  normalize=True)  # type: angr.analyses.CFGFast
         proj.kb.comments[proj.entry] = "Entry point"
 
         dtemp = tempfile.mkdtemp()

@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 import unittest
 
@@ -57,6 +56,5 @@ class TestDirector(unittest.TestCase):
 
 
 if __name__ == "__main__":
-
     logging.getLogger('angr.exploration_techniques.director').setLevel(logging.DEBUG)
     unittest.main()
