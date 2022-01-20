@@ -5,11 +5,9 @@ import logging
 import claripy
 import ailment
 
-from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...calling_conventions import SimRegArg
 from ...sim_type import SimTypeFunction, SimTypeBottom
 from ...engines.light import SimEngineLightAILMixin
-from ...errors import SimMemoryMissingError
 from ..typehoon import typeconsts, typevars
 from ..typehoon.lifter import TypeLifter
 from .engine_base import SimEngineVRBase, RichR
@@ -94,7 +92,8 @@ class SimEngineVRAIL(
                     else:
                         ret_expr: SimRegArg = stmt.calling_convention.return_val(stmt.prototype.returnty)
                 else:
-                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.", target)
+                    l.debug("Unknown calling convention for function %s. Fall back to default calling convention.",
+                            target)
                     ret_expr: SimRegArg = self.project.factory.cc().RETURN_VAL
 
                 if ret_expr is not None:
@@ -140,7 +139,7 @@ class SimEngineVRAIL(
                 if arg.typevar is not None:
                     arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
                     type_constraint = typevars.Subtype(
-                        arg_ty, arg.typevar
+                        arg.typevar, arg_ty
                     )
                     self.state.add_type_constraint(type_constraint)
 
@@ -188,8 +187,10 @@ class SimEngineVRAIL(
         return self._load(addr_r, size, expr=expr)
 
     def _ail_handle_Const(self, expr):
-        return RichR(claripy.BVV(expr.value, expr.size * self.state.arch.byte_width),
-                     typevar=typeconsts.int_type(expr.size * self.state.arch.byte_width))
+        v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
+        r = RichR(v, typevar=typeconsts.int_type(expr.size * self.state.arch.byte_width))
+        self._reference(r, self._codeloc())
+        return r
 
     def _ail_handle_BinaryOp(self, expr):
         r = super()._ail_handle_BinaryOp(expr)
@@ -217,42 +218,25 @@ class SimEngineVRAIL(
         r = self._expr(expr.operand)
         typevar = None
         if r.typevar is not None:
-            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ReinterpretAs):
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and \
+                    isinstance(r.typevar.label, typevars.ReinterpretAs):
                 # there is already a reinterpretas - overwrite it
-                typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
+                typevar = typevars.DerivedTypeVariable(
+                    r.typevar.type_var,
+                    typevars.ReinterpretAs(expr.to_type, expr.to_bits)
+                )
             else:
                 typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ReinterpretAs(expr.to_type, expr.to_bits))
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
     def _ail_handle_StackBaseOffset(self, expr: ailment.Expr.StackBaseOffset):
-        try:
-            values: MultiValues = self.state.stack_region.load(self.state.stack_addr_from_offset(expr.offset),
-                                                               size=1,
-                                                               endness=self.state.arch.memory_endness)
-            vs = set()
-            for v_set in values.values.values():
-                vs.update(v_set)
-        except SimMemoryMissingError:
-            vs = None
+        typevar = self.state.stack_offset_typevars.get(expr.offset, None)
 
-        typevar_set = set()
-        if vs:
-            for value in vs:
-                for _, v in self.state.extract_variables(value):
-                    try:
-                        typevar = self.state.typevars.get_type_variable(v, self._codeloc())
-                        typevar_set.add(typevar)
-                    except KeyError:
-                        pass
-
-        if not typevar_set:
+        if typevar is None:
             # allocate a new type variable
             typevar = typevars.TypeVariable()
-        else:
-            # TODO: Assign multiple typevars to the same typevar
-            # FIXME
-            typevar = next(iter(typevar_set))
+            self.state.stack_offset_typevars[expr.offset] = typevar
 
         value_v = self.state.stack_address(expr.offset)
         richr = RichR(value_v, typevar=typevar)
@@ -303,9 +287,6 @@ class SimEngineVRAIL(
         if r0.data is not None and r1.data is not None:
             sum_ = r0.data + r1.data
 
-        if r0.typevar is not None and r1.typevar is not None:
-            type_constraints.add(typevars.Subtype(r0.typevar, r1.typevar))
-
         return RichR(sum_,
                      typevar=typevar,
                      type_constraints=type_constraints,
@@ -318,9 +299,13 @@ class SimEngineVRAIL(
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)
 
-        typevar = None
+        type_constraints = set()
         if r0.typevar is not None and r1.data.concrete:
             typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.SubN(r1.data._model_concrete.value))
+        else:
+            typevar = typevars.TypeVariable()
+            if r0.typevar is not None and r1.typevar is not None:
+                type_constraints.add(typevars.Sub(r0.typevar, r1.typevar, typevar))
 
         sub = None
         if r0.data is not None and r1.data is not None:
@@ -328,7 +313,7 @@ class SimEngineVRAIL(
 
         return RichR(sub,
                      typevar=typevar,
-                     type_constraints={ typevars.Subtype(r0.typevar, r1.typevar) },
+                     type_constraints=type_constraints,
                      )
 
     def _ail_handle_Mul(self, expr):

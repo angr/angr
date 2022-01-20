@@ -49,10 +49,14 @@ class DefinitionAnnotation(Annotation):
     def __hash__(self):
         return hash((self.definition, self.relocatable, self.eliminatable))
 
-    def __eq__(self, other: 'DefinitionAnnotation'):
-        return  self.definition == other.definition \
-            and self.relocatable == other.relocatable \
-            and self.eliminatable == other.eliminatable
+    def __eq__(self, other: 'object'):
+        if isinstance(other, DefinitionAnnotation):
+            return  self.definition == other.definition \
+                and self.relocatable == other.relocatable \
+                and self.eliminatable == other.eliminatable
+        else:
+            raise ValueError("DefinitionAnnotation can only check equality with other DefinitionAnnotation")
+
 
 # pylint: disable=W1116
 class LiveDefinitions:

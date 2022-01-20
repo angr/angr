@@ -104,7 +104,7 @@ class MemoryMixin(SimStatePlugin):
         """
         raise NotImplementedError()
 
-    def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
+    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
         """
         Override this method to provide default values for a variety of edge cases and base cases.
 

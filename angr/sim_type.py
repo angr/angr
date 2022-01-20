@@ -1784,7 +1784,7 @@ def _accepts_scope_stack():
     """
     pycparser hack to include scope_stack as parameter in CParser parse method
     """
-    def parse(self, text, scope_stack=None, filename='', debuglevel=0):
+    def parse(self,text, filename='', debug=False, scope_stack=None):
         self.clex.filename = filename
         self.clex.reset_lineno()
         self._scope_stack = [dict()] if scope_stack is None else scope_stack
@@ -1792,7 +1792,7 @@ def _accepts_scope_stack():
         return self.cparser.parse(
             input=text,
             lexer=self.clex,
-            debug=debuglevel)
+            debug=debug)
     setattr(pycparser.CParser, 'parse', parse)
 
 

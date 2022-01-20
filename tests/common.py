@@ -1,7 +1,8 @@
 import os
 import pickle
+import sys
 
-from nose.plugins.attrib import attr
+from unittest import skipIf, skipUnless, skip
 
 try:
     import tracer
@@ -12,17 +13,34 @@ bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '
 bin_priv_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries-private')
 
 if not os.path.isdir(bin_location):
-    raise Exception("Can't find the angr/binaries repo for holding testcases. It should be cloned into the same folder as the rest of your angr modules.")
+    raise Exception(
+        "Can't find the angr/binaries repo for holding testcases. It should be cloned into the same folder as the rest of your angr modules."
+    )
 
-slow_test = attr(speed='slow')
+
+def broken(func):
+    return skip("Broken test method")(func)
+
+
+def slow_test(func):
+    func.slow = True
+    slow_test_env = os.environ['SKIP_SLOW_TESTS'].lower() if 'SKIP_SLOW_TESTS' in os.environ else str()
+    return skipIf(slow_test_env == "true" or slow_test_env == "1", 'Skipping slow test')(func)
+
+
+def skip_if_not_linux(func):
+    return skipUnless(sys.platform.startswith("linux"), "Skipping Linux Test Cases")(func)
+
 
 TRACE_VERSION = 1
+
 
 def do_trace(proj, test_name, input_data, **kwargs):
     """
     trace, magic, crash_mode, crash_addr = load_cached_trace(proj, "test_blurble")
     """
-    fname = os.path.join(bin_location, 'tests_data', 'runner_traces', '%s_%s_%s.p' % (test_name, os.path.basename(proj.filename), proj.arch.name))
+    fname = os.path.join(bin_location, 'tests_data', 'runner_traces',
+                         '%s_%s_%s.p' % (test_name, os.path.basename(proj.filename), proj.arch.name))
 
     if os.path.isfile(fname):
         try:
@@ -41,6 +59,7 @@ def do_trace(proj, test_name, input_data, **kwargs):
     with open(fname, 'wb') as f:
         pickle.dump((r, TRACE_VERSION), f, -1)
     return r
+
 
 def load_cgc_pov(pov_file: str) -> "tracer.TracerPoV":
     if tracer is None:

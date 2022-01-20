@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import logging
@@ -21,7 +20,7 @@ def test_rol_x86_64():
     found_state = pg.found[0]
 
     result = found_state.solver.eval(r_rax)
-    nose.tools.assert_equal(result, 0x37B7AB70)
+    assert result == 0x37B7AB70
 
 def test_rol_i386():
     binary_path = os.path.join(test_location, 'i386', 'test_rol.exe')
@@ -37,7 +36,7 @@ def test_rol_i386():
     found_state = pg.found[0]
 
     result = found_state.solver.eval(r_eax)
-    nose.tools.assert_equal(result, 0x37B7AB70)
+    assert result == 0x37B7AB70
 
 if __name__ == "__main__":
     test_rol_x86_64()

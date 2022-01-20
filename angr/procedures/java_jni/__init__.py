@@ -21,7 +21,7 @@ class JNISimProcedure(SimProcedure):
     """
 
     # Java type of return value
-    return_ty = None # type: Optional[str]
+    return_ty: Optional[str] = None
 
     # jboolean constants
     JNI_TRUE = 1

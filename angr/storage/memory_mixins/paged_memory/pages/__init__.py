@@ -5,8 +5,10 @@ from .cooperation import CooperationBase, MemoryObjectMixin
 from .ispo_mixin import ISPOMixin
 from .refcount_mixin import RefcountMixin
 from .permissions_mixin import PermissionsMixin
+from .history_tracking_mixin import HistoryTrackingMixin
 
-class PageBase(RefcountMixin, CooperationBase, ISPOMixin, PermissionsMixin, MemoryMixin):
+
+class PageBase(HistoryTrackingMixin, RefcountMixin, CooperationBase, ISPOMixin, PermissionsMixin, MemoryMixin):
     """
     This is a fairly succinct definition of the contract between PagedMemoryMixin and its constituent pages:
 

@@ -9,8 +9,9 @@ from typing import Optional, Dict, Type, TYPE_CHECKING
 import itanium_demangler
 
 from ...sim_type import parse_cpp_file, SimTypeFunction, SimTypeFloat, SimTypeDouble
-from ...calling_conventions import SimCC, DEFAULT_CC
+from ...calling_conventions import DEFAULT_CC
 from ...misc import autoimport
+from ...misc.ux import once
 from ...sim_type import parse_file
 from ..stubs.ReturnUnconstrained import ReturnUnconstrained
 from ..stubs.syscall_stub import syscall as stub_syscall
@@ -613,5 +614,47 @@ class SimSyscallLibrary(SimLibrary):
         return name in self.syscall_prototypes[abi]
 
 
-for _ in autoimport.auto_import_modules('angr.procedures.definitions', os.path.dirname(os.path.realpath(__file__))):
+#
+# Autoloading
+#
+
+# By default we only load common API definitions (as defined in COMMON_LIBRARIES). For loading more definitions, the
+# following logic is followed:
+# - We will load all Windows APIs them if the loaded binary is a Windows binary, or when load_win32api_definitions() is
+#   called.
+# - We will load all APIs when load_all_definitions() is called.
+
+_DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
+
+
+def load_win32api_definitions():
+    if once('load_win32api_definitions'):
+        for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR,
+                                                filter_func=lambda module_name: module_name.startswith("win32_"),
+                                                ):
+            pass
+
+
+def load_all_definitions():
+    if once('load_all_definitions'):
+        for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR):
+            pass
+
+
+COMMON_LIBRARIES = {
+    # CGC
+    'cgc',
+    # (mostly) Linux
+    'glibc',
+    'libstdcpp',
+    'linux_kernel',
+    'linux_loader',
+    # Windows
+    'msvcr',
+}
+
+
+for _ in autoimport.auto_import_modules('angr.procedures.definitions', _DEFINITIONS_BASEDIR,
+                                        filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
+                                        ):
     pass

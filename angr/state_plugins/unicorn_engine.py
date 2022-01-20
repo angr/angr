@@ -1245,43 +1245,16 @@ class Unicorn(SimStatePlugin):
             gs = self.state.solver.eval(self.state.regs.gs)
             self.write_msr(fs, 0xC0000100)
             self.write_msr(gs, 0xC0000101)
-            flags = self._process_value(self.state.regs.eflags, 'reg')
-            if flags is None:
-                raise SimValueError('symbolic eflags')
-            elif flags.symbolic:
-                vex_offset = self.state.arch.registers['cc_op'][0]
-                self._symbolic_offsets.update(range(vex_offset, vex_offset + 8*4))
-            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
-
         elif self.state.arch.qemu_name == 'i386':
-            flags = self._process_value(self.state.regs.eflags, 'reg')
-            if flags is None:
-                raise SimValueError('symbolic eflags')
-            elif flags.symbolic:
-                vex_offset = self.state.arch.registers['cc_op'][0]
-                self._symbolic_offsets.update(range(vex_offset, vex_offset + 4*4))
-
-            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
-
             fs = self.state.solver.eval(self.state.regs.fs) << 16
             gs = self.state.solver.eval(self.state.regs.gs) << 16
             self.setup_gdt(fs, gs)
-
-        # handle ARM's "cpsr" register, equivalent of x86's eflags
-        elif self.state.arch.qemu_name == 'arm':
-            flags = self._process_value(self.state.regs.flags, 'reg')
-            if flags is None:
-                raise SimValueError('symbolic cpsr')
-            elif flags.symbolic:
-                vex_offset = self.state.arch.registers['cc_op'][0]
-                self._symbolic_offsets.update(range(vex_offset, vex_offset + 4*4))
-            uc.reg_write(self._uc_const.UC_ARM_REG_CPSR, self.state.solver.eval(flags))
-
         elif self.state.arch.qemu_name == 'mips':
             # ulr
             ulr = self.state.regs._ulr
             uc.reg_write(self._uc_const.UC_MIPS_REG_CP0_USERLOCAL, self.state.solver.eval(ulr))
 
+        self.setup_flags()
         for r, c in self._uc_regs.items():
             if r in self.state.arch.reg_blacklist:
                 continue
@@ -1365,6 +1338,39 @@ class Unicorn(SimStatePlugin):
 
             uc.reg_write(unicorn.x86_const.UC_X86_REG_FPTAG, tag_word)
 
+    def setup_flags(self):
+        uc = self.uc
+
+        # Save any symbolic VEX CC registers
+        saved_cc_regs = {}
+        for reg in self.state.arch.vex_cc_regs:
+            reg_val = getattr(self.state.regs, reg.name)
+            if reg_val.symbolic:
+                saved_cc_regs[reg.name] = reg_val
+                setattr(self.state.regs, reg.name, self.state.solver.eval(reg_val))
+
+        if saved_cc_regs:
+            vex_offset = self.state.arch.registers['cc_op'][0]
+            self._symbolic_offsets.update(range(vex_offset, vex_offset + self.state.arch.bytes*4))
+
+        if self.state.arch.qemu_name in ["i386", "x86_64"]:
+            flags = self._process_value(self.state.regs.eflags, 'reg')
+            if flags is None:
+                raise SimValueError('symbolic eflags')
+
+            uc.reg_write(self._uc_const.UC_X86_REG_EFLAGS, self.state.solver.eval(flags))
+
+        elif self.state.arch.qemu_name == "arm":
+            flags = self._process_value(self.state.regs.flags, 'reg')
+            if flags is None:
+                raise SimValueError('symbolic cpsr')
+
+            uc.reg_write(self._uc_const.UC_ARM_REG_CPSR, self.state.solver.eval(flags))
+
+        # Restore saved symbolic VEX CC registers
+        for reg_name, saved_reg_val in saved_cc_regs.items():
+            setattr(self.state.regs, reg_name, saved_reg_val)
+
     def setup_gdt(self, fs, gs):
         gdt = self.state.project.simos.generate_gdt(fs, gs)
         uc = self.uc
@@ -1423,11 +1429,21 @@ class Unicorn(SimStatePlugin):
             symbolic_list = (ctypes.c_uint64*(highest_reg_offset + reg_size))()
             num_regs = _UC_NATIVE.get_symbolic_registers(self._uc_state, symbolic_list)
 
+            # If any VEX cc_dep registers are symbolic, mark VEX cc_op register as symbolic so that it would be saved
+            # and restored for future use if needed
+            symbolic_list = symbolic_list[:num_regs]
+            for reg in self.state.arch.vex_cc_regs[1:]:
+                if reg.vex_offset in symbolic_list:
+                    cc_op_reg = self.state.arch.vex_cc_regs[0]
+                    if cc_op_reg.vex_offset not in symbolic_list:
+                        symbolic_list.extend(range(cc_op_reg.vex_offset, cc_op_reg.vex_offset + cc_op_reg.size))
+                    break
+
             # we take the approach of saving off the symbolic regs and then writing them back
 
             cur_group = None
             last = None
-            for i in sorted(symbolic_list[:num_regs]):
+            for i in sorted(symbolic_list):
                 if cur_group is None:
                     cur_group = i
                 elif i != last + 1 or cur_group//self.state.arch.bytes != i//self.state.arch.bytes:

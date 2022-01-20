@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import logging

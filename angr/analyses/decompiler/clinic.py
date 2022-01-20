@@ -190,21 +190,30 @@ class Clinic(Analysis):
         ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
                                           stack_pointer_tracker=spt)
 
+        # Simplify the entire function for the third time
+        self._update_progress(65., text="Simplifying function 3")
+        self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
+                                stack_arg_offsets=stackarg_offsets, unify_variables=True)
+
         # Make function arguments
-        self._update_progress(65., text="Making argument list")
+        self._update_progress(70., text="Making argument list")
         arg_list = self._make_argument_list()
 
+        # Run simplification passes
+        self._update_progress(75., text="Running simplifications 2")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+
         # Recover variables on AIL blocks
-        self._update_progress(70., text="Recovering variables")
+        self._update_progress(80., text="Recovering variables")
         variable_kb = self._recover_and_link_variables(ail_graph, arg_list)
 
         # Make function prototype
-        self._update_progress(75., text="Making function prototype")
+        self._update_progress(85., text="Making function prototype")
         self._make_function_prototype(arg_list, variable_kb)
 
         # Run simplification passes
-        self._update_progress(80., text="Running simplifications 2")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION)
+        self._update_progress(90., text="Running simplifications 3")
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
 
         self.graph = ail_graph
         self.arg_list = arg_list
@@ -526,8 +535,7 @@ class Clinic(Analysis):
                         reg_name=self.project.arch.translate_register_name(reg[0], reg[1])
                     ))
                 else:
-                    l.warning("Unsupported type of return expression %s.",
-                              type(self.function.calling_convention.ret_val))
+                    l.warning("Unsupported type of return expression %s.", type(ret_val))
                 block.statements[stmt_idx] = new_stmt
 
 
@@ -728,13 +736,27 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 0:
-                # this is a local variable
-                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
-                if 'reference_variable' in expr.addr.tags and expr.addr.reference_variable is not None:
-                    # copy over the variable to this expr since the variable on a constant is supposed to be a
-                    # reference variable.
-                    expr.variable = expr.addr.reference_variable
-                    expr.variable_offset = expr.addr.reference_variable_offset
+                # if it's a constant addr, maybe it's referencing an extern location
+                if isinstance(expr.addr, ailment.Expr.Const):
+                    symbol = self.project.loader.find_symbol(expr.addr.value)
+                    if symbol is not None:
+                        # Create a new global variable if there isn't one already
+                        global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                        if global_vars:
+                            global_var = next(iter(global_vars))
+                        else:
+                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                            global_variables.add_variable('global', global_var.addr, global_var)
+                        expr.variable = global_var
+                        expr.variable_offset = 0
+                else:
+                    # this is a local variable
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
+                    if 'reference_variable' in expr.addr.tags and expr.addr.reference_variable is not None:
+                        # copy over the variable to this expr since the variable on a constant is supposed to be a
+                        # reference variable.
+                        expr.variable = expr.addr.reference_variable
+                        expr.variable_offset = expr.addr.reference_variable_offset
             else:
                 if len(variables) > 1:
                     l.error("More than one variable are available for atom %s. Consider fixing it using phi nodes.",
@@ -796,8 +818,6 @@ class Clinic(Analysis):
                 var = next(iter(variables))
                 expr.tags['reference_variable'] = var
                 expr.tags['reference_variable_offset'] = None
-                expr.variable = var
-                expr.variable_offset = None
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)

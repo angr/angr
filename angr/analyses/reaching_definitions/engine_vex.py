@@ -4,6 +4,7 @@ import logging
 
 import pyvex
 import claripy
+from cle import Symbol
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SimEngineLight, SimEngineLightVEXMixin, SpOffset
@@ -24,6 +25,7 @@ from .external_codeloc import ExternalCodeLocation
 
 if TYPE_CHECKING:
     from ...knowledge_plugins import FunctionManager
+    from .function_handler import FunctionHandler
 
 
 l = logging.getLogger(name=__name__)
@@ -44,7 +46,7 @@ class SimEngineRDVEX(
         self._call_stack = call_stack
         self._maximum_local_call_depth = maximum_local_call_depth
         self.functions: Optional['FunctionManager'] = functions
-        self._function_handler = function_handler
+        self._function_handler: Optional["FunctionHandler"] = function_handler
         self._visited_blocks = None
         self._dep_graph = None
 
@@ -203,15 +205,13 @@ class SimEngineRDVEX(
                     tags = None
                 elif self.state.is_stack_address(a):
                     atom = MemoryLocation(SpOffset(self.arch.bits, self.state.get_stack_offset(a)), size)
-                    function_address = (
-                        self.project.kb
-                            .cfgs.get_most_accurate()
-                            .get_all_nodes(self._codeloc().ins_addr, anyaddr=True)[0]
-                            .function_address
-                    )
+                    function_address = None  # we cannot get the function address in the middle of a store if a CFG
+                                             # does not exist. you should backpatch the function address later using
+                                             # the 'ins_addr' metadata entry.
                     tags = {LocalVariableTag(
                         function=function_address,
-                        metadata={'tagged_by': 'SimEngineRDVEX._store_core'}
+                        metadata={'tagged_by': 'SimEngineRDVEX._store_core',
+                                  'ins_addr': self.ins_addr}
                     )}
 
                 elif self.state.is_heap_address(a):
@@ -492,14 +492,14 @@ class SimEngineRDVEX(
 
         return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
-    def _handle_Clz64(self, expr):
+    def _handle_Clz(self, expr):
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
         # Need to actually implement this later
         return MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
-    def _handle_Ctz64(self, expr):
+    def _handle_Ctz(self, expr):
         arg0 = expr.args[0]
         _ = self._expr(arg0)
         bits = expr.result_size(self.tyenv)
@@ -980,96 +980,69 @@ class SimEngineRDVEX(
 
         if func_addr is None:
             l.warning('Invalid type %s for IP.', type(func_addr).__name__)
-            handler_name = 'handle_unknown_call'
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(
-                    self.state,
-                    src_codeloc=self._codeloc(),
-                )
-                state: ReachingDefinitionsState
-                self.state = state
-            else:
-                l.warning('Please implement the unknown function handler with your own logic.')
+            _, state = self._function_handler.handle_unknown_call(
+                self.state,
+                src_codeloc=self._codeloc(),
+            )
+            self.state = state
             return False
 
         func_addr_v = func_addr.one_value()
         if func_addr_v is None or self.state.is_top(func_addr_v):
             # probably an indirect call
-            handler_name = 'handle_indirect_call'
-            if hasattr(self._function_handler, handler_name):
-                _, state = getattr(self._function_handler, handler_name)(self.state, src_codeloc=self._codeloc())
-                self.state = state
-            else:
-                l.warning('Please implement the indirect function handler with your own logic.')
+            _, state = self._function_handler.handle_indirect_call(self.state, src_codeloc=self._codeloc())
+            self.state = state
             return False
 
         if not func_addr_v.concrete:
-            handler_name = 'handle_unknown_call'
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
+            try:
+                executed_rda, state = self._function_handler.handle_unknown_call(self.state,
                                                                                     src_codeloc=self._codeloc())
                 state: ReachingDefinitionsState
                 self.state = state
-            else:
+            except NotImplementedError:
                 l.warning('Please implement the unknown function handler with your own logic.')
             return False
 
         func_addr_int: int = func_addr_v._model_concrete.value
 
         # direct calls
-        ext_func_name = None
+        symbol: Optional[Symbol] = None
         if not self.project.loader.main_object.contains_addr(func_addr_int):
             is_internal = False
             symbol = self.project.loader.find_symbol(func_addr_int)
-            if symbol is not None:
-                ext_func_name = symbol.name
         else:
             is_internal = True
 
         executed_rda = False
-        if ext_func_name is not None:
-            handler_name = 'handle_%s' % ext_func_name
-            if hasattr(self._function_handler, handler_name):
-                codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state, codeloc)
-                self.state = state
-            else:
-                l.warning('Please implement the external function handler for %s() with your own logic.',
-                          ext_func_name)
-                handler_name = 'handle_external_function_fallback'
-                if hasattr(self._function_handler, handler_name):
-                    executed_rda, state = getattr(self._function_handler, handler_name)(self.state, self._codeloc())
-                    self.state = state
+        if symbol is not None:
+            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+            executed_rda, state = self._function_handler.handle_external_function_symbol(self.state, symbol=symbol, src_codeloc=codeloc)
+            self.state = state
+
         elif is_internal is True:
-            handler_name = 'handle_local_function'
-            if hasattr(self._function_handler, handler_name):
-                codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
-                executed_rda, state, visited_blocks, dep_graph = getattr(self._function_handler, handler_name)(
-                    self.state,
-                    func_addr_int,
-                    self._call_stack,
-                    self._maximum_local_call_depth,
-                    self._visited_blocks,
-                    self._dep_graph,
-                    src_ins_addr=self.ins_addr,
-                    codeloc=codeloc,
-                )
-                if executed_rda:
-                    # update everything
-                    self.state = state
-                    self._visited_blocks = visited_blocks
-                    self._dep_graph = dep_graph
-            else:
-                l.warning('Please implement the local function handler with your own logic.')
-        else:
-            l.warning('Could not find function name for external function at address %#x.', func_addr_int)
-            handler_name = 'handle_unknown_call'
-            if hasattr(self._function_handler, handler_name):
-                executed_rda, state = getattr(self._function_handler, handler_name)(self.state,
-                                                                                    src_codeloc=self._codeloc())
+            codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
+            executed_rda, state, visited_blocks, dep_graph = self._function_handler.handle_local_function(
+                self.state,
+                func_addr_int,
+                self._call_stack,
+                self._maximum_local_call_depth,
+                self._visited_blocks,
+                self._dep_graph,
+                src_ins_addr=self.ins_addr,
+                codeloc=codeloc,
+            )
+            if executed_rda:
+                # update everything
                 self.state = state
-            else:
-                l.warning('Please implement the unknown function handler with your own logic.')
+                self._visited_blocks = visited_blocks
+                self._dep_graph = dep_graph
+
+        else:
+            l.error('Could not find symbol for external function at address %#x.', func_addr_int)
+            executed_rda, state = self._function_handler.handle_unknown_call(self.state,
+                                                                                src_codeloc=self._codeloc())
+            self.state = state
         skip_cc = executed_rda
 
         return skip_cc
@@ -1092,6 +1065,7 @@ class SimEngineRDVEX(
         # - add uses for arguments
         # - kill return value registers
         # - caller-saving registers
+        atom: Atom
         if proto and proto.args:
             code_loc = self._codeloc()
             for arg in cc.arg_locs(proto):
@@ -1173,7 +1147,8 @@ class SimEngineRDVEX(
                 atom = Register(reg_offset, reg_size)
                 self.state.kill_and_add_definition(atom,
                                                    self._codeloc(),
-                                                   MultiValues(offset_to_values={0: {self.state.top(reg_size * self.arch.byte_width)}}),
+                                                   MultiValues(offset_to_values=
+                                                               {0: {self.state.top(reg_size * self.arch.byte_width)}}),
                                                    )
 
         if self.arch.call_pushes_ret is True:

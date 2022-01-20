@@ -5,7 +5,7 @@ import logging
 import networkx
 
 
-def shallow_reverse(g):
+def shallow_reverse(g) -> networkx.DiGraph:
     """
     Make a shallow copy of a directional graph and reverse the edges. This is a workaround to solve the issue that one
     cannot easily make a shallow reversed copy of a graph in NetworkX 2, since networkx.reverse(copy=False) now returns
@@ -229,6 +229,7 @@ class ContainerNode:
 
 
 class Dominators:
+    dom: networkx.DiGraph
 
     def __init__(self, graph, entry_node, successors_func=None, reverse=False):
 
@@ -243,7 +244,7 @@ class Dominators:
         self._label = None
 
         # Output
-        self.dom = None
+        self.dom = None  # type: ignore # this is guaranteed to be not null after the __init__ returns
         self.prepared_graph = None
 
         self._construct(graph, entry_node)
@@ -463,5 +464,5 @@ class PostDominators(Dominators):
         super().__init__(graph, entry_node, successors_func=successors_func, reverse=True)
 
     @property
-    def post_dom(self):
+    def post_dom(self) -> networkx.DiGraph:
         return self.dom

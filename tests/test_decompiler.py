@@ -351,6 +351,20 @@ def test_decompiling_true_a_x86_64_1():
     print(dec.codegen.text)
 
 
+def test_decompiling_true_1804_x86_64():
+    # true in Ubuntu 18.04, with -O2, has special optimizations that
+    # may mess up the way we structure loops and conditionals
+
+    bin_path = os.path.join(test_location, "x86_64", "true_ubuntu1804")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions["usage"]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
+    print(dec.codegen.text)
+
+
 def test_decompiling_1after909_verify_password():
 
     bin_path = os.path.join(test_location, "x86_64", "1after909")
@@ -692,7 +706,7 @@ def test_decompiling_amp_challenge03_arm():
     # make sure there are no empty code blocks
     code = code.replace(" ", "").replace("\n", "")
     assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some assignments " \
-                             " are incorrectly removed."
+                             "are incorrectly removed."
 
 
 def test_decompiling_fauxware_mipsel():

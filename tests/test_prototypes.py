@@ -1,7 +1,6 @@
 
 import os
 
-import nose.tools
 
 import angr
 import angr.calling_conventions
@@ -30,14 +29,15 @@ def test_find_prototype():
 
     arg_locs = func.calling_convention.arg_locs(func.prototype)
 
-    nose.tools.assert_equal(len(arg_locs), 2)
-    nose.tools.assert_equal(arg_locs[0].reg_name, 'rdi')
-    nose.tools.assert_equal(arg_locs[1].reg_name, 'rsi')
+    assert len(arg_locs) == 2
+    assert arg_locs[0].reg_name == 'rdi'
+    assert arg_locs[1].reg_name == 'rsi'
 
 
 def main():
     test_find_prototype()
     test_function_prototype()
+
 
 if __name__ == "__main__":
     main()

@@ -394,7 +394,8 @@ class PropagatorAILState(PropagatorState):
             self._prop_count[new] += 1
             prop_count = self._prop_count[new]
 
-        if prop_count <= 1 or isinstance(new, ailment.Expr.StackBaseOffset):
+        if prop_count <= 1 or isinstance(new, ailment.Expr.StackBaseOffset) or (
+                isinstance(old, ailment.Expr.Register) and self.arch.is_artificial_register(old.reg_offset, old.size)):
             # we can propagate this expression
             super().add_replacement(codeloc, old, new)
         else:

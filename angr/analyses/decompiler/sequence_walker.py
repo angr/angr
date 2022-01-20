@@ -3,7 +3,8 @@ import ailment
 
 from ...errors import UnsupportedNodeTypeError
 from .region_identifier import MultiNode
-from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode, CascadingConditionNode
+from .structurer_nodes import CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, LoopNode, CascadingConditionNode, \
+    ConditionalBreakNode
 
 
 class SequenceWalker:
@@ -22,6 +23,7 @@ class SequenceWalker:
             SwitchCaseNode: self._handle_SwitchCase,
             LoopNode: self._handle_Loop,
             MultiNode: self._handle_MultiNode,
+            ConditionalBreakNode: self._handle_ConditionalBreak,
             ailment.Block: self._handle_Noop,
         }
 
@@ -52,7 +54,9 @@ class SequenceWalker:
         nodes_copy = list(node.nodes)
         while i < len(nodes_copy):
             node_ = nodes_copy[i]
-            self._handle(node_, parent=node, index=i)
+            new_node = self._handle(node_, parent=node, index=i)
+            if new_node is not None:
+                node.nodes[i] = new_node
             i += 1
         return None
 
@@ -73,7 +77,13 @@ class SequenceWalker:
             self._handle(node.default_node, parent=node, label='default')
         return None
 
-    def _handle_Loop(self, node, **kwargs):
+    def _handle_Loop(self, node: LoopNode, **kwargs):
+        if node.initializer is not None:
+            self._handle(node.initializer)
+        if node.iterator is not None:
+            self._handle(node.iterator)
+        if node.condition is not None:
+            self._handle(node.condition, parent=node, label="condition")
         return self._handle(node.sequence_node, **kwargs)
 
     def _handle_Condition(self, node, **kwargs):
@@ -86,6 +96,10 @@ class SequenceWalker:
             self._handle(child_node, parent=node, index=index)
         if node.else_node is not None:
             self._handle(node.else_node, parent=node, index=-1)
+        return None
+
+    @staticmethod
+    def _handle_ConditionalBreak(node: ConditionalBreakNode, **kwargs):
         return None
 
     @staticmethod

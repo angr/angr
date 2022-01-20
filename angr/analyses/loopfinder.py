@@ -58,7 +58,7 @@ class LoopFinder(Analysis):
         if not found_any:
             l.error("No knowledge of functions is present. Did you forget to construct a CFG?")
 
-    def _parse_loop_graph(self, subg, bigg):
+    def _parse_loop_graph(self, subg: networkx.DiGraph, bigg: networkx.DiGraph):
         """
         Create a Loop object for a strongly connected graph, and any strongly
         connected subgraphs, if possible.
@@ -150,7 +150,7 @@ class LoopFinder(Analysis):
              tops[:])
         return me, [me] + alls
 
-    def _parse_loops_from_graph(self, graph):
+    def _parse_loops_from_graph(self, graph: networkx.DiGraph):
         """
         Return all Loop instances that can be extracted from a graph.
 
@@ -160,6 +160,7 @@ class LoopFinder(Analysis):
         """
         outtop = []
         outall = []
+        subg: networkx.DiGraph
         for subg in ( networkx.induced_subgraph(graph, nodes).copy() for nodes in networkx.strongly_connected_components(graph)):
             if len(subg.nodes()) == 1:
                 if len(list(subg.successors(list(subg.nodes())[0]))) == 0:

@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import logging
@@ -14,7 +13,7 @@ def test_strncpy():
     explorer.explore(find=[0x4005FF])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.regs.rax, 16), cast_to=bytes)
-    nose.tools.assert_equal(result, b'why hello there\x00')
+    assert result == b'why hello there\x00'
 
 def test_strncpy_size():
     # auto_load_libs can't be disabled as the test cases failed.
@@ -25,7 +24,7 @@ def test_strncpy_size():
     explorer.explore(find=[0x40064C])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.regs.rax, 40), cast_to=bytes)
-    nose.tools.assert_equal(result, b'just testing things\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00')
+    assert result == b'just testing things\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 
 def test_strncpy_verify_null():
     # auto_load_libs can't be disabled as the test cases failed.
@@ -36,7 +35,7 @@ def test_strncpy_verify_null():
     explorer.explore(find=[0x40064C])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.regs.rax, 40), cast_to=bytes)
-    nose.tools.assert_equal(result, b'just testing things\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00AAAAAA\x00')
+    assert result == b'just testing things\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00AAAAAA\x00'
 
 def test_strstr_and_strncpy():
     # auto_load_libs can't be disabled as the test cases failed.
@@ -47,7 +46,7 @@ def test_strstr_and_strncpy():
     explorer.explore(find=[0x400657])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.regs.rax, 15), cast_to=bytes)
-    nose.tools.assert_equal(result, b'hi th hi there\x00')
+    assert result == b'hi th hi there\x00'
 
 def test_strstr():
     # auto_load_libs can't be disabled as the test cases failed.
@@ -56,7 +55,7 @@ def test_strstr():
     explorer.explore(find=[0x4005FB])
     s = explorer.found[0]
     result = s.solver.eval(s.memory.load(s.regs.rax, 9), cast_to=bytes)
-    nose.tools.assert_equal(result, b'hi there\x00')
+    assert result == b'hi there\x00'
 
 if __name__ == "__main__":
     test_strncpy()

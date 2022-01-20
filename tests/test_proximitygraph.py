@@ -4,7 +4,6 @@ import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-
 def test_fauxware():
     bin_path = os.path.join(test_location, "x86_64", "fauxware")
     proj = angr.Project(bin_path, auto_load_libs=False)

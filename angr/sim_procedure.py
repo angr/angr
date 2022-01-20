@@ -1,15 +1,16 @@
 import inspect
-import typing
 import copy
 import itertools
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union, Tuple
+
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
 if TYPE_CHECKING:
     import angr
     import archinfo
+    from angr.sim_state import SimState
 
 l = logging.getLogger(name=__name__)
 symbolic_count = itertools.count()
@@ -94,6 +95,7 @@ class SimProcedure:
                             you want to extract variadic args.
 
     """
+    state: "SimState"
     def __init__(
         self, project=None, cc=None, prototype=None, symbolic_return=None,
         returns=None, is_syscall=False, is_stub=False,
@@ -146,7 +148,7 @@ class SimProcedure:
         self.ret_expr = None
         self.call_ret_expr = None
         self.inhibit_autoret = None
-        self.arg_session: typing.Union[None, ArgSession, int] = None
+        self.arg_session: Union[None, ArgSession, int] = None
 
     def __repr__(self):
         return "<SimProcedure %s%s%s%s%s>" % self._describe_me()
@@ -285,7 +287,7 @@ class SimProcedure:
     IS_FUNCTION = True
     ARGS_MISMATCH = False
     ALT_NAMES = None  # alternative names
-    local_vars = ()
+    local_vars: Tuple[str, ...] = ()
 
     def run(self, *args, **kwargs): # pylint: disable=unused-argument
         """
@@ -524,8 +526,8 @@ class SimProcedure:
 
 
 from . import sim_options as o
-from angr.errors import SimProcedureError, SimProcedureArgumentError, SimShadowStackError
+from angr.errors import SimProcedureError, SimShadowStackError
 from angr.state_plugins.sim_action import SimActionExit
-from angr.calling_conventions import DEFAULT_CC, SimTypeFloat, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession
+from angr.calling_conventions import DEFAULT_CC, SimTypeFunction, SimTypePointer, SimTypeChar, ArgSession
 from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from .sim_type import parse_signature, parse_type
