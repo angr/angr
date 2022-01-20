@@ -160,6 +160,8 @@ class CFGBase(Analysis):
 
         # Cache if an object has executable sections or not
         self._object_to_executable_sections = { }
+        # Cache if an object has executable segments or not
+        self._object_to_executable_segments = {}
 
         if model is not None:
             self._model = model
@@ -680,6 +682,20 @@ class CFGBase(Analysis):
             return self._object_to_executable_sections[obj]
         r = any(sec.is_executable for sec in obj.sections)
         self._object_to_executable_sections[obj] = r
+        return r
+
+    def _object_has_executable_segments(self, obj):
+        """
+        Check whether an object has at least one executable segment.
+
+        :param cle.Backend obj: The object to test.
+        :return:                None
+        """
+
+        if obj in self._object_to_executable_segments:
+            return self._object_to_executable_segments[obj]
+        r = any(seg.is_executable for seg in obj.segments)
+        self._object_to_executable_segments[obj] = r
         return r
 
     def _addr_hooked_or_syscall(self, addr):
