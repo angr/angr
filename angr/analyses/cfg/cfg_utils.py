@@ -99,9 +99,7 @@ class CFGUtils:
         if nodes is None:
             return reversed(list(post_order))
 
-        addrs_to_index = {}
-        for i, n in enumerate(post_order):
-            addrs_to_index[n.addr] = i
+        addrs_to_index = {n.addr: i for (i, n) in enumerate(post_order)}
         return sorted(nodes, key=lambda n: addrs_to_index[n.addr], reverse=True)
 
     @staticmethod
