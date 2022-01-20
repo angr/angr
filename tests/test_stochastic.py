@@ -34,12 +34,6 @@ class TestRun(unittest.TestCase):
 
     def test_stochastic(self):
         self._run_stochastic('veritesting_a','x86_64')
-        # for binary in find:
-        #     print(binary)
-        #     for arch in find[binary]:
-        #         print(arch)
-        #         yield run_stochastic, binary, arch
 
 if __name__ == "__main__":
-    for test_func, test_binary, test_arch in test_stochastic():
-        test_func(test_binary, test_arch)
+    unittest.main()
