@@ -1,11 +1,12 @@
+# pylint: disable=missing-class-docstring,disable=no-self-use
 import os
 import logging
 import unittest
 
-import angr
-
 from common import bin_location
 from test_tracer import tracer_cgc
+
+import angr
 
 
 class TestDrillerCore(unittest.TestCase):
