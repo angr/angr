@@ -964,8 +964,12 @@ def test_func_in_added_segment_by_patcherex_arm():
     path = os.path.join(test_location, "armel", "patcherex", "replace_function_patch_with_function_reference")
     proj = angr.Project(path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True,
-                             function_starts={0xa00081},
-                             extra_executable_regions=[(0xa00080, 0xa00080 + 0x3e)])
+                                function_starts={0xa00081},
+                                regions=[(4195232, 4195244),
+                                         (4195244, 4195324),
+                                         (4195324, 4196016),
+                                         (4196016, 4196024),
+                                         (10485888, 10485950)])
 
     # Check whether the target function is in the functions list
     nose.tools.assert_in(0xa00081, cfg.kb.functions, "Function 0xa00081 does not exist.")
@@ -976,8 +980,13 @@ def test_func_in_added_segment_by_patcherex_x64():
     path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
     proj = angr.Project(path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True,
-                             function_starts={0xa0013d},
-                             extra_executable_regions=[(0xa00130, 0xa00130 + 0x95)])
+                                function_starts={0xa0013d},
+                                regions=[(4195568, 4195591),
+                                           (4195600, 4195632),
+                                           (4195632, 4195640),
+                                           (4195648, 4196418),
+                                           (4196420, 4196429),
+                                           (10486064, 10486213)])
 
     # Check whether the target function is in the functions list
     nose.tools.assert_in(0xa0013d, cfg.kb.functions, "Function 0xa0013d does not exist.")
