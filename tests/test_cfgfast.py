@@ -1077,9 +1077,9 @@ def test_func_in_added_segment_by_patcherex_arm():
                                          (10485888, 10485950)])
 
     # Check whether the target function is in the functions list
-    assert (0xa00081 in cfg.kb.functions and "Function 0xa00081 does not exist.")
+    assert (0xa00081 in cfg.kb.functions)
     # Check the number of basic blocks
-    assert (len(list(cfg.functions[0xa00081].blocks)) == 8 and "Function 0xa00081 should have 8 blocks.")
+    assert (len(list(cfg.functions[0xa00081].blocks)) == 8)
 
 def test_func_in_added_segment_by_patcherex_x64():
     path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
@@ -1094,9 +1094,9 @@ def test_func_in_added_segment_by_patcherex_x64():
                                            (10486064, 10486213)])
 
     # Check whether the target function is in the functions list
-    assert (0xa0013d in cfg.kb.functions and "Function 0xa0013d does not exist.")
+    assert (0xa0013d in cfg.kb.functions)
     # Check the number of basic blocks
-    assert (len(list(cfg.functions[0xa0013d].blocks)) == 7 and "Function 0xa0013d should have 7 blocks.")
+    assert (len(list(cfg.functions[0xa0013d].blocks)) == 7)
 
 def run_all():
 
