@@ -3,7 +3,6 @@ import os
 import unittest
 
 import angr
-import unittest
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.getLogger('angr.test_boyscout')
