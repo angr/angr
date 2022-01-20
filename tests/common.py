@@ -29,8 +29,8 @@ def broken(func):
 def requires_binaries_private(func):
     return skipIf(
         not os.path.exists(
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-            "binaries-private",
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "binaries-private"),
         ),
         "Skip this test since we do not have the binaries-private repo cloned on Travis CI.",
     )(func)
