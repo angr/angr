@@ -220,7 +220,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
 
     # remove all edges that transitions to outside
     for src, dst, data in list(transition_graph.edges(data=True)):
-        if data['type'] in ('transition', 'exception') and data.get('outside', False) is True:
+        if 'type' in data and data['type'] in ('transition', 'exception') and data.get('outside', False) is True:
             transition_graph.remove_edge(src, dst)
         # remove dead nodes
         if transition_graph.in_degree(dst) == 0:
