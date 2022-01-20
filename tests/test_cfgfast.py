@@ -17,8 +17,6 @@ test_location = os.path.join(
 )
 
 
-# pylint: disable=missing-class-docstring
-# pylint: disable=no-self-use
 class TestCfgfast(unittest.TestCase):
     def cfg_fast_functions_check(self, arch, binary_path, func_addrs, func_features):
         """
@@ -1018,6 +1016,41 @@ class TestCfgfast(unittest.TestCase):
 
         func_3 = cfg.kb.functions[0x12631]
         assert func_3.returning is True
+
+
+def test_func_in_added_segment_by_patcherex_arm():
+    path = os.path.join(test_location, "armel", "patcherex", "replace_function_patch_with_function_reference")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(normalize=True,
+                                function_starts={0xa00081},
+                                regions=[(4195232, 4195244),
+                                         (4195244, 4195324),
+                                         (4195324, 4196016),
+                                         (4196016, 4196024),
+                                         (10485888, 10485950)])
+
+    # Check whether the target function is in the functions list
+    assert (0xa00081 in cfg.kb.functions)
+    # Check the number of basic blocks
+    assert (len(list(cfg.functions[0xa00081].blocks)) == 8)
+
+
+def test_func_in_added_segment_by_patcherex_x64():
+    path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
+    proj = angr.Project(path, auto_load_libs=False)
+    cfg = proj.analyses.CFGFast(normalize=True,
+                                function_starts={0xa0013d},
+                                regions=[(4195568, 4195591),
+                                         (4195600, 4195632),
+                                         (4195632, 4195640),
+                                         (4195648, 4196418),
+                                         (4196420, 4196429),
+                                         (10486064, 10486213)])
+
+    # Check whether the target function is in the functions list
+    assert (0xa0013d in cfg.kb.functions)
+    # Check the number of basic blocks
+    assert (len(list(cfg.functions[0xa0013d].blocks)) == 7)
 
 
 if __name__ == "__main__":
