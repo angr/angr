@@ -214,6 +214,35 @@ def test_helloworld():
     # No exception should have been raised
 
 
+def test_helloworld_gcc9():
+
+    # New versions of GCC changed the names of init and fini sections.
+    # https://github.com/angr/patcherex/issues/39
+
+    p = angr.Project(os.path.join(test_location, "x86_64", "hello_gcc9_reassembler"), auto_load_libs=False)
+    r = p.analyses.Reassembler(syntax="at&t")
+    r.symbolize()
+    r.remove_unnecessary_stuff()
+    assembly = r.assembly(comments=True, symbolized=True)
+
+    if is_linux_x64():
+        # we should be able to compile it and run it ... if we are running on x64 Linux
+        tempdir = tempfile.mkdtemp(prefix="angr_test_reassembler_")
+        asm_filename = "hello.s"
+        bin_filename = "hello"
+        asm_filepath = os.path.join(tempdir, asm_filename)
+        bin_filepath = os.path.join(tempdir, bin_filename)
+        with open(asm_filepath, "w") as f:
+            f.write(assembly)
+        # Call out to GCC, and it should return 0. Otherwise check_call() will raise an exception.
+        subprocess.check_call(["gcc", "-no-pie", asm_filepath, "-o", bin_filepath],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Run the generated binary file, and it should not crash
+        subprocess.check_call([bin_filepath], stdout=subprocess.DEVNULL)
+        # Pick up after ourselves
+        shutil.rmtree(tempdir)
+
+
 if __name__ == "__main__":
     test_data_reference_collection_in_add()
     test_ln_gcc_O2()
@@ -222,3 +251,4 @@ if __name__ == "__main__":
     test_df_gcc_O1()
     test_dir_gcc_O0()
     test_helloworld()
+    test_helloworld_gcc9()
