@@ -13,6 +13,7 @@ import pyvex
 
 from . import Analysis
 from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
+from ..knowledge_plugins.functions import Function
 from ..knowledge_base import KnowledgeBase
 from ..sim_variable import SimMemoryVariable, SimTemporaryVariable
 
@@ -2240,7 +2241,9 @@ class Reassembler(Analysis):
     def remove_unnecessary_stuff_glibc(self):
         glibc_functions_blacklist = {
             '_start',
+            'init',
             '_init',
+            'fini',
             '_fini',
             '__gmon_start__',
             '__do_global_dtors_aux',
@@ -2285,6 +2288,18 @@ class Reassembler(Analysis):
         }
 
         self.procedures = [p for p in self.procedures if p.name not in glibc_functions_blacklist and not p.is_plt]
+
+        # special handling for _init_proc
+        try:
+            init_func = self.cfg.functions['init']
+            callees = [ node for node in init_func.transition_graph.nodes()
+                        if isinstance(node, Function) and node.addr != self.cfg._unresolvable_call_target_addr ]
+            if len(callees) == 1:
+                # we found the _init_proc
+                _init_proc = callees[0]
+                self.procedures = [p for p in self.procedures if p.addr != _init_proc.addr]
+        except KeyError:
+            pass
 
         self.data = [d for d in self.data if not any(lbl.name in glibc_data_blacklist for _, lbl in d.labels)]
 
@@ -2378,7 +2393,7 @@ class Reassembler(Analysis):
                            ".text"
                            )
 
-            if section in ('.got', '.plt', 'init', 'fini'):
+            if section in {'.got', '.plt', 'init', 'fini', '.init', '.fini'}:
                 continue
 
             procedure = Procedure(self, f, section=section)
