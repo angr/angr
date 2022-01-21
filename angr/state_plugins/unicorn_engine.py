@@ -1034,6 +1034,8 @@ class Unicorn(SimStatePlugin):
             self.uc.reset()
             raise
 
+        self.fd_bytes = {}  # pylint: disable=attribute-defined-outside-init
+
         if self.state.os_name == "CGC":
             simos_val = SimOSEnum.SIMOS_CGC
         elif self.state.os_name == "Linux":
@@ -1078,6 +1080,9 @@ class Unicorn(SimStatePlugin):
                 if self.cgc_receive_addr is None:
                     l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
                     self.cgc_receive_addr = 0
+                else:
+                    # Set stdin bytes in native interface
+                    self.fd_bytes[0] = bytearray(self.state.posix.fd.get(0).concretize()[0])
 
             _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, self.cgc_transmit_addr, 3, self.cgc_receive_addr)
 
@@ -1088,18 +1093,11 @@ class Unicorn(SimStatePlugin):
         if self.gdt is not None:
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
 
-        if self.state.mode == "tracing":
-            # Pass all concrete fd bytes in native interface to handle relevant syscalls there itself
-            # pylint: disable=attribute-defined-outside-init
-            self.fd_bytes = {}
-            if simos_val == SimOSEnum.SIMOS_CGC:
-                # Set stdin bytes in native interface
-                self.fd_bytes[0] = bytearray(self.state.posix.fd.get(0).concretize()[0])
-
-            for fd_num, fd_data in self.fd_bytes.items():
-                fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
-                read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
-                _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
+        # Pass all concrete fd bytes to native interface so that it can handle relevant syscalls
+        for fd_num, fd_data in self.fd_bytes.items():
+            fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
+            read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
+            _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = self.state.arch.artificial_registers_offsets
