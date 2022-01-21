@@ -1030,9 +1030,9 @@ def test_func_in_added_segment_by_patcherex_arm():
                                          (10485888, 10485950)])
 
     # Check whether the target function is in the functions list
-    assert (0xa00081 in cfg.kb.functions)
+    assert 0xa00081 in cfg.kb.functions
     # Check the number of basic blocks
-    assert (len(list(cfg.functions[0xa00081].blocks)) == 8)
+    assert len(list(cfg.functions[0xa00081].blocks)) == 8
 
 
 def test_func_in_added_segment_by_patcherex_x64():
@@ -1048,9 +1048,9 @@ def test_func_in_added_segment_by_patcherex_x64():
                                          (10486064, 10486213)])
 
     # Check whether the target function is in the functions list
-    assert (0xa0013d in cfg.kb.functions)
+    assert 0xa0013d in cfg.kb.functions
     # Check the number of basic blocks
-    assert (len(list(cfg.functions[0xa0013d].blocks)) == 7)
+    assert len(list(cfg.functions[0xa0013d].blocks)) == 7
 
 
 if __name__ == "__main__":
