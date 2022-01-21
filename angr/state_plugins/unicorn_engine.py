@@ -12,7 +12,7 @@ import time
 import binascii
 import archinfo
 
-from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
+from ..sim_options import UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
@@ -1067,15 +1067,17 @@ class Unicorn(SimStatePlugin):
             else:
                 _UC_NATIVE.symbolic_register_data(self._uc_state, 0, None)
 
-        # set (cgc, for now) transmit syscall handler
-        if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
-            if self.cgc_transmit_addr is None:
-                l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
-                self.cgc_transmit_addr = 0
+        # set (cgc, for now) transmit and receive syscall handler
+        if self.state.has_plugin('cgc'):
+            if UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL in self.state.options:
+                if self.cgc_transmit_addr is None:
+                    l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
+                    self.cgc_transmit_addr = 0
 
-            if self.cgc_receive_addr is None:
-                l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
-                self.cgc_receive_addr = 0
+            if UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in self.state.options:
+                if self.cgc_receive_addr is None:
+                    l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
+                    self.cgc_receive_addr = 0
 
             _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, self.cgc_transmit_addr, 3, self.cgc_receive_addr)
 
