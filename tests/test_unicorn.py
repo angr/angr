@@ -246,6 +246,29 @@ def test_fauxware_aggressive():
     assert len(pg.deadended) == 1
 
 
+def test_partial_reads():
+    """
+    This test case if unicorn engine correctly handles case when symbolic taint is introduced by the second partial read
+    performed by unicorn. Unicorn triggers memory read hook twice when reading value greater than 8 bytes on x86-64.
+    """
+
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "x86_64", "test_partial_reads_handling_in_unicorn"))
+    add_options = angr.options.unicorn
+    # Do not treat as uninitalized memory as symbolic. Prevents introducing undesired symbolic taint
+    add_options.add(angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY)
+    init_state = p.factory.full_init_state(add_options=add_options)
+    global_var_val = [init_state.solver.BVV(0x41414141, 32), init_state.solver.BVV(0x42424242, 32),
+                      init_state.solver.BVS("symb_val_0", 32), init_state.solver.BVS("symb_val_1", 32)]
+    global_var_symb = p.loader.find_symbol("global_var")
+    # Store every byte separately so that entire variable is not treated as symbolic
+    for count, val in enumerate(global_var_val):
+        init_state.memory.store(global_var_symb.rebased_addr + count * 4, val, endness=init_state.arch.memory_endness)
+
+    pg = p.factory.simulation_manager(init_state)
+    pg.run()
+    assert len(pg.deadended) == 1
+
+
 def run_similarity(binpath, depth, prehook=None):
     b = angr.Project(os.path.join(test_location, binpath), auto_load_libs=False)
     cc = b.analyses.CongruencyCheck(throw=True)
