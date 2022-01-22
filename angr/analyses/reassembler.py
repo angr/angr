@@ -2304,11 +2304,23 @@ class Reassembler(Analysis):
         self.data = [d for d in self.data if not any(lbl.name in glibc_data_blacklist for _, lbl in d.labels)]
 
         for d in self.data:
-            if d.sort == 'pointer-array':
+            if d.sort == MemoryDataSort.PointerArray:
                 for i in range(len(d.content)):
                     ptr = d.content[i]
                     if isinstance(ptr, Label) and ptr.name in glibc_references_blacklist:
                         d.content[i] = 0
+            elif d.sort == MemoryDataSort.SegmentBoundary:
+                if d.labels:
+                    new_labels = [ ]
+                    for rebased_addr, label in d.labels:
+                        # check if this label belongs to a removed function
+                        if self.cfg.functions.contains_addr(rebased_addr) and \
+                                self.cfg.functions[rebased_addr].name in glibc_functions_blacklist:
+                            # we need to remove this label...
+                            continue
+                        else:
+                            new_labels.append((rebased_addr, label))
+                    d.labels = new_labels
 
     #
     # Private methods
