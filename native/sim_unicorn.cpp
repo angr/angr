@@ -24,7 +24,7 @@ extern "C" {
 #include "sim_unicorn.hpp"
 //#include "log.h"
 
-State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, angr_mode_t mode): uc(_uc), simos(curr_os), angr_mode(mode) {
+State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os): uc(_uc), simos(curr_os) {
 	hooked = false;
 	h_read = h_write = h_block = h_prot = 0;
 	max_steps = cur_steps = 0;
@@ -33,6 +33,8 @@ State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, angr_mode_t mo
 	ignore_next_block = false;
 	ignore_next_selfmod = false;
 	interrupt_handled = false;
+	cgc_receive_sysno = -1;
+	cgc_transmit_sysno = -1;
 	vex_guest = VexArch_INVALID;
 	syscall_count = 0;
 	uc_context_alloc(uc, &saved_regs);
@@ -2427,7 +2429,6 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 	State *state = (State *)user_data;
 	state->interrupt_handled = false;
 	auto curr_simos = state->get_simos();
-	auto angr_mode = state->get_angr_mode();
 
 	if (curr_simos == SIMOS_CGC) {
 		assert (state->arch == UC_ARCH_X86);
@@ -2445,7 +2446,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			if (sysno == state->cgc_transmit_sysno) {
 				state->perform_cgc_transmit();
 			}
-			else if (state->is_tracing_mode() && (sysno == state->cgc_receive_sysno)) {
+			else if (sysno == state->cgc_receive_sysno) {
 				state->perform_cgc_receive();
 			}
 		}
@@ -2478,8 +2479,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, angr_mode_t angr_mode) {
-	State *state = new State(uc, cache_key, simos, angr_mode);
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos) {
+	State *state = new State(uc, cache_key, simos);
 	return state;
 }
 

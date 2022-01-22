@@ -28,11 +28,6 @@ enum simos_t: uint8_t {
 	SIMOS_OTHER = 2,
 };
 
-enum angr_mode_t: uint8_t {
-	MODE_SYMBOLIC = 0,
-	MODE_TRACE = 1,
-};
-
 enum taint_t: uint8_t {
 	TAINT_NONE = 0,
 	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
@@ -565,9 +560,6 @@ class State {
 	// OS being simulated
 	simos_t simos;
 
-	// Mode angr is running in
-	angr_mode_t angr_mode;
-
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -693,9 +685,9 @@ class State {
 		uc_arch arch;
 		uc_mode unicorn_mode;
 		bool interrupt_handled;
-		uint32_t cgc_receive_sysno;
+		int32_t cgc_receive_sysno;
 		uint64_t cgc_receive_bbl;
-		uint32_t cgc_transmit_sysno;
+		int32_t cgc_transmit_sysno;
 		uint64_t cgc_transmit_bbl;
 
 		VexArch vex_guest;
@@ -722,7 +714,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, angr_mode_t mode);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
@@ -828,14 +820,6 @@ class State {
 
 		inline simos_t get_simos() const {
 			return simos;
-		}
-
-		inline angr_mode_t get_angr_mode() const {
-			return angr_mode;
-		}
-
-		inline bool is_tracing_mode() const {
-			return (angr_mode == MODE_TRACE);
 		}
 
 		/*
