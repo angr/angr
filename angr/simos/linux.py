@@ -260,6 +260,8 @@ class SimLinux(SimUserland):
             argc = claripy.BVV(len(args), 32)
         elif type(argc) is int:  # pylint: disable=unidiomatic-typecheck
             argc = claripy.BVV(argc, 32)
+        if state.arch.bytes == 8: # 64 bit
+            argc = argc.zero_extend(32)
 
         # Make string table for args/env/auxv
         table = StringTableSpec()
