@@ -1199,7 +1199,9 @@ class Function(Serializable):
         if self.calling_convention is None:
             return self._argument_registers + self._argument_stack_variables
         else:
-            return self.calling_convention.args
+            if self.prototype is None:
+                return []
+            return self.calling_convention.arg_locs(self.prototype)
 
     @property
     def has_return(self):

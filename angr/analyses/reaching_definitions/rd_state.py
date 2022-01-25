@@ -250,8 +250,8 @@ class ReachingDefinitionsState:
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
 
-        if cc is not None and cc.args is not None:
-            for arg in cc.args:
+        if cc is not None:
+            for arg in cc.arg_locs(self.analysis.kb.functions[func_addr].prototype):
                 # initialize register parameters
                 if isinstance(arg, SimRegArg):
                     # FIXME: implement reg_offset handling in SimRegArg

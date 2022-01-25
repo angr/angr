@@ -331,6 +331,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._offset_for(addr, 'pre', reg)
 
     def offset_after_block(self, block_addr, reg):
+        if block_addr not in self._blocks:
+            return TOP
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
@@ -338,6 +340,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             return self.offset_after(instr_addrs[-1], reg)
 
     def offset_before_block(self, block_addr, reg):
+        if block_addr not in self._blocks:
+            return TOP
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
