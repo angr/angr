@@ -1270,10 +1270,6 @@ class Unicorn(SimStatePlugin):
         #l.debug("Resetting the unicorn state.")
         self.uc.reset()
 
-        # Cleanup saved fd bytes
-        if self.state.mode == "tracing":
-            del self.fd_bytes
-
     def set_regs(self):
         ''' setting unicorn registers '''
         uc = self.uc
