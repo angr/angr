@@ -12,6 +12,9 @@ import time
 import binascii
 import archinfo
 
+from angr.engines.vex.claripy import ccall
+from angr.sim_state import SimState
+
 from .. import sim_options as options
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
@@ -1594,8 +1597,4 @@ class Unicorn(SimStatePlugin):
         #l.debug('passed quick check')
         return True
 
-
-from angr.engines.vex.claripy import ccall
-
-from angr.sim_state import SimState
 SimState.register_default('unicorn', Unicorn)
