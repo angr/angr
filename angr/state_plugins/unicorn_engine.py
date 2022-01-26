@@ -12,7 +12,7 @@ import time
 import binascii
 import archinfo
 
-from ..sim_options import UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL
+from .. import sim_options as options
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
@@ -1063,12 +1063,12 @@ class Unicorn(SimStatePlugin):
 
         # set (cgc, for now) transmit and receive syscall handler
         if self.state.has_plugin('cgc'):
-            if UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL in self.state.options:
+            if options.UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL in self.state.options:
                 if self.cgc_transmit_addr is None:
                     l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
                     self.cgc_transmit_addr = 0
 
-            if UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in self.state.options:
+            if options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in self.state.options:
                 if self.cgc_receive_addr is None:
                     l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
                     self.cgc_receive_addr = 0
@@ -1596,7 +1596,6 @@ class Unicorn(SimStatePlugin):
 
 
 from angr.engines.vex.claripy import ccall
-from .. import sim_options as options
 
 from angr.sim_state import SimState
 SimState.register_default('unicorn', Unicorn)
