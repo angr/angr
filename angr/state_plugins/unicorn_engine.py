@@ -520,6 +520,9 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
+        # Concrete bytes of open fds
+        self.fd_bytes = {}
+
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
 
@@ -1029,8 +1032,6 @@ class Unicorn(SimStatePlugin):
             # reset the state and re-raise
             self.uc.reset()
             raise
-
-        self.fd_bytes = {}  # pylint: disable=attribute-defined-outside-init
 
         if self.state.os_name == "CGC":
             simos_val = SimOSEnum.SIMOS_CGC
