@@ -1,6 +1,6 @@
 # pylint:disable=abstract-method
 
-from typing import Set
+from typing import Set, List
 import logging
 
 import pyvex
@@ -277,17 +277,17 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
 
     def __init__(self, func: Function, reg_offsets: Set[int], track_memory=True):
 
+        if not func.normalized:
+            # Make a copy before normalizing the function
+            func = func.copy()
+            func.normalize()
+
         super().__init__(
             order_jobs=False,
             allow_merging=True,
             allow_widening=track_memory,
             graph_visitor=FunctionGraphVisitor(func)
         )
-
-        if not func.normalized:
-            # Make a copy before normalizing the function
-            func = func.copy()
-            func.normalize()
 
         self.track_mem = track_memory
         self._func = func
@@ -331,6 +331,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         return self._offset_for(addr, 'pre', reg)
 
     def offset_after_block(self, block_addr, reg):
+        if block_addr not in self._blocks:
+            return TOP
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
@@ -338,6 +340,8 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             return self.offset_after(instr_addrs[-1], reg)
 
     def offset_before_block(self, block_addr, reg):
+        if block_addr not in self._blocks:
+            return TOP
         instr_addrs = self._blocks[block_addr].instruction_addrs
         if len(instr_addrs) == 0:
             return TOP
@@ -488,18 +492,35 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                         pass
 
             # stack pointer adjustment
-            if self.project.arch.sp_offset in self.reg_offsets \
-                    and vex_block.jumpkind == 'Ijk_Call' \
-                    and self.project.arch.call_pushes_ret:
-                try:
-                    v = state.get(self.project.arch.sp_offset)
-                    if v is BOTTOM:
-                        incremented = BOTTOM
-                    else:
-                        incremented = v + Constant(self.project.arch.bytes)
-                    state.put(self.project.arch.sp_offset, incremented)
-                except CouldNotResolveException:
-                    pass
+            if self.project.arch.sp_offset in self.reg_offsets and vex_block.jumpkind == 'Ijk_Call':
+                if self.project.arch.call_pushes_ret:
+                    # pop the return address on the stack
+                    try:
+                        v = state.get(self.project.arch.sp_offset)
+                        if v is BOTTOM:
+                            incremented = BOTTOM
+                        else:
+                            incremented = v + Constant(self.project.arch.bytes)
+                        state.put(self.project.arch.sp_offset, incremented)
+                    except CouldNotResolveException:
+                        pass
+                # who are we calling?
+                callees = self._find_callees(node)
+                if callees:
+                    callee_cleanups = [callee for callee in callees if callee.calling_convention is not None and
+                                       callee.calling_convention.CALLEE_CLEANUP]
+                    if callee_cleanups:
+                        # found callee clean-up cases...
+                        try:
+                            v = state.get(self.project.arch.sp_offset)
+                            if v is BOTTOM:
+                                incremented = BOTTOM
+                            else:
+                                num_args = len(callee_cleanups[0].calling_convention.args)
+                                incremented = v + Constant(self.project.arch.bytes * num_args)
+                            state.put(self.project.arch.sp_offset, incremented)
+                        except CouldNotResolveException:
+                            pass
 
         if curr_stmt_start_addr is not None:
             self._set_post_state(curr_stmt_start_addr, state.freeze())
@@ -525,6 +546,14 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
         for other in states[1:]:
             merged_state = merged_state.merge(other)
         return merged_state, merged_state == states[0]
+
+    def _find_callees(self, node) -> List[Function]:
+        callees: List[Function] = [ ]
+        for _, dst, data in self._func.transition_graph.out_edges(node, data=True):
+            if data.get('type') == 'call':
+                if isinstance(dst, Function):
+                    callees.append(dst)
+        return callees
 
 
 AnalysesHub.register_default('StackPointerTracker', StackPointerTracker)

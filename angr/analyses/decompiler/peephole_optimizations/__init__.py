@@ -6,6 +6,7 @@ from .remove_redundant_ite_branch import RemoveRedundantITEBranches
 from .single_bit_xor import SingleBitXor
 from .a_sub_a_sub_n import ASubASubN
 from .conv_a_sub0_shr_and import ConvASub0ShrAnd
+from .eager_eval import EagerEvaluation
 from .one_sub_bool import OneSubBool
 from .bool_expr_xor_1 import BoolExprXor1
 from .remove_redundant_bitmasks import RemoveRedundantBitmasks

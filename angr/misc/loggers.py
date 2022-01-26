@@ -1,6 +1,8 @@
 import logging
 import zlib
 from .testing import is_testing
+from ..utils.formatting import ansi_color_enabled
+
 
 class Loggers:
     """
@@ -15,7 +17,7 @@ class Loggers:
         self.load_all_loggers()
         self.profiling_enabled = False
 
-        self.handler = CuteHandler()
+        self.handler = CuteHandler() if ansi_color_enabled else logging.StreamHandler()
         self.handler.setFormatter(logging.Formatter('%(levelname)-7s | %(asctime)-23s | %(name)-8s | %(message)s'))
 
         if not is_testing and len(logging.root.handlers) == 0:

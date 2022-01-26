@@ -1,4 +1,3 @@
-import nose
 import angr
 import networkx
 
@@ -7,21 +6,21 @@ location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..',
 
 
 def test_kb_plugins():
-    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'))
+    p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), auto_load_libs=False)
 
-    nose.tools.assert_is_instance(p.kb.data, angr.knowledge_plugins.Data)
-    nose.tools.assert_is_instance(p.kb.functions, angr.knowledge_plugins.FunctionManager)
-    nose.tools.assert_is_instance(p.kb.variables, angr.knowledge_plugins.VariableManager)
-    nose.tools.assert_is_instance(p.kb.labels, angr.knowledge_plugins.Labels)
-    nose.tools.assert_is_instance(p.kb.comments, angr.knowledge_plugins.Comments)
+    assert isinstance(p.kb.data, angr.knowledge_plugins.Data)
+    assert isinstance(p.kb.functions, angr.knowledge_plugins.FunctionManager)
+    assert isinstance(p.kb.variables, angr.knowledge_plugins.VariableManager)
+    assert isinstance(p.kb.labels, angr.knowledge_plugins.Labels)
+    assert isinstance(p.kb.comments, angr.knowledge_plugins.Comments)
 
-    nose.tools.assert_is_instance(p.kb.callgraph, networkx.Graph)
-    nose.tools.assert_is_instance(p.kb.resolved_indirect_jumps, dict)
-    nose.tools.assert_is_instance(p.kb.unresolved_indirect_jumps, set)
+    assert isinstance(p.kb.callgraph, networkx.Graph)
+    assert isinstance(p.kb.resolved_indirect_jumps, dict)
+    assert isinstance(p.kb.unresolved_indirect_jumps, set)
 
-    nose.tools.assert_is_not_none(dir(p.kb))
+    assert dir(p.kb) is not None
     for plugin in ['data', 'functions', 'variables', 'labels', 'comments', 'callgraph', 'resolved_indirect_jumps', 'unresolved_indirect_jumps']:
-        nose.tools.assert_in(plugin, dir(p.kb))
+        assert plugin in dir(p.kb)
 
 
 if __name__ == '__main__':

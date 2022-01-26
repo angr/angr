@@ -5,6 +5,11 @@ import types
 from collections import deque, defaultdict
 
 import networkx
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from angr.knowledge_plugins import Function
+
 from . import Analysis
 
 from ..errors import SimEngineError, SimMemoryError
@@ -26,14 +31,14 @@ class UnmatchedStatementsException(Exception):
 
 
 # statement difference classes
-class Difference(object):
+class Difference:
     def __init__(self, diff_type, value_a, value_b):
         self.type = diff_type
         self.value_a = value_a
         self.value_b = value_b
 
 
-class ConstantChange(object):
+class ConstantChange:
     def __init__(self, offset, value_a, value_b):
         self.offset = offset
         self.value_a = value_a
@@ -78,7 +83,7 @@ def _get_closest_matches(input_attributes, target_attributes):
     return closest_matches
 
 
-# from http://rosettacode.org/wiki/Levenshtein_distance
+# from https://rosettacode.org/wiki/Levenshtein_distance
 def _levenshtein_distance(s1, s2):
     """
     :param s1:  A list or string
@@ -244,7 +249,7 @@ def compare_statement_dict(statement_1, statement_2):
     return differences
 
 
-class NormalizedBlock(object):
+class NormalizedBlock:
     # block may span multiple calls
     def __init__(self, block, function):
         addresses = [block.addr]
@@ -283,11 +288,11 @@ class NormalizedBlock(object):
         return '<Normalized Block for %#x, %d bytes>' % (self.addr, size)
 
 
-class NormalizedFunction(object):
+class NormalizedFunction:
     # a more normalized function
-    def __init__(self, function):
+    def __init__(self, function: "Function"):
         # start by copying the graph
-        self.graph = function.graph.copy()
+        self.graph: networkx.DiGraph = function.graph.copy()
         self.project = function._function_manager._kb._project
         self.call_sites = dict()
         self.startpoint = function.startpoint
@@ -339,11 +344,11 @@ class NormalizedFunction(object):
                 self.call_sites[n] = call_targets
 
 
-class FunctionDiff(object):
+class FunctionDiff:
     """
     This class computes the a diff between two functions.
     """
-    def __init__(self, function_a, function_b, bindiff=None):
+    def __init__(self, function_a: "Function", function_b: "Function", bindiff=None):
         """
         :param function_a: The first angr Function object to diff.
         :param function_b: The second angr Function object.
@@ -564,7 +569,7 @@ class FunctionDiff(object):
         return diff_constants
 
     @staticmethod
-    def _compute_block_attributes(function):
+    def _compute_block_attributes(function: NormalizedFunction):
         """
         :param function:    A normalized function object.
         :returns:           A dictionary of basic block addresses to tuples of attributes.
@@ -590,7 +595,7 @@ class FunctionDiff(object):
         return attributes
 
     @staticmethod
-    def _distances_from_function_start(function):
+    def _distances_from_function_start(function: NormalizedFunction):
         """
         :param function:    A normalized Function object.
         :returns:           A dictionary of basic block addresses and their distance to the start of the function.
@@ -599,12 +604,12 @@ class FunctionDiff(object):
                                                            function.startpoint)
 
     @staticmethod
-    def _distances_from_function_exit(function):
+    def _distances_from_function_exit(function: NormalizedFunction):
         """
         :param function:    A normalized Function object.
         :returns:           A dictionary of basic block addresses and their distance to the exit of the function.
         """
-        reverse_graph = function.graph.reverse()
+        reverse_graph: networkx.DiGraph = function.graph.reverse()
         # we aren't guaranteed to have an exit from the function so explicitly add the node
         reverse_graph.add_node("start")
         found_exits = False

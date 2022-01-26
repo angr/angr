@@ -16,7 +16,7 @@ import pyvex
 from . import Analysis
 
 from angr.analyses.cfg.cfg_fast import SegmentList
-from .. import options as o
+from .. import sim_options as o
 from ..annocfg import AnnotatedCFG
 from ..errors import SimMemoryError, SimEngineError, AngrError, SimValueError, SimIRSBError, SimSolverModeError, \
     SimError
@@ -78,7 +78,7 @@ class GirlScout(Analysis):
         self._reconnoiter()
 
     @property
-    def call_map(self):
+    def call_map(self) -> networkx.DiGraph:
         return self.call_map
 
     def _get_next_addr_to_search(self, alignment=None):
@@ -117,7 +117,7 @@ class GirlScout(Analysis):
 
     def _get_next_code_addr(self, initial_state):
         """
-        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not, 
+        Besides calling _get_next_addr, we will check if data locates at that address seems to be code or not. If not,
         we'll move on to request for next valid address.
         """
         next_addr = self._get_next_addr_to_search()

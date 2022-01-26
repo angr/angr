@@ -1,4 +1,3 @@
-import nose.tools
 import angr
 
 import os
@@ -10,15 +9,15 @@ def test_kb_plugins_dwarf():
         "load_debug_info":True,
         "auto_load_libs": False,
     } )
-    nose.tools.assert_is_instance(p.kb.variables, angr.knowledge_plugins.VariableManager)
+    assert isinstance(p.kb.variables, angr.knowledge_plugins.VariableManager)
     p.kb.variables.load_from_dwarf()
 
 
     ret = p.kb.variables.global_manager.get_global_variables(6295620)
-    nose.tools.assert_equal(len(ret), 1)
+    assert len(ret) == 1
 
     v = ret.pop()
-    nose.tools.assert_equal(v.name, "buf")
+    assert v.name == "buf"
 
 
 if __name__ == '__main__':

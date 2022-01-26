@@ -78,7 +78,7 @@ class Subtype(TypeConstraint):
 
     __slots__ = ('super_type', 'sub_type', )
 
-    def __init__(self, super_type, sub_type):
+    def __init__(self, sub_type, super_type):
         self.super_type = super_type
         self.sub_type = sub_type
 

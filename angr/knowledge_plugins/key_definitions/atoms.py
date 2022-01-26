@@ -1,10 +1,12 @@
 from typing import Dict, Tuple, Union, Optional
 
 import claripy
+import ailment
 
-from ...calling_conventions import SimFunctionArgument, SimRegArg
+from ...calling_conventions import SimFunctionArgument, SimRegArg, SimStackArg
 from ...engines.light import SpOffset
 from .heap_address import HeapAddress
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 
 class Atom:
@@ -13,6 +15,9 @@ class Atom:
 
     It could either be a Tmp (temporary variable), a Register, a MemoryLocation.
     """
+
+    __slots__ = ()
+
     def __repr__(self):
         raise NotImplementedError()
 
@@ -30,6 +35,8 @@ class Atom:
         """
         if isinstance(argument, SimRegArg):
             return Register(registers[argument.reg_name][0], argument.size)
+        elif isinstance(argument, SimStackArg):
+            return MemoryLocation(registers["sp"][0] + argument.stack_offset, argument.size)
         else:
             raise TypeError("Argument type %s is not yet supported." % type(argument))
 
@@ -38,6 +45,8 @@ class GuardUse(Atom):
     """
     Implements a guard use.
     """
+    __slots__ = ("target",)
+
     def __init__(self, target):
         self.target = target
 
@@ -47,6 +56,56 @@ class GuardUse(Atom):
     @property
     def size(self) -> int:
         raise NotImplementedError()
+
+
+class FunctionCall(Atom):
+    __slots__ = ('target', 'callsite')
+
+    def __init__(self, target, callsite):
+        self.target = target
+        self.callsite = callsite
+
+    @property
+    def single_target(self):
+        if type(self.target) is MultiValues and len(self.target.values) == 1 and 0 in self.target.values and \
+                len(self.target.values[0]) == 1 and next(iter(self.target.values[0])).op == 'BVV':
+            return next(iter(self.target.values[0])).args[0]
+        return None
+
+    def __repr__(self):
+        target = self.single_target
+        target_txt = hex(target) if target is not None else '(indirect)'
+        return '<Call %s>' % target_txt
+
+    def __eq__(self, other):
+        return type(other) is FunctionCall and self.callsite == other.callsite
+
+    def __hash__(self):
+        return hash(self.callsite)
+
+    @property
+    def size(self):
+        raise NotImplementedError
+
+
+class ConstantSrc(Atom):
+    __slots__ = ('const',)
+
+    def __init__(self, const):
+        self.const = const
+
+    def __repr__(self):
+        return repr(self.const)
+
+    def __eq__(self, other):
+        return type(other) is ConstantSrc and self.const == other.const
+
+    def __hash__(self):
+        return hash(self.const)
+
+    @property
+    def size(self):
+        return self.const.size
 
 
 class Tmp(Atom):

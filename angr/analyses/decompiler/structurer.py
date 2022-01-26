@@ -18,6 +18,7 @@ from .empty_node_remover import EmptyNodeRemover
 from .condition_processor import ConditionProcessor
 from .utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
     insert_node
+from .region_simplifiers.cascading_cond_transformer import CascadingConditionTransformer
 
 if TYPE_CHECKING:
     from ...knowledge_plugins.functions import Function
@@ -393,8 +394,15 @@ class Structurer(Analysis):
             new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
         elif type(last_stmt) is ailment.Stmt.ConditionalJump:
             # add a conditional break
-            if last_stmt.true_target.value in loop_successor_addrs and \
-                    last_stmt.false_target.value not in loop_successor_addrs:
+            true_target_value = None
+            false_target_value = None
+            if last_stmt.true_target is not None:
+                true_target_value = last_stmt.true_target.value
+            if last_stmt.false_target is not None:
+                false_target_value = last_stmt.false_target.value
+
+            if (true_target_value is not None and true_target_value in loop_successor_addrs) and \
+                    (false_target_value is None or false_target_value not in loop_successor_addrs):
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
                 new_node = ConditionalBreakNode(
@@ -402,8 +410,8 @@ class Structurer(Analysis):
                     self.cond_proc.claripy_ast_from_ail_condition(cond),
                     target
                 )
-            elif last_stmt.false_target.value in loop_successor_addrs and \
-                    last_stmt.true_target.value not in loop_successor_addrs:
+            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
+                    (true_target_value is None or true_target_value not in loop_successor_addrs):
                 cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
                 target = last_stmt.false_target.value
                 new_node = ConditionalBreakNode(
@@ -411,8 +419,8 @@ class Structurer(Analysis):
                     self.cond_proc.claripy_ast_from_ail_condition(cond),
                     target
                 )
-            elif last_stmt.false_target.value in loop_successor_addrs and \
-                    last_stmt.true_target.value in loop_successor_addrs:
+            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
+                    (true_target_value is not None and true_target_value in loop_successor_addrs):
                 # both targets are pointing outside the loop
                 # we should use just add a break node
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
@@ -540,6 +548,9 @@ class Structurer(Analysis):
                 i += 1
                 continue
             node_1 = seq.nodes[i + 1]
+            if not type(node_1) is CodeNode:
+                i += 1
+                continue
             rcond_1 = node_1.reaching_condition
             if rcond_1 is None:
                 i += 1
@@ -1080,7 +1091,7 @@ class Structurer(Analysis):
         if common_subexpr is claripy.true:
             return [ ]
         for j, node_1 in enumerate(seq.nodes[starting_idx:]):
-            rcond_1 = node_1.reaching_condition
+            rcond_1 = getattr(node_1, 'reaching_condition', None)
             if rcond_1 is None:
                 continue
             subexprs_1 = list(get_ast_subexprs(rcond_1))
@@ -1145,74 +1156,7 @@ class Structurer(Analysis):
         """
         Convert nested condition nodes into a CascadingConditionNode.
         """
-
-        for i in range(len(seq.nodes)):
-            node = seq.nodes[i]
-
-            if isinstance(node, ConditionNode):
-                new_node = self._make_cascading_condition_nodes_core(node)
-                if new_node is not None:
-                    seq.nodes[i] = new_node
-
-    def _make_cascading_condition_nodes_core(self, cond_node: ConditionNode) -> Optional[CascadingConditionNode]:
-        if cond_node.false_node is not None \
-                and isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode)) \
-                and not isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode)):
-
-            cond_0 = cond_node.condition
-            node_0 = cond_node.true_node
-            remaining_node = cond_node.false_node
-
-        elif cond_node.true_node is not None \
-                and isinstance(cond_node.true_node, (ConditionNode, CascadingConditionNode)) \
-                and not isinstance(cond_node.false_node, (ConditionNode, CascadingConditionNode)):
-            cond_0 = claripy.Not(cond_node.condition)
-            node_0 = cond_node.false_node
-            remaining_node = cond_node.true_node
-
-        else:
-            return None
-
-        # structure else_node
-        if not isinstance(remaining_node, CascadingConditionNode):
-            structured = self._make_cascading_condition_nodes_core(remaining_node)
-            if structured is None:
-                structured = remaining_node
-        else:
-            structured = remaining_node
-
-        if isinstance(structured, ConditionNode):
-            if structured.true_node is None and structured.false_node is not None:
-                cond_and_nodes = [
-                    (cond_0, node_0),
-                    (claripy.Not(structured.condition), structured.false_node),
-                ]
-                else_node = None
-            elif structured.true_node is not None and structured.false_node is None:
-                cond_and_nodes = [
-                    (cond_0, node_0),
-                    (structured.condition, structured.true_node),
-                ]
-                else_node = None
-            else:
-                cond_and_nodes = [
-                    (cond_0, node_0),
-                    (structured.condition, structured.true_node),
-                ]
-                else_node = structured.false_node
-
-        elif isinstance(structured, CascadingConditionNode):
-            # merge two nodes
-            cond_and_nodes = [
-                (cond_0, node_0)
-            ] + structured.condition_and_nodes
-            else_node = structured.else_node
-
-        else:
-            # unexpected!
-            raise RuntimeError("Impossible happened")
-
-        return CascadingConditionNode(cond_node.addr, cond_and_nodes, else_node=else_node)
+        CascadingConditionTransformer(seq)
 
     def _make_ite(self, seq, node_0, node_1):
 

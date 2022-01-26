@@ -50,7 +50,7 @@ class ParameterTag(FunctionTag):
 
 class LocalVariableTag(FunctionTag):
     """
-    A tag for a definiton of a local variable of a function.
+    A tag for a definition of a local variable of a function.
     """
 
 class ReturnValueTag(FunctionTag):

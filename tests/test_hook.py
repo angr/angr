@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import os
@@ -11,7 +10,7 @@ def test_mips():
     INNER_LOOP = 0x40069C
     OUTER_LOOP = 0x40076C
 
-    p = angr.Project(os.path.join(location, 'mips', 'test_loops'))
+    p = angr.Project(os.path.join(location, 'mips', 'test_loops'), auto_load_libs=False)
     output = []
 
     # hooking by a function decorator
@@ -30,9 +29,9 @@ def test_mips():
 
     s = p.factory.simulation_manager(p.factory.entry_state()).explore(find=[MAIN_END])
 
-    nose.tools.assert_equal(len(s.found), 1)
-    nose.tools.assert_equal(s.found[0].posix.dumps(1), b''.join(b'%d ' % x for x in range(100)) + b'\n')
-    nose.tools.assert_equal(output, [1]*100 + [2]*100)
+    assert len(s.found) == 1
+    assert s.found[0].posix.dumps(1) == b''.join(b'%d ' % x for x in range(100)) + b'\n'
+    assert output == [1]*100 + [2]*100
     # print 'Executed %d blocks' % len(s._f.trace)
 
 
@@ -96,7 +95,7 @@ def test_nonzero_length_userhook():
     s = proj.factory.simgr()
     s.run()
 
-    nose.tools.assert_list_equal(hook.addrs, [0x8, 0xa])
+    assert hook.addrs == [0x8, 0xa]
 
 
 if __name__ == '__main__':

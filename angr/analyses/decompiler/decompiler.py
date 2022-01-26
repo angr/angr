@@ -113,7 +113,7 @@ class Decompiler(Analysis):
         self._update_progress(80., text='Simplifying regions')
 
         # simplify it
-        s = self.project.analyses.RegionSimplifier(rs.result, kb=self.kb)
+        s = self.project.analyses.RegionSimplifier(self.func, rs.result, kb=self.kb, variable_kb=clinic.variable_kb)
         self._update_progress(85., text='Generating code')
 
         codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,

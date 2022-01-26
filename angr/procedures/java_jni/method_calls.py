@@ -1,5 +1,6 @@
 
 import logging
+from typing import Optional
 
 from archinfo.arch_soot import (ArchSoot, SootAddressDescriptor, SootArgument,
                                 SootMethodDescriptor)
@@ -39,7 +40,7 @@ class GetMethodID(JNISimProcedure):
 
 class CallMethodBase(JNISimProcedure):
 
-    return_ty = None
+    return_ty: Optional[str] = None
 
     def _invoke(self, method_id, obj=None, dynamic_dispatch=True, args_in_array=None):
         # get invoke target
@@ -62,7 +63,7 @@ class CallMethodBase(JNISimProcedure):
         self.call(invoke_addr, java_args, "return_from_invocation", cc=SimCCSoot(ArchSoot()))
 
     def _get_arg_values(self, no_of_args):
-        return [ self.arg(self.num_args+idx).to_claripy() for idx in range(no_of_args) ]
+        return [self.va_arg('void*') for _ in range(no_of_args)]
 
     def _get_arg_values_from_array(self, array, no_of_args):
         return self._load_from_native_memory(addr=array, data_size=self.arch.bytes,
@@ -77,7 +78,7 @@ class CallMethodBase(JNISimProcedure):
 
         # function arguments
         for arg_value_, arg_type in zip(arg_values, method_id.params):
-            
+
             if arg_type in ArchSoot.primitive_types:
                 # argument has a primitive integral type
                 # => cast native value to java type

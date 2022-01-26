@@ -53,17 +53,18 @@ class SimConcretizationStrategy:
         """
         return (self._min(memory, addr, **kwargs), self._max(memory, addr, **kwargs))
 
-    def concretize(self, memory, addr):
+    def concretize(self, memory, addr, **kwargs):
         """
         Concretizes the address into a list of values.
         If this strategy cannot handle this address, returns None.
         """
         if self._filter is None or self._filter(memory, addr):
-            return self._concretize(memory, addr)
+            return self._concretize(memory, addr, **kwargs)
 
-    def _concretize(self, memory, addr):
+    def _concretize(self, memory, addr, **kwargs):
         """
         Should be implemented by child classes to handle concretization.
+        :param **kwargs:
         """
         raise NotImplementedError()
 

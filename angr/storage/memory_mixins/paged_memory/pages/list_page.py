@@ -1,9 +1,9 @@
-# pylint:disable=abstract-method
+# pylint:disable=abstract-method,arguments-differ
 import logging
 from typing import Optional, List, Set, Tuple
 
+from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from . import PageBase
-from angr.storage.memory_object import SimMemoryObject
 from .cooperation import MemoryObjectMixin
 
 
@@ -11,6 +11,9 @@ l = logging.getLogger(name=__name__)
 
 
 class ListPage(MemoryObjectMixin, PageBase):
+    """
+    This class implements a page memory mixin with lists as the main content store.
+    """
     def __init__(self, memory=None, content=None, sinkhole=None, mo_cmp=None, **kwargs):
         super().__init__(**kwargs)
 
@@ -75,6 +78,8 @@ class ListPage(MemoryObjectMixin, PageBase):
         result[-1] = (global_start_addr, new_item)
 
     def store(self, addr, data, size=None, endness=None, memory=None, cooperate=False, **kwargs):
+        super().store(addr, data, size=size, endness=endness, memory=memory, cooperate=cooperate, **kwargs)
+
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, memory=memory, **kwargs)
 
@@ -130,7 +135,7 @@ class ListPage(MemoryObjectMixin, PageBase):
             mo_lengths = set(mo.length for mo, _ in memory_objects)
             endnesses = set(mo.endness for mo in mos)
 
-            if not unconstrained_in and not (mos - merged_objects):
+            if not unconstrained_in and not (mos - merged_objects):  # pylint:disable=superfluous-parens
                 continue
 
             # first, optimize the case where we are dealing with the same-sized memory objects
@@ -153,8 +158,15 @@ class ListPage(MemoryObjectMixin, PageBase):
                 # TODO: Implement in-place replacement instead of calling store()
                 # new_object = self._replace_memory_object(our_mo, merged_val, page_addr, memory.page_size)
 
+                if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
+                    labels = [(mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {})
+                              for mo_, _ in memory_objects]
+                    merged_label = self._merge_labels(labels, memory=memory)
+                    new_mo = SimLabeledMemoryObject(merged_val, mo_base, endness=the_endness, label=merged_label)
+                else:
+                    new_mo = SimMemoryObject(merged_val, mo_base, endness=the_endness)
                 self.store(b,
-                           SimMemoryObject(merged_val, mo_base, endness=the_endness),
+                           new_mo,
                            size=size,
                            cooperate=True
                            )
@@ -189,8 +201,15 @@ class ListPage(MemoryObjectMixin, PageBase):
                 if merged_val is None:
                     continue
 
+                if isinstance(memory_objects[0][0], SimLabeledMemoryObject):
+                    labels = [(mo_.label if isinstance(mo_, SimLabeledMemoryObject) else {})
+                              for mo_, _ in memory_objects]
+                    merged_label = self._merge_labels(labels, memory=memory)
+                    new_mo = SimLabeledMemoryObject(merged_val, page_addr+b, endness='Iend_BE', label=merged_label)
+                else:
+                    new_mo = SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE')
                 self.store(b,
-                           SimMemoryObject(merged_val, page_addr+b, endness='Iend_BE'),
+                           new_mo,
                            size=min_size,
                            endness='Iend_BE', cooperate=True
                            )  # do not convert endianness again
@@ -200,21 +219,22 @@ class ListPage(MemoryObjectMixin, PageBase):
         return merged_offsets
 
     def changed_bytes(self, other: 'ListPage', page_addr: int=None):
+        candidates = super().changed_bytes(other)
+        if candidates is None:
+            candidates: Set[int] = set()
+            if self.sinkhole is None:
+                candidates |= self.stored_offset
+            else:
+                for i in range(len(self.content)):
+                    if self._contains(i, page_addr):
+                        candidates.add(i)
 
-        candidates: Set[int] = set()
-        if self.sinkhole is None:
-            candidates |= self.stored_offset
-        else:
-            for i in range(len(self.content)):
-                if self._contains(i, page_addr):
-                    candidates.add(i)
-
-        if other.sinkhole is None:
-            candidates |= other.stored_offset
-        else:
-            for i in range(len(other.content)):
-                if other._contains(i, page_addr):
-                    candidates.add(i)
+            if other.sinkhole is None:
+                candidates |= other.stored_offset
+            else:
+                for i in range(len(other.content)):
+                    if other._contains(i, page_addr):
+                        candidates.add(i)
 
         byte_width = 8  # TODO: Introduce self.state if we want to use self.state.arch.byte_width
         differences: Set[int] = set()

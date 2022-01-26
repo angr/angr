@@ -21,10 +21,10 @@ def test_stub_procedure_args():
     stub = lib.get_stub('____a_random_stdcall_function__', archinfo.ArchX86())
     stub.cc = SimCCStdcall(archinfo.ArchX86())
     lib._apply_metadata(stub, archinfo.ArchX86())
-    assert len(stub.cc.args) == 3
-    assert all(isinstance(arg, SimStackArg) for arg in stub.cc.args)
+    assert len(stub.prototype.args) == 3
+    assert all(isinstance(arg, SimStackArg) for arg in stub.cc.arg_locs(stub.prototype))
 
-    proj = angr.Project(os.path.join(binaries_base, "i386", "all"), auto_load_libs=True)
+    proj = angr.Project(os.path.join(binaries_base, "i386", "all"), auto_load_libs=False)
     state = proj.factory.blank_state()
 
     initial_sp = state.regs.sp

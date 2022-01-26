@@ -3,14 +3,13 @@ import sys
 import logging
 
 import angr
-import nose
 
 import psutil
 from common import bin_location
 
 def test_memory_watcher():
     binary = os.path.join(bin_location, 'tests', 'x86_64', 'veritesting_a')
-    proj = angr.Project(binary)
+    proj = angr.Project(binary, auto_load_libs=False)
     simgr = proj.factory.simulation_manager()
 
     memory_watcher = angr.exploration_techniques.MemoryWatcher()
@@ -21,7 +20,7 @@ def test_memory_watcher():
         simgr.step()
 
     # Something else went wrong..
-    nose.tools.assert_true(simgr.active != [])
+    assert simgr.active != []
 
     # Set fake that memory watcher believes we're too low on memory
     memory_watcher.min_memory = psutil.virtual_memory().total
@@ -31,8 +30,8 @@ def test_memory_watcher():
     # Step once to move things over
     simgr.step()
 
-    nose.tools.assert_true(simgr.active == [])
-    nose.tools.assert_true(len(getattr(simgr, memory_watcher.memory_stash)) == previous_active)
+    assert simgr.active == []
+    assert len(getattr(simgr, memory_watcher.memory_stash)) == previous_active
 
 def run_all():
     functions = globals()

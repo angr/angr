@@ -13,7 +13,7 @@ from ...storage.memory_mixins import MultiValuedMemory
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...engines.light import SpOffset
 from ...code_location import CodeLocation
-from .atoms import Atom, Register, MemoryLocation, Tmp
+from .atoms import Atom, Register, MemoryLocation, Tmp, FunctionCall, ConstantSrc
 from .definition import Definition, Tag
 from .heap_address import HeapAddress
 from .uses import Uses
@@ -49,10 +49,14 @@ class DefinitionAnnotation(Annotation):
     def __hash__(self):
         return hash((self.definition, self.relocatable, self.eliminatable))
 
-    def __eq__(self, other: 'DefinitionAnnotation'):
-        return  self.definition == other.definition \
-            and self.relocatable == other.relocatable \
-            and self.eliminatable == other.eliminatable
+    def __eq__(self, other: 'object'):
+        if isinstance(other, DefinitionAnnotation):
+            return  self.definition == other.definition \
+                and self.relocatable == other.relocatable \
+                and self.eliminatable == other.eliminatable
+        else:
+            raise ValueError("DefinitionAnnotation can only check equality with other DefinitionAnnotation")
+
 
 # pylint: disable=W1116
 class LiveDefinitions:
@@ -430,6 +434,12 @@ class LiveDefinitions:
                 pass
         elif type(definition.atom) is Tmp:
             self._add_tmp_use_by_def(definition, code_loc)
+        elif type(definition.atom) is FunctionCall:
+            # ignore function calls
+            pass
+        elif type(definition.atom) is ConstantSrc:
+            # ignore constants
+            pass
         else:
             raise TypeError()
 

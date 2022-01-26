@@ -13,7 +13,7 @@ from ...engines.light import SpOffset
 from ...sim_variable import SimVariable
 from ...storage.memory_mixins import MultiValuedMemory
 from ..analysis import Analysis
-from ..typehoon.typevars import TypeVariables
+from ..typehoon.typevars import TypeVariables, TypeVariable
 
 if TYPE_CHECKING:
     from angr.storage import SimMemoryObject
@@ -71,6 +71,9 @@ class VariableAnnotation(Annotation):
     def __hash__(self):
         return hash(('Va', tuple(self.addr_and_variables)))
 
+    def __repr__(self):
+        return f"<VariableAnnotation: {self.addr_and_variables}>"
+
 
 class VariableRecoveryBase(Analysis):
     """
@@ -126,7 +129,8 @@ class VariableRecoveryStateBase:
     _tops = {}
 
     def __init__(self, block_addr, analysis, arch, func, stack_region=None, register_region=None, global_region=None,
-                 typevars=None, type_constraints=None, delayed_type_constraints=None, project=None):
+                 typevars=None, type_constraints=None, delayed_type_constraints=None, stack_offset_typevars=None,
+                 project=None):
 
         self.block_addr = block_addr
         self._analysis = analysis
@@ -172,6 +176,8 @@ class VariableRecoveryStateBase:
         self.type_constraints = set() if type_constraints is None else type_constraints
         self.delayed_type_constraints = DefaultChainMapCOW(set, collapse_threshold=25) \
             if delayed_type_constraints is None else delayed_type_constraints
+        self.stack_offset_typevars: Dict[int, TypeVariable] = {} if stack_offset_typevars is None else \
+            stack_offset_typevars
 
     def _get_weakref(self):
         return weakref.proxy(self)
@@ -199,16 +205,7 @@ class VariableRecoveryStateBase:
     @staticmethod
     def annotate_with_variables(expr: claripy.ast.Base,
                                 addr_and_variables: Iterable[Tuple[int,Union[SimVariable,SpOffset]]]) -> claripy.ast.Base:
-
-        annotations_to_remove = [ ]
-        for anno in expr.annotations:
-            if isinstance(anno, VariableAnnotation):
-                annotations_to_remove.append(anno)
-
-        if annotations_to_remove:
-            expr = expr.remove_annotations(annotations_to_remove)
-
-        expr = expr.annotate(VariableAnnotation(list(addr_and_variables)))
+        expr = expr.replace_annotations((VariableAnnotation(list(addr_and_variables)),))
         return expr
 
     def stack_address(self, offset: int) -> claripy.ast.Base:
@@ -220,6 +217,15 @@ class VariableRecoveryStateBase:
     @staticmethod
     def is_stack_address(addr: claripy.ast.Base) -> bool:
         return "stack_base" in addr.variables
+
+    def is_global_variable_address(self, addr: claripy.ast.Base) -> bool:
+        if addr.op == "BVV":
+            addr_v = addr._model_concrete.value
+            # make sure it is within a mapped region
+            obj = self.project.loader.find_object_containing(addr_v)
+            if obj is not None:
+                return True
+        return False
 
     def get_stack_offset(self, addr: claripy.ast.Base) -> Optional[int]:
         if "stack_base" in addr.variables:

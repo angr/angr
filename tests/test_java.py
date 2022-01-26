@@ -43,7 +43,7 @@ def test_apk_loading():
     loading_opts = {'android_sdk': sdk_path,
                     'entry_point': 'com.example.antoniob.android1.MainActivity.onCreate',
                     'entry_point_params': ('android.os.Bundle', )}
-    project = angr.Project(os.path.join(test_location, "android1.apk"), main_opts=loading_opts)
+    project = angr.Project(os.path.join(test_location, "android1.apk"), main_opts=loading_opts, auto_load_libs=False)
 
     blank_state = project.factory.blank_state()
     a1 = SimSootValue_ThisRef.new_object(blank_state, 'com.example.antoniob.android1.MainActivity')
@@ -248,7 +248,7 @@ def test_jni_primitive_datatypes():
 
     run_method(project=project,
                method="MixedJava.test_short",
-               assert_locals={'s3': 0x1000, 's0': 11, 's5': 0xfffff000, 's9': 0})
+               assert_locals={'s3': 0x1000, 's5': 0xfffff000, 's0': 11, 's9': 0})
 
     run_method(project=project,
                method="MixedJava.test_int",
@@ -499,7 +499,7 @@ def test_loading():
         'jni_libs': ['libmixedjava.so'],
         'jni_libs_ld_path': native_libs_ld_path
     }
-    project = angr.Project(jar_path, main_opts=jni_options)
+    project = angr.Project(jar_path, main_opts=jni_options, auto_load_libs=True)
     # check if libmixedjava.so was loaded
     loaded_libs = [lib.provides for lib in project.loader.all_elf_objects]
     assert 'libmixedjava.so' in loaded_libs

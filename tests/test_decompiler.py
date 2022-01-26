@@ -351,6 +351,20 @@ def test_decompiling_true_a_x86_64_1():
     print(dec.codegen.text)
 
 
+def test_decompiling_true_1804_x86_64():
+    # true in Ubuntu 18.04, with -O2, has special optimizations that
+    # may mess up the way we structure loops and conditionals
+
+    bin_path = os.path.join(test_location, "x86_64", "true_ubuntu1804")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFG(normalize=True, data_references=True)
+
+    f = cfg.functions["usage"]
+    dec = p.analyses.Decompiler(f, cfg=cfg.model)
+    print(dec.codegen.text)
+
+
 def test_decompiling_1after909_verify_password():
 
     bin_path = os.path.join(test_location, "x86_64", "1after909")
@@ -362,7 +376,9 @@ def test_decompiling_1after909_verify_password():
     f = cfg.functions['verify_password']
     # recover calling convention
     p.analyses.VariableRecoveryFast(f)
-    f.calling_convention = p.analyses.CallingConvention(f).cc
+    cca = p.analyses.CallingConvention(f)
+    f.calling_convention = cca.cc
+    f.prototype = cca.prototype
     dec = p.analyses.Decompiler(f, cfg=cfg.model)
     if dec.codegen is None:
         print("Failed to decompile function %r." % f)
@@ -485,6 +501,7 @@ def test_decompiling_strings_local_strlen():
     _ = p.analyses.VariableRecoveryFast(func)
     cca = p.analyses.CallingConvention(func, cfg=cfg.model)
     func.calling_convention = cca.cc
+    func.prototype = cca.prototype
 
     dec = p.analyses.Decompiler(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
@@ -506,6 +523,7 @@ def test_decompiling_strings_local_strcat():
     _ = p.analyses.VariableRecoveryFast(func)
     cca = p.analyses.CallingConvention(func, cfg=cfg.model)
     func.calling_convention = cca.cc
+    func.prototype = cca.prototype
 
     dec = p.analyses.Decompiler(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
@@ -527,6 +545,7 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     _ = p.analyses.VariableRecoveryFast(func_strlen)
     cca = p.analyses.CallingConvention(func_strlen, cfg=cfg.model)
     func_strlen.calling_convention = cca.cc
+    func_strlen.prototype = cca.prototype
     p.analyses.Decompiler(func_strlen, cfg=cfg.model)
 
     func = cfg.functions['local_strcat']
@@ -534,6 +553,7 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
     _ = p.analyses.VariableRecoveryFast(func)
     cca = p.analyses.CallingConvention(func, cfg=cfg.model)
     func.calling_convention = cca.cc
+    func.prototype = cca.prototype
 
     dec = p.analyses.Decompiler(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
@@ -686,7 +706,7 @@ def test_decompiling_amp_challenge03_arm():
     # make sure there are no empty code blocks
     code = code.replace(" ", "").replace("\n", "")
     assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some assignments " \
-                             " are incorrectly removed."
+                             "are incorrectly removed."
 
 
 def test_decompiling_fauxware_mipsel():

@@ -1,10 +1,15 @@
 import pyvex
 import claripy
 
-from ..light.slicing import VEXSlicingMixin
 from .... import sim_options as o
+from ....errors import SimMissingTempError
+from ..light.slicing import VEXSlicingMixin
+
 
 class SuperFastpathMixin(VEXSlicingMixin):
+    """
+    This mixin implements the superfastpath execution mode, which skips all but the last four instructions.
+    """
     def handle_vex_block(self, irsb):
         # This option makes us only execute the last four instructions
         if o.SUPER_FASTPATH in self.state.options:
@@ -21,7 +26,7 @@ class SuperFastpathMixin(VEXSlicingMixin):
     def _perform_vex_expr_RdTmp(self, tmp):
         try:
             return super()._perform_vex_expr_RdTmp(tmp)
-        except LookupError:
+        except SimMissingTempError:
             if o.SUPER_FASTPATH in self.state.options:
                 return claripy.BVV(0, pyvex.get_type_size(self.irsb.tyenv.lookup(tmp)))
             else:

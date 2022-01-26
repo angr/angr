@@ -77,7 +77,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         if graph_updated:
             self.out_graph = graph_copy
 
-    def _analyze_core(self, graph):
+    def _analyze_core(self, graph: networkx.DiGraph):
 
         endnodes = [ node for node in graph.nodes() if graph.out_degree[node] == 0 ]
         graph_changed = False

@@ -1,7 +1,6 @@
 
 import os
 
-import nose.tools
 
 import angr
 from angr.knowledge_plugins.xrefs import XRef, XRefType
@@ -22,21 +21,13 @@ def test_lwip_udpecho_bm():
     timenow_cp_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x23d4)  # the constant in the constant pool
     timenow_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x1fff36f4)  # the value in .bss
 
-    nose.tools.assert_equal(len(timenow_cp_xrefs), 1)
-    nose.tools.assert_equal(next(iter(timenow_cp_xrefs)),
-                            XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
-                            )
+    assert len(timenow_cp_xrefs) == 1
+    assert next(iter(timenow_cp_xrefs)) == XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
 
-    nose.tools.assert_equal(len(timenow_xrefs), 3)
-    nose.tools.assert_equal([x for x in timenow_xrefs if x.type == XRefType.Offset][0],
-                            XRef(ins_addr=0x23c9, dst=0x1fff36f4, xref_type=XRefType.Offset)
-                            )
-    nose.tools.assert_equal([x for x in timenow_xrefs if x.type == XRefType.Read][0],
-                            XRef(ins_addr=0x23cb, dst=0x1fff36f4, xref_type=XRefType.Read)
-                            )
-    nose.tools.assert_equal([x for x in timenow_xrefs if x.type == XRefType.Write][0],
-                            XRef(ins_addr=0x23cf, dst=0x1fff36f4, xref_type=XRefType.Write)
-                            )
+    assert len(timenow_xrefs) == 3
+    assert [x for x in timenow_xrefs if x.type == XRefType.Offset][0] == XRef(ins_addr=0x23c9, dst=0x1fff36f4, xref_type=XRefType.Offset)
+    assert [x for x in timenow_xrefs if x.type == XRefType.Read][0] == XRef(ins_addr=0x23cb, dst=0x1fff36f4, xref_type=XRefType.Read)
+    assert [x for x in timenow_xrefs if x.type == XRefType.Write][0] == XRef(ins_addr=0x23cf, dst=0x1fff36f4, xref_type=XRefType.Write)
 
 
 def test_lwip_udpecho_bm_the_better_way():
@@ -47,12 +38,10 @@ def test_lwip_udpecho_bm_the_better_way():
     timenow_cp_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x23d4)  # the constant in the constant pool
     timenow_xrefs = p.kb.xrefs.get_xrefs_by_dst(0x1fff36f4)  # the value in .bss
 
-    nose.tools.assert_equal(len(timenow_cp_xrefs), 1)
-    nose.tools.assert_equal(next(iter(timenow_cp_xrefs)),
-                            XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
-                            )
+    assert len(timenow_cp_xrefs) == 1
+    assert next(iter(timenow_cp_xrefs)) == XRef(ins_addr=0x23c9, dst=0x23d4, xref_type=XRefType.Read)
     # sys_now (2), time_isr (3) == 5
-    nose.tools.assert_equal(len(timenow_xrefs), 5)
+    assert len(timenow_xrefs) == 5
 
 
 def test_p2im_drone_with_inits():
@@ -70,7 +59,7 @@ def test_p2im_drone_with_inits():
     cfg.do_full_xrefs(overlay_state=overlay_state)
 
     h12c1_inst_xrefs = proj.kb.xrefs.get_xrefs_by_dst(0x20001500)
-    nose.tools.assert_equal(len(h12c1_inst_xrefs), 5)
+    assert len(h12c1_inst_xrefs) == 5
 
 
 if __name__ == "__main__":

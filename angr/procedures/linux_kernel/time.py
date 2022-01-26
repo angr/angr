@@ -14,6 +14,7 @@ class time(angr.SimProcedure):
         self.state.globals[self.KEY] = v
 
     def run(self, pointer):
+        # TODO lord have mercy. how big is time_t?
         if angr.options.USE_SYSTEM_TIMES in self.state.options:
             ts = int(_time.time())
             result = self.state.solver.BVV(ts, self.state.arch.bits)

@@ -10,5 +10,5 @@ class SimConcretizationStrategyUnlimitedRange(SimConcretizationStrategy):
         super().__init__(**kwargs)
         self._limit = limit
 
-    def _concretize(self, memory, addr):
-        return self._eval(memory, addr, self._limit)
+    def _concretize(self, memory, addr, **kwargs):
+        return self._eval(memory, addr, self._limit, **kwargs)

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Set, Iterable, Union
+from typing import Optional, Dict, Set, Iterable, Union, List
 from functools import reduce
 
 import networkx
@@ -10,7 +10,7 @@ from ...code_location import CodeLocation
 from ...knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation
 from ...knowledge_plugins.key_definitions.definition import Definition
 from ...knowledge_plugins.key_definitions.undefined import UNDEFINED
-from ..cfg.cfg_base import CFGBase
+from ...knowledge_plugins.cfg import CFGModel
 from .external_codeloc import ExternalCodeLocation
 
 
@@ -35,7 +35,7 @@ class DepGraph:
         if graph and not all(map(_is_definition, graph.nodes)):
             raise TypeError("In a DepGraph, nodes need to be <%s>s." % Definition.__name__)
 
-        self._graph = graph if graph is not None else networkx.DiGraph()
+        self._graph: networkx.DiGraph = graph if graph is not None else networkx.DiGraph()
 
     @property
     def graph(self) -> networkx.DiGraph:
@@ -57,7 +57,8 @@ class DepGraph:
         """
         self._graph.add_edge(source, destination, **labels)
 
-    def nodes(self) -> networkx.classes.reportviews.NodeView: return self._graph.nodes()
+    def nodes(self) -> networkx.classes.reportviews.NodeView:
+        return self._graph.nodes()
 
     def predecessors(self, node: Definition) -> networkx.classes.reportviews.NodeView:
         """
@@ -127,7 +128,7 @@ class DepGraph:
     def add_dependencies_for_concrete_pointers_of(self,
                                                   values: Iterable[Union[claripy.ast.Base,int]],
                                                   definition: Definition,
-                                                  cfg: CFGBase,
+                                                  cfg: CFGModel,
                                                   loader: Loader):
         """
         When a given definition holds concrete pointers, make sure the <MemoryLocation>s they point to are present in
@@ -140,8 +141,8 @@ class DepGraph:
         """
         assert definition in self.nodes(), 'The given Definition must be present in the given graph.'
 
-        known_predecessor_addresses = list(map(
-            lambda definition: definition.atom.addr,
+        known_predecessor_addresses: List[Union[int, claripy.ast.Base]] = list(map(
+            lambda definition: definition.atom.addr, # type: ignore # Needs https://github.com/python/mypy/issues/6847
             filter(
                 lambda p: isinstance(p.atom, MemoryLocation),
                 self.predecessors(definition)
@@ -166,9 +167,10 @@ class DepGraph:
                     unknown_concrete_addresses.add(v)
 
         for address in unknown_concrete_addresses:
-            data_at_address = cfg.memory_data.get(address, None)
+            data_at_address = cfg.memory_data.get(address, None) if cfg is not None else None
 
-            if data_at_address is None or data_at_address.sort not in ['string', 'unknown']: continue
+            if data_at_address is None or data_at_address.sort not in ['string', 'unknown']:
+                continue
 
             section = loader.main_object.find_section_containing(address)
             read_only = False if section is None else not section.is_writable
