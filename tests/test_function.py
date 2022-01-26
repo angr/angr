@@ -1,75 +1,85 @@
-
+# pylint: disable=missing-class-docstring,disable=no-self-use
 import os
-
-import nose.tools
+import unittest
 
 import angr
 
-test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
+test_location = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries", "tests"
+)
 
 
-def test_function_serialization():
+class TestFunction(unittest.TestCase):
+    def test_function_serialization(self):
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
+        )
+        cfg = p.analyses.CFG()
 
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
-    cfg = p.analyses.CFG()
+        func_main = cfg.kb.functions["main"]
+        s = func_main.serialize()
 
-    func_main = cfg.kb.functions['main']
-    s = func_main.serialize()
+        assert type(s) is bytes
+        assert len(s) > 10
 
-    nose.tools.assert_is(type(s), bytes)
-    nose.tools.assert_greater(len(s), 10)
+        f = angr.knowledge_plugins.Function.parse(s)
+        assert func_main.addr == f.addr
+        assert func_main.name == f.name
+        assert func_main.is_prototype_guessed == f.is_prototype_guessed
 
-    f = angr.knowledge_plugins.Function.parse(s)
-    nose.tools.assert_equal(func_main.addr, f.addr)
-    nose.tools.assert_equal(func_main.name, f.name)
+    def test_function_definition_application(self):
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
+        )
+        cfg = p.analyses.CFG()
+        func_main = cfg.kb.functions["main"]  # type: angr.knowledge_plugins.Function
 
-def test_function_definition_application():
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
-    cfg = p.analyses.CFG()
-    func_main = cfg.kb.functions['main'] # type: angr.knowledge_plugins.Function
+        func_main.apply_definition("int main(int argc, char** argv)")
 
+        # Check prototype of function
+        assert func_main.prototype.args == [
+            angr.sim_type.SimTypeInt().with_arch(p.arch),
+            angr.sim_type.SimTypePointer(
+                angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()).with_arch(p.arch)
+            ).with_arch(p.arch),
+        ]
+        # Check that the default calling convention of the architecture was applied
+        assert isinstance(
+            func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]
+        )
 
-    func_main.apply_definition("int main(int argc, char** argv)")
+        func_main.apply_definition("int main(int argc, char** argv)")
 
-    # Check prototype of function
-    nose.tools.assert_equal(func_main.prototype.args,
-                            [angr.sim_type.SimTypeInt().with_arch(p.arch), angr.sim_type.SimTypePointer(
-                                angr.sim_type.SimTypePointer(angr.sim_type.SimTypeChar()).with_arch(p.arch)).with_arch(p.arch)])
-    # Check that the default calling convention of the architecture was applied
-    nose.tools.assert_true(isinstance(func_main.calling_convention, angr.calling_conventions.DefaultCC[p.arch.name]))
+    def test_function_instruction_addr_from_any_addr(self):
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
+        )
+        cfg = p.analyses.CFG()
 
-    func_main.apply_definition("int main(int argc, char** argv)")
+        func_main = cfg.kb.functions["main"]
 
-def test_function_instruction_addr_from_any_addr():
+        assert func_main.addr_to_instruction_addr(0x400739) == 0x400739
+        assert func_main.addr_to_instruction_addr(0x40073A) == 0x400739
+        assert func_main.addr_to_instruction_addr(0x40073D) == 0x400739
+        assert func_main.addr_to_instruction_addr(0x400742) == 0x400742
+        assert func_main.addr_to_instruction_addr(0x400743) == 0x400742
 
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
-    cfg = p.analyses.CFG()
+    def test_function_instruction_size(self):
+        p = angr.Project(
+            os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False
+        )
+        cfg = p.analyses.CFG()
 
-    func_main = cfg.kb.functions['main']
+        func_main = cfg.kb.functions["main"]
 
-    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x400739), 0x400739)
-    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x40073a), 0x400739)
-    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x40073d), 0x400739)
-    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x400742), 0x400742)
-    nose.tools.assert_equal(func_main.addr_to_instruction_addr(0x400743), 0x400742)
+        assert func_main.instruction_size(0x40071D) == 1
+        assert func_main.instruction_size(0x40071E) == 3
+        assert func_main.instruction_size(0x400721) == 4
+        assert func_main.instruction_size(0x400725) == 3
+        assert func_main.instruction_size(0x400728) == 4
+        assert func_main.instruction_size(0x400739) == 5
+        assert func_main.instruction_size(0x400742) == 5
 
-def test_function_instruction_size():
-
-    p = angr.Project(os.path.join(test_location, 'x86_64', 'fauxware'), auto_load_libs=False)
-    cfg = p.analyses.CFG()
-
-    func_main = cfg.kb.functions['main']
-
-    nose.tools.assert_equal(func_main.instruction_size(0x40071d), 1)
-    nose.tools.assert_equal(func_main.instruction_size(0x40071e), 3)
-    nose.tools.assert_equal(func_main.instruction_size(0x400721), 4)
-    nose.tools.assert_equal(func_main.instruction_size(0x400725), 3)
-    nose.tools.assert_equal(func_main.instruction_size(0x400728), 4)
-    nose.tools.assert_equal(func_main.instruction_size(0x400739), 5)
-    nose.tools.assert_equal(func_main.instruction_size(0x400742), 5)
 
 if __name__ == "__main__":
-    test_function_serialization()
-    test_function_definition_application()
-    test_function_instruction_addr_from_any_addr()
-    test_function_instruction_size()
+    unittest.main()
