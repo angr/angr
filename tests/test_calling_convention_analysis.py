@@ -23,7 +23,7 @@ test_location = os.path.join(
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
-    def run_fauxware(self, arch, function_and_cc_list):
+    def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, "tests", arch, "fauxware")
         fauxware = angr.Project(binary_path, auto_load_libs=False)
 
@@ -40,7 +40,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
             assert cc == expected_cc
 
-    def run_cgc(self, binary_name):
+    def _run_cgc(self, binary_name):
         pass
         # binary_path = os.path.join(test_location, '..', 'binaries-private', 'cgc_qualifier_event', 'cgc', binary_name)
         # project = angr.Project(binary_path, auto_load_libs=False)
@@ -66,7 +66,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         }
 
         for arch, lst in args.items():
-            yield self.run_fauxware, arch, lst
+            self._run_fauxware, arch, lst
 
     @requires_binaries_private
     def test_cgc(self):
@@ -76,7 +76,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         ]
 
         for binary in binaries:
-            yield self.run_cgc, binary
+            self._run_cgc, binary
 
     #
     # Full-binary calling convention analysis
