@@ -215,5 +215,6 @@ class TestFauxware(unittest.TestCase):
     def test_nodecode_mips(self):
         self._run_nodecode("mips")
 
+
 if __name__ == "__main__":
     unittest.main()
