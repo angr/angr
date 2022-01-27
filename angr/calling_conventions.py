@@ -1136,7 +1136,7 @@ class MicrosoftAMD64ArgSession:
         self.cc = cc
         self.int_iter = cc.int_args
         self.fp_iter = cc.fp_args
-        self.both_iter = cc.both_args
+        self.both_iter = cc.memory_args
 
 class SimCCMicrosoftAMD64(SimCC):
     ARG_REGS = ['rcx', 'rdx', 'r8', 'r9']
