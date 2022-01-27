@@ -408,7 +408,7 @@ def _load_native():
             getattr(handle, func).argtypes = argtypes
 
         #_setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
-        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64, ctypes.c_uint64)
+        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_bool)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
         _setup_prototype(h, 'unhook', None, state_t)
@@ -1084,7 +1084,8 @@ class Unicorn(SimStatePlugin):
             simos_val = SimOSEnum.SIMOS_OTHER
 
         # tricky: using unicorn handle from unicorn.Uc object
-        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val)
+        if options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options:
+            self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val, True)
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:

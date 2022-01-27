@@ -32,6 +32,12 @@ class SimStateStorageMixin(VEXMixin):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
+        if o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options and data.symbolic:
+            # Update the concrete memory value before updating symbolic value so that correct values are mapped into
+            # native interface
+            concrete_data = claripy.BVV(self.state.solver.eval(data), data.size())
+            self.state.memory.store(addr, concrete_data, endness=endness, action=None, inspect=False, condition=condition)
+
         self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=condition)
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):

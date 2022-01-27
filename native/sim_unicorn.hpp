@@ -570,6 +570,9 @@ class State {
 	// OS being simulated
 	simos_t simos;
 
+	// Determine if symbolic memory addresses should be handled or not
+	bool handle_symbolic_addrs;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -728,7 +731,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {

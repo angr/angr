@@ -25,7 +25,8 @@ extern "C" {
 #include "sim_unicorn.hpp"
 //#include "log.h"
 
-State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os): uc(_uc), simos(curr_os) {
+State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs):
+  uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs) {
 	hooked = false;
 	h_read = h_write = h_block = h_prot = 0;
 	max_steps = cur_steps = 0;
@@ -2043,13 +2044,24 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
 			// Check if address written to is symbolic or is read from memory
 			if (addr_taint_status != TAINT_STATUS_CONCRETE) {
-				stop(STOP_SYMBOLIC_WRITE_ADDR);
-				return;
+				if (handle_symbolic_addrs) {
+					is_instr_symbolic = true;
+				}
+				else {
+					stop(STOP_SYMBOLIC_WRITE_ADDR);
+					return;
+				}
 			}
 			auto sink_taint_status = get_final_taint_status(taint_srcs);
 			if (sink_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
-				stop(STOP_SYMBOLIC_READ_ADDR);
-				return;
+				if (handle_symbolic_addrs) {
+					is_instr_symbolic = true;
+					sink_taint_status = TAINT_STATUS_SYMBOLIC;
+				}
+				else {
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
+				}
 			}
 			if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 				// Save the memory location written to be marked as symbolic in write hook
@@ -2065,11 +2077,11 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 		else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
 			taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
-			if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
+			if ((final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) && !handle_symbolic_addrs) {
 				stop(STOP_SYMBOLIC_READ_ADDR);
 				return;
 			}
-			else if (final_taint_status == TAINT_STATUS_SYMBOLIC) {
+			else if (final_taint_status != TAINT_STATUS_CONCRETE) {
 				if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg_vex_offset())) {
 					stop(STOP_SYMBOLIC_PC);
 					return;
@@ -2611,8 +2623,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos) {
-	State *state = new State(uc, cache_key, simos);
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs) {
+	State *state = new State(uc, cache_key, simos, handle_symbolic_addrs);
 	return state;
 }
 
