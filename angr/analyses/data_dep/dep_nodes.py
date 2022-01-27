@@ -1,6 +1,3 @@
-"""
-Defines the classes used to represent the different type of nodes in a Data Dependency NetworkX graph
-"""
 from typing import Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -87,56 +84,6 @@ class ConstantDepNode(BaseDepNode):
         return hash(self.value)
 
 
-class VarDepNode(BaseDepNode):
-    """
-    Abstract class for representing SimActions of TYPE reg or tmp
-    """
-
-    def __init__(self, type_: int, sim_act: 'SimActionData', reg: int, arch_name: str = ''):
-        super().__init__(type_, sim_act)
-        self.reg = reg
-        self.arch_name = arch_name
-
-    @property
-    def display_name(self) -> str:
-        return self.arch_name if self.arch_name else hex(self.reg)
-
-    def __str__(self):
-        return self.display_name
-
-    def __repr__(self):
-        val_str = 'None' if self.value is None else hex(self.value)
-        return f"{self.display_name}@{hex(self.ins_addr)}:{self.stmt_idx}\n{val_str}"
-
-    def __eq__(self, other):
-        return super().__eq__(other) and self.reg == other.reg
-
-    def __hash__(self):
-        return super().__hash__() ^ hash(self.reg)
-
-
-class RegDepNode(VarDepNode):
-    """
-    Base class for representing SimActions of TYPE reg
-    """
-
-    def __init__(self, sim_act: 'SimActionData', reg: int, arch_name: str = ''):
-        super().__init__(DepNodeTypes.Register, sim_act, reg, arch_name)
-
-    @property
-    def reg_size(self) -> int:
-        return self._sim_act.size.ast // 8
-
-
-class TmpDepNode(VarDepNode):
-    """
-    Used to represent SimActions of type TMP
-    """
-
-    def __init__(self, sim_act: 'SimActionData', reg: int, arch_name: str = ''):
-        super().__init__(DepNodeTypes.Tmp, sim_act, reg, arch_name)
-
-
 class MemDepNode(BaseDepNode):
     """
     Used to represent SimActions of type MEM
@@ -170,3 +117,53 @@ class MemDepNode(BaseDepNode):
         base_dep_node.__class__ = cls
         assert isinstance(base_dep_node, MemDepNode)
         return base_dep_node
+
+
+class VarDepNode(BaseDepNode):
+    """
+    Abstract class for representing SimActions of TYPE reg or tmp
+    """
+
+    def __init__(self, type_: int, sim_act: 'SimActionData', reg: int, arch_name: str = ''):
+        super().__init__(type_, sim_act)
+        self.reg = reg
+        self.arch_name = arch_name
+
+    @property
+    def display_name(self) -> str:
+        return self.arch_name if self.arch_name else hex(self.reg)
+
+    def __str__(self):
+        return self.display_name
+
+    def __repr__(self):
+        val_str = 'None' if self.value is None else hex(self.value)
+        return f"{self.display_name}@{hex(self.ins_addr)}:{self.stmt_idx}\n{val_str}"
+
+    def __eq__(self, other):
+        return super().__eq__(other) and self.reg == other.reg
+
+    def __hash__(self):
+        return super().__hash__() ^ hash(self.reg)
+
+
+class TmpDepNode(VarDepNode):
+    """
+    Used to represent SimActions of type TMP
+    """
+
+    def __init__(self, sim_act: 'SimActionData', reg: int, arch_name: str = ''):
+        super().__init__(DepNodeTypes.Tmp, sim_act, reg, arch_name)
+
+
+class RegDepNode(VarDepNode):
+    """
+    Base class for representing SimActions of TYPE reg
+    """
+
+    def __init__(self, sim_act: 'SimActionData', reg: int, arch_name: str = ''):
+        super().__init__(DepNodeTypes.Register, sim_act, reg, arch_name)
+
+    @property
+    def reg_size(self) -> int:
+        return self._sim_act.size.ast // 8

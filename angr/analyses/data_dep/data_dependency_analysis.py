@@ -7,7 +7,7 @@ from networkx import DiGraph
 
 import claripy
 from claripy.ast.bv import BV
-from .dep_nodes import DepNodeTypes, ConstantDepNode, RegDepNode, TmpDepNode, MemDepNode, VarDepNode
+from .dep_nodes import DepNodeTypes, ConstantDepNode, MemDepNode, VarDepNode, RegDepNode, TmpDepNode
 from .sim_act_location import SimActLocation, DEFAULT_LOCATION, ParsedInstruction
 from .. import Analysis
 from ...analyses import AnalysesHub
@@ -174,8 +174,6 @@ class DataDependencyGraphAnalysis(Analysis):
         :param constructor_params: Variadic list of arguments to supply for node lookup / creation
         :return: A reference to a node with the given parameters
         """
-
-
 
         # Always create a new write node
 

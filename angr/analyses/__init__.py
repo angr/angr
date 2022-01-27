@@ -30,6 +30,7 @@ from .calling_convention import CallingConventionAnalysis
 from .code_tagging import CodeTagging
 from .stack_pointer_tracker import StackPointerTracker
 from .dominance_frontier import DominanceFrontier
+from .data_dep import DataDependencyGraphAnalysis
 from .decompiler import Decompiler
 from .soot_class_hierarchy import SootClassHierarchy
 from .propagator import PropagatorAnalysis
@@ -42,4 +43,3 @@ from .vtable import VtableFinder
 from .find_objects_static import StaticObjectFinder
 from .class_identifier import ClassIdentifier
 from .flirt import FlirtAnalysis
-from .data_dependency import DataDependencyGraphAnalysis
