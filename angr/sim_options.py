@@ -172,6 +172,9 @@ UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL = "UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL"
 # Indicates if symbolic addresses should be handled in unicorn or not
 UNICORN_HANDLE_SYMBOLIC_ADDRESSES = "UNICORN_HANDLE_SYMBOLIC_ADDRESSES"
 
+# Indicates if symbolic conditions should be handled in unicorn or not
+UNICORN_HANDLE_SYMBOLIC_CONDITIONS = "UNICORN_HANDLE_SYMBOLIC_CONDITIONS"
+
 # floating point support
 SUPPORT_FLOATING_POINT = "SUPPORT_FLOATING_POINT"
 

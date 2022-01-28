@@ -1081,8 +1081,9 @@ class Unicorn(SimStatePlugin):
             simos_val = SimOSEnum.SIMOS_OTHER
 
         # tricky: using unicorn handle from unicorn.Uc object
-        if options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options:
-            self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val, True)
+        handle_symb_addrs = options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options
+        handle_symb_conds = options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
+        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val, handle_symb_addrs, handle_symb_conds)
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:

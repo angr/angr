@@ -25,8 +25,8 @@ extern "C" {
 #include "sim_unicorn.hpp"
 //#include "log.h"
 
-State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs):
-  uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs) {
+State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond):
+  uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs), handle_symbolic_conditions(symb_cond) {
 	hooked = false;
 	h_read = h_write = h_block = h_prot = 0;
 	max_steps = cur_steps = 0;
@@ -1832,7 +1832,7 @@ void State::propagate_taints() {
 		else if (is_block_exit_guard_symbolic()) {
 			stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
 		}
-		else if (is_block_next_target_symbolic()) {
+		else if (!handle_symbolic_conditions && is_block_next_target_symbolic()) {
 			stop(STOP_SYMBOLIC_BLOCK_EXIT_TARGET);
 		}
 	}
@@ -2622,8 +2622,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs) {
-	State *state = new State(uc, cache_key, simos, handle_symbolic_addrs);
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs, bool handle_symb_cond) {
+	State *state = new State(uc, cache_key, simos, handle_symbolic_addrs, handle_symb_cond);
 	return state;
 }
 
