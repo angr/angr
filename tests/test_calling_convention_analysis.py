@@ -19,7 +19,6 @@ test_location = os.path.join(
     "binaries",
 )
 
-
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
@@ -51,32 +50,17 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # print "INPUT:", map(hex, tag_manager.input_functions())
         # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
-    def test_fauxware(self):
+    def test_fauxware_i386(self):
+        self._run_fauxware,'i386',"('authenticate', <SimCCCdecl>)"
 
-        amd64 = archinfo.arch_from_id("amd64")
+    def test_fauxware_x86_64(self):
+        self._run_fauxware,'x86_64',"('authenticate', <SimCCSystemVAMD64>)"
 
-        args = {
-            'i386': [
-                ('authenticate', SimCCCdecl(archinfo.arch_from_id('i386'), )),
-            ],
-            'x86_64': [
-                ('authenticate', SimCCSystemVAMD64(amd64, )
-                 ),
-            ],
-        }
+    def test_cgc_binary1(self):
+        self._run_cgc,"002ba801_01"
 
-        for arch, lst in args.items():
-            self._run_fauxware, arch, lst
-
-    @requires_binaries_private
-    def test_cgc(self):
-        binaries = [
-            "002ba801_01",
-            "01cf6c01_01",
-        ]
-
-        for binary in binaries:
-            self._run_cgc, binary
+    def test_cgc_binary2(self):
+        self._run_cgc,"01cf6c01_01"
 
     #
     # Full-binary calling convention analysis
