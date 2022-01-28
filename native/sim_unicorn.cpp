@@ -2105,8 +2105,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 		auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
 		if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
-			stop(STOP_SYMBOLIC_CONDITION);
-			return;
+			is_instr_symbolic = true;
 		}
 	}
 	if (is_instr_symbolic) {
