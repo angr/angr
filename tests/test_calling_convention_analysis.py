@@ -51,16 +51,34 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
     def test_fauxware_i386(self):
-        self._run_fauxware,'i386',"('authenticate', <SimCCCdecl>)"
+        amd64 = archinfo.arch_from_id("amd64")
+
+        args = {
+            'i386': [
+                ('authenticate', SimCCCdecl(archinfo.arch_from_id('i386'), )),
+            ],
+        }
+        for arch , lst in args.items():
+            self._run_fauxware(arch, lst)
 
     def test_fauxware_x86_64(self):
-        self._run_fauxware,'x86_64',"('authenticate', <SimCCSystemVAMD64>)"
+        amd64 = archinfo.arch_from_id("amd64")
+
+        args = {
+            'x86_64': [
+                ('authenticate', SimCCSystemVAMD64(amd64, )
+                 ),
+            ],
+        }
+        for arch , lst in args.items():
+            self._run_fauxware(arch, lst)
+
 
     def test_cgc_binary1(self):
-        self._run_cgc,"002ba801_01"
+        self._run_cgc("002ba801_01")
 
     def test_cgc_binary2(self):
-        self._run_cgc,"01cf6c01_01"
+        self._run_cgc("01cf6c01_01")
 
     #
     # Full-binary calling convention analysis
