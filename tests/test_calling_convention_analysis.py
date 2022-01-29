@@ -29,6 +29,9 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         cfg = fauxware.analyses.CFG()
 
+        print(arch)
+        print(function_and_cc_list)
+        print(len(function_and_cc_list))
         for func_name, expected_cc in function_and_cc_list:
             authenticate = cfg.functions[func_name]
             _ = fauxware.analyses.VariableRecoveryFast(authenticate)
@@ -53,26 +56,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def test_fauxware_i386(self):
         amd64 = archinfo.arch_from_id("amd64")
-
-        args = {
-            'i386': [
-                ('authenticate', SimCCCdecl(archinfo.arch_from_id('i386'), )),
-            ],
-        }
-        for arch , lst in args.items():
-            self._run_fauxware(arch, lst)
+        self._run_fauxware("i386", [('authenticate', SimCCCdecl(archinfo.arch_from_id('i386')))])
 
     def test_fauxware_x86_64(self):
         amd64 = archinfo.arch_from_id("amd64")
-
-        args = {
-            'x86_64': [
-                ('authenticate', SimCCSystemVAMD64(amd64, )
-                 ),
-            ],
-        }
-        for arch , lst in args.items():
-            self._run_fauxware(arch, lst)
+        self._run_fauxware("x86_64", [('authenticate', SimCCSystemVAMD64(amd64, )),])
 
 
     def test_cgc_binary1(self):
