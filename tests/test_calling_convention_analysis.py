@@ -19,6 +19,7 @@ test_location = os.path.join(
     "binaries",
 )
 
+
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
