@@ -226,6 +226,12 @@ class SimFunctionArgument:
     def refine(self, size, arch=None, offset=None, is_fp=None):
         raise NotImplementedError
 
+    def get_footprint(self):
+        """
+        Return a list of SimRegArg and SimStackArgs that are the base components used for this location
+        """
+        raise NotImplementedError
+
 class SimRegArg(SimFunctionArgument):
     """
     Represents a function argument that has been passed in a register.
@@ -241,6 +247,9 @@ class SimRegArg(SimFunctionArgument):
         self.reg_name = reg_name
         self.reg_offset = reg_offset
         self.clear_entire_reg = clear_entire_reg
+
+    def get_footprint(self):
+        yield self
 
     def __repr__(self):
         return "<%s>" % self.reg_name
@@ -293,6 +302,9 @@ class SimStackArg(SimFunctionArgument):
         SimFunctionArgument.__init__(self, size, is_fp)
         self.stack_offset = stack_offset
 
+    def get_footprint(self):
+        yield self
+
     def __repr__(self):
         return "[%#x]" % self.stack_offset
 
@@ -332,6 +344,10 @@ class SimComboArg(SimFunctionArgument):
         super().__init__(sum(x.size for x in locations), is_fp=is_fp)
         self.locations = locations
 
+    def get_footprint(self):
+        for x in self.locations:
+            yield from x.get_footprint()
+
     def __repr__(self):
         return 'SimComboArg(%s)' % repr(self.locations)
 
@@ -364,6 +380,10 @@ class SimStructArg(SimFunctionArgument):
         self.struct = struct
         self.locs = locs
 
+    def get_footprint(self):
+        for x in self.locs.values():
+            yield from x.get_footprint()
+
     def get_value(self, state, **kwargs):
         return SimStructValue(self.struct, {
             field: getter.get_value(state, **kwargs) for field, getter in self.locs.items()
@@ -377,6 +397,10 @@ class SimArrayArg(SimFunctionArgument):
     def __init__(self, locs):
         super().__init__(sum(loc.size for loc in locs))
         self.locs = locs
+
+    def get_footprint(self):
+        for x in self.locs:
+            yield from x.get_footprint()
 
     def get_value(self, state, **kwargs):
         return [getter.get_value(state, **kwargs) for getter in self.locs]
@@ -399,6 +423,9 @@ class SimReferenceArgument(SimFunctionArgument):
         super().__init__(ptr_loc.size)  # ???
         self.ptr_loc = ptr_loc
         self.main_loc = main_loc
+
+    def get_footprint(self):
+        yield from self.ptr_loc.get_footprint()
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -1136,7 +1163,7 @@ class MicrosoftAMD64ArgSession:
         self.cc = cc
         self.int_iter = cc.int_args
         self.fp_iter = cc.fp_args
-        self.both_iter = cc.both_args
+        self.both_iter = cc.memory_args
 
 class SimCCMicrosoftAMD64(SimCC):
     ARG_REGS = ['rcx', 'rdx', 'r8', 'r9']
