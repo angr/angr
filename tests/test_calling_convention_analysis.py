@@ -29,9 +29,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         cfg = fauxware.analyses.CFG()
 
-        print(arch)
-        print(function_and_cc_list)
-        print(len(function_and_cc_list))
         for func_name, expected_cc in function_and_cc_list:
             authenticate = cfg.functions[func_name]
             _ = fauxware.analyses.VariableRecoveryFast(authenticate)
