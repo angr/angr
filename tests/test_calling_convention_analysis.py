@@ -52,17 +52,16 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
     def test_fauxware_i386(self):
-        amd64 = archinfo.arch_from_id("amd64")
         self._run_fauxware("i386", [('authenticate', SimCCCdecl(archinfo.arch_from_id('i386')))])
 
     def test_fauxware_x86_64(self):
-        amd64 = archinfo.arch_from_id("amd64")
         self._run_fauxware("x86_64", [('authenticate', SimCCSystemVAMD64(amd64, )),])
 
-
+    @requires_binaries_private
     def test_cgc_binary1(self):
         self._run_cgc("002ba801_01")
 
+    @requires_binaries_private
     def test_cgc_binary2(self):
         self._run_cgc("01cf6c01_01")
 
