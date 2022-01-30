@@ -23,7 +23,7 @@ test_location = os.path.join(
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestCallingConventionAnalysis(unittest.TestCase):
-    def run_fauxware(self, arch, function_and_cc_list):
+    def _run_fauxware(self, arch, function_and_cc_list):
         binary_path = os.path.join(test_location, "tests", arch, "fauxware")
         fauxware = angr.Project(binary_path, auto_load_libs=False)
 
@@ -40,7 +40,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
             assert cc == expected_cc
 
-    def run_cgc(self, binary_name):
+    def _run_cgc(self, binary_name):
         pass
         # binary_path = os.path.join(test_location, '..', 'binaries-private', 'cgc_qualifier_event', 'cgc', binary_name)
         # project = angr.Project(binary_path, auto_load_libs=False)
@@ -51,32 +51,20 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         # print "INPUT:", map(hex, tag_manager.input_functions())
         # print "OUTPUT:", map(hex, tag_manager.output_functions())
 
-    def test_fauxware(self):
+    def test_fauxware_i386(self):
+        self._run_fauxware("i386", [('authenticate', SimCCCdecl(archinfo.arch_from_id('i386')))])
 
+    def test_fauxware_x86_64(self):
         amd64 = archinfo.arch_from_id("amd64")
-
-        args = {
-            'i386': [
-                ('authenticate', SimCCCdecl(archinfo.arch_from_id('i386'), )),
-            ],
-            'x86_64': [
-                ('authenticate', SimCCSystemVAMD64(amd64, )
-                 ),
-            ],
-        }
-
-        for arch, lst in args.items():
-            yield self.run_fauxware, arch, lst
+        self._run_fauxware("x86_64", [('authenticate', SimCCSystemVAMD64(amd64, )),])
 
     @requires_binaries_private
-    def test_cgc(self):
-        binaries = [
-            "002ba801_01",
-            "01cf6c01_01",
-        ]
+    def test_cgc_binary1(self):
+        self._run_cgc("002ba801_01")
 
-        for binary in binaries:
-            yield self.run_cgc, binary
+    @requires_binaries_private
+    def test_cgc_binary2(self):
+        self._run_cgc("01cf6c01_01")
 
     #
     # Full-binary calling convention analysis
