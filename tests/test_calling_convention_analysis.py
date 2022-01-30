@@ -55,6 +55,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         self._run_fauxware("i386", [('authenticate', SimCCCdecl(archinfo.arch_from_id('i386')))])
 
     def test_fauxware_x86_64(self):
+        amd64 = archinfo.arch_from_id("amd64")
         self._run_fauxware("x86_64", [('authenticate', SimCCSystemVAMD64(amd64, )),])
 
     @requires_binaries_private
