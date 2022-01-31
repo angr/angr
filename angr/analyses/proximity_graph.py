@@ -342,13 +342,9 @@ class ProximityGraphAnalysis(Analysis):
                 if self.handled_stmts:
                     # Add each handled stmt to the graph in a linear fashion []->[]->[]
                     # Linear is fine since stmts come from the same block and are handled in order of appearance
-                    head = self.handled_stmts[0]
                     for idx in range(len(self.handled_stmts)):
-                        if idx == 0:
-                            pass
-                        elif idx == 1:
-                            graph.add_edge(head, self.handled_stmts[idx])
-                        else:
+                        # Skip Head of List to avoid out of bounds error
+                        if idx > 0:
                             graph.add_edge(self.handled_stmts[idx - 1], self.handled_stmts[idx])
                     # If first block in edge, LAST handled node -> next node
                     # Else (second block in edge), prev node -> FIRST handled node
