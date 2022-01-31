@@ -41,6 +41,11 @@ class Block:
             self.statements == other.statements and \
             self.idx == other.idx
 
+    def likes(self, other):
+        return type(other) is Block and \
+            len(self.statements) == len(other.statements) and \
+            all(s1.likes(s2) for s1, s2 in zip(self.statements, other.statements))
+
     def __hash__(self):
         # Changing statements does not change the hash of a block, which allows in-place statement editing
         return hash((Block, self.addr, self.idx))

@@ -6,7 +6,7 @@ try:
 except ImportError:
     claripy = None
 
-from .utils import stable_hash
+from .utils import stable_hash, is_none_or_likeable
 from .tagged_object import TaggedObject
 from .expression import Expression
 
@@ -54,6 +54,11 @@ class Assignment(Statement):
                self.idx == other.idx and \
                self.dst == other.dst and \
                self.src == other.src
+
+    def likes(self, other):
+        return type(other) is Assignment and \
+               self.dst.likes(other.dst) and \
+               self.src.likes(other.src)
 
     __hash__ = TaggedObject.__hash__
 
@@ -107,6 +112,14 @@ class Store(Statement):
     def __eq__(self, other):
         return type(other) is Store and \
                self.idx == other.idx and \
+               self.eq(self.addr, other.addr) and \
+               self.eq(self.data, other.data) and \
+               self.size == other.size and \
+               self.guard == other.guard and \
+               self.endness == other.endness
+
+    def likes(self, other):
+        return type(other) is Store and \
                self.eq(self.addr, other.addr) and \
                self.eq(self.data, other.data) and \
                self.size == other.size and \
@@ -176,6 +189,10 @@ class Jump(Statement):
                self.idx == other.idx and \
                self.target == other.target
 
+    def likes(self, other):
+        return type(other) is Jump and \
+            is_none_or_likeable(self.target, other.target)
+
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
@@ -220,6 +237,12 @@ class ConditionalJump(Statement):
                self.condition == other.condition and \
                self.true_target == other.true_target and \
                self.false_target == other.false_target
+
+    def likes(self, other):
+        return type(other) is ConditionalJump and \
+               self.condition.likes(other.condition) and \
+               is_none_or_likeable(self.true_target, other.true_target) and \
+               is_none_or_likeable(self.false_target, other.false_target)
 
     __hash__ = TaggedObject.__hash__
 
@@ -279,12 +302,11 @@ class Call(Expression, Statement):
 
     def likes(self, other):
         return type(other) is Call and \
-               self.idx == other.idx and \
-               self.target == other.target and \
+               is_none_or_likeable(self.target, other.target) and \
                self.calling_convention == other.calling_convention and \
                self.prototype == other.prototype and \
-               self.args == other.args and \
-               self.ret_expr == other.ret_expr
+               is_none_or_likeable(self.args, other.args, is_list=True) and \
+               is_none_or_likeable(self.ret_expr, other.ret_expr)
 
     __hash__ = TaggedObject.__hash__
 
@@ -393,6 +415,11 @@ class Return(Statement):
                 self.idx == other.idx and \
                 self.target == other.target and \
                 self.ret_exprs == other.ret_exprs
+
+    def likes(self, other):
+        return type(other) is Return and \
+               is_none_or_likeable(self.target, other.target) and \
+               is_none_or_likeable(self.ret_exprs, other.ret_exprs, is_list=True)
 
     __hash__ = TaggedObject.__hash__
 
