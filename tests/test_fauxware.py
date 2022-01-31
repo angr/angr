@@ -3,11 +3,12 @@ import os
 import unittest
 import pickle
 import logging
-from common import slow_test
+import unittest
 
 import angr
-
 from angr.state_plugins.history import HistoryIter
+from common import slow_test
+
 
 l = logging.getLogger("angr.tests")
 test_location = os.path.join(
