@@ -1,14 +1,13 @@
 
 import os
 
-import nose.tools
 
 import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 def test_libc_x86():
-
+    # disabling auto_load_libs increases the execution time.
     p = angr.Project(os.path.join(test_location, "i386", "libc-2.27-3ubuntu1.so.6"), auto_load_libs=True)
     dl_addr = p.loader.find_symbol('_dl_addr').rebased_addr
     cfg = p.analyses.CFGFast(regions=[(dl_addr, dl_addr + 4096)])
@@ -27,7 +26,7 @@ def test_libc_x86():
     prop = p.analyses.Propagator(func=func, base_state=state)
     # import pprint
     # pprint.pprint(prop.replacements)
-    nose.tools.assert_greater(len(prop.replacements), 0)
+    assert len(prop.replacements) > 0
 
 
 def test_lwip_udpecho_bm():
@@ -39,7 +38,7 @@ def test_lwip_udpecho_bm():
     state = p.factory.blank_state()
     prop = p.analyses.Propagator(func=func, base_state=state)
 
-    nose.tools.assert_greater(len(prop.replacements), 0)
+    assert len(prop.replacements) > 0
 
 
 if __name__ == "__main__":

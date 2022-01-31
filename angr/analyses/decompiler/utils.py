@@ -1,5 +1,7 @@
 from typing import Optional, Tuple, Any
 
+import networkx
+
 import ailment
 
 from .structurer_nodes import MultiNode, BaseNode, CodeNode, SequenceNode, ConditionNode, SwitchCaseNode, \
@@ -198,3 +200,63 @@ def insert_node(parent, insert_idx, node, node_idx, label=None, insert_location=
             parent.default_node = seq
     else:
         raise NotImplementedError()
+
+
+def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ailment.Block:
+    in_edges = list(graph.in_edges(node_a, data=True))
+    out_edges = list(graph.out_edges(node_b, data=True))
+
+    new_node = node_a.copy() if node_a.addr <= node_b.addr else node_b.copy()
+    old_node = node_b if new_node == node_a else node_a
+    new_node.statements += old_node.statements
+    new_node.original_size += old_node.original_size
+
+    graph.remove_node(node_a)
+    graph.remove_node(node_b)
+
+    if new_node is not None:
+        graph.add_node(new_node)
+
+        for src, _, data in in_edges:
+            if src is node_b:
+                src = new_node
+            graph.add_edge(src, new_node, **data)
+
+        for _, dst, data in out_edges:
+            if dst is node_a:
+                dst = new_node
+            graph.add_edge(new_node, dst, **data)
+
+    return new_node
+
+
+def to_ail_supergraph(transition_graph: networkx.DiGraph) -> networkx.DiGraph:
+    """
+    Takes an AIL graph and converts it into a AIL graph that treats calls and redundant jumps
+    as parts of a bigger block instead of transitions. Calls to returning functions do not terminate basic blocks.
+
+    Based on region_identifier super_graph
+
+    :return: A converted super transition graph
+    """
+    # make a copy of the graph
+    transition_graph = networkx.DiGraph(transition_graph)
+
+    while True:
+        for src, dst, data in transition_graph.edges(data=True):
+            type_ = data.get('type', None)
+
+            if len(list(transition_graph.successors(src))) == 1 and len(list(transition_graph.predecessors(dst))) == 1:
+                # calls in the middle of blocks OR boring jumps
+                if (type_ == 'fake_return') or (src.addr + src.original_size == dst.addr):
+                    _merge_ail_nodes(transition_graph, src, dst)
+                    break
+
+            # calls to functions with no return
+            elif type_ == 'call':
+                transition_graph.remove_node(dst)
+                break
+        else:
+            break
+
+    return transition_graph

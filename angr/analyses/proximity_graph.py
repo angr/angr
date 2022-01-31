@@ -205,6 +205,7 @@ class ProximityGraphAnalysis(Analysis):
         if successors:
             # add edges subgraph_end_nodes->successor
             end_nodes = [n for n in subgraph.nodes() if subgraph.in_degree(n) >= 1 and subgraph.out_degree(n) == 0]
+
             # handle subgraphs that are empty
             if not end_nodes:
                 end_nodes.append(current_node)

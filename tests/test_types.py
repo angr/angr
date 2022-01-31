@@ -1,25 +1,39 @@
 # pylint:disable=unused-variable
-import nose
 
 import archinfo
 import claripy
 
 import angr
-from angr.sim_type import (SimTypeFunction, SimTypeInt, SimTypePointer, SimTypeChar, SimStruct, SimTypeFloat, SimUnion,
-                           SimTypeDouble, SimTypeLongLong, SimTypeLong, SimTypeNum, SimTypeReference, SimTypeBottom,
-                           SimTypeString)
+from angr.sim_type import (
+    SimTypeFunction,
+    SimTypeInt,
+    SimTypePointer,
+    SimTypeChar,
+    SimStruct,
+    SimTypeFloat,
+    SimUnion,
+    SimTypeDouble,
+    SimTypeLongLong,
+    SimTypeLong,
+    SimTypeNum,
+    SimTypeReference,
+    SimTypeBottom,
+    SimTypeString,
+)
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 
 
 def test_type_annotation():
     my_ty = angr.sim_type.SimTypeTop()
-    ptr = claripy.BVS('ptr', 32).annotate(angr.type_backend.TypeAnnotation(angr.sim_type.SimTypePointer(my_ty, label=[])))
+    ptr = claripy.BVS("ptr", 32).annotate(
+        angr.type_backend.TypeAnnotation(angr.sim_type.SimTypePointer(my_ty, label=[]))
+    )
     ptroffset = ptr + 4
 
     bt = angr.type_backend.TypeBackend()
     tv = bt.convert(ptroffset)
-    nose.tools.assert_is(tv.ty.pts_to, my_ty)
-    nose.tools.assert_true(claripy.is_true(tv.ty.offset == 4))
+    assert tv.ty.pts_to is my_ty
+    assert claripy.is_true(tv.ty.offset == 4)
 
 
 def test_cproto_conversion():
@@ -28,30 +42,33 @@ def test_cproto_conversion():
     cproto_0 = "int main(int argc, char** argv);"
     pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_0)
 
-    nose.tools.assert_equal(pyproto_name, "main")
-    nose.tools.assert_is_instance(pyproto, SimTypeFunction)
-    nose.tools.assert_is_instance(pyproto.args[0], SimTypeInt)
-    nose.tools.assert_is_instance(pyproto.args[1], SimTypePointer)
-    nose.tools.assert_is_instance(pyproto.args[1].pts_to.pts_to, SimTypeChar)
-    nose.tools.assert_is_instance(pyproto.returnty, SimTypeInt)
+    assert pyproto_name == "main"
+    assert isinstance(pyproto, SimTypeFunction)
+    assert isinstance(pyproto.args[0], SimTypeInt)
+    assert isinstance(pyproto.args[1], SimTypePointer)
+    assert isinstance(pyproto.args[1].pts_to.pts_to, SimTypeChar)
+    assert isinstance(pyproto.returnty, SimTypeInt)
 
     # Directly comparing the strings... how bad can I be?
-    nose.tools.assert_equal(the_str,
-                            '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),')
+    assert the_str == '# int main(int argc, char** argv);\n"main": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv"]),'
 
     # A bad function declaration
     cproto_1 = "int bad(xxxxxxx);"
-    pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_1)  # pylint:disable=unused-variable
+    pyproto_name, pyproto, the_str = convert_cproto_to_py(
+        cproto_1
+    )  # pylint:disable=unused-variable
 
-    nose.tools.assert_equal(pyproto_name, "bad")
-    nose.tools.assert_is_not(pyproto, None)
+    assert pyproto_name == "bad"
+    assert pyproto is not None
 
     # A even worse function declaration
     # Special thanks to @schieb, see GitHub PR #958
     cproto_2 = "__attribute__ ((something)) void foo(void);"
-    pyproto_name, pyproto, the_str = convert_cproto_to_py(cproto_2)  # pylint:disable=unused-variable
+    pyproto_name, pyproto, the_str = convert_cproto_to_py(
+        cproto_2
+    )  # pylint:disable=unused-variable
 
-    nose.tools.assert_equal(pyproto_name, "foo")
+    assert pyproto_name == "foo"
 
 
 def test_cppproto_conversion():
@@ -75,7 +92,9 @@ def test_cppproto_conversion():
     assert isinstance(proto.args[0], SimTypePointer)  # this
     assert isinstance(proto.args[1], SimTypeChar)
 
-    proto_2 = "void std::basic_string<CharT,Traits,Allocator>::swap(basic_string& other)"
+    proto_2 = (
+        "void std::basic_string<CharT,Traits,Allocator>::swap(basic_string& other)"
+    )
     name, proto, s = convert_cppproto_to_py(proto_2, with_param_names=True)
     assert name == "std::basic_string::swap"
     assert isinstance(proto.returnty, SimTypeBottom)
@@ -103,167 +122,189 @@ def test_cppproto_conversion():
 
 
 def test_struct_deduplication():
-    angr.types.register_types(angr.types.parse_type('struct ahdr { int a ;}'))
-    angr.types.register_types(angr.types.parse_type('struct bhdr { int b ;}'))
-    angr.types.register_types(angr.types.parse_type('struct chdr { int c ;}'))
-    dhdr = angr.types.parse_type('struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}')
-    assert dhdr.fields['a'].fields
+    angr.types.register_types(angr.types.parse_type("struct ahdr { int a ;}"))
+    angr.types.register_types(angr.types.parse_type("struct bhdr { int b ;}"))
+    angr.types.register_types(angr.types.parse_type("struct chdr { int c ;}"))
+    dhdr = angr.types.parse_type(
+        "struct dhdr { struct ahdr a; struct bhdr b; struct chdr c;}"
+    )
+    assert dhdr.fields["a"].fields
+
 
 def test_parse_type():
-    int_ptr = angr.types.parse_type('int *')
-    nose.tools.assert_is_instance(int_ptr, SimTypePointer)
-    nose.tools.assert_is_instance(int_ptr.pts_to, SimTypeInt)
+    int_ptr = angr.types.parse_type("int *")
+    assert isinstance(int_ptr, SimTypePointer)
+    assert isinstance(int_ptr.pts_to, SimTypeInt)
 
-    char_ptr = angr.types.parse_type('char *c')
-    nose.tools.assert_is_instance(char_ptr, SimTypePointer)
-    nose.tools.assert_is_instance(char_ptr.pts_to, SimTypeChar)
+    char_ptr = angr.types.parse_type("char *c")
+    assert isinstance(char_ptr, SimTypePointer)
+    assert isinstance(char_ptr.pts_to, SimTypeChar)
 
-    struct_parse_type = angr.types.parse_type('struct parse_type { char c; float f; }')
-    nose.tools.assert_is_instance(struct_parse_type, SimStruct)
-    nose.tools.assert_equal(struct_parse_type.name, 'parse_type')
-    nose.tools.assert_equal(len(struct_parse_type.fields), 2)
-    nose.tools.assert_is_instance(struct_parse_type.fields['c'], SimTypeChar)
-    nose.tools.assert_is_instance(struct_parse_type.fields['f'], SimTypeFloat)
+    struct_parse_type = angr.types.parse_type("struct parse_type { char c; float f; }")
+    assert isinstance(struct_parse_type, SimStruct)
+    assert struct_parse_type.name == "parse_type"
+    assert len(struct_parse_type.fields) == 2
+    assert isinstance(struct_parse_type.fields["c"], SimTypeChar)
+    assert isinstance(struct_parse_type.fields["f"], SimTypeFloat)
 
-    union_dcba = angr.types.parse_type('union dcba { double d; long long int lli; }')
-    nose.tools.assert_is_instance(union_dcba, SimUnion)
-    nose.tools.assert_equal(union_dcba.name, 'dcba')
-    nose.tools.assert_equal(len(union_dcba.members), 2)
-    nose.tools.assert_is_instance(union_dcba.members['d'], SimTypeDouble)
-    nose.tools.assert_is_instance(union_dcba.members['lli'], SimTypeLongLong)
+    union_dcba = angr.types.parse_type("union dcba { double d; long long int lli; }")
+    assert isinstance(union_dcba, SimUnion)
+    assert union_dcba.name == "dcba"
+    assert len(union_dcba.members) == 2
+    assert isinstance(union_dcba.members["d"], SimTypeDouble)
+    assert isinstance(union_dcba.members["lli"], SimTypeLongLong)
 
-    struct_llist = angr.types.parse_type('struct llist { int data; struct llist * next; }')
-    nose.tools.assert_is_instance(struct_llist, SimStruct)
-    nose.tools.assert_equal(struct_llist.name, 'llist')
-    nose.tools.assert_equal(len(struct_llist.fields), 2)
-    nose.tools.assert_is_instance(struct_llist.fields['data'], SimTypeInt)
-    nose.tools.assert_is_instance(struct_llist.fields['next'], SimTypePointer)
-    nose.tools.assert_is_instance(struct_llist.fields['next'].pts_to, SimStruct)
-    nose.tools.assert_equal(struct_llist.fields['next'].pts_to.name, 'llist')
+    struct_llist = angr.types.parse_type(
+        "struct llist { int data; struct llist * next; }"
+    )
+    assert isinstance(struct_llist, SimStruct)
+    assert struct_llist.name == "llist"
+    assert len(struct_llist.fields) == 2
+    assert isinstance(struct_llist.fields["data"], SimTypeInt)
+    assert isinstance(struct_llist.fields["next"], SimTypePointer)
+    assert isinstance(struct_llist.fields["next"].pts_to, SimStruct)
+    assert struct_llist.fields["next"].pts_to.name == "llist"
 
-    func_ptr = angr.types.parse_type('double (*) (int, float)')
-    nose.tools.assert_is_instance(func_ptr, SimTypePointer)
-    nose.tools.assert_is_instance(func_ptr.pts_to, SimTypeFunction)
-    nose.tools.assert_is_instance(func_ptr.pts_to.returnty, SimTypeDouble)
-    nose.tools.assert_equal(len(func_ptr.pts_to.args), 2)
-    nose.tools.assert_is_instance(func_ptr.pts_to.args[0], SimTypeInt)
-    nose.tools.assert_is_instance(func_ptr.pts_to.args[1], SimTypeFloat)
+    func_ptr = angr.types.parse_type("double (*) (int, float)")
+    assert isinstance(func_ptr, SimTypePointer)
+    assert isinstance(func_ptr.pts_to, SimTypeFunction)
+    assert isinstance(func_ptr.pts_to.returnty, SimTypeDouble)
+    assert len(func_ptr.pts_to.args) == 2
+    assert isinstance(func_ptr.pts_to.args[0], SimTypeInt)
+    assert isinstance(func_ptr.pts_to.args[1], SimTypeFloat)
 
 
 def test_parse_type_no_basic_types():
-    time_t = angr.types.parse_type('time_t')
-    nose.tools.assert_is_instance(time_t, SimTypeLong)
+    time_t = angr.types.parse_type("time_t")
+    assert isinstance(time_t, SimTypeLong)
 
-    byte = angr.types.parse_type('byte')
-    nose.tools.assert_is_instance(byte, SimTypeNum)
-    nose.tools.assert_equal(byte.size, 8)
-    nose.tools.assert_false(byte.signed)
+    byte = angr.types.parse_type("byte")
+    assert isinstance(byte, SimTypeNum)
+    assert byte.size == 8
+    assert not byte.signed
+
 
 def test_self_referential_struct_or_union():
-    struct_llist = angr.types.parse_type('struct llist { int data; struct llist *next; }')
-    next_struct_llist = struct_llist.fields['next'].pts_to
-    nose.tools.assert_equal(len(next_struct_llist.fields), 2)
-    nose.tools.assert_is_instance(next_struct_llist.fields['data'], SimTypeInt)
-    nose.tools.assert_is_instance(next_struct_llist.fields['next'], SimTypePointer)
+    struct_llist = angr.types.parse_type(
+        "struct llist { int data; struct llist *next; }"
+    )
+    next_struct_llist = struct_llist.fields["next"].pts_to
+    assert len(next_struct_llist.fields) == 2
+    assert isinstance(next_struct_llist.fields["data"], SimTypeInt)
+    assert isinstance(next_struct_llist.fields["next"], SimTypePointer)
 
-    union_heap = angr.types.parse_type('union heap { int data; union heap *forward; }')
-    forward_union_heap = union_heap.members['forward'].pts_to
-    nose.tools.assert_equal(len(forward_union_heap.members), 2)
-    nose.tools.assert_is_instance(forward_union_heap.members['data'], SimTypeInt)
-    nose.tools.assert_is_instance(forward_union_heap.members['forward'], SimTypePointer)
+    union_heap = angr.types.parse_type("union heap { int data; union heap *forward; }")
+    forward_union_heap = union_heap.members["forward"].pts_to
+    assert len(forward_union_heap.members) == 2
+    assert isinstance(forward_union_heap.members["data"], SimTypeInt)
+    assert isinstance(forward_union_heap.members["forward"], SimTypePointer)
+
 
 def test_union_struct_referencing_each_other():
-    angr.types.register_types(angr.types.parse_type('struct a'))
-    angr.types.register_types(angr.types.parse_type('struct b'))
-    a = angr.types.parse_type('struct a { struct b *b_ptr; }')
-    b = angr.types.parse_type('struct b { struct a *a_ptr; }')
+    angr.types.register_types(angr.types.parse_type("struct a"))
+    angr.types.register_types(angr.types.parse_type("struct b"))
+    a = angr.types.parse_type("struct a { struct b *b_ptr; }")
+    b = angr.types.parse_type("struct b { struct a *a_ptr; }")
 
-    nose.tools.assert_equal(len(a.fields), 1)
-    nose.tools.assert_is_instance(a.fields['b_ptr'], SimTypePointer)
-    nose.tools.assert_is_instance(a.fields['b_ptr'].pts_to, SimStruct)
-    nose.tools.assert_equal(a.fields['b_ptr'].pts_to.name, 'b')
+    assert len(a.fields) == 1
+    assert isinstance(a.fields["b_ptr"], SimTypePointer)
+    assert isinstance(a.fields["b_ptr"].pts_to, SimStruct)
+    assert a.fields["b_ptr"].pts_to.name == "b"
 
-    nose.tools.assert_equal(len(b.fields), 1)
-    nose.tools.assert_is_instance(b.fields['a_ptr'], SimTypePointer)
-    nose.tools.assert_is_instance(b.fields['a_ptr'].pts_to, SimStruct)
-    nose.tools.assert_equal(b.fields['a_ptr'].pts_to.name, 'a')
+    assert len(b.fields) == 1
+    assert isinstance(b.fields["a_ptr"], SimTypePointer)
+    assert isinstance(b.fields["a_ptr"].pts_to, SimStruct)
+    assert b.fields["a_ptr"].pts_to.name == "a"
 
-    angr.types.register_types(angr.types.parse_type('union a'))
-    angr.types.register_types(angr.types.parse_type('union b'))
-    a = angr.types.parse_type('union a { union b *b_ptr; }')
-    b = angr.types.parse_type('union b { union a *a_ptr; }')
+    angr.types.register_types(angr.types.parse_type("union a"))
+    angr.types.register_types(angr.types.parse_type("union b"))
+    a = angr.types.parse_type("union a { union b *b_ptr; }")
+    b = angr.types.parse_type("union b { union a *a_ptr; }")
 
-    nose.tools.assert_equal(len(a.members), 1)
-    nose.tools.assert_is_instance(a.members['b_ptr'], SimTypePointer)
-    nose.tools.assert_is_instance(a.members['b_ptr'].pts_to, SimUnion)
-    nose.tools.assert_equal(a.members['b_ptr'].pts_to.name, 'b')
+    assert len(a.members) == 1
+    assert isinstance(a.members["b_ptr"], SimTypePointer)
+    assert isinstance(a.members["b_ptr"].pts_to, SimUnion)
+    assert a.members["b_ptr"].pts_to.name == "b"
 
-    nose.tools.assert_equal(len(b.members), 1)
-    nose.tools.assert_is_instance(b.members['a_ptr'], SimTypePointer)
-    nose.tools.assert_is_instance(b.members['a_ptr'].pts_to, SimUnion)
-    nose.tools.assert_equal(b.members['a_ptr'].pts_to.name, 'a')
+    assert len(b.members) == 1
+    assert isinstance(b.members["a_ptr"], SimTypePointer)
+    assert isinstance(b.members["a_ptr"].pts_to, SimUnion)
+    assert b.members["a_ptr"].pts_to.name == "a"
+
 
 def test_top_type():
-    angr.types.register_types({'undefined': angr.types.SimTypeTop() })
-    fdef = angr.types.parse_defns("undefined f(undefined param_1, int param_2);") # type: Dict[str, SimTypeFunction]
-    sig = fdef['f']
-    nose.tools.assert_equal(sig.args, [angr.types.SimTypeTop(), angr.types.SimTypeInt()])
-
+    angr.types.register_types({"undefined": angr.types.SimTypeTop()})
+    fdef = angr.types.parse_defns(
+        "undefined f(undefined param_1, int param_2);"
+    )  # type: Dict[str, SimTypeFunction]
+    sig = fdef["f"]
+    assert sig.args == [angr.types.SimTypeTop(), angr.types.SimTypeInt()]
 
 
 def test_arg_names():
-    angr.types.register_types({'undefined': angr.types.SimTypeTop() })
-    fdef = angr.types.parse_defns("int f(int param_1, int param_2);") # type: Dict[str, SimTypeFunction]
-    sig = fdef['f']
-    nose.tools.assert_equal(sig.arg_names, ['param_1', 'param_2'])
+    angr.types.register_types({"undefined": angr.types.SimTypeTop()})
+    fdef = angr.types.parse_defns(
+        "int f(int param_1, int param_2);"
+    )  # type: Dict[str, SimTypeFunction]
+    sig = fdef["f"]
+    assert sig.arg_names == ["param_1", "param_2"]
 
     # Check that arg_names survive a with_arch call
     nsig = sig.with_arch(angr.archinfo.ArchAMD64())
-    nose.tools.assert_equal(sig.arg_names, nsig.arg_names,
-                            "Function type generated with .with_arch() doesn't have identical arg_names")
+    assert (
+        sig.arg_names == nsig.arg_names
+    ), "Function type generated with .with_arch() doesn't have identical arg_names"
 
     # If for some reason only some of the parameters are named, the list can only be partially not None, but has to match the positions
-    fdef = angr.types.parse_defns("int f(int param1, int);") # type: Dict[str, SimTypeFunction]
-    sig = fdef['f']
-    nose.tools.assert_equal(sig.arg_names, ['param1', None])
+    fdef = angr.types.parse_defns(
+        "int f(int param1, int);"
+    )  # type: Dict[str, SimTypeFunction]
+    sig = fdef["f"]
+    assert sig.arg_names == ["param1", None]
 
-    fdef = angr.types.parse_defns("int f();") # type: Dict[str, SimTypeFunction]
-    sig = fdef['f']
-    nose.tools.assert_equal(sig.arg_names, ())
+    fdef = angr.types.parse_defns("int f();")  # type: Dict[str, SimTypeFunction]
+    sig = fdef["f"]
+    assert sig.arg_names == ()
+
 
 def test_varargs():
     fdef = angr.types.parse_defns("int printf(const char *fmt, ...);")
-    sig = fdef['printf']
+    sig = fdef["printf"]
 
-    nose.tools.assert_true(sig.variadic)
-    nose.tools.assert_in('...', repr(sig))
-    nose.tools.assert_equal(len(sig.args), 1)
-    nose.tools.assert_equal(len(sig.arg_names), 1)
-    nose.tools.assert_not_in('...', sig._init_str())
+    assert sig.variadic
+    assert "..." in repr(sig)
+    assert len(sig.args) == 1
+    assert len(sig.arg_names) == 1
+    assert "..." not in sig._init_str()
 
 
 def test_forward_declaration_typedef_struct():
-    types, extra_types = angr.types.parse_file("typedef struct _A A; struct _A {int a;int b;};")
+    types, extra_types = angr.types.parse_file(
+        "typedef struct _A A; struct _A {int a;int b;};"
+    )
 
-    nose.tools.assert_is_not_none(extra_types['A'].fields)
-    nose.tools.assert_is_instance(extra_types['A'].fields['a'], SimTypeInt)
-    nose.tools.assert_is_instance(extra_types['A'].fields['b'], SimTypeInt)
+    assert extra_types["A"].fields is not None
+    assert isinstance(extra_types["A"].fields["a"], SimTypeInt)
+    assert isinstance(extra_types["A"].fields["b"], SimTypeInt)
 
-    nose.tools.assert_is_not_none(extra_types['struct _A'].fields)
-    nose.tools.assert_is_instance(extra_types['struct _A'].fields['a'], SimTypeInt)
-    nose.tools.assert_is_instance(extra_types['struct _A'].fields['b'], SimTypeInt)
+    assert extra_types["struct _A"].fields is not None
+    assert isinstance(extra_types["struct _A"].fields["a"], SimTypeInt)
+    assert isinstance(extra_types["struct _A"].fields["b"], SimTypeInt)
 
 
 def test_forward_declaration_typedef_union():
-    types, extra_types = angr.types.parse_file("typedef union _A A; union _A {int a;int b;};")
+    types, extra_types = angr.types.parse_file(
+        "typedef union _A A; union _A {int a;int b;};"
+    )
 
-    nose.tools.assert_is_not_none(extra_types['A'].members)
-    nose.tools.assert_is_instance(extra_types['A'].members['a'], SimTypeInt)
-    nose.tools.assert_is_instance(extra_types['A'].members['b'], SimTypeInt)
+    assert extra_types["A"].members is not None
+    assert isinstance(extra_types["A"].members["a"], SimTypeInt)
+    assert isinstance(extra_types["A"].members["b"], SimTypeInt)
 
-    nose.tools.assert_is_not_none(extra_types['union _A'].members)
-    nose.tools.assert_is_instance(extra_types['union _A'].members['a'], SimTypeInt)
-    nose.tools.assert_is_instance(extra_types['union _A'].members['b'], SimTypeInt)
+    assert extra_types["union _A"].members is not None
+    assert isinstance(extra_types["union _A"].members["a"], SimTypeInt)
+    assert isinstance(extra_types["union _A"].members["b"], SimTypeInt)
+
 
 def test_bitfield_struct():
     code = """
@@ -278,12 +319,16 @@ def test_bitfield_struct():
     }"""
     ty = angr.types.parse_type(code)
     ty = ty.with_arch(archinfo.ArchAArch64())
-    nose.tools.assert_list_equal(
-        [(t.size, t.offset) for t in list(ty.fields.values())[1:-1]],
-        [(36, 0), (8, 4), (7, 4), (12, 3), (1, 7)]
-    )
+    assert [(t.size, t.offset) for t in list(ty.fields.values())[1:-1]] == [
+        (36, 0),
+        (8, 4),
+        (7, 4),
+        (12, 3),
+        (1, 7),
+    ]
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     test_type_annotation()
     test_cproto_conversion()
     test_cppproto_conversion()

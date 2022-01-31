@@ -1,5 +1,4 @@
 import angr
-import nose
 import pyvex
 import claripy
 import archinfo
@@ -54,31 +53,31 @@ def test_inspect():
     s = SimState(arch="AMD64", mode="symbolic")
 
     s.inspect.b('mem_write', when=BP_AFTER, action=act_mem_write)
-    nose.tools.assert_equal(counts.mem_write, 0)
+    assert counts.mem_write == 0
     s.memory.store(100, s.solver.BVV(10, 32))
-    nose.tools.assert_equal(counts.mem_write, 1)
+    assert counts.mem_write == 1
 
     s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read)
     s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read, mem_read_address=100)
     s.inspect.b('mem_read', when=BP_AFTER, action=act_mem_read, mem_read_address=123)
     s.inspect.b('mem_read', when=BP_BEFORE, action=act_mem_read, mem_read_length=3)
-    nose.tools.assert_equal(counts.mem_read, 0)
+    assert counts.mem_read == 0
     s.memory.load(123, 4)
     s.memory.load(223, 3)
-    nose.tools.assert_equal(counts.mem_read, 4)
+    assert counts.mem_read == 4
 
     s.inspect.b('reg_read', when=BP_AFTER, action=act_reg_read)
-    nose.tools.assert_equal(counts.reg_read, 0)
+    assert counts.reg_read == 0
     s.registers.load(16, size=8)
-    nose.tools.assert_equal(counts.reg_read, 1)
+    assert counts.reg_read == 1
 
     s.inspect.b('reg_write', when=BP_AFTER, action=act_reg_write)
-    nose.tools.assert_equal(counts.reg_write, 0)
+    assert counts.reg_write == 0
     s.registers.store(16, s.solver.BVV(10, 32))
-    nose.tools.assert_equal(counts.reg_write, 1)
-    nose.tools.assert_equal(counts.mem_write, 1)
-    nose.tools.assert_equal(counts.mem_read, 4)
-    nose.tools.assert_equal(counts.reg_read, 1)
+    assert counts.reg_write == 1
+    assert counts.mem_write == 1
+    assert counts.mem_read == 4
+    assert counts.reg_read == 1
 
     s.inspect.b('tmp_read', when=BP_AFTER, action=act_tmp_read, tmp_read_num=0)
     s.inspect.b('tmp_write', when=BP_AFTER, action=act_tmp_write, tmp_write_num=0)
@@ -89,21 +88,21 @@ def test_inspect():
     irsb = pyvex.IRSB(b"\x90\x90\x90\x90\xeb\x0a", mem_addr=1000, arch=archinfo.ArchAMD64(), opt_level=0)
     irsb.pp()
     InspectEngine(None).process(s, irsb=irsb)
-    nose.tools.assert_equal(counts.reg_write, 7)
-    nose.tools.assert_equal(counts.reg_read, 2)
-    nose.tools.assert_equal(counts.tmp_write, 1)
-    nose.tools.assert_equal(counts.tmp_read, 1)
-    nose.tools.assert_equal(counts.expr, 3) # one for the Put, one for the WrTmp, and one to get the next address to jump to
-    nose.tools.assert_equal(counts.statement, 11)
-    nose.tools.assert_equal(counts.instruction, 2)
-    nose.tools.assert_equal(counts.constraints, 0)
-    nose.tools.assert_equal(counts.mem_write, 1)
-    nose.tools.assert_equal(counts.mem_read, 4)
+    assert counts.reg_write == 7
+    assert counts.reg_read == 2
+    assert counts.tmp_write == 1
+    assert counts.tmp_read == 1
+    assert counts.expr == 3
+    assert counts.statement == 11
+    assert counts.instruction == 2
+    assert counts.constraints == 0
+    assert counts.mem_write == 1
+    assert counts.mem_read == 4
 
     s = SimState(arch="AMD64", mode="symbolic")
     s.inspect.b('symbolic_variable', when=BP_AFTER, action=act_variables)
     s.memory.load(0, 10)
-    nose.tools.assert_equal(counts.variables, 1)
+    assert counts.variables == 1
 
 
 def test_inspect_exit():
@@ -114,11 +113,11 @@ def test_inspect_exit():
     def handle_exit_before(state):
         counts.exit_before += 1
         exit_target = state.inspect.exit_target
-        nose.tools.assert_equal(state.solver.eval(exit_target), 0x3f8)
+        assert state.solver.eval(exit_target) == 0x3f8
         # change exit target
         state.inspect.exit_target = 0x41414141
-        nose.tools.assert_equal(state.inspect.exit_jumpkind, "Ijk_Boring")
-        nose.tools.assert_true(state.inspect.exit_guard.is_true())
+        assert state.inspect.exit_jumpkind == "Ijk_Boring"
+        assert state.inspect.exit_guard.is_true()
 
     def handle_exit_after(state): #pylint:disable=unused-argument
         counts.exit_after += 1
@@ -134,9 +133,9 @@ def test_inspect_exit():
     succ = HeavyVEXMixin(None).process(s, irsb=irsb).flat_successors
 
     # check
-    nose.tools.assert_equal( succ[0].solver.eval(succ[0].ip), 0x41414141)
-    nose.tools.assert_equal(counts.exit_before, 1)
-    nose.tools.assert_equal(counts.exit_after, 1)
+    assert succ[0].solver.eval(succ[0].ip) == 0x41414141
+    assert counts.exit_before == 1
+    assert counts.exit_after == 1
 
 
 def test_inspect_syscall():
@@ -147,12 +146,12 @@ def test_inspect_syscall():
     def handle_syscall_before(state):
         counts.exit_before += 1
         syscall_name = state.inspect.syscall_name
-        nose.tools.assert_equal(syscall_name, "close")
+        assert syscall_name == "close"
 
     def handle_syscall_after(state):
         counts.exit_after += 1
         syscall_name = state.inspect.syscall_name
-        nose.tools.assert_equal(syscall_name, "close")
+        assert syscall_name == "close"
 
     s = SimState(arch="AMD64", mode="symbolic")
     # set up to call so syscall close
@@ -168,8 +167,8 @@ def test_inspect_syscall():
     ProcedureEngine(None).process(s, procedure=proc, ret_to=s.ip)
 
     # check counts
-    nose.tools.assert_equal(counts.exit_before, 1)
-    nose.tools.assert_equal(counts.exit_after, 1)
+    assert counts.exit_before == 1
+    assert counts.exit_after == 1
 
 
 def test_inspect_concretization():
@@ -243,23 +242,23 @@ def test_inspect_concretization():
 
 
 def test_inspect_engine_process():
-    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests', 'x86_64', 'fauxware'))
+    p = angr.Project(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests', 'x86_64', 'fauxware'), auto_load_libs=False)
     constraints = []
     def check_first_symbolic_fork(state):
         succs = state.inspect.sim_successors.successors
         succ_addr = [hex(s.addr) for s in succs]
-        nose.tools.assert_equal(len(succ_addr), 2)
-        nose.tools.assert_in('0x400692L', succ_addr)
-        nose.tools.assert_in('0x400699L', succ_addr)
+        assert len(succ_addr) == 2
+        assert '0x400692L' in succ_addr
+        assert '0x400699L' in succ_addr
         print('Fork after:', hex(state.addr))
         print('Successors:', succ_addr)
 
     def check_second_symbolic_fork(state):
         succs = state.inspect.sim_successors.successors
         succ_addr = [hex(s.addr) for s in succs]
-        nose.tools.assert_equal(len(succ_addr), 2)
-        nose.tools.assert_in('0x4006dfL', succ_addr)
-        nose.tools.assert_in('0x4006e6L', succ_addr)
+        assert len(succ_addr) == 2
+        assert '0x4006dfL' in succ_addr
+        assert '0x4006e6L' in succ_addr
         print('Fork after:', hex(state.addr))
         print('Successors:', succ_addr)
 
@@ -273,7 +272,7 @@ def test_inspect_engine_process():
            and isinstance(state.inspect.sim_engine, HeavyVEXMixin)
 
     def check_state(state):
-        nose.tools.assert_in(hex(state.inspect.sim_successors.addr), ('0x40068eL', '0x4006dbL'))
+        assert hex(state.inspect.sim_successors.addr) in ('0x40068eL', '0x4006dbL')
 
     state = p.factory.entry_state(addr=p.loader.find_symbol('main').rebased_addr)
     pg = p.factory.simulation_manager(state)

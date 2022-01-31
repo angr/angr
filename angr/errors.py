@@ -1,3 +1,5 @@
+# pylint:disable=missing-class-docstring
+
 class AngrError(Exception):
     pass
 
@@ -313,6 +315,9 @@ class UnsupportedIRStmtError(SimStatementError, SimUnsupportedError):
     pass
 
 class UnsupportedDirtyError(UnsupportedIRStmtError, SimUnsupportedError):
+    pass
+
+class SimMissingTempError(SimValueError, IndexError):
     pass
 
 #

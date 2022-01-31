@@ -65,7 +65,6 @@ class VariableManagerInternal(Serializable):
 
         self._variable_accesses: Dict[SimVariable,Set[VariableAccess]] = defaultdict(set)
         self._insn_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
-        self._block_to_variable: Dict[int,Set[Tuple[SimVariable,int]]] = defaultdict(set)
         self._stmt_to_variable: Dict[Tuple[int,int],Set[Tuple[SimVariable,int]]] = defaultdict(set)
         self._atom_to_variable: Dict[Tuple[int,int],Dict[int,Set[Tuple[SimVariable,int]]]] = \
             defaultdict(_defaultdict_set)
@@ -187,7 +186,6 @@ class VariableManagerInternal(Serializable):
 
             model._variable_accesses[variable_access.variable].add(variable_access)
             model._insn_to_variable[variable_access.location.ins_addr].add(tpl)
-            model._block_to_variable[variable_access.location.block_addr].add(tpl)
             loc = (variable_access.location.block_addr, variable_access.location.stmt_idx)
             model._stmt_to_variable[loc].add(tpl)
             if variable_access.atom_hash is not None:
@@ -298,14 +296,12 @@ class VariableManagerInternal(Serializable):
         if overwrite:
             self._variable_accesses[variable] = {VariableAccess(variable, sort, location, offset, atom_hash=atom_hash)}
             self._insn_to_variable[location.ins_addr] = {var_and_offset}
-            self._block_to_variable[location.block_addr] = {var_and_offset}
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)] = {var_and_offset}
             if atom_hash is not None:
                 self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash] = { var_and_offset }
         else:
             self._variable_accesses[variable].add(VariableAccess(variable, sort, location, offset, atom_hash=atom_hash))
             self._insn_to_variable[location.ins_addr].add(var_and_offset)
-            self._block_to_variable[location.block_addr].add(var_and_offset)
             self._stmt_to_variable[(location.block_addr, location.stmt_idx)].add(var_and_offset)
             if atom_hash is not None:
                 self._atom_to_variable[(location.block_addr, location.stmt_idx)][atom_hash].add(var_and_offset)
@@ -328,13 +324,13 @@ class VariableManagerInternal(Serializable):
                 non_phis.add(var)
         if len(existing_phis) == 1:
             existing_phi = next(iter(existing_phis))
-            if non_phis.issubset(self.get_phi_subvariables(existing_phi)):
-                return existing_phi
-            else:
-                # Update phi variables
-                self._phi_variables[existing_phi] |= non_phis
+            if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
+                if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
+                    # Update the variables that this phi variable represents
+                    self._phi_variables[existing_phi] |= non_phis
                 return existing_phi
 
+        # allocate a new phi variable
         repre = next(iter(variables))
         repre_type = type(repre)
         if repre_type is SimRegisterVariable:
@@ -416,6 +412,9 @@ class VariableManagerInternal(Serializable):
             return set()
 
         return self._atom_to_variable[key][atom_hash]
+
+    def find_variables_by_stack_offset(self, offset: int) -> Set[SimVariable]:
+        return self._stack_region.get_variables_by_offset(offset)
 
     def get_variable_accesses(self, variable: SimVariable, same_name: bool=False) -> List[VariableAccess]:
 

@@ -1,8 +1,9 @@
 import os
 import logging
 import sys
+import unittest
 
-import nose
+from common import skip_if_not_linux
 
 import angr
 
@@ -18,45 +19,84 @@ insn_texts = {
     'mips': b"addi $1, $1, 0xf"
 }
 
-def run_keystone(arch):
-    proj_arch = arch
-    is_thumb = False
-    if arch == "armel_thumb":
-        is_thumb = True
-        proj_arch = "armel"
-    p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"))
-    addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
+class TestKeyStone(unittest.TestCase):
+    def _run_keystone(self,arch):
+        proj_arch = arch
+        is_thumb = False
+        if arch == "armel_thumb":
+            is_thumb = True
+            proj_arch = "armel"
+        p = angr.Project(os.path.join(test_location, proj_arch, "fauxware"), auto_load_libs=False)
+        addr = p.loader.main_object.get_symbol('authenticate').rebased_addr
 
-    sm = p.factory.simulation_manager()
-    if arch in ['i386', 'x86_64']:
-        sm.one_active.regs.eax = 3
-    else:
-        sm.one_active.regs.r1 = 3
+        sm = p.factory.simulation_manager()
+        if arch in ['i386', 'x86_64']:
+            sm.one_active.regs.eax = 3
+        else:
+            sm.one_active.regs.r1 = 3
 
-    if is_thumb:
-        addr |= 1
-    block = p.factory.block(addr, insn_text=insn_texts[arch], thumb=is_thumb).vex
+        if is_thumb:
+            addr |= 1
+        block = p.factory.block(addr, insn_text=insn_texts[arch], thumb=is_thumb).vex
 
-    nose.tools.assert_equal(block.instructions, 1)
+        assert block.instructions == 1
 
-    sm.step(force_addr=addr, insn_text=insn_texts[arch], thumb=is_thumb)
+        sm.step(force_addr=addr, insn_text=insn_texts[arch], thumb=is_thumb)
 
-    if arch in ['i386', 'x86_64']:
-        nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.eax), 0x12)
-    else:
-        nose.tools.assert_equal(sm.one_active.solver.eval(sm.one_active.regs.r1), 0x12)
+        if arch in ['i386', 'x86_64']:
+            assert sm.one_active.solver.eval(sm.one_active.regs.eax) == 0x12
+        else:
+            assert sm.one_active.solver.eval(sm.one_active.regs.r1) == 0x12
 
-def test_keystone():
 
-    # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
-    # re-enabling this test on Windows.
-    if not sys.platform.startswith('linux'):
-        raise nose.SkipTest()
+    def test_i386(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
 
-    for arch_name in insn_texts:
-        yield run_keystone, arch_name
+        self._run_keystone('i386')
+
+    def test_x86_64(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('x86_64')
+
+
+    def test_ppc(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('ppc')
+
+    def test_armel(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('armel')
+
+    def test_armel_thumb(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('armel_thumb')
+
+    def test_mips(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('mips')
 
 if __name__ == "__main__":
-    for arch_name in insn_texts:
-        print(arch_name)
-        run_keystone(arch_name)
+    unittest.main()

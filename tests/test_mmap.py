@@ -1,4 +1,3 @@
-import nose
 
 import logging
 
@@ -15,11 +14,11 @@ def test_mmap_base_copy():
     state.heap.mmap_base = mmap_base
 
     # Sanity check
-    nose.tools.assert_equal(state.heap.mmap_base, mmap_base)
+    assert state.heap.mmap_base == mmap_base
 
     state_copy = state.copy()
 
-    nose.tools.assert_equal(state_copy.heap.mmap_base, mmap_base)
+    assert state_copy.heap.mmap_base == mmap_base
 
 
 if __name__ == '__main__':

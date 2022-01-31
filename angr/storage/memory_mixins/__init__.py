@@ -1,5 +1,5 @@
 # pylint:disable=abstract-method
-from typing import Iterable, Tuple, Any, Optional
+from typing import Iterable, Tuple, Dict, Any, Optional
 
 import claripy
 
@@ -104,7 +104,7 @@ class MemoryMixin(SimStatePlugin):
         """
         raise NotImplementedError()
 
-    def _default_value(self, addr, size, name='mem', inspect=True, events=True, key=None, **kwargs):
+    def _default_value(self, addr, size, name=None, inspect=True, events=True, key=None, **kwargs):
         """
         Override this method to provide default values for a variety of edge cases and base cases.
 
@@ -124,6 +124,15 @@ class MemoryMixin(SimStatePlugin):
         :param values:          A collection of values with their merge conditions.
         :param merged_size:     The size (in bytes) of the merged value.
         :return:                The merged value, or None to skip merging of the current value.
+        """
+        raise NotImplementedError()
+
+    def _merge_labels(self, labels: Iterable[Dict], **kwargs) -> Optional[Dict]:
+        """
+        Override this method to provide label merging support.
+
+        :param labels:          A collection of labels.
+        :return:                The merged label, or None to skip merging of the current label.
         """
         raise NotImplementedError()
 
@@ -156,6 +165,7 @@ from .convenient_mappings_mixin import ConvenientMappingsMixin
 from .default_filler_mixin import DefaultFillerMixin, SpecialFillerMixin, ExplicitFillerMixin
 from .dirty_addrs_mixin import DirtyAddrsMixin
 from .hex_dumper_mixin import HexDumperMixin
+from .label_merger_mixin import LabelMergerMixin
 from .multi_value_merger_mixin import MultiValueMergerMixin
 from .name_resolution_mixin import NameResolutionMixin
 from .simplification_mixin import SimplificationMixin
@@ -305,6 +315,7 @@ class LabeledMemory(
     ListPagesWithLabelsMixin,
     DefaultFillerMixin,
     TopMergerMixin,
+    LabelMergerMixin,
     PagedMemoryMixin,
 ):
     """

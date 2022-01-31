@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ
 import logging
 from typing import List, Set, Optional, Tuple, Union, Any, Iterable
 
@@ -67,7 +68,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
             global_end_addr = end
             global_start_addr = result[-1][0]
             size = global_end_addr - global_start_addr
-            new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr),  # pylint: disable=assignment-from-no-return
+            new_ast = self._default_value(global_start_addr, size,  # pylint: disable=assignment-from-no-return
                     key=(self.category, global_start_addr), memory=memory, endness=endness, **kwargs)
             new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness)
             self.symbolic_data[global_start_addr - page_addr] = new_item
@@ -104,6 +105,9 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
     def store(self, addr, data: Union[int,SimMemoryObject], size: int=None, endness=None, memory=None, page_addr=None,  # pylint: disable=arguments-differ
               cooperate=False, **kwargs):
+        super().store(addr, data, size=size, endness=endness, memory=memory, cooperate=cooperate, page_addr=page_addr,
+                      **kwargs)
+
         if not cooperate:
             data = self._force_store_cooperation(addr, data, size, endness, page_addr=page_addr, memory=memory,
                                                  **kwargs)
@@ -292,8 +296,13 @@ class UltraPage(MemoryObjectMixin, PageBase):
             return self.concrete_data[addr:addr+size], memoryview(self.symbolic_bitmap)[addr:addr+size]
 
     def changed_bytes(self, other, page_addr=None) -> Set[int]:
-        changes = set()
-        for addr, _ in enumerate(self.symbolic_bitmap):
+        changed_candidates = super().changed_bytes(other)
+        if changed_candidates is None:
+            changed_candidates = range(len(self.symbolic_bitmap))
+
+        changes: Set[int] = set()
+
+        for addr in changed_candidates:
             if self.symbolic_bitmap[addr] != other.symbolic_bitmap[addr]:
                 changes.add(addr)
             elif self.symbolic_bitmap[addr] == 0:

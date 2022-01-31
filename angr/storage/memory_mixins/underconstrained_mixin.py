@@ -26,13 +26,16 @@ class UnderconstrainedMixin(MemoryMixin):
         self._constrain_underconstrained_index(addr)
         super().store(addr, data, **kwargs)
 
-    def _default_value(self, addr, size, name='mem', key=None, inspect=True, events=True, **kwargs):
+    def _default_value(self, addr, size, name=None, key=None, inspect=True, events=True, **kwargs):
         if o.UNDER_CONSTRAINED_SYMEXEC in self.state.options and type(addr) is int:
             if self.category == 'mem':
                 alloc_depth = self.state.uc_manager.get_alloc_depth(addr)
                 uc_alloc_depth = 0 if alloc_depth is None else alloc_depth + 1
             else:
                 uc_alloc_depth = 0
+
+            if name is None:
+                name = 'mem_%x' % addr
 
             bits = size * self.state.arch.byte_width
             return self.state.solver.Unconstrained(name, bits, key=key, inspect=inspect, events=events, uc_alloc_depth=uc_alloc_depth)

@@ -10,7 +10,7 @@ from ...engines.soot.values import (SimSootValue_InstanceFieldRef,
 
 l = logging.getLogger('angr.procedures.java_jni.field_access')
 
-# pylint: disable=arguments-differ,unused-argument
+# pylint: disable=arguments-differ,unused-argument, missing-class-docstring
 
 #
 # GetFieldID / GetStaticFieldID
@@ -41,9 +41,6 @@ class GetFieldID(JNISimProcedure):
 #
 
 class GetStaticField(JNISimProcedure):
-
-    return_ty = None
-
     def run(self, ptr_env, _, field_id_):
         # get field reference
         field_id = self.state.jni_references.lookup(field_id_)
@@ -95,8 +92,6 @@ class SetStaticField(JNISimProcedure):
 #
 
 class GetField(JNISimProcedure):
-
-    return_ty = None
 
     def run(self, ptr_env, obj_, field_id_):
         # get field reference

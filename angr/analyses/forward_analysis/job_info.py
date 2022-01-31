@@ -1,8 +1,11 @@
+from angr.analyses.cfg.cfg_job_base import BlockID, CFGJobBase
+
+
 class JobInfo:
     """
     Stores information of each job.
     """
-    def __init__(self, key, job):
+    def __init__(self, key: BlockID, job: CFGJobBase):
         self.key = key
         self.jobs = [(job, '')]
 
@@ -20,7 +23,7 @@ class JobInfo:
         return s
 
     @property
-    def job(self):
+    def job(self) -> CFGJobBase:
         """
         Get the latest available job.
 

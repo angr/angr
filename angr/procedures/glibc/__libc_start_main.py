@@ -125,7 +125,6 @@ class __libc_start_main(angr.SimProcedure):
 
     def run(self, main, argc, argv, init, fini):
         # TODO: handle symbolic and static modes
-        # TODO: add argument types
 
         self._initialize_ctype_table()
         self._initialize_errno()
@@ -135,10 +134,12 @@ class __libc_start_main(angr.SimProcedure):
 
         # TODO: __cxa_atexit calls for various at-exit needs
 
-        self.call(self.init, (self.argc, self.argv, self.envp), 'after_init')
+        self.call(self.init, (self.argc[31:0], self.argv, self.envp), 'after_init',
+            prototype = 'int main(int argc, char **argv, char **envp)')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
-        self.call(self.main, (self.argc, self.argv, self.envp), 'after_main')
+        self.call(self.main, (self.argc[31:0], self.argv, self.envp), 'after_main',
+            prototype='int main(int argc, char **argv, char **envp)')
 
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.exit(0)
@@ -161,7 +162,8 @@ class __libc_start_main(angr.SimProcedure):
                 break
 
         cc = angr.DEFAULT_CC[self.arch.name](self.arch)
-        args = [ cc.arg(state, _) for _ in range(5) ]
+        ty = angr.sim_type.parse_signature('void x(void*, void*, void*, void*, void*)').with_arch(self.arch)
+        args = cc.get_args(state, ty)
         main, _, _, init, fini = self._extract_args(blank_state, *args)
 
         all_exits = [

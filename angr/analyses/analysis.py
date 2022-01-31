@@ -13,6 +13,7 @@ from ..errors import AngrAnalysisError
 
 if TYPE_CHECKING:
     from ..knowledge_base import KnowledgeBase
+    import angr
 
 l = logging.getLogger(name=__name__)
 
@@ -224,7 +225,7 @@ class Analysis:
         :return:            None
         """
 
-        if ctr % freq == 0:
+        if ctr != 0 and ctr % freq == 0:
             time.sleep(sleep_time)
 
     def __repr__(self):

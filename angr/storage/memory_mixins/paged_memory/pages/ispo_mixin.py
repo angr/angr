@@ -1,3 +1,4 @@
+# pylint:disable=arguments-differ
 from angr.storage.memory_mixins import MemoryMixin
 
 
@@ -29,6 +30,14 @@ class ISPOMixin(MemoryMixin):
     def _merge_values(self, *args, memory=None, **kwargs):
         try:
             func = memory._merge_values
+        except AttributeError as ex:
+            raise Exception("memory kwarg must be passed to this stateless object") from ex
+        else:
+            return func(*args, **kwargs)
+
+    def _merge_labels(self, *args, memory=None, **kwargs):
+        try:
+            func = memory._merge_labels
         except AttributeError as ex:
             raise Exception("memory kwarg must be passed to this stateless object") from ex
         else:

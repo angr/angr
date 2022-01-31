@@ -20,6 +20,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         self.expr_handlers[Expr.Register] = self._handle_Register
         self.expr_handlers[Expr.Load] = self._handle_Load
         self.expr_handlers[Expr.Tmp] = self._handle_Tmp
+        self.expr_handlers[Expr.VEXCCallExpression] = self._handle_VEXCCallExpression
         self.out_dated = False
 
     # pylint:disable=unused-argument
@@ -46,3 +47,12 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             self.out_dated = True
         else:
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VEXCCallExpression(self, expr_idx: int, expr: Expr.VEXCCallExpression, stmt_idx: int,
+                                   stmt: Stmt.Statement, block: Optional[Block]):
+        if self.avoid is not None:
+            if any(op == self.avoid for op in expr.operands):
+                self.out_dated = True
+
+        if not self.out_dated:
+            super()._handle_VEXCCallExpression(expr_idx, expr, stmt_idx, stmt, block)

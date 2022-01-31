@@ -1,5 +1,6 @@
-
+# pylint:disable=no-else-break
 import logging
+from typing import Optional, Tuple, List
 
 from ...errors import AngrCFGError
 
@@ -59,7 +60,7 @@ class SegmentList:
     __slots__ = ['_list', '_bytes_occupied']
 
     def __init__(self):
-        self._list = []
+        self._list: List[Segment] = []
         self._bytes_occupied = 0
 
     #
@@ -69,46 +70,21 @@ class SegmentList:
     def __len__(self):
         return len(self._list)
 
+    def __getitem__(self, idx: int) -> Segment:
+        return self._list[idx]
+
     #
     # Private methods
     #
 
-    def _search(self, addr):
-        """
-        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
-        Note that the address may not actually belong to the block.
-
-        :param addr: The address to search
-        :return: The offset of the segment.
-        """
-
-        start = 0
-        end = len(self._list)
-
-        while start != end:
-            mid = (start + end) // 2
-
-            segment = self._list[mid]
-            if addr < segment.start:
-                end = mid
-            elif addr >= segment.end:
-                start = mid + 1
-            else:
-                # Overlapped :(
-                start = mid
-                break
-
-        return start
-
-    def _insert_and_merge(self, address, size, sort, idx):
+    def _insert_and_merge(self, address: int, size: int, sort: str, idx: int) -> None:
         """
         Determines whether the block specified by (address, size) should be merged with adjacent blocks.
 
-        :param int address: Starting address of the block to be merged.
-        :param int size: Size of the block to be merged.
-        :param str sort: Type of the block.
-        :param int idx: ID of the address.
-        :return: None
+        :param address: Starting address of the block to be merged.
+        :param size: Size of the block to be merged.
+        :param sort: Type of the block.
+        :param idx: ID of the address.
         """
 
         # sanity check
@@ -140,8 +116,7 @@ class SegmentList:
             self._bytes_occupied += bytes_change
 
         # Search backward to merge blocks if necessary
-        if pos >= len(self._list):
-            pos = len(self._list) - 1
+        pos = idx
 
         while pos > 0:
             merged, pos, bytes_change = self._insert_and_merge_core(pos, "backward")
@@ -151,12 +126,12 @@ class SegmentList:
 
             self._bytes_occupied += bytes_change
 
-    def _insert_and_merge_core(self, pos, direction):
+    def _insert_and_merge_core(self, pos: int, direction: str):
         """
         The core part of method _insert_and_merge.
 
-        :param int pos:         The starting position.
-        :param str direction:   If we are traversing forwards or backwards in the list. It determines where the "sort"
+        :param pos:         The starting position.
+        :param direction:   If we are traversing forwards or backwards in the list. It determines where the "sort"
                                 of the overlapping memory block comes from. If everything works as expected, "sort" of
                                 the overlapping block is always equal to the segment occupied most recently.
         :return: A tuple of (merged (bool), new position to begin searching (int), change in total bytes (int)
@@ -236,7 +211,7 @@ class SegmentList:
                         s0 = new_segments[i]
                         s1 = new_segments[i + 1]
                         if s0.sort == s1.sort:
-                            new_segments = new_segments[ : i] + [ Segment(s0.start, s1.end, s0.sort) ] + new_segments[i + 2 : ]
+                            new_segments = new_segments[:i] + [Segment(s0.start, s1.end, s0.sort)] + new_segments[i+2:]
                         else:
                             i += 1
 
@@ -250,11 +225,75 @@ class SegmentList:
                     merged = True
 
                     if direction == "forward":
-                        new_pos = previous_segment_pos + len(new_segments)
+                        new_pos = previous_segment_pos + len(new_segments) - 1
                     else:
                         new_pos = previous_segment_pos
 
         return merged, new_pos, bytes_changed
+
+    def _remove(self, init_address: int, init_size: int, init_idx: int) -> None:
+
+        address = init_address
+        size = init_size
+        idx = init_idx
+
+        while idx < len(self._list):
+            segment = self._list[idx]
+            if segment.start <= address:
+                if address < segment.start + segment.size < address + size:
+                    # |---segment---|
+                    #      |---address + size---|
+                    # shrink segment
+                    segment.end = address
+                    # adjust address
+                    new_address = segment.start + segment.size
+                    # adjust size
+                    size = address + size - new_address
+                    address = new_address
+                    # update idx
+                    idx = self.search(address)
+                elif address < segment.start + segment.size and address + size <= segment.start + segment.size:
+                    # |--------segment--------|
+                    #    |--address + size--|
+                    # break segment
+                    seg0 = Segment(segment.start, address, segment.sort)
+                    seg1 = Segment(address + size, segment.start + segment.size, segment.sort)
+                    # remove the current segment
+                    self._list.remove(segment)
+                    if seg1.size > 0:
+                        self._list.insert(idx, seg1)
+                    if seg0.size > 0:
+                        self._list.insert(idx, seg0)
+                    # done
+                    break
+                else:
+                    raise RuntimeError("Unreachable reached")
+            else:  # if segment.start > address
+                if address + size <= segment.start:
+                    #                      |--- segment ---|
+                    # |-- address + size --|
+                    # no overlap
+                    break
+                elif segment.start < address + size <= segment.start + segment.size:
+                    #            |---- segment ----|
+                    # |-- address + size --|
+                    #
+                    # update the start of the segment
+                    segment.start = address + size
+                    if segment.size == 0:
+                        # remove the segment
+                        self._list.remove(segment)
+                    break
+                elif address + size > segment.start + segment.size:
+                    #            |---- segment ----|
+                    # |--------- address + size ----------|
+                    self._list.remove(segment)
+                    new_address = segment.end
+                    size = address + size - new_address
+                    address = new_address
+                    idx = self.search(address)
+                else:
+                    raise RuntimeError("Unreachable reached")
 
     def _dbg_output(self):
         """
@@ -291,6 +330,33 @@ class SegmentList:
     # Public methods
     #
 
+    def search(self, addr: int) -> int:
+        """
+        Checks which segment that the address `addr` should belong to, and, returns the offset of that segment.
+        Note that the address may not actually belong to the block.
+
+        :param addr: The address to search
+        :return: The offset of the segment.
+        """
+
+        start = 0
+        end = len(self._list)
+
+        while start != end:
+            mid = (start + end) // 2
+
+            segment = self._list[mid]
+            if addr < segment.start:
+                end = mid
+            elif addr >= segment.end:
+                start = mid + 1
+            else:
+                # Overlapped :(
+                start = mid
+                break
+
+        return start
+
     def next_free_pos(self, address):
         """
         Returns the next free position with respect to an address, including that address itself
@@ -299,7 +365,7 @@ class SegmentList:
         :return: The next free position
         """
 
-        idx = self._search(address)
+        idx = self.search(address)
         if idx < len(self._list) and self._list[idx].start <= address < self._list[idx].end:
             # Occupied
             i = idx
@@ -328,7 +394,7 @@ class SegmentList:
 
         list_length = len(self._list)
 
-        idx = self._search(address)
+        idx = self.search(address)
         if idx < list_length:
             # Occupied
             block = self._list[idx]
@@ -361,7 +427,7 @@ class SegmentList:
         :return: True if this address belongs to a segment, False otherwise
         """
 
-        idx = self._search(address)
+        idx = self.search(address)
         if len(self._list) <= idx:
             return False
         if self._list[idx].start <= address < self._list[idx].end:
@@ -371,16 +437,15 @@ class SegmentList:
             return True
         return False
 
-    def occupied_by_sort(self, address):
+    def occupied_by_sort(self, address: int) -> Optional[str]:
         """
         Check if an address belongs to any segment, and if yes, returns the sort of the segment
 
-        :param int address: The address to check
+        :param address: The address to check
         :return: Sort of the segment that occupies this address
-        :rtype: str
         """
 
-        idx = self._search(address)
+        idx = self.search(address)
         if len(self._list) <= idx:
             return None
         if self._list[idx].start <= address < self._list[idx].end:
@@ -388,6 +453,26 @@ class SegmentList:
         if idx > 0 and address < self._list[idx - 1].end:
             # TODO: It seems that this branch is never reached. Should it be removed?
             return self._list[idx - 1].sort
+        return None
+
+    def occupied_by(self, address: int) -> Optional[Tuple[int,int,str]]:
+        """
+        Check if an address belongs to any segment, and if yes, returns the beginning, the size, and the sort of the
+        segment.
+
+        :param address: The address to check
+        """
+
+        idx = self.search(address)
+        if len(self._list) <= idx:
+            return None
+        if self._list[idx].start <= address < self._list[idx].end:
+            block = self._list[idx]
+            return block.start, block.size, block.sort
+        if idx > 0 and address < self._list[idx - 1].end:
+            # TODO: It seems that this branch is never reached. Should it be removed?
+            block = self._list[idx - 1]
+            return block.start, block.size, block.sort
         return None
 
     def occupy(self, address, size, sort):
@@ -410,10 +495,29 @@ class SegmentList:
             self._bytes_occupied += size
             return
         # Find adjacent element in our list
-        idx = self._search(address)
-        # print idx
+        idx = self.search(address)
 
         self._insert_and_merge(address, size, sort, idx)
+
+        # self._debug_check()
+
+    def release(self, address: int, size: int) -> None:
+        """
+        Remove a block, specified by (address, size), in this segment list.
+
+        :param address: The starting address of the block.
+        :param size:    Size of the block.
+        """
+
+        if size is None or size <= 0:
+            # cannot release a non-existent block
+            return
+        if not self._list:
+            return
+
+        idx = self.search(address)
+        if idx < len(self._list):
+            self._remove(address, size, idx)
 
         # self._debug_check()
 

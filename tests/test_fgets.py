@@ -1,4 +1,3 @@
-import nose
 import logging
 import os
 
@@ -9,7 +8,7 @@ TARGET_APP = os.path.join(os.path.dirname(os.path.realpath(str(__file__))),
 
 l = logging.getLogger('angr.tests.libc.fgets')
 
-p = angr.Project("{}".format(TARGET_APP))
+p = angr.Project("{}".format(TARGET_APP), auto_load_libs=False)
 
 find_normal = p.loader.find_symbol('find_normal').rebased_addr
 find_exact = p.loader.find_symbol('find_exact').rebased_addr
@@ -22,7 +21,7 @@ def _testfind(addr, failmsg):
     e.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     s = p.factory.simgr(e)
     r = s.explore(find=addr)
-    nose.tools.ok_(len(r.found) > 0, failmsg)
+    assert len(r.found) > 0, failmsg
     return r.found[0].posix.dumps(0)
 
 def _testnotfind(addr, failmsg):
@@ -31,15 +30,16 @@ def _testnotfind(addr, failmsg):
     e.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     s = p.factory.simgr(e)
     r= s.explore(find=addr)
-    nose.tools.ok_(len(r.found) == 0, failmsg)
+    assert len(r.found) == 0, failmsg
+
 
 def test_normal():
     answer = _testfind(find_normal, "Normal Failure!")
-    nose.tools.ok_(answer == b'normal\n')
+    assert answer == b'normal\n'
 
 def test_exact():
     answer = _testfind(find_exact, "Exact Failure!")
-    nose.tools.ok_(answer.endswith(b'0123456789'))
+    assert answer.endswith(b'0123456789')
 
 def test_impossible():
     _testnotfind(find_impossible, "Impossible Failure!")

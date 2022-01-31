@@ -21,7 +21,7 @@ class JNISimProcedure(SimProcedure):
     """
 
     # Java type of return value
-    return_ty = None # type: Optional[str]
+    return_ty: Optional[str] = None
 
     # jboolean constants
     JNI_TRUE = 1
@@ -32,9 +32,10 @@ class JNISimProcedure(SimProcedure):
         if not self.return_ty:
             raise ValueError("Classes implementing JNISimProcedure's must set the return type.")
         elif self.return_ty != 'void':
-            func_ty = SimTypeFunction(args=[],
+            prototype = SimTypeFunction(args=self.prototype.args,
                                       returnty=state.project.simos.get_native_type(self.return_ty))
-            self.cc = DefaultCC[state.arch.name](state.arch, func_ty=func_ty)
+            self.cc = DefaultCC[state.arch.name](state.arch)
+            self.prototype = prototype
         super(JNISimProcedure, self).execute(state, successors, arguments, ret_to)
 
     #

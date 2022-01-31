@@ -1,4 +1,3 @@
-import nose
 import angr
 
 import logging
@@ -32,6 +31,7 @@ corrupt_addrs = {
 }
 
 def run_fauxware_override(arch):
+    # auto_load_libs can't be disabled as the test fails
     p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False)
     s = p.factory.full_init_state()
 
@@ -62,9 +62,9 @@ def run_fauxware_override(arch):
 
     results = p.factory.simulation_manager(thing=s).explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
     stdin = results.found[0].posix.dumps(0)
-    nose.tools.assert_equal(b'SOSNEAKY', stdin)
+    assert b'SOSNEAKY'== stdin
     stdout = results.found[0].posix.dumps(1)
-    nose.tools.assert_equal(b'HAHA\0', stdout)
+    assert b'HAHA\0' == stdout
 
 def test_fauxware_override():
     #for arch in target_addrs:
