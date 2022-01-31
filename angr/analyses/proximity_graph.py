@@ -190,11 +190,12 @@ class ProximityGraphAnalysis(Analysis):
         """
         Properly connect expanded function call's to proximity graph.
         """
-
+        current_node = None
         successors = []
         # Get successor node of the current function node
         for node in self.graph.nodes():
             if isinstance(node, FunctionProxiNode) and node.func == func:
+                current_node = node
                 successors = list(self.graph.succ[node])
                 # Remove edge FunctionProxiNode->successors
                 for succ in successors:
@@ -204,6 +205,9 @@ class ProximityGraphAnalysis(Analysis):
         if successors:
             # add edges subgraph_end_nodes->successor
             end_nodes = [n for n in subgraph.nodes() if subgraph.in_degree(n) >= 1 and subgraph.out_degree(n) == 0]
+            # handle subgraphs that are empty
+            if not end_nodes:
+                end_nodes.append(current_node)
             for end_node in end_nodes:
                 for succ in successors:
                     subgraph.add_edge(end_node, succ)
