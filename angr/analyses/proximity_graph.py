@@ -289,7 +289,7 @@ class ProximityGraphAnalysis(Analysis):
         string_refs: Set[int] = set()
 
         # Walk the clinic structure to dump string references and function calls
-        ail_graph = decompilation.clinic.graph
+        ail_graph = decompilation.clinic.cc_graph
 
         def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call,
                          block: Optional[ailment.Block]):  # pylint:disable=unused-argument
