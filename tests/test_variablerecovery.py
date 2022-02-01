@@ -456,25 +456,6 @@ class TestVariableRecovery(unittest.TestCase):
                 "phi_variables_by_block": {},
             }, False)
 
-    def main(self):
-
-        g = globals()
-        if len(sys.argv) > 1:
-            func_name = "test_%s" % sys.argv[1]
-            if func_name not in g:
-                func_name = "test_variable_recovery_%s" % sys.argv[1]
-            for testfunc_and_args in g[func_name]():
-                testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
-                testfunc(*args)
-        else:
-            for func_name, func in g.items():
-                if func_name.startswith("test_") and hasattr(func, "__call__"):
-                    print(func_name)
-                    for testfunc_and_args in func():
-                        testfunc, args = testfunc_and_args[0], testfunc_and_args[1:]
-                        testfunc(*args)
-
-
 if __name__ == "__main__":
 
     l.setLevel(logging.DEBUG)
