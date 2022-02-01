@@ -1,11 +1,11 @@
+import os
+import logging
 import unittest
 
 import angr
 
-import logging
 l = logging.getLogger("angr_tests.managers")
 
-import os
 location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 addresses_fauxware = {
@@ -112,9 +112,7 @@ class TestSimulationManager(unittest.TestCase):
     def test_fauxware_x86_64(self):
         self._run_fauxware("x86_64", None)
 
-
     def test_find_to_middle(self):
-
         # Test the ability of PathGroup to execute until an instruction in the middle of a basic block
         p = angr.Project(os.path.join(location, 'x86_64', 'fauxware'), load_options={'auto_load_libs': False})
 
