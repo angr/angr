@@ -8,7 +8,7 @@ class A:
     n = 0
 
 class TestVault(unittest.TestCase):
-    def do_vault_identity(self, v_factory):
+    def _do_vault_identity(self, v_factory):
         v = v_factory()
         v.uuid_dedup.add(A)
         assert len(v.keys()) == 0
@@ -44,7 +44,7 @@ class TestVault(unittest.TestCase):
         assert bbb.n == 1
 
 
-    def do_vault_noidentity(self, v_factory):
+    def _do_vault_noidentity(self, v_factory):
         v = v_factory()
         assert len(v.keys()) == 0
 
@@ -77,7 +77,7 @@ class TestVault(unittest.TestCase):
         assert len(v.keys()) == 6
 
 
-    def do_ast_vault(self, v_factory):
+    def _do_ast_vault(self, v_factory):
         v = v_factory()
         x = claripy.BVS("x", 32)
         y = claripy.BVS("y", 32)
@@ -96,36 +96,36 @@ class TestVault(unittest.TestCase):
 
 
     def test_vault_noidentity_VaultDir(self):
-        self.do_vault_noidentity(angr.vaults.VaultDir)
+        self._do_vault_noidentity(angr.vaults.VaultDir)
 
     def test_vault_noidentity_VaultShelf(self):
-        self.do_vault_noidentity(angr.vaults.VaultShelf)
+        self._do_vault_noidentity(angr.vaults.VaultShelf)
 
     def test_vault_noidentity_VaultDict(self):
-        self.do_vault_noidentity(angr.vaults.VaultDict)
+        self._do_vault_noidentity(angr.vaults.VaultDict)
 
     def test_vault_noidentity_VaultDirShelf(self):
-        self.do_vault_noidentity(angr.vaults.VaultDirShelf)
+        self._do_vault_noidentity(angr.vaults.VaultDirShelf)
 
     def test_vault_identity_VaultDir(self):
-        self.do_vault_identity(angr.vaults.VaultDir)
+        self._do_vault_identity(angr.vaults.VaultDir)
 
     def test_vault_identity_VaultShelf(self):
-        self.do_vault_identity(angr.vaults.VaultShelf)
+        self._do_vault_identity(angr.vaults.VaultShelf)
 
     def test_vault_identity_VaultDict(self):
-        self.do_vault_identity(angr.vaults.VaultDict)
+        self._do_vault_identity(angr.vaults.VaultDict)
         # VaultDirShelf does not guarantee identity equivalence due to the absence of caching
         # yield do_vault_identity, angr.vaults.VaultDirShelf
 
     def test_ast_vault_do_ast_vault_VaultDir(self):
-        self.do_ast_vault(angr.vaults.VaultDir)
+        self._do_ast_vault(angr.vaults.VaultDir)
 
     def test_ast_vault_do_ast_vault_VaultShelf(self):
-        self.do_ast_vault(angr.vaults.VaultShelf)
+        self._do_ast_vault(angr.vaults.VaultShelf)
 
     def test_ast_vault_do_ast_vault_VaultDict(self):
-        self.do_ast_vault(angr.vaults.VaultDict)
+        self._do_ast_vault(angr.vaults.VaultDict)
     #     # VaultDirShelf does not guarantee identity equivalence due to the absence of caching
     #     # yield do_ast_vault, angr.vaults.VaultDirShelf
 
