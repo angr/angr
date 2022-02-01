@@ -76,6 +76,4 @@ class TestSyscallOverride(unittest.TestCase):
 
 if __name__ == "__main__":
     #run_fauxware_override('x86_64')
-    # for r,a in test_fauxware_override():
-    #     r(a)
     unittest.main()
