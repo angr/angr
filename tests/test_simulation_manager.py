@@ -141,13 +141,4 @@ class TestSimulationManager(unittest.TestCase):
         assert pg.avoid[0].addr == 0x4007C9
 
 if __name__ == "__main__":
-    # logging.getLogger('angr.sim_manager').setLevel('DEBUG')
-    # print('explore_with_cfg')
-    # test_explore_with_cfg()
-    # print('find_to_middle')
-    # test_find_to_middle()
-
-    # for func, march, threads in test_fauxware():
-    #     print('testing ' + march)
-    #     func(march, threads)
     unittest.main()
