@@ -1,4 +1,5 @@
 import unittest
+from common import broken
 
 import angr
 
@@ -69,10 +70,23 @@ class TestSyscallOverride(unittest.TestCase):
         stdout = results.found[0].posix.dumps(1)
         assert b'HAHA\0' == stdout
 
-    def test_fauxware_override(self):
-        #for arch in target_addrs:
-        #   yield run_fauxware_override, arch
+    def test_fauxware_override_x86_64(self):
         self._run_fauxware_override('x86_64')
+
+    def test_fauxware_override_i386(self):
+        self._run_fauxware_override('i386')
+
+    @broken
+    def test_fauxware_override_ppc(self):
+        self._run_fauxware_override('ppc')
+
+    @broken
+    def test_fauxware_override_armel(self):
+        self._run_fauxware_override('armel')
+
+    @broken
+    def test_fauxware_override_mips(self):
+        self._run_fauxware_override('mips')
 
 if __name__ == "__main__":
     #run_fauxware_override('x86_64')
