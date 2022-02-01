@@ -55,7 +55,7 @@ class TestVariableRecovery(unittest.TestCase):
             raise NotImplementedError()
 
 
-    def _compare_register_variable(self, 
+    def _compare_register_variable(self,
         variable, variable_info
     ):  # pylint:disable=unused-argument
 
@@ -456,7 +456,7 @@ class TestVariableRecovery(unittest.TestCase):
                 "phi_variables_by_block": {},
             }, False)
 
-    def main():
+    def main(self):
 
         g = globals()
         if len(sys.argv) > 1:
