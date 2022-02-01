@@ -158,9 +158,4 @@ class TestVault(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    # for _a,_b in test_vault():
-    #   _a(_b)
-    # for _a,_b in test_ast_vault():
-    #   _a(_b)
-    # test_project()
     unittest.main()
