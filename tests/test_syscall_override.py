@@ -89,5 +89,4 @@ class TestSyscallOverride(unittest.TestCase):
         self._run_fauxware_override('mips')
 
 if __name__ == "__main__":
-    #run_fauxware_override('x86_64')
     unittest.main()
