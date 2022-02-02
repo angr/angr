@@ -237,7 +237,7 @@ class Clinic(Analysis):
                 new_stmts = copy.copy(block.statements)
                 new_block.statements = new_stmts
                 new_edge += (new_block,)
-            graph_copy.add_edge(*new_edge)
+            graph_copy.add_edge(*new_edge)  # pylint: disable=no-value-for-parameter
         return graph_copy
 
     @timethis
