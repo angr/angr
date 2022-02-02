@@ -336,13 +336,17 @@ class DataDependencyGraphAnalysis(Analysis):
         if act.action == SimActionData.WRITE:
             write_node = self._parse_action()
 
-            dep_found = self._create_dep_edges(act, write_node, read_nodes)
 
             src_nodes = read_nodes.get(write_node.value, None)
             if src_nodes:
                 # Write value came from a previous read value
                 for src_node in src_nodes:
                     self._graph.add_edge(src_node, write_node, label='val')
+                read_nodes.pop(write_node.value, None)  # Remove from read nodes before backup edge finder
+
+                # Helps with edge cases, ensures no more dependencies remain as tracked in tmp_deps and reg_deps
+                # per the SAO
+                self._create_dep_edges(act, write_node, read_nodes)
             elif len(read_nodes) == 0:
                 # No reads in this instruction before first write, so its value is direct
                 # if ConstantDepNode(write_node.value) not in self._canonical_graph_nodes:
@@ -356,8 +360,10 @@ class DataDependencyGraphAnalysis(Analysis):
                     # diff = list(read_nodes.keys())[0] - write_node.value
                     # edge_label = f"{'-' if diff > 0 else '+'} {abs(diff)}"
                     self._graph.add_edge(stmt_read_node, write_node)  # label=edge_label)
-            elif not dep_found:
-                logger.error("Node <%r> written to without tracked value source!", write_node)
+            else:
+                dep_found = self._create_dep_edges(act, write_node, read_nodes)
+                if not dep_found:
+                    logger.warning("Node <%r> written to without tracked value source!", write_node)
 
             self._set_active_node(write_node)
             return act_loc
