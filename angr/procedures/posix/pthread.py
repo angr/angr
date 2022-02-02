@@ -47,8 +47,8 @@ class pthread_create(angr.SimProcedure):
 ######################################
 
 class pthread_cond_signal(angr.SimProcedure):
-    def run(self):
-        _ = self.arg(0)
+    def run(self, arg):
+        pass
 
 
 ######################################
@@ -57,8 +57,8 @@ class pthread_cond_signal(angr.SimProcedure):
 ######################################
 
 class pthread_mutex_lock(angr.SimProcedure):
-    def run(self):
-        _ = self.arg(0)
+    def run(self, arg):
+        pass
 
 
 ######################################
@@ -67,8 +67,8 @@ class pthread_mutex_lock(angr.SimProcedure):
 ######################################
 
 class pthread_mutex_unlock(angr.SimProcedure):
-    def run(self):
-        _ = self.arg(0)
+    def run(self, arg):
+        pass
 
 
 ######################################

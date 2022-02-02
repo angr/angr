@@ -33,8 +33,8 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         self.ignore_target_pages = set()
         self.symbolized_count = 0
         self.page_symbols = { }
-        self._min_addr = None
-        self._max_addr = None
+        self._min_addr = 0
+        self._max_addr = 0
 
         self._LE_FMT = None
         self._BE_FMT = None
@@ -115,8 +115,11 @@ class SimSymbolizer(SimStatePlugin): #pylint:disable=abstract-method
         return p % PAGE_SIZE
 
     def _update_ranges(self):
-        self._min_addr = self._page_addr(min(self.symbolization_target_pages))
-        self._max_addr = self._page_addr((max(self.symbolization_target_pages)+1))
+        if len(self.symbolization_target_pages) == 0:
+            self._max_addr = self._min_addr = 0
+        else:
+            self._min_addr = self._page_addr(min(self.symbolization_target_pages))
+            self._max_addr = self._page_addr((max(self.symbolization_target_pages)+1))
 
     def set_symbolization_for_all_pages(self):
         """
