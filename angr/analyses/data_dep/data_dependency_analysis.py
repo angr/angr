@@ -302,12 +302,41 @@ class DataDependencyGraphAnalysis(Analysis):
 
         return read_node
 
+    def _create_dep_edges(self, act, write_node, read_nodes: Dict[int, List['BaseDepNode']]) -> bool:
+        """Last resort for linking dependencies"""
+        # Check tmp and reg deps
+        var_read_nodes = []
+        for nodes in read_nodes.values():
+            for node in nodes:
+                if isinstance(node, VarDepNode):
+                    var_read_nodes.append(node)
+
+        possible_dep_nodes = {node.reg: node for node in var_read_nodes}
+
+        dep_found = False
+
+        for tmp_off in act.tmp_deps:
+            dep_node = possible_dep_nodes.get(tmp_off, None)
+            if dep_node and isinstance(dep_node, TmpDepNode):
+                dep_found = True
+                self._graph.add_edge(dep_node, write_node, label='unknown_dep')
+
+        for reg_off in act.reg_deps:
+            dep_node = possible_dep_nodes.get(reg_off, None)
+            if dep_node and not isinstance(dep_node, TmpDepNode):
+                dep_found = True
+                self._graph.add_edge(dep_node, write_node, label='unknown_dep')
+
+        return dep_found
+
     def _parse_var_statement(self, read_nodes: Optional[Dict[int, List['BaseDepNode']]] = None) -> SimActLocation:
         act = self._peek()
         act_loc = SimActLocation(act.bbl_addr, act.ins_addr, act.stmt_idx)
 
         if act.action == SimActionData.WRITE:
             write_node = self._parse_action()
+
+            dep_found = self._create_dep_edges(act, write_node, read_nodes)
 
             src_nodes = read_nodes.get(write_node.value, None)
             if src_nodes:
@@ -327,32 +356,8 @@ class DataDependencyGraphAnalysis(Analysis):
                     # diff = list(read_nodes.keys())[0] - write_node.value
                     # edge_label = f"{'-' if diff > 0 else '+'} {abs(diff)}"
                     self._graph.add_edge(stmt_read_node, write_node)  # label=edge_label)
-            else:
-                # Check tmp and reg deps
-                var_read_nodes = []
-                for nodes in read_nodes.values():
-                    for node in nodes:
-                        if isinstance(node, VarDepNode):
-                            var_read_nodes.append(node)
-
-                possible_dep_nodes = {node.reg: node for node in var_read_nodes}
-
-                dep_found = False
-
-                for tmp_off in act.tmp_deps:
-                    dep_node = possible_dep_nodes.get(tmp_off, None)
-                    if dep_node and isinstance(dep_node, TmpDepNode):
-                        dep_found = True
-                        self._graph.add_edge(dep_node, write_node, label='unknown_dep')
-
-                for reg_off in act.reg_deps:
-                    dep_node = possible_dep_nodes.get(reg_off, None)
-                    if dep_node and not isinstance(dep_node, TmpDepNode):
-                        dep_found = True
-                        self._graph.add_edge(dep_node, write_node, label='unknown_dep')
-
-                if not dep_found:
-                    logger.error("Node <%r> written to without tracked value source!", write_node)
+            elif not dep_found:
+                logger.error("Node <%r> written to without tracked value source!", write_node)
 
             self._set_active_node(write_node)
             return act_loc
