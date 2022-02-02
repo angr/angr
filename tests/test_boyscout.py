@@ -31,11 +31,46 @@ entries = [
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestBoyScout(unittest.TestCase):
-    def test_boyscout(self):
-        for a, b, c in entries:
-            yield self.main, a, b, c
+    def test_i386_all(self):
+        self._main("i386/all", "X86", "Iend_LE")
 
-    def main(self, file_path, arch, endianness):
+    def test_i386_fauxware(self):
+        self._main("i386/fauxware", "X86", "Iend_LE")
+
+    def test_x86_64_all(self):
+        self._main("x86_64/all", "AMD64", "Iend_LE")
+
+    def test_x86_64_basic_buffer_overflows(self):
+        self._main("x86_64/basic_buffer_overflows", "AMD64", "Iend_LE")
+
+    def test_x86_64_cfg_0(self):
+        self._main("x86_64/cfg_0", "AMD64", "Iend_LE")
+
+    def test_x86_64_cfg_1(self):
+        self._main("x86_64/cfg_1", "AMD64", "Iend_LE")
+
+    def test_armel_fauxware(self):
+        self._main("armel/fauxware", "ARM", "Iend_LE")
+
+    def test_armel_test_division(self):
+        self._main("armel/test_division", "ARM", "Iend_LE")
+
+    def test_armhf_fauxware(self):
+        self._main("armhf/fauxware", "ARM", "Iend_LE")
+
+    def test_mips_allcmps(self):
+        self._main("mips/allcmps", "MIPS32", "Iend_BE")
+
+    def test_mips_manysum(self):
+        self._main("mips/manysum", "MIPS32", "Iend_BE")
+
+    def test_mipsel_busybox(self):
+        self._main("mipsel/busybox", "MIPS32", "Iend_LE")
+
+    def test_mipsel_fauxware(self):
+        self._main("mipsel/fauxware", "MIPS32", "Iend_LE")
+
+    def _main(self, file_path, arch, endianness):
         f = os.path.join(test_location, file_path)
         l.debug("Processing %s", f)
 
@@ -80,7 +115,6 @@ class TestMain(unittest.TestCase):
 
         assert arch in bs.arch
         assert bs.endianness == endianness
-
 
     def test_i386_all(self):
         self._main("i386/all", "X86", "Iend_LE")
