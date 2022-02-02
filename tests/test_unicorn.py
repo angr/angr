@@ -252,7 +252,8 @@ def test_partial_reads():
     performed by unicorn. Unicorn triggers memory read hook twice when reading value greater than 8 bytes on x86-64.
     """
 
-    p = angr.Project(os.path.join(test_location, "binaries", "tests", "x86_64", "test_partial_reads_handling_in_unicorn"))
+    p = angr.Project(os.path.join(test_location, "binaries", "tests", "x86_64",
+                                  "test_partial_reads_handling_in_unicorn"), auto_load_libs=False)
     add_options = angr.options.unicorn
     # Do not treat as uninitalized memory as symbolic. Prevents introducing undesired symbolic taint
     add_options.add(angr.options.ZERO_FILL_UNCONSTRAINED_MEMORY)
