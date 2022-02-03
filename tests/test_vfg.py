@@ -52,6 +52,7 @@ vfg_1_addresses = {
 
 class TestVfg(unittest.TestCase):
     def _run_vfg_buffer_overflow(self, arch):
+        # pylint: disable=no-member
         proj = angr.Project(os.path.join(test_location, arch, "basic_buffer_overflows"),
                      use_sim_procedures=True,
                      default_analysis_mode='symbolic',
