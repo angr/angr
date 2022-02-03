@@ -156,7 +156,7 @@ class TestVfg(unittest.TestCase):
             record_function_final_states=True,
         )
 
-        all_block_addresses = set([n.addr for n in vfg.graph.nodes()])
+        all_block_addresses = {n.addr for n in vfg.graph.nodes()}
         assert vfg_1_addresses[arch].issubset(all_block_addresses)
 
         # return value for functions
