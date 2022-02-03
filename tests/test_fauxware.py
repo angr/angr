@@ -3,9 +3,9 @@ import os
 import unittest
 import pickle
 import logging
-import sys
-import angr
 from common import slow_test
+
+import angr
 
 from angr.state_plugins.history import HistoryIter
 
