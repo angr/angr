@@ -1785,6 +1785,11 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 							block_mem_reads_map.emplace(instr_entry_it->first, mem_read_result);
 							break;
 						}
+						else if (block_mem_reads_data.size() == 0) {
+							// This entry is of a partial memory read for the instruction being processed.
+							block_mem_reads_map.emplace(instr_entry_it->first, mem_read_result);
+							break;
+						}
 					}
 					if (block_mem_reads_data.size() == 0) {
 						// All pending reads have been processed and inserted into the map
@@ -1792,11 +1797,6 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 							// Update iterator since all reads for current instruction have been processed. We should
 							// start searching for next instruction with memory read from successor of this instruction.
 							instr_entry_it++;
-						}
-						else {
-							// There are still more reads pending for this instruction. Insert partial result value into the
-							// block's memory reads map
-							block_mem_reads_map.emplace(instr_entry_it->first, mem_read_result);
 						}
 						break;
 					}
