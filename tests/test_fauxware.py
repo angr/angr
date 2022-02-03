@@ -68,7 +68,6 @@ class TestFauxware(unittest.TestCase):
         # p.factory.block(divergent_point.addr).pp()
         assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
 
-
     def _run_pickling(self, arch):
         p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
         pg = p.factory.simulation_manager().run(n=10)
@@ -81,7 +80,6 @@ class TestFauxware(unittest.TestCase):
         pg.explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
         stdin = pg.found[0].posix.dumps(0)
         assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
-
 
     @slow_test
     def _run_fastmem(self, arch):
@@ -112,7 +110,6 @@ class TestFauxware(unittest.TestCase):
         )
         stdin = results.found[0].posix.dumps(0)
         assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
-
 
     def _run_merge(self, arch):
         p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
@@ -147,7 +144,6 @@ class TestFauxware(unittest.TestCase):
             assert b"SOSNEAKY" not in path.solver.eval(
                 inp, cast_to=bytes, extra_constraints=(no,)
             )
-
 
     def test_merge_i386(self):
         self._run_merge("i386")
@@ -218,7 +214,6 @@ class TestFauxware(unittest.TestCase):
 
     def test_nodecode_mips(self):
         self._run_nodecode("mips")
-
 
 if __name__ == "__main__":
     unittest.main()
