@@ -410,6 +410,28 @@ class SimEngineVRVEX(
     def _handle_Cmp_v(self, expr, vector_size, vector_count):
         return RichR(self.state.top(1))
 
+    def _handle_ExpCmpNE64(self, expr):
+        _, _ = self._expr(expr.args[0]), self._expr(expr.args[1])
+        return RichR(self.state.top(expr.result_size(self.tyenv)))
+
+    def _handle_Clz(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        if self.state.is_top(expr_0.data):
+            return RichR(self.state.top(expr_0.data.size()))
+        return RichR(self.state.top(expr_0.data.size()))
+
+    def _handle_Ctz(self, expr):
+        arg0 = expr.args[0]
+        expr_0 = self._expr(arg0)
+        if expr_0 is None:
+            return None
+        if self.state.is_top(expr_0.data):
+            return RichR(self.state.top(expr_0.data.size()))
+        return RichR(self.state.top(expr_0.data.size()))
+
     _handle_CmpEQ_v = _handle_Cmp_v
     _handle_CmpNE_v = _handle_Cmp_v
     _handle_CmpLE_v = _handle_Cmp_v
