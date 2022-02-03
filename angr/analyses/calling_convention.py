@@ -295,6 +295,12 @@ class CallingConventionAnalysis(Analysis):
         for _, dst, data in func.graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
 
+            # If the dst bb only contains a jump instruction, add the jump target as well.
+            dst_insns = func.get_block(dst.addr).capstone.insns
+            if len(dst_insns) == 1 and dst_insns[0].mnemonic == 'jmp':
+                for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
+                    subgraph.add_edge(dst, jmp_dst, **data)
+
         return subgraph
 
     def _analyze_callsite(self, caller_block_addr: int,
