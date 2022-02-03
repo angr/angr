@@ -30,9 +30,9 @@ class TestPtmalloc(unittest.TestCase):
         sc = s.copy()
         x = s.solver.BVS("x", 32)
         s.solver.add(x.UGE(0))
-        s.solver.add(x.ULE(max_sym_var_val(s)))
+        s.solver.add(x.ULE(self.max_sym_var_val(s)))
         s.heap.malloc(x)
-        sc.heap.malloc(max_sym_var_val(sc))
+        sc.heap.malloc(self.max_sym_var_val(sc))
         assert self.same_heap_states(s, sc)
 
     def test_malloc_maximizes_sym_arg_X86(self):
