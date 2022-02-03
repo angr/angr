@@ -221,8 +221,11 @@ class SimTypeBottom(SimType):
 
     _base_name = 'bot'
 
-    def __repr__(self, label=None):
-        return 'BOT'
+    def __init__(self, label=None):
+        super().__init__(label)
+
+    def __repr__(self):
+        return self.label or 'BOT'
 
     def _init_str(self):
         return "%s(%s)" % (
