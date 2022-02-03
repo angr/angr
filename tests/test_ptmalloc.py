@@ -20,10 +20,8 @@ class TestPtmalloc(unittest.TestCase):
     def same_heap_states(self, state1, state2):
         return self.chunk_iterators_are_same(state1.heap.chunks(), state2.heap.chunks())
 
-
     def max_sym_var_val(self, state):
         return state.libc.max_variable_size
-
 
     def _run_malloc_maximizes_sym_arg(self, arch):
         s = SimState(arch=arch, plugins={'heap': SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000)})
@@ -57,7 +55,6 @@ class TestPtmalloc(unittest.TestCase):
 
     def test_free_maximizes_sym_arg_AMD64(self):
         self._run_free_maximizes_sym_arg("AMD64")
-
 
     def _run_calloc_maximizes_sym_arg(self, arch):
         s = SimState(arch=arch, plugins={'heap': SimHeapPTMalloc(heap_base=0xd0000000, heap_size=0x1000)})
