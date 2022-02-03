@@ -288,9 +288,4 @@ class TestPtmalloc(unittest.TestCase):
         self._run_calloc_clears('AMD64')
 
 if __name__ == "__main__":
-    # g = globals().copy()
-    # for func_name, func in g.items():
-    #     if func_name.startswith("test_") and hasattr(func, '__call__'):
-    #         for r, a in func():
-    #             r(a)
     unittest.main()
