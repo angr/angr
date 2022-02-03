@@ -459,7 +459,10 @@ class SimEngineRDVEX(
                 if bits > v.size():
                     data.add(v.zero_extend(bits - v.size()))
                 else:
-                    data.add(v[bits - 1:0])
+                    if isinstance(v, claripy.ast.fp.FP):
+                        data.add(v.val_to_bv(bits))
+                    else:
+                        data.add(v[bits - 1:0])
             r = MultiValues(offset_to_values={next(iter(arg_0.values.keys())): data})
 
         else:
@@ -537,12 +540,13 @@ class SimEngineRDVEX(
         elif expr0_v is None and expr1_v is not None:
             # adding a single value to a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v + expr1_v for v in expr0.values[0]}
+
+                vs = {v.sign_extend(expr1_v.size() - v.size()) + expr1_v for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # adding a single value to a multivalue
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v + expr0_v for v in expr1.values[0]}
+                vs = {v.sign_extend(expr0_v.size() - v.size()) + expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # adding two single values together
@@ -640,7 +644,10 @@ class SimEngineRDVEX(
         else:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
+                if expr1_v._model_concrete.value == 0:
+                    r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+                else:
+                    r = MultiValues(offset_to_values={0: {expr0_v / expr1_v}})
 
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
@@ -700,12 +707,12 @@ class SimEngineRDVEX(
         elif expr0_v is None and expr1_v is not None:
             # bitwise-xor a single value with a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v ^ expr1_v for v in expr0.values[0]}
+                vs = {v.sign_extend(expr1_v.size() - v.size()) ^ expr1_v for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # bitwise-xor a single value to a multivalue
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {v ^ expr0_v for v in expr1.values[0]}
+                vs = {v.sign_extend(expr0_v.size() - v.size()) ^ expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             if expr0_v.concrete and expr1_v.concrete:
