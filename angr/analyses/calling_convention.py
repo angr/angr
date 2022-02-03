@@ -299,7 +299,7 @@ class CallingConventionAnalysis(Analysis):
             dst_insns = func.get_block(dst.addr).capstone.insns
             if len(dst_insns) == 1 and dst_insns[0].mnemonic == 'jmp':
                 for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
-                    subgraph.add_edge(dst, jmp_dst, **data)
+                    subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
         return subgraph
 
