@@ -1,12 +1,10 @@
-import sys
 import time
 import os
 import logging
 import unittest
-
+import claripy
 
 import angr
-import claripy
 
 l = logging.getLogger("angr_tests")
 
@@ -98,8 +96,7 @@ class TestVfg(unittest.TestCase):
 
     def broken_vfg_buffer_overflow(self):
         # Test for running VFG on a single function
-        # for arch in vfg_buffer_overflow_addresses:
-        self.run_vfg_buffer_overflow("x86_64")
+        self._run_vfg_buffer_overflow("x86_64")
 
 
     #
@@ -184,39 +181,8 @@ class TestVfg(unittest.TestCase):
 
     def test_vfg_1(self):
         # Test the code coverage of VFG
-        # for arch in vfg_1_addresses:
-        #     print(arch)
-        #     yield run_vfg_1, arch
         self._run_vfg_1("x86_64")
 
 
 if __name__ == "__main__":
-    # logging.getLogger("angr.state_plugins.abstract_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.sim_state").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.state_plugins.symbolic_memory").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.cfg").setLevel(logging.DEBUG)
-    # logging.getLogger("angr.analyses.vfg").setLevel(logging.DEBUG)
-    # Temporarily disable the warnings of claripy backend
-    # logging.getLogger("claripy.backends.backend").setLevel(logging.ERROR)
-    # logging.getLogger("claripy.claripy").setLevel(logging.ERROR)
-
-    # if len(sys.argv) == 1:
-    #     # TODO: Actually run all tests
-    #     # Run all tests
-
-    #     for f in list(globals().keys()):
-    #         if f.startswith("test_") and hasattr(globals()[f], "__call__"):
-    #             for test_func, arch_name in globals()[f]():
-    #                 test_func(arch_name)
-
-    # else:
-    #     f = "test_" + sys.argv[1]
-    #     if f in list(globals()):
-    #         func = globals()[f]
-    #         if hasattr(func, "__call__"):
-    #             for test_func, arch_ in func():
-    #                 test_func(arch_)
-    #         else:
-    #             print('"%s" does not exist, or is not a callable' % f)
     unittest.main()
