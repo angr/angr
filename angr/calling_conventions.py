@@ -871,7 +871,7 @@ class SimCC:
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
             if not isinstance(ty, SimTypePointer):
-                raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty.name)
+                raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty)
 
             if arg.buffer:
                 if isinstance(arg.value, claripy.Bits):
@@ -882,7 +882,11 @@ class SimCC:
                     raise TypeError("PointerWrapper(buffer=True) can only be used with a bitvector or a bytestring")
             else:
                 child_type = SimTypeArray(ty.pts_to) if type(arg.value) in (str, bytes, list) else ty.pts_to
-                real_value = SimCC._standardize_value(arg.value, child_type, state, alloc)
+                try:
+                    real_value = SimCC._standardize_value(arg.value, child_type, state, alloc)
+                except TypeError as e: # this is a dangerous catch...
+                    raise TypeError(f"Failed to store pointer-wrapped data ({e.args[0]}). "
+                                    "Do you want a PointerWrapper(buffer=True)?") from None
             return alloc(real_value, state)
 
         elif isinstance(arg, (str, bytes)):
@@ -911,7 +915,7 @@ class SimCC:
                     raise TypeError("String %s is too long for %s" % (repr(arg), ty))
                 arg = arg.ljust(ty.length + 1, b'\0')
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
+                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
             val = SimCC._standardize_value(list(arg), SimTypeFixedSizeArray(SimTypeChar(), len(arg)), state, alloc)
             if ref:
                 val = alloc(val, state)
@@ -933,7 +937,7 @@ class SimCC:
                     if len(arg) != ty.length:
                         raise TypeError("Array %s is the wrong length for %s" % (repr(arg), ty))
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
+                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
 
             val = [SimCC._standardize_value(sarg, subty, state, alloc) for sarg in arg]
             if ref:
@@ -942,7 +946,7 @@ class SimCC:
 
         elif isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
-                raise TypeError("Type mismatch: Expected %s, got %s (i.e. struct)" % (ty.name, type(arg)))
+                raise TypeError("Type mismatch: Expected %s, got %s (i.e. struct)" % (ty, type(arg)))
             if type(arg) is not SimStructValue:
                 if len(arg) != len(ty.fields):
                     raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
