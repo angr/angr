@@ -560,6 +560,42 @@ class SimEngineRDAIL(
 
         return r
 
+    def _ail_handle_Div(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        self._expr(arg0)
+        self._expr(arg1)
+        bits = expr.bits
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
+
+    def _ail_handle_DivMod(self, expr):
+        return self._ail_handle_Div(expr)
+
+    def _ail_handle_Mul(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        self._expr(arg0)
+        self._expr(arg1)
+        bits = expr.bits
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
+
+    def _ail_handle_Mull(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        self._expr(arg0)
+        self._expr(arg1)
+        bits = expr.bits
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
+
     def _ail_handle_Shr(self, expr: ailment.Expr.BinaryOp) -> MultiValues:
         expr0: MultiValues = self._expr(expr.operands[0])
         expr1: MultiValues = self._expr(expr.operands[1])
