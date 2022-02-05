@@ -1785,6 +1785,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     if multiplier is not None:
                         base = expr.lhs
                         offset = expr.rhs
+                    else:
+                        # no multiplier is found
+                        # variable + variable?
+                        base = expr.lhs
+                        offset = expr.rhs
                 elif isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CVariable):
                     # GUESS: we need some guessing here
                     base = expr.lhs
