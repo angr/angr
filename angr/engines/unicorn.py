@@ -3,6 +3,7 @@ import functools
 import logging
 
 import archinfo
+import claripy
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
@@ -10,6 +11,7 @@ from .. import sim_options as o
 from ..misc.ux import once
 from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
 from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
+from ..utils.constants import DEFAULT_STATEMENT
 
 #pylint: disable=arguments-differ
 
@@ -125,9 +127,22 @@ class SimEngineUnicorn(SuccessorsMixin):
             self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
             del self._instr_mem_reads
 
+        if block_details["has_symbolic_exit"]:
+            # Process block's default exit
+            saved_state = self.state.copy()
+            self.stmt_idx = DEFAULT_STATEMENT  # pylint:disable=attribute-defined-outside-init
+            super()._handle_vex_defaultexit(vex_block.next, vex_block.jumpkind)  # pylint:disable=no-member
+            self.state = saved_state
+            self.state.scratch.guard = claripy.true
+
         del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
+        recent_bbl_addrs = None
+        stop_details = None
+        last_symbolic_branch_state = None
+        # Enable state copying so that symbolic exits are handled correctly
+        self.state.options.add(o.COPY_STATES)
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
                 if self.state.os_name == "CGC" and block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
@@ -148,9 +163,34 @@ class SimEngineUnicorn(SuccessorsMixin):
                     ret_val = getattr(syscall_simproc, syscall_simproc.run_func)(*syscall_args)
                     self.state.registers.store("eax", ret_val, inspect=False, disable_actions=True)
                 else:
+                    if block_details["has_symbolic_exit"]:
+                        curr_succs_count = len(self.successors.successors)
+                        if not recent_bbl_addrs:
+                            recent_bbl_addrs = self.state.unicorn.get_recent_bbl_addrs()
+
+                        if not stop_details:
+                            stop_details = self.state.unicorn.get_stop_details()
+
                     self._execute_block_instrs_in_vex(block_details)
+                    if block_details["has_symbolic_exit"]:
+                        # Using the state's record of basic blocks executed and block were native interface stopped,
+                        # mark satisfiable successor that follows the path traced till now as not a valid successor
+                        curr_succs = self.successors.successors
+                        next_block_on_path = None
+                        if block_details["block_hist_ind"] + 1 < len(recent_bbl_addrs):
+                            next_block_on_path = recent_bbl_addrs[block_details["block_hist_ind"] + 1]
+                        else:
+                            next_block_on_path = stop_details.block_addr
+
+                        for succ in curr_succs[curr_succs_count:]:
+                            if succ.addr == next_block_on_path:
+                                last_symbolic_branch_state = succ.copy()
+                                self.successors.flat_successors.remove(succ)
             except SimValueError as e:
                 l.error(e)
+
+        self.state.options.remove(o.COPY_STATES)
+        return last_symbolic_branch_state
 
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
@@ -290,10 +330,13 @@ class SimEngineUnicorn(SuccessorsMixin):
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()
             state.unicorn.start(step=step)
-            self._execute_symbolic_instrs()
-            state.unicorn.finish()
+            last_sym_branch_state = self._execute_symbolic_instrs()
+            state.unicorn.finish(last_sym_branch_state)
         finally:
-            state.unicorn.destroy()
+            state.unicorn.destroy(last_sym_branch_state)
+
+        if last_sym_branch_state:
+            state = last_sym_branch_state
 
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine

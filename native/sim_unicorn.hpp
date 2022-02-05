@@ -225,6 +225,7 @@ struct instr_details_t {
 struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
 	bool has_symbolic_exit;
 	std::vector<instr_details_t> symbolic_instrs;
 	bool vex_lift_failed;
@@ -235,6 +236,7 @@ struct block_details_t {
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
 		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		vex_lift_failed = false;
@@ -270,6 +272,7 @@ struct sym_instr_details_t {
 struct sym_block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
 	bool has_symbolic_exit;
 	std::vector<sym_instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
@@ -277,6 +280,7 @@ struct sym_block_details_t {
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
 		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		register_values.clear();
@@ -287,7 +291,8 @@ struct sym_block_details_t {
 // C++ STL containers
 struct sym_block_details_ret_t {
 	uint64_t block_addr;
-    uint64_t block_size;
+	uint64_t block_size;
+	int64_t block_trace_ind;
 	bool has_symbolic_exit;
     sym_instr_details_t *symbolic_instrs;
     uint64_t symbolic_instrs_count;
@@ -579,6 +584,9 @@ class State {
 
 	// Determine if symbolic conditions should be handled or not
 	bool handle_symbolic_conditions;
+
+	// Count of blocks executed in native interface
+	int64_t executed_blocks_count;
 
 	// Private functions
 

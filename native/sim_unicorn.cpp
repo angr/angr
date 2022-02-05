@@ -57,6 +57,7 @@ State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addr
 	trace_last_block_addr = 0;
 	trace_last_block_tot_count = -1;
 	trace_last_block_curr_count = -1;
+	executed_blocks_count = -1;
 }
 
 /*
@@ -155,6 +156,7 @@ void State::stop(stop_t reason, bool do_commit) {
 		sym_block.reset();
 		sym_block.block_addr = block.block_addr;
 		sym_block.block_size = block.block_size;
+		sym_block.block_trace_ind = block.block_trace_ind;
 		sym_block.has_symbolic_exit = block.has_symbolic_exit;
 		std::set<instr_details_t> sym_instrs;
 		std::unordered_set<register_value_t> reg_values;
@@ -215,6 +217,9 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 			// Executing last block in trace. Stop.
 			stop(STOP_STOPPOINT);
 		}
+	}
+	if (!stopped) {
+		executed_blocks_count++;
 	}
 }
 
@@ -2157,6 +2162,7 @@ void State::read_memory_value(address_t address, uint64_t size, uint8_t *result,
 void State::start_propagating_taint(address_t block_address, int32_t block_size) {
 	curr_block_details.block_addr = block_address;
 	curr_block_details.block_size = block_size;
+	curr_block_details.block_trace_ind = executed_blocks_count;
 	if (is_symbolic_tracking_disabled()) {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
@@ -2415,6 +2421,8 @@ void State::perform_cgc_receive() {
 		block_details_t block_for_receive;
 		block_for_receive.block_addr = cgc_receive_bbl;
 		block_for_receive.block_size = 0;
+		block_for_receive.block_trace_ind = executed_blocks_count;
+		block_for_receive.has_symbolic_exit = false;
 		instr_details_t instr_for_receive;
 		// First argument: ebx
 		register_value_t reg_val;
@@ -2903,6 +2911,7 @@ void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_blo
 	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
 		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
 		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
+		ret_block_details[i].block_trace_ind = state->block_details_to_return[i].block_trace_ind;
 		ret_block_details[i].has_symbolic_exit = state->block_details_to_return[i].has_symbolic_exit;
 		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
 		ret_block_details[i].symbolic_instrs_count = state->block_details_to_return[i].symbolic_instrs.size();
