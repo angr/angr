@@ -80,6 +80,5 @@ class PropagatorEmulatedHeavyVEXMixin(HeavyVEXMixin):
     #     for succ in successors.all_successors:
     #         if succ.addr != succ.globals['cur_block_id'].addr:
     #             cur_block_id = succ.globals['cur_block_id']
-    #             succ.globals['cur_block_id'] = BlockID.new(succ.addr, cur_block_id.callsite_tuples, cur_block_id.vm_vpc,
-    #                                                        cur_block_id.branch_trace, cur_block_id.jump_type)
+    #             succ.globals['cur_block_id'] = BlockID.new(succ.addr, cur_block_id.callsite_tuples, cur_block_id.jump_type, cur_block_id.vm_vpc)
     #
