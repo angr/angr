@@ -225,6 +225,7 @@ struct instr_details_t {
 struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	bool has_symbolic_exit;
 	std::vector<instr_details_t> symbolic_instrs;
 	bool vex_lift_failed;
 	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
@@ -234,6 +235,7 @@ struct block_details_t {
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		vex_lift_failed = false;
 		vex_lift_result = NULL;
@@ -268,12 +270,14 @@ struct sym_instr_details_t {
 struct sym_block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	bool has_symbolic_exit;
 	std::vector<sym_instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		register_values.clear();
 	}
@@ -284,6 +288,7 @@ struct sym_block_details_t {
 struct sym_block_details_ret_t {
 	uint64_t block_addr;
     uint64_t block_size;
+	bool has_symbolic_exit;
     sym_instr_details_t *symbolic_instrs;
     uint64_t symbolic_instrs_count;
     register_value_t *register_values;

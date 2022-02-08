@@ -155,6 +155,7 @@ void State::stop(stop_t reason, bool do_commit) {
 		sym_block.reset();
 		sym_block.block_addr = block.block_addr;
 		sym_block.block_size = block.block_size;
+		sym_block.has_symbolic_exit = block.has_symbolic_exit;
 		std::set<instr_details_t> sym_instrs;
 		std::unordered_set<register_value_t> reg_values;
 		for (auto &sym_instr: block.symbolic_instrs) {
@@ -1830,7 +1831,12 @@ void State::propagate_taints() {
 			return;
 		}
 		else if (is_block_exit_guard_symbolic()) {
-			stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
+			if (handle_symbolic_conditions) {
+				curr_block_details.has_symbolic_exit = true;
+			}
+			else {
+				stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
+			}
 		}
 		else if (!handle_symbolic_conditions && is_block_next_target_symbolic()) {
 			stop(STOP_SYMBOLIC_BLOCK_EXIT_TARGET);
@@ -2897,6 +2903,7 @@ void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_blo
 	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
 		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
 		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
+		ret_block_details[i].has_symbolic_exit = state->block_details_to_return[i].has_symbolic_exit;
 		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
 		ret_block_details[i].symbolic_instrs_count = state->block_details_to_return[i].symbolic_instrs.size();
 		ret_block_details[i].register_values = &(state->block_details_to_return[i].register_values[0]);

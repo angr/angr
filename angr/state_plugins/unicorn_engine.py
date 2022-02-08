@@ -107,6 +107,7 @@ class BlockDetails(ctypes.Structure):
     _fields_ = [
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64),
+        ('has_symbolic_exit', ctypes.c_bool),
         ('symbolic_instrs', ctypes.POINTER(InstrDetails)),
         ('symbolic_instrs_count', ctypes.c_uint64),
         ('register_values', ctypes.POINTER(RegisterValue)),
@@ -1035,7 +1036,8 @@ class Unicorn(SimStatePlugin):
         block_details_list = (BlockDetails * block_count)()
         _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
         for block_details in block_details_list:
-            entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size, "registers": {}}
+            entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size,
+                     "has_symbolic_exit": block_details.has_symbolic_exit}
             entry["registers"] = _get_register_values(block_details.register_values[:block_details.register_values_count])
             entry["instrs"] = _get_instr_details(block_details.symbolic_instrs[:block_details.symbolic_instrs_count])
             yield entry
