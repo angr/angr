@@ -12,7 +12,10 @@ import time
 import binascii
 import archinfo
 
-from ..sim_options import UNICORN_HANDLE_TRANSMIT_SYSCALL
+from angr.engines.vex.claripy import ccall
+from angr.sim_state import SimState
+
+from .. import sim_options as options
 from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
 from .plugin import SimStatePlugin
 from ..misc.testing import is_testing
@@ -185,6 +188,11 @@ class StopDetails(ctypes.Structure):
         ('block_size', ctypes.c_uint64),
     ]
 
+class SimOSEnum:
+    SIMOS_CGC   = 0
+    SIMOS_LINUX = 1
+    SIMOS_OTHER = 2
+
 #
 # Memory mapping errors - only used internally
 #
@@ -351,7 +359,7 @@ def _load_native():
             getattr(handle, func).argtypes = argtypes
 
         #_setup_prototype_explicit(h, 'logSetLogLevel', None, ctypes.c_uint64)
-        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64)
+        _setup_prototype(h, 'alloc', state_t, uc_engine_t, ctypes.c_uint64, ctypes.c_uint64)
         _setup_prototype(h, 'dealloc', None, state_t)
         _setup_prototype(h, 'hook', None, state_t)
         _setup_prototype(h, 'unhook', None, state_t)
@@ -374,7 +382,7 @@ def _load_native():
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
-        _setup_prototype(h, 'set_transmit_sysno', None, state_t, ctypes.c_uint32, ctypes.c_uint64)
+        _setup_prototype(h, 'set_cgc_syscall_details', None, state_t, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
@@ -388,6 +396,7 @@ def _load_native():
         _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_unicorn_flags_register_id', None, state_t, ctypes.c_int64)
+        _setup_prototype(h, 'set_fd_bytes', state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -507,9 +516,15 @@ class Unicorn(SimStatePlugin):
         self._concretized_asts = set() if concretized_asts is None else concretized_asts
 
         # the address to use for concrete transmits
-        self.transmit_addr = None
+        self.cgc_transmit_addr = None
+
+        # the address for CGC receive
+        self.cgc_receive_addr = None
 
         self.time = None
+
+        # Concrete bytes of open fds
+        self.fd_bytes = {}
 
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
@@ -538,7 +553,8 @@ class Unicorn(SimStatePlugin):
         u.countdown_symbolic_stop = self.countdown_symbolic_stop
         u.countdown_unsupported_stop = self.countdown_unsupported_stop
         u.countdown_stop_point = self.countdown_stop_point
-        u.transmit_addr = self.transmit_addr
+        u.cgc_receive_addr = self.cgc_receive_addr
+        u.cgc_transmit_addr = self.cgc_transmit_addr
         u._uncache_regions = list(self._uncache_regions)
         u.gdt = self.gdt
         return u
@@ -1019,8 +1035,16 @@ class Unicorn(SimStatePlugin):
             # reset the state and re-raise
             self.uc.reset()
             raise
+
+        if self.state.os_name == "CGC":
+            simos_val = SimOSEnum.SIMOS_CGC
+        elif self.state.os_name == "Linux":
+            simos_val = SimOSEnum.SIMOS_LINUX
+        else:
+            simos_val = SimOSEnum.SIMOS_OTHER
+
         # tricky: using unicorn handle from unicorn.Uc object
-        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key)
+        self._uc_state = _UC_NATIVE.alloc(self.uc._uch, self.cache_key, simos_val)
 
         if options.UNICORN_SYM_REGS_SUPPORT in self.state.options and \
                 options.UNICORN_AGGRESSIVE_CONCRETIZATION not in self.state.options:
@@ -1040,12 +1064,22 @@ class Unicorn(SimStatePlugin):
             else:
                 _UC_NATIVE.symbolic_register_data(self._uc_state, 0, None)
 
-        # set (cgc, for now) transmit syscall handler
-        if UNICORN_HANDLE_TRANSMIT_SYSCALL in self.state.options and self.state.has_plugin('cgc'):
-            if self.transmit_addr is None:
-                l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
-                self.transmit_addr = 0
-            _UC_NATIVE.set_transmit_sysno(self._uc_state, 2, self.transmit_addr)
+        # set (cgc, for now) transmit and receive syscall handler
+        if self.state.has_plugin('cgc'):
+            if options.UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL in self.state.options:
+                if self.cgc_transmit_addr is None:
+                    l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
+                    self.cgc_transmit_addr = 0
+
+            if options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in self.state.options:
+                if self.cgc_receive_addr is None:
+                    l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
+                    self.cgc_receive_addr = 0
+                else:
+                    # Set stdin bytes in native interface
+                    self.fd_bytes[0] = bytearray(self.state.posix.fd.get(0).concretize()[0])
+
+            _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, self.cgc_transmit_addr, 3, self.cgc_receive_addr)
 
         # set memory map callback so we can call it explicitly
         _UC_NATIVE.set_map_callback(self._uc_state, self._bullshit_cb)
@@ -1053,6 +1087,12 @@ class Unicorn(SimStatePlugin):
         # activate gdt page, which was written/mapped during set_regs
         if self.gdt is not None:
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
+
+        # Pass all concrete fd bytes to native interface so that it can handle relevant syscalls
+        for fd_num, fd_data in self.fd_bytes.items():
+            fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
+            read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
+            _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = self.state.arch.artificial_registers_offsets
@@ -1557,9 +1597,4 @@ class Unicorn(SimStatePlugin):
         #l.debug('passed quick check')
         return True
 
-
-from angr.engines.vex.claripy import ccall
-from .. import sim_options as options
-
-from angr.sim_state import SimState
 SimState.register_default('unicorn', Unicorn)
