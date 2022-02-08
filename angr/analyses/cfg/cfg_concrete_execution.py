@@ -99,7 +99,7 @@ class CFGJob(CFGJobBase):
         if self._block_id is None:
             # generate a new block ID
             self._block_id = CFGVMDeobfuscation._generate_block_id(
-                self.call_stack.stack_suffix(self._context_sensitivity_level), self.vm_vpc, self.branch_trace, self.addr, self.is_syscall)
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.vm_vpc, self.addr, self.is_syscall)
         return self._block_id
 
     @property
@@ -1022,7 +1022,6 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         for item in self._starts:
             callstack = None
             vm_vpc = None
-            branch_trace = None
             if isinstance(item, tuple):
                 # (addr, jumpkind)
                 ip = item[0]
@@ -1038,7 +1037,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
                 raise AngrCFGError('Unsupported CFG start type: %s.' % str(type(item)))
 
             self._symbolic_function_initial_state[ip] = state
-            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, vm_vpc, branch_trace, None, None, call_stack=callstack)
+            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, vm_vpc, None, None, call_stack=callstack)
             key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)

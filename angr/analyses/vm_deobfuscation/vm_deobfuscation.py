@@ -465,6 +465,10 @@ class VMDeobfuscation(Analysis):
         print("Doing constant propagation")
         new_cfg = self.constant_propagation(cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "cp_result.svg"))
+
+        # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
+        new_cfg = self.remove_useless_jump_instructions(new_cfg, proj, start_addr, vm_vpc_addr, start_state, initial_cfg)
+
         # DCE commented out temporarily to make testing faster for block simplifications
         changed = True
         i = 0
@@ -474,12 +478,15 @@ class VMDeobfuscation(Analysis):
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
         self.draw_graph(new_cfg, os.path.join(folder_name, "DCE_result.svg"))
 
-        # Right now cannot do block arithmetic simps after joining blocks because it doesn't reorder instructions correctly (need to make it block_id sensitive)_
+        # Commenting block arithmetic simps because it fuks up the order of VEX insts e.g. btc, btr
         for i in range(2):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "block_arithmetic_simplifications.svg"))
 
-        # commented this for test_vmp to show the add eax,1 result
+        new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join("dae_2_result.svg"))
+
+                # commented this for test_vmp to show the add eax,1 result
         for i in range(4):
             new_cfg = self.join_basic_blocks(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "join_basic_blocks.svg"))
@@ -487,7 +494,13 @@ class VMDeobfuscation(Analysis):
         # self.simplifications(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr)
         # Need to copy the arith simplifications back to the node.irsb, for below
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
-        self.draw_graph(new_cfg, os.path.join("dae_result.svg"))
+        self.draw_graph(new_cfg, os.path.join("dae_1_result.svg"))
+
+        ## Simplification to remove btc, bt, bts instructions..................... useless stuff because of the way VEX implements it
+        new_cfg = self.remove_vex_bs(new_cfg, proj, start_addr, vm_vpc_addr, start_state, initial_cfg)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "removed_vex_btc_insts.svg"))
+
+
         # DCE again to remove the temp variables remaining after dead assignment elimination, should I just do this along with DSA(being lazy is what it is)
         changed = True
         i = 0
@@ -497,6 +510,7 @@ class VMDeobfuscation(Analysis):
             new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
 
+        # Commenting remove redun store load simps because it fuks up the order of VEX insts e.g. btc, btr
         new_cfg = self.remove_redundant_store_load(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join(folder_name, "debug_2_result.svg"))
         changed = True
@@ -517,17 +531,21 @@ class VMDeobfuscation(Analysis):
             print("DCE round "+str(i))
             new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
 
-        for i in range(15):
+        for i in range(10):
             new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
 
         changed = True
         i = 0
-        while changed and i < 5:
+        while changed and i < 10:
             i=i+1
             print("DCE round "+str(i))
             new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i) + "final_dce_result.svg"))
+
+        for i in range(10, 15):
+            new_cfg = self.block_arithmetic_simplifications(new_cfg, proj, start_state=start_state)
+            self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_block_arithmetic_simplifications.svg"))
 
 
         self.perform_semantic_verification(new_cfg, proj, start_state=start_state, start_addr=start_addr, input=verification_input)
@@ -536,6 +554,109 @@ class VMDeobfuscation(Analysis):
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, cfg, proj, folder_name)
+
+    # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
+    def remove_useless_jump_instructions(self, cfg, proj, start_addr, vm_vpc_addr, start_state, orig_cfg):
+        new_model = self.new_model_graph(cfg.graph, proj, 'remove_useless_jumps')
+
+        for node in list(new_model.graph.nodes()):
+            if node.is_simprocedure:
+                continue
+
+            if len(list(new_model.graph.successors(node))) == 1 and isinstance(node.irsb.statements[-1], pyvex.stmt.Exit):
+                if node.irsb.statements[-1].dst.value == list(new_model.graph.successors(node))[0].addr:
+                    new_statements = node.irsb.statements[:-1]
+                    new_next = pyvex.expr.Const(DataSensitiveU64(node.irsb.statements[-1].dst.value, node.irsb.statements[-1].dst.block_id))
+                    node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                       node.irsb.addr,
+                                                       statements=new_statements,
+                                                       tyenv=node.irsb.tyenv,
+                                                       nxt=new_next,
+                                                       direct_next=node.irsb.direct_next,
+                                                       jumpkind=node.irsb.jumpkind,
+                                                       size=node.irsb.size)
+
+                else:
+                    new_statements = node.irsb.statements[:-1]
+                    node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                       node.irsb.addr,
+                                                       statements=new_statements,
+                                                       tyenv=node.irsb.tyenv,
+                                                       nxt=node.irsb.next,
+                                                       direct_next=node.irsb.direct_next,
+                                                       jumpkind=node.irsb.jumpkind,
+                                                       size=node.irsb.size)
+
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        return new_cfg
+
+
+    # remove the unnecessary obfuscation added by VEX for the bts, bt and btc instructions
+    def remove_vex_bs(self, cfg, proj, start_addr, vm_vpc_addr, start_state, orig_cfg):
+        to_remove_inst_addrs = []
+        for orig_cfg_node in orig_cfg.graph.nodes():
+            for orig_ins in proj.factory.block(orig_cfg_node.addr).capstone.insns:
+                if orig_ins.mnemonic in ['btc', 'bts', 'bt', 'btr']:
+                    to_remove_inst_addrs.append(orig_ins.address)
+
+        new_model = self.new_model_graph(cfg.graph, proj, 'remove_vex_bs')
+        for node in list(new_model.graph.nodes()):
+            if node.is_simprocedure:
+                continue
+
+            to_remove_stmt_idxs = []
+            add_to_list = 0
+            for ind, stmt in enumerate(node.irsb.statements):
+                if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in to_remove_inst_addrs:
+                    add_to_list = 1
+                elif isinstance(stmt, pyvex.stmt.IMark) and stmt.addr not in to_remove_inst_addrs:
+                    add_to_list = 0
+
+                if add_to_list == 1 and isinstance(stmt, pyvex.stmt.Store):
+                    to_remove_stmt_idxs.append(ind)
+
+
+            new_statements = []
+            for idx, stmt in enumerate(node.irsb.statements):
+                if idx in to_remove_stmt_idxs:
+                    continue
+
+                new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_statements,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        return new_cfg
+
 
     def join_basic_blocks(self, cfg, proj, start_addr, vm_vpc_addr, start_state):
         new_model = self.new_model_graph(cfg.graph, proj, 'join_basic_blocks')
@@ -873,6 +994,8 @@ class VMDeobfuscation(Analysis):
 
                 if isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
                     for use in uses:
+                        # if d.codeloc.ins_addr == 0x6f98b3:
+                        #     import ipdb;ipdb.set_trace()
                         if not use.sim_procedure and isinstance(node.irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
                             ## making sure the the Load is loading the entire stored value and not e.g. 1 byte of it, in which case we should not remove it THIS MIGHT BE AN ISSUE I NEED TO FIX IN THE FUTURE
                             if self.project.arch.bits == 64 and node.irsb.statements[use.stmt_idx].data.ty == 'Ity_I64' and d.atom.size == 8:
@@ -944,6 +1067,9 @@ class VMDeobfuscation(Analysis):
             dead_defs_stmt_idx = set()
             all_defs = rd.all_definitions
             for d in all_defs:
+                # if d.codeloc.ins_addr == 0x65ef95:
+                #     import ipdb;
+                #     ipdb.set_trace()
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                     continue
 
@@ -1103,6 +1229,8 @@ class VMDeobfuscation(Analysis):
                         cur_ins_addr = stmt.addr
                         cur_ins_ind = ind
                         continue
+                    # if cur_ins_addr == 0x6f98b3:
+                    #     import ipdb;ipdb.set_trace()
 
                     code_loc = CodeLocation(node.addr, ind, ins_addr=cur_ins_addr)
                     ins_ind_sens_code_loc = IndSensitiveCodeLocation(node.addr, ind, ins_addr=cur_ins_addr, ins_ind=cur_ins_ind)
@@ -1128,6 +1256,25 @@ class VMDeobfuscation(Analysis):
                         stmt_atom = self.convert_to_atom(stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
                         stmt_node = StatementNode(stmt, ins_ind_sens_code_loc, def_atom=stmt_atom)
                         stmt_graph.add_node(stmt_node)
+
+                    # This is for symbolic store/loads
+                    if code_loc in result.uses_of_store_def_dict:
+                        for load_loc in result.uses_of_store_def_dict[code_loc]:
+                            load_stmt = node.irsb.statements[load_loc.stmt_idx]
+                            tmp_atom = self.convert_to_atom(load_stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
+                            if isinstance(load_loc, ExternalCodeLocation):
+                                load_node = StatementNode(None, load_loc, def_atom=tmp_atom)
+                            else:
+                                imark_ins_ind = self.find_index_of_IMark(load_loc.ins_addr, node.irsb.statements,
+                                                                         load_loc.stmt_idx)
+                                new_ins_ind_sens_codeloc = IndSensitiveCodeLocation(load_loc.block_addr,
+                                                                                    load_loc.stmt_idx,
+                                                                                    ins_addr=load_loc.ins_addr,
+                                                                                    ins_ind=imark_ins_ind)
+                                load_node = StatementNode(load_stmt, new_ins_ind_sens_codeloc, def_atom=tmp_atom)
+                            store_atom = self.convert_to_atom(stmt, node.irsb.tyenv, node.irsb.arch.byte_width)
+                            store_node = StatementNode(stmt, ins_ind_sens_code_loc, def_atom=store_atom)
+                            stmt_graph.add_edge(load_node, store_node)
 
                 ## split the graph into connected components
                 conn_comps = nx.weakly_connected_components(stmt_graph.graph)
@@ -1386,7 +1533,6 @@ class VMDeobfuscation(Analysis):
                                     block_id=copy.deepcopy(node.block_id),
                                     size=copy.deepcopy(node.size),
                                     vm_vpc=copy.deepcopy(node.vm_vpc),
-                                    branch_trace = copy.deepcopy(node.branch_trace),
                                     looping_times=copy.deepcopy(node.looping_times),
                                     callstack_key=copy.deepcopy(node.callstack_key),
                                     simprocedure_name=copy.deepcopy(node.simprocedure_name),
@@ -1429,7 +1575,6 @@ class VMDeobfuscation(Analysis):
                                 block_id=copy.deepcopy(node.block_id),
                                 size=copy.deepcopy(node.size),
                                 vm_vpc=copy.deepcopy(node.vm_vpc),
-                                branch_trace = copy.deepcopy(node.branch_trace),
                                 looping_times=copy.deepcopy(node.looping_times),
                                 callstack_key=copy.deepcopy(node.callstack_key),
                                 simprocedure_name=copy.deepcopy(node.simprocedure_name),
@@ -1964,7 +2109,7 @@ class VMDeobfuscation(Analysis):
         original_addresses = []
         original_instructions = []
         for orig_cfg_node in orig_cfg.graph.nodes():
-            original_addresses = original_addresses + proj.factory.block(orig_cfg_node.addr).instruction_addrs
+            original_addresses = original_addresses + list(proj.factory.block(orig_cfg_node.addr).instruction_addrs)
             original_instructions = original_instructions + proj.factory.block(orig_cfg_node.addr).capstone.insns
 
         #### Iterating over nodes of the initial graph
@@ -2009,9 +2154,14 @@ class VMDeobfuscation(Analysis):
                         # STle(0x00000000006027a0) = 0x00
                         # to
                         #  mov byte ptr [0x00000000006027a0], 0x00
-                        match_result = re.match("\nSTle\((\w+)\)\s=\s(\w{4})",cur_ins_str)
+                        match_result = re.match("\nSTle\((\w+)\)\s=\s(\w+)",cur_ins_str)
                         if match_result:
-                            x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov byte ptr [" + match_result.group(1) +"], "+match_result.group(2) +"</FONT>"
+                            if len(match_result.group(2)) == 4:
+                                x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(hex(curr_ins_addr))+": mov byte ptr [" + match_result.group(1) +"], "+match_result.group(2) +"</FONT>"
+                            elif len(match_result.group(2)) == 18:
+                                x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(
+                                    hex(curr_ins_addr)) + ": mov [" + match_result.group(
+                                    1) + "], " + match_result.group(2) + "</FONT>"
                             continue
                         ###### This is a regex for converting
                         # ------ IMark(0x40085f, 0, 0) ------
@@ -2021,11 +2171,16 @@ class VMDeobfuscation(Analysis):
                         # mov byte ptr [rbp - 9], 0x0000000000602320
                         match_result = re.match("\nt\d+\s=\sAdd64\(t\d+,0x\w+\)\nSTle\((\w+)\)\s=\s(\w+)",cur_ins_str)
                         if match_result:
-                            second_arg = original_instructions[original_addresses.index(curr_ins_addr)].insn.op_str.split(',')[1]
-                            is_reg = re.match("\s[a-z]+", second_arg)
-                            is_tmp = re.match("\st*", second_arg)
-                            if is_reg and not is_tmp:
-                                x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ")[:-3]+match_result.group(2) + "</FONT>"
+                            if original_instructions[original_addresses.index(curr_ins_addr)].insn.mnemonic != 'push':
+                                second_arg = original_instructions[original_addresses.index(curr_ins_addr)].insn.op_str.split(',')[1]
+                                is_reg = re.match("\s[a-z]+", second_arg)
+                                is_tmp = re.match("\st*", second_arg)
+                                if is_reg and not is_tmp:
+                                    x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + str(original_instructions[original_addresses.index(curr_ins_addr)]).replace("\t", " ")[:-3]+match_result.group(2) + "</FONT>"
+                                    continue
+                            else:
+                                x86_stmt_str = x86_stmt_str + "<BR ALIGN='LEFT'/> <FONT COLOR='orange'>" + "push " + match_result.group(
+                                    2) + "</FONT>"
                                 continue
 
                         match_result = re.match("\nt\d+\s=\sGET:I64\((\w+)\)\nt\d+\s=\s64to32\(t\d+\)\nt\d+\s=\st\d+\nt\d+\s=\sAdd32\((\w+),t\d+\)\nt\d+\s=\s32Uto64\(t\d+\)\nPUT\((\w+)\)\s=\st\d+",cur_ins_str)
