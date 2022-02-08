@@ -828,11 +828,13 @@ class State {
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
-		void start_propagating_taint(address_t block_address, int32_t block_size);
+		void start_propagating_taint();
 
 		void continue_propagating_taint();
 
 		bool check_symbolic_stack_mem_dependencies_liveness() const;
+
+		void set_curr_block_details(address_t block_address, int32_t block_size);
 
 		address_t get_instruction_pointer() const;
 

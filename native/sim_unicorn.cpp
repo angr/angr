@@ -2159,9 +2159,9 @@ void State::read_memory_value(address_t address, uint64_t size, uint8_t *result,
 	return;
 }
 
-void State::start_propagating_taint(address_t block_address, int32_t block_size) {
-	curr_block_details.block_addr = block_address;
-	curr_block_details.block_size = block_size;
+void State::start_propagating_taint() {
+	address_t block_address = curr_block_details.block_addr;
+	int32_t block_size = curr_block_details.block_size;
 	curr_block_details.block_trace_ind = executed_blocks_count;
 	if (is_symbolic_tracking_disabled()) {
 		// We're not checking symbolic registers so no need to propagate taints
@@ -2306,6 +2306,12 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 		}
 	}
 	return true;
+}
+
+void State::set_curr_block_details(address_t block_address, int32_t block_size) {
+	curr_block_details.block_addr = block_address;
+	curr_block_details.block_size = block_size;
+	return;
 }
 
 address_t State::get_instruction_pointer() const {
@@ -2574,10 +2580,11 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	}
 	state->commit();
 	state->update_previous_stack_top();
+	state->set_curr_block_details(address, size);
 	state->step(address, size);
 
 	if (!state->stopped) {
-		state->start_propagating_taint(address, size);
+		state->start_propagating_taint();
 	}
 	return;
 }
