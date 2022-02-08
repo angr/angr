@@ -3,7 +3,6 @@ import functools
 import logging
 
 import archinfo
-import claripy
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
@@ -133,14 +132,12 @@ class SimEngineUnicorn(SuccessorsMixin):
             self.stmt_idx = DEFAULT_STATEMENT  # pylint:disable=attribute-defined-outside-init
             super()._handle_vex_defaultexit(vex_block.next, vex_block.jumpkind)  # pylint:disable=no-member
             self.state = saved_state
-            self.state.scratch.guard = claripy.true
 
         del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
         recent_bbl_addrs = None
         stop_details = None
-        last_symbolic_branch_state = None
         # Enable state copying so that symbolic exits are handled correctly
         self.state.options.add(o.COPY_STATES)
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
@@ -173,24 +170,36 @@ class SimEngineUnicorn(SuccessorsMixin):
 
                     self._execute_block_instrs_in_vex(block_details)
                     if block_details["has_symbolic_exit"]:
-                        # Using the state's record of basic blocks executed and block were native interface stopped,
-                        # mark satisfiable successor that follows the path traced till now as not a valid successor
                         curr_succs = self.successors.successors
-                        next_block_on_path = None
-                        if block_details["block_hist_ind"] + 1 < len(recent_bbl_addrs):
-                            next_block_on_path = recent_bbl_addrs[block_details["block_hist_ind"] + 1]
+                        if len(curr_succs) == curr_succs_count + 1:
+                            # There is only one newly added satisfiable successor state and so that is the state that
+                            # follows path being traced
+                            self.state = curr_succs[curr_succs_count].copy()
+                            self.state.scratch.guard = self.state.solver.true
+                            self.successors.flat_successors.remove(curr_succs[curr_succs_count])
                         else:
-                            next_block_on_path = stop_details.block_addr
+                            # There are multiple satisfiable states. Use the state's record of basic blocks executed
+                            # and block where native interface stopped to determine which state followed the path traced
+                            # till now
 
-                        for succ in curr_succs[curr_succs_count:]:
-                            if succ.addr == next_block_on_path:
-                                last_symbolic_branch_state = succ.copy()
-                                self.successors.flat_successors.remove(succ)
+                            next_block_on_path = None
+                            if block_details["block_hist_ind"] + 1 < len(recent_bbl_addrs):
+                                next_block_on_path = recent_bbl_addrs[block_details["block_hist_ind"] + 1]
+                            else:
+                                next_block_on_path = stop_details.block_addr
+
+                            for succ in curr_succs[curr_succs_count:]:
+                                if succ.addr == next_block_on_path:
+                                    self.state = succ.copy()
+                                    self.state.scratch.guard = self.state.solver.true
+                                    self.successors.flat_successors.remove(succ)
+                                    break
+                            else:
+                                raise Exception("Multiple valid successor states found but none followed the trace!")
             except SimValueError as e:
                 l.error(e)
 
         self.state.options.remove(o.COPY_STATES)
-        return last_symbolic_branch_state
 
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
@@ -330,13 +339,12 @@ class SimEngineUnicorn(SuccessorsMixin):
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()
             state.unicorn.start(step=step)
-            last_sym_branch_state = self._execute_symbolic_instrs()
-            state.unicorn.finish(last_sym_branch_state)
+            self._execute_symbolic_instrs()
+            state.unicorn.finish(self.state)
         finally:
-            state.unicorn.destroy(last_sym_branch_state)
+            state.unicorn.destroy(self.state)
 
-        if last_sym_branch_state:
-            state = last_sym_branch_state
+        state = self.state
 
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine
