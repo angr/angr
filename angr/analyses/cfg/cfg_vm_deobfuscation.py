@@ -243,7 +243,7 @@ class CFGJob(CFGJobBase):
         if self._block_id is None:
             # generate a new block ID
             self._block_id = CFGVMDeobfuscation._generate_block_id(
-                self.call_stack.stack_suffix(self._context_sensitivity_level), self.vm_vpc, self.branch_trace, self.addr, self.is_syscall)
+                self.call_stack.stack_suffix(self._context_sensitivity_level), self.vm_vpc, self.addr, self.is_syscall)
         return self._block_id
 
     @property
@@ -256,7 +256,7 @@ class CFGJob(CFGJobBase):
 
 class PendingJob:
     def __init__(self, caller_func_addr, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr,
-                 call_stack, vm_vpc, branch_trace):
+                 call_stack, vm_vpc):
         """
         A PendingJob is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
@@ -282,7 +282,6 @@ class PendingJob:
         self.src_exit_ins_addr = src_exit_ins_addr
         self.call_stack = call_stack
         self.vm_vpc = vm_vpc
-        self.branch_trace = branch_trace
 
     def __repr__(self):
         return "<PendingJob to %s, from function %s>" % (self.state.ip, hex(
@@ -1122,9 +1121,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
     def unroll_loops_by_renaming(self, state):
         if len(state.inspect.exit_guard.annotations) == 0:
             if state.solver.eval(state.inspect.exit_guard) is True:# and state.solver.eval(state.inspect.exit_target) is not state.addr:
-                if 'cur_branch_trace' not in state.globals:
-                    state.globals['cur_branch_trace'] = 0
-                state.globals['cur_branch_trace']+=1
+                ...
                 #state.globals['cur_branch_trace'] = str(hex(state.addr)) + "-" + str(hex(state.solver.eval(state.inspect.exit_target))) + ", " + state.globals['cur_branch_trace']
         # This was for unrolling based on vm byte code
         # if len(state.inspect.exit_guard.annotations) != 0:
@@ -1203,7 +1200,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         for item in self._starts:
             callstack = None
             vm_vpc = None
-            branch_trace = None
             if isinstance(item, tuple):
                 # (addr, jumpkind)
                 ip = item[0]
@@ -1219,7 +1215,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 raise AngrCFGError('Unsupported CFG start type: %s.' % str(type(item)))
 
             self._symbolic_function_initial_state[ip] = state
-            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, vm_vpc, branch_trace, None, None, call_stack=callstack)
+            path_wrapper = CFGJob(ip, state, self._context_sensitivity_level, vm_vpc, None, None, call_stack=callstack)
             key = path_wrapper.block_id
             if key not in self._start_keys:
                 self._start_keys.append(key)
@@ -1351,7 +1347,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                      src_ins_addr=pending_job.src_exit_ins_addr,
                      call_stack=pending_job_call_stack,
                      vm_vpc=pending_job.vm_vpc,
-                     branch_trace=pending_job.branch_trace
         )
         l.debug("Tracing a missing return exit %s", self._block_id_repr(pending_job_key))
 
@@ -1461,7 +1456,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Pending Jobs: " + str(self._pending_jobs))
         l.debug("Job List: "+str(self._job_info_queue))
         l.debug("Data offset: "+str(job.vm_vpc))
-        l.debug("Branch Trace: " + str(job.branch_trace))
         #print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
 
 
@@ -1557,7 +1551,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         if 'stop_analysis' in job.state.globals and job.state.globals['stop_analysis'] is True:
             should_skip = True
 
-        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc, job.branch_trace)][addr] >= self._max_iterations:
+        if self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] >= self._max_iterations:
             l.debug("Block SKIPPED! due to max_iterations")
             should_skip = True
         elif self._is_call_jumpkind(job.jumpkind) and \
@@ -1583,7 +1577,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         if block_id not in self._nodes:
             # Create the CFGNode object
-            cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.vm_vpc, job.branch_trace, job.func_addr,
+            cfg_node = self._create_cfgnode(sim_successors, job.call_stack, job.vm_vpc, job.func_addr,
                                             block_id=block_id, depth=depth)
 
             self._nodes[block_id] = cfg_node
@@ -1610,7 +1604,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             cfg_node = self._nodes[block_id]
 
         # Increment tracing count for this block
-        self._traced_addrs[job.call_stack_suffix + (job.vm_vpc, job.branch_trace)][addr] += 1
+        self._traced_addrs[job.call_stack_suffix + (job.vm_vpc,)][addr] += 1
 
         if self._keep_state:
             # TODO: if we are reusing an existing CFGNode, we will be overwriting the original input state here. we
@@ -1708,7 +1702,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         merged_state, merge_conditions, merging_occurred= state_0.merge(state_1)
 
-        new_job = CFGJob(jobs[0].addr, merged_state, self._context_sensitivity_level, vm_vpc=jobs[0].vm_vpc, branch_trace=jobs[0].branch_trace,
+        new_job = CFGJob(jobs[0].addr, merged_state, self._context_sensitivity_level, vm_vpc=jobs[0].vm_vpc,
                          jumpkind=jobs[0].jumpkind, block_id=jobs[0].block_id, call_stack=jobs[0].call_stack,
                          src_block_id=jobs[0].src_block_id, src_exit_stmt_idx=jobs[0].src_exit_stmt_idx,
                          src_ins_addr=jobs[0].src_ins_addr, final_return_address=jobs[0]._call_stack.ret_addr,
@@ -1839,14 +1833,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         new_vm_vpc = None
                     else:
                         new_vm_vpc = job.vm_vpc
-                    if job.branch_trace is None:
-                        new_branch_trace = None
-                    else:
-                        new_branch_trace = job.branch_trace.copy()
+
                     new_call_stack = job.call_stack_copy()
                     return_target_key = self._generate_block_id(
-                        new_call_stack.stack_suffix(self.context_sensitivity_level), new_vm_vpc, new_branch_trace,
-                        return_target,
+                        new_call_stack.stack_suffix(self.context_sensitivity_level), new_vm_vpc, return_target,
                         False
                     )  # You can never return to a syscall
 
@@ -2228,13 +2218,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 new_vm_vpc = successor.globals.get('cur_vm_vpc')
             else:
                 new_vm_vpc = job.vm_vpc
-            if 'cur_branch_trace' in successor.globals.keys():
-                new_branch_trace = successor.globals.get('cur_branch_trace')
-            else:
-                new_branch_trace = None
 
         # Tuple that will be used to index this exit
-        new_tpl = self._generate_block_id(new_call_stack_suffix, new_vm_vpc, new_branch_trace, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
+        new_tpl = self._generate_block_id(new_call_stack_suffix, new_vm_vpc, target_addr, suc_jumpkind.startswith('Ijk_Sys'))
         # We might have changed the mode for this basic block
         # before. Make sure it is still running in 'fastpath' mode
         self._reset_state_mode(new_state, 'fastpath')
@@ -2247,7 +2233,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     src_ins_addr=suc_exit_ins_addr,
                     call_stack=new_call_stack,
                     vm_vpc=new_vm_vpc,
-                    branch_trace=new_branch_trace,
                     jumpkind=suc_jumpkind,
                     )
         # Special case: If the binary has symbols and the target address is a function, but for some reason (e.g.,
@@ -2281,13 +2266,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                             suc_exit_ins_addr,
                             new_call_stack,
                             new_vm_vpc,
-                            new_branch_trace
                             )
             self._pending_jobs[new_tpl].append(pe)
             self._register_analysis_job(pe.caller_func_addr, pe)
             job.successor_status[state] = "Pended"
 
-        elif self._traced_addrs[new_call_stack_suffix + (new_vm_vpc, job.branch_trace)][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
+        elif self._traced_addrs[new_call_stack_suffix + (new_vm_vpc,)][target_addr] >= 1 and suc_jumpkind == "Ijk_Ret":
             # This is a corner case for the f****** ARM instruction
             # like
             # BLEQ <address>
@@ -3531,7 +3515,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         return new_call_stack
 
-    def _create_cfgnode(self, sim_successors, call_stack, vm_vpc, branch_trace, func_addr, block_id=None, depth=None, exception_info=None):
+    def _create_cfgnode(self, sim_successors, call_stack, vm_vpc, func_addr, block_id=None, depth=None, exception_info=None):
         """
         Create a context-sensitive CFGNode instance for a specific block.
 
@@ -3571,7 +3555,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 self.model,
                                 callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 vm_vpc=vm_vpc,
-                                branch_trace=branch_trace,
                                 input_state=None,
                                 simprocedure_name=simproc_name,
                                 syscall_name=syscall,
@@ -3590,7 +3573,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 self.model,
                                 callstack_key=call_stack.stack_suffix(self.context_sensitivity_level),
                                 vm_vpc=vm_vpc,
-                                branch_trace=branch_trace,
                                 input_state=None,
                                 is_syscall=is_syscall,
                                 function_address=func_addr,
@@ -3809,10 +3791,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         return True
 
     @staticmethod
-    def _generate_block_id(call_stack_suffix, vm_vpc, branch_trace, block_addr, is_syscall):
+    def _generate_block_id(call_stack_suffix, vm_vpc, block_addr, is_syscall):
         if not is_syscall:
-            return BlockID.new(block_addr, call_stack_suffix, vm_vpc, branch_trace, 'normal')
-        return BlockID.new(block_addr, call_stack_suffix, vm_vpc, branch_trace, 'syscall')
+            return BlockID.new(block_addr, call_stack_suffix, 'normal', vm_vpc)
+        return BlockID.new(block_addr, call_stack_suffix, 'syscall', vm_vpc)
 
     @staticmethod
     def _block_id_repr(block_id):
