@@ -177,6 +177,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                             self.state = curr_succs[curr_succs_count].copy()
                             self.state.scratch.guard = self.state.solver.true
                             self.successors.flat_successors.remove(curr_succs[curr_succs_count])
+                            self.successors.successors.remove(curr_succs[curr_succs_count])
                         else:
                             # There are multiple satisfiable states. Use the state's record of basic blocks executed
                             # and block where native interface stopped to determine which state followed the path traced
@@ -193,6 +194,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                                     self.state = succ.copy()
                                     self.state.scratch.guard = self.state.solver.true
                                     self.successors.flat_successors.remove(succ)
+                                    self.successors.successors.remove(succ)
                                     break
                             else:
                                 raise Exception("Multiple valid successor states found but none followed the trace!")
