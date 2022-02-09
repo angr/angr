@@ -100,10 +100,9 @@ class TestCfgfast(unittest.TestCase):
 
         function_features = {"x86_64": {}}
 
-        for arch in arches:
-            yield self.cfg_fast_functions_check, arch, filename, functions[
-                arch
-            ], function_features[arch]
+        self.cfg_fast_functions_check, "x86_64", filename, functions[
+                "x86_64"
+            ], function_features["x86_64"]
 
     def test_cfg_0_pe(self):
         filename = "cfg_0_pe"
@@ -118,10 +117,9 @@ class TestCfgfast(unittest.TestCase):
 
         function_features = {"x86_64": {}}
 
-        for arch in arches:
-            yield self.cfg_fast_functions_check, arch, filename, functions[
-                arch
-            ], function_features[arch]
+        self.cfg_fast_functions_check("x86_64", filename, functions[
+                "x86_64"
+            ], function_features["x86_64"])
 
     @slow_test
     def test_busybox(self):
@@ -142,8 +140,7 @@ class TestCfgfast(unittest.TestCase):
             }
         }
 
-        for arch, edges_ in edges.items():
-            yield self.cfg_fast_edges_check, arch, filename, edges_
+        self.cfg_fast_edges_check("mipsel", filename, edges["mipsel"])
 
     @slow_test
     @unittest.skipUnless(
@@ -232,11 +229,14 @@ class TestCfgfast(unittest.TestCase):
 
         arches = functions.keys()
 
-        for arch in arches:
-            yield self.cfg_fast_functions_check, arch, filename, functions[
-                arch
-            ], function_features[arch]
-            yield self.cfg_fast_edges_check, arch, filename, return_edges[arch]
+        self.cfg_fast_functions_check, "x86_64", filename, functions[
+                "x86_64"
+            ], function_features["x86_64"]
+        self.cfg_fast_edges_check, "x86_64", filename, return_edges["x86_64"]
+        self.cfg_fast_functions_check, "mips", filename, functions[
+                "mips"
+            ], function_features["mips"]
+        self.cfg_fast_edges_check, "mips", filename, return_edges["mips"]
 
     def test_cfg_loop_unrolling(self):
         filename = "cfg_loop_unrolling"
@@ -251,8 +251,7 @@ class TestCfgfast(unittest.TestCase):
 
         arches = edges.keys()
 
-        for arch in arches:
-            yield self.cfg_fast_edges_check, arch, filename, edges[arch]
+        self.cfg_fast_edges_check, "x86_64", filename, edges["x86_64"]
 
     def test_cfg_switches(self):
 
@@ -384,8 +383,9 @@ class TestCfgfast(unittest.TestCase):
 
         arches = edges.keys()
 
-        for arch in arches:
-            yield self.cfg_fast_edges_check, arch, filename, edges[arch]
+        self.cfg_fast_edges_check, "x86_64", filename, edges["x86_64"]
+        self.cfg_fast_edges_check, "armel", filename, edges["armel"]
+        self.cfg_fast_edges_check, "s390x", filename, edges["s390x"]
 
     def test_cfg_about_time(self):
 
