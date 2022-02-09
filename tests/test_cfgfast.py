@@ -96,7 +96,6 @@ class TestCfgfast(unittest.TestCase):
                 0x40053C,
             }
         }
-        arches = functions.keys()
 
         function_features = {"x86_64": {}}
 
@@ -113,7 +112,6 @@ class TestCfgfast(unittest.TestCase):
                 0x4014F0,
             }
         }
-        arches = functions.keys()
 
         function_features = {"x86_64": {}}
 
@@ -227,8 +225,6 @@ class TestCfgfast(unittest.TestCase):
             "mips": [(0x40084C, 0x400A04)],  # returning edge from accepted to main
         }
 
-        arches = functions.keys()
-
         self.cfg_fast_functions_check, "x86_64", filename, functions[
                 "x86_64"
             ], function_features["x86_64"]
@@ -248,8 +244,6 @@ class TestCfgfast(unittest.TestCase):
                 (0x400651, 0x400661),
             }
         }
-
-        arches = edges.keys()
 
         self.cfg_fast_edges_check, "x86_64", filename, edges["x86_64"]
 
@@ -380,8 +374,6 @@ class TestCfgfast(unittest.TestCase):
                 (0x40062C, 0x40065C),  # default case
             },
         }
-
-        arches = edges.keys()
 
         self.cfg_fast_edges_check, "x86_64", filename, edges["x86_64"]
         self.cfg_fast_edges_check, "armel", filename, edges["armel"]
