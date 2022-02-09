@@ -646,6 +646,11 @@ class SimFileDescriptorBase(SimStatePlugin):
         """
         data, realsize = self.read_data(size, **kwargs)
         if not self.state.solver.is_true(realsize == 0):
+            do_concrete_update = kwargs.pop("do_concrete_update", False)
+            if do_concrete_update:
+                concrete_data = claripy.BVV(self.state.solver.eval(data), data.size())
+                self.state.memory.store(pos, concrete_data, action=None, inspect=False)
+
             self.state.memory.store(pos, data, size=realsize)
         return realsize
 
