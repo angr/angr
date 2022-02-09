@@ -460,17 +460,18 @@ class Tracer(ExplorationTechnique):
             try:
                 if self._compare_addr(self._trace[idx + 1], succ.addr):
                     res.append(succ)
-                else:
-                    last_description = succ.history.descriptions[-1]
-                    if 'Unicorn' in last_description:
-                        # A new state was created in SimEngineUnicorn. Check every recent basic block to see if any
-                        # match the next expected index
-                        for bbl_addr in succ.history.recent_bbl_addrs:
-                            if self._compare_addr(self._trace[idx + 1], bbl_addr):
-                                res.append(succ)
-                                break
+                    continue
             except AngrTracerError:
                 pass
+
+            last_description = succ.history.descriptions[-1]
+            if 'Unicorn' in last_description:
+                # A new state was created in SimEngineUnicorn. Check every recent basic block to see if any
+                # match the next expected index
+                for bbl_addr in succ.history.recent_bbl_addrs:
+                    if self._compare_addr(self._trace[idx + 1], bbl_addr):
+                        res.append(succ)
+                        break
 
         if not res:
             raise Exception("No states followed the trace?")
