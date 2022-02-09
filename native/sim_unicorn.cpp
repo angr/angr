@@ -2607,10 +2607,10 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			uint32_t sysno;
 			uc_reg_read(uc, UC_X86_REG_EAX, &sysno);
 			//printf("SYSCALL: %d\n", sysno);
-			if (sysno == state->cgc_transmit_sysno) {
+			if ((sysno == state->cgc_transmit_sysno) && (state->cgc_transmit_bbl != 0)) {
 				state->perform_cgc_transmit();
 			}
-			else if (sysno == state->cgc_receive_sysno) {
+			else if ((sysno == state->cgc_receive_sysno) && (state->cgc_receive_bbl != 0)) {
 				state->perform_cgc_receive();
 			}
 		}
