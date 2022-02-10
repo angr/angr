@@ -40,8 +40,9 @@ class DefaultFillerMixin(MemoryMixin):
                  options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS not in self.state.options
         if type(addr) is int and (is_mem or is_reg):
             if once('mem_fill_warning'):
-                l.warning("The program is accessing memory or registers with an unspecified value. "
-                          "This could indicate unwanted behavior.")
+                what = "memory" if is_mem else "register"
+                l.warning("The program is accessing %s with an unspecified value. "
+                          "This could indicate unwanted behavior.", what)
                 l.warning("angr will cope with this by generating an unconstrained symbolic variable and continuing. "
                           "You can resolve this by:")
                 l.warning("1) setting a value to the initial state")
