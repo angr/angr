@@ -11,7 +11,7 @@ l = logging.getLogger(name=__name__)
 class SimEngineBase:
     """
     Even more basey of a base class for SimEngine. Used as a base by mixins which want access to the project but for
-    which process doesn't make sense.
+    which having method `process` (contained in `SimEngine`) doesn't make sense
     """
     def __init__(self, project=None, **kwargs):
         if kwargs:
