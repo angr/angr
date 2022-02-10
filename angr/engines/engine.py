@@ -1,3 +1,4 @@
+import abc
 import sys
 import logging
 import threading
@@ -37,11 +38,12 @@ class SimEngineBase:
         return v is False
 
 
-class SimEngine(SimEngineBase):
+class SimEngine(SimEngineBase, metaclass=abc.ABCMeta):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
 
+    @abc.abstractmethod
     def process(self, state, **kwargs):
         """
         The main entry point for an engine. Should take a state and return a result.
@@ -49,7 +51,6 @@ class SimEngine(SimEngineBase):
         :param state:   The state to proceed from
         :return:        The result. Whatever you want ;)
         """
-        raise NotImplementedError
 
 
 class TLSMixin:
