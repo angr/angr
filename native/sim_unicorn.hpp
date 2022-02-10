@@ -156,6 +156,12 @@ struct register_value_t {
 	uint8_t value[MAX_REGISTER_BYTE_SIZE];
 	int64_t size;
 
+	register_value_t() {
+		offset = 0;
+		size = -1;
+		memset(value, 0, MAX_REGISTER_BYTE_SIZE);
+	}
+
 	bool operator==(const register_value_t &reg_value) const {
 		if (offset != reg_value.offset) {
 			return false;
@@ -444,7 +450,6 @@ typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
-typedef std::unordered_map<vex_reg_offset_t, unicorn_reg_id_t> RegisterMap;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
 struct fd_data {
@@ -517,7 +522,7 @@ class State {
 	block_details_t curr_block_details;
 
 	// List of register values at start of block
-	std::unordered_map<vex_reg_offset_t, register_value_t> block_start_reg_values;
+	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -694,7 +699,8 @@ class State {
 		VexArchInfo vex_archinfo;
 		RegisterSet symbolic_registers; // tracking of symbolic registers
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
-		RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
+		// Mapping of VEX offsets to unicorn register IDs and register sizes
+		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
 		std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
 		int64_t cpu_flags_register;

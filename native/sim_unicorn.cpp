@@ -777,11 +777,33 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 			// Register is not a valid dependency or was not concrete before instruction was executed. Do not save value.
 			continue;
 		}
-		auto reg_offset = dependency.first;
-		auto reg_size = dependency.second;
-		auto reg_val = block_start_reg_values.at(reg_offset);
-		reg_val.size = reg_size;
-		instr.reg_deps.insert(reg_val);
+		auto dep_reg_offset = dependency.first;
+		auto dep_reg_size = dependency.second;
+		auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_offset);
+		if (dep_reg_offset == saved_reg_val->first) {
+			// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
+			// be computed when re-executing instruction
+			instr.reg_deps.insert(saved_reg_val->second);
+			continue;
+		}
+		// Check if dependency register is a sub-register
+		// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
+		// the register whose byte 0 has VEX offset less than the dependency register.
+		saved_reg_val--;
+		if (dep_reg_offset + dep_reg_size <= saved_reg_val->first + saved_reg_val->second.size) {
+			// Dependency is a sub-register that starts in middle of larger register.
+			// Save value of dependency register starting at offset 0 so that value is computed correctly when
+			// re-executing
+			register_value_t dep_reg_val;
+			dep_reg_val.offset = dep_reg_offset;
+			dep_reg_val.size = dep_reg_size;
+			uint32_t val_offset = dep_reg_offset - saved_reg_val->first;
+			memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
+			instr.reg_deps.insert(dep_reg_val);
+		}
+		else {
+			assert(false && "[sim_unicorn] Dependency register not saved at block start. Please create a bug with repro instructions.");
+		}
 	}
 
 	// List of instructions modifying a register dependency. Their slice needs to be computed.
@@ -1111,7 +1133,7 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 			return;
 		}
 	}
-	uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset), out_reg_value);
+	uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset).first, out_reg_value);
 	return;
 }
 
@@ -2050,14 +2072,13 @@ void State::start_propagating_taint(address_t block_address, int32_t block_size)
 	for (auto &reg_offset: vex_to_unicorn_map) {
 		register_value_t reg_value;
 		reg_value.offset = reg_offset.first;
-		memset(reg_value.value, 0, MAX_REGISTER_BYTE_SIZE);
+		reg_value.size = reg_offset.second.second;
 		get_register_value(reg_value.offset, reg_value.value);
 		block_start_reg_values.emplace(reg_value.offset, reg_value);
 	}
 	for (auto &cpu_flag: cpu_flags) {
 		register_value_t flag_value;
 		flag_value.offset = cpu_flag.first;
-		memset(flag_value.value, 0, MAX_REGISTER_BYTE_SIZE);
 		get_register_value(cpu_flag.first, flag_value.value);
 		block_start_reg_values.emplace(flag_value.offset, flag_value);
 	}
@@ -2717,10 +2738,11 @@ void simunicorn_set_artificial_registers(State *state, uint64_t *offsets, uint64
 
 // VEX register offsets to unicorn register ID mappings
 extern "C"
-void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids, uint64_t count) {
+void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offsets, uint64_t *unicorn_ids,
+  uint64_t *reg_sizes, uint64_t count) {
 	state->vex_to_unicorn_map.clear();
 	for (auto i = 0; i < count; i++) {
-		state->vex_to_unicorn_map.emplace(vex_offsets[i], unicorn_ids[i]);
+		state->vex_to_unicorn_map.emplace(vex_offsets[i], std::make_pair(unicorn_ids[i], reg_sizes[i]));
 	}
 	return;
 }
