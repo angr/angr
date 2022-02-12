@@ -39,7 +39,6 @@ State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os): uc(_uc), simo
 	syscall_count = 0;
 	uc_context_alloc(uc, &saved_regs);
 	executed_pages_iterator = NULL;
-	cpu_flags_register = -1;
 	mem_updates_head = NULL;
 
 	auto it = global_cache.find(cache_key);
@@ -1118,22 +1117,27 @@ std::set<instr_details_t> State::get_list_of_dep_instrs(const instr_details_t &i
 }
 
 void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const {
-	uint64_t reg_value;
-	if (cpu_flags_register != -1) {
-		// Check if VEX register is actually a CPU flag
-		auto cpu_flags_entry = cpu_flags.find(vex_reg_offset);
-		if (cpu_flags_entry != cpu_flags.end()) {
-			uc_reg_read(uc, cpu_flags_register, &reg_value);
-			if ((reg_value & cpu_flags_entry->second) == 1) {
-				// This hack assumes that a flag register is not MAX_REGISTER_BYTE_SIZE bytes long
-				// so that it works on both big and little endian registers.
-				out_reg_value[0] = 1;
-				out_reg_value[MAX_REGISTER_BYTE_SIZE - 1] = 1;
+	// Check if VEX register is actually a CPU flag
+	auto cpu_flags_entry = cpu_flags.find(vex_reg_offset);
+	if (cpu_flags_entry != cpu_flags.end()) {
+		uint64_t reg_value;
+		uc_reg_read(uc, cpu_flags_entry->second.first, &reg_value);
+		reg_value &= cpu_flags_entry->second.second;
+		if (reg_value == 0) {
+			memset(out_reg_value, 0, MAX_REGISTER_BYTE_SIZE);
+		}
+		else {
+			// The flag is not 0 so we shift right until first non-zero bit is in LSB so that value of flag register
+			// will be set correctly when re-executing
+			for (int i = 1; i < MAX_REGISTER_BYTE_SIZE && (reg_value & 1 == 0); i++) {
+				reg_value >>= i;
 			}
-			return;
+			memcpy(out_reg_value, (uint8_t *)&reg_value, MAX_REGISTER_BYTE_SIZE);
 		}
 	}
-	uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset).first, out_reg_value);
+	else {
+		uc_reg_read(uc, vex_to_unicorn_map.at(vex_reg_offset).first, out_reg_value);
+	}
 	return;
 }
 
@@ -2749,18 +2753,11 @@ void simunicorn_set_vex_to_unicorn_reg_mappings(State *state, uint64_t *vex_offs
 
 // Mapping details for flags registers
 extern "C"
-void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *bitmasks, uint64_t count) {
+void simunicorn_set_cpu_flags_details(State *state, uint64_t *flag_vex_id, uint64_t *uc_reg_id, uint64_t *bitmasks, uint64_t count) {
 	state->cpu_flags.clear();
 	for (auto i = 0; i < count; i++) {
-		state->cpu_flags.emplace(flag_vex_id[i], bitmasks[i]);
+		state->cpu_flags.emplace(flag_vex_id[i], std::make_pair(uc_reg_id[i], bitmasks[i]));
 	}
-	return;
-}
-
-// Flag register ID in unicorn
-extern "C"
-void simunicorn_set_unicorn_flags_register_id(State *state, int64_t reg_id) {
-	state->cpu_flags_register = reg_id;
 	return;
 }
 
