@@ -776,27 +776,26 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 			// Register is not a valid dependency or was not concrete before instruction was executed. Do not save value.
 			continue;
 		}
-		auto dep_reg_offset = dependency.first;
-		auto dep_reg_size = dependency.second;
-		auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_offset);
-		if (dep_reg_offset == saved_reg_val->first) {
+		register_value_t dep_reg_val;
+		dep_reg_val.offset = dependency.first;
+		dep_reg_val.size = dependency.second;
+		auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_val.offset);
+		if (dep_reg_val.offset == saved_reg_val->first) {
 			// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
 			// be computed when re-executing instruction
-			instr.reg_deps.insert(saved_reg_val->second);
+			memcpy(dep_reg_val.value, saved_reg_val->second.value, MAX_REGISTER_BYTE_SIZE);
+			instr.reg_deps.insert(dep_reg_val);
 			continue;
 		}
 		// Check if dependency register is a sub-register
 		// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
 		// the register whose byte 0 has VEX offset less than the dependency register.
 		saved_reg_val--;
-		if (dep_reg_offset + dep_reg_size <= saved_reg_val->first + saved_reg_val->second.size) {
+		if (dep_reg_val.offset + dep_reg_val.size <= saved_reg_val->first + saved_reg_val->second.size) {
 			// Dependency is a sub-register that starts in middle of larger register.
 			// Save value of dependency register starting at offset 0 so that value is computed correctly when
 			// re-executing
-			register_value_t dep_reg_val;
-			dep_reg_val.offset = dep_reg_offset;
-			dep_reg_val.size = dep_reg_size;
-			uint32_t val_offset = dep_reg_offset - saved_reg_val->first;
+			uint32_t val_offset = dep_reg_val.offset - saved_reg_val->first;
 			memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
 			instr.reg_deps.insert(dep_reg_val);
 		}
