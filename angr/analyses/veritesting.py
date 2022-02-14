@@ -10,7 +10,7 @@ from ..knowledge_base import KnowledgeBase
 from ..errors import AngrError, AngrCFGError
 from ..sim_manager import SimulationManager
 from ..utils.graph import shallow_reverse
-from . import Analysis
+from . import Analysis, CFGEmulated
 
 l = logging.getLogger(name=__name__)
 
@@ -113,13 +113,12 @@ class CallTracingFilter(object):
             new_blacklist = self.blacklist[ :: ]
             new_blacklist.append(addr)
             tracing_filter = CallTracingFilter(self.project, depth=self.depth + 1, blacklist=new_blacklist)
-            cfg = self.project.analyses.CFGEmulated(starts=((addr, jumpkind),),
+            cfg = self.project.analyses[CFGEmulated].prep(kb=KnowledgeBase(self.project))(starts=((addr, jumpkind),),
                                                     initial_state=call_target_state,
                                                     context_sensitivity_level=0,
                                                     call_depth=1,
                                                     call_tracing_filter=tracing_filter.filter,
-                                                    normalize=True,
-                                                    kb=KnowledgeBase(self.project)
+                                                    normalize=True
                                                     )
             self.cfg_cache[cfg_key] = (cfg, tracing_filter)
 
@@ -556,14 +555,13 @@ class Veritesting(Analysis):
                 cfg_initial_state.regs.rax = state.regs.rax
 
         # generate the cfg and perform loop unrolling
-        cfg = self.project.analyses.CFGEmulated(
+        cfg = self.project.analyses[CFGEmulated].prep(kb=KnowledgeBase(self.project))(
             starts=((ip_int, state.history.jumpkind),),
             context_sensitivity_level=0,
             call_depth=1,
             call_tracing_filter=filter,
             initial_state=cfg_initial_state,
-            normalize=True,
-            kb=KnowledgeBase(self.project)
+            normalize=True
         )
         cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
         cfg.force_unroll_loops(self._loop_unrolling_limit)
