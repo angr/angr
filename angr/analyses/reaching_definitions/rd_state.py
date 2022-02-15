@@ -249,9 +249,9 @@ class ReachingDefinitionsState:
             t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
-
-        if cc is not None:
-            for loc in cc.arg_locs(self.analysis.kb.functions[func_addr].prototype):
+        prototype = self.analysis.kb.functions[func_addr].prototype
+        if cc is not None and prototype is not None:
+            for loc in cc.arg_locs(prototype):
                 for arg in loc.get_footprint():
                     # initialize register parameters
                     if isinstance(arg, SimRegArg):
