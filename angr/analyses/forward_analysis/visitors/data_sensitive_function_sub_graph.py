@@ -3,9 +3,6 @@ from .graph import GraphVisitor
 
 
 class DataSensitiveFunctionSubGraphVisitor(GraphVisitor):
-    """
-    :param knowledge.Function func:
-    """
     def __init__(self, graph_node_tuple):
         super(DataSensitiveFunctionSubGraphVisitor, self).__init__()
         self.graph = graph_node_tuple[0]

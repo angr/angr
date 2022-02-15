@@ -432,7 +432,7 @@ class StatementGraph:
 
 class VMDeobfuscation(Analysis):
 
-    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_input=None):
+    def __init__(self, vm_vpc_addr, start_addr=None, start_state=None, cfg_fast_graph=None, avoid_runs=None, vm_start_addr=None, verification_input=None, remove_insts=None):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -448,6 +448,8 @@ class VMDeobfuscation(Analysis):
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state)
 
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
+
+        cfg = self.remove_troublesome_instructions(cfg, proj, start_state, remove_insts)
 
         # all_functions = []
         # for node in cfg.model.nodes():
@@ -473,7 +475,7 @@ class VMDeobfuscation(Analysis):
         changed = True
         i = 0
         while changed and i < 11:
-            i=i+1
+            i = i+1
             new_cfg, changed = self.dead_code_elimination(new_cfg, proj, start_addr=start_addr, vm_vpc_addr=vm_vpc_addr, start_state=start_state)
             self.draw_graph(new_cfg, os.path.join(folder_name, str(i)+"_dce_result.svg"))
         self.draw_graph(new_cfg, os.path.join(folder_name, "DCE_result.svg"))
@@ -485,6 +487,9 @@ class VMDeobfuscation(Analysis):
 
         new_cfg = self._eliminate_dead_assignments(new_cfg, proj, start_state=start_state)
         self.draw_graph(new_cfg, os.path.join("dae_2_result.svg"))
+
+        new_cfg = self.testing_new_improved_whole_vm_RDA_deadassignment_elimination(new_cfg, proj, start_state=start_state)
+        self.draw_graph(new_cfg, os.path.join(folder_name, "whole_cfg_deadassignment_elimination.svg"))
 
                 # commented this for test_vmp to show the add eax,1 result
         for i in range(4):
@@ -554,6 +559,61 @@ class VMDeobfuscation(Analysis):
         self.draw_original_graph(new_cfg, os.path.join(folder_name, "comparision_graph.svg"), proj)
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, cfg, proj, folder_name)
+
+    def remove_troublesome_instructions(self, cfg, proj, start_state, remove_insts):
+        new_model = self.new_model_graph(cfg.graph, proj, 'remove_trouble_insts')
+        for node in list(new_model.graph.nodes()):
+            if node.is_simprocedure:
+                continue
+
+            to_remove_stmt_idxs = []
+            add_to_list = 0
+            replace_stmt_map = {}
+            for ind, stmt in enumerate(node.irsb.statements):
+                if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in remove_insts:
+                    add_to_list = 1
+                elif isinstance(stmt, pyvex.stmt.IMark) and stmt.addr not in remove_insts:
+                    add_to_list = 0
+
+                if add_to_list == 1:
+                    if isinstance(stmt, pyvex.stmt.WrTmp):
+                        import ipdb;ipdb.set_trace()
+                        replace_stmt_map[ind] = pyvex.stmt.WrTmp(stmt.tmp, pyvex.expr.RdTmp(stmt.data.args[0].tmp))
+                    to_remove_stmt_idxs.append(ind)
+
+
+            new_statements = []
+            for idx, stmt in enumerate(node.irsb.statements):
+                if idx in to_remove_stmt_idxs:
+                    if idx in replace_stmt_map:
+                        new_statements.append(replace_stmt_map[idx])
+                    continue
+
+                new_statements.append(stmt)
+
+            node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                               node.irsb.addr,
+                                               statements=new_statements,
+                                               tyenv=node.irsb.tyenv,
+                                               nxt=node.irsb.next,
+                                               direct_next=node.irsb.direct_next,
+                                               jumpkind=node.irsb.jumpkind,
+                                               size=node.irsb.size)
+
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+
+        return new_cfg
 
     # this is to remove those vex jump insts that will always to the same location. This is after the data sensitive analysis
     def remove_useless_jump_instructions(self, cfg, proj, start_addr, vm_vpc_addr, start_state, orig_cfg):
@@ -1042,6 +1102,212 @@ class VMDeobfuscation(Analysis):
                                                    vm_vpc_addr=self.vm_vpc_addr)
         return new_cfg
 
+
+
+# Eliminated dead stack-memdefs and regdefs in the whoel CFG
+    def testing_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, start_state=None):
+        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'test_rda_dae')
+        #start_state = ReachingDefinitionsState()
+        for node in dsa_new_model.nodes():
+            if node.addr == self.vm_start_addr:
+                start_node = node
+                break
+
+        rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
+                                                       track_tmps=True,
+                                                       function_handler=CLibFunctionHandler(),
+                                                       max_iterations=3
+                                                       )
+
+        # Find dead assignments
+        dead_defs_locs = set()
+        all_defs = rd.all_definitions
+
+        # There can be multiple memory definitions for the same location with different stack offset because of rd_state merging
+        for d in all_defs:
+            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                continue
+
+            #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
+            if isinstance(d.atom, atoms.MemoryLocation):
+                uses = rd.all_uses.get_uses(d)
+                no_uses = 0
+                for use in uses:
+                    # making sure we only count the uses that are Loads, not just any variable having that memory adddress
+                    if isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp):
+                        if isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx].data, pyvex.expr.Load):
+                            no_uses = no_uses + 1
+                if no_uses == 0 and d.atom.is_on_stack:
+                    print(d)
+                    print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
+                    if d.codeloc.ins_addr in [0x6cbf81]:#0x6A5681, 0x6B4756]:
+                        import ipdb;ipdb.set_trace()
+                    dead_defs_locs.add(d.codeloc)
+                elif d.codeloc.ins_addr in [0x6cbf81]:
+                    import ipdb;ipdb.set_trace()
+
+
+#        Remove dead assignments
+        for node in dsa_new_model.nodes():
+            new_statements = []
+            if not node.is_simprocedure:
+                print(node.irsb.pp())
+                for idx, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        cur_ins_addr = stmt.addr
+
+                    stmt_loc = CodeLocation(node.irsb.addr,
+                                idx,
+                                block_id=node.block_id,
+                                ins_addr=cur_ins_addr,
+                                context=None)
+
+                    # is it a dead virgin?
+                    if stmt_loc in dead_defs_locs:
+                        continue
+
+                    new_statements.append(stmt)
+                for idx, stmt in enumerate(new_statements):
+                    print(f'{idx}, {stmt}')
+
+                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                   node.irsb.addr,
+                                                   statements=new_statements,
+                                                   tyenv=node.irsb.tyenv,
+                                                   nxt=node.irsb.next,
+                                                   direct_next=node.irsb.direct_next,
+                                                   jumpkind=node.irsb.jumpkind,
+                                                   size=node.irsb.size)
+
+            # Returning a new CFGVMDeobfuscation object with the updated graph
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        return new_cfg
+
+    def testing_new_improved_whole_vm_RDA_deadassignment_elimination(self, cfg, proj, start_state=None):
+        dsa_new_model = self.new_model_graph(cfg.graph, proj, 'test_rda_dae')
+        # start_state = ReachingDefinitionsState()
+        for node in dsa_new_model.nodes():
+            if node.addr == self.vm_start_addr:
+                start_node = node
+                break
+
+        last_node = None
+        for node in list(dsa_new_model.graph.nodes()):
+            if not node.is_simprocedure and len(list(dsa_new_model.graph.successors(node))) == 0:
+                last_node = node
+
+        rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
+                                                       track_tmps=True,
+                                                       function_handler=CLibFunctionHandler(),
+                                                       max_iterations=3,
+                                                       observation_points=[('node', last_node.addr, OP_AFTER)]
+                                                       )
+
+        live_defs = rd.one_result
+
+        # Find dead assignments
+        dead_defs_locs = set()
+        all_defs = rd.all_definitions
+
+        # There can be multiple memory definitions for the same location with different stack offset because of rd_state merging
+        for d in all_defs:
+            if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                continue
+
+            uses = rd.all_uses.get_uses(d)
+            vs = None
+            if isinstance(d.atom, atoms.MemoryLocation):
+                no_uses = 0
+                for use in uses:
+                    # making sure we only count the uses that are Loads, not just any variable having that memory adddress
+                    if isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.WrTmp):
+                        if isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx].data,
+                                      pyvex.expr.Load):
+                            no_uses = no_uses + 1
+
+                if no_uses == 0 and d.atom.is_on_stack:
+                    stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                    vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+                                                                         endness=d.atom.endness)
+
+            # is entirely possible that at the end of the block, a register definition is not used.
+            # however, it might be used in future blocks.
+            # so we only remove a definition if the definition is not alive anymore at the end of the block
+            elif isinstance(d.atom, atoms.Register) and not uses:
+                vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+            else:
+                continue
+            if vs is None:
+                continue
+            defs_ = set()
+
+            for values in vs.values.values():
+                for value in values:
+                    defs_.update(live_defs.extract_defs(value))
+
+            if d not in defs_:
+                dead_defs_locs.add(d.codeloc)
+
+
+        #Remove dead assignments
+        for node in dsa_new_model.nodes():
+            new_statements = []
+            if not node.is_simprocedure:
+                print(node.irsb.pp())
+                for idx, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark):
+                        cur_ins_addr = stmt.addr
+
+                    stmt_loc = CodeLocation(node.irsb.addr,
+                                            idx,
+                                            block_id=node.block_id,
+                                            ins_addr=cur_ins_addr,
+                                            context=None)
+
+                    # is it a dead virgin?
+                    if stmt_loc in dead_defs_locs:
+                        continue
+
+                    new_statements.append(stmt)
+                for idx, stmt in enumerate(new_statements):
+                    print(f'{idx}, {stmt}')
+
+                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                   node.irsb.addr,
+                                                   statements=new_statements,
+                                                   tyenv=node.irsb.tyenv,
+                                                   nxt=node.irsb.next,
+                                                   direct_next=node.irsb.direct_next,
+                                                   jumpkind=node.irsb.jumpkind,
+                                                   size=node.irsb.size)
+
+            # Returning a new CFGVMDeobfuscation object with the updated graph
+        if start_state:
+            initial_input_state = start_state
+        else:
+            initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                           mode='fastpath',
+                                                           add_options=angr.sim_options.refs | {
+                                                               angr.sim_options.REPLACEMENT_SOLVER,
+                                                               angr.sim_options.DO_CCALLS})
+        dsa_new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=dsa_new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        return new_cfg
+
+    # Eliminates dead memdefs, tmpdefs and regdefs in a single basic block
     def _eliminate_dead_assignments(self, cfg, proj, start_state=None):
 
         dsa_new_model = self.new_model_graph(cfg.graph, proj, 'dae')
@@ -1067,49 +1333,42 @@ class VMDeobfuscation(Analysis):
             dead_defs_stmt_idx = set()
             all_defs = rd.all_definitions
             for d in all_defs:
-                # if d.codeloc.ins_addr == 0x65ef95:
-                #     import ipdb;
-                #     ipdb.set_trace()
                 if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
                     continue
 
-                # if isinstance(d.atom, atoms.Tmp):
-                #     uses = live_defs.tmp_uses[d.atom.tmp_idx]
-                #     if not uses:
-                #         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
-                # else:
-                # if d.codeloc.ins_addr == 0x6f98a5 and isinstance(node.irsb.statements[d.codeloc.stmt_idx], pyvex.stmt.Put):
-                #     import ipdb;
-                #     ipdb.set_trace()
-
-                uses = rd.all_uses.get_uses(d)
-                if not uses:
-                    # is entirely possible that at the end of the block, a register definition is not used.
-                    # however, it might be used in future blocks.
-                    # so we only remove a definition if the definition is not alive anymore at the end of the block
-                    defs_ = set()
-                    if isinstance(d.atom, atoms.Register):
-                        vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
-                    elif isinstance(d.atom, atoms.MemoryLocation):
-                        stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
-                        vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
-                                                                             endness=d.atom.endness)
-                    else:
-                        continue
-
-                    for values in vs.values.values():
-                        for value in values:
-                            defs_.update(live_defs.extract_defs(value))
-
-                    if d not in defs_:
+                if isinstance(d.atom, atoms.Tmp):
+                    uses = live_defs.tmp_uses[d.atom.tmp_idx]
+                    if not uses:
                         dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
+                else:
+                    uses = rd.all_uses.get_uses(d)
+                    if not uses:
+                        # is entirely possible that at the end of the block, a register definition is not used.
+                        # however, it might be used in future blocks.
+                        # so we only remove a definition if the definition is not alive anymore at the end of the block
+                        defs_ = set()
+                        if isinstance(d.atom, atoms.Register):
+                            vs: 'MultiValues' = live_defs.register_definitions.load(d.atom.reg_offset, size=d.atom.size)
+                        elif isinstance(d.atom, atoms.MemoryLocation):
+                            stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                            vs: 'MultiValues' = live_defs.stack_definitions.load(stack_addr, size=d.atom.size,
+                                                                                 endness=d.atom.endness)
+                        else:
+                            continue
+
+                        for values in vs.values.values():
+                            for value in values:
+                                defs_.update(live_defs.extract_defs(value))
+
+                        if d not in defs_:
+                            dead_defs_stmt_idx.add(d.codeloc.stmt_idx)
 
             new_statements = []
             # Remove dead assignments
             for idx, stmt in enumerate(cur_block.vex.statements):
-                # if isinstance(stmt, pyvex.stmt.WrTmp):
-                #     if stmt.tmp not in used_tmp_indices:
-                #         continue
+                if isinstance(stmt, pyvex.stmt.WrTmp):
+                    if stmt.tmp not in used_tmp_indices:
+                        continue
 
                 # is it a dead virgin?
                 if idx in dead_defs_stmt_idx:
@@ -1125,69 +1384,6 @@ class VMDeobfuscation(Analysis):
                                                direct_next=node.irsb.direct_next,
                                                jumpkind=node.irsb.jumpkind,
                                                size=node.irsb.size)
-
-
-        # #start_state = ReachingDefinitionsState()
-        # rd = self.project.analyses.ReachingDefinitions(subject=Subject((dsa_new_model.graph, start_node)),
-        #                                                track_tmps=True,
-        #                                                function_handler=CLibFunctionHandler(),
-        #                                                max_iterations=3
-        #                                                )
-        #
-        # # used_tmp_indices = set(rd.one_result.tmp_uses.keys())
-        # # live_defs = rd.one_result
-        #
-        # # Find dead assignments
-        # dead_defs_locs = set()
-        # all_defs = rd.all_definitions
-        #
-        # # There can be multiple memory definitions for the same location with different stack offset because of rd_state merging
-        # for d in all_defs:
-        #     if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
-        #         continue
-        #
-        #     #### Looking for def-use that look like => Stle(addr).... LDle(addr), removed defs that Look like STle(addr).....Put(rax)=addr because it was causing some incomplete elimination in (discount VM)0x400587
-        #     if isinstance(d.atom, atoms.MemoryLocation):
-        #         uses = rd.all_uses.get_uses(d)
-        #         no_uses = len(uses)
-        #         for use in uses:
-        #             if not use.sim_procedure and isinstance(cfg.model.get_node(use.block_id).irsb.statements[use.stmt_idx], pyvex.stmt.Put):
-        #                 no_uses = no_uses - 1
-        #         if no_uses == 0:
-        #             print(d)
-        #             print(cfg.model.get_node(d.codeloc.block_id).irsb.pp())
-        #             dead_defs_locs.add(d.codeloc)
-
-        # Remove dead assignments
-        # for node in dsa_new_model.nodes():
-        #     new_statements = []
-        #     if not node.is_simprocedure:
-        #         print(node.irsb.pp())
-        #         for idx, stmt in enumerate(node.irsb.statements):
-        #             if isinstance(stmt, pyvex.stmt.IMark):
-        #                 cur_ins_addr = stmt.addr
-        #
-        #             stmt_loc = CodeLocation(node.irsb.addr,
-        #                         idx,
-        #                         block_id=node.block_id,
-        #                         ins_addr=cur_ins_addr,
-        #                         context=None)
-        #
-        #             # is it a dead virgin?
-        #             if stmt_loc in dead_defs_locs:
-        #                 continue
-        #
-        #             new_statements.append(stmt)
-        #         for idx, stmt in enumerate(new_statements):
-        #             print(f'{idx}, {stmt}')
-        #
-        #         node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
-        #                                            node.irsb.addr,
-        #                                            statements=new_statements,
-        #                                            tyenv=node.irsb.tyenv,
-        #                                            nxt=node.irsb.next,
-        #                                            direct_next=node.irsb.direct_next,
-        #                                            jumpkind=node.irsb.jumpkind)
 
         # Returning a new CFGVMDeobfuscation object with the updated graph
         if start_state:
@@ -1807,6 +2003,36 @@ class VMDeobfuscation(Analysis):
     #                                         resolve_indirect_jumps=True, max_iterations=1, vm_vpc_addr=vm_vpc_addr)
     #     return new_cfg
 
+    def add_fake_node_for_DCE(self, cfg):
+        # Add a fake node that uses all the registers, so that we do not eliminate them all in DCE
+        reg_to_add = ['rax', 'eax', 'ax', 'al', 'ah', 'rcx', 'ecx', 'cx', 'cl', 'ch', 'rdx', 'edx', 'dx', 'dl', 'dh', 'rbx', 'ebx', 'bx', 'bl', 'bh', 'rsp', 'sp', 'esp', 'rbp', 'bp', 'ebp', 'bpl', 'bph', 'rsi', 'esi', 'si', 'sil', 'sih', 'rdi', 'edi', 'di', 'dil', 'dih', 'r8', 'r8d', 'r8w', 'r8b', 'r9', 'r9d', 'r9w', 'r9b', 'r10', 'r10d', 'r10w', 'r10b', 'r11', 'r11d', 'r11w', 'r11b', 'r12', 'r12d', 'r12w', 'r12b', 'r13', 'r13d', 'r13w', 'r13b', 'r14', 'r14d', 'r14w', 'r14b', 'r15', 'r15d', 'r15w', 'r15b', 'cc_op', 'cc_dep1', 'cc_dep2', 'cc_ndep', 'd', 'dflag', 'rip']
+        for node in list(cfg.graph.nodes()):
+            # Looking for the last node
+            if not node.is_simprocedure and len(list(cfg.graph.successors(node))) == 0:
+                new_stmts = []
+                new_types_list = []
+                t_ind = 0
+                for reg in reg_to_add:
+                    reg_tuple = self.project.arch.registers[reg]
+                    new_stmts.append(pyvex.stmt.WrTmp(t_ind, pyvex.expr.Get(reg_tuple[0], 'Ity_I'+str(reg_tuple[1]*self.project.arch.byte_width))))
+                    new_types_list.append('Ity_I'+str(reg_tuple[1]*self.project.arch.byte_width))
+                    t_ind = t_ind+1
+                fake_irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                   0xdeadbeef,
+                                                   statements=new_stmts,
+                                                   tyenv=pyvex.block.IRTypeEnv(self.project.arch, types=new_types_list),
+                                                   nxt=node.irsb.next,
+                                                   direct_next=node.irsb.direct_next,
+                                                   jumpkind='Ijk_Borking',
+                                                   size=100)
+                fake_node = CFGENode(0xdeadbeef, 100, cfg, irsb=fake_irsb)
+
+                cfg.graph.add_edge(node, fake_node, jumpkind='Ijk_Borking')
+                import ipdb;ipdb.set_trace()
+
+        return cfg
+
+
     ####### Dead Cod Elimination
     def dead_code_elimination(self, cfg, proj, start_addr, vm_vpc_addr, start_state):
         print("Performing dead code elimination")
@@ -1818,8 +2044,7 @@ class VMDeobfuscation(Analysis):
 
         node_replace_dict = {}
         for node in list(cfg.graph.nodes()):
-            # skip last node
-            if not node.is_simprocedure and len(list(cfg.graph.successors(node)))!= 0:
+            if not node.is_simprocedure and len(list(cfg.graph.successors(node))) != 0:
                 print(node.simprocedure_name)
                 old_stmts = node.irsb.statements
                 new_stmts = []
