@@ -258,14 +258,14 @@ class ReachingDefinitionsState:
                         # FIXME: implement reg_offset handling in SimRegArg
                         reg_offset = self.arch.registers[arg.reg_name][0]
                         reg_atom = Register(reg_offset, self.arch.bytes)
-                        reg_def = Definition(reg_atom, ExternalCodeLocation(), tags={ParameterTag()})
+                        reg_def = Definition(reg_atom, ExternalCodeLocation(), tags={ParameterTag(function=func_addr)})
                         reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
                         self.register_definitions.store(reg_offset, reg)
 
                     # initialize stack parameters
                     elif isinstance(arg, SimStackArg):
                         ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
-                        ml_def = Definition(ml_atom, ExternalCodeLocation(), tags={ParameterTag()})
+                        ml_def = Definition(ml_atom, ExternalCodeLocation(), tags={ParameterTag(function=func_addr)})
                         ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
                         stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
                         self.stack_definitions.store(stack_address, ml,
