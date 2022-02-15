@@ -1442,15 +1442,19 @@ class CFGBase(Analysis):
 
         def _is_function_a_plt_stub(arch_, func):
             if len(func.block_addrs_set) != 1:
+                # multiple blocks? no idea what this is...
                 return False
             block = next(func.blocks)
             if self._is_noop_block(arch_, block):
                 # alignments
-                return True
-            if len(block.vex.instruction_addresses) <= 2 and block.vex.jumpkind == 'Ijk_Boring':
+                return False
+            if arch_.name in {'X86', 'AMD64'} and \
+                    len(block.vex.instruction_addresses) == 2 and block.vex.jumpkind == 'Ijk_Boring':
                 # push ordinal; jump _resolve
-                return True
-            return False
+                return False
+            # TODO: We may want to add support for filtering dummy PLT stubs for other architectures, but I haven't
+            # TODO: seen any need for those.
+            return True
 
         to_remove = set()
 
@@ -1465,7 +1469,7 @@ class CFGBase(Analysis):
             fn = functions.get_by_addr(fn_addr)
             addr = fn.addr - (fn.addr % 16)
             if addr != fn.addr:
-                if addr in functions and functions[addr].is_plt and _is_function_a_plt_stub(arch, fn):
+                if addr in functions and functions[addr].is_plt and not _is_function_a_plt_stub(arch, fn):
                     to_remove.add(fn.addr)
                     continue
 
