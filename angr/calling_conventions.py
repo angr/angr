@@ -92,10 +92,15 @@ class AllocHelper:
         raise TypeError(type(val))
 
 
-def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int=0):
+def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int=0,
+                                 treat_bot_as_int=True):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
+
+    if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
+        arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
+
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
         seen_bytes = 0
         pieces = []
@@ -1393,8 +1398,12 @@ class SimCCSystemVAMD64(SimCC):
     def _classify(self, ty, chunksize=None):
         if chunksize is None:
             chunksize = self.arch.bytes
-        nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
-        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum)):
+        # treat BOT as INTEGER
+        if isinstance(ty, SimTypeBottom):
+            nchunks = 1
+        else:
+            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom)):
             return ['INTEGER'] * nchunks
         elif isinstance(ty, (SimTypeFloat,)):
             return ['SSE'] + ['SSEUP'] * (nchunks - 1)
