@@ -295,9 +295,14 @@ class CallingConventionAnalysis(Analysis):
         for _, dst, data in func.graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
 
-            # If the dst bb only contains a jump instruction, add the jump target as well.
-            dst_insns = func.get_block(dst.addr).capstone.insns
-            if len(dst_insns) == 1 and dst_insns[0].mnemonic == 'jmp':
+            # If the target block contains only direct jump statements and has only one successor,
+            # include its successor.
+
+            # Re-lift the target block
+            dst_bb = self.project.factory.block(dst.addr, func.get_block(dst.addr).size, opt_level=1)
+
+            # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
+            if len(dst_bb.vex.statements) == 1 and len(func.graph.out_edges(dst)) == 1:
                 for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
                     subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
