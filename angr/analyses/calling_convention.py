@@ -302,7 +302,8 @@ class CallingConventionAnalysis(Analysis):
             dst_bb = self.project.factory.block(dst.addr, func.get_block(dst.addr).size, opt_level=1)
 
             # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
-            if len(dst_bb.vex.statements) == 1 and len(func.graph.out_edges(dst)) == 1:
+            if len(dst_bb.vex.statements) == 1 and dst_bb.vex.statements[0].tag == 'Ist_IMark'\
+                    and len(func.graph.out_edges(dst)) == 1:
                 for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
                     subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
