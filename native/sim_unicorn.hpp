@@ -702,8 +702,8 @@ class State {
 		// Mapping of VEX offsets to unicorn register IDs and register sizes
 		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
-		std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
-		int64_t cpu_flags_register;
+		// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
+		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
 		stop_details_t stop_details;
 
 		// List of all values read from memory in current block
