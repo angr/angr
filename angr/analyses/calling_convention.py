@@ -295,6 +295,18 @@ class CallingConventionAnalysis(Analysis):
         for _, dst, data in func.graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
 
+            # If the target block contains only direct jump statements and has only one successor,
+            # include its successor.
+
+            # Re-lift the target block
+            dst_bb = self.project.factory.block(dst.addr, func.get_block(dst.addr).size, opt_level=1)
+
+            # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
+            if len(dst_bb.vex.statements) == 1 and dst_bb.vex.statements[0].tag == 'Ist_IMark'\
+                    and func.graph.out_degree(dst) == 1:
+                for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
+                    subgraph.add_edge(dst, jmp_dst, **jmp_data)
+
         return subgraph
 
     def _analyze_callsite(self, caller_block_addr: int,
