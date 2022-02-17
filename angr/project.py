@@ -11,6 +11,8 @@ from typing import Dict, Any, Optional
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
+
+import angr.procedures.definitions
 from .sim_procedure import SimProcedure
 
 from .misc.ux import deprecated
@@ -346,7 +348,12 @@ class Project:
                 else:
                     if not func.is_weak:
                         l.info("Using stub SimProcedure for unresolved %s", export.name)
-                        the_lib = missing_libs[0]
+                        for lib in SIM_LIBRARIES.values():
+                            if not isinstance(lib, angr.procedures.definitions.SimSyscallLibrary) and lib.has_metadata(export.name):
+                                the_lib = lib
+                                break
+                        else:
+                            the_lib = missing_libs[0]
                         if export.name and export.name.startswith("_Z"):
                             # GNU C++ name. Use a C++ library to create the stub
                             if 'libstdc++.so' in SIM_LIBRARIES:

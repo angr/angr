@@ -1106,7 +1106,7 @@ class SimEngineRDVEX(
                 elif isinstance(arg, SimArrayArg):
                     min_stack_offset = None
                     max_stack_loc = None
-                    for subargloc in arg.locs:
+                    for subargloc in arg.get_footprint():
                         if isinstance(subargloc, SimRegArg):
                             atom = Register(subargloc.reg_offset, subargloc.size)
                             self.state.add_use(atom, code_loc)
