@@ -164,7 +164,10 @@ class PagedMemoryMixin(MemoryMixin):
         if pageoff + size <= self.page_size:
             written_size = 0
             while written_size < size:
-                sub_data, sub_data_size = sub_gen.send(size - written_size)
+                try:
+                    sub_data, sub_data_size = sub_gen.send(size - written_size)
+                except StopIteration:
+                    break
                 page = self._get_page(pageno, True, **kwargs)
                 sub_data_size = min(sub_data_size, size - written_size)
                 page.store(pageoff + written_size, sub_data, size=sub_data_size, endness=endness,
