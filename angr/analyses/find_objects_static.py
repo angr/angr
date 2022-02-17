@@ -7,7 +7,7 @@ from ..analyses.reaching_definitions.function_handler import FunctionHandler
 from ..knowledge_plugins.key_definitions.atoms import Register, MemoryLocation
 from ..storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ..knowledge_plugins.key_definitions.constants import OP_BEFORE, OP_AFTER
-from . import Analysis
+from . import Analysis, VtableFinder, CFGFast, ReachingDefinitionsAnalysis
 
 
 class PossibleObject:
@@ -159,7 +159,7 @@ class StaticObjectFinder(Analysis):
     """
 
     def __init__(self):
-        vtable_analysis = self.project.analyses.VtableFinder()
+        vtable_analysis = self.project.analyses[VtableFinder].prep()()
         self.vtables_list = vtable_analysis.vtables_list
         self.possible_objects = {}
 
@@ -171,7 +171,7 @@ class StaticObjectFinder(Analysis):
 
     def _analyze(self):
         if "CFGFast" not in self.project.kb.cfgs:
-            self.project.analyses.CFGFast(cross_references=True)
+            self.project.analyses[CFGFast].prep()(cross_references=True)
         all_functions = self.project.kb.functions
         # this is the addr where all the this pointers returned by new() will be pointing to
         max_addr = self.project.loader.main_object.max_addr + 8
@@ -185,7 +185,7 @@ class StaticObjectFinder(Analysis):
             )
             max_addr = newhandler.max_addr
             # this performs RDA as well as mark possible object instances for non stripped binaries
-            rd = self.project.analyses.ReachingDefinitions(
+            rd = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
                 all_functions[func], observe_all=True, function_handler=newhandler
             )
             for addr, pos_obj in newhandler.possible_objects_dict.items():

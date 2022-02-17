@@ -13,7 +13,8 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.functions import FunctionManager, Function
+from ...knowledge_plugins.functions.function_manager import FunctionManager
+from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
 from ...utils.constants import DEFAULT_STATEMENT
@@ -23,6 +24,7 @@ from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngi
 from ...codenode import HookNode, BlockNode
 from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from .. import Analysis
+from ..stack_pointer_tracker import StackPointerTracker
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger(name=__name__)
@@ -33,7 +35,7 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
 
-    tag = None
+    tag: Optional[str] = None
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
@@ -1440,15 +1442,19 @@ class CFGBase(Analysis):
 
         def _is_function_a_plt_stub(arch_, func):
             if len(func.block_addrs_set) != 1:
+                # multiple blocks? no idea what this is...
                 return False
             block = next(func.blocks)
             if self._is_noop_block(arch_, block):
                 # alignments
-                return True
-            if len(block.vex.instruction_addresses) <= 2 and block.vex.jumpkind == 'Ijk_Boring':
+                return False
+            if arch_.name in {'X86', 'AMD64'} and \
+                    len(block.vex.instruction_addresses) == 2 and block.vex.jumpkind == 'Ijk_Boring':
                 # push ordinal; jump _resolve
-                return True
-            return False
+                return False
+            # TODO: We may want to add support for filtering dummy PLT stubs for other architectures, but I haven't
+            # TODO: seen any need for those.
+            return True
 
         to_remove = set()
 
@@ -1463,7 +1469,7 @@ class CFGBase(Analysis):
             fn = functions.get_by_addr(fn_addr)
             addr = fn.addr - (fn.addr % 16)
             if addr != fn.addr:
-                if addr in functions and functions[addr].is_plt and _is_function_a_plt_stub(arch, fn):
+                if addr in functions and functions[addr].is_plt and not _is_function_a_plt_stub(arch, fn):
                     to_remove.add(fn.addr)
                     continue
 
@@ -1925,9 +1931,8 @@ class CFGBase(Analysis):
                 regs = {self.project.arch.sp_offset}
                 if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
                     regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses.StackPointerTracker(src_function, regs,
-                                                                      track_memory=self._sp_tracking_track_memory)
-
+                sptracker = self.project.analyses[StackPointerTracker].prep()(src_function, regs,
+                                                                            track_memory=self._sp_tracking_track_memory)
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True

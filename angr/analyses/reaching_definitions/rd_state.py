@@ -249,29 +249,32 @@ class ReachingDefinitionsState:
             t9_def = Definition(t9_atom, ExternalCodeLocation(), tags={InitialValueTag()})
             t9 = self.annotate_with_def(claripy.BVV(func_addr, self.arch.bits), t9_def)
             self.register_definitions.store(t9_offset, t9)
-
         if cc is not None:
-            for loc in cc.arg_locs(self.analysis.kb.functions[func_addr].prototype):
-                for arg in loc.get_footprint():
-                    # initialize register parameters
-                    if isinstance(arg, SimRegArg):
-                        # FIXME: implement reg_offset handling in SimRegArg
-                        reg_offset = self.arch.registers[arg.reg_name][0]
-                        reg_atom = Register(reg_offset, self.arch.bytes)
-                        reg_def = Definition(reg_atom, ExternalCodeLocation(), tags={ParameterTag()})
-                        reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
-                        self.register_definitions.store(reg_offset, reg)
+            prototype = self.analysis.kb.functions[func_addr].prototype
+            if prototype is not None:
+                for loc in cc.arg_locs(prototype):
+                    for arg in loc.get_footprint():
+                        # initialize register parameters
+                        if isinstance(arg, SimRegArg):
+                            # FIXME: implement reg_offset handling in SimRegArg
+                            reg_offset = self.arch.registers[arg.reg_name][0]
+                            reg_atom = Register(reg_offset, self.arch.bytes)
+                            reg_def = Definition(reg_atom, ExternalCodeLocation(),
+                                                 tags={ParameterTag(function=func_addr)})
+                            reg = self.annotate_with_def(self.top(self.arch.bits), reg_def)
+                            self.register_definitions.store(reg_offset, reg)
 
-                    # initialize stack parameters
-                    elif isinstance(arg, SimStackArg):
-                        ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
-                        ml_def = Definition(ml_atom, ExternalCodeLocation(), tags={ParameterTag()})
-                        ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
-                        stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
-                        self.stack_definitions.store(stack_address, ml,
-                                                     endness=self.arch.memory_endness)
-                    else:
-                        raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
+                        # initialize stack parameters
+                        elif isinstance(arg, SimStackArg):
+                            ml_atom = MemoryLocation(SpOffset(self.arch.bits, arg.stack_offset), arg.size)
+                            ml_def = Definition(ml_atom, ExternalCodeLocation(),
+                                                tags={ParameterTag(function=func_addr)})
+                            ml = self.annotate_with_def(self.top(self.arch.bits), ml_def)
+                            stack_address = self.get_stack_address(self.stack_address(arg.stack_offset))
+                            self.stack_definitions.store(stack_address, ml,
+                                                         endness=self.arch.memory_endness)
+                        else:
+                            raise TypeError('Unsupported parameter type %s.' % type(arg).__name__)
 
         # architecture dependent initialization
         if self.arch.name.startswith("PPC64"):

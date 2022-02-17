@@ -1241,7 +1241,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _intra_analysis(self):
         pass
 
-    def _get_successors(self, job):  # pylint:disable=arguments-differ
+    def _get_successors(self, job: CFGJob) -> List[CFGJob]:  # type: ignore[override] # pylint:disable=arguments-differ
 
         # current_function_addr = job.func_addr
         # addr = job.addr
@@ -1598,7 +1598,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
     # Basic block scanning
 
-    def _scan_block(self, cfg_job):
+    def _scan_block(self, cfg_job: CFGJob) -> List[CFGJob]:
         """
         Scan a basic block starting at a specific address
 
@@ -1625,7 +1625,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _scan_procedure(self, cfg_job, current_func_addr):
+    def _scan_procedure(self, cfg_job, current_func_addr) -> List[CFGJob]:
         """
         Checks the hooking procedure for this address searching for new static
         exit points to add to successors (generating entries for them)
@@ -1678,7 +1678,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # Mark the address as traced
             self._traced_addresses.add(addr)
 
-        entries = [ ]
+        entries: List[CFGJob] = [ ]
 
         if procedure.ADDS_EXITS:
             # Get two blocks ahead
@@ -1721,7 +1721,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _scan_irsb(self, cfg_job, current_func_addr):
+    def _scan_irsb(self, cfg_job, current_func_addr) -> List[CFGJob]:
         """
         Generate a list of successors (generating them each as entries) to IRSB.
         Updates previous CFG nodes with edges.
@@ -1870,13 +1870,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         return entries
 
-    def _create_jobs(self, target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr,
-                     stmt_idx) -> List[CFGJob]:
+    def _create_jobs(self,
+                     target, jumpkind, current_function_addr, irsb, addr, cfg_node, ins_addr, stmt_idx
+                     ) -> List[CFGJob]:
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
 
-        :param int target:          Destination of the resultant job
+        :param target:              Destination of the resultant job
         :param str jumpkind:        The jumpkind of the edge going to this node
         :param int current_function_addr: Address of the current function
         :param pyvex.IRSB irsb:     IRSB of the predecessor node
@@ -1886,7 +1887,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param int stmt_idx:        ID of the source statement.
         :return:                    a list of CFGJobs
         """
-
+        target_addr: Optional[int]
         if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
             target_addr = target.con.value
         elif type(target) in (pyvex.IRConst.U8, pyvex.IRConst.U16, pyvex.IRConst.U32, pyvex.IRConst.U64):  # pylint: disable=unidiomatic-typecheck
@@ -1906,7 +1907,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             else:
                 raise AngrCFGError("This shouldn't be possible")
 
-        jobs = [ ]
+        jobs: List[CFGJob] = []
         is_syscall = jumpkind.startswith("Ijk_Sys")
 
         # Special handling:
@@ -2046,7 +2047,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return jobs
 
     def _create_job_call(self, addr, irsb, cfg_node, stmt_idx, ins_addr, current_function_addr, target_addr, jumpkind,
-                         is_syscall=False):
+                         is_syscall=False) -> List[CFGJob]:
         """
         Generate a CFGJob for target address, also adding to _pending_entries
         if returning to succeeding position (if irsb arg is populated)
@@ -2064,7 +2065,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:                     list
         """
 
-        jobs = [ ]
+        jobs: List[CFGJob] = [ ]
 
         if is_syscall:
             # Fix the target_addr for syscalls

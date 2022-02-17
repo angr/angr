@@ -738,15 +738,20 @@ class Clinic(Analysis):
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
                 if isinstance(expr.addr, ailment.Expr.Const):
-                    symbol = self.project.loader.find_symbol(expr.addr.value)
-                    if symbol is not None:
-                        # Create a new global variable if there isn't one already
-                        global_vars = global_variables.get_global_variables(symbol.rebased_addr)
-                        if global_vars:
-                            global_var = next(iter(global_vars))
-                        else:
-                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
-                            global_variables.add_variable('global', global_var.addr, global_var)
+                    # is there a variable for it?
+                    global_vars = global_variables.get_global_variables(expr.addr.value)
+                    if not global_vars:
+                        # detect if there is a related symbol
+                        symbol = self.project.loader.find_symbol(expr.addr.value)
+                        if symbol is not None:
+                            # Create a new global variable if there isn't one already
+                            global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                            if not global_vars:
+                                global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                                global_variables.add_variable('global', global_var.addr, global_var)
+                                global_vars = {global_var}
+                    if global_vars:
+                        global_var = next(iter(global_vars))
                         expr.variable = global_var
                         expr.variable_offset = 0
                 else:

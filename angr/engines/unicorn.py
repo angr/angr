@@ -129,13 +129,32 @@ class SimEngineUnicorn(SuccessorsMixin):
     def _execute_symbolic_instrs(self):
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
-                self._execute_block_instrs_in_vex(block_details)
+                if self.state.os_name == "CGC" and block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
+                    # Re-execute receive syscall
+                    reg_vals = dict(block_details["registers"])
+                    curr_regs = self.state.regs
+                    # If any regs are not present in the block details for re-execute, they are probably symbolic and so
+                    # were not saved in native interface. Use current register values in those cases: they should have
+                    # correct values right now. rx_bytes argument is set to 0 since we care about updating symbolic
+                    # values only
+                    syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx),
+                                    reg_vals.get("edx", curr_regs.edx), 0]
+                    syscall_simproc = self.state.project.simos.syscall_from_number(3, abi=None)
+                    syscall_simproc.arch = self.state.arch
+                    syscall_simproc.project = self.state.project
+                    syscall_simproc.state = self.state
+                    syscall_simproc.cc = self.state.project.simos.syscall_cc(self.state)
+                    ret_val = getattr(syscall_simproc, syscall_simproc.run_func)(*syscall_args)
+                    self.state.registers.store("eax", ret_val, inspect=False, disable_actions=True)
+                else:
+                    self._execute_block_instrs_in_vex(block_details)
             except SimValueError as e:
                 l.error(e)
 
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
-        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)    # pylint:disable=no-member
+        # pylint:disable=no-member
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size, cross_insn_opt=False)
         if irsb.size == 0:
             if irsb.jumpkind == 'Ijk_NoDecode':
                 if not self.state.project.is_hooked(irsb.addr):

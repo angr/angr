@@ -5,7 +5,7 @@ import archinfo
 from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
-from . import Analysis
+from . import Analysis, CFGEmulated
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
@@ -462,7 +462,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             l.debug("Generating a CFG, since none was given...")
             # TODO: can we use a fast CFG instead? note that fast CFG does not care of context sensitivity at all, but
             # TODO: for state merging, we also don't really care about context sensitivity.
-            self._cfg = self.project.analyses.CFGEmulated(context_sensitivity_level=self._context_sensitivity_level,
+            self._cfg = self.project.analyses[CFGEmulated].prep()(
+                context_sensitivity_level=self._context_sensitivity_level,
                 starts=(self._start,)
             )
 
@@ -910,7 +911,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_jobs
 
-    def _post_job_handling(self, job, new_jobs, successors):  # pylint:disable=unused-argument
+    def _post_job_handling(self, job: VFGJob, new_jobs, successors):  # pylint:disable=unused-argument
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -1561,7 +1562,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 l.debug("Removed (%s) from FakeExits dict.",
                         ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
-    def _post_job_handling_debug(self, job, successors):
+    def _post_job_handling_debug(self, job: VFGJob, successors):
         """
         Print out debugging information after handling a VFGJob and generating the succeeding jobs.
 

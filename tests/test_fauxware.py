@@ -1,10 +1,11 @@
 import gc
 import os
+import unittest
 import pickle
 import logging
-import sys
-import angr
 from common import slow_test
+
+import angr
 
 from angr.state_plugins.history import HistoryIter
 
@@ -48,148 +49,171 @@ divergences = {
     "mips": 0x40075C,
 }
 
-
-def run_fauxware(arch):
-    p = angr.Project(
-        os.path.join(test_location, arch, "fauxware"), auto_load_libs=False
-    )
-    results = p.factory.simulation_manager().explore(
-        find=target_addrs[arch], avoid=avoid_addrs[arch]
-    )
-    stdin = results.found[0].posix.dumps(0)
-    assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
-
-    # test the divergence detection
-    ancestor = results.found[0].history.closest_common_ancestor(
-        (results.avoid + results.active)[0].history
-    )
-    divergent_point = list(HistoryIter(results.found[0].history, end=ancestor))[0]
-    # p.factory.block(divergent_point.addr).pp()
-    assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
-
-
-def run_pickling(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
-    pg = p.factory.simulation_manager().run(n=10)
-    pickled = pickle.dumps(pg, pickle.HIGHEST_PROTOCOL)
-    del p
-    del pg
-    gc.collect()
-    pg = pickle.loads(pickled)
-
-    pg.explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
-    stdin = pg.found[0].posix.dumps(0)
-    assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
-
-
-@slow_test
-def run_fastmem(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
-    p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()
-
-def run_nodecode(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
-
-    # screw up the instructions and make sure the test fails with nodecode
-    for i, c in enumerate(corrupt_addrs[arch][1]):
-        p.loader.memory[corrupt_addrs[arch][0] + i] = c
-    boned = p.factory.simulation_manager().explore(
-        find=target_addrs[arch], avoid=avoid_addrs[arch]
-    )
-    assert len(boned.errored) >= 1
-    assert isinstance(boned.errored[0].error, angr.SimIRSBNoDecodeError)
-    assert boned.errored[0].state.addr == corrupt_addrs[arch][0]
-
-    # hook the instructions with the emulated stuff
-    p.hook(
-        corrupt_addrs[arch][0],
-        corrupt_addrs[arch][2],
-        length=len(corrupt_addrs[arch][1]),
-    )
-    results = p.factory.simulation_manager().explore(
-        find=target_addrs[arch], avoid=avoid_addrs[arch]
-    )
-    stdin = results.found[0].posix.dumps(0)
-    assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
-
-
-def run_merge(arch):
-    p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
-    pg = p.factory.simulation_manager()
-    pg.explore()
-
-    # release the unmergable data
-    for s in pg.deadended:
-        s.release_plugin("fs")
-        if 3 in s.posix.fd:
-            s.posix.close(3)
-
-    pg.merge(stash="deadended", merge_key=lambda s: s.addr)
-
-    path = pg.deadended[
-        [b"Welcome" in s for s in pg.mp_deadended.posix.dumps(1).mp_items].index(True)
-    ]
-    yes, no = path.history.merge_conditions
-    inp = path.posix.stdin.content[2][0]  # content of second packet
-    try:
-        assert b"SOSNEAKY" in path.solver.eval(
-            inp, cast_to=bytes, extra_constraints=(yes,)
+class TestFauxware(unittest.TestCase):
+    def _run_fauxware(self, arch):
+        p = angr.Project(
+            os.path.join(test_location, arch, "fauxware"), auto_load_libs=False
         )
-        assert b"SOSNEAKY" not in path.solver.eval(
-            inp, cast_to=bytes, extra_constraints=(no,)
+        results = p.factory.simulation_manager().explore(
+            find=target_addrs[arch], avoid=avoid_addrs[arch]
         )
-    except AssertionError:
-        yes, no = no, yes
-        assert b"SOSNEAKY" in path.solver.eval(
-            inp, cast_to=bytes, extra_constraints=(yes,)
+        stdin = results.found[0].posix.dumps(0)
+        assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
+
+        # test the divergence detection
+        ancestor = results.found[0].history.closest_common_ancestor(
+            (results.avoid + results.active)[0].history
         )
-        assert b"SOSNEAKY" not in path.solver.eval(
-            inp, cast_to=bytes, extra_constraints=(no,)
+        divergent_point = list(HistoryIter(results.found[0].history, end=ancestor))[0]
+        # p.factory.block(divergent_point.addr).pp()
+        assert divergent_point.recent_bbl_addrs[0] == divergences[arch]
+
+    def _run_pickling(self, arch):
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+        pg = p.factory.simulation_manager().run(n=10)
+        pickled = pickle.dumps(pg, pickle.HIGHEST_PROTOCOL)
+        del p
+        del pg
+        gc.collect()
+        pg = pickle.loads(pickled)
+
+        pg.explore(find=target_addrs[arch], avoid=avoid_addrs[arch])
+        stdin = pg.found[0].posix.dumps(0)
+        assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
+
+    @slow_test
+    def _run_fastmem(self, arch):
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+        p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()
+
+    def _run_nodecode(self, arch):
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+
+        # screw up the instructions and make sure the test fails with nodecode
+        for i, c in enumerate(corrupt_addrs[arch][1]):
+            p.loader.memory[corrupt_addrs[arch][0] + i] = c
+        boned = p.factory.simulation_manager().explore(
+            find=target_addrs[arch], avoid=avoid_addrs[arch]
         )
+        assert len(boned.errored) >= 1
+        assert isinstance(boned.errored[0].error, angr.SimIRSBNoDecodeError)
+        assert boned.errored[0].state.addr == corrupt_addrs[arch][0]
 
+        # hook the instructions with the emulated stuff
+        p.hook(
+            corrupt_addrs[arch][0],
+            corrupt_addrs[arch][2],
+            length=len(corrupt_addrs[arch][1]),
+        )
+        results = p.factory.simulation_manager().explore(
+            find=target_addrs[arch], avoid=avoid_addrs[arch]
+        )
+        stdin = results.found[0].posix.dumps(0)
+        assert b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00" == stdin
 
-def test_merge():
-    for arch in target_addrs:
-        yield run_merge, arch
+    def _run_merge(self, arch):
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
+        pg = p.factory.simulation_manager()
+        pg.explore()
 
+        # release the unmergable data
+        for s in pg.deadended:
+            s.release_plugin("fs")
+            if 3 in s.posix.fd:
+                s.posix.close(3)
 
-def test_fauxware():
-    for arch in target_addrs:
-        yield run_fauxware, arch
+        pg.merge(stash="deadended", merge_key=lambda s: s.addr)
 
+        path = pg.deadended[
+            [b"Welcome" in s for s in pg.mp_deadended.posix.dumps(1).mp_items].index(True)
+        ]
+        yes, no = path.history.merge_conditions
+        inp = path.posix.stdin.content[2][0]  # content of second packet
+        try:
+            assert b"SOSNEAKY" in path.solver.eval(
+                inp, cast_to=bytes, extra_constraints=(yes,)
+            )
+            assert b"SOSNEAKY" not in path.solver.eval(
+                inp, cast_to=bytes, extra_constraints=(no,)
+            )
+        except AssertionError:
+            yes, no = no, yes
+            assert b"SOSNEAKY" in path.solver.eval(
+                inp, cast_to=bytes, extra_constraints=(yes,)
+            )
+            assert b"SOSNEAKY" not in path.solver.eval(
+                inp, cast_to=bytes, extra_constraints=(no,)
+            )
 
-def test_pickling():
-    for arch in corrupt_addrs:
-        yield run_pickling, arch
+    def test_merge_i386(self):
+        self._run_merge("i386")
 
+    def test_merge_x86_64(self):
+        self._run_merge("x86_64")
 
-@slow_test
-def test_fastmem():
-    # for arch in target_addrs:
-    #   yield run_fastmem, arch
-    # TODO: add support for comparing flags of other architectures
-    # yield run_fastmem, "i386"
-    yield run_fastmem, "x86_64"
-    # yield run_fastmem, "ppc"
-    # yield run_fastmem, "mips"
+    def test_merge_ppc(self):
+        self._run_merge("ppc")
 
+    def test_merge_armel(self):
+        self._run_merge("armel")
 
-def test_nodecode():
-    for arch in corrupt_addrs:
-        yield run_nodecode, arch
+    def test_merge_android(self):
+        self._run_merge("android/arm")
 
+    def test_merge_mips(self):
+        self._run_merge("mips")
+
+    def test_fauxware_i386(self):
+        self._run_fauxware("i386")
+
+    def test_fauxware_x86_64(self):
+        self._run_fauxware("x86_64")
+
+    def test_fauxware_ppc(self):
+        self._run_fauxware("ppc")
+
+    def test_fauxware_armel(self):
+        self._run_fauxware("armel")
+
+    def test_fauxware_android(self):
+        self._run_fauxware("android/arm")
+
+    def test_fauxware_mips(self):
+        self._run_fauxware("mips")
+
+    def test_pickling_i386(self):
+        self._run_pickling("i386")
+
+    def test_pickling_x86_64(self):
+        self._run_pickling("x86_64")
+
+    def test_pickling_ppc(self):
+        self._run_pickling("ppc")
+
+    def test_pickling_armel(self):
+        self._run_pickling("armel")
+
+    def test_pickling_mips(self):
+        self._run_pickling("mips")
+
+    @slow_test
+    def test_fastmen(self):
+        self._run_fastmem("x86_64")
+
+    def test_nodecode_i386(self):
+        self._run_nodecode("i386")
+
+    def test_nodecode_x86_64(self):
+        self._run_nodecode("x86_64")
+
+    def test_nodecode_ppc(self):
+        self._run_nodecode("ppc")
+
+    def test_nodecode_armel(self):
+        self._run_nodecode("armel")
+
+    def test_nodecode_mips(self):
+        self._run_nodecode("mips")
 
 if __name__ == "__main__":
-    # logging.getLogger('claripy.backends.backend_z3').setLevel('DEBUG')
-
-    if len(sys.argv) > 1:
-        func_name = "test_%s" % sys.argv[1]
-        for r, a in globals()[func_name]():
-            r(a)
-
-    else:
-        g = globals().copy()
-        for func_name, func in g.items():
-            if func_name.startswith("test_") and hasattr(func, "__call__"):
-                for r, a in func():
-                    r(a)
+    unittest.main()

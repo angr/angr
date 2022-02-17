@@ -8,7 +8,7 @@ from ..knowledge_plugins.xrefs import XRef, XRefType
 from ..engines.light import SimEngineLight, SimEngineLightVEXMixin
 from .propagator.vex_vars import VEXTmp
 from .propagator.values import Top
-from . import register_analysis
+from . import register_analysis, PropagatorAnalysis
 from .analysis import Analysis
 from .forward_analysis import FunctionGraphVisitor, SingleNodeGraphVisitor, ForwardAnalysis
 
@@ -182,13 +182,13 @@ class XRefsAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-metho
             # traversing a function
             graph_visitor = FunctionGraphVisitor(func, func_graph)
             if replacements is None:
-                prop = self.project.analyses.Propagator(func=func, func_graph=func_graph)
+                prop = self.project.analyses[PropagatorAnalysis].prep()(func=func, func_graph=func_graph)
                 replacements = prop.replacements
         elif block is not None:
             # traversing a block
             graph_visitor = SingleNodeGraphVisitor(block)
             if replacements is None:
-                prop = self.project.analyses.Propagator(block=block)
+                prop = self.project.analyses[PropagatorAnalysis].prep()(block=block)
                 replacements = prop.replacements
         else:
             raise ValueError('Unsupported analysis target.')

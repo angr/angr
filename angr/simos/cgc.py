@@ -65,8 +65,9 @@ class SimCGC(SimUserland):
         if s.mode != 'static':
             s.memory.store(0x4347c000, claripy.Concat(*s.cgc.flag_bytes), priv=True)
 
-        # set up the address for concrete transmits
-        s.unicorn.transmit_addr = self.syscall_from_number(2).addr
+        # set up the address for concrete transmits and receive
+        s.unicorn.cgc_transmit_addr = self.syscall_from_number(2).addr
+        s.unicorn.cgc_receive_addr = self.syscall_from_number(3).addr
 
         s.libc.max_str_len = 1000000
         s.libc.max_strtol_len = 10

@@ -29,7 +29,7 @@ class Subject:
         self._content = content
 
         if isinstance(content, Function):
-            self._cc = cc
+            self._cc = cc or content.calling_convention
             self._func_graph = func_graph
             self._type = SubjectType.Function
             self._visitor = FunctionGraphVisitor(content, func_graph)

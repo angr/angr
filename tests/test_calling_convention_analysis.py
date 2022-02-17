@@ -240,6 +240,16 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         cca = proj.analyses.CallingConvention(func)
         assert len(cca.prototype.args) == 6
 
+    def test_x64_return_value_used(self):
+        binary_path = os.path.join(test_location, "tests", "x86_64", "cwebp-0.3.1-feh-original")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True, force_complete_scan=False)
+        func = proj.kb.functions.get_by_addr(0x4046e0)
+        cca = proj.analyses.CallingConvention(func=func, cfg=cfg, analyze_callsites=True)
+
+        assert cca.prototype is not None
+        assert cca.prototype.returnty is not None
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)

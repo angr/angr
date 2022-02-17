@@ -3,16 +3,17 @@ import logging
 import sys
 from collections import defaultdict
 from functools import reduce
-from typing import Dict
+from typing import Dict, List
 
+import angr
 import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
 
-
 from ... import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from ... import options as o
+from ...codenode import BlockNode
 from ...engines.procedure import ProcedureEngine
 from ...exploration_techniques.loop_seer import LoopSeer
 from ...exploration_techniques.slicecutor import Slicecutor
@@ -29,6 +30,11 @@ from ..forward_analysis import ForwardAnalysis
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils
+
+from ..cdg import CDG
+from ..ddg import DDG
+from ..backward_slice import BackwardSlice
+from ..loopfinder import LoopFinder, Loop
 
 l = logging.getLogger(name=__name__)
 
@@ -73,9 +79,7 @@ class CFGJob(CFGJobBase):
 
 
 class PendingJob:
-    def __init__(self, caller_func_addr, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr,
-                 call_stack):
-        """
+    """
         A PendingJob is whatever will be put into our pending_exit list. A pending exit is an entry that created by the
         returning of a call or syscall. It is "pending" since we cannot immediately figure out whether this entry will
         be executed or not. If the corresponding call/syscall intentially doesn't return, then the pending exit will be
@@ -83,7 +87,10 @@ class PendingJob:
         entry is created from the returning and will be analyzed later). If the corresponding call/syscall might
         return, but for some reason (for example, an unsupported instruction is met during the analysis) our analysis
         does not return properly, then the pending exit will be picked up and put into remaining_jobs list.
-
+    """
+    def __init__(self, caller_func_addr, returning_source, state, src_block_id, src_exit_stmt_idx, src_exit_ins_addr,
+                 call_stack):
+        """
         :param returning_source:    Address of the callee function. It might be None if address of the callee is not
                                     resolvable.
         :param state:               The state after returning from the callee function. Of course there is no way to get
@@ -309,18 +316,17 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     # Public methods
     #
 
-    def copy(self):
+    def copy(self) -> "CFGEmulated":
         """
         Make a copy of the CFG.
 
         :return: A copy of the CFG instance.
-        :rtype: angr.analyses.CFG
         """
         new_cfg = CFGEmulated.__new__(CFGEmulated)
         super(CFGEmulated, self).make_copy(new_cfg)
 
         new_cfg._indirect_jump_target_limit = self._indirect_jump_target_limit
-        new_cfg.named_errors = dict(self.named_errors)
+        new_cfg.named_errors = defaultdict(list, self.named_errors)
         new_cfg.errors = list(self.errors)
         new_cfg._fail_fast = self._fail_fast
         new_cfg._max_steps = self._max_steps
@@ -410,19 +416,19 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             raise AngrCFGError('Max loop unrolling times must be set to an integer greater than or equal to 0 if ' +
                                'loop unrolling is enabled.')
 
-        def _unroll(graph, loop):
+        def _unroll(graph: networkx.DiGraph, loop: Loop):
             """
             The loop callback method where loops are unrolled.
 
-            :param networkx.DiGraph graph: The control flow graph.
-            :param angr.analyses.loopfinder.Loop loop: The loop instance.
+            :param graph: The control flow graph.
+            :param loop: The loop instance.
             :return: None
             """
 
             for back_edge in loop.continue_edges:
                 loop_body_addrs = {n.addr for n in loop.body_nodes}
-                src_blocknode = back_edge[0]  # type: angr.knowledge.codenode.BlockNode
-                dst_blocknode = back_edge[1]  # type: angr.knowledge.codenode.BlockNode
+                src_blocknode: BlockNode = back_edge[0]
+                dst_blocknode: BlockNode = back_edge[1]
 
                 for src in self.get_all_nodes(src_blocknode.addr):
                     for dst in graph.successors(src):
@@ -719,7 +725,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
     #
 
     def __setstate__(self, s):
-        self.project = s['project']
+        self.project: angr.Project = s['project']
         self.indirect_jumps: Dict[int,IndirectJump] = s['indirect_jumps']
         self._loop_back_edges = s['_loop_back_edges']
         self._thumb_addrs = s['_thumb_addrs']
@@ -1432,7 +1438,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors
 
-    def _post_job_handling(self, job, new_jobs, successors):
+    def _post_job_handling(self, job: CFGJob, _new_jobs, successors: List[SimState]): # type: ignore[override]
         """
 
         :param CFGJob job:
@@ -1491,7 +1497,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
 
         return successors, extra_info
 
-    def _post_handle_job_debug(self, job, successors):
+    def _post_handle_job_debug(self, job: CFGJob, successors: List[SimState]) -> None:
         """
         Post job handling: print debugging information regarding the current job.
 
@@ -1648,7 +1654,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         if jumpkind == "Ijk_Call":
             extra_info['last_call_exit_target'] = target_addr
 
-    def _handle_successor(self, job, successor, successors):
+    def _handle_successor(self, job, successor: SimState, successors):
         """
         Returns a new CFGJob instance for further analysis, or None if there is no immediate state to perform the
         analysis on.
@@ -1656,7 +1662,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :param CFGJob job: The current job.
         """
 
-        state = successor
+        state: SimState = successor
         all_successor_states = successors
         addr = job.addr
 
@@ -2426,15 +2432,16 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         stmt_id = [i for i, s in enumerate(irsb.statements)
                    if isinstance(s, pyvex.IRStmt.WrTmp) and s.tmp == next_tmp][0]
 
-        cdg = self.project.analyses.CDG(cfg=self, fail_fast=self._fail_fast)
-        ddg = self.project.analyses.DDG(cfg=self, start=current_function_addr, call_depth=0, fail_fast=self._fail_fast)
+        cdg = self.project.analyses[CDG].prep(fail_fast=self._fail_fast)(cfg=self)
+        ddg = self.project.analyses[DDG].prep(fail_fast=self._fail_fast)(cfg=self,
+                                                                         start=current_function_addr,
+                                                                         call_depth=0)
 
-        bc = self.project.analyses.BackwardSlice(self,
+        bc = self.project.analyses[BackwardSlice].prep(fail_fast=self._fail_fast)(self,
                                                  cdg,
                                                  ddg,
                                                  targets=[(cfgnode, stmt_id)],
-                                                 same_function=True,
-                                                 fail_fast=self._fail_fast)
+                                                 same_function=True)
         taint_graph = bc.taint_graph
         # Find the correct taint
         next_nodes = [cl for cl in taint_graph.nodes() if cl.block_addr == sim_successors.addr]
@@ -2446,7 +2453,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         next_node = next_nodes[0]
 
         # Get the weakly-connected subgraph that contains `next_node`
-        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes) for nodes in networkx.weakly_connected_components(taint_graph))
+        all_subgraphs = ( networkx.induced_subgraph(taint_graph, nodes)
+                          for nodes in networkx.weakly_connected_components(taint_graph))
         starts = set()
         for subgraph in all_subgraphs:
             if next_node in subgraph:
@@ -2911,7 +2919,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"]()
             sim_successors = ProcedureEngine().process(state, procedure=inst)
 
-        except AngrExitError as ex:
+        except AngrExitError:
             exception_info = sys.exc_info()
             l.debug("Caught a AngrExitError during CFG recovery. Don't panic, this is usually expected.", exc_info=True)
             # Generate a PathTerminator to terminate the current path
@@ -3115,7 +3123,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         :return: None
         """
 
-        loop_finder = self.project.analyses.LoopFinder(kb=self.kb, normalize=False, fail_fast=self._fail_fast)
+        loop_finder = self.project.analyses[LoopFinder].prep(kb=self.kb, fail_fast=self._fail_fast)(normalize=False)
 
         if loop_callback is not None:
             graph_copy = networkx.DiGraph(self._graph)
@@ -3457,6 +3465,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         state.set_mode(mode)
         state.options |= self._state_add_options
         state.options = state.options.difference(self._state_remove_options)
+
+
+
 
 from angr.analyses import AnalysesHub
 AnalysesHub.register_default('CFGEmulated', CFGEmulated)

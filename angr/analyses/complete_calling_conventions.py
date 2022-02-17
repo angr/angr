@@ -5,7 +5,7 @@ import claripy
 
 from ..knowledge_plugins.cfg import CFGModel
 from ..analyses.cfg import CFGUtils
-from . import Analysis, register_analysis
+from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
 
 _l = logging.getLogger(name=__name__)
 
@@ -89,7 +89,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if self._recover_variables and self.function_needs_variable_recovery(func):
                     _l.info("Performing variable recovery on %r...", func)
                     try:
-                        _ = self.project.analyses.VariableRecoveryFast(func, kb=self.kb, low_priority=self._low_priority)
+                        _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(func, low_priority=self._low_priority)
                     except claripy.ClaripyError:
                         _l.warning("An claripy exception occurred during variable recovery analysis on function %#x.",
                                    func.addr,
@@ -98,7 +98,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         continue
 
                 # determine the calling convention of each function
-                cc_analysis = self.project.analyses.CallingConvention(func, cfg=self._cfg, kb=self.kb,
+                cc_analysis = self.project.analyses[CallingConventionAnalysis].prep(kb=self.kb)(func, cfg=self._cfg,
                                                                       analyze_callsites=self._analyze_callsites)
                 if cc_analysis.cc is not None:
                     _l.info("Determined calling convention and prototype for %r.", func)
