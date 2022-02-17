@@ -12,6 +12,9 @@ import networkx
 import pyvex
 
 from . import Analysis
+from .cfg.cfg_emulated import CFGEmulated
+from .ddg import DDG
+from .cfg.cfg_fast import CFGFast
 from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
 from ..knowledge_plugins.functions import Function
 from ..knowledge_base import KnowledgeBase
@@ -2359,7 +2362,7 @@ class Reassembler(Analysis):
             self._section_alignments[section.name] = alignment
 
         l.debug('Generating CFG...')
-        cfg = self.project.analyses.CFG(normalize=True, resolve_indirect_jumps=True, data_references=True,
+        cfg = self.project.analyses[CFGFast].prep()(normalize=True, resolve_indirect_jumps=True, data_references=True,
                                         extra_memory_regions=[(0x4347c000, 0x4347c000 + 0x1000)],
                                         data_type_guessing_handlers=[
                                             self._sequence_handler,
@@ -2774,13 +2777,13 @@ class Reassembler(Analysis):
                 continue
             base_graph.add_node(candidate_node)
             tmp_kb = KnowledgeBase(self.project)
-            cfg = self.project.analyses.CFGEmulated(kb=tmp_kb,
+            cfg = self.project.analyses[CFGEmulated].prep(kb=tmp_kb)(
                                                     starts=(candidate.irsb_addr,),
                                                     keep_state=True,
                                                     base_graph=base_graph
                                                     )
             candidate_irsb = cfg.get_any_irsb(candidate.irsb_addr)  # type: SimIRSB
-            ddg = self.project.analyses.DDG(kb=tmp_kb, cfg=cfg)
+            ddg = self.project.analyses[DDG].prep(kb=tmp_kb)(cfg=cfg)
 
             mem_var_node = None
             for node in ddg.simplified_data_graph.nodes():

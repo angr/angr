@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 
 import networkx
-from . import Analysis
+from . import Analysis, VFG
 
 from ..code_location import CodeLocation
 from ..errors import AngrDDGError
@@ -61,7 +61,7 @@ class VSA_DDG(Analysis):
         if vfg is not None:
             self._vfg = vfg
         else:
-            self._vfg = self.project.analyses.VFG(function_start=start_addr,
+            self._vfg = self.project.analyses[VFG].prep()(function_start=start_addr,
                                              interfunction_level=interfunction_level,
                                              context_sensitivity_level=context_sensitivity_level)
 

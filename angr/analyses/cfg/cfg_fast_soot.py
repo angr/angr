@@ -2,6 +2,8 @@
 import logging
 
 from collections import defaultdict
+from typing import List
+
 from sortedcontainers import  SortedDict
 from copy import copy
 
@@ -377,7 +379,7 @@ class CFGFastSoot(CFGFast):
 
         return stmts_count
 
-    def _scan_block(self, cfg_job):
+    def _scan_block(self, cfg_job) -> List[CFGJob]:
         """
         Scan a basic block starting at a specific address
 
