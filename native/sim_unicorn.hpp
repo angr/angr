@@ -1,8 +1,9 @@
 #ifndef SIM_UNICORN_HPP
 #define SIM_UNICORN_HPP
 
-extern "C" {
-	#include <libvex_guest_offsets.h>
+extern "C"
+{
+#include <libvex_guest_offsets.h>
 }
 
 // Maximum size of a qemu/unicorn basic block
@@ -22,32 +23,37 @@ typedef uint64_t unicorn_reg_id_t;
 typedef int64_t vex_reg_offset_t;
 typedef int64_t vex_tmp_id_t;
 
-enum simos_t: uint8_t {
+enum simos_t : uint8_t
+{
 	SIMOS_CGC = 0,
 	SIMOS_LINUX = 1,
 	SIMOS_OTHER = 2,
 };
 
-enum taint_t: uint8_t {
+enum taint_t : uint8_t
+{
 	TAINT_NONE = 0,
 	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
 	TAINT_DIRTY = 2,
 };
 
-enum taint_entity_enum_t: uint8_t {
+enum taint_entity_enum_t : uint8_t
+{
 	TAINT_ENTITY_REG = 0,
 	TAINT_ENTITY_TMP = 1,
 	TAINT_ENTITY_MEM = 2,
 	TAINT_ENTITY_NONE = 3,
 };
 
-enum taint_status_result_t: uint8_t {
+enum taint_status_result_t : uint8_t
+{
 	TAINT_STATUS_CONCRETE = 0,
 	TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR,
 	TAINT_STATUS_SYMBOLIC,
 };
 
-struct taint_entity_t {
+struct taint_entity_t
+{
 	taint_entity_enum_t entity_type;
 
 	// The actual entity data. Only one of them is valid at a time depending on entity_type.
@@ -64,7 +70,8 @@ struct taint_entity_t {
 	int64_t value_size;
 	mutable bool used_in_mem_addr;
 
-	taint_entity_t() {
+	taint_entity_t()
+	{
 		reg_offset = -1;
 		tmp_id = -1;
 		mem_ref_entity_list.clear();
@@ -73,14 +80,18 @@ struct taint_entity_t {
 		used_in_mem_addr = false;
 	}
 
-	bool operator==(const taint_entity_t &other_entity) const {
-		if (entity_type != other_entity.entity_type) {
+	bool operator==(const taint_entity_t &other_entity) const
+	{
+		if (entity_type != other_entity.entity_type)
+		{
 			return false;
 		}
-		if (entity_type == TAINT_ENTITY_REG) {
+		if (entity_type == TAINT_ENTITY_REG)
+		{
 			return (reg_offset == other_entity.reg_offset);
 		}
-		if (entity_type == TAINT_ENTITY_TMP) {
+		if (entity_type == TAINT_ENTITY_TMP)
+		{
 			return (tmp_id == other_entity.tmp_id);
 		}
 		return (mem_ref_entity_list == other_entity.mem_ref_entity_list);
@@ -88,104 +99,128 @@ struct taint_entity_t {
 
 	// Hash function for use in unordered_map. Defined in class and invoked from hash struct.
 	// TODO: Check performance of hash and come up with better one if too bad
-	std::size_t operator()(const taint_entity_t &taint_entity) const {
-		if (taint_entity.entity_type == TAINT_ENTITY_REG) {
+	std::size_t operator()(const taint_entity_t &taint_entity) const
+	{
+		if (taint_entity.entity_type == TAINT_ENTITY_REG)
+		{
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
 				   std::hash<uint64_t>()(taint_entity.reg_offset);
 		}
-		else if (taint_entity.entity_type == TAINT_ENTITY_TMP) {
+		else if (taint_entity.entity_type == TAINT_ENTITY_TMP)
+		{
 			return std::hash<uint64_t>()(taint_entity.entity_type) ^
 				   std::hash<uint64_t>()(taint_entity.tmp_id);
 		}
-		else if (taint_entity.entity_type == TAINT_ENTITY_MEM) {
+		else if (taint_entity.entity_type == TAINT_ENTITY_MEM)
+		{
 			std::size_t taint_entity_hash = std::hash<uint64_t>()(taint_entity.entity_type);
-			for (auto &sub_entity: taint_entity.mem_ref_entity_list) {
+			for (auto &sub_entity : taint_entity.mem_ref_entity_list)
+			{
 				taint_entity_hash ^= sub_entity.operator()(sub_entity);
 			}
 			return taint_entity_hash;
 		}
-		else {
+		else
+		{
 			return std::hash<uint64_t>()(taint_entity.entity_type);
 		}
 	}
 };
 
 // Hash function for unordered_map. Needs to be defined this way in C++.
-namespace std {
+namespace std
+{
 	template <>
-	struct hash<taint_entity_t> {
-		std::size_t operator()(const taint_entity_t &entity) const {
+	struct hash<taint_entity_t>
+	{
+		std::size_t operator()(const taint_entity_t &entity) const
+		{
 			return entity.operator()(entity);
 		}
 	};
 }
 
-struct memory_value_t {
+struct memory_value_t
+{
 	uint64_t address;
-    uint8_t value[MAX_MEM_ACCESS_SIZE];
-    uint64_t size;
+	uint8_t value[MAX_MEM_ACCESS_SIZE];
+	uint64_t size;
 	bool is_value_symbolic;
 
-	bool operator==(const memory_value_t &other_mem_value) const {
+	bool operator==(const memory_value_t &other_mem_value) const
+	{
 		if ((address != other_mem_value.address) || (size != other_mem_value.size) ||
-			(is_value_symbolic != other_mem_value.is_value_symbolic)) {
+			(is_value_symbolic != other_mem_value.is_value_symbolic))
+		{
 			return false;
 		}
 		return (memcmp(value, other_mem_value.value, size) == 0);
 	}
 
-	void reset() {
+	void reset()
+	{
 		address = 0;
 		size = 0;
 		memset(value, 0, MAX_MEM_ACCESS_SIZE);
 	}
 };
 
-struct mem_read_result_t {
+struct mem_read_result_t
+{
 	std::vector<memory_value_t> memory_values;
 	bool is_mem_read_symbolic;
 	uint32_t read_size;
 
-	mem_read_result_t() {
+	mem_read_result_t()
+	{
 		memory_values.clear();
 		is_mem_read_symbolic = false;
 		read_size = 0;
 	}
 };
 
-struct register_value_t {
+struct register_value_t
+{
 	uint64_t offset;
 	uint8_t value[MAX_REGISTER_BYTE_SIZE];
 	int64_t size;
 
-	register_value_t() {
+	register_value_t()
+	{
 		offset = 0;
 		size = -1;
 		memset(value, 0, MAX_REGISTER_BYTE_SIZE);
 	}
 
-	bool operator==(const register_value_t &reg_value) const {
-		if (offset != reg_value.offset) {
+	bool operator==(const register_value_t &reg_value) const
+	{
+		if (offset != reg_value.offset)
+		{
 			return false;
 		}
 		return (memcmp(value, reg_value.value, MAX_REGISTER_BYTE_SIZE) == 0);
 	}
 
-	std::size_t operator()(const register_value_t &reg_value) const {
+	std::size_t operator()(const register_value_t &reg_value) const
+	{
 		return std::hash<uint64_t>()(reg_value.offset);
 	}
 };
 
-namespace std {
+namespace std
+{
 	template <>
-	struct hash<register_value_t> {
-		std::size_t operator()(const register_value_t &value) const {
+	struct hash<register_value_t>
+	{
+		std::size_t operator()(const register_value_t &value) const
+		{
 			return value.operator()(value);
 		}
 	};
 }
 
-struct instr_details_t {
+struct instr_details_t
+{
 	address_t instr_addr;
 	int64_t mem_write_addr;
 	int64_t mem_write_size;
@@ -198,7 +233,8 @@ struct instr_details_t {
 	std::unordered_set<register_value_t> reg_deps;
 	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 
-	instr_details_t() {
+	instr_details_t()
+	{
 		has_concrete_memory_dep = false;
 		has_symbolic_memory_dep = false;
 		instr_deps.clear();
@@ -208,21 +244,25 @@ struct instr_details_t {
 		symbolic_mem_deps.clear();
 	}
 
-	bool operator==(const instr_details_t &other_instr) const {
+	bool operator==(const instr_details_t &other_instr) const
+	{
 		if ((instr_addr != other_instr.instr_addr) || (has_concrete_memory_dep != other_instr.has_concrete_memory_dep) ||
 			(has_symbolic_memory_dep != other_instr.has_symbolic_memory_dep) || (instr_deps != other_instr.instr_deps) ||
-			(reg_deps != other_instr.reg_deps)) {
-				return false;
+			(reg_deps != other_instr.reg_deps))
+		{
+			return false;
 		}
 		return true;
 	}
 
-	bool operator<(const instr_details_t &other_instr) const {
+	bool operator<(const instr_details_t &other_instr) const
+	{
 		return (instr_addr < other_instr.instr_addr);
 	}
 };
 
-struct block_details_t {
+struct block_details_t
+{
 	address_t block_addr;
 	uint64_t block_size;
 	int64_t block_trace_ind;
@@ -233,7 +273,8 @@ struct block_details_t {
 	// if they end in syscall. Remove it after syscalls are correctly setup on ARM in native interface itself.
 	VEXLiftResult *vex_lift_result;
 
-	void reset() {
+	void reset()
+	{
 		block_addr = 0;
 		block_size = 0;
 		block_trace_ind = -1;
@@ -245,31 +286,38 @@ struct block_details_t {
 };
 
 // sym_block_details_t and sym_instr_details_t are used to store data, references to which are returned to state plugin
-struct sym_instr_details_t {
+struct sym_instr_details_t
+{
 	address_t instr_addr;
 	bool has_memory_dep;
 	memory_value_t *memory_values;
 	uint64_t memory_values_count;
 
-	bool operator==(const sym_instr_details_t &other_instr) const {
+	bool operator==(const sym_instr_details_t &other_instr) const
+	{
 		if ((instr_addr != other_instr.instr_addr) || (has_memory_dep != other_instr.has_memory_dep) ||
-			(memory_values_count != other_instr.memory_values_count)) {
-				return false;
+			(memory_values_count != other_instr.memory_values_count))
+		{
+			return false;
 		}
-		for (auto counter = 0; counter < memory_values_count; counter++) {
-			if (!(memory_values[counter] == other_instr.memory_values[counter])) {
+		for (auto counter = 0; counter < memory_values_count; counter++)
+		{
+			if (!(memory_values[counter] == other_instr.memory_values[counter]))
+			{
 				return false;
 			}
 		}
 		return true;
 	}
 
-	bool operator<(const sym_instr_details_t &other_instr) const {
+	bool operator<(const sym_instr_details_t &other_instr) const
+	{
 		return (instr_addr < other_instr.instr_addr);
 	}
 };
 
-struct sym_block_details_t {
+struct sym_block_details_t
+{
 	address_t block_addr;
 	uint64_t block_size;
 	int64_t block_trace_ind;
@@ -277,7 +325,8 @@ struct sym_block_details_t {
 	std::vector<sym_instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
 
-	void reset() {
+	void reset()
+	{
 		block_addr = 0;
 		block_size = 0;
 		block_trace_ind = -1;
@@ -289,19 +338,21 @@ struct sym_block_details_t {
 
 // This struct is used only to return data to the state plugin since ctypes doesn't natively handle
 // C++ STL containers
-struct sym_block_details_ret_t {
+struct sym_block_details_ret_t
+{
 	uint64_t block_addr;
 	uint64_t block_size;
 	int64_t block_trace_ind;
 	bool has_symbolic_exit;
-    sym_instr_details_t *symbolic_instrs;
-    uint64_t symbolic_instrs_count;
-    register_value_t *register_values;
-    uint64_t register_values_count;
+	sym_instr_details_t *symbolic_instrs;
+	uint64_t symbolic_instrs_count;
+	register_value_t *register_values;
+	uint64_t register_values_count;
 };
 
-enum stop_t {
-	STOP_NORMAL=0,
+enum stop_t
+{
+	STOP_NORMAL = 0,
 	STOP_STOPPOINT,
 	STOP_ERROR,
 	STOP_SYSCALL,
@@ -337,7 +388,8 @@ enum stop_t {
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
 
-struct instruction_taint_entry_t {
+struct instruction_taint_entry_t
+{
 	// List of direct taint sources for a taint sink
 	taint_vector_t taint_sink_src_map;
 
@@ -362,14 +414,16 @@ struct instruction_taint_entry_t {
 	// Count number of bytes written to memory by the instruction
 	uint32_t mem_write_size;
 
-	bool operator==(const instruction_taint_entry_t &other_instr_deps) const {
+	bool operator==(const instruction_taint_entry_t &other_instr_deps) const
+	{
 		return (taint_sink_src_map == other_instr_deps.taint_sink_src_map) &&
 			   (dependencies == other_instr_deps.dependencies) &&
 			   (has_memory_read == other_instr_deps.has_memory_read) &&
 			   (mem_write_size == other_instr_deps.mem_write_size);
 	}
 
-	void reset() {
+	void reset()
+	{
 		dependencies.clear();
 		dependencies.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
 		dependencies.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
@@ -385,7 +439,8 @@ struct instruction_taint_entry_t {
 	}
 };
 
-struct block_taint_entry_t {
+struct block_taint_entry_t
+{
 	std::map<address_t, instruction_taint_entry_t> block_instrs_taint_data_map;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
 	// Track instruction that sets a VEX temp and list of VEX temps on which its value depends on
@@ -396,7 +451,8 @@ struct block_taint_entry_t {
 	stop_t unsupported_stmt_stop_reason;
 	std::unordered_set<taint_entity_t> block_next_entities;
 
-	block_taint_entry_t() {
+	block_taint_entry_t()
+	{
 		block_instrs_taint_data_map.clear();
 		exit_stmt_guard_expr_deps.clear();
 		exit_stmt_instr_addr = 0;
@@ -406,7 +462,8 @@ struct block_taint_entry_t {
 		block_next_entities.clear();
 	}
 
-	bool operator==(const block_taint_entry_t &other_entry) const {
+	bool operator==(const block_taint_entry_t &other_entry) const
+	{
 		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
 			   (vex_temp_deps == other_entry.vex_temp_deps) && (has_cpuid_instr == other_entry.has_cpuid_instr) &&
 			   (exit_stmt_instr_addr == other_entry.exit_stmt_instr_addr) &&
@@ -415,13 +472,15 @@ struct block_taint_entry_t {
 	}
 };
 
-struct stop_details_t {
+struct stop_details_t
+{
 	stop_t stop_reason;
 	address_t block_addr;
 	uint64_t block_size;
 };
 
-struct processed_vex_expr_t {
+struct processed_vex_expr_t
+{
 	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> taint_sources;
 	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> ite_cond_entities;
 	bool has_unsupported_expr;
@@ -429,7 +488,8 @@ struct processed_vex_expr_t {
 	uint32_t mem_read_size;
 	int64_t value_size;
 
-	void reset() {
+	void reset()
+	{
 		taint_sources.clear();
 		taint_sources.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
 		taint_sources.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
@@ -444,7 +504,8 @@ struct processed_vex_expr_t {
 	}
 };
 
-struct CachedPage {
+struct CachedPage
+{
 	size_t size;
 	uint8_t *bytes;
 	uint64_t perms;
@@ -452,7 +513,8 @@ struct CachedPage {
 
 typedef std::map<address_t, CachedPage> PageCache;
 
-struct caches_t {
+struct caches_t
+{
 	PageCache *page_cache;
 };
 
@@ -463,44 +525,51 @@ std::map<uint64_t, caches_t> global_cache;
 typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
 
-struct fd_data {
+struct fd_data
+{
 	char *bytes;
 	uint64_t curr_pos;
 	uint64_t len;
 
-	fd_data(char *fd_bytes, uint64_t fd_len, uint64_t fd_read_pos) {
+	fd_data(char *fd_bytes, uint64_t fd_len, uint64_t fd_read_pos)
+	{
 		bytes = fd_bytes;
 		curr_pos = fd_read_pos;
 		len = fd_len;
 	}
 };
 
-struct mem_write_t {
+struct mem_write_t
+{
 	address_t address;
 	std::vector<uint8_t> value;
 	int size;
 	std::vector<taint_t> previous_taint;
 };
 
-struct mem_write_taint_t {
+struct mem_write_taint_t
+{
 	address_t instr_addr;
 	bool is_symbolic;
 	uint32_t size;
 
-	mem_write_taint_t(address_t write_instr, bool symbolic, uint32_t write_size) {
+	mem_write_taint_t(address_t write_instr, bool symbolic, uint32_t write_size)
+	{
 		instr_addr = write_instr;
 		is_symbolic = symbolic;
 		size = write_size;
 	}
 };
 
-struct mem_update_t {
+struct mem_update_t
+{
 	address_t address;
 	uint64_t length;
 	struct mem_update_t *next;
 };
 
-struct transmit_record_t {
+struct transmit_record_t
+{
 	void *data;
 	uint32_t count;
 };
@@ -513,7 +582,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
 static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user_data);
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
 
-class State {
+class State
+{
 	uc_engine *uc;
 	PageCache *page_cache;
 	BlockTaintCache block_taint_cache;
@@ -552,7 +622,7 @@ class State {
 
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
 	std::map<address_t, std::pair<taint_t *, uint8_t *>> active_pages;
-	//std::map<uint64_t, taint_t *> active_pages;
+	// std::map<uint64_t, taint_t *> active_pages;
 	std::set<uint64_t> stop_points;
 
 	address_t trace_last_block_addr;
@@ -609,7 +679,7 @@ class State {
 	// unordered_set
 	taint_status_result_t get_final_taint_status(const std::vector<taint_entity_t> &taint_sources) const;
 
-	int32_t get_vex_expr_result_size(IRExpr *expr, IRTypeEnv* tyenv) const;
+	int32_t get_vex_expr_result_size(IRExpr *expr, IRTypeEnv *tyenv) const;
 
 	bool is_block_exit_guard_symbolic() const;
 	bool is_block_next_target_symbolic() const;
@@ -617,7 +687,7 @@ class State {
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 
 	bool is_cpuid_in_block(address_t block_address, int32_t block_size);
-	VEXLiftResult* lift_block(address_t block_address, int32_t block_size);
+	VEXLiftResult *lift_block(address_t block_address, int32_t block_size);
 
 	void mark_register_symbolic(vex_reg_offset_t reg_offset, int64_t reg_size);
 	void mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size);
@@ -636,60 +706,69 @@ class State {
 
 	// Inline functions
 
-	inline bool is_valid_dependency_register(vex_reg_offset_t reg_offset) const {
+	inline bool is_valid_dependency_register(vex_reg_offset_t reg_offset) const
+	{
 		return ((artificial_vex_registers.count(reg_offset) == 0) && (blacklisted_registers.count(reg_offset) == 0));
 	}
 
-	inline bool is_blacklisted_register(vex_reg_offset_t reg_offset) const {
+	inline bool is_blacklisted_register(vex_reg_offset_t reg_offset) const
+	{
 		return (blacklisted_registers.count(reg_offset) > 0);
 	}
 
-	inline unsigned int arch_pc_reg_vex_offset() const {
-		switch (arch) {
-			case UC_ARCH_X86:
-				return unicorn_mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
-			case UC_ARCH_ARM:
-				return OFFSET_arm_R15T;
-			case UC_ARCH_ARM64:
-				return OFFSET_arm64_PC;
-			case UC_ARCH_MIPS:
-				return unicorn_mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
-			default:
-				return -1;
+	inline unsigned int arch_pc_reg_vex_offset() const
+	{
+		switch (arch)
+		{
+		case UC_ARCH_X86:
+			return unicorn_mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
+		case UC_ARCH_ARM:
+			return OFFSET_arm_R15T;
+		case UC_ARCH_ARM64:
+			return OFFSET_arm64_PC;
+		case UC_ARCH_MIPS:
+			return unicorn_mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
+		default:
+			return -1;
 		}
 	}
 
-	inline int arch_pc_reg() const {
-		switch (arch) {
-			case UC_ARCH_X86:
-				return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
-			case UC_ARCH_ARM:
-				return UC_ARM_REG_PC;
-			case UC_ARCH_ARM64:
-				return UC_ARM64_REG_PC;
-			case UC_ARCH_MIPS:
-				return UC_MIPS_REG_PC;
-			default:
-				return -1;
+	inline int arch_pc_reg() const
+	{
+		switch (arch)
+		{
+		case UC_ARCH_X86:
+			return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
+		case UC_ARCH_ARM:
+			return UC_ARM_REG_PC;
+		case UC_ARCH_ARM64:
+			return UC_ARM64_REG_PC;
+		case UC_ARCH_MIPS:
+			return UC_MIPS_REG_PC;
+		default:
+			return -1;
 		}
 	}
 
-	inline int arch_sp_reg() const {
-		switch (arch) {
-			case UC_ARCH_X86:
-				return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
-			case UC_ARCH_ARM:
-				return UC_ARM_REG_SP;
-			case UC_ARCH_ARM64:
-				return UC_ARM64_REG_SP;
-			case UC_ARCH_MIPS:
-				return UC_MIPS_REG_SP;
-			default:
-				return -1;
+	inline int arch_sp_reg() const
+	{
+		switch (arch)
+		{
+		case UC_ARCH_X86:
+			return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
+		case UC_ARCH_ARM:
+			return UC_ARM_REG_SP;
+		case UC_ARCH_ARM64:
+			return UC_ARM64_REG_SP;
+		case UC_ARCH_MIPS:
+			return UC_MIPS_REG_SP;
+		default:
+			return -1;
 		}
 	}
 
-	inline bool is_thumb_mode() const {
+	inline bool is_thumb_mode() const
+	{
 		// unicorn engine mode doesn't reflect the current execution mode correctly and so we check T bit in the CPSR
 		// register to determine if we are executing in ARM or THUMB mode.
 		uint32_t cpsr_reg_val;
@@ -697,181 +776,189 @@ class State {
 		return ((cpsr_reg_val & 32) != 0);
 	}
 
-	public:
-		std::vector<address_t> bbl_addrs;
-		std::vector<address_t> stack_pointers;
-		std::unordered_set<address_t> executed_pages;
-		std::unordered_set<address_t>::iterator *executed_pages_iterator;
-		uint64_t syscall_count;
-		std::vector<transmit_record_t> transmit_records;
-		uint64_t cur_steps, max_steps;
-		uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
-		bool stopped;
+public:
+	std::vector<address_t> bbl_addrs;
+	std::vector<address_t> stack_pointers;
+	std::unordered_set<address_t> executed_pages;
+	std::unordered_set<address_t>::iterator *executed_pages_iterator;
+	uint64_t syscall_count;
+	std::vector<transmit_record_t> transmit_records;
+	uint64_t cur_steps, max_steps;
+	uc_hook h_read, h_write, h_block, h_prot, h_unmap, h_intr;
+	bool stopped;
 
-		bool ignore_next_block;
-		bool ignore_next_selfmod;
-		address_t cur_address;
-		int32_t cur_size;
+	bool ignore_next_block;
+	bool ignore_next_selfmod;
+	address_t cur_address;
+	int32_t cur_size;
 
-		uc_arch arch;
-		uc_mode unicorn_mode;
-		bool interrupt_handled;
-		int32_t cgc_receive_sysno;
-		uint64_t cgc_receive_bbl;
-		int32_t cgc_transmit_sysno;
-		uint64_t cgc_transmit_bbl;
+	uc_arch arch;
+	uc_mode unicorn_mode;
+	bool interrupt_handled;
+	int32_t cgc_receive_sysno;
+	uint64_t cgc_receive_bbl;
+	int32_t cgc_transmit_sysno;
+	uint64_t cgc_transmit_bbl;
 
-		VexArch vex_guest;
-		VexArchInfo vex_archinfo;
-		RegisterSet symbolic_registers; // tracking of symbolic registers
-		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
-		// Mapping of VEX offsets to unicorn register IDs and register sizes
-		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
-		RegisterSet artificial_vex_registers; // Artificial VEX registers
-		// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
-		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
-		stop_details_t stop_details;
+	VexArch vex_guest;
+	VexArchInfo vex_archinfo;
+	RegisterSet symbolic_registers;	   // tracking of symbolic registers
+	RegisterSet blacklisted_registers; // Registers which shouldn't be saved as a concrete dependency
+	// Mapping of VEX offsets to unicorn register IDs and register sizes
+	std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
+	RegisterSet artificial_vex_registers; // Artificial VEX registers
+	// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
+	std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
+	stop_details_t stop_details;
 
-		// List of all values read from memory in current block
-		std::vector<memory_value_t> block_mem_reads_data;
+	// List of all values read from memory in current block
+	std::vector<memory_value_t> block_mem_reads_data;
 
-		// Result of all memory reads executed. Instruction address -> memory read result
-		std::unordered_map<address_t, mem_read_result_t> block_mem_reads_map;
+	// Result of all memory reads executed. Instruction address -> memory read result
+	std::unordered_map<address_t, mem_read_result_t> block_mem_reads_map;
 
-		// List of instructions that should be executed symbolically; used to store data to return
-		std::vector<sym_block_details_t> block_details_to_return;
+	// List of instructions that should be executed symbolically; used to store data to return
+	std::vector<sym_block_details_t> block_details_to_return;
 
-		bool track_bbls;
-		bool track_stack;
+	bool track_bbls;
+	bool track_stack;
 
-		uc_cb_eventmem_t py_mem_callback;
+	uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond);
+	State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond);
 
-		~State() {
-			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
-				// only delete if not direct-mapped
-				if (!it->second.second) {
-					// delete should use the bracket operator since PageBitmap is an array typedef
-					delete[] it->second.first;
-				}
+	~State()
+	{
+		for (auto it = active_pages.begin(); it != active_pages.end(); it++)
+		{
+			// only delete if not direct-mapped
+			if (!it->second.second)
+			{
+				// delete should use the bracket operator since PageBitmap is an array typedef
+				delete[] it->second.first;
 			}
-			mem_update_t *next;
-			for (mem_update_t *cur = mem_updates_head; cur; cur = next) {
-				next = cur->next;
-				delete cur;
-			}
-			active_pages.clear();
-			mem_updates_head = NULL;
-			uc_free(saved_regs);
 		}
-
-		void hook();
-
-		void unhook();
-
-		uc_err start(address_t pc, uint64_t step = 1);
-
-		void stop(stop_t reason, bool do_commit=false);
-
-		void step(address_t current_address, int32_t size, bool check_stop_points=true);
-
-		/*
-		* commit all memory actions.
-		*/
-		void commit();
-
-		/*
-		 * undo recent memory actions.
-		 */
-		void rollback();
-
-		/*
-		 * allocate a new PageBitmap and put into active_pages.
-		 */
-		void page_activate(address_t address, uint8_t *taint, uint8_t *data);
-
-		/*
-		 * record consecutive dirty bit range, return a linked list of ranges
-		 */
-		mem_update_t *sync();
-
-		/*
-		 * set details of the last block of trace
-		 */
-		void set_last_block_details(address_t block_addr, int64_t curr_count, int64_t tot_count);
-
-		/*
-		 * set a list of stops to stop execution at
-		 */
-		void set_stops(uint64_t count, address_t *stops);
-
-		std::pair<address_t, size_t> cache_page(address_t address, size_t size, char* bytes, uint64_t permissions);
-
-		void wipe_page_from_cache(address_t address);
-
-		void uncache_pages_touching_region(address_t address, uint64_t length);
-
-		void clear_page_cache();
-
-		bool map_cache(address_t address, size_t size);
-
-		bool in_cache(address_t address) const;
-
-		// Finds tainted data in the provided range and returns the address.
-		// Returns -1 if no tainted data is present.
-		int64_t find_tainted(address_t address, int size);
-
-		void handle_write(address_t address, int size, bool is_interrupt, bool interrupt_value_symbolic);
-
-		void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
-
-		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
-
-		void start_propagating_taint();
-
-		void continue_propagating_taint();
-
-		bool check_symbolic_stack_mem_dependencies_liveness() const;
-
-		void set_curr_block_details(address_t block_address, int32_t block_size);
-
-		address_t get_instruction_pointer() const;
-
-		address_t get_stack_pointer() const;
-
-		void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos);
-
-		uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
-
-		// CGC syscall handlers
-
-		void perform_cgc_receive();
-
-		void perform_cgc_transmit();
-
-		// Inline functions
-
-		inline simos_t get_simos() const {
-			return simos;
+		mem_update_t *next;
+		for (mem_update_t *cur = mem_updates_head; cur; cur = next)
+		{
+			next = cur->next;
+			delete cur;
 		}
+		active_pages.clear();
+		mem_updates_head = NULL;
+		uc_free(saved_regs);
+	}
 
-		/*
-		* Feasibility checks for unicorn
-		*/
+	void hook();
 
-		inline bool is_symbolic_tracking_disabled() const {
-			return (vex_guest == VexArch_INVALID);
-		}
+	void unhook();
 
-		inline bool is_symbolic_taint_propagation_disabled() const {
-			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
-		}
+	uc_err start(address_t pc, uint64_t step = 1);
 
-		inline void update_previous_stack_top() {
-			prev_stack_top_addr = get_stack_pointer();
-			return;
-		}
+	void stop(stop_t reason, bool do_commit = false);
+
+	void step(address_t current_address, int32_t size, bool check_stop_points = true);
+
+	/*
+	 * commit all memory actions.
+	 */
+	void commit();
+
+	/*
+	 * undo recent memory actions.
+	 */
+	void rollback();
+
+	/*
+	 * allocate a new PageBitmap and put into active_pages.
+	 */
+	void page_activate(address_t address, uint8_t *taint, uint8_t *data);
+
+	/*
+	 * record consecutive dirty bit range, return a linked list of ranges
+	 */
+	mem_update_t *sync();
+
+	/*
+	 * set details of the last block of trace
+	 */
+	void set_last_block_details(address_t block_addr, int64_t curr_count, int64_t tot_count);
+
+	/*
+	 * set a list of stops to stop execution at
+	 */
+	void set_stops(uint64_t count, address_t *stops);
+
+	std::pair<address_t, size_t> cache_page(address_t address, size_t size, char *bytes, uint64_t permissions);
+
+	void wipe_page_from_cache(address_t address);
+
+	void uncache_pages_touching_region(address_t address, uint64_t length);
+
+	void clear_page_cache();
+
+	bool map_cache(address_t address, size_t size);
+
+	bool in_cache(address_t address) const;
+
+	// Finds tainted data in the provided range and returns the address.
+	// Returns -1 if no tainted data is present.
+	int64_t find_tainted(address_t address, int size);
+
+	void handle_write(address_t address, int size, bool is_interrupt, bool interrupt_value_symbolic);
+
+	void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
+
+	void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
+
+	void start_propagating_taint();
+
+	void continue_propagating_taint();
+
+	bool check_symbolic_stack_mem_dependencies_liveness() const;
+
+	void set_curr_block_details(address_t block_address, int32_t block_size);
+
+	address_t get_instruction_pointer() const;
+
+	address_t get_stack_pointer() const;
+
+	void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos);
+
+	uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
+
+	// CGC syscall handlers
+
+	void perform_cgc_receive();
+
+	void perform_cgc_transmit();
+
+	// Inline functions
+
+	inline simos_t get_simos() const
+	{
+		return simos;
+	}
+
+	/*
+	 * Feasibility checks for unicorn
+	 */
+
+	inline bool is_symbolic_tracking_disabled() const
+	{
+		return (vex_guest == VexArch_INVALID);
+	}
+
+	inline bool is_symbolic_taint_propagation_disabled() const
+	{
+		return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
+	}
+
+	inline void update_previous_stack_top()
+	{
+		prev_stack_top_addr = get_stack_pointer();
+		return;
+	}
 };
 
 #endif /* SIM_UNICORN_HPP */
