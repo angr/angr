@@ -168,7 +168,7 @@ class TestCfgfast(unittest.TestCase):
                 0x400570: {"returning": False},  # plt.exit
                 0x4006FD: {"returning": False},  # rejected
             }
-        
+
         return_edges = {(0x4006FB, 0x4007C7),}  # return from accepted to main
 
         self.cfg_fast_functions_check("x86_64", "fauxware", functions, function_features)
@@ -203,7 +203,7 @@ class TestCfgfast(unittest.TestCase):
                 0x400BB0,  # open
                 0x400BC0,  # __libc_start_main
             }
-        
+
         function_features = {
                 0x400868: {  # rejected
                     "returning": False,
@@ -211,7 +211,7 @@ class TestCfgfast(unittest.TestCase):
             }
 
         return_edges = {(0x40084C, 0x400A04),  }# returning edge from accepted to main
-        
+
         self.cfg_fast_functions_check("mips", "fauxware", functions, function_features)
         self.cfg_fast_edges_check("mips", "fauxware", return_edges)
 
