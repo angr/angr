@@ -4,15 +4,15 @@ import logging
 import networkx
 
 import ailment
-from angr.codenode import BlockNode
 
-from angr.analyses import AnalysesHub
-from angr.analyses.decompiler.decompiler import Decompiler
-from angr.analyses import Analysis
+from ..codenode import BlockNode
+from ..sim_variable import SimMemoryVariable
 from ..knowledge_plugins.functions import Function
+from .analysis import Analysis, AnalysesHub
 from .decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.decompiler import Decompiler
     from angr.knowledge_plugins.cfg import CFGModel
     from angr.knowledge_plugins.xrefs import XRefManager
 
@@ -167,7 +167,7 @@ class ProximityGraphAnalysis(Analysis):
     """
 
     def __init__(self, func: 'Function', cfg_model: 'CFGModel', xrefs: 'XRefManager',
-                 decompilation: Optional[Decompiler] = None, expand_funcs: Optional[Set[int]] = None):
+                 decompilation: Optional['Decompiler'] = None, expand_funcs: Optional[Set[int]] = None):
         self._function = func
         self._cfg_model = cfg_model
         self._xrefs = xrefs
@@ -297,7 +297,10 @@ class ProximityGraphAnalysis(Analysis):
             if arg.variable is not None:
                 args.append(VariableProxiNode(arg.variable.addr, arg.variable.name))
             elif arg.addr.variable is not None:
-                args.append(VariableProxiNode(arg.addr.variable.addr, arg.addr.variable.name))
+                if isinstance(arg.addr.variable, SimMemoryVariable):
+                    args.append(VariableProxiNode(arg.addr.variable.addr, arg.addr.variable.name))
+                else:
+                    args.append(VariableProxiNode(None, arg.addr.variable.name))
             else:
                 args.append(UnknownProxiNode("l_"))
         elif isinstance(arg, ailment.expression.StackBaseOffset):
@@ -308,7 +311,7 @@ class ProximityGraphAnalysis(Analysis):
         else:
             args.append(UnknownProxiNode("_"))
 
-    def _process_decompilation(self, graph: networkx.DiGraph, decompilation: Decompiler,
+    def _process_decompilation(self, graph: networkx.DiGraph, decompilation: 'Decompiler',
                                func_proxi_node: Optional[FunctionProxiNode] = None) -> List[FunctionProxiNode]:
         to_expand: List[FunctionProxiNode] = []
 
