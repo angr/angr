@@ -84,7 +84,6 @@ class TestCfgfast(unittest.TestCase):
             )
 
     def test_cfg_0(self):
-        filename = "cfg_0"
         functions = {
             "x86_64": {
                 0x400410,
@@ -99,12 +98,11 @@ class TestCfgfast(unittest.TestCase):
 
         function_features = {"x86_64": {}}
 
-        self.cfg_fast_functions_check("x86_64", filename, functions[
+        self.cfg_fast_functions_check("x86_64", "cfg_0", functions[
                 "x86_64"
             ], function_features["x86_64"])
 
     def test_cfg_0_pe(self):
-        filename = "cfg_0_pe"
         functions = {
             "x86_64": {
                 # 0x40150a,  # currently angr identifies 0x40150e due to the way _func_addrs_from_prologues() is
@@ -115,13 +113,12 @@ class TestCfgfast(unittest.TestCase):
 
         function_features = {"x86_64": {}}
 
-        self.cfg_fast_functions_check("x86_64", filename, functions[
+        self.cfg_fast_functions_check("x86_64", "cfg_0_pe", functions[
                 "x86_64"
             ], function_features["x86_64"])
 
     @slow_test
     def test_busybox(self):
-        filename = "busybox"
         edges = {
             "mipsel": {
                 (0x4091EC, 0x408DE0),
@@ -138,7 +135,7 @@ class TestCfgfast(unittest.TestCase):
             }
         }
 
-        self.cfg_fast_edges_check("mipsel", filename, edges["mipsel"])
+        self.cfg_fast_edges_check("mipsel", "busybox", edges["mipsel"])
 
     @slow_test
     @unittest.skipUnless(
@@ -154,7 +151,6 @@ class TestCfgfast(unittest.TestCase):
         # nothing should prevent us from finish creating the CFG
 
     def test_fauxware_function_feauters_x86_64(self):
-        filename = "fauxware"
         functions = {
             "x86_64": {
                 0x4004E0,
@@ -192,11 +188,10 @@ class TestCfgfast(unittest.TestCase):
             "mips": [(0x40084C, 0x400A04)],  # returning edge from accepted to main
         }
 
-        self.cfg_fast_functions_check("x86_64", filename, functions["x86_64"], function_features["x86_64"])
-        self.cfg_fast_edges_check("x86_64", filename, return_edges["x86_64"])
+        self.cfg_fast_functions_check("x86_64", "fauxware", functions["x86_64"], function_features["x86_64"])
+        self.cfg_fast_edges_check("x86_64", "fauxware", return_edges["x86_64"])
 
     def test_fauxware_function_features_mips(self):
-        filename = "fauxware"
         functions = {
             "mips": {
                 0x400534,  # _init
@@ -241,11 +236,10 @@ class TestCfgfast(unittest.TestCase):
             "mips": [(0x40084C, 0x400A04)],  # returning edge from accepted to main
         }
 
-        self.cfg_fast_functions_check("mips", filename, functions["mips"], function_features["mips"])
-        self.cfg_fast_edges_check("mips", filename, return_edges["mips"])
+        self.cfg_fast_functions_check("mips", "fauxware", functions["mips"], function_features["mips"])
+        self.cfg_fast_edges_check("mips", "fauxware", return_edges["mips"])
 
     def test_cfg_loop_unrolling(self):
-        filename = "cfg_loop_unrolling"
         edges = {
             "x86_64": {
                 (0x400658, 0x400636),
@@ -255,15 +249,9 @@ class TestCfgfast(unittest.TestCase):
             }
         }
 
-        self.cfg_fast_edges_check("x86_64", filename, edges["x86_64"])
+        self.cfg_fast_edges_check("x86_64", "cfg_loop_unrolling", edges["x86_64"])
 
     def test_cfg_switches_x86_64(self):
-
-        # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
-        # logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
-
-        filename = "cfg_switches"
-
         edges = {
             "x86_64": {
                 # jump table 0 in func_0
@@ -305,15 +293,9 @@ class TestCfgfast(unittest.TestCase):
             },
         }
 
-        self.cfg_fast_edges_check("x86_64", filename, edges["x86_64"])
+        self.cfg_fast_edges_check("x86_64", "cfg_switches", edges["x86_64"])
 
     def test_cfg_switches_armel(self):
-
-        # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
-        # logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
-
-        filename = "cfg_switches"
-
         edges = {
             "armel": {
                 # jump table 0 in func_0
@@ -358,15 +340,9 @@ class TestCfgfast(unittest.TestCase):
             },
         }
 
-        self.cfg_fast_edges_check("armel", filename, edges["armel"])
+        self.cfg_fast_edges_check("armel", "cfg_switches", edges["armel"])
 
     def test_cfg_switches_s390x(self):
-
-        # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.INFO)
-        # logging.getLogger('angr.analyses.cfg.indirect_jump_resolvers.jumptable').setLevel(logging.DEBUG)
-
-        filename = "cfg_switches"
-
         edges = {
             "s390x": {
                 # jump table 0 in func_0
@@ -409,7 +385,7 @@ class TestCfgfast(unittest.TestCase):
             },
         }
 
-        self.cfg_fast_edges_check("s390x", filename, edges["s390x"])
+        self.cfg_fast_edges_check("s390x", "cfg_switches", edges["s390x"])
 
     def test_cfg_about_time(self):
 
@@ -1078,5 +1054,4 @@ def test_func_in_added_segment_by_patcherex_x64():
 
 
 if __name__ == "__main__":
-    # logging.getLogger('angr.analyses.cfg.cfg_fast').setLevel(logging.DEBUG)
     unittest.main()
