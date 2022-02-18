@@ -1,7 +1,7 @@
 import logging
 
 from ..analyses import AnalysesHub
-from . import Analysis
+from . import Analysis, CFGFast
 
 l = logging.getLogger(name=__name__)
 
@@ -26,7 +26,7 @@ class VtableFinder(Analysis):
     def __init__(self):
         if "CFGFast" not in self.project.kb.cfgs:
             # populate knowledge base
-            self.project.analyses.CFGFast(cross_references=True)
+            self.project.analyses[CFGFast].prep()(cross_references=True)
 
         skip_analysis = True
         # check if the sections exist

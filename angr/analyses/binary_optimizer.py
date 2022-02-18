@@ -3,7 +3,7 @@ import logging
 import re
 from collections import defaultdict
 
-from . import Analysis
+from . import Analysis, CFGEmulated, DDG
 
 from ..knowledge_base import KnowledgeBase
 from .. import SIM_PROCEDURES
@@ -178,7 +178,7 @@ class BinaryOptimizer(Analysis):
         #    14 | PUT(eip) = 0x0804828b
         # there is no write to or read from eax
 
-        cfg = self.project.analyses.CFGEmulated(kb=func_kb,
+        cfg = self.project.analyses[CFGEmulated].prep(kb=func_kb)(
                                                 call_depth=1,
                                                 base_graph=function.graph,
                                                 keep_state=True,
@@ -186,9 +186,7 @@ class BinaryOptimizer(Analysis):
                                                 iropt_level=0,
                                                 )
 
-        ddg = self.project.analyses.DDG(kb=func_kb,
-                                        cfg=cfg
-                                        )
+        ddg = self.project.analyses[DDG].prep(kb=func_kb)(cfg=cfg)
 
         if 'constant_propagation' in self._techniques:
             self._constant_propagation(function, ddg.simplified_data_graph)

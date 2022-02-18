@@ -92,10 +92,15 @@ class AllocHelper:
         raise TypeError(type(val))
 
 
-def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int=0):
+def refine_locs_with_struct_type(arch: archinfo.Arch, locs: List, arg_type: SimType, offset: int=0,
+                                 treat_bot_as_int=True):
     # CONTRACT FOR USING THIS METHOD: locs must be a list of locs which are all wordsize
     # ADDITIONAL NUANCE: this will not respect the need for big-endian integers to be stored at the end of words.
     # that's why this is named with_struct_type, because it will blindly trust the offsets given to it.
+
+    if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
+        arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
+
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
         seen_bytes = 0
         pieces = []
@@ -626,7 +631,7 @@ class SimCC:
         """
         return self.RETURN_ADDR
 
-    def next_arg(self, session, arg_type):
+    def next_arg(self, session: ArgSession, arg_type: SimType):
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
                             "implement its ABI logic")
@@ -871,7 +876,7 @@ class SimCC:
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
             if not isinstance(ty, SimTypePointer):
-                raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty.name)
+                raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty)
 
             if arg.buffer:
                 if isinstance(arg.value, claripy.Bits):
@@ -882,7 +887,11 @@ class SimCC:
                     raise TypeError("PointerWrapper(buffer=True) can only be used with a bitvector or a bytestring")
             else:
                 child_type = SimTypeArray(ty.pts_to) if type(arg.value) in (str, bytes, list) else ty.pts_to
-                real_value = SimCC._standardize_value(arg.value, child_type, state, alloc)
+                try:
+                    real_value = SimCC._standardize_value(arg.value, child_type, state, alloc)
+                except TypeError as e: # this is a dangerous catch...
+                    raise TypeError(f"Failed to store pointer-wrapped data ({e.args[0]}). "
+                                    "Do you want a PointerWrapper(buffer=True)?") from None
             return alloc(real_value, state)
 
         elif isinstance(arg, (str, bytes)):
@@ -911,7 +920,7 @@ class SimCC:
                     raise TypeError("String %s is too long for %s" % (repr(arg), ty))
                 arg = arg.ljust(ty.length + 1, b'\0')
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
+                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
             val = SimCC._standardize_value(list(arg), SimTypeFixedSizeArray(SimTypeChar(), len(arg)), state, alloc)
             if ref:
                 val = alloc(val, state)
@@ -933,7 +942,7 @@ class SimCC:
                     if len(arg) != ty.length:
                         raise TypeError("Array %s is the wrong length for %s" % (repr(arg), ty))
             else:
-                raise TypeError("Type mismatch: Expected %s, got char*" % ty.name)
+                raise TypeError("Type mismatch: Expected %s, got char*" % ty)
 
             val = [SimCC._standardize_value(sarg, subty, state, alloc) for sarg in arg]
             if ref:
@@ -942,7 +951,7 @@ class SimCC:
 
         elif isinstance(arg, (tuple, dict, SimStructValue)):
             if not isinstance(ty, SimStruct):
-                raise TypeError("Type mismatch: Expected %s, got %s (i.e. struct)" % (ty.name, type(arg)))
+                raise TypeError("Type mismatch: Expected %s, got %s (i.e. struct)" % (ty, type(arg)))
             if type(arg) is not SimStructValue:
                 if len(arg) != len(ty.fields):
                     raise TypeError("Wrong number of fields in struct, expected %d got %d" % (len(ty.fields), len(arg)))
@@ -1389,8 +1398,12 @@ class SimCCSystemVAMD64(SimCC):
     def _classify(self, ty, chunksize=None):
         if chunksize is None:
             chunksize = self.arch.bytes
-        nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
-        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum)):
+        # treat BOT as INTEGER
+        if isinstance(ty, SimTypeBottom):
+            nchunks = 1
+        else:
+            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom)):
             return ['INTEGER'] * nchunks
         elif isinstance(ty, (SimTypeFloat,)):
             return ['SSE'] + ['SSEUP'] * (nchunks - 1)

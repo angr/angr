@@ -36,5 +36,4 @@ EXPORTS
   simunicorn_set_artificial_registers
   simunicorn_set_cpu_flags_details
   simunicorn_set_register_blacklist
-  simunicorn_set_unicorn_flags_register_id
   simunicorn_set_vex_to_unicorn_reg_mappings
