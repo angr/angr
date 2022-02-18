@@ -331,7 +331,8 @@ class ProximityGraphAnalysis(Analysis):
 
             if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                 new_node = FunctionProxiNode(func_node, ref_at=ref_at)
-                to_expand.append(new_node)
+                if new_node not in to_expand:
+                    to_expand.append(new_node)
             else:
                 new_node = CallProxiNode(func_node, ref_at=ref_at, args=tuple(args) if args is not None else None)
 
