@@ -169,7 +169,6 @@ class TestCfgfast(unittest.TestCase):
                 0x4006FD: {"returning": False},  # rejected
             }
         
-
         return_edges = {(0x4006FB, 0x4007C7),}  # return from accepted to main
 
         self.cfg_fast_functions_check("x86_64", "fauxware", functions, function_features)
