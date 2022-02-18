@@ -198,9 +198,11 @@ class ProximityGraphAnalysis(Analysis):
             subgraph = networkx.DiGraph()
             dec = self._decompilation.project.analyses.Decompiler(func_node.func, cfg=self._decompilation._cfg)
             if not dec:
-                self._process_function(func_node.func, subgraph, func_proxi_node=func_node)
+                sub_expand = self._process_function(func_node.func, subgraph, func_proxi_node=func_node)
             else:
-                self._process_decompilation(subgraph, decompilation=dec, func_proxi_node=func_node)
+                sub_expand = self._process_decompilation(subgraph, decompilation=dec, func_proxi_node=func_node)
+
+            to_expand.extend(sub_expand)
 
             # merge subgraph into the original graph
             self.graph.add_nodes_from(subgraph.nodes())
