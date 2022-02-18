@@ -1,16 +1,17 @@
 # pylint:disable=wrong-import-position
 from .analysis import Analysis, AnalysesHub
-from ..misc.ux import deprecated
+
 
 def register_analysis(cls, name):
     AnalysesHub.register_default(name, cls)
+
 
 from .cfg import CFGFast, CFGEmulated, CFG, CFGArchOptions, CFGFastSoot
 from .cdg import CDG
 from .ddg import DDG
 from .vfg import VFG
 from .boyscout import BoyScout
-#from .girlscout import GirlScout
+# from .girlscout import GirlScout
 from .backward_slice import BackwardSlice
 from .veritesting import Veritesting
 from .vsa_ddg import VSA_DDG
@@ -29,6 +30,7 @@ from .calling_convention import CallingConventionAnalysis
 from .code_tagging import CodeTagging
 from .stack_pointer_tracker import StackPointerTracker
 from .dominance_frontier import DominanceFrontier
+from .data_dep import DataDependencyGraphAnalysis
 from .decompiler import Decompiler
 from .soot_class_hierarchy import SootClassHierarchy
 from .propagator import PropagatorAnalysis
