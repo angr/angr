@@ -16,8 +16,8 @@ from ..knowledge_plugins.variables.variable_access import VariableAccessSort
 from ..utils.constants import DEFAULT_STATEMENT
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
+from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from .reaching_definitions.function_handler import FunctionHandler
-from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
     from ..knowledge_plugins.functions import Function
@@ -265,7 +265,7 @@ class CallingConventionAnalysis(Analysis):
                 func = self.kb.functions[caller.addr]
                 subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
 
-                rda = self.project.analyses.ReachingDefinitions(
+                rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
                     func,
                     func_graph=subgraph,
                     observation_points=[
@@ -294,6 +294,18 @@ class CallingConventionAnalysis(Analysis):
 
         for _, dst, data in func.graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
+
+            # If the target block contains only direct jump statements and has only one successor,
+            # include its successor.
+
+            # Re-lift the target block
+            dst_bb = self.project.factory.block(dst.addr, func.get_block(dst.addr).size, opt_level=1)
+
+            # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
+            if len(dst_bb.vex.statements) == 1 and dst_bb.vex.statements[0].tag == 'Ist_IMark'\
+                    and func.graph.out_degree(dst) == 1:
+                for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
+                    subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
         return subgraph
 

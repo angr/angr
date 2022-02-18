@@ -1,7 +1,6 @@
 from ..sim_type import SimCppClass, SimTypeCppFunction
 from ..analyses import AnalysesHub
-from . import Analysis
-
+from . import Analysis, CFGFast, VtableFinder
 
 
 class ClassIdentifier(Analysis):
@@ -17,9 +16,9 @@ class ClassIdentifier(Analysis):
 
     def __init__(self):
         if "CFGFast" not in self.project.kb.cfgs:
-            self.project.analyses.CFGFast(cross_references=True)
+            self.project.analyses[CFGFast].prep()(cross_references=True)
         self.classes = {}
-        vtable_analysis = self.project.analyses.VtableFinder()
+        vtable_analysis = self.project.analyses[VtableFinder].prep()()
         self.vtables_list = vtable_analysis.vtables_list
         self._analyze()
 

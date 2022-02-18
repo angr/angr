@@ -1,3 +1,4 @@
+import abc
 import sys
 import logging
 import threading
@@ -8,11 +9,13 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
+
 class SimEngineBase:
     """
     Even more basey of a base class for SimEngine. Used as a base by mixins which want access to the project but for
-    which process doesn't make sense.
+    which having method `process` (contained in `SimEngine`) doesn't make sense
     """
+
     def __init__(self, project=None, **kwargs):
         if kwargs:
             raise TypeError("Unused initializer args: " + ", ".join(kwargs.keys()))
@@ -34,10 +37,13 @@ class SimEngineBase:
     def _is_false(self, v):
         return v is False
 
-class SimEngine(SimEngineBase):
+
+class SimEngine(SimEngineBase, metaclass=abc.ABCMeta):
     """
     A SimEngine is a class which understands how to perform execution on a state. This is a base class.
     """
+
+    @abc.abstractmethod
     def process(self, state, **kwargs):
         """
         The main entry point for an engine. Should take a state and return a result.
@@ -45,7 +51,7 @@ class SimEngine(SimEngineBase):
         :param state:   The state to proceed from
         :return:        The result. Whatever you want ;)
         """
-        raise NotImplementedError
+
 
 class TLSMixin:
     """
@@ -54,6 +60,7 @@ class TLSMixin:
 
     MAGIC MAGIC MAGIC
     """
+
     def __new__(cls, *args, **kwargs):
         obj = super().__new__(cls, *args, **kwargs)
         obj.__local = threading.local()
@@ -72,6 +79,7 @@ class TLSMixin:
                         raise Exception("Programming error: %s is both in __tls and __class__" % attr)
                 else:
                     setattr(cls, attr, TLSProperty(attr))
+
 
 class TLSProperty:
     def __init__(self, name):
@@ -143,7 +151,8 @@ class SuccessorsMixin(SimEngine):
 
         self.successors = SimSuccessors(addr, old_state)
 
-        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=self.successors, address=addr)
+        new_state._inspect('engine_process', when=BP_BEFORE, sim_engine=self, sim_successors=self.successors,
+                           address=addr)
         self.successors = new_state._inspect_getattr('sim_successors', self.successors)
         try:
             self.process_successors(self.successors, **kwargs)
@@ -159,7 +168,7 @@ class SuccessorsMixin(SimEngine):
         if new_state.supports_inspect:
             new_state.inspect.downsize()
         # if not TRACK, clear actions on OLD state
-        #if o.TRACK_ACTION_HISTORY not in old_state.options:
+        # if o.TRACK_ACTION_HISTORY not in old_state.options:
         #    old_state.history.recent_events = []
 
         # fix up the descriptions...
@@ -189,7 +198,7 @@ class SuccessorsMixin(SimEngine):
         :param successors:      The successors object to fill out
         :param kwargs:          Any extra arguments. Do not fail if you are passed unexpected arguments.
         """
-        successors.processed = False        # mark failure
+        successors.processed = False  # mark failure
 
 
 from .. import sim_options as o

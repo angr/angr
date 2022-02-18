@@ -78,8 +78,12 @@ class MVListPage(
         global_end_addr = addr + page_addr
         global_start_addr = result[-1][0]
         size = global_end_addr - global_start_addr
-        new_ast = self._default_value(global_start_addr, size, name='%s_%x' % (memory.id, global_start_addr),
-                                      key=(self.category, global_start_addr), memory=memory, **kwargs)
+        new_ast = self._default_value(global_start_addr,
+                                      size,
+                                      name='%s_%x' % (memory.id, global_start_addr),
+                                      key=(self.category, global_start_addr),
+                                      memory=memory,
+                                      **kwargs)
         new_item = SimMemoryObject(new_ast, global_start_addr, endness=endness,
                                    byte_width=memory.state.arch.byte_width if memory is not None else 8)
         subaddr_start = global_start_addr - page_addr
@@ -177,7 +181,7 @@ class MVListPage(
                 # Update `merged_to`
                 mo_base = list(mo_bases)[0]
                 mo_length = memory_objects[0][0].length
-                size = mo_length - (page_addr + b - mo_base)
+                size = min(mo_length - (page_addr + b - mo_base), len(self.content) - b)
                 merged_to = b + size
 
                 merged_val = self._merge_values(to_merge, mo_length, memory=memory)
@@ -204,7 +208,8 @@ class MVListPage(
             else:
                 # get the size that we can merge easily. This is the minimum of
                 # the size of all memory objects and unallocated spaces.
-                min_size = min([mo.length - (b + page_addr - mo.base) for mo, _ in memory_objects])
+                min_size = min([mo.length - (b + page_addr - mo.base)
+                                for mo, _ in memory_objects] + [len(self.content) - b])
                 for um, _ in unconstrained_in:
                     for i in range(0, min_size):
                         if um._contains(b + i, page_addr):

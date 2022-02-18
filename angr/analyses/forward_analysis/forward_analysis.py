@@ -1,10 +1,11 @@
 from collections import defaultdict
-from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING
+from typing import Dict, List, Callable, Optional, Generic, TypeVar, Tuple, Set, TYPE_CHECKING, Union
 
 import networkx
 
 from .visitors.graph import NodeType
 from ..cfg.cfg_job_base import CFGJobBase, BlockID
+from ...sim_state import SimState
 from ...errors import AngrForwardAnalysisError
 from ...errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
 from ...utils.algo import binary_insert
@@ -143,16 +144,16 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType]):
     def _job_key(self, job: CFGJobBase) -> BlockID:
         raise NotImplementedError('_job_key() is not implemented.')
 
-    def _get_successors(self, job: CFGJobBase) -> List[CFGJobBase]:
+    def _get_successors(self, job: CFGJobBase) -> Union[List[SimState], List[CFGJobBase]]:
         raise NotImplementedError('_get_successors() is not implemented.')
 
     def _pre_job_handling(self, job: CFGJobBase) -> None:
         raise NotImplementedError('_pre_job_handling() is not implemented.')
 
-    def _post_job_handling(self, job: CFGJobBase, new_jobs, successors):
+    def _post_job_handling(self, job: CFGJobBase, new_jobs, successors: List[SimState]) -> None:
         raise NotImplementedError('_post_job_handling() is not implemented.')
 
-    def _handle_successor(self, job: CFGJobBase, successor: CFGJobBase, successors: List[CFGJobBase])->List[CFGJobBase]:
+    def _handle_successor(self, job: CFGJobBase, successor: SimState, successors: List[SimState]) -> List[CFGJobBase]:
         raise NotImplementedError('_handle_successor() is not implemented.')
 
     def _job_queue_empty(self) -> None:

@@ -398,13 +398,13 @@ class SimEngineRDAIL(
                 continue
             if addr.concrete:
                 # a concrete address
-                addr = addr._model_concrete.value
+                concrete_addr: int = addr._model_concrete.value
                 try:
-                    vs: MultiValues = self.state.memory_definitions.load(addr, size=size, endness=expr.endness)
+                    vs: MultiValues = self.state.memory_definitions.load(concrete_addr, size=size, endness=expr.endness)
                 except SimMemoryMissingError:
                     continue
 
-                memory_location = MemoryLocation(addr, size, endness=expr.endness)
+                memory_location = MemoryLocation(concrete_addr, size, endness=expr.endness)
                 self.state.add_use(memory_location, self._codeloc())
                 result = result.merge(vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
