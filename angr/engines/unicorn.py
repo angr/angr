@@ -138,8 +138,12 @@ class SimEngineUnicorn(SuccessorsMixin):
     def _execute_symbolic_instrs(self):
         recent_bbl_addrs = None
         stop_details = None
-        # Enable state copying so that symbolic exits are handled correctly
-        self.state.options.add(o.COPY_STATES)
+        copy_states_enabled = False
+        if o.COPY_STATES not in self.state.options:
+            # Enable state copying so that symbolic exits are handled correctly
+            self.state.options.add(o.COPY_STATES)
+            copy_states_enabled = True
+
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
                 if self.state.os_name == "CGC" and block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
@@ -201,7 +205,9 @@ class SimEngineUnicorn(SuccessorsMixin):
             except SimValueError as e:
                 l.error(e)
 
-        self.state.options.remove(o.COPY_STATES)
+        if copy_states_enabled:
+            # Remove option only if it was enabled in this function
+            self.state.options.remove(o.COPY_STATES)
 
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
