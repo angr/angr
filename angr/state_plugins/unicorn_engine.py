@@ -973,16 +973,7 @@ class Unicorn(SimStatePlugin):
 
         def _get_memory_values(memory_values):
             for memory_value in memory_values:
-                mem_address = memory_value.address
-                mem_val_size = memory_value.size
-                # Convert the memory value in bytes to number of appropriate size and endianness
-                mem_val = memory_value.value[:mem_val_size]
-                if self.state.arch.memory_endness == archinfo.Endness.LE:
-                    mem_val = int.from_bytes(mem_val, "little")
-                else:
-                    mem_val = int.from_bytes(mem_val, "big")
-
-                yield {"address": mem_address, "value": mem_val, "size": mem_val_size}
+                yield {"address": memory_value.address, "value": bytes(memory_value.value[:memory_value.size])}
 
         def _get_instr_details(symbolic_instrs):
             for instr in symbolic_instrs:

@@ -1,4 +1,7 @@
+import functools
 import logging
+
+import archinfo
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
@@ -96,15 +99,14 @@ class SimEngineUnicorn(SuccessorsMixin):
         ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
         for instr_entry in block_details["instrs"]:
-            saved_memory_values = {}
+            concrete_mem_dep_count = 0
             for memory_val in instr_entry["mem_dep"]:
                 address = memory_val["address"]
                 value = memory_val["value"]
-                size = memory_val["size"]
-                curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
-                # Save current memory value for restoring later
-                saved_memory_values[address] = (curr_value, size)
-                self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
+                concrete_mem_dep_count = concrete_mem_dep_count + 1
+                # Insert breakpoint to return the correct memory read value
+                self.state.inspect.b('mem_read', mem_read_address=address, when=BP_AFTER,
+                                     action=functools.partial(self._set_mem_read_val, value=value))
 
             instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
             start_index = instr_vex_stmt_indices["start"]
@@ -116,13 +118,9 @@ class SimEngineUnicorn(SuccessorsMixin):
                     self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
                     super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
 
-            # Restore previously saved value
-            for address, (value, size) in saved_memory_values.items():
-                curr_value = self.state.memory.load(address, size=size, endness=self.state.arch.memory_endness)
-                if not curr_value.symbolic:
-                    # Restore the saved value only if current value is not symbolic. If it is, that would mean the value
-                    # was changed by re-executing the block in VEX engine
-                    self.state.memory.store(address, value, size=size, endness=self.state.arch.memory_endness)
+            # Clear breakpoints inserted to return correct memory read value
+            for _ in range(concrete_mem_dep_count):
+                self.state.inspect._breakpoints["mem_read"].pop()
 
         del self.stmt_idx
 
@@ -181,6 +179,12 @@ class SimEngineUnicorn(SuccessorsMixin):
         instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": len(irsb.statements) - 1}
         block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
         return block_details
+
+    def _set_mem_read_val(self, state, value):
+        if state.arch.memory_endness == archinfo.Endness.LE:
+            state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
+        else:
+            state.inspect.mem_read_expr = state.solver.BVV(value)
 
     def process_successors(self, successors, **kwargs):
         state = self.state
