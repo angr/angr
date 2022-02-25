@@ -120,32 +120,119 @@ class TestCallable(unittest.TestCase):
             assert arg_conc > 1.0
         assert sum(args_conc) == 27.7
 
-    def test_fauxware(self):
-        for arch in addresses_fauxware:
-            yield self.run_fauxware, arch
+    def test_fauxware_armel(self):
+        self.run_fauxware('armel')
 
-    def test_manysum(self):
-        for arch in addresses_manysum:
-            yield self.run_manysum, arch
+    def test_fauxware_armhf(self):
+        self.run_fauxware('armhf')
 
-    def test_manyfloatsum(self):
-        for arch in ('i386', 'x86_64'):
-            yield self.run_manyfloatsum, arch
+    def test_fauxware_i386(self):
+        self.run_fauxware('i386')
+
+    def test_fauxware_mips(self):
+        self.run_fauxware('mips')
+
+    def test_fauxware_mipsel(self):
+        self.run_fauxware('mipsel')
+
+    def test_fauxware_ppc(self):
+        self.run_fauxware('ppc')
+
+    def test_fauxware_ppc64(self):
+        self.run_fauxware('ppc64')
+
+    def test_fauxware_x86_64(self):
+        self.run_fauxware('x86_64')
+
+    def test_manysum_armel(self):
+        self.run_manysum("armel")
+
+    def test_manysum_armhf(self):
+        self.run_manysum("armhf")
+
+    def test_manysum_i386(self):
+        self.run_manysum("i386")
+
+    def test_manysum_mips(self):
+        self.run_manysum("mips")
+
+    def test_manysum_mipsel(self):
+        self.run_manysum("mipsel")
+
+    def test_manysum_ppc(self):
+        self.run_manysum("ppc")
+
+    def test_manysum_ppc64(self):
+        self.run_manysum("ppc64")
+
+    def test_manysum_x86_64(self):
+        self.run_manysum("x86_64")
+
+    def test_manyfloatsum_i386(self):
+        self.run_manyfloatsum("i386")
+
+    def test_manyfloatsum_x86_64(self):
+        self.run_manyfloatsum("x86_64")
 
     @slow_test
-    def test_manyfloatsum_symbolic(self):
+    def test_manyfloatsum_symbolic_i386(self):
         # doesn't have to be slow but it might be
         # https://github.com/Z3Prover/z3/issues/2584
-        for arch in ('i386', 'x86_64'):
-            yield self.run_manyfloatsum_symbolic, arch
+        self.run_manyfloatsum_symbolic("i386")
 
-    def test_callable_c_fauxware(self):
-        for arch in addresses_fauxware:
-            yield self.run_callable_c_fauxware, arch
+    @slow_test
+    def test_manyfloatsum_symbolic_x86_64(self):
+        # doesn't have to be slow but it might be
+        # https://github.com/Z3Prover/z3/issues/2584
+        self.run_manyfloatsum_symbolic("x86_64")
 
-    def test_callable_c_manyfloatsum(self):
-        for arch in addresses_manysum:
-            yield self.run_callable_c_manysum, arch
+    def test_callable_c_fauxware_armel(self):
+        self.run_callable_c_fauxware("armel")
+
+    def test_callable_c_fauxware_armhf(self):
+        self.run_callable_c_fauxware("armhf")
+
+    def test_callable_c_fauxware_i386(self):
+        self.run_callable_c_fauxware("i386")
+
+    def test_callable_c_fauxware_mips(self):
+        self.run_callable_c_fauxware("mips")
+
+    def test_callable_c_fauxware_mipsel(self):
+        self.run_callable_c_fauxware("mipsel")
+
+    def test_callable_c_fauxware_ppc(self):
+        self.run_callable_c_fauxware("ppc")
+
+    def test_callable_c_fauxware_ppc64(self):
+        self.run_callable_c_fauxware("ppc64")
+
+    def test_callable_c_fauxware_x86_64(self):
+        self.run_callable_c_fauxware("x86_64")
+
+    def test_callable_c_manyfloatsum_armel(self):
+        self.run_callable_c_manysum("armel")
+
+    def test_callable_c_manyfloatsum_armhf(self):
+        self.run_callable_c_manysum("armhf")
+
+    def test_callable_c_manyfloatsum_i386(self):
+        self.run_callable_c_manysum("i386")
+
+    def test_callable_c_manyfloatsum_mips(self):
+        self.run_callable_c_manysum("mips")
+
+    def test_callable_c_manyfloatsum_mipsel(self):
+        self.run_callable_c_manysum("mipsel")
+
+    def test_callable_c_manyfloatsum_ppc(self):
+        self.run_callable_c_manysum("ppc")
+
+    def test_callable_c_manyfloatsum_ppc64(self):
+        self.run_callable_c_manysum("ppc64")
+
+    def test_callable_c_manyfloatsum_x86_64(self):
+        self.run_callable_c_manysum("x86_64")
 
     def test_setup_callsite(self):
         p = angr.load_shellcode(b'b', arch=archinfo.ArchX86())
