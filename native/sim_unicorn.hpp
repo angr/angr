@@ -569,7 +569,7 @@ class State {
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
 
-	void compute_slice_of_instr(instr_details_t &instr);
+	void compute_slice_of_instr(instr_details_t &instr, bool is_instr_symbolic);
 	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
 	// Return list of all dependent instructions including dependencies of those dependent instructions

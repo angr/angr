@@ -1,3 +1,4 @@
+import copy
 import functools
 import logging
 
@@ -5,7 +6,7 @@ import archinfo
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
-from ..state_plugins.inspect import BP_AFTER
+from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
 
 #pylint: disable=arguments-differ
 
@@ -91,6 +92,8 @@ class SimEngineUnicorn(SuccessorsMixin):
         else:
             vex_block_details = self.block_details_cache[block_details["block_addr"]]
 
+        # Save breakpoints for restoring later
+        saved_mem_read_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_read"])
         vex_block = vex_block_details["block"]
         for reg_name, reg_value in block_details["registers"]:
             self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
@@ -99,14 +102,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
         for instr_entry in block_details["instrs"]:
-            concrete_mem_dep_count = 0
-            for memory_val in instr_entry["mem_dep"]:
-                address = memory_val["address"]
-                value = memory_val["value"]
-                concrete_mem_dep_count = concrete_mem_dep_count + 1
-                # Insert breakpoint to return the correct memory read value
-                self.state.inspect.b('mem_read', mem_read_address=address, when=BP_AFTER,
-                                     action=functools.partial(self._set_mem_read_val, value=value))
+            self._instr_mem_reads = [n for n in instr_entry["mem_dep"]]  # pylint:disable=attribute-defined-outside-init
+            # Insert breakpoint to set the correct memory read address
+            self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
 
             instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
             start_index = instr_vex_stmt_indices["start"]
@@ -118,9 +116,13 @@ class SimEngineUnicorn(SuccessorsMixin):
                     self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
                     super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
 
-            # Clear breakpoints inserted to return correct memory read value
-            for _ in range(concrete_mem_dep_count):
-                self.state.inspect._breakpoints["mem_read"].pop()
+            # Restore breakpoints
+            self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
+            del self._instr_mem_reads
+
+        # Restore breakpoints
+        for succ_state in self.successors.successors:
+            succ_state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
 
         del self.stmt_idx
 
@@ -180,7 +182,18 @@ class SimEngineUnicorn(SuccessorsMixin):
         block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
         return block_details
 
-    def _set_mem_read_val(self, state, value):
+    def _set_correct_mem_read_addr(self, state):
+        assert(len(self._instr_mem_reads) != 0)
+        next_mem_read = self._instr_mem_reads.pop(0)
+        assert(state.inspect.mem_read_length == next_mem_read["size"])
+        state.inspect.mem_read_address = state.solver.BVV(next_mem_read["address"], state.inspect.mem_read_address.size())
+        if not next_mem_read["symbolic"]:
+            # Since read is concrete, insert breakpoint to return the correct concrete value
+            self.state.inspect.b('mem_read', mem_read_address=next_mem_read["address"], when=BP_AFTER,
+                                 action=functools.partial(self._set_correct_mem_read_val, value=next_mem_read["value"]))
+        return
+
+    def _set_correct_mem_read_val(self, state, value):
         if state.arch.memory_endness == archinfo.Endness.LE:
             state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
         else:

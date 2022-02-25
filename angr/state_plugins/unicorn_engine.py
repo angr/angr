@@ -973,7 +973,8 @@ class Unicorn(SimStatePlugin):
 
         def _get_memory_values(memory_values):
             for memory_value in memory_values:
-                yield {"address": memory_value.address, "value": bytes(memory_value.value[:memory_value.size])}
+                yield {"address": memory_value.address, "value": bytes(memory_value.value[:memory_value.size]),
+                       "size": memory_value.size, "symbolic": memory_value.is_value_symbolic}
 
         def _get_instr_details(symbolic_instrs):
             for instr in symbolic_instrs:

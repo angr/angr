@@ -167,7 +167,7 @@ void State::stop(stop_t reason, bool do_commit) {
 			sym_instr.instr_addr = instr.instr_addr;
 			sym_instr.memory_values = instr.memory_values;
 			sym_instr.memory_values_count = instr.memory_values_count;
-			sym_instr.has_memory_dep = instr.has_concrete_memory_dep;
+			sym_instr.has_memory_dep = instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep;
 			sym_block.symbolic_instrs.emplace_back(sym_instr);
 		}
 		block_details_to_return.emplace_back(sym_block);
@@ -252,7 +252,7 @@ void State::commit() {
 	}
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
-			compute_slice_of_instr(symbolic_instr);
+			compute_slice_of_instr(symbolic_instr, true);
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
 		}
@@ -755,9 +755,14 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	mem_writes.push_back(record);
 }
 
-void State::compute_slice_of_instr(instr_details_t &instr) {
+void State::compute_slice_of_instr(instr_details_t &instr, bool is_instr_symbolic = false) {
 	// Compute block slice of instruction needed to setup concrete registers needed by it and also save values of
 	// registers not changed from start of the block
+	if (instr.has_concrete_memory_dep && !is_instr_symbolic) {
+		// If instruction does not touch symbolic data and has only concrete memory reads, we don't need to compute it's
+		// slice
+		return;
+	}
 	std::unordered_set<address_t> instrs_to_process;
 	bool all_dep_regs_concrete = false;
 	auto &block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
@@ -828,7 +833,7 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 	for (auto &instr_to_process_addr: instrs_to_process) {
 		auto &instr_to_process_taint_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_to_process_addr);
 		instr_details_t instr_details = compute_instr_details(instr_to_process_addr, instr_to_process_taint_entry);
-		compute_slice_of_instr(instr_details);
+		compute_slice_of_instr(instr_details, false);
 		instr.reg_deps.insert(instr_details.reg_deps.begin(), instr_details.reg_deps.end());
 		instr.instr_deps.insert(instr_details.instr_deps.begin(), instr_details.instr_deps.end());
 		instr_details.reg_deps.clear();
@@ -2140,7 +2145,7 @@ void State::continue_propagating_taint() {
 }
 
 void State::save_concrete_memory_deps(instr_details_t &instr) {
-	if (instr.has_concrete_memory_dep) {
+	if (instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep) {
 		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.instr_addr).memory_values);
 		instr.memory_values = &(archived_memory_values.back()[0]);
 		instr.memory_values_count = archived_memory_values.back().size();
