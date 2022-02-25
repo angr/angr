@@ -103,8 +103,9 @@ class SimEngineUnicorn(SuccessorsMixin):
         self.state.scratch.set_tyenv(vex_block.tyenv)
         for instr_entry in block_details["instrs"]:
             self._instr_mem_reads = [n for n in instr_entry["mem_dep"]]  # pylint:disable=attribute-defined-outside-init
-            # Insert breakpoint to set the correct memory read address
-            self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
+            if self._instr_mem_reads:
+                # Insert breakpoint to set the correct memory read address
+                self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
 
             instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
             start_index = instr_vex_stmt_indices["start"]
