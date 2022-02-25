@@ -36,5 +36,4 @@ class TestDrillerCore(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    logging.getLogger("angr.exploration_techniques.driller_core").setLevel('DEBUG')
     unittest.main()
