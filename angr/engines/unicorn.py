@@ -185,20 +185,56 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     def _set_correct_mem_read_addr(self, state):
         assert(len(self._instr_mem_reads) != 0)
-        next_mem_read = self._instr_mem_reads.pop(0)
-        assert(state.inspect.mem_read_length == next_mem_read["size"])
-        state.inspect.mem_read_address = state.solver.BVV(next_mem_read["address"], state.inspect.mem_read_address.size())
-        if not next_mem_read["symbolic"]:
-            # Since read is concrete, insert breakpoint to return the correct concrete value
-            self.state.inspect.b('mem_read', mem_read_address=next_mem_read["address"], when=BP_AFTER,
-                                 action=functools.partial(self._set_correct_mem_read_val, value=next_mem_read["value"]))
-        return
+        mem_read_val = b""
+        mem_read_size = 0
+        mem_read_address = None
+        mem_read_taint_map = []
+        mem_read_symbolic = True
+        while mem_read_size != state.inspect.mem_read_length and self._instr_mem_reads:
+            next_val = self._instr_mem_reads.pop(0)
+            if not mem_read_address:
+                mem_read_address = next_val["address"]
 
-    def _set_correct_mem_read_val(self, state, value):
-        if state.arch.memory_endness == archinfo.Endness.LE:
-            state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
+            if next_val["symbolic"]:
+                mem_read_taint_map.extend([1] * next_val["size"])
+            else:
+                mem_read_taint_map.extend([0] * next_val["size"])
+
+            mem_read_size += next_val["size"]
+            mem_read_symbolic &= next_val["symbolic"]
+            mem_read_val += next_val["value"]
+
+        assert(state.inspect.mem_read_length == mem_read_size)
+        state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
+        if not mem_read_symbolic:
+            # Since read is (partially) concrete, insert breakpoint to return the correct concrete value
+            self.state.inspect.b('mem_read', mem_read_address=mem_read_address, when=BP_AFTER,
+                                 action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
+                                 taint_map=mem_read_taint_map))
+
+    def _set_correct_mem_read_val(self, state, value, taint_map):
+        if taint_map.count(1) == 0:
+            # The value is completely concrete
+            if state.arch.memory_endness == archinfo.Endness.LE:
+                state.inspect.mem_read_expr = state.solver.BVV(value[::-1])
+            else:
+                state.inspect.mem_read_expr = state.solver.BVV(value)
         else:
-            state.inspect.mem_read_expr = state.solver.BVV(value)
+            # The value is partially concrete. Use the bitmap to read the symbolic bytes from memory and construct the
+            # correct value
+            actual_value = []
+            for offset, taint in enumerate(taint_map):
+                if taint == 1:
+                    # Byte is symbolic. Read the value from memory
+                    actual_value.append(state.memory.load(state.inspect.mem_read_address + offset, 1, inspect=False,
+                                                          disable_actions=True))
+                else:
+                    actual_value.append(state.solver.BVV(value[offset], 8))
+
+            if state.arch.memory_endness == archinfo.Endness.LE:
+                actual_value = actual_value[::-1]
+
+            state.inspect.mem_read_expr = state.solver.Concat(*actual_value)
 
     def process_successors(self, successors, **kwargs):
         state = self.state
