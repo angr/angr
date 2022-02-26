@@ -854,6 +854,31 @@ def test_single_instruction_loop():
     assert "for(" in code_without_spaces
 
 
+def test_simple_strcpy():
+    """
+    Original C: while (( *dst++ = *src++ ));
+    Ensures incremented src and dst are not accidentally used in copy statement.
+    """
+    bin_path = os.path.join(test_location, "x86_64", "test_simple_strcpy")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True)
+    p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+    f = p.kb.functions['simple_strcpy']
+    d = p.analyses.Decompiler(f, cfg=cfg.model)
+    print(d.codegen.text)
+    dw = d.codegen.cfunc.statements.statements[1]
+    assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
+    stmts = dw.body.statements
+    assert len(stmts) == 5
+    assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
+    assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
+    assert stmts[4].lhs.variable.variable == stmts[2].lhs.variable
+    assert stmts[4].rhs.variable.variable == stmts[0].lhs.variable
+    assert dw.condition.lhs.expr.variable.variable == stmts[2].lhs.variable
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
