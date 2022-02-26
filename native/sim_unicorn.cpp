@@ -814,7 +814,7 @@ void State::compute_slice_of_instr(instr_details_t &instr, bool is_instr_symboli
 			// Register was not concrete before instruction was executed. Do not compute slice.
 			continue;
 		}
-		if (!reg_dep.used_in_mem_addr || block_mem_reads_map.at(instr.instr_addr).is_mem_read_symbolic) {
+		if (!reg_dep.used_in_mem_addr) {
 			instrs_to_process.emplace(instr_taint_entry.dep_reg_modifier_addr.at(reg_dep.reg_offset));
 		}
 	}
