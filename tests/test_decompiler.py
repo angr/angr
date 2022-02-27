@@ -666,7 +666,7 @@ def test_decompilation_x86_64_stack_arguments():
             # The line should look like this:
             #   v0 = (int)snprintf(v32[8], (v43 + 0x1) * 0x2 + 0x1a, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT\r\n", &v34,
             #   ((long long)v35), &v33, ((long long)v36 + 1900), ((long long)v35), ((long long)v35), ((long long)v35));
-            assert "1900" in line, "There is a missing stack argument."
+            assert line.count(',') == 10, "There is a missing stack argument."
             break
     else:
         assert False, "The line with snprintf() is not found."
@@ -686,7 +686,7 @@ def test_decompilation_x86_64_stack_arguments():
             # The line should look like this:
             #   v0 = (int)snprintf(v32[8], (v43 + 0x1) * 0x2 + 0x1a, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT\r\n", &v34,
             #   ((long long)v35), &v33, ((long long)v36 + 1900), ((long long)v35), ((long long)v35), ((long long)v35));
-            assert "1900" in line, "There is a missing stack argument."
+            assert line.count(',') == 10, "There is a missing stack argument."
             break
     else:
         assert False, "The line with snprintf() is not found."
