@@ -125,10 +125,6 @@ class SimEngineUnicorn(SuccessorsMixin):
             self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
             del self._instr_mem_reads
 
-        # Restore breakpoints
-        for succ_state in self.successors.successors:
-            succ_state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
-
         del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
