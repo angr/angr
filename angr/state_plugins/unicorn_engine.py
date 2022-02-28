@@ -336,7 +336,7 @@ _unicorn_tls.uc = None
 
 class _VexCacheInfo(ctypes.Structure):
     """
-    VexCacheInfo
+    VexCacheInfo struct from vex
     """
 
     _fields_ = [
@@ -348,7 +348,7 @@ class _VexCacheInfo(ctypes.Structure):
 
 class _VexArchInfo(ctypes.Structure):
     """
-    VexArchInfo
+    VexArchInfo struct from vex
     """
 
     _fields_ = [
