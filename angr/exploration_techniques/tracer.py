@@ -461,8 +461,8 @@ class Tracer(ExplorationTechnique):
             # Multiple new states were created in SimEngineUnicorn. State which has non-zero recent block count is a
             # valid successor since only correct successor is sync'd with native state
             for succ in succs:
-               if succ.history.recent_block_count > 0:
-                res.append(succ)
+                if succ.history.recent_block_count > 0:
+                    res.append(succ)
         else:
             for succ in succs:
                 try:
