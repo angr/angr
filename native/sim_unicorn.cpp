@@ -252,7 +252,7 @@ void State::commit() {
 	}
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
-			compute_slice_of_instr(symbolic_instr, true);
+			compute_slice_of_instr(symbolic_instr);
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_instr);
 		}
@@ -755,7 +755,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	mem_writes.push_back(record);
 }
 
-void State::compute_slice_of_instr(instr_details_t &instr, bool is_instr_symbolic = false) {
+void State::compute_slice_of_instr(instr_details_t &instr) {
 	// Compute block slice of instruction needed to setup concrete registers needed by it and also save values of
 	// registers not changed from start of the block
 	std::unordered_set<address_t> instrs_to_process;
@@ -834,7 +834,7 @@ void State::compute_slice_of_instr(instr_details_t &instr, bool is_instr_symboli
 	for (auto &instr_to_process_addr: instrs_to_process) {
 		auto &instr_to_process_taint_entry = block_taint_entry.block_instrs_taint_data_map.at(instr_to_process_addr);
 		instr_details_t instr_details = compute_instr_details(instr_to_process_addr, instr_to_process_taint_entry);
-		compute_slice_of_instr(instr_details, false);
+		compute_slice_of_instr(instr_details);
 		instr.reg_deps.insert(instr_details.reg_deps.begin(), instr_details.reg_deps.end());
 		instr.instr_deps.insert(instr_details.instr_deps.begin(), instr_details.instr_deps.end());
 		instr_details.reg_deps.clear();
