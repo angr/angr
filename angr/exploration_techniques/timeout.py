@@ -16,7 +16,6 @@ class Timeout(ExplorationTechnique):
         self.timeout = timeout
 
     def setup(self, simgr):
-        self.start_time = time.time()
         simgr.stashes['timeout'] = []
 
     def step(self, simgr, stash='active', **kwargs):
