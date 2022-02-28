@@ -6,7 +6,10 @@ import archinfo
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
+from .. import sim_options as o
+from ..misc.ux import once
 from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
+from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
 
 #pylint: disable=arguments-differ
 
@@ -23,7 +26,7 @@ class SimEngineUnicorn(SuccessorsMixin):
     - extra_stop_points:   A collection of addresses at which execution should halt
     """
 
-    def __check(self, num_inst=None, **kwargs):
+    def __check(self, num_inst=None, **kwargs):  # pylint: disable=unused-argument
         state = self.state
         if o.UNICORN not in state.options:
             l.debug('Unicorn-engine is not enabled.')
@@ -58,7 +61,8 @@ class SimEngineUnicorn(SuccessorsMixin):
             l.info("not enough blocks since symbolic stop (%d more)", unicorn.countdown_symbolic_stop)
             return False
         if unicorn.countdown_unsupported_stop > 0:
-            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)", unicorn.countdown_unsupported_stop)
+            l.info("not enough blocks since unsupported VEX statement/expression stop (%d more)",
+                   unicorn.countdown_unsupported_stop)
             return False
         if unicorn.countdown_nonunicorn_blocks > 0:
             l.info("not enough runs since last unicorn (%d)", unicorn.countdown_nonunicorn_blocks)
@@ -102,7 +106,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
         for instr_entry in block_details["instrs"]:
-            self._instr_mem_reads = [n for n in instr_entry["mem_dep"]]  # pylint:disable=attribute-defined-outside-init
+            self._instr_mem_reads = list(instr_entry["mem_dep"])  # pylint:disable=attribute-defined-outside-init
             if self._instr_mem_reads:
                 # Insert breakpoint to set the correct memory read address
                 self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
@@ -159,13 +163,13 @@ class SimEngineUnicorn(SuccessorsMixin):
         if irsb.size == 0:
             if irsb.jumpkind == 'Ijk_NoDecode':
                 if not self.state.project.is_hooked(irsb.addr):
-                    raise SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
-                                            "a python replacement using project.hook"
-                                            "(%#x, your_function, length=length_of_instruction)." % (irsb.addr, irsb.addr))
+                    raise SimIRSBNoDecodeError(f"IR decoding error at 0x{irsb.addr:02x}. You can hook this instruction"
+                                               " with a python replacement using project.hook"
+                                               f"(0x{irsb.addr:02x}, your_function, length=length_of_instruction).")
 
                 raise SimIRSBError("Block is hooked with custom code but original block was executed in unicorn")
 
-            raise SimIRSBError("Empty IRSB found at %#x." % (irsb.addr))
+            raise SimIRSBError(f"Empty IRSB found at 0x{irsb.addr:02x}.")
 
         instrs_stmt_indices = {}
         curr_instr_addr = None
@@ -184,7 +188,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         return block_details
 
     def _set_correct_mem_read_addr(self, state):
-        assert(len(self._instr_mem_reads) != 0)
+        assert len(self._instr_mem_reads) != 0
         mem_read_val = b""
         mem_read_size = 0
         mem_read_address = None
@@ -204,7 +208,7 @@ class SimEngineUnicorn(SuccessorsMixin):
             mem_read_symbolic &= next_val["symbolic"]
             mem_read_val += next_val["value"]
 
-        assert(state.inspect.mem_read_length == mem_read_size)
+        assert state.inspect.mem_read_length == mem_read_size
         state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
         if not mem_read_symbolic:
             # Since read is (partially) concrete, insert breakpoint to return the correct concrete value
@@ -212,7 +216,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                                  action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
                                  taint_map=mem_read_taint_map))
 
-    def _set_correct_mem_read_val(self, state, value, taint_map):
+    def _set_correct_mem_read_val(self, state, value, taint_map):  # pylint: disable=no-self-use
         if taint_map.count(1) == 0:
             # The value is completely concrete
             if state.arch.memory_endness == archinfo.Endness.LE:
@@ -298,10 +302,11 @@ class SimEngineUnicorn(SuccessorsMixin):
         if state.unicorn.steps == 0 or state.unicorn.stop_reason == STOP.STOP_NOSTART:
             # fail out, force fallback to next engine
             self.__reset_countdowns(successors.initial_state, state)
-            # TODO: idk what the consequences of this might be. If this failed step can actually change non-unicorn state then this is bad news.
+            # TODO: idk what the consequences of this might be. If this failed step can actually change non-unicorn
+            # state then this is bad news.
             return super().process_successors(successors, **kwargs)
 
-        description = 'Unicorn (%s after %d steps)' % (STOP.name_stop(state.unicorn.stop_reason), state.unicorn.steps)
+        description = f'Unicorn ({STOP.name_stop(state.unicorn.stop_reason)} after {state.unicorn.steps} steps)'
 
         state.history.recent_block_count += state.unicorn.steps
         state.history.recent_description = description
@@ -324,7 +329,3 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         successors.description = description
         successors.processed = True
-
-from ..state_plugins.unicorn_engine import STOP, _UC_NATIVE, unicorn as uc_module
-from .. import sim_options as o
-from ..misc.ux import once

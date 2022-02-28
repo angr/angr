@@ -1,24 +1,25 @@
-import os
-import sys
+import binascii
 import copy
 import ctypes
-import cffi # lmao
-import threading
 import itertools
 import logging
-import pyvex
-import claripy
+import os
+import sys
+import threading
 import time
-import binascii
-import archinfo
 
+import archinfo
+import cffi  # lmao
+import claripy
+import pyvex
 from angr.engines.vex.claripy import ccall
 from angr.sim_state import SimState
 
 from .. import sim_options as options
-from ..errors import SimValueError, SimUnicornUnsupport, SimSegfaultError, SimMemoryError, SimUnicornError
-from .plugin import SimStatePlugin
+from ..errors import (SimMemoryError, SimSegfaultError, SimUnicornError,
+                      SimUnicornUnsupport, SimValueError)
 from ..misc.testing import is_testing
+from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
 ffi = cffi.FFI()
@@ -29,8 +30,10 @@ except ImportError:
     l.warning("Unicorn is not installed. Support disabled.")
     unicorn = None
 
-class MEM_PATCH(ctypes.Structure): # mem_update_t
-    pass
+class MEM_PATCH(ctypes.Structure):
+    """
+    struct mem_update_t
+    """
 
 MEM_PATCH._fields_ = [
         ('address', ctypes.c_uint64),
@@ -38,21 +41,31 @@ MEM_PATCH._fields_ = [
         ('next', ctypes.POINTER(MEM_PATCH))
     ]
 
-class TRANSMIT_RECORD(ctypes.Structure): # transmit_record_t
-    pass
+class TRANSMIT_RECORD(ctypes.Structure):
+    """
+    struct transmit_record_t
+    """
 
-TRANSMIT_RECORD._fields_ = [
+    _fields_ = [
         ('data', ctypes.c_void_p),
         ('count', ctypes.c_uint32)
     ]
 
-class TaintEntityEnum: # taint_entity_enum_t
+class TaintEntityEnum:
+    """
+    taint_entity_enum_t
+    """
+
     TAINT_ENTITY_REG = 0
     TAINT_ENTITY_TMP = 1
     TAINT_ENTITY_MEM = 2
     TAINT_ENTITY_NONE = 3
 
-class MemoryValue(ctypes.Structure): # memory_value_t
+class MemoryValue(ctypes.Structure):
+    """
+    struct memory_value_t
+    """
+
     _MAX_MEM_ACCESS_SIZE = 8
 
     _fields_ = [
@@ -62,7 +75,11 @@ class MemoryValue(ctypes.Structure): # memory_value_t
         ('is_value_symbolic', ctypes.c_bool)
     ]
 
-class RegisterValue(ctypes.Structure): # register_value_t
+class RegisterValue(ctypes.Structure):
+    """
+    struct register_value_t
+    """
+
     _MAX_REGISTER_BYTE_SIZE = 32
 
     _fields_ = [
@@ -70,7 +87,11 @@ class RegisterValue(ctypes.Structure): # register_value_t
         ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE),
         ('size', ctypes.c_int64)
     ]
-class InstrDetails(ctypes.Structure): # sym_instr_details_t
+class InstrDetails(ctypes.Structure):
+    """
+    struct sym_instr_details_t
+    """
+
     _fields_ = [
         ('instr_addr', ctypes.c_uint64),
         ('has_memory_dep', ctypes.c_bool),
@@ -78,7 +99,11 @@ class InstrDetails(ctypes.Structure): # sym_instr_details_t
         ('memory_values_count', ctypes.c_uint64),
     ]
 
-class BlockDetails(ctypes.Structure): # sym_block_details_ret_t
+class BlockDetails(ctypes.Structure):
+    """
+    struct sym_block_details_ret_t
+    """
+
     _fields_ = [
         ('block_addr', ctypes.c_uint64),
         ('block_size', ctypes.c_uint64),
@@ -88,7 +113,11 @@ class BlockDetails(ctypes.Structure): # sym_block_details_ret_t
         ('register_values_count', ctypes.c_uint64),
     ]
 
-class STOP:  # stop_t
+class STOP:
+    """
+    enum stop_t
+    """
+
     STOP_NORMAL         = 0
     STOP_STOPPOINT      = 1
     STOP_ERROR          = 2
@@ -139,7 +168,8 @@ class STOP:  # stop_t
     stop_message[STOP_SYMBOLIC_CONDITION]    = "Symbolic condition for ITE"
     stop_message[STOP_SYMBOLIC_PC]           = "Instruction pointer became symbolic"
     stop_message[STOP_SYMBOLIC_READ_ADDR]    = "Attempted to read from symbolic address"
-    stop_message[STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED]= "Attempted to read symbolic data from memory but symbolic tracking is disabled"
+    stop_message[STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED]= ("Attempted to read symbolic data from memory but "
+                                                                  "symbolic tracking is disabled")
     stop_message[STOP_SYMBOLIC_WRITE_ADDR]   = "Attempted to write to symbolic address"
     stop_message[STOP_SYMBOLIC_BLOCK_EXIT_CONDITION] = "Guard condition of block's exit statement is symbolic"
     stop_message[STOP_SYMBOLIC_BLOCK_EXIT_TARGET] = "Target of default exit of block is symbolic"
@@ -155,7 +185,9 @@ class STOP:  # stop_t
     stop_message[STOP_UNKNOWN_MEMORY_WRITE_SIZE] = "Cannot determine size of memory write; likely because unicorn didn't"
     stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE] = "A symbolic memory dependency on stack is no longer in scope"
     stop_message[STOP_SYSCALL_ARM]   = "ARM syscalls are currently not supported by SimEngineUnicorn"
-    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK] = "An instruction in current block overwrites a symbolic value needed for re-executing some instruction in same block"
+    stop_message[STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK] = ("An instruction in current block overwrites a symbolic "
+                                                               "value needed for re-executing some instruction in same "
+                                                               "block")
     stop_message[STOP_X86_CPUID] = "Block executes cpuid which should be handled in VEX engine"
 
     symbolic_stop_reasons = [STOP_SYMBOLIC_CONDITION, STOP_SYMBOLIC_PC, STOP_SYMBOLIC_READ_ADDR,
@@ -182,6 +214,10 @@ class STOP:  # stop_t
         return "Unknown stop reason"
 
 class StopDetails(ctypes.Structure):
+    """
+    struct stop_details_t
+    """
+
     _fields_ = [
         ('stop_reason', ctypes.c_int),
         ('block_addr', ctypes.c_uint64),
@@ -189,6 +225,10 @@ class StopDetails(ctypes.Structure):
     ]
 
 class SimOSEnum:
+    """
+    enum simos_t
+    """
+
     SIMOS_CGC   = 0
     SIMOS_LINUX = 1
     SIMOS_OTHER = 2
@@ -197,19 +237,19 @@ class SimOSEnum:
 # Memory mapping errors - only used internally
 #
 
-class MemoryMappingError(Exception):
+class MemoryMappingError(Exception):  # pylint: disable=missing-class-docstring
     pass
 
-class AccessingZeroPageError(MemoryMappingError):
+class AccessingZeroPageError(MemoryMappingError):  # pylint: disable=missing-class-docstring
     pass
 
-class FetchingZeroPageError(MemoryMappingError):
+class FetchingZeroPageError(MemoryMappingError):  # pylint: disable=missing-class-docstring
     pass
 
-class SegfaultError(MemoryMappingError):
+class SegfaultError(MemoryMappingError):  # pylint: disable=missing-class-docstring
     pass
 
-class MixedPermissonsError(MemoryMappingError):
+class MixedPermissonsError(MemoryMappingError):  # pylint: disable=missing-class-docstring
     pass
 
 #
@@ -217,6 +257,7 @@ class MixedPermissonsError(MemoryMappingError):
 #
 
 class AggressiveConcretizationAnnotation(claripy.SimplificationAvoidanceAnnotation):
+    # pylint: disable=missing-class-docstring
     def __init__(self, addr):
         claripy.SimplificationAvoidanceAnnotation.__init__(self)
         self.unicorn_start_addr = addr
@@ -228,7 +269,7 @@ class AggressiveConcretizationAnnotation(claripy.SimplificationAvoidanceAnnotati
 _unicounter = itertools.count()
 
 class Uniwrapper(unicorn.Uc if unicorn is not None else object):
-    # pylint: disable=non-parent-init-called
+    # pylint: disable=non-parent-init-called,missing-class-docstring
     def __init__(self, arch, cache_key, thumb=False):
         l.debug("Creating unicorn state!")
         self.arch = arch
@@ -294,6 +335,10 @@ _unicorn_tls = threading.local()
 _unicorn_tls.uc = None
 
 class _VexCacheInfo(ctypes.Structure):
+    """
+    VexCacheInfo
+    """
+
     _fields_ = [
         ("num_levels", ctypes.c_uint),
         ("num_caches", ctypes.c_uint),
@@ -302,6 +347,10 @@ class _VexCacheInfo(ctypes.Structure):
     ]
 
 class _VexArchInfo(ctypes.Structure):
+    """
+    VexArchInfo
+    """
+
     _fields_ = [
         ("hwcaps", ctypes.c_uint),
         ("endness", ctypes.c_int),
@@ -954,8 +1003,6 @@ class Unicorn(SimStatePlugin):
             self.uc.mem_map_ptr(addr, 0x1000, perm, int(ffi.cast('uint64_t', ffi.from_buffer(data))))
             self._mapped += 1
             _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))), int(ffi.cast('unsigned long', ffi.from_buffer(data))))
-
-        return
 
 
     def _get_details_of_blocks_with_symbolic_instrs(self):
