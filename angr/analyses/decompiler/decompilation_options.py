@@ -61,6 +61,16 @@ options = [
         category="Display",
         default_value=True,
         clears_cache=False,
+    ),
+    O(
+        "Use compound assignment operators",
+        'Reduce statements "a = a + b" to "a += b".',
+        bool,
+        "codegen",
+        "use_compound_assignments",
+        category="Display",
+        default_value=True,
+        clears_cache=False,
     )
 ]
 

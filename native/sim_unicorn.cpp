@@ -1099,6 +1099,16 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 		instruction_taint_entry.mem_read_size += block_next_taint_sources.mem_read_size;
 		instruction_taint_entry.has_memory_read |= (block_next_taint_sources.mem_read_size != 0);
 	}
+	// Save register dependencies' info
+	for (auto &dep: instruction_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
+		auto entry = last_reg_modifier_instr.find(dep.reg_offset);
+		if (entry != last_reg_modifier_instr.end()) {
+			instruction_taint_entry.dep_reg_modifier_addr.emplace(dep.reg_offset, entry->second);
+		}
+		else {
+			instruction_taint_entry.unmodified_dep_regs.emplace(dep.reg_offset, dep.value_size);
+		}
+	}
 	// Save last instruction's entry
 	block_taint_entry.block_instrs_taint_data_map.emplace(curr_instr_addr, instruction_taint_entry);
 	block_taint_cache.emplace(address, block_taint_entry);

@@ -762,8 +762,31 @@ class CAssignment(CStatement):
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(self.lhs)
-        yield " = ", self
-        yield from CExpression._try_c_repr_chunks(self.rhs)
+
+        compound_assignment_ops = {
+            'Add': '+',
+            'Sub': '-',
+            'Mul': '*',
+            'Div': '/',
+            'And': '&',
+            'Xor': '^',
+            'Or': '|',
+            'Shr': '>>',
+            'Shl': '<<',
+            'Sar': '>>',
+        }
+
+        if (self.codegen.use_compound_assignments
+            and isinstance(self.rhs, CBinaryOp)
+            and isinstance(self.rhs.lhs, CVariable)
+            and self.lhs.unified_variable is self.rhs.lhs.unified_variable
+            and self.rhs.op in compound_assignment_ops):
+            # a = a + x  =>  a += x
+            yield f' {compound_assignment_ops[self.rhs.op]}= ', self
+            yield from CExpression._try_c_repr_chunks(self.rhs.rhs)
+        else:
+            yield " = ", self
+            yield from CExpression._try_c_repr_chunks(self.rhs)
         if not asexpr:
             yield ";\n", self
 
@@ -1572,7 +1595,7 @@ class CClosingObject:
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
-                 show_casts=True, braces_on_own_lines=True, flavor=None,
+                 show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, flavor=None,
                  stmt_comments=None, expr_comments=None):
         super().__init__(flavor=flavor)
 
@@ -1624,6 +1647,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._indent = indent
         self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
+        self.use_compound_assignments = use_compound_assignments
         self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
 
@@ -1645,6 +1669,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.braces_on_own_lines = value
             elif option.param == 'show_casts':
                 self.show_casts = value
+            elif option.param == 'use_compound_assignments':
+                self.use_compound_assignments = value
 
     def _analyze(self):
 

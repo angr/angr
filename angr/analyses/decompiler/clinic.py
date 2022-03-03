@@ -1,3 +1,4 @@
+import copy
 from collections import defaultdict
 import logging
 from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, TYPE_CHECKING
@@ -26,7 +27,6 @@ if TYPE_CHECKING:
     from .decompilation_cache import DecompilationCache
     from .peephole_optimizations import PeepholeOptimizationStmtBase, PeepholeOptimizationExprBase
 
-
 l = logging.getLogger(name=__name__)
 
 
@@ -34,13 +34,14 @@ class Clinic(Analysis):
     """
     A Clinic deals with AILments.
     """
+
     def __init__(self, func,
                  remove_dead_memdefs=False,
                  exception_edges=False,
                  sp_tracker_track_memory=True,
                  optimization_passes=None,
                  cfg=None,
-                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,  # pylint:disable=line-too-long
+                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None, # pylint:disable=line-too-long
                  must_struct: Optional[Set[str]]=None,
                  variable_kb=None,
                  reset_variable_names=False,
@@ -52,12 +53,13 @@ class Clinic(Analysis):
         self.function = func
 
         self.graph = None
+        self.cc_graph: Optional[networkx.DiGraph] = None
         self.arg_list = None
         self.variable_kb = variable_kb
 
         self._func_graph: Optional[networkx.DiGraph] = None
         self._ail_manager = None
-        self._blocks_by_addr_and_size = { }
+        self._blocks_by_addr_and_size = {}
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
@@ -218,6 +220,25 @@ class Clinic(Analysis):
         self.graph = ail_graph
         self.arg_list = arg_list
         self.variable_kb = variable_kb
+        self.cc_graph = self._copy_graph()
+
+    def _copy_graph(self):
+        """
+        Copy AIL Graph.
+
+        :return: AILGraph copy
+        :rtype: networkx.DiGraph
+        """
+        graph_copy = networkx.DiGraph()
+        for edge in self.graph.edges:
+            new_edge = ()
+            for block in edge:
+                new_block = copy.copy(block)
+                new_stmts = copy.copy(block.statements)
+                new_block.statements = new_stmts
+                new_edge += (new_block,)
+            graph_copy.add_edge(*new_edge)  # pylint: disable=no-value-for-parameter
+        return graph_copy
 
     @timethis
     def _set_function_graph(self):
@@ -341,7 +362,7 @@ class Clinic(Analysis):
         :return:                        None
         """
 
-        blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = { }
+        blocks_by_addr_and_idx: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(ail_block, remove_dead_memdefs=remove_dead_memdefs,
@@ -379,7 +400,7 @@ class Clinic(Analysis):
 
     @timethis
     def _simplify_function(self, ail_graph, remove_dead_memdefs=False, stack_arg_offsets=None, unify_variables=False,
-                           max_iterations: int=8) -> None:
+                           max_iterations: int = 8) -> None:
         """
         Simplify the entire function until it reaches a fixed point.
         """
@@ -411,15 +432,16 @@ class Clinic(Analysis):
         return simp.simplified
 
     @timethis
-    def _run_simplification_passes(self, ail_graph, stage:int=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
+    def _run_simplification_passes(self, ail_graph, stage: int = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
 
-        addr_and_idx_to_blocks: Dict[Tuple[int,Optional[int]],ailment.Block] = { }
-        addr_to_blocks: Dict[int,Set[ailment.Block]] = defaultdict(set)
+        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
+        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
         def _updatedict_handler(node):
             addr_and_idx_to_blocks[(node.addr, node.idx)] = node
             addr_to_blocks[node.addr].add(node)
+
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
         # Run each pass
@@ -466,7 +488,7 @@ class Clinic(Analysis):
                         raise TypeError("Unsupported function argument type %s." % type(arg))
                     arg_vars.append(argvar)
             return arg_vars
-        return [ ]
+        return []
 
     @timethis
     def _make_callsites(self, ail_graph, stack_pointer_tracker=None):
@@ -538,7 +560,6 @@ class Clinic(Analysis):
                     l.warning("Unsupported type of return expression %s.", type(ret_val))
                 block.statements[stmt_idx] = new_stmt
 
-
         def _handler(block):
             walker = AILBlockWalker()
             # we don't need to handle any statement besides Returns
@@ -561,7 +582,7 @@ class Clinic(Analysis):
             return
 
         variables = variable_kb.variables[self.function.addr]
-        func_args = [ ]
+        func_args = []
         for arg in arg_list:
             func_arg = None
             arg_ty = variables.get_variable_type(arg)
