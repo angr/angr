@@ -6,7 +6,7 @@ from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 from . import ExplorationTechnique
 from .. import BP_BEFORE, BP_AFTER, sim_options
-from ..errors import AngrTracerError
+from ..errors import AngrTracerError, SimIRSBNoDecodeError
 
 
 l = logging.getLogger(name=__name__)
@@ -952,7 +952,12 @@ class Tracer(ExplorationTechnique):
         state.preconstrainer.reconstrain()
 
         l.debug("final step...")
-        succs = state.step(num_inst=1)
+        try:
+            succs = state.step(num_inst=1)
+        except SimIRSBNoDecodeError:
+            # See https://github.com/angr/angr/issues/71
+            # Basically, we probably tried to single step over a delay slot.
+            succs = state.step(num_inst=2)
 
         successors = succs.flat_successors + succs.unconstrained_successors
         crash_state = successors[0]
