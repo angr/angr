@@ -2309,7 +2309,6 @@ uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
 
 void State::perform_cgc_receive() {
 	uint32_t fd, buf, count, rx_bytes;
-	uc_err err;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
 	if (fd > 2) {
@@ -2327,11 +2326,9 @@ void State::perform_cgc_receive() {
 	uc_reg_read(uc, UC_X86_REG_ESI, &rx_bytes);
 	if (count == 0) {
 		// Requested to read 0 bytes. Set *rx_bytes and syscall return value to 0
-		err = uc_mem_write(uc, rx_bytes, &count, 4);
-		if (err == UC_ERR_OK) {
-			// Setting rx_bytes succeeded. Mark rx_bytes as concrete
-			// Since setting rx_bytes is optional, failed writes are ignored and taint is not updated.
+		if (rx_bytes != 0) {
 			handle_write(rx_bytes, 4, true);
+			uc_mem_write(uc, rx_bytes, &count, 4);
 		}
 		uc_reg_write(uc, UC_X86_REG_EAX, &count);
 		interrupt_handled = true;
@@ -2348,16 +2345,14 @@ void State::perform_cgc_receive() {
 		return;
 	}
 	if (actual_count > 0) {
-		uc_mem_write(uc, buf, tmp_buf, actual_count);
 		// Mark buf as symbolic
 		handle_write(buf, actual_count, true, true);
+		uc_mem_write(uc, buf, tmp_buf, actual_count);
 	}
 	free(tmp_buf);
-	err = uc_mem_write(uc, rx_bytes, &actual_count, 4);
-	if (err == UC_ERR_OK) {
-		// Setting rx_bytes succeeded. Mark rx_bytes as concrete.
-		// Since setting rx_bytes is optional, failed writes are ignored and taint is not updated.
+	if (rx_bytes != 0) {
 		handle_write(rx_bytes, 4, true);
+		uc_mem_write(uc, rx_bytes, &actual_count, 4);
 	}
 	count = 0;
 	uc_reg_write(uc, UC_X86_REG_EAX, &count);
@@ -2446,9 +2441,9 @@ void State::perform_cgc_transmit() {
 			return;
 		}
 
-		uc_err err = uc_mem_write(uc, tx_bytes, &count, 4);
 		if (tx_bytes != 0) {
 			handle_write(tx_bytes, 4, true);
+			uc_mem_write(uc, tx_bytes, &count, 4);
 		}
 
 		if (stopped) {
