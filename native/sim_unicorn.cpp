@@ -250,6 +250,28 @@ void State::commit() {
 	for (auto &reg_offset: block_concrete_registers) {
 		symbolic_registers.erase(reg_offset);
 	}
+	// Remove instructions whose effects are overwritten by subsequent instructions from the re-execute list
+	std::vector<std::vector<block_details_t>::iterator> blocks_to_erase_it;
+	for (auto &instrs_to_erase_entry: symbolic_instrs_to_erase) {
+		std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
+		auto block_it = blocks_with_symbolic_instrs.begin() + instrs_to_erase_entry.first;
+		auto first_instr_it = block_it->symbolic_instrs.begin();
+		for (auto &instr_offset: instrs_to_erase_entry.second) {
+			instrs_to_erase_it.push_back(first_instr_it + instr_offset);
+		}
+		for (auto &instr_to_erase_it: instrs_to_erase_it) {
+			block_it->symbolic_instrs.erase(instr_to_erase_it);
+		}
+		if (block_it->symbolic_instrs.size() == 0) {
+			// There are no more instructions to re-execute in this block and thus it can be removed from list of blocks
+			// with instructions that need to be re-executed
+			blocks_to_erase_it.push_back(block_it);
+		}
+	}
+	for (auto &block_to_erase_it: blocks_to_erase_it) {
+		blocks_with_symbolic_instrs.erase(block_to_erase_it);
+	}
+	// Save details of symbolic instructions in current block
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
 			compute_slice_of_instr(symbolic_instr);
@@ -269,6 +291,7 @@ void State::commit() {
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
 	block_mem_writes_taint_data.clear();
+	symbolic_instrs_to_erase.clear();
 	taint_engine_next_instr_address = 0;
 	taint_engine_stop_mem_read_instruction = 0;
 	taint_engine_stop_mem_read_size = 0;
@@ -697,10 +720,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		// since this concrete write nullifies their effects.
 		auto curr_write_start_addr = address;
 		auto curr_write_end_addr = address + size;
-		std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
-		for (auto &block: blocks_with_symbolic_instrs) {
-			instrs_to_erase_it.clear();
-			for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
+		auto first_block_it = blocks_with_symbolic_instrs.begin();
+		for (auto block_it = first_block_it; block_it != blocks_with_symbolic_instrs.end(); block_it++) {
+			std::unordered_set<uint32_t> instrs_to_erase;
+			auto first_instr_it = block_it->symbolic_instrs.begin();
+			for (auto sym_instr_it = first_instr_it; sym_instr_it != block_it->symbolic_instrs.end(); sym_instr_it++) {
 				int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
 				if (symbolic_write_start_addr == -1) {
 					// Instruction does not write a symbolic write to memory. No need to check this.
@@ -711,14 +735,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 					// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
 					// instruction need not be re-executed
 					// TODO: How to handle partial overwrite?
-					// TODO: If this block is not fully executed in unicorn before control returns to python land,
-					// the state will be inconsistent until this concrete memory write is executed. If this happens,
-					// the symbolic memory write should be removed from list of instructions to re-execute in commit.
-					instrs_to_erase_it.emplace_back(sym_instr_it);
+					instrs_to_erase.emplace(sym_instr_it - first_instr_it);
 				}
 			}
-			for (auto &instr_to_erase_it: instrs_to_erase_it) {
-				block.symbolic_instrs.erase(instr_to_erase_it);
+			if (instrs_to_erase.size() > 0) {
+				symbolic_instrs_to_erase.emplace(block_it - first_block_it, instrs_to_erase);
 			}
 		}
 	}
