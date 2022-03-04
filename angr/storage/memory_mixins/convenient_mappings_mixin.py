@@ -49,7 +49,7 @@ class ConvenientMappingsMixin(MemoryMixin):
         try:
             if options.REVERSE_MEMORY_NAME_MAP in self.state.options:
                 # remove this address for the old variables
-                old_obj = self.load(addr, size=size, fill_missing=False)
+                old_obj = self.load(addr, size=size, fill_missing=False, disable_actions=True, inspect=False)
 
                 obj_vars = old_obj.variables
                 for v in obj_vars:

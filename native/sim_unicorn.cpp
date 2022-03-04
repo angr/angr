@@ -167,7 +167,7 @@ void State::stop(stop_t reason, bool do_commit) {
 			sym_instr.instr_addr = instr.instr_addr;
 			sym_instr.memory_values = instr.memory_values;
 			sym_instr.memory_values_count = instr.memory_values_count;
-			sym_instr.has_memory_dep = instr.has_concrete_memory_dep;
+			sym_instr.has_memory_dep = instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep;
 			sym_block.symbolic_instrs.emplace_back(sym_instr);
 		}
 		block_details_to_return.emplace_back(sym_block);
@@ -805,12 +805,18 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 	}
 
 	// List of instructions modifying a register dependency. Their slice needs to be computed.
-	for (auto &dep_reg_modifier: instr_taint_entry.dep_reg_modifier_addr) {
-		if (!all_dep_regs_concrete && instr_concrete_regs_it->second.count(dep_reg_modifier.first) == 0) {
+	for (auto &reg_dep: instr_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
+		auto reg_modifier_entry = instr_taint_entry.dep_reg_modifier_addr.find(reg_dep.reg_offset);
+		if (reg_modifier_entry == instr_taint_entry.dep_reg_modifier_addr.end()) {
+			continue;
+		}
+		if (!all_dep_regs_concrete && instr_concrete_regs_it->second.count(reg_dep.reg_offset) == 0) {
 			// Register was not concrete before instruction was executed. Do not compute slice.
 			continue;
 		}
-		instrs_to_process.emplace(dep_reg_modifier.second);
+		if (!reg_dep.used_in_mem_addr) {
+			instrs_to_process.emplace(instr_taint_entry.dep_reg_modifier_addr.at(reg_dep.reg_offset));
+		}
 	}
 
 	// List of instructions modifying a VEX temp dependency. Their slice needs to be computed.
@@ -834,6 +840,39 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 		instr_details.reg_deps.clear();
 		instr_details.instr_deps.clear();
 		instr.instr_deps.insert(instr_details);
+	}
+	return;
+}
+
+void State::set_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry) {
+	std::queue<taint_entity_t> entities_to_process;
+	entities_to_process.emplace(entity);
+	while (!entities_to_process.empty()) {
+		auto curr_entity = entities_to_process.front();
+		entities_to_process.pop();
+		for (auto &dep_list: instr_taint_entry.dependencies) {
+			for (auto &dep: dep_list.second) {
+				if (dep == curr_entity) {
+					dep.used_in_mem_addr = true;
+					auto taint_sink_entry_it = std::find_if(instr_taint_entry.taint_sink_src_map.begin(), instr_taint_entry.taint_sink_src_map.end(),
+										[&dep](taint_vector_t::const_reference element) { return element.first == dep; });
+					while (taint_sink_entry_it != instr_taint_entry.taint_sink_src_map.end()) {
+						for (auto &elem: taint_sink_entry_it->second) {
+							entities_to_process.push(elem);
+					    }
+						taint_sink_entry_it++;
+						taint_sink_entry_it = std::find_if(taint_sink_entry_it, instr_taint_entry.taint_sink_src_map.end(),
+										[&dep](taint_vector_t::const_reference element) { return element.first == dep; });
+					}
+				}
+			}
+		}
+	}
+}
+
+void State::update_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry) {
+	for (auto &mem_entity: entity.mem_ref_entity_list) {
+		set_deps_mem_addr_status(mem_entity, instr_taint_entry);
 	}
 	return;
 }
@@ -873,12 +912,17 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
 					instruction_taint_entry.ite_cond_entity_list.insert(entry.second.begin(), entry.second.end());
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
+				}
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
 				}
 				// Mark this register as modified by this instruction for updating register setter later
 				modified_regs.emplace(sink.reg_offset);
@@ -924,8 +968,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
+				}
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
 					instruction_taint_entry.ite_cond_entity_list.insert(entry.second.begin(), entry.second.end());
@@ -968,8 +1017,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
+				}
 
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
@@ -990,8 +1044,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					block_taint_entry.exit_stmt_guard_expr_deps.insert(entry.second.begin(), entry.second.end());
 				}
 				block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
+				}
 				break;
 			}
 			case Ist_IMark:
@@ -1096,8 +1155,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 			block_taint_entry.block_next_entities.insert(entry.second.begin(), entry.second.end());
 			instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 		}
-		instruction_taint_entry.mem_read_size += block_next_taint_sources.mem_read_size;
-		instruction_taint_entry.has_memory_read |= (block_next_taint_sources.mem_read_size != 0);
+		if (block_next_taint_sources.mem_read_size != 0) {
+			for (auto &mem_addr_dep: block_next_taint_sources.taint_sources.at(TAINT_ENTITY_MEM)) {
+				update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+			}
+			instruction_taint_entry.mem_read_size += block_next_taint_sources.mem_read_size;
+			instruction_taint_entry.has_memory_read = true;
+		}
 	}
 	// Save register dependencies' info
 	for (auto &dep: instruction_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
@@ -2140,7 +2204,7 @@ void State::continue_propagating_taint() {
 }
 
 void State::save_concrete_memory_deps(instr_details_t &instr) {
-	if (instr.has_concrete_memory_dep) {
+	if (instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep) {
 		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.instr_addr).memory_values);
 		instr.memory_values = &(archived_memory_values.back()[0]);
 		instr.memory_values_count = archived_memory_values.back().size();
