@@ -263,7 +263,7 @@ class PropagatorAILState(PropagatorState):
     Describes the state used in the AIL engine of Propagator.
     """
 
-    __slots__ = ('_registers', '_stack_variables', '_tmps', '_inside_call_stmt')
+    __slots__ = ('_registers', '_stack_variables', '_tmps', '_inside_call_stmt', 'last_store')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
@@ -282,6 +282,7 @@ class PropagatorAILState(PropagatorState):
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
+        self.last_store = None
 
     def __repr__(self):
         return "<PropagatorAILState>"

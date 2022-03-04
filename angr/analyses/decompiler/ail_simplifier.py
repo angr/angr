@@ -4,7 +4,7 @@ from collections import defaultdict
 from ailment.block import Block
 from ailment.statement import Statement, Assignment, Store, Call, ConditionalJump
 from ailment.expression import Register, Convert, Load, StackBaseOffset, Expression, DirtyExpression, \
-    VEXCCallExpression
+    VEXCCallExpression, Tmp
 
 from ...engines.light import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -25,6 +25,22 @@ class HasCallNotification(Exception):
     """
     Notifies the existence of a call statement.
     """
+
+
+class AILBlockTempCollector(AILBlockWalker):
+    """
+    Collects any temporaries used in a block.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.temps = set()
+        self.expr_handlers[Tmp] = self._handle_Tmp
+
+    # pylint:disable=unused-argument
+    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int,
+                     stmt: Statement, block) -> Optional[Expression]:
+        if isinstance(expr, Tmp):
+            self.temps.add(expr)
 
 
 class AILSimplifier(Analysis):
@@ -317,6 +333,12 @@ class AILSimplifier(Analysis):
         # no need to clear cache at the end of this function
         return simplified
 
+    @staticmethod
+    def _is_call_using_temporaries(call: Call) -> bool:
+        walker = AILBlockTempCollector()
+        walker.walk_statement(call)
+        return len(walker.temps) > 0
+
     def _fold_call_exprs(self) -> bool:
         """
         Fold a call expression (statement) into other statements if the return value of the call expression (statement)
@@ -358,6 +380,9 @@ class AILSimplifier(Analysis):
                     # register variable = Call
                     call = eq.atom1
                 else:
+                    continue
+
+                if self._is_call_using_temporaries(call):
                     continue
 
                 # find the definition of this register

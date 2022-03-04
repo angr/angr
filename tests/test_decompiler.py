@@ -666,7 +666,7 @@ def test_decompilation_x86_64_stack_arguments():
             # The line should look like this:
             #   v0 = (int)snprintf(v32[8], (v43 + 0x1) * 0x2 + 0x1a, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT\r\n", &v34,
             #   ((long long)v35), &v33, ((long long)v36 + 1900), ((long long)v35), ((long long)v35), ((long long)v35));
-            assert "1900" in line, "There is a missing stack argument."
+            assert line.count(',') == 10, "There is a missing stack argument."
             break
     else:
         assert False, "The line with snprintf() is not found."
@@ -686,7 +686,7 @@ def test_decompilation_x86_64_stack_arguments():
             # The line should look like this:
             #   v0 = (int)snprintf(v32[8], (v43 + 0x1) * 0x2 + 0x1a, "%s, %.2d %s %d %.2d:%.2d:%.2d GMT\r\n", &v34,
             #   ((long long)v35), &v33, ((long long)v36 + 1900), ((long long)v35), ((long long)v35), ((long long)v35));
-            assert "1900" in line, "There is a missing stack argument."
+            assert line.count(',') == 10, "There is a missing stack argument."
             break
     else:
         assert False, "The line with snprintf() is not found."
@@ -852,6 +852,31 @@ def test_single_instruction_loop():
     code_without_spaces = code.replace(" ", "").replace("\n", "")
     assert "while(true" not in code_without_spaces
     assert "for(" in code_without_spaces
+
+
+def test_simple_strcpy():
+    """
+    Original C: while (( *dst++ = *src++ ));
+    Ensures incremented src and dst are not accidentally used in copy statement.
+    """
+    bin_path = os.path.join(test_location, "x86_64", "test_simple_strcpy")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True)
+    p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+    f = p.kb.functions['simple_strcpy']
+    d = p.analyses.Decompiler(f, cfg=cfg.model)
+    print(d.codegen.text)
+    dw = d.codegen.cfunc.statements.statements[1]
+    assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
+    stmts = dw.body.statements
+    assert len(stmts) == 5
+    assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
+    assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
+    assert stmts[4].lhs.variable.variable == stmts[2].lhs.variable
+    assert stmts[4].rhs.variable.variable == stmts[0].lhs.variable
+    assert dw.condition.lhs.expr.variable.variable == stmts[2].lhs.variable
 
 
 if __name__ == "__main__":

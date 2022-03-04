@@ -76,6 +76,8 @@ class SimEnginePropagatorAIL(
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
+        self.state.last_store = stmt
+
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:

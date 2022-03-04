@@ -42,8 +42,22 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 elif isinstance(v, Expr.TaggedObject) and v.tags.get('def_at', None) != self.expr.tags.get('def_at', None):
                     self.out_dated = True
 
+    @staticmethod
+    def _check_store_preceeds_load(store: Stmt.Store, load: Expr.Load) -> bool:
+        """
+        Check if store preceeds load based on VEX tags.
+        """
+        tags = ('vex_block_addr', 'vex_block_addr')
+        if all((t in load.tags and t in store.tags) for t in tags):
+            return (store.tags['vex_block_addr'] == load.tags['vex_block_addr'] and
+                    store.tags['vex_stmt_idx'] <= load.tags['vex_stmt_idx'])
+        else:
+            return False
+
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
         if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
+            self.out_dated = True
+        elif self.state.last_store and not self._check_store_preceeds_load(self.state.last_store, expr):
             self.out_dated = True
         else:
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
