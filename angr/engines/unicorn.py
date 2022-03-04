@@ -133,6 +133,10 @@ class SimEngineUnicorn(SuccessorsMixin):
             super()._handle_vex_defaultexit(vex_block.next, vex_block.jumpkind)  # pylint:disable=no-member
             self.state = saved_state
 
+        # Restore breakpoints
+        for succ_state in self.successors.successors:
+            succ_state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
+
         del self.stmt_idx
 
     def _execute_symbolic_instrs(self):
