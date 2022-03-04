@@ -2328,6 +2328,9 @@ void State::perform_cgc_receive() {
 		// Requested to read 0 bytes. Set *rx_bytes and syscall return value to 0
 		if (rx_bytes != 0) {
 			handle_write(rx_bytes, 4, true);
+			if (stopped) {
+				return;
+			}
 			uc_mem_write(uc, rx_bytes, &count, 4);
 		}
 		uc_reg_write(uc, UC_X86_REG_EAX, &count);
@@ -2347,11 +2350,19 @@ void State::perform_cgc_receive() {
 	if (actual_count > 0) {
 		// Mark buf as symbolic
 		handle_write(buf, actual_count, true, true);
+		if (stopped) {
+			free(tmp_buf);
+			return;
+		}
 		uc_mem_write(uc, buf, tmp_buf, actual_count);
 	}
 	free(tmp_buf);
 	if (rx_bytes != 0) {
 		handle_write(rx_bytes, 4, true);
+		if (stopped) {
+			free(tmp_buf);
+			return;
+		}
 		uc_mem_write(uc, rx_bytes, &actual_count, 4);
 	}
 	count = 0;
@@ -2443,6 +2454,9 @@ void State::perform_cgc_transmit() {
 
 		if (tx_bytes != 0) {
 			handle_write(tx_bytes, 4, true);
+			if (stopped) {
+				return;
+			}
 			uc_mem_write(uc, tx_bytes, &count, 4);
 		}
 
