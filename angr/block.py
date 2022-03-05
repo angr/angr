@@ -261,7 +261,7 @@ class Block(Serializable):
     def set_initial_regs(self):
         # for data reference collection, on some architectures, we need to set up initial registers
         if self._initial_regs is not None:
-            for offset, size, value in self._initial_regs:
+            for offset, size, value in self._initial_regs:  # pylint:disable=not-an-iterable
                 pyvex.pvc.register_initial_register_value(offset, size, value)
 
     @staticmethod
