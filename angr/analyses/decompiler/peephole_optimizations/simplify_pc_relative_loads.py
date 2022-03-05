@@ -1,10 +1,12 @@
-import archinfo
 from ailment.expression import BinaryOp, Const, Load
 
 from .base import PeepholeOptimizationExprBase
 
 
 class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
+    """
+    Simplifying pc-relative loads.
+    """
     __slots__ = ()
 
     name = "Simplify PC-relative loads"

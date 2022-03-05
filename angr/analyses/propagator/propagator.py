@@ -533,7 +533,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                                          PropValue(self._function.addr),
                                          )
                 else:
-                    state.store_register(self.project.arch.registers['t9'][0],
+                    state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
                                          self.project.arch.registers['t9'][1],
                                          self._function.addr,
                                          )

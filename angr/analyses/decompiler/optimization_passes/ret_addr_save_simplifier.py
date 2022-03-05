@@ -11,6 +11,9 @@ _l = logging.getLogger(name=__name__)
 
 
 class RetAddrSaveSimplifier(OptimizationPass):
+    """
+    Removes code in function prologues and epilogues for saving and restoring return address registers (ra, lr, etc.)
+    """
 
     ARCHES = ['MIPS32', 'MIPS64']
     PLATFORMS = ['linux']
@@ -148,7 +151,8 @@ class RetAddrSaveSimplifier(OptimizationPass):
                         _l.debug("Could not find retaddr restoring statement in function %#x.", endpoint.addr)
                         return None
                     else:
-                        _l.debug("No retaddr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                        _l.debug("No retaddr restoring statement is found at callout/jumpout site %#x. "
+                                 "Might be expected.",
                                  endpoint.addr
                                  )
 

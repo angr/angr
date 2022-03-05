@@ -1,9 +1,13 @@
+# pylint:disable=too-many-boolean-expressions
 from ailment.expression import Load, BinaryOp, Register, Const
 
 from .base import PeepholeOptimizationExprBase
 
 
 class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
+    """
+    Rewrite $gp-based loads to their actual values on MIPS.
+    """
     __slots__ = ()
 
     name = "MIPS GP-based Loads Rewriter"
@@ -12,6 +16,8 @@ class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
     def optimize(self, expr: Load):
 
         # Load(addr=(gp<8> - 0x7fc0<64>), size=8, endness=Iend_LE) - replace it with gp for this function
+        if self.project.arch.name not in {"MIPS32", "MIPS64"}:
+            return None
         if 'gp' not in self.project.kb.functions[self.func_addr].info:
             return None
 
