@@ -392,6 +392,7 @@ class Clinic(Analysis):
 
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
+            self.function.addr,
             remove_dead_memdefs=remove_dead_memdefs,
             stack_pointer_tracker=stack_pointer_tracker,
             peephole_optimizations=self.peephole_optimizations,
@@ -517,6 +518,7 @@ class Clinic(Analysis):
                 if csm.result_block != block:
                     ail_block = csm.result_block
                     simp = self.project.analyses.AILBlockSimplifier(ail_block,
+                                                                    self.function.addr,
                                                                     stack_pointer_tracker=stack_pointer_tracker,
                                                                     peephole_optimizations=self.peephole_optimizations,
                                                                     stack_arg_offsets=csm.stack_arg_offsets,

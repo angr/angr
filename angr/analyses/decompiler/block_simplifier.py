@@ -27,7 +27,7 @@ class BlockSimplifier(Analysis):
     """
     Simplify an AIL block.
     """
-    def __init__(self, block: Optional['Block'], remove_dead_memdefs=False, stack_pointer_tracker=None,
+    def __init__(self, block: Optional['Block'], func_addr: int, remove_dead_memdefs=False, stack_pointer_tracker=None,
                  peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],Type[PeepholeOptimizationExprBase]]]]=None,
                  stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
                  ):
@@ -37,18 +37,19 @@ class BlockSimplifier(Analysis):
         """
 
         self.block = block
+        self.func_addr = func_addr
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
         self._stack_pointer_tracker = stack_pointer_tracker
 
         if peephole_optimizations is None:
-            self._expr_peephole_opts = [ cls(self.project) for cls in EXPR_OPTS ]
-            self._stmt_peephole_opts = [ cls(self.project) for cls in STMT_OPTS ]
+            self._expr_peephole_opts = [ cls(self.project, self.kb, self.func_addr) for cls in EXPR_OPTS ]
+            self._stmt_peephole_opts = [ cls(self.project, self.kb, self.func_addr) for cls in STMT_OPTS ]
         else:
-            self._expr_peephole_opts = [ cls(self.project) for cls in peephole_optimizations
+            self._expr_peephole_opts = [ cls(self.project, self.kb, self.func_addr) for cls in peephole_optimizations
                                          if issubclass(cls, PeepholeOptimizationExprBase) ]
-            self._stmt_peephole_opts = [ cls(self.project) for cls in peephole_optimizations
+            self._stmt_peephole_opts = [ cls(self.project, self.kb, self.func_addr) for cls in peephole_optimizations
                                          if issubclass(cls, PeepholeOptimizationStmtBase) ]
 
         self.result_block = None
