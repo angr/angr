@@ -1,6 +1,6 @@
 # pylint:disable=wrong-import-position,arguments-differ
 import logging
-from typing import List
+from typing import List, Optional, Tuple
 
 import pyvex
 from pyvex import IRSB
@@ -156,7 +156,7 @@ class Block(Serializable):
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
-        self._initial_regs = initial_regs if collect_data_refs else None
+        self._initial_regs: Optional[List[Tuple[int,int,int]]] = initial_regs if collect_data_refs else None
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -264,7 +264,8 @@ class Block(Serializable):
             for offset, size, value in self._initial_regs:
                 pyvex.pvc.register_initial_register_value(offset, size, value)
 
-    def reset_initial_regs(self):
+    @staticmethod
+    def reset_initial_regs():
         pyvex.pvc.reset_initial_register_values()
 
     @property
