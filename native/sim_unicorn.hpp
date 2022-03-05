@@ -523,6 +523,9 @@ class State {
 	// separately for easy rollback in case of errors.
 	block_details_t curr_block_details;
 
+	// List of symbolic instructions in processed basic blocks that need not be re-executed. Will be removed on commit.
+	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_instrs_to_erase;
+
 	// List of register values at start of block
 	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
 
