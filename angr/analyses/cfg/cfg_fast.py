@@ -3830,7 +3830,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _lifter_register_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
 
-        if is_arm_arch(self.project.arch):
+        if self.project.arch.name in {"MIPS64"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = [ ]
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and not segment.is_writable:
@@ -3838,6 +3838,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     content_buf = pyvex.ffi.from_buffer(content)
                     self._ro_region_cdata_cache.append(content_buf)
                     pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
+
+            if self.project.arch.name == "MIPS64":
+                # also map .got
+                for section in self.project.loader.main_object.sections:
+                    if section.name == ".got":
+                        content = self.project.loader.memory.load(section.vaddr, section.memsize)
+                        content_buf = pyvex.ffi.from_buffer(content)
+                        self._ro_region_cdata_cache.append(content_buf)
+                        pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
 
     def _lifter_deregister_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
@@ -3985,6 +3994,24 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xffff_fffe)
                             return None, None, None, None
 
+            initial_regs = None
+            if self.project.arch.name == "MIPS64":
+                initial_regs = [
+                    (self.project.arch.registers['t9'][0],
+                     self.project.arch.registers['t9'][1],
+                     current_function_addr,
+                     )
+                ]
+                if self.kb.functions.contains_addr(current_function_addr):
+                    func = self.kb.functions.get_by_addr(current_function_addr)
+                    if 'gp' in func.info:
+                        initial_regs.append(
+                            (self.project.arch.registers['gp'][0],
+                             self.project.arch.registers['gp'][1],
+                             func.info['gp'],
+                             )
+                        )
+
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
             irsb = None
@@ -3992,7 +4019,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             lifted_block = None
             try:
                 lifted_block = self._lift(addr, size=distance, collect_data_refs=True, strict_block_end=True,
-                                          load_from_ro_regions=True)
+                                          load_from_ro_regions=True, initial_regs=initial_regs)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -4026,7 +4053,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                         try:
                             lifted_block = self._lift(addr_0, size=distance, collect_data_refs=True,
-                                                      strict_block_end=True, load_from_ro_regions=True)
+                                                      strict_block_end=True, load_from_ro_regions=True,
+                                                      initial_regs=initial_regs)
                             irsb = lifted_block.vex_nostmt
                             irsb_string = lifted_block.bytes[:irsb.size]
                         except SimTranslationError:
