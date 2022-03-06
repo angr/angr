@@ -618,6 +618,46 @@ def test_decompilation_call_expr_folding():
     assert code.count("strlen(") == 1
 
 
+def test_decompilation_call_expr_folding_mips64_true():
+
+    # This test is to ensure call expression folding correctly replaces call expressions in return statements
+    bin_path = os.path.join(test_location, "mips64", "true")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+
+    func_0 = cfg.functions['version_etc']
+    dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+    assert "version_etc_va(" in code
+
+
+def test_decompilation_call_expr_folding_x8664_calc():
+
+    # This test is to ensure call expression folding do not re-use out-dated definitions when folding expressions
+    bin_path = os.path.join(test_location, "x86_64", "calc")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
+    _ = p.analyses.CompleteCallingConventions(recover_variables=True)
+
+    func_0 = cfg.functions['main']
+    dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
+    code = dec.codegen.text
+    print(code)
+
+    assert "root(" in code
+    assert "strlen(" in code  # incorrect call expression folding would fold root() into printf() and remove strlen()
+    assert "printf(" in code
+
+    lines = code.split("\n")
+    # make sure root() and strlen() appear within the same line
+    for line in lines:
+        if "root(" in line:
+            assert "strlen(" in line
+
+
 def test_decompilation_excessive_condition_removal():
     bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
     p = angr.Project(bin_path, auto_load_libs=False)

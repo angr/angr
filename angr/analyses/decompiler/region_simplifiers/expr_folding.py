@@ -120,12 +120,9 @@ class ExpressionCounter(SequenceWalker):
                     u = self._u(stmt.dst.variable)
                     if u is not None:
                         # dependency
-                        dependencies = [ ]
-                        if isinstance(stmt.src, ailment.Expr.Register):
-                            dep_u = self._u(stmt.src.variable)
-                            if dep_u is not None:
-                                dependencies.append(dep_u)
-                        # TODO: Replace the above logic with an expression walker
+                        dependency_finder = ExpressionUseFinder()
+                        dependency_finder.walk_expression(stmt.src)
+                        dependencies = set(self._u(v) for v in dependency_finder.uses)
                         self.assignments[u].add((stmt.src,
                                                  tuple(dependencies),
                                                  StatementLocation(node.addr, node.idx, idx)))
@@ -134,8 +131,11 @@ class ExpressionCounter(SequenceWalker):
                     and stmt.ret_expr.variable is not None):
                 u = self._u(stmt.ret_expr.variable)
                 if u is not None:
+                    dependency_finder = ExpressionUseFinder()
+                    dependency_finder.walk_expression(stmt)
+                    dependencies = set(self._u(v) for v in dependency_finder.uses)
                     self.assignments[u].add((stmt,
-                                             (),
+                                             tuple(dependencies),
                                              StatementLocation(node.addr, node.idx, idx)))
 
         # walk the block and find uses of variables
