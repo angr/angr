@@ -62,6 +62,7 @@ class RegionSimplifier(Analysis):
 
         variable_assignments = {}
         variable_uses = {}
+        variable_assignment_dependencies = {}
         for var, uses in expr_counter.uses.items():
             if len(uses) == 1 \
                     and var in expr_counter.assignments \
@@ -71,6 +72,8 @@ class RegionSimplifier(Analysis):
                 # make sure all variables that var depends on has only been assigned once
                 fail = False
                 for dep_var in deps:
+                    if dep_var.is_function_argument:
+                        continue
                     if dep_var not in expr_counter.assignments or len(expr_counter.assignments[dep_var]) != 1:
                         fail = True
                         break
@@ -84,6 +87,14 @@ class RegionSimplifier(Analysis):
                     definition.ret_expr.variable = None
                 variable_assignments[var] = definition, loc
                 variable_uses[var] = next(iter(expr_counter.uses[var]))
+                variable_assignment_dependencies[var] = deps
+
+        # any variable definition that uses an existing to-be-removed variable cannot be folded
+        all_variables_to_fold = set(variable_assignments)
+        for var in all_variables_to_fold:
+            if all_variables_to_fold.intersection(variable_assignment_dependencies[var]):
+                del variable_assignments[var]
+                del variable_uses[var]
 
         # replace them
         ExpressionFolder(variable_assignments, variable_uses, region)

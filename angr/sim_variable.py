@@ -54,6 +54,10 @@ class SimVariable(Serializable):
         self.name = obj.base.name
         self.renamed = obj.base.renamed
 
+    @property
+    def is_function_argument(self):
+        return self.ident and self.ident.startswith("arg_")
+
     #
     # Operations
     #
