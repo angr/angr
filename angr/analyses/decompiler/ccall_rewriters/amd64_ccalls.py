@@ -39,4 +39,29 @@ class AMD64CCallRewriter(CCallRewriterBase):
                                          True,
                                          **ccall.tags)
 
+        elif ccall.cee_name == "amd64g_calculate_rflags_c":
+            # calculate the carry flag
+            op = ccall.operands[0]
+            dep_1 = ccall.operands[1]
+            dep_2 = ccall.operands[2]
+            # ndep = ccall.operands[3]
+            if isinstance(op, Expr.Const):
+                op_v = op.value
+                if op_v in {AMD64_OpTypes['G_CC_OP_ADDB'], AMD64_OpTypes['G_CC_OP_ADDW'],
+                            AMD64_OpTypes['G_CC_OP_ADDL'], AMD64_OpTypes['G_CC_OP_ADDQ']}:
+                    # pc_actions_ADD
+                    cf = Expr.ITE(None,
+                                  Expr.BinaryOp(None,
+                                                "CmpLE",
+                                                [
+                                                    Expr.BinaryOp(None, "Add", [dep_1, dep_2], False),
+                                                    dep_1,
+                                                ],
+                                                False,
+                                                ),
+                                  Expr.Const(None, None, 0, ccall.bits),
+                                  Expr.Const(None, None, 1, ccall.bits),
+                                  **ccall.tags)
+                    return cf
+
         return None
