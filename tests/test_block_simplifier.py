@@ -12,7 +12,7 @@ import ailment
 def block_simplify(block):
     p = angr.Project(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                   '..', '..', 'binaries', 'tests', 'x86_64', 'fauxware'), auto_load_libs=False)
-    bsimp = p.analyses.AILBlockSimplifier(block)
+    bsimp = p.analyses.AILBlockSimplifier(block, 0x1337)
     return bsimp.result_block
 
 

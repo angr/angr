@@ -513,15 +513,31 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if isinstance(node, ailment.Block):
             # AIL
             state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            ail = True
         else:
             # VEX
             state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts,
                                        do_binops=self._do_binops, store_tops=self._store_tops)
             spoffset_var = self._engine_vex.sp_offset(0)
+            ail = False
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  spoffset_var,
                                  )
+
+        if self.project.arch.name == "MIPS64":
+            if self._function is not None:
+                if ail:
+                    state.store_register(ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
+                                                               self.project.arch.registers['t9'][0]),
+                                         PropValue(self._function.addr),
+                                         )
+                else:
+                    state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
+                                         self.project.arch.registers['t9'][1],
+                                         self._function.addr,
+                                         )
+
         self._initial_state = state
         return state
 

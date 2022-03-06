@@ -1585,8 +1585,8 @@ class SimCCO32(SimCC):
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 16
-    CALLER_SAVED_REGS = []   # TODO: ???
-    RETURN_ADDR = SimRegArg('lr', 4)
+    CALLER_SAVED_REGS = ['t9', 'gp']
+    RETURN_ADDR = SimRegArg('ra', 4)
     RETURN_VAL = SimRegArg('v0', 4)
     ARCH = archinfo.ArchMIPS32
 
@@ -1614,9 +1614,10 @@ class SimCCO32LinuxSyscall(SimCCSyscall):
 
 class SimCCO64(SimCC):      # TODO: add n32 and n64
     ARG_REGS = [ 'a0', 'a1', 'a2', 'a3' ]
+    CALLER_SAVED_REGS = ['t9', 'gp']
     FP_ARG_REGS = []    # TODO: ???
     STACKARG_SP_BUFF = 32
-    RETURN_ADDR = SimRegArg('lr', 8)
+    RETURN_ADDR = SimRegArg('ra', 8)
     RETURN_VAL = SimRegArg('v0', 8)
     ARCH = archinfo.ArchMIPS64
 

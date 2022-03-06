@@ -366,6 +366,28 @@ def test_decompiling_true_1804_x86_64():
     print(dec.codegen.text)
 
 
+def test_decompiling_true_mips64():
+
+    bin_path = os.path.join(test_location, "mips64", "true")
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=False)
+    cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
+
+    all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("MIPS64",
+                                                                                                           "linux")
+
+    f = cfg.functions['main']
+    dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    # make sure strings exist
+    assert '"coreutils"' in dec.codegen.text
+    assert '"/usr/local/share/locale"' in dec.codegen.text
+    assert '"--help"' in dec.codegen.text
+    assert '"Jim Meyering"' in dec.codegen.text
+    # make sure function calls exist
+    assert "set_program_name(" in dec.codegen.text
+    assert "setlocale(" in dec.codegen.text
+    assert "usage();" in dec.codegen.text
+
+
 def test_decompiling_1after909_verify_password():
 
     bin_path = os.path.join(test_location, "x86_64", "1after909")
