@@ -4011,6 +4011,45 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                              func.info['gp'],
                              )
                         )
+            elif self.project.arch.name == "X86":
+                # for x86 GCC-generated PIE binaries, detect calls to __x86.get_pc_thunk
+                if cfg_job.jumpkind == "Ijk_FakeRet" \
+                        and cfg_job.returning_source is not None \
+                        and self.kb.functions.contains_addr(cfg_job.returning_source):
+                    return_from_func = self.kb.functions.get_by_addr(cfg_job.returning_source)
+                    if 'get_pc' in return_from_func.info:
+                        func = self.kb.functions.get_by_addr(current_function_addr)
+                        pc_reg = return_from_func.info['get_pc']
+                        # the crazy thing is that GCC-generated code may adjust the register value accordingly after
+                        # returning! we must take into account the added offset (in the followin example, 0x8d36)
+                        #
+                        # e.g.
+                        #  000011A1 call    __x86_get_pc_thunk_bx
+                        #  000011A6 add     ebx, 8D36h
+                        #
+                        # this means, for the current block, the initial value of ebx is whatever __x86_get_pc_thunk_bx
+                        # returns. for future blocks in this function, the initial value of ebx must be the returning
+                        # value plus 0x8d36.
+                        pc_reg_offset, pc_reg_size = self.project.arch.registers[pc_reg]
+                        initial_regs = [
+                            (pc_reg_offset, pc_reg_size, addr)
+                        ]
+                        # find adjustment
+                        adjustment = self._x86_gcc_pie_find_pc_register_adjustment(addr, pc_reg_offset)
+                        if adjustment is not None:
+                            func.info['pc_reg'] = (pc_reg, addr + adjustment)
+                        else:
+                            func.info['pc_reg'] = (pc_reg, addr)
+                if self.kb.functions.contains_addr(current_function_addr):
+                    func = self.kb.functions.get_by_addr(current_function_addr)
+                    if 'pc_reg' in func.info:
+                        pc_reg, pc_reg_value = func.info['pc_reg']
+                        initial_regs = [
+                            (self.project.arch.registers[pc_reg][0],
+                             self.project.arch.registers[pc_reg][1],
+                             pc_reg_value
+                             )
+                        ]
 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
@@ -4223,7 +4262,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _process_block_arch_specific(self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int,
                                      caller_gp: Optional[int]=None) -> None:  # pylint: disable=unused-argument
         """
-        According to arch types ['ARMEL', 'ARMHF', 'MIPS32'] does different
+        According to arch types ['ARMEL', 'ARMHF', 'MIPS32', 'X86'] does different
         fixes
 
         For ARM deals with link register on the stack
@@ -4283,7 +4322,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                     added_addrs.add(ref.data_addr)
 
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
-            func = self.kb.functions.function(func_addr)
+            func = self.kb.functions.get_by_addr(func_addr)
             if 'gp' not in func.info and addr >= func_addr and addr - func_addr < 15 * 4:
                 gp_value = self._mips_determine_function_gp(addr, irsb, func_addr)
                 if gp_value is not None and self._gp_value is None:
@@ -4293,6 +4332,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if gp_value is None:
                     gp_value = self._gp_value  # fallback to a previously found value
                 func.info['gp'] = gp_value
+
+        elif self.project.arch.name == "X86":
+            # detect __x86.get_pc_thunk.bx
+            # TODO: Handle __x86.get_pc_thunk.cx and __x86.get_pc_thunk.ax (but I haven't seen them yet)
+            # this requires us to analyze function calls before analyzing the return sites, which is exactly we have
+            # been doing for figuring out if a callee returns or not :)
+            if cfg_node.addr == func_addr and cfg_node.byte_string == b'\x8b\x1c\x24\xc3':
+                # mov ebx, dword ptr [esp]
+                # ret
+                func = self.kb.functions.get_by_addr(func_addr)
+                func.info['get_pc'] = 'ebx'
 
     def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> Set[int]:
         to_remove = {addr}
@@ -4427,6 +4477,58 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     result[addr] = meaning
 
         return result
+
+    def _x86_gcc_pie_find_pc_register_adjustment(self, addr: int, reg_offset: int) -> Optional[int]:
+        """
+        Match against a single instruction that adds or subtracts a constant from a specified register.
+
+        :param addr:        Address of the instruction.
+        :param reg_offset:  Offset of the PC-storing register.
+        :return:            The adjustment, or None if matching fails.
+        """
+
+        try:
+            lifted_block = self._lift(addr, num_inst=1)
+        except SimTranslationError:
+            return None
+        # Expected:
+        #
+        # IRSB {
+        #    t0:Ity_I32 t1:Ity_I32 t2:Ity_I32 t3:Ity_I32
+        #
+        #    00 | ------ IMark(0x405b1d, 6, 0) ------
+        #    01 | t2 = GET:I32(ebx)
+        #    02 | t0 = Add32(t2,0x000043bf)
+        #    03 | PUT(cc_op) = 0x00000003
+        #    04 | PUT(cc_dep1) = t2
+        #    05 | PUT(cc_dep2) = 0x000043bf
+        #    06 | PUT(cc_ndep) = 0x00000000
+        #    07 | PUT(ebx) = t0
+        #    NEXT: PUT(eip) = 0x00405b23; Ijk_Boring
+        # }
+        if len(lifted_block.vex.statements) > 4:
+            stmt1 = lifted_block.vex.statements[1]
+            stmt2 = lifted_block.vex.statements[2]
+            stmt_last = lifted_block.vex.statements[-1]
+            if isinstance(stmt1, pyvex.IRStmt.WrTmp) \
+                    and isinstance(stmt1.data, pyvex.IRExpr.Get) \
+                    and stmt1.data.offset == reg_offset \
+                    and stmt1.data.result_size(lifted_block.vex.tyenv) == 32:
+                tmp_0 = stmt1.tmp
+                if isinstance(stmt2, pyvex.IRStmt.WrTmp) \
+                        and isinstance(stmt2.data, pyvex.IRExpr.Binop) \
+                        and stmt2.data.op == "Iop_Add32" \
+                        and isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp) \
+                        and stmt2.data.args[0].tmp == tmp_0 \
+                        and isinstance(stmt2.data.args[1], pyvex.IRExpr.Const):
+                    tmp_1 = stmt2.tmp
+                    if isinstance(stmt_last, pyvex.IRStmt.Put) \
+                            and stmt_last.offset == reg_offset \
+                            and isinstance(stmt_last.data, pyvex.IRExpr.RdTmp) \
+                            and stmt_last.data.tmp == tmp_1:
+                        # found it!
+                        return stmt2.data.args[1].con.value
+        return None
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs): # pylint:disable=arguments-differ
         kwargs['extra_stop_points'] = set(self._known_thunks)

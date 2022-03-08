@@ -1033,6 +1033,23 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert len(refs) == 2
         assert set(x.ins_addr for x in refs) == {0x1200020e8, 0x120002108}
 
+    def test_data_references_i386_gcc_pie(self):
+
+        path = os.path.join(test_location, "i386", "nl")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
+        memory_data = cfg.memory_data
+
+        assert 0x405bb0 in memory_data
+        assert memory_data[0x405bb0].sort == "string"
+        assert memory_data[0x405bb0].content == b"/usr/local/share/locale"
+
+        xrefs = proj.kb.xrefs
+        refs = list(xrefs.get_xrefs_by_dst(0x405bb0))
+        assert len(refs) == 1
+        assert set(x.ins_addr for x in refs) == {0x4011dd}
+
 
 if __name__ == "__main__":
     unittest.main()
