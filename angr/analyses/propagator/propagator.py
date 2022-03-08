@@ -530,12 +530,12 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
                 if ail:
                     state.store_register(ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
                                                                self.project.arch.registers['t9'][0]),
-                                         PropValue(self._function.addr),
+                                         PropValue(claripy.BVV(self._function.addr, 64)),
                                          )
                 else:
                     state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
                                          self.project.arch.registers['t9'][1],
-                                         self._function.addr,
+                                         claripy.BVV(self._function.addr, 64),
                                          )
 
         self._initial_state = state
