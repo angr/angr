@@ -197,6 +197,10 @@ class Clinic(Analysis):
         self._simplify_function(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
                                 stack_arg_offsets=stackarg_offsets, unify_variables=True)
 
+        self._update_progress(68., text="Simplifying blocks 3")
+        ail_graph = self._simplify_blocks(ail_graph, remove_dead_memdefs=self._remove_dead_memdefs,
+                                          stack_pointer_tracker=spt)
+
         # Make function arguments
         self._update_progress(70., text="Making argument list")
         arg_list = self._make_argument_list()

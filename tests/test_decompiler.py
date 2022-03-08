@@ -941,6 +941,23 @@ def test_simple_strcpy():
     assert dw.condition.lhs.expr.variable.variable == stmts[2].lhs.variable
 
 
+def test_decompiling_nl_i386_pie():
+    bin_path = os.path.join(test_location, "i386", "nl")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True)
+    p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+    f = p.kb.functions['usage']
+    d = p.analyses.Decompiler(f, cfg=cfg.model)
+    print(d.codegen.text)
+
+    assert '"Usage: %s [OPTION]... [FILE]...\\n"' in d.codegen.text
+    assert '"Write each FILE to standard output, with line numbers added.\\nWith no FILE, or when FILE is -,' \
+           ' read standard input.\\n\\n"' in d.codegen.text
+    assert '"For complete documentation, run: info coreutils \'%s invocation\'\\n"' in d.codegen.text
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
