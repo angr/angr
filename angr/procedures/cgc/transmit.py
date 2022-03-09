@@ -1,5 +1,7 @@
 import angr
 
+from ... import sim_options as o
+
 class transmit(angr.SimProcedure):
     #pylint:disable=arguments-differ
 
@@ -43,6 +45,13 @@ class transmit(angr.SimProcedure):
                 self.data = None
 
             self.size = count
+            do_concrete_update = o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options or \
+                o.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
+
+            if do_concrete_update and count.symbolic:
+                concrete_count = self.state.solver.BVV(self.state.solver.eval(count), 32)
+                self.state.memory.store(tx_bytes, concrete_count, endness='Iend_LE', condition=tx_bytes != 0)
+
             self.state.memory.store(tx_bytes, count, endness='Iend_LE', condition=tx_bytes != 0)
 
         # TODO: transmit failure
