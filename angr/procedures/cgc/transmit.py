@@ -3,7 +3,7 @@ import angr
 from ... import sim_options as o
 
 class transmit(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    #pylint:disable=attribute-defined-outside-init,arguments-differ,missing-class-docstring
 
     def run(self, fd, buf, count, tx_bytes):
         if angr.options.CGC_ENFORCE_FD in self.state.options:
@@ -18,7 +18,7 @@ class transmit(angr.SimProcedure):
             self.state.memory.store(tx_bytes, count, endness='Iend_LE')
             return self.state.solver.BVV(0, self.state.arch.bits)
 
-        if ABSTRACT_MEMORY in self.state.options:
+        if o.ABSTRACT_MEMORY in self.state.options:
             simfd.write(buf, count)
             self.state.memory.store(tx_bytes, count, endness='Iend_LE')
 
@@ -56,5 +56,3 @@ class transmit(angr.SimProcedure):
 
         # TODO: transmit failure
         return self.state.solver.BVV(0, self.state.arch.bits)
-
-from ...sim_options import ABSTRACT_MEMORY

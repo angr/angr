@@ -1,5 +1,6 @@
-import angr
 from itertools import count
+
+import angr
 
 from ... import sim_options as o
 from ...state_plugins.sim_action import SimActionData
@@ -7,7 +8,7 @@ from ...state_plugins.sim_action import SimActionData
 fastpath_data_counter = count()
 
 class receive(angr.SimProcedure):
-    #pylint:disable=arguments-differ,attribute-defined-outside-init,redefined-outer-name
+    #pylint:disable=arguments-differ,attribute-defined-outside-init,missing-class-docstring,redefined-outer-name
 
     def run(self, fd, buf, count, rx_bytes):
         if o.CGC_ENFORCE_FD in self.state.options:
@@ -21,7 +22,7 @@ class receive(angr.SimProcedure):
             # Special case for CFG generation
             if not self.state.solver.symbolic(count):
                 data = self.state.solver.Unconstrained(
-                    'receive_data_%d' % next(fastpath_data_counter),
+                    f'receive_data_{next(fastpath_data_counter)}',
                     self.state.solver.eval_one(count) * 8
                 )
                 self.state.memory.store(buf, data)
