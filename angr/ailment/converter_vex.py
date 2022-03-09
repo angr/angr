@@ -276,7 +276,7 @@ class VEXStmtConverter(Converter):
         if stmt.jumpkind in {'Ijk_EmWarn', 'Ijk_NoDecode',
                               'Ijk_MapFail', 'Ijk_NoRedir',
                               'Ijk_SigTRAP', 'Ijk_SigSEGV',
-                              'Ijk_ClientReq'}:
+                              'Ijk_ClientReq', 'Ijk_SigFPE_IntDiv'}:
             raise SkipConversionNotice()
 
         return ConditionalJump(idx,
