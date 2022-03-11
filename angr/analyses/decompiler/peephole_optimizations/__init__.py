@@ -1,3 +1,5 @@
+from typing import List, Type
+
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
 from .extended_byte_and_mask import ExtendedByteAndMask
@@ -23,8 +25,8 @@ from .rewrite_mips_gp_loads import RewriteMipsGpLoads
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase
 
 
-STMT_OPTS = [ ]
-EXPR_OPTS = [ ]
+STMT_OPTS: List[Type[PeepholeOptimizationStmtBase]] = []
+EXPR_OPTS: List[Type[PeepholeOptimizationExprBase]] = []
 
 _g = globals().copy()
 for v in _g.values():

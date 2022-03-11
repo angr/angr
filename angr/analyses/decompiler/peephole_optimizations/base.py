@@ -1,16 +1,23 @@
+from typing import Optional
+
 import archinfo
 from ailment.expression import BinaryOp, UnaryOp
+from angr.project import Project
+from angr.knowledge_base import KnowledgeBase
 
 
 class PeepholeOptimizationStmtBase:
 
     __slots__ = ('project', 'kb', 'func_addr', )
+    project: Project
+    kb: KnowledgeBase
+    func_addr: Optional[int]
 
     name = "Peephole Optimization - Statement"
     description = "Peephole Optimization - Statement"
     stmt_classes = None
 
-    def __init__(self, project, kb, func_addr):
+    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int]):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
@@ -22,12 +29,15 @@ class PeepholeOptimizationStmtBase:
 class PeepholeOptimizationExprBase:
 
     __slots__ = ('project', 'kb', 'func_addr', )
+    project: Project
+    kb: KnowledgeBase
+    func_addr: Optional[int]
 
     name = "Peephole Optimization - Expression"
     description = "Peephole Optimization - Expression"
     expr_classes = None
 
-    def __init__(self, project, kb, func_addr):
+    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int]):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr

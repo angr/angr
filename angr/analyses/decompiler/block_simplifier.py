@@ -27,7 +27,7 @@ class BlockSimplifier(Analysis):
     """
     Simplify an AIL block.
     """
-    def __init__(self, block: Optional['Block'], func_addr: int, remove_dead_memdefs=False, stack_pointer_tracker=None,
+    def __init__(self, block: Optional['Block'], func_addr: Optional[int] = None, remove_dead_memdefs=False, stack_pointer_tracker=None,
                  peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],Type[PeepholeOptimizationExprBase]]]]=None,
                  stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
                  ):
