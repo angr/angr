@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Union, Type, Iterable, Tuple, Set, TYPE_CHECKING
 
 from ailment.statement import Statement, Assignment, Call
-from ailment.expression import Expression, Tmp, Register, Load
+from ailment.expression import Expression, Tmp, Load
 
 from ...engines.light.data import SpOffset
 from ...knowledge_plugins.key_definitions.constants import OP_AFTER
@@ -27,8 +27,10 @@ class BlockSimplifier(Analysis):
     """
     Simplify an AIL block.
     """
-    def __init__(self, block: Optional['Block'], func_addr: Optional[int] = None, remove_dead_memdefs=False, stack_pointer_tracker=None,
-                 peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],Type[PeepholeOptimizationExprBase]]]]=None,
+    def __init__(self, block: Optional['Block'], func_addr: Optional[int] = None,
+                 remove_dead_memdefs=False, stack_pointer_tracker=None,
+                 peephole_optimizations: Optional[Iterable[Union[Type[PeepholeOptimizationStmtBase],
+                                                                 Type[PeepholeOptimizationExprBase]]]]=None,
                  stack_arg_offsets: Optional[Set[Tuple[int, int]]] = None,
                  ):
         """
