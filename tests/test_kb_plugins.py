@@ -3,8 +3,6 @@ import networkx
 
 import os
 
-from angr import KnowledgeBase
-
 location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
 
@@ -43,8 +41,6 @@ def test_kb_plugins_typed():
                    angr.knowledge_plugins.Comments]:
         assert isinstance(p.kb.request_knowledge(plugin), plugin)
 
-
-
     # The default plugins should have been instantiated by `request_knowledge`, and should now be available
     for plugin in [angr.knowledge_plugins.Data,
               angr.knowledge_plugins.FunctionManager,
@@ -52,7 +48,6 @@ def test_kb_plugins_typed():
               angr.knowledge_plugins.Labels,
               angr.knowledge_plugins.Comments]:
         assert isinstance(p.kb.request_knowledge(plugin), plugin)
-
 
     # Check that explicitly creating and registering new kind of plugin also works
     class TestPlugin(angr.knowledge_plugins.KnowledgeBasePlugin):
@@ -66,7 +61,6 @@ def test_kb_plugins_typed():
     p.kb.register_plugin("test_plugin", t)
 
     assert p.kb.get_knowledge(TestPlugin) == t
-
 
 
 if __name__ == '__main__':
