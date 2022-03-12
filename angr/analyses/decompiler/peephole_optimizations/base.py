@@ -17,7 +17,7 @@ class PeepholeOptimizationStmtBase:
     description = "Peephole Optimization - Statement"
     stmt_classes = None
 
-    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int]):
+    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
@@ -37,7 +37,7 @@ class PeepholeOptimizationExprBase:
     description = "Peephole Optimization - Expression"
     expr_classes = None
 
-    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int]):
+    def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
         self.project = project
         self.kb = kb
         self.func_addr = func_addr
