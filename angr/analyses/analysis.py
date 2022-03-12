@@ -135,7 +135,10 @@ class AnalysisFactory(Generic[A]):
                   progress_callback=progress_callback,
                   show_progressbar=show_progressbar)
 
-        return w(*args, **kwargs)
+        r = w(*args, **kwargs)
+        # clean up so that it's always pickleable
+        r._progressbar = None
+        return r
 
 
 class Analysis:
