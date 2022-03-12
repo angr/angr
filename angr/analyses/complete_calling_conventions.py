@@ -1,4 +1,8 @@
-from typing import Optional
+from typing import Tuple, Optional, TYPE_CHECKING
+import queue
+import threading
+import time
+import multiprocessing as mp
 import logging
 
 import claripy
@@ -6,6 +10,11 @@ import claripy
 from ..knowledge_plugins.cfg import CFGModel
 from ..analyses.cfg import CFGUtils
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
+
+if TYPE_CHECKING:
+    from angr.calling_conventions import SimCC
+    from angr.sim_type import SimTypeFunction
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 _l = logging.getLogger(name=__name__)
 
@@ -19,7 +28,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def __init__(self, recover_variables=False, low_priority=False, force=False, cfg: Optional[CFGModel]=None,
                  analyze_callsites: bool=False, skip_signature_matched_functions: bool=False,
-                 max_function_blocks: Optional[int]=None, max_function_size: Optional[int]=None):
+                 max_function_blocks: Optional[int]=None, max_function_size: Optional[int]=None, workers: int=0):
         """
 
         :param recover_variables:   Recover variables on each function before performing calling convention analysis.
@@ -34,6 +43,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                                     specified number of blocks. Setting it to None disables this check.
         :param max_function_size:   Do not perform calling convention analysis on functions whose sizes are more than
                                     `max_function_size`. Setting it to None disables this check.
+        :param workers:             Number of multiprocessing workers.
         """
 
         self._recover_variables = recover_variables
@@ -44,25 +54,30 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._skip_signature_matched_functions = skip_signature_matched_functions
         self._max_function_blocks = max_function_blocks
         self._max_function_size = max_function_size
+        self._workers = workers
+
+        self._results = [ ]
+        if workers > 0:
+            self._func_queue = mp.Queue()
+            self._results = mp.Queue()
+            self._func_queue_lock = mp.Lock()
+        else:
+            self._func_queue = queue.Queue()
+            self._func_queue_lock = threading.Lock()
 
         self._analyze()
 
     def _analyze(self):
         """
         Infer calling conventions for all functions in the current project.
-
-        :return:
         """
 
         # get an ordering of functions based on the call graph
         sorted_funcs = CFGUtils.quasi_topological_sort_nodes(self.kb.functions.callgraph)
-        total_funcs = len(sorted_funcs)
 
-        self._update_progress(0)
-
-        for idx, func_addr in enumerate(reversed(sorted_funcs)):
+        total_funcs = 0
+        for func_addr in reversed(sorted_funcs):
             func = self.kb.functions.get_by_addr(func_addr)
-
             if (func.calling_convention is None or func.prototype is None) or self._force:
                 if func.alignment:
                     # skip all alignments
@@ -86,32 +101,106 @@ class CompleteCallingConventionsAnalysis(Analysis):
                         continue
 
                 # if it's a normal function, we attempt to perform variable recovery
-                if self._recover_variables and self.function_needs_variable_recovery(func):
-                    _l.info("Performing variable recovery on %r...", func)
-                    try:
-                        _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(func, low_priority=self._low_priority)
-                    except claripy.ClaripyError:
-                        _l.warning("An claripy exception occurred during variable recovery analysis on function %#x.",
-                                   func.addr,
-                                   exc_info=True,
-                                   )
-                        continue
+                self._func_queue.put(func_addr)
+                total_funcs += 1
 
-                # determine the calling convention of each function
-                cc_analysis = self.project.analyses[CallingConventionAnalysis].prep(kb=self.kb)(func, cfg=self._cfg,
-                                                                      analyze_callsites=self._analyze_callsites)
-                if cc_analysis.cc is not None:
-                    _l.info("Determined calling convention and prototype for %r.", func)
-                    func.calling_convention = cc_analysis.cc
-                    func.prototype = cc_analysis.prototype
+        if self._workers == 0:
+            idx = 0
+            self._update_progress(0)
+            while not self._func_queue.empty():
+                func_addr = self._func_queue.get()
+                cc, proto, _ = self._analyze_core(func_addr)
+
+                if cc is not None or proto is not None:
+                    func = self.kb.functions.get_by_addr(func_addr)
+                    func.calling_convention = cc
+                    func.prototype = proto
                     func.is_prototype_guessed = True
-                else:
-                    _l.info("Cannot determine calling convention for %r.", func)
 
-            percentage = (idx + 1) / total_funcs * 100.0
-            self._update_progress(percentage)
+                idx += 1
+
+                percentage = idx / total_funcs * 100.0
+                self._update_progress(percentage)
+                if self._low_priority:
+                    self._release_gil(idx, 10, 0.000001)
+
+        else:
+            prog_callback = self._progress_callback
+            self._progress_callback = None
+
+            # spawn workers to perform the analysis
+            ctx = mp.get_context("spawn")
+            procs = [ctx.Process(target=self._worker_routine, daemon=True) for _ in range(self._workers)]
+            for proc in procs:
+                proc.start()
+
+            self._progress_callback = prog_callback
+
+            # update progress
+            self._update_progress(0)
+            idx = 0
+            while idx < total_funcs:
+                func_addr, cc, proto, varman = self._results.get(True)
+                if cc is not None or proto is not None:
+                    func = self.kb.functions.get_by_addr(func_addr)
+                    func.calling_convention = cc
+                    func.prototype = proto
+                    func.is_prototype_guessed = True
+                if varman is not None:
+                    self.kb.variables.function_managers[func_addr] = varman
+                    varman.set_manager(self.kb.variables)
+
+                idx += 1
+
+                percentage = idx / total_funcs * 100.0
+                self._update_progress(percentage)
+                if self._low_priority:
+                    self._release_gil(idx, 10, 0.0000001)
+
+            for proc in procs:
+                proc.join()
+
+    def _worker_routine(self):
+        idx = 0
+        while not self._func_queue.empty():
+            try:
+                func_addr = self._func_queue.get(True)
+            except queue.Empty:
+                break
+
+            idx += 1
             if self._low_priority:
-                self._release_gil(idx, 10, 0.000001)
+                if idx % 3 == 0:
+                    time.sleep(0.1)
+
+            cc, proto, varman = self._analyze_core(func_addr)
+            self._results.put((func_addr, cc, proto, varman))
+
+    def _analyze_core(self, func_addr: int) -> Tuple[Optional['SimCC'],Optional['SimTypeFunction'],
+                                                     Optional['VariableManagerInternal']]:
+        func = self.kb.functions.get_by_addr(func_addr)
+        if self._recover_variables and self.function_needs_variable_recovery(func):
+            _l.info("Performing variable recovery on %r...", func)
+            try:
+                _ = self.project.analyses[VariableRecoveryFast].prep(kb=self.kb)(func, low_priority=self._low_priority)
+            except claripy.ClaripyError:
+                _l.warning("An claripy exception occurred during variable recovery analysis on function %#x.",
+                           func.addr,
+                           exc_info=True,
+                           )
+                return None, None, None
+
+        # determine the calling convention of each function
+        cc_analysis = self.project.analyses[CallingConventionAnalysis].prep(kb=self.kb)(
+            func, cfg=self._cfg,
+            analyze_callsites=self._analyze_callsites)
+
+        if cc_analysis.cc is not None:
+            _l.info("Determined calling convention and prototype for %r.", func)
+            return cc_analysis.cc, cc_analysis.prototype, self.kb.variables.get_function_manager(func_addr)
+        else:
+            _l.info("Cannot determine calling convention for %r.", func)
+            return None, None, self.kb.variables.get_function_manager(func_addr)
 
     #
     # Static methods
