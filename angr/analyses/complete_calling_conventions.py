@@ -1,4 +1,5 @@
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import Tuple, Optional, Callable, Iterable, TYPE_CHECKING
+import itertools
 import queue
 import threading
 import time
@@ -28,7 +29,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def __init__(self, recover_variables=False, low_priority=False, force=False, cfg: Optional[CFGModel]=None,
                  analyze_callsites: bool=False, skip_signature_matched_functions: bool=False,
-                 max_function_blocks: Optional[int]=None, max_function_size: Optional[int]=None, workers: int=0):
+                 max_function_blocks: Optional[int]=None, max_function_size: Optional[int]=None, workers: int=0,
+                 cc_callback: Optional[Callable]=None, prioritize_func_addrs: Optional[Iterable[int]]=None,
+                 auto_start: bool=True):
         """
 
         :param recover_variables:   Recover variables on each function before performing calling convention analysis.
@@ -55,6 +58,10 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._max_function_blocks = max_function_blocks
         self._max_function_size = max_function_size
         self._workers = workers
+        self._cc_callback = cc_callback
+        self._prioritize_func_addrs = prioritize_func_addrs
+        self._auto_start = auto_start
+        self._total_funcs = None
 
         self._results = [ ]
         if workers > 0:
@@ -66,6 +73,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
             self._func_queue_lock = threading.Lock()
 
         self._analyze()
+        if self._auto_start:
+            self.work()
 
     def _analyze(self):
         """
@@ -104,6 +113,14 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 self._func_queue.put(func_addr)
                 total_funcs += 1
 
+        self._total_funcs = total_funcs
+
+        if self._prioritize_func_addrs:
+            self.prioritize_functions(self._prioritize_func_addrs)
+        self._prioritize_func_addrs = None  # no longer useful
+
+    def work(self):
+        total_funcs = self._total_funcs
         if self._workers == 0:
             idx = 0
             self._update_progress(0)
@@ -117,6 +134,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
                     func.prototype = proto
                     func.is_prototype_guessed = True
 
+                if self._cc_callback is not None:
+                    self._cc_callback(func_addr)
+
                 idx += 1
 
                 percentage = idx / total_funcs * 100.0
@@ -126,6 +146,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
         else:
             self._update_progress(0, text="Spawning workers...")
+            cc_callback = self._cc_callback
+            self._cc_callback = None
+
             # spawn workers to perform the analysis
             with self._func_queue_lock:
                 ctx = mp.get_context("spawn")
@@ -133,6 +156,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 for proc_idx, proc in enumerate(procs):
                     self._update_progress(0, text=f"Spawning worker {proc_idx}...")
                     proc.start()
+
+            self._cc_callback = cc_callback
 
             # update progress
             self._update_progress(0)
@@ -147,6 +172,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if varman is not None:
                     self.kb.variables.function_managers[func_addr] = varman
                     varman.set_manager(self.kb.variables)
+
+                if self._cc_callback is not None:
+                    self._cc_callback(func_addr)
 
                 idx += 1
 
@@ -200,6 +228,27 @@ class CompleteCallingConventionsAnalysis(Analysis):
         else:
             _l.info("Cannot determine calling convention for %r.", func)
             return None, None, self.kb.variables.get_function_manager(func_addr)
+
+    def prioritize_functions(self, func_addrs: Iterable[int]):
+        """
+        Prioritize the analysis of specified functions.
+
+        :param func_addrs: A collection of function addresses to analyze first.
+        """
+
+        with self._func_queue_lock:
+            func_addrs = set(func_addrs)
+            to_prioritize = [ ]
+            remaining = [ ]
+            while not self._func_queue.empty():
+                addr = self._func_queue.get()
+                if addr in func_addrs:
+                    to_prioritize.append(addr)
+                else:
+                    remaining.append(addr)
+
+            for addr in itertools.chain(to_prioritize, remaining):
+                self._func_queue.put(addr)
 
     #
     # Static methods
