@@ -1693,7 +1693,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             blocks_ahead.append(self._lift(cfg_job.src_node.addr).vex)
             procedure.project = self.project
             procedure.arch = self.project.arch
-            new_exits = procedure.static_exits(blocks_ahead)
+            new_exits = procedure.static_exits(blocks_ahead, cfg=self)
 
             for new_exit in new_exits:
                 addr_ = new_exit['address']

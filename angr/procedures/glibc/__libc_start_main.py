@@ -144,13 +144,51 @@ class __libc_start_main(angr.SimProcedure):
     def after_main(self, main, argc, argv, init, fini, exit_addr=0):
         self.exit(0)
 
-    def static_exits(self, blocks):
+    def static_exits(self, blocks, cfg=None, **kwargs):
         # Execute those blocks with a blank state, and then dump the arguments
         blank_state = angr.SimState(project=self.project, mode="fastpath", cle_memory_backer=self.project.loader.memory,
                                     add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_MEMORY,
                                                  angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS})
         # set up the stack pointer
         blank_state.regs.sp = 0x7ffffff0
+
+        # special handling for x86 PIE GCC binaries
+        #
+        # 08049C70 xor     ebp, ebp
+        # 08049C72 pop     esi
+        # 08049C73 mov     ecx, esp
+        # 08049C75 and     esp, 0FFFFFFF0h
+        # 08049C78 push    eax
+        # 08049C79 push    esp             ; stack_end
+        # 08049C7A push    edx             ; rtld_fini
+        # 08049C7B call    sub_8049CA3      // this is the get_pc function
+        #  // first block starts here
+        # 08049C80 add     ebx, (offset off_806B000 - $)
+        # 08049C86 lea     eax, (nullsub_2 - 806B000h)[ebx]
+        # 08049C8C push    eax             ; fini
+        # 08049C8D lea     eax, (sub_805F530 - 806B000h)[ebx]
+        # 08049C93 push    eax             ; init
+        # 08049C94 push    ecx             ; ubp_av
+        # 08049C95 push    esi             ; argc
+        # 08049C96 mov     eax, offset main
+        # 08049C9C push    eax             ; main
+        # 08049C9D call    ___libc_start_main
+        if cfg is not None and self.arch.name == "X86":
+            first_block = blocks[0]
+            first_node = cfg.model.get_any_node(first_block.addr)
+            if first_node is not None:
+                caller_nodes = cfg.model.get_predecessors(first_node, excluding_fakeret=False)
+                if len(caller_nodes) == 1:
+                    caller_node = caller_nodes[0]
+                    succ_and_jks = caller_node.successors_and_jumpkinds()
+                    if len(succ_and_jks) == 1 and succ_and_jks[0][1] == 'Ijk_Call':
+                        # get_pc
+                        getpc_func = cfg.functions.get_by_addr(succ_and_jks[0][0].addr)
+                        if getpc_func is not None and 'get_pc' in getpc_func.info:
+                            # GCC-generated x86-pie binary confirmed.
+                            # initialize the specified register with the block address
+                            get_pc_reg = getpc_func.info['get_pc']
+                            setattr(blank_state.regs, "_" + get_pc_reg, first_block.addr)
 
         # Execute each block
         state = blank_state
