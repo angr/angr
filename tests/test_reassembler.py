@@ -265,7 +265,7 @@ def test_partial_pie_ls_x86():
             f.write(assembly)
         # Call out to GCC, and it should return 0. Otherwise check_call() will raise an exception.
         subprocess.check_call(["gcc", "-m32", "-no-pie", asm_filepath, "-o", bin_filepath],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                              )
         # Run the generated binary file, and it should not crash
         subprocess.check_call([bin_filepath], stdout=subprocess.DEVNULL)
         # We can also run it with "-h"
