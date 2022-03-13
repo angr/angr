@@ -6,6 +6,7 @@ import archinfo
 
 from ..errors import SimIRSBError, SimIRSBNoDecodeError, SimValueError
 from .engine import SuccessorsMixin
+from .vex.heavy.heavy import VEXEarlyExit
 from .. import sim_options as o
 from ..misc.ux import once
 from ..state_plugins.inspect import BP_AFTER, BP_BEFORE
@@ -115,18 +116,23 @@ class SimEngineUnicorn(SuccessorsMixin):
             instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
             start_index = instr_vex_stmt_indices["start"]
             end_index = instr_vex_stmt_indices["end"]
+            execute_default_exit = True
             for vex_stmt_idx in range(start_index, end_index + 1):
                 # Execute handler from HeavyVEXMixin for the statement
                 vex_stmt = vex_block.statements[vex_stmt_idx]
                 if vex_stmt.tag not in ignored_statement_tags:
                     self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
-                    super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+                    try:
+                        super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+                    except VEXEarlyExit:
+                        # Only one path is satisfiable in this branch.
+                        execute_default_exit = False
 
             # Restore breakpoints
             self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
             del self._instr_mem_reads
 
-        if block_details["has_symbolic_exit"]:
+        if execute_default_exit and block_details["has_symbolic_exit"]:
             # Process block's default exit
             saved_state = self.state.copy()
             self.stmt_idx = DEFAULT_STATEMENT  # pylint:disable=attribute-defined-outside-init
@@ -142,11 +148,6 @@ class SimEngineUnicorn(SuccessorsMixin):
     def _execute_symbolic_instrs(self):
         recent_bbl_addrs = None
         stop_details = None
-        copy_states_enabled = False
-        if o.COPY_STATES not in self.state.options:
-            # Enable state copying so that symbolic exits are handled correctly
-            self.state.options.add(o.COPY_STATES)
-            copy_states_enabled = True
 
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
@@ -209,9 +210,6 @@ class SimEngineUnicorn(SuccessorsMixin):
             except SimValueError as e:
                 l.error(e)
 
-        if copy_states_enabled:
-            # Remove option only if it was enabled in this function
-            self.state.options.remove(o.COPY_STATES)
 
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
