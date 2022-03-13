@@ -15,6 +15,7 @@ from . import Analysis
 from .cfg.cfg_emulated import CFGEmulated
 from .ddg import DDG
 from .cfg.cfg_fast import CFGFast
+from ..codenode import CodeNode
 from ..knowledge_plugins.cfg.memory_data import MemoryDataSort
 from ..knowledge_plugins.functions import Function
 from ..knowledge_base import KnowledgeBase
@@ -45,11 +46,13 @@ class ReassemblerFailureNotice(BinaryError):
 OP_TYPE_REG = 1
 OP_TYPE_IMM = 2
 OP_TYPE_MEM = 3
+OP_TYPE_RAW = 4
 
 OP_TYPE_MAP = {
     OP_TYPE_REG: 'REG',
     OP_TYPE_IMM: 'IMM',
     OP_TYPE_MEM: 'MEM',
+    OP_TYPE_RAW: 'RAW',
 }
 
 CAPSTONE_OP_TYPE_MAP = {
@@ -132,7 +135,7 @@ def is_hex(s):
 fill_reg_map()
 
 
-class Label(object):
+class Label:
     g_label_ctr = count()
 
     def __init__(self, binary, name, original_addr=None):
@@ -294,7 +297,7 @@ class NotypeLabel(Label):
         )
 
 
-class SymbolManager(object):
+class SymbolManager:
     """
     SymbolManager manages all symbols in the binary.
     """
@@ -420,7 +423,7 @@ class SymbolManager(object):
             label.assigned = True
 
 
-class Operand(object):
+class Operand:
     def __init__(self, binary, insn_addr, insn_size, capstone_operand, operand_str, mnemonic, operand_offset, syntax=None):
         """
         Constructor.
@@ -457,6 +460,9 @@ class Operand(object):
         self.index = None
         self.scale = None
         self.disp = None
+
+        # RAW
+        self.raw_asm = None
 
         self.disp_is_coderef = None
         self.disp_is_dataref = None
@@ -539,6 +545,8 @@ class Operand(object):
                 # we need to specify the size here
                 if self.size == 16:
                     asm = 'xmmword ptr [%s]' % asm
+                elif self.size == 10:
+                    asm = 'xword ptr [%s]' % asm
                 elif self.size == 8:
                     asm = 'qword ptr [%s]' % asm
                 elif self.size == 4:
@@ -551,6 +559,9 @@ class Operand(object):
                     raise BinaryError('Unsupported memory operand size for operand "%s"' % self.operand_str)
 
                 return asm
+
+        elif self.type == OP_TYPE_RAW:
+            return self.raw_asm
 
         else:
             # Nothing special
@@ -684,7 +695,7 @@ class Operand(object):
         return (is_coderef, is_dataref, baseaddr)
 
 
-class Instruction(object):
+class Instruction:
     """
     High-level representation of an instruction in the binary
     """
@@ -789,7 +800,7 @@ class Instruction(object):
         if not symbolized:
             asm = not_symbolized
 
-        elif not any([ operand.symbolized for operand in self.operands ]):
+        elif not any([ (operand.symbolized or operand.type == OP_TYPE_RAW) for operand in self.operands ]):
             # No label is involved
             asm = not_symbolized
 
@@ -809,12 +820,12 @@ class Instruction(object):
             for i, op in enumerate(self.operands):
                 op_asm = op.assembly()
                 if op_asm is not None:
-                    if op.type in (OP_TYPE_IMM, OP_TYPE_MEM):
+                    if op.type in (OP_TYPE_IMM, OP_TYPE_MEM, OP_TYPE_RAW):
                         all_operands[i] = op_asm
                     else:
                         raise BinaryError("Unsupported operand type %d." % op.type)
 
-                    if self.capstone_operand_types[i] == capstone.CS_OP_IMM:
+                    if op.type != OP_TYPE_RAW and self.capstone_operand_types[i] == capstone.CS_OP_IMM:
                         if mnemonic.startswith('j') or mnemonic.startswith('call') or mnemonic.startswith('loop'):
                             pass
                         else:
@@ -865,11 +876,11 @@ class Instruction(object):
         for operand, operand_str, offset in zip(capstone_operands, all_operands, operand_offsets):
             self.operands.append(Operand(self.binary, self.addr, self.size, operand, operand_str, self.mnemonic, offset))
 
-class BasicBlock(object):
+class BasicBlock:
     """
     BasicBlock represents a basic block in the binary.
     """
-    def __init__(self, binary, addr, size):
+    def __init__(self, binary, addr, size, x86_getpc_retsite: bool=False):
         """
         Constructor.
 
@@ -884,6 +895,7 @@ class BasicBlock(object):
 
         self.addr = addr
         self.size = size
+        self.x86_getpc_retsite = x86_getpc_retsite
 
         self.instructions = [ ]
 
@@ -936,14 +948,31 @@ class BasicBlock(object):
         capstone_obj = block.capstone
 
         # Fill in instructions
-        for instr in capstone_obj.insns:
+        for idx, instr in enumerate(capstone_obj.insns):
+            # special handling for X86 PIE binaries
             instruction = Instruction(self.binary, instr.address, instr.size, None, instr)
+
+            if self.x86_getpc_retsite and idx == 0:
+                if (self.binary.syntax == "at&t"
+                        and instr.mnemonic == "addl"
+                        and instr.operands[1].type == capstone.CS_OP_REG
+                        and instr.operands[0].type == capstone.CS_OP_IMM
+                ):
+                    instruction.operands[0].type = OP_TYPE_RAW
+                    instruction.operands[0].raw_asm = "$_GLOBAL_OFFSET_TABLE_"
+                elif (self.binary.syntax == "intel"
+                        and instr.mnemonic == "add"
+                        and instr.operands[0].type == capstone.CS_OP_REG
+                        and instr.operands[1].type == capstone.CS_OP_IMM
+                ):
+                    instruction.operands[1].type == OP_TYPE_RAW
+                    instruction.operands[1].raw_asm = "OFFSET FLAG:_GLOBAL_OFFSET_TABLE_"
 
             self.instructions.append(instruction)
 
         self.instructions = sorted(self.instructions, key=lambda x: x.addr)
 
-class Procedure(object):
+class Procedure:
     """
     Procedure in the binary.
     """
@@ -1131,8 +1160,20 @@ class Procedure(object):
 
 
         else:
+            x86_getpc_retsites = set()
+            if self.project.arch.name == "X86":
+                if 'pc_reg' in self.function.info:
+                    # this is an x86-PIC function that calls a get_pc thunk
+                    # we need to fix the "add e{a,b,c}x, offset" instruction right after the get_pc call
+                    # first let's identify which function is the get_pc function
+                    for src, dst, data in self.function.transition_graph.edges(data=True):
+                        if isinstance(src, CodeNode) and isinstance(dst, Function):
+                            if 'get_pc' in dst.info:
+                                # found it!
+                                x86_getpc_retsites.add(src.addr + src.size)
             for block_addr in self.function.block_addrs:
-                b = BasicBlock(self.binary, block_addr, self.function._block_sizes[block_addr])
+                b = BasicBlock(self.binary, block_addr, self.function._block_sizes[block_addr],
+                               x86_getpc_retsite=block_addr in x86_getpc_retsites)
                 self.blocks.append(b)
 
             self.blocks = sorted(self.blocks, key=lambda x: x.addr)
@@ -1178,7 +1219,7 @@ class ProcedureChunk(Procedure):
         Procedure.__init__(self, project, addr=addr, size=size)
 
 
-class Data(object):
+class Data:
     def __init__(self, binary, memory_data=None, section=None, section_name=None, name=None, size=None, sort=None,
                  addr=None, initial_content=None):
 
@@ -2297,9 +2338,11 @@ class Reassembler(Analysis):
             init_func = self.cfg.functions['init']
             callees = [ node for node in init_func.transition_graph.nodes()
                         if isinstance(node, Function) and node.addr != self.cfg._unresolvable_call_target_addr ]
-            if len(callees) == 1:
+            # special handling for GCC-generated X86 PIE binaries
+            non_getpc_callees = [ callee for callee in callees if 'get_pc' not in callee.info ]
+            if len(non_getpc_callees) == 1:
                 # we found the _init_proc
-                _init_proc = callees[0]
+                _init_proc = non_getpc_callees[0]
                 self.procedures = [p for p in self.procedures if p.addr != _init_proc.addr]
         except KeyError:
             pass
@@ -2411,7 +2454,7 @@ class Reassembler(Analysis):
             if section in {'.got', '.plt', 'init', 'fini', '.init', '.fini'}:
                 continue
 
-            procedure = Procedure(self, f, section=section)
+            procedure = Procedure(self, function=f, section=section)
             self.procedures.append(procedure)
 
         self.procedures = sorted(self.procedures, key=lambda x: x.addr)
@@ -2490,6 +2533,10 @@ class Reassembler(Analysis):
 
                 if section.name in section_names_to_ignore:
                     # skip all sections that are CGC specific
+                    continue
+
+                # make sure this section is not empty
+                if section.memsize == 0:
                     continue
 
                 # make sure this section is inside a segment

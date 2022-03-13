@@ -17,7 +17,7 @@ class pthread_create(angr.SimProcedure):
     def terminate_thread(self, thread, attr, start_routine, arg):
         self.exit(0)
 
-    def static_exits(self, blocks):
+    def static_exits(self, blocks, **kwargs):
         # Execute those blocks with a blank state, and then dump the arguments
         blank_state = angr.SimState(project=self.project, mode="fastpath", cle_memory_backer=self.project.loader.memory)
 
