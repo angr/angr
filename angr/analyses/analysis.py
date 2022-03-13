@@ -135,7 +135,10 @@ class AnalysisFactory(Generic[A]):
                   progress_callback=progress_callback,
                   show_progressbar=show_progressbar)
 
-        return w(*args, **kwargs)
+        r = w(*args, **kwargs)
+        # clean up so that it's always pickleable
+        r._progressbar = None
+        return r
 
 
 class Analysis:
@@ -248,6 +251,17 @@ class Analysis:
 
         if ctr != 0 and ctr % freq == 0:
             time.sleep(sleep_time)
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        if "_progressbar" in d:
+            del d['_progressbar']
+        if '_progress_callback' in d:
+            del d['_progress_callback']
+        return d
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))
