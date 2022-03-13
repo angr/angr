@@ -249,7 +249,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             for func_node in function_nodes:
                 for callsite_node in self.function.transition_graph.predecessors(func_node):
                     if func_node.calling_convention is None:
-                        l.warning("Unknown calling convention for %r.", func_node)
+                        # l.warning("Unknown calling convention for %r.", func_node)
                         self._node_to_cc[callsite_node.addr] = None
                     else:
                         self._node_to_cc[callsite_node.addr] = func_node.calling_convention
