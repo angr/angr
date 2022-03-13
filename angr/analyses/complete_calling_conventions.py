@@ -125,24 +125,22 @@ class CompleteCallingConventionsAnalysis(Analysis):
                     self._release_gil(idx, 10, 0.000001)
 
         else:
-            prog_callback = self._progress_callback
-            self._progress_callback = None
-
+            self._update_progress(0, text="Spawning workers...")
             # spawn workers to perform the analysis
-            ctx = mp.get_context("spawn")
-            procs = [ctx.Process(target=self._worker_routine, daemon=True) for _ in range(self._workers)]
-            for proc in procs:
-                proc.start()
-
-            self._progress_callback = prog_callback
+            with self._func_queue_lock:
+                ctx = mp.get_context("spawn")
+                procs = [ctx.Process(target=self._worker_routine, daemon=True) for _ in range(self._workers)]
+                for proc_idx, proc in enumerate(procs):
+                    self._update_progress(0, text=f"Spawning worker {proc_idx}...")
+                    proc.start()
 
             # update progress
             self._update_progress(0)
             idx = 0
             while idx < total_funcs:
                 func_addr, cc, proto, varman = self._results.get(True)
+                func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
-                    func = self.kb.functions.get_by_addr(func_addr)
                     func.calling_convention = cc
                     func.prototype = proto
                     func.is_prototype_guessed = True
@@ -153,7 +151,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 idx += 1
 
                 percentage = idx / total_funcs * 100.0
-                self._update_progress(percentage)
+                self._update_progress(percentage, text=f"{idx}/{total_funcs} - {func.demangled_name}")
                 if self._low_priority:
                     self._release_gil(idx, 10, 0.0000001)
 
@@ -164,7 +162,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
         idx = 0
         while not self._func_queue.empty():
             try:
-                func_addr = self._func_queue.get(True)
+                with self._func_queue_lock:
+                    func_addr = self._func_queue.get(True)
             except queue.Empty:
                 break
 
