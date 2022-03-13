@@ -1,4 +1,5 @@
 #define __STDC_FORMAT_MACROS 1
+#define NOMINMAX
 
 #include <algorithm>
 #include <cassert>
