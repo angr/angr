@@ -791,8 +791,9 @@ class Structurer(Analysis):
                 node_a = addr2nodes[node_a.addr]
             return True, node_a
 
-        # not sure what's going on... give up on this case
-        return False, None
+        # a jumptable entry is missing. it's very likely marked as the successor of the entire switch-case region. we
+        # should have been handling it when dealing with multi-exit regions. ignore it here.
+        return True, node_a
 
     def _switch_check_existence_of_jumptable_entries(self, jumptable_entries, node_a_block_addrs: Set[int],
                                                      known_node_addrs: Set[int], node_a_addr: int,
@@ -899,45 +900,50 @@ class Structurer(Analysis):
 
             entry_node = self._switch_find_jumptable_entry_node(entry_addr, addr2nodes)
             if entry_node is None:
-                l.warning("Missing jump table entry %#x for jump table %#x. Please report it to GitHub.",
-                          entry_addr,
-                          seq.addr,
-                          )
-                continue
-            case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true)])
-            to_remove.add(entry_node)
-            entry_node_idx = seq.nodes.index(entry_node)
+                # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
+                # Goto node.
+                case_inner_node = ailment.Block(0, 0, statements=[
+                    ailment.Stmt.Jump(None, ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits),
+                                      ins_addr=0, stmt_idx=0)
+                ])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+            else:
+                case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true)])
+                to_remove.add(entry_node)
+                entry_node_idx = seq.nodes.index(entry_node)
 
-            # find nodes that this entry node dominates
-            cond_subexprs = list(get_ast_subexprs(entry_node.reaching_condition))
-            guarded_nodes = None
-            for subexpr in cond_subexprs:
-                guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, entry_node_idx + 1)
-                if guarded_nodes is None:
-                    guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
-                else:
-                    guarded_nodes = guarded_nodes.intersection(set(node_ for _, node_, _ in guarded_node_candidates))
+                # find nodes that this entry node dominates
+                cond_subexprs = list(get_ast_subexprs(entry_node.reaching_condition))
+                guarded_nodes = None
+                for subexpr in cond_subexprs:
+                    guarded_node_candidates = self._nodes_guarded_by_common_subexpr(seq, subexpr, entry_node_idx + 1)
+                    if guarded_nodes is None:
+                        guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
+                    else:
+                        guarded_nodes = guarded_nodes.intersection(
+                            set(node_ for _, node_, _ in guarded_node_candidates))
 
-            if guarded_nodes is not None:
-                # keep the topological order of nodes in Sequence node
-                sorted_guarded_nodes = [node_ for node_ in seq.nodes[entry_node_idx + 1:] if node_ in guarded_nodes]
-                for node_ in sorted_guarded_nodes:
-                    if node_ is not entry_node and node_.addr not in entry_addrs_set:
-                        # fix reaching condition
-                        reaching_condition_subexprs = set(ex for ex in get_ast_subexprs(node_.reaching_condition)).difference(set(cond_subexprs))
-                        new_reaching_condition = claripy.And(*reaching_condition_subexprs)
-                        new_node = CodeNode(node_.node, new_reaching_condition)
-                        case_node.add_node(new_node)
-                        to_remove.add(node_)
+                if guarded_nodes is not None:
+                    # keep the topological order of nodes in Sequence node
+                    sorted_guarded_nodes = [node_ for node_ in seq.nodes[entry_node_idx + 1:] if node_ in guarded_nodes]
+                    for node_ in sorted_guarded_nodes:
+                        if node_ is not entry_node and node_.addr not in entry_addrs_set:
+                            # fix reaching condition
+                            reaching_condition_subexprs = set(
+                                ex for ex in get_ast_subexprs(node_.reaching_condition)).difference(set(cond_subexprs))
+                            new_reaching_condition = claripy.And(*reaching_condition_subexprs)
+                            new_node = CodeNode(node_.node, new_reaching_condition)
+                            case_node.add_node(new_node)
+                            to_remove.add(node_)
 
-            # do we have a default node?
-            case_last_stmt = self.cond_proc.get_last_statement(case_node)
-            if isinstance(case_last_stmt, ailment.Stmt.Jump):
-                targets = extract_jump_targets(case_last_stmt)
-                if len(targets) == 1 and targets[0] == node_b_addr:
-                    # jump to the default case is rare - it's more likely that there is no default for this
-                    # switch-case struct
-                    node_default = None
+                # do we have a default node?
+                case_last_stmt = self.cond_proc.get_last_statement(case_node)
+                if isinstance(case_last_stmt, ailment.Stmt.Jump):
+                    targets = extract_jump_targets(case_last_stmt)
+                    if len(targets) == 1 and targets[0] == node_b_addr:
+                        # jump to the default case is rare - it's more likely that there is no default for this
+                        # switch-case struct
+                        node_default = None
 
             self._new_sequences.append(case_node)
             cases[cases_idx] = case_node
