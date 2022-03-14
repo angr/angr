@@ -7,7 +7,6 @@ import subprocess
 import shutil
 
 import angr
-from angr.misc.testing import is_testing
 
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
@@ -258,7 +257,7 @@ def test_partial_pie_ls_x86():
     r.remove_unnecessary_stuff()
     assembly = r.assembly(comments=True, symbolized=True)
 
-    if is_linux() and not is_testing:  # disabled until we add -m32 support into angr CI.
+    if is_linux():
         # we should be able to compile it and run it ... if we are running on x64 Linux
         tempdir = tempfile.mkdtemp(prefix="angr_test_reassembler_")
         asm_filename = "ls.s"
