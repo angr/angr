@@ -145,12 +145,18 @@ class StatusBar(progressbar.Widget):
     """
     Implements a progressbar component for displaying raw text.
     """
-    def __init__(self):
+    def __init__(self, width: Optional[int]=40):
         super().__init__()
         self.status: str = ""
+        self.width = width
 
     def update(self, pbar):  # pylint:disable=unused-argument
-        return self.status
+        if self.width is None:
+            return self.status
+        if len(self.status) < self.width:
+            return self.status.ljust(self.width, " ")
+        else:
+            return self.status[:self.width]
 
 
 class Analysis:
