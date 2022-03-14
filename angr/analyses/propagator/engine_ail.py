@@ -283,10 +283,15 @@ class SimEnginePropagatorAIL(
                 if var is not None:
                     # We do not add replacements here since in AIL function and block simplifiers we explicitly forbid
                     # replacing stack variables, unless this is in the middle of a call statement.
-                    if self.state._inside_call_stmt and var.one_expr is not None:
-                        if not self.is_using_outdated_def(var.one_expr, avoid=expr.addr):
-                            l.debug("Add a replacement: %s with %s", expr, var.one_expr)
-                            self.state.add_replacement(self._codeloc(), expr, var.one_expr)
+                    if self.state._inside_call_stmt:
+                        if var.one_expr is not None:
+                            if not self.is_using_outdated_def(var.one_expr, avoid=expr.addr):
+                                l.debug("Add a replacement: %s with %s", expr, var.one_expr)
+                                self.state.add_replacement(self._codeloc(), expr, var.one_expr)
+                        else:
+                            # there isn't a single expression to replace with. remove the old replacement for this
+                            # expression if available.
+                            self.state.add_replacement(self._codeloc(), expr, self.state.top(expr.bits))
                     if not self.state.is_top(var.value):
                         return var
 
