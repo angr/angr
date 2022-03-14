@@ -171,6 +171,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if varman is not None:
                     self.kb.variables.function_managers[func_addr] = varman
                     varman.set_manager(self.kb.variables)
+                func.ran_cca = True
 
                 if self._cc_callback is not None:
                     self._cc_callback(func_addr)
@@ -205,6 +206,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
     def _analyze_core(self, func_addr: int) -> Tuple[Optional['SimCC'],Optional['SimTypeFunction'],
                                                      Optional['VariableManagerInternal']]:
         func = self.kb.functions.get_by_addr(func_addr)
+        if func.ran_cca:
+            return func.calling_convention, func.prototype, self.kb.variables.get_function_manager(func_addr)
+
         if self._recover_variables and self.function_needs_variable_recovery(func):
             _l.info("Performing variable recovery on %r...", func)
             try:

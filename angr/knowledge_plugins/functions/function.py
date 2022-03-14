@@ -41,7 +41,7 @@ class Function(Serializable):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed',
+                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed', 'ran_cca',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
@@ -121,6 +121,8 @@ class Function(Serializable):
         self._argument_stack_variables = []
 
         self._project = None  # type: Optional[Project] # will be initialized upon the first access to self.project
+
+        self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
         #
         # Initialize unspecified properties
