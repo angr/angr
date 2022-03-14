@@ -141,7 +141,7 @@ class AnalysisFactory(Generic[A]):
         return r
 
 
-class StatusBar(progressbar.Widget):
+class StatusBar(progressbar.widgets.WidgetBase):
     """
     Implements a progressbar component for displaying raw text.
     """
@@ -150,7 +150,7 @@ class StatusBar(progressbar.Widget):
         self.status: str = ""
         self.width = width
 
-    def update(self, pbar):  # pylint:disable=unused-argument
+    def __call__(self, progress, data, **kwargs):  # pylint:disable=unused-argument
         if self.width is None:
             return self.status
         if len(self.status) < self.width:
@@ -218,7 +218,7 @@ class Analysis:
         :return: None
         """
 
-        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, maxval=10000 * 100).start()
+        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, max_value=10000 * 100).start()
         self._statusbar = self._progressbar.widgets[-1]
 
     def _update_progress(self, percentage, text=None, **kwargs):
