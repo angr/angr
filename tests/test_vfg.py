@@ -179,10 +179,46 @@ class TestVfg(unittest.TestCase):
         # - the last basic block in `authenticate` should only be executed once (on a non-normalized CFG)
         assert vfg._execution_counter[0x4006EB] == 1
 
-
     def test_vfg_1(self):
         # Test the code coverage of VFG
         self._run_vfg_1("x86_64")
+
+    def test_vfg_resolving_indirect_calls(self):
+        # resolving indirect calls provided via a statically allocated list of function addresses
+        # the test binary is contributed by Luke Serné on angr Slack
+        proj = angr.Project(
+            os.path.join(test_location, "aarch64", "func-chain-aarch64"),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFG(normalize=True)
+        vfg = proj.analyses.VFG(
+            cfg,
+            start=cfg.kb.functions["main"].addr,
+            context_sensitivity_level=1,
+            interfunction_level=1,
+            record_function_final_states=True,
+        )
+
+        # find the node with indirect call exits
+        expected_indirect_call_targets = {
+            (0x400808, 0x400754),  # init_0
+            (0x400808, 0x400770),  # init_1
+            (0x400808, 0x400790),  # init_2
+        }
+        indirect_call_targets = set()
+        for block_addr in cfg.kb.functions['main'].block_addrs_set:
+            cfg_node = cfg.get_any_node(block_addr)
+            succs_and_jumpkinds = cfg_node.successors_and_jumpkinds()
+            if len(succs_and_jumpkinds) == 1 and succs_and_jumpkinds[0][1] == "Ijk_Call":
+                # does it lead to an UnresolvedCall?
+                if succs_and_jumpkinds[0][0].name == "UnresolvableCallTarget":
+                    # found it!
+                    for vfg_node in vfg.get_all_nodes(cfg_node.addr):
+                        for successor_state in vfg_node.final_states:
+                            if successor_state.history.jumpkind == "Ijk_Call":
+                                indirect_call_targets.add((cfg_node.addr, successor_state.addr))
+
+        assert expected_indirect_call_targets == indirect_call_targets
 
 
 if __name__ == "__main__":

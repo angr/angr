@@ -1,3 +1,4 @@
+from typing import Generator
 import logging
 from collections import defaultdict
 
@@ -416,6 +417,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if n.addr == addr:
                 return n
 
+    def get_all_nodes(self, addr) -> Generator[VFGNode,None,None]:
+        for n in self.graph.nodes():
+            if n.addr == addr:
+                yield n
+
     def irsb_from_node(self, node):
         return self.project.factory.successors(node.state, addr=node.addr)
 
@@ -670,7 +676,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                              src_exit_stmt_idx=src_exit_stmt_idx
                              )
 
-    def _get_successors(self, job):
+    def _get_successors(self, job: VFGJob):
         # Extract initial values
         state = job.state
         addr = job.addr
@@ -682,7 +688,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             all_successors = []
 
         # save those states
-        job.vfg_node.final_states = all_successors[:]
+        if job.vfg_node.final_states is None:
+            job.vfg_node.final_states = [ ]
+        job.vfg_node.final_states.extend(all_successors)
 
         # Update thumb_addrs
         if job.sim_successors.sort == 'IRSB' and state.thumb:
