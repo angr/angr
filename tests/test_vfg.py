@@ -185,7 +185,7 @@ class TestVfg(unittest.TestCase):
 
     def test_vfg_resolving_indirect_calls(self):
         # resolving indirect calls provided via a statically allocated list of function addresses
-        # the test binary is contributed by Luke Serne on angr Slack
+        # the test binary is contributed by Luke Serné on angr Slack
         proj = angr.Project(
             os.path.join(test_location, "aarch64", "func-chain-aarch64"),
             auto_load_libs=False,
