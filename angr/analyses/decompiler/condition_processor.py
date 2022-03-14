@@ -719,10 +719,13 @@ class ConditionProcessor:
         raise RuntimeError("Unreachable reached")
 
     @staticmethod
-    def simplify_condition(cond):
+    def simplify_condition(cond, depth_limit=8, variables_limit=8):
         memo = { }
+        if cond.depth > depth_limit or len(cond.variables) > variables_limit:
+            return cond
         sympy_expr = ConditionProcessor.claripy_ast_to_sympy_expr(cond, memo=memo)
-        return ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr), memo)
+        r = ConditionProcessor.sympy_expr_to_claripy_ast(sympy.simplify_logic(sympy_expr, deep=False), memo)
+        return r
 
     @staticmethod
     def simplify_condition_deprecated(cond):
