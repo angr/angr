@@ -1321,7 +1321,16 @@ class SimCCSystemVAMD64(SimCC):
         some_both_args = [next(both_iter) for _ in range(len(args))]
 
         for arg in args:
-            if arg not in all_fp_args and arg not in all_int_args and arg not in some_both_args:
+            ex_arg = arg
+            # attempt to coerce the argument into a form that might show up in these lists
+            if type(ex_arg) is SimRegArg:
+                regfile_offset = arch.registers[ex_arg.reg_name][0]
+                while regfile_offset not in arch.register_names:
+                    regfile_offset -= 1
+                ex_arg.reg_name = arch.register_names[regfile_offset]
+                ex_arg.reg_offset = 0
+
+            if ex_arg not in all_fp_args and ex_arg not in all_int_args and ex_arg not in some_both_args:
                 if isinstance(arg, SimStackArg) and arg.stack_offset == 0:
                     continue        # ignore return address?
                 return False
