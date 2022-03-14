@@ -903,7 +903,8 @@ class Structurer(Analysis):
                 # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
                 # Goto node.
                 case_inner_node = ailment.Block(0, 0, statements=[
-                    ailment.Stmt.Jump(None, ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits))
+                    ailment.Stmt.Jump(None, ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits),
+                                      ins_addr=0, stmt_idx=0)
                 ])
                 case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
             else:
