@@ -186,6 +186,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                             self.state = curr_succs[curr_succs_count].copy()
                             self.state.scratch.guard = self.state.solver.true
                             self.successors.flat_successors.remove(curr_succs[curr_succs_count])
+                            self.successors.all_successors.remove(curr_succs[curr_succs_count])
                             self.successors.successors.remove(curr_succs[curr_succs_count])
                         else:
                             # There are multiple satisfiable states. Use the state's record of basic blocks executed
