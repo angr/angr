@@ -8,12 +8,12 @@ from common import bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_
 
 
 def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False, read_strategies=None,
-               write_strategies=None):
+               write_strategies=None, add_options=None, remove_options=None):
     p = angr.Project(filename)
     p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"])
 
     trace, magic, crash_mode, crash_addr = do_trace(p, test_name, stdin)
-    s = p.factory.entry_state(mode="tracing", stdin=angr.SimFileStream, flag_page=magic)
+    s = p.factory.entry_state(mode="tracing", stdin=angr.SimFileStream, flag_page=magic, add_options=add_options, remove_options=remove_options)
     if read_strategies is not None:
         s.memory.read_strategies = read_strategies
     if write_strategies is not None:
@@ -43,12 +43,14 @@ def trace_cgc_with_pov_file(
         output_initial_bytes: bytes,
         copy_states=False,
         read_strategies=None,
-        write_strategies=None
+        write_strategies=None,
+        add_options=None,
+        remove_options=None
 ):
     assert os.path.isfile(pov_file)
     pov = load_cgc_pov(pov_file)
     trace_result = tracer_cgc(binary, test_name, b''.join(pov.writes), copy_states, read_strategies=read_strategies,
-                              write_strategies=write_strategies)
+                              write_strategies=write_strategies, add_options=add_options, remove_options=remove_options)
     simgr = trace_result[0]
     simgr.run()
     assert "traced" in simgr.stashes
@@ -145,6 +147,48 @@ def test_manual_recursion():
     assert crash_path != None
     assert crash_state != None
 
+def test_cgc_receive_unicorn_native_interface():
+    """
+    Test if unicorn native interface handles CGC receive syscall correctly
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00038")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "KPRCA_00038_POV_00000.xml"
+    )
+    output_initial_bytes = b""
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_cgc_receive_unicorn_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
+
+
+def test_cgc_receive_unicorn_native_interface_rx_bytes():
+    """
+    Test rx_bytes is correctly handled by unicorn native interface's CGC receive: update only if non-null
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00012")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "CROMU_00012_POV_00000.xml"
+    )
+    output_initial_bytes = b""
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_cgc_receive_unicorn_native_interface_rx_bytes",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
+
+
 
 def test_cgc_se1_palindrome_raw():
     b = os.path.join(bin_location, "tests", "cgc", "sc1_0b32aa01_01")
@@ -176,6 +220,71 @@ def test_cgc_se1_palindrome_raw():
     simgr.run()
 
     assert simgr.crashed
+
+
+def test_d_flag_and_write_write_conflict_in_unicorn():
+    """
+    Check if d flag is handled correctly in unicorn native interface and write-write conflicts do not occur when re-executing
+    symbolic instructions
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00008")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "CROMU_00008_POV_00000.xml"
+    )
+    output_initial_bytes = (
+        b"> You logged in.\n> First name: Last name: User name: Birthdate (mm/dd/yy hh:mm:ss): "
+        b"Date is: 12/21/1983 5:43:21\nData added, record 0\n"
+        b"> Enter search express (firstname or fn, lastname or ln, username or un, birthdate or bd,"
+        b" operators ==, !=, >, <, AND and OR):\n"
+    )
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_d_flag_and_write_write_conflict_in_unicorn",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
+
+
+def test_empty_reexecute_block_remove_in_unicorn_native_interface():
+    """
+    Test if blocks with no symbolic instructions are removed from re-execution list in unicorn native interface.
+    Re-execute instruction list of a block can become empty when all of them are removed when performing memory writes.
+    See handle_write in unicorn native interface.
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00052")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "KPRCA_00052_POV_00000.xml"
+    )
+    output_initial_bytes = (
+        b"Enter system password: \nWelcome to the CGC Pizzeria order management system.\n1. Input Order\n"
+        b"2. Update Order\n3. View One Orders\n4. View All Orders\n5. Delete Order\n6. Clear All Orders\n7. Logout\n"
+        b"Choice: Enter Pickup Name: Choose what the kind of pizza\n1. Pizza Pie - The classic!\n"
+        b"2. Pizza Sub - All the fun, on a bun\n3. Pizza Bowl - Our own twist\nChoice: Select Size\n1. Small\n"
+        b"2. Medium\n3. Large\nChoice: Successfully added a new Pizza Pie!\nSelect an option:\n1. Add Toppings\n"
+        b"2. Remove Toppings\n3. Add Sauce\n4. Remove Sauce\n5. Finished With Pizza\nChoice: Successfully added pizza!\n"
+        b"1. Add another Pizza\n2. Quit\nChoice: 0. Cancel\n==================================================\n  "
+        b"Item #1. Classic Pizza Pie, Size: SMALL\n    Selected Toppings\n\tNone\n    Sauce on the side\n\tNone\n"
+        b"--------------------------------------\n\t\tCalories: 1000\n\t\tCarbs   : 222\n\nPizza length... = 1\n\t\t"
+        b"Estimated wait time: 36 minute(s)\n==================================================\nChoice: "
+        b"Removed Item #1\n1. Add another Pizza\n2. Quit\nChoice: Order successfully added!\n1. Input Order\n"
+        b"2. Update Order\n3. View One Orders\n4. View All Orders\n5. Delete Order\n6. Clear All Orders\n7. Logout\n"
+        b"Choice: 1 - pov: Ordered 0 pizza(s)\n==================================================\n"
+        b"--------------------------------------\n\t\tCalories: 0\n\t\tCarbs   : 0\n\n"
+    )
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_empty_reexecute_block_remove_in_unicorn_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
 
 
 def test_symbolic_sized_receives():
@@ -292,6 +401,77 @@ def test_fdwait_fds():
     ]
     trace_cgc_with_pov_file(
         binary, "tracer_floating_point_memory_reads", pov_file, b"\n".join(output)
+    )
+
+
+def test_non_zero_offset_subregister_dependency_saving_unicorn_native_interface():
+    """
+    Test if concrete register dependencies of symbolic instructions are saved correctly in unicorn native interface for
+    re-executing
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00028")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "KPRCA_00028_POV_00000.xml"
+    )
+    output_initial_bytes = b'Welcome to the SLUR REPL. Type an expression to evaluate it.\n> '
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_non_zero_offset_subregister_dependency_saving_unicorn_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
+
+
+def test_saving_dependencies_of_last_instruction_of_block_in_unicorn_native_interface():
+    """
+    Test if dependencies of last instruction in a basic block are saved in unicorn native interface
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00026")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "NRFIN_00026_POV_00000.xml"
+    )
+    output_initial_bytes = (
+        b"Starting dissection...\n\n\n====New Packet====\n\n\n===rofl===\n\n\n===rachiometersuprachoroid===\n301478991\n"
+        b"String display will be handled in v4.\n1\nString display will be handled in v4.\n0\n1\n"
+        b"LV type will be handled in v4.\n3582705152\nString display will be handled in v4.\n"
+        b"LV type will be handled in v4.\n190\n0\n===trolololo===\n"
+    )
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_saving_dependencies_of_last_instruction_of_block_in_unicorn_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
+    )
+
+
+@slow_test
+def test_sseround_register_dependency_unicorn_native_interface():
+    """
+    Test if value of SSEROUND VEX register is saved correctly when it is a dependency of an instruction that needs to be
+    re-executed. Takes about 10 minutes.
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "NRFIN_00021")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "NRFIN_00021_POV_00000.xml"
+    )
+    output_initial_bytes = b""
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_sseround_register_dependency_unicorn_native_interface",
+        pov_file,
+        output_initial_bytes,
+        add_options=add_options
     )
 
 
