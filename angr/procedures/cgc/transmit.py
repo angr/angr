@@ -1,7 +1,9 @@
 import angr
 
+from ... import sim_options as o
+
 class transmit(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    #pylint:disable=attribute-defined-outside-init,arguments-differ,missing-class-docstring
 
     def run(self, fd, buf, count, tx_bytes):
         if angr.options.CGC_ENFORCE_FD in self.state.options:
@@ -16,7 +18,7 @@ class transmit(angr.SimProcedure):
             self.state.memory.store(tx_bytes, count, endness='Iend_LE')
             return self.state.solver.BVV(0, self.state.arch.bits)
 
-        if ABSTRACT_MEMORY in self.state.options:
+        if o.ABSTRACT_MEMORY in self.state.options:
             simfd.write(buf, count)
             self.state.memory.store(tx_bytes, count, endness='Iend_LE')
 
@@ -43,9 +45,14 @@ class transmit(angr.SimProcedure):
                 self.data = None
 
             self.size = count
+            do_concrete_update = o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options or \
+                o.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
+
+            if do_concrete_update and count.symbolic:
+                concrete_count = self.state.solver.BVV(self.state.solver.eval(count), 32)
+                self.state.memory.store(tx_bytes, concrete_count, endness='Iend_LE', condition=tx_bytes != 0)
+
             self.state.memory.store(tx_bytes, count, endness='Iend_LE', condition=tx_bytes != 0)
 
         # TODO: transmit failure
         return self.state.solver.BVV(0, self.state.arch.bits)
-
-from ...sim_options import ABSTRACT_MEMORY

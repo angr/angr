@@ -225,6 +225,8 @@ struct instr_details_t {
 struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
 	std::vector<instr_details_t> symbolic_instrs;
 	bool vex_lift_failed;
 	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
@@ -234,6 +236,8 @@ struct block_details_t {
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		vex_lift_failed = false;
 		vex_lift_result = NULL;
@@ -268,12 +272,16 @@ struct sym_instr_details_t {
 struct sym_block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
 	std::vector<sym_instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		register_values.clear();
 	}
@@ -283,7 +291,9 @@ struct sym_block_details_t {
 // C++ STL containers
 struct sym_block_details_ret_t {
 	uint64_t block_addr;
-    uint64_t block_size;
+	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
     sym_instr_details_t *symbolic_instrs;
     uint64_t symbolic_instrs_count;
     register_value_t *register_values;
@@ -303,7 +313,6 @@ enum stop_t {
 	STOP_NODECODE,
 	STOP_HLT,
 	STOP_VEX_LIFT_FAILED,
-	STOP_SYMBOLIC_CONDITION,
 	STOP_SYMBOLIC_PC,
 	STOP_SYMBOLIC_READ_ADDR,
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
@@ -570,6 +579,15 @@ class State {
 	// OS being simulated
 	simos_t simos;
 
+	// Determine if symbolic memory addresses should be handled or not
+	bool handle_symbolic_addrs;
+
+	// Determine if symbolic conditions should be handled or not
+	bool handle_symbolic_conditions;
+
+	// Count of blocks executed in native interface
+	int64_t executed_blocks_count;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -728,7 +746,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
@@ -810,11 +828,13 @@ class State {
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
-		void start_propagating_taint(address_t block_address, int32_t block_size);
+		void start_propagating_taint();
 
 		void continue_propagating_taint();
 
 		bool check_symbolic_stack_mem_dependencies_liveness() const;
+
+		void set_curr_block_details(address_t block_address, int32_t block_size);
 
 		address_t get_instruction_pointer() const;
 

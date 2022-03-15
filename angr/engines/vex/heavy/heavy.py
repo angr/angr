@@ -1,5 +1,5 @@
-import claripy
 import logging
+import claripy
 import pyvex
 
 from angr.engines.engine import SuccessorsMixin
@@ -14,10 +14,12 @@ from . import dirty
 l = logging.getLogger(__name__)
 
 class VEXEarlyExit(Exception):
+    # pylint:disable=missing-class-docstring
     pass
 
 
 class SimStateStorageMixin(VEXMixin):
+    # pylint:disable=arguments-differ,missing-class-docstring
     def _perform_vex_expr_Get(self, offset, ty, action=None, inspect=True):
         return self.state.registers.load(offset, self._ty_to_bytes(ty), action=action, inspect=inspect)
 
@@ -32,12 +34,21 @@ class SimStateStorageMixin(VEXMixin):
         self.state.registers.store(offset, data, action=action, inspect=inspect)
 
     def _perform_vex_stmt_Store(self, addr, data, endness, action=None, inspect=True, condition=None):
+        if (o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options or \
+            o.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options) and data.symbolic:
+            # Update the concrete memory value before updating symbolic value so that correct values are mapped into
+            # native interface
+            concrete_data = claripy.BVV(self.state.solver.eval(data), data.size())
+            self.state.memory.store(addr, concrete_data, endness=endness, action=None, inspect=False,
+                                    condition=condition)
+
         self.state.memory.store(addr, data, endness=endness, action=action, inspect=inspect, condition=condition)
 
     def _perform_vex_stmt_WrTmp(self, tmp, data, deps=None):
         self.state.scratch.store_tmp(tmp, data, deps=deps)
 
 
+# pylint:disable=arguments-differ
 class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEXMixin, VEXLifter):
     """
     Execution engine based on VEX, Valgrind's IR.
@@ -72,7 +83,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
         opt_level=None,
         **kwargs):
         if not pyvex.lifting.lifters[self.state.arch.name] or type(successors.addr) is not int:
-            return super().process_successors(successors, extra_stop_points=extra_stop_points, num_inst=num_inst, size=size, insn_text=insn_text, insn_bytes=insn_bytes, **kwargs)
+            return super().process_successors(successors, extra_stop_points=extra_stop_points, num_inst=num_inst,
+                                              size=size, insn_text=insn_text, insn_bytes=insn_bytes, **kwargs)
 
         if insn_text is not None:
             if insn_bytes is not None:
@@ -80,8 +92,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
             insn_bytes = self.project.arch.asm(insn_text, addr=successors.addr, thumb=thumb)
             if insn_bytes is None:
-                raise errors.AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the assembly"
-                                        " string is correct.")
+                raise errors.AngrAssemblyError("Assembling failed. Please make sure keystone is installed, and the"
+                                               " assembly string is correct.")
 
         successors.sort = 'IRSB'
         successors.description = 'IRSB'
@@ -105,9 +117,9 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
             if irsb.size == 0:
                 if irsb.jumpkind == 'Ijk_NoDecode' and not self.state.project.is_hooked(irsb.addr):
-                    raise errors.SimIRSBNoDecodeError("IR decoding error at %#x. You can hook this instruction with "
-                                               "a python replacement using project.hook"
-                                               "(%#x, your_function, length=length_of_instruction)." % (addr, addr))
+                    raise errors.SimIRSBNoDecodeError(f"IR decoding error at 0x{addr:02x}. You can hook this "
+                                                      "instruction with a python replacement using project.hook"
+                                                      f"(0x{addr:02x}, your_function, length=length_of_instruction).")
 
                 raise errors.SimIRSBError("Empty IRSB passed to HeavyVEXMixin.")
 
@@ -115,8 +127,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
             if o.STRICT_PAGE_ACCESS in self.state.options:
                 try:
                     perms = self.state.memory.permissions(addr)
-                except errors.SimMemoryError:
-                    raise errors.SimSegfaultError(addr, 'exec-miss')
+                except errors.SimMemoryError as sim_mem_err:
+                    raise errors.SimSegfaultError(addr, 'exec-miss') from sim_mem_err
                 else:
                     if not self.state.solver.symbolic(perms):
                         perms = self.state.solver.eval(perms)
@@ -161,8 +173,7 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
 
         # do return emulation and calless stuff
         for exit_state in list(successors.all_successors):
-            exit_jumpkind = exit_state.history.jumpkind
-            if exit_jumpkind is None: exit_jumpkind = ""
+            exit_jumpkind = exit_state.history.jumpkind if exit_state.history.jumpkind else ""
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(
@@ -213,7 +224,8 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
                 raise errors.SimReliftException(self.state)
 
         # HACK: mips64 may put an instruction which may fault in the delay slot of a branch likely instruction
-        # if the branch is not taken, we must not execute that instruction if the condition fails (i.e. the current guard is False)
+        # if the branch is not taken, we must not execute that instruction if the condition fails (i.e. the current
+        # guard is False)
         if self.state.scratch.guard.is_false():
             self.successors.add_successor(self.state, ins_addr, self.state.scratch.guard, 'Ijk_Boring')
             raise VEXEarlyExit
@@ -265,9 +277,9 @@ class HeavyVEXMixin(SuccessorsMixin, ClaripyDataMixin, SimStateStorageMixin, VEX
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
         if func is None:
             try:
-                 func = getattr(dirty, func_name)
+                func = getattr(dirty, func_name)
             except AttributeError as e:
-                raise errors.UnsupportedDirtyError("Unsupported dirty helper %s" % func_name) from e
+                raise errors.UnsupportedDirtyError(f"Unsupported dirty helper {func_name}") from e
         retval, retval_constraints = func(self.state, *args)
         self.state.add_constraints(*retval_constraints)
         return retval

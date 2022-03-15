@@ -456,21 +456,20 @@ class Tracer(ExplorationTechnique):
         idx = succs[0].globals['trace_idx']
 
         res = []
-        for succ in succs:
-            try:
-                if self._compare_addr(self._trace[idx + 1], succ.addr):
+        last_description = succs[0].history.descriptions[-1]
+        if 'Unicorn' in last_description:
+            # Multiple new states were created in SimEngineUnicorn. State which has non-zero recent block count is a
+            # valid successor since only correct successor is sync'd with native state
+            for succ in succs:
+                if succ.history.recent_block_count > 0:
                     res.append(succ)
-                else:
-                    last_description = succ.history.descriptions[-1]
-                    if 'Unicorn' in last_description:
-                        # A new state was created in SimEngineUnicorn. Check every recent basic block to see if any
-                        # match the next expected index
-                        for bbl_addr in succ.history.recent_bbl_addrs:
-                            if self._compare_addr(self._trace[idx + 1], bbl_addr):
-                                res.append(succ)
-                                break
-            except AngrTracerError:
-                pass
+        else:
+            for succ in succs:
+                try:
+                    if self._compare_addr(self._trace[idx + 1], succ.addr):
+                        res.append(succ)
+                except AngrTracerError:
+                    pass
 
         if not res:
             raise Exception("No states followed the trace?")
