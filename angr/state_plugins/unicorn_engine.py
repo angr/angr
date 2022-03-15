@@ -1277,7 +1277,7 @@ class Unicorn(SimStatePlugin):
             stdout.write_data(string)
             i += 1
 
-        if unicorn_obj.stop_reason in (STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE):
+        if unicorn_obj.stop_reason in {STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE}:
             unicorn_obj.countdown_nonunicorn_blocks = 0
         elif unicorn_obj.stop_reason == STOP.STOP_STOPPOINT:
             unicorn_obj.countdown_nonunicorn_blocks = 0
@@ -1401,7 +1401,7 @@ class Unicorn(SimStatePlugin):
 
         # TODO: Support ARM hardfloat synchronization
 
-        if self.state.arch.name in ('X86', 'AMD64'):
+        if self.state.arch.name in {'X86', 'AMD64'}:
             # sync the fp clerical data
             c3210 = self.state.solver.eval(self.state.regs.fc3210)
             top = self.state.solver.eval(self.state.regs.ftop[2:0])
