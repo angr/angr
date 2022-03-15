@@ -9,7 +9,7 @@ from .... import options, BP_BEFORE
 from ....blade import Blade
 from ....annocfg import AnnotatedCFG
 from ....exploration_techniques import Slicecutor
-
+from ....utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
 
 if TYPE_CHECKING:
@@ -61,7 +61,7 @@ class MipsElfFastResolver(IndirectJumpResolver):
                 return resolved, resolved_targets
         return False, []
 
-    def _resolve(self, cfg, addr, func_addr, block, jumpkind, max_level):
+    def _resolve(self, cfg, addr, func_addr, block, jumpkind, max_level):  # pylint:disable=unused-argument
         """
         Resolves the indirect jump in MIPS ELF binaries where all external function calls are indexed using gp.
 
@@ -179,12 +179,17 @@ class MipsElfFastResolver(IndirectJumpResolver):
             if block_addr not in blocks_on_slice:
                 blocks_on_slice[block_addr] = project.factory.block(block_addr, cross_insn_opt=False)
             block = blocks_on_slice[block_addr]
-            stmt = block.vex.statements[block_stmt_idx]
-            if isinstance(stmt, pyvex.IRStmt.WrTmp) \
-                    and isinstance(stmt.data, pyvex.IRExpr.Get) \
-                    and stmt.data.offset == gp_offset:
-                gp_used = True
-                break
+            if block_stmt_idx == DEFAULT_STATEMENT:
+                if isinstance(block.vex.next, pyvex.IRExpr.Get) and block.vex.next.offset == gp_offset:
+                    gp_used = True
+                    break
+            else:
+                stmt = block.vex.statements[block_stmt_idx]
+                if isinstance(stmt, pyvex.IRStmt.WrTmp) \
+                        and isinstance(stmt.data, pyvex.IRExpr.Get) \
+                        and stmt.data.offset == gp_offset:
+                    gp_used = True
+                    break
         else:
             gp_used = False
 
