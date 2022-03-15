@@ -146,7 +146,7 @@ setup(
         'dpkt',
         'mulpyplexer',
         'networkx>=2.0',
-        'progressbar2',
+        'progressbar2>=4',
         'rpyc',
         'cffi>=1.14.0',
         _UNICORN,
