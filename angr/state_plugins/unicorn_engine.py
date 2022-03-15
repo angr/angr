@@ -382,7 +382,7 @@ def _locate_lib(module: str, library: str) -> str:
 def _load_native():
     if sys.platform == 'darwin':
         libfile = 'angr_native.dylib'
-    elif sys.platform in ('win32', 'cygwin'):
+    elif sys.platform in {'win32', 'cygwin'}:
         libfile = 'angr_native.dll'
     else:
         libfile = 'angr_native.so'
@@ -655,9 +655,12 @@ class Unicorn(SimStatePlugin):
             if not nonnull:
                 return None
             return min(nonnull)
-        self.concretization_threshold_memory = merge_nullable_min(self.concretization_threshold_memory, *(o.concretization_threshold_memory for o in others))
-        self.concretization_threshold_registers = merge_nullable_min(self.concretization_threshold_registers, *(o.concretization_threshold_registers for o in others))
-        self.concretization_threshold_instruction = merge_nullable_min(self.concretization_threshold_instruction, *(o.concretization_threshold_instruction for o in others))
+        self.concretization_threshold_memory = merge_nullable_min(self.concretization_threshold_memory,
+                                                    *(o.concretization_threshold_memory for o in others))
+        self.concretization_threshold_registers = merge_nullable_min(self.concretization_threshold_registers,
+                                                    *(o.concretization_threshold_registers for o in others))
+        self.concretization_threshold_instruction = merge_nullable_min(self.concretization_threshold_instruction,
+                                                        *(o.concretization_threshold_instruction for o in others))
 
         # these are sets of names of variables that should either always or never
         # be concretized
@@ -1231,7 +1234,7 @@ class Unicorn(SimStatePlugin):
         unicorn_obj.stop_reason = unicorn_obj.stop_details.stop_reason
         unicorn_obj.stop_message = STOP.get_stop_msg(unicorn_obj.stop_reason)
         if unicorn_obj.stop_reason in (STOP.symbolic_stop_reasons + STOP.unsupported_reasons) or \
-          unicorn_obj.stop_reason in (STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED):
+          unicorn_obj.stop_reason in {STOP.STOP_UNKNOWN_MEMORY_WRITE_SIZE, STOP.STOP_VEX_LIFT_FAILED}:
             unicorn_obj.stop_message += f". Block 0x{unicorn_obj.stop_details.block_addr:02x}(size: {unicorn_obj.stop_details.block_size})."
 
         # figure out why we stopped
@@ -1345,7 +1348,7 @@ class Unicorn(SimStatePlugin):
 
         # there's something we're not properly resetting for syscalls, so
         # we'll clear the state when they happen
-        if self.stop_reason not in (STOP.STOP_NORMAL, STOP.STOP_STOPPOINT):
+        if self.stop_reason not in {STOP.STOP_NORMAL, STOP.STOP_STOPPOINT}:
             # If succ_state is not None, reset its unicorn object too
             if succ_state:
                 succ_state.unicorn.delete_uc()
@@ -1436,7 +1439,7 @@ class Unicorn(SimStatePlugin):
                     sign = bool(val & 0x8000000000000000)
                     exponent = (val & 0x7FF0000000000000) >> 52
                     mantissa =  val & 0x000FFFFFFFFFFFFF
-                    if exponent not in (0, 0x7FF): # normal value
+                    if exponent not in {0, 0x7FF}: # normal value
                         exponent = exponent - 1023 + 16383
                         mantissa <<= 11
                         mantissa |= 0x8000000000000000  # set integer part bit, implicit to double
@@ -1598,7 +1601,7 @@ class Unicorn(SimStatePlugin):
             setattr(state.regs, r, v)
 
         # some architecture-specific register fixups
-        if state.arch.name in ('X86', 'AMD64'):
+        if state.arch.name in {'X86', 'AMD64'}:
             # update the eflags
             state.regs.eflags = state.solver.BVV(self.uc.reg_read(self._uc_const.UC_X86_REG_EFLAGS), state.arch.bits)
 
@@ -1628,7 +1631,7 @@ class Unicorn(SimStatePlugin):
                     mantissa, exponent = self.uc.reg_read(uc_offset)
                     sign = bool(exponent & 0x8000)
                     exponent = (exponent & 0x7FFF)
-                    if exponent not in (0, 0x7FFF): # normal value
+                    if exponent not in {0, 0x7FFF}: # normal value
                         exponent = exponent - 16383 + 1023
                         if exponent <= 0:   # underflow to zero
                             exponent = 0
