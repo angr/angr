@@ -422,7 +422,8 @@ def _load_native():
         _setup_prototype(h, 'activate_page', None, state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)
         _setup_prototype(h, 'set_last_block_details', None, state_t, ctypes.c_uint64, ctypes.c_int64, ctypes.c_int64)
         _setup_prototype(h, 'set_stops', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
-        _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p, ctypes.c_uint64)
+        _setup_prototype(h, 'cache_page', ctypes.c_bool, state_t, ctypes.c_uint64, ctypes.c_uint64, ctypes.c_char_p,
+                         ctypes.c_uint64)
         _setup_prototype(h, 'uncache_pages_touching_region', None, state_t, ctypes.c_uint64, ctypes.c_uint64)
         _setup_prototype(h, 'clear_page_cache', None, state_t)
         _setup_prototype(h, 'enable_symbolic_reg_tracking', None, state_t, VexArch, _VexArchInfo)
@@ -430,7 +431,8 @@ def _load_native():
         _setup_prototype(h, 'symbolic_register_data', None, state_t, ctypes.c_uint64, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
-        _setup_prototype(h, 'set_cgc_syscall_details', None, state_t, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint64)
+        _setup_prototype(h, 'set_cgc_syscall_details', None, state_t, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint32,
+                         ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
@@ -575,7 +577,8 @@ class Unicorn(SimStatePlugin):
         # Concrete bytes of open fds
         self.fd_bytes = {}
 
-        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
+        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped),
+                                        unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
 
     @SimStatePlugin.memo
@@ -681,7 +684,8 @@ class Unicorn(SimStatePlugin):
 
     def __setstate__(self, s):
         self.__dict__.update(s)
-        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped), unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
+        self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped),
+                                        unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._unicount = next(_unicounter)
         self._uc_state = None
         self.cache_key = hash(self)
@@ -762,7 +766,8 @@ class Unicorn(SimStatePlugin):
         arch = self.state.arch.qemu_name
         if arch == 'x86_64':
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
-            self.uc.hook_add(unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None, arg1=self._uc_const.UC_X86_INS_SYSCALL)
+            self.uc.hook_add(unicorn.UC_HOOK_INSN, self._hook_syscall_x86_64, None,
+                             arg1=self._uc_const.UC_X86_INS_SYSCALL)
         elif arch == 'i386':
             self.uc.hook_add(unicorn.UC_HOOK_INTR, self._hook_intr_x86, None, 1, 0)
         elif arch == 'mips':
@@ -993,7 +998,8 @@ class Unicorn(SimStatePlugin):
             # old-style mapping, do it via copy
             self.uc.mem_map(addr, 0x1000, perm)
             # huge hack. why doesn't ctypes let you pass memoryview as void*?
-            unicorn.unicorn._uc.uc_mem_write(self.uc._uch, addr, ctypes.cast(int(ffi.cast('uint64_t', ffi.from_buffer(data))), ctypes.c_void_p), len(data))
+            unicorn.unicorn._uc.uc_mem_write(self.uc._uch, addr,
+                ctypes.cast(int(ffi.cast('uint64_t', ffi.from_buffer(data))), ctypes.c_void_p), len(data))
             #self.uc.mem_write(addr, data)
             self._mapped += 1
             _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))), None)
@@ -1001,7 +1007,8 @@ class Unicorn(SimStatePlugin):
             # new-style mapping, do it directly
             self.uc.mem_map_ptr(addr, 0x1000, perm, int(ffi.cast('uint64_t', ffi.from_buffer(data))))
             self._mapped += 1
-            _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))), int(ffi.cast('unsigned long', ffi.from_buffer(data))))
+            _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))),
+                                     int(ffi.cast('unsigned long', ffi.from_buffer(data))))
 
 
     def _get_details_of_blocks_with_symbolic_instrs(self):
@@ -1236,7 +1243,8 @@ class Unicorn(SimStatePlugin):
                 raise SimUnicornError("Got STOP_NOSTART but a positive number of steps. This indicates a serious unicorn bug.")
 
         addr = state.solver.eval(state.ip)
-        l.info('finished emulation at %#x after %d steps: %s', addr, unicorn_obj.steps, STOP.name_stop(unicorn_obj.stop_reason))
+        l.info('finished emulation at %#x after %d steps: %s', addr, unicorn_obj.steps,
+               STOP.name_stop(unicorn_obj.stop_reason))
 
         # should this be in destroy?
         _UC_NATIVE.disable_symbolic_reg_tracking(self._uc_state)
@@ -1382,7 +1390,8 @@ class Unicorn(SimStatePlugin):
                 symbolic_reg_offsets = set(range(start, start + size))
                 # Process subregisters in decreasing order of their size so that smaller subregisters' taint status
                 # isn't clobbered by larger subregisters
-                subregs = sorted(self.state.arch.get_register_by_name(r).subregisters, key=lambda x: x[-1], reverse=True)
+                subregs = sorted(self.state.arch.get_register_by_name(r).subregisters, key=lambda x: x[-1],
+                                 reverse=True)
                 for subreg in subregs:
                     if not getattr(self.state.regs, subreg[0]).symbolic:
                         for subreg_offset in range(start + subreg[1], start + subreg[1] + subreg[2]):

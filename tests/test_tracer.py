@@ -2,9 +2,9 @@ import os
 import sys
 import logging
 
-import angr
-
 from common import bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
+
+import angr
 
 
 def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False, read_strategies=None,
@@ -13,7 +13,8 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False
     p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"])
 
     trace, magic, crash_mode, crash_addr = do_trace(p, test_name, stdin)
-    s = p.factory.entry_state(mode="tracing", stdin=angr.SimFileStream, flag_page=magic, add_options=add_options, remove_options=remove_options)
+    s = p.factory.entry_state(mode="tracing", stdin=angr.SimFileStream, flag_page=magic, add_options=add_options,
+                              remove_options=remove_options)
     if read_strategies is not None:
         s.memory.read_strategies = read_strategies
     if write_strategies is not None:
@@ -92,7 +93,8 @@ def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=No
 
 def test_recursion():
     blob = bytes.fromhex(
-        "00aadd114000000000000000200000001d0000000005000000aadd2a1100001d0000000001e8030000aadd21118611b3b3b3b3b3e3b1b1b1adb1b1b1b1b1b1118611981d8611"
+        "00aadd114000000000000000200000001d0000000005000000aadd2a1100001d0000000001e8030000aadd21118611b3b3b3b3b3e3b1b"
+        "1b1adb1b1b1b1b1b1118611981d8611"
     )
     fname = os.path.join(
         os.path.dirname(__file__), "..", "..", "binaries", "tests", "cgc", "NRFIN_00075"
@@ -110,7 +112,8 @@ def broken_cache_stall():
     # test a valid palindrome
     b = os.path.join(bin_location, "tests", "cgc", "CROMU_00071")
     blob = bytes.fromhex(
-        "0c0c492a53acacacacacacacacacacacacac000100800a0b690e0aef6503697d660a0059e20afc0a0a332f7d66660a0059e20afc0a0a332f7fffffff16fb1616162516161616161616166a7dffffff7b0e0a0a6603697d660a0059e21c"
+        "0c0c492a53acacacacacacacacacacacacac000100800a0b690e0aef6503697d660a0059e20afc0a0a332f7d66660a0059e20afc0a0a3"
+        "32f7fffffff16fb1616162516161616161616166a7dffffff7b0e0a0a6603697d660a0059e21c"
     )
 
     simgr, tracer = tracer_cgc(b, "tracer_cache_stall", blob)
@@ -119,8 +122,8 @@ def broken_cache_stall():
     crash_path = tracer.predecessors[-1]
     crash_state = simgr.crashed[0]
 
-    assert crash_path != None
-    assert crash_state != None
+    assert crash_path is not None
+    assert crash_state is not None
 
     # load it again
     simgr, tracer = tracer_cgc(b, "tracer_cache_stall", blob)
@@ -129,14 +132,15 @@ def broken_cache_stall():
     crash_path = tracer.predecessors[-1]
     crash_state = simgr.one_crashed
 
-    assert crash_path != None
-    assert crash_state != None
+    assert crash_path is not None
+    assert crash_state is not None
 
 
 @skip_if_not_linux
 def test_manual_recursion():
     b = os.path.join(bin_location, "tests", "cgc", "CROMU_00071")
-    blob = open(os.path.join(bin_location, "tests_data", "crash2731"), "rb").read()
+    with open(os.path.join(bin_location, "tests_data", "crash2731"), "rb") as fh:
+        blob = fh.read()
 
     simgr, tracer = tracer_cgc(b, "tracer_manual_recursion", blob)
     simgr.run()
@@ -144,8 +148,8 @@ def test_manual_recursion():
     crash_path = tracer.predecessors[-1]
     crash_state = simgr.one_crashed
 
-    assert crash_path != None
-    assert crash_state != None
+    assert crash_path is not None
+    assert crash_state is not None
 
 def test_cgc_receive_unicorn_native_interface():
     """
@@ -224,8 +228,8 @@ def test_cgc_se1_palindrome_raw():
 
 def test_d_flag_and_write_write_conflict_in_unicorn():
     """
-    Check if d flag is handled correctly in unicorn native interface and write-write conflicts do not occur when re-executing
-    symbolic instructions
+    Check if d flag is handled correctly in unicorn native interface and write-write conflicts do not occur when
+    re-executing symbolic instructions
     """
 
     binary = os.path.join(bin_location, "tests", "cgc", "CROMU_00008")
@@ -266,8 +270,8 @@ def test_empty_reexecute_block_remove_in_unicorn_native_interface():
         b"Choice: Enter Pickup Name: Choose what the kind of pizza\n1. Pizza Pie - The classic!\n"
         b"2. Pizza Sub - All the fun, on a bun\n3. Pizza Bowl - Our own twist\nChoice: Select Size\n1. Small\n"
         b"2. Medium\n3. Large\nChoice: Successfully added a new Pizza Pie!\nSelect an option:\n1. Add Toppings\n"
-        b"2. Remove Toppings\n3. Add Sauce\n4. Remove Sauce\n5. Finished With Pizza\nChoice: Successfully added pizza!\n"
-        b"1. Add another Pizza\n2. Quit\nChoice: 0. Cancel\n==================================================\n  "
+        b"2. Remove Toppings\n3. Add Sauce\n4. Remove Sauce\n5. Finished With Pizza\nChoice: Successfully added pizza!"
+        b"\n1. Add another Pizza\n2. Quit\nChoice: 0. Cancel\n==================================================\n  "
         b"Item #1. Classic Pizza Pie, Size: SMALL\n    Selected Toppings\n\tNone\n    Sauce on the side\n\tNone\n"
         b"--------------------------------------\n\t\tCalories: 1000\n\t\tCarbs   : 222\n\nPizza length... = 1\n\t\t"
         b"Estimated wait time: 36 minute(s)\n==================================================\nChoice: "
@@ -304,7 +308,13 @@ def test_symbolic_sized_receives():
 
 
 def test_allocation_base_continuity():
-    correct_out = b"prepare for a challenge\nb7fff000\nb7ffe000\nb7ffd000\nb7ffc000\nb7ffb000\nb7ffa000\nb7ff9000\nb7ff8000\nb7ff7000\nb7ff6000\nb7ff5000\nb7ff4000\nb7ff3000\nb7ff2000\nb7ff1000\nb7ff0000\nb7fef000\nb7fee000\nb7fed000\nb7fec000\ndeallocating b7ffa000\na: b7ffb000\nb: b7fff000\nc: b7ff5000\nd: b7feb000\ne: b7fe8000\ne: b7fa8000\na: b7ffe000\nb: b7ffd000\nc: b7ff7000\nd: b7ff6000\ne: b7ff3000\ne: b7f68000\nallocate: 3\na: b7fef000\n"
+    correct_out = (
+        b"prepare for a challenge\nb7fff000\nb7ffe000\nb7ffd000\nb7ffc000\nb7ffb000\nb7ffa000\nb7ff9000\nb7ff8000\n"
+        b"b7ff7000\nb7ff6000\nb7ff5000\nb7ff4000\nb7ff3000\nb7ff2000\nb7ff1000\nb7ff0000\nb7fef000\nb7fee000\n"
+        b"b7fed000\nb7fec000\ndeallocating b7ffa000\na: b7ffb000\nb: b7fff000\nc: b7ff5000\nd: b7feb000\ne: b7fe8000\n"
+        b"e: b7fa8000\na: b7ffe000\nb: b7ffd000\nc: b7ff7000\nd: b7ff6000\ne: b7ff3000\ne: b7f68000\nallocate: 3\n"
+        b"a: b7fef000\n"
+    )
 
     b = os.path.join(bin_location, "tests", "i386", "cgc_allocations")
 
@@ -436,8 +446,8 @@ def test_saving_dependencies_of_last_instruction_of_block_in_unicorn_native_inte
         bin_location, "tests_data", "cgc_povs", "NRFIN_00026_POV_00000.xml"
     )
     output_initial_bytes = (
-        b"Starting dissection...\n\n\n====New Packet====\n\n\n===rofl===\n\n\n===rachiometersuprachoroid===\n301478991\n"
-        b"String display will be handled in v4.\n1\nString display will be handled in v4.\n0\n1\n"
+        b"Starting dissection...\n\n\n====New Packet====\n\n\n===rofl===\n\n\n===rachiometersuprachoroid===\n301478991"
+        b"\nString display will be handled in v4.\n1\nString display will be handled in v4.\n0\n1\n"
         b"LV type will be handled in v4.\n3582705152\nString display will be handled in v4.\n"
         b"LV type will be handled in v4.\n190\n0\n===trolololo===\n"
     )
