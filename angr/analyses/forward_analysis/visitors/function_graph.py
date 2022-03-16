@@ -1,7 +1,5 @@
 from typing import List, Tuple
 
-import networkx
-
 from ....utils.graph import dfs_back_edges
 from ...cfg.cfg_utils import CFGUtils
 from .graph import GraphVisitor, NodeType
@@ -12,7 +10,7 @@ class FunctionGraphVisitor(GraphVisitor):
     :param knowledge.Function func:
     """
     def __init__(self, func, graph=None):
-        super(FunctionGraphVisitor, self).__init__()
+        super().__init__()
         self.function = func
 
         if graph is None:

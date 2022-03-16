@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict, Any, Tuple
+from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict, Tuple
 from collections import defaultdict
 
 from ....misc.ux import deprecated
@@ -124,7 +124,7 @@ class GraphVisitor(Generic[NodeType]):
             return None
 
         node = None
-        for idx in range(len(self._sorted_nodes)):
+        for idx in range(len(self._sorted_nodes)):  # pylint:disable=consider-using-enumerate
             node_ = self._sorted_nodes[idx]
             if node_ in self._pending_nodes:
                 if not self._pending_nodes[node_]:
@@ -133,9 +133,8 @@ class GraphVisitor(Generic[NodeType]):
                     del self._pending_nodes[node_]
                     del self._sorted_nodes[idx]
                     break
-                else:
-                    # try the next node
-                    continue
+                # try the next node
+                continue
             else:
                 node = node_
                 del self._sorted_nodes[idx]
