@@ -2156,23 +2156,28 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if callee_might_return:
             func_edges = [ ]
             if return_site is not None:
+                call_returning: Optional[bool] = None
                 if callee_function is not None:
-                    if self._is_call_returning(cfg_node, callee_function.addr):
-                        fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=True)
-                        func_edges.append(fakeret_edge)
-                        ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
-                        func_edges.append(ret_edge)
-
-                        # Also, keep tracing from the return site
-                        ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
-                                    src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
-                                    syscall=is_syscall, func_edges=func_edges)
-                        self._pending_jobs.add_job(ce)
-                        # register this job to this function
-                        self._register_analysis_job(current_function_addr, ce)
-                        # since the callee must return, we should let the pending_jobs be aware of it
-                        self._pending_jobs.add_returning_function(new_function_addr)
+                    call_returning = self._is_call_returning(cfg_node, callee_function.addr)
                 else:
+                    pass
+
+                if call_returning is True:
+                    fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=True)
+                    func_edges.append(fakeret_edge)
+                    ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
+                    func_edges.append(ret_edge)
+
+                    # Also, keep tracing from the return site
+                    ce = CFGJob(return_site, current_function_addr, 'Ijk_FakeRet', last_addr=addr, src_node=cfg_node,
+                                src_stmt_idx=stmt_idx, src_ins_addr=ins_addr, returning_source=new_function_addr,
+                                syscall=is_syscall, func_edges=func_edges)
+                    self._pending_jobs.add_job(ce)
+                    # register this job to this function
+                    self._register_analysis_job(current_function_addr, ce)
+                    # since the callee must return, we should let the pending_jobs be aware of it
+                    self._pending_jobs.add_returning_function(new_function_addr)
+                elif call_returning is None:
                     # HACK: We don't know where we are jumping.  Let's assume we fakeret to the
                     # next instruction after the block
                     # TODO: FIXME: There are arch-specific hints to give the correct ret site
@@ -4054,7 +4059,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             func.info['pc_reg'] = (pc_reg, addr)
                 if self.kb.functions.contains_addr(current_function_addr):
                     func = self.kb.functions.get_by_addr(current_function_addr)
-                    if 'pc_reg' in func.info:
+                    if not initial_regs and 'pc_reg' in func.info:
                         pc_reg, pc_reg_value = func.info['pc_reg']
                         initial_regs = [
                             (self.project.arch.registers[pc_reg][0],
@@ -4543,6 +4548,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         return None
 
     def _is_call_returning(self, callsite_cfgnode: CFGNode, callee_func_addr: int) -> Optional[bool]:
+        """
+        Determine if a function call is returning or not, with a special care for DYNAMIC_RET functions.
+
+        :param callsite_cfgnode:    The CFG node at the call site.
+        :param callee_func_addr:    Address of the function to be called.
+        :return:                    True if the call must return, False if the call never returns, or None if it cannot
+                                    be determined at this moment.
+        """
+
         if self.kb.functions.contains_addr(callee_func_addr):
             callee_func = self.kb.functions.get_by_addr(callee_func_addr)
         else:
@@ -4556,13 +4570,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 edges = list(callee_func.transition_graph.edges())
                 if len(edges) == 1:
                     target_func = edges[0][1]
-                    if isinstance(target_func, HookNode):
-                        return self._is_call_returning(callsite_cfgnode, target_func.addr)
-                    elif isinstance(target_func, Function):
-                        return self._is_call_returning(callsite_cfgnode, target_func.addr)
-                return True
-
-            return callee_func.returning
+                    if isinstance(target_func, (HookNode, Function)):
+                        if self.project.is_hooked(target_func.addr):
+                            hooker = self.project.hooked_by(target_func.addr)
+                            if hooker.DYNAMIC_RET:
+                                return self._is_call_returning(callsite_cfgnode, target_func.addr)
 
         if self.project.is_hooked(callee_func_addr):
             hooker = self.project.hooked_by(callee_func_addr)
@@ -4577,9 +4589,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     hooker.project = self.project
                     hooker.arch = self.project.arch
                     return hooker.dynamic_returns(blocks_ahead)
-                else:
-                    return not hooker.NO_RET
 
+        if callee_func is not None:
+            return callee_func.returning
         return None
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs): # pylint:disable=arguments-differ
