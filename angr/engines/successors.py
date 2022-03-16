@@ -57,11 +57,11 @@ class SimSuccessors:
         if self.processed:
             successor_strings = [ ]
             if len(self.flat_successors) != 0:
-                successor_strings.append("{} sat".format(len(self.flat_successors)))
+                successor_strings.append(f"{len(self.flat_successors)} sat")
             if len(self.unsat_successors) != 0:
-                successor_strings.append("{} unsat".format(len(self.unsat_successors)))
+                successor_strings.append(f"{len(self.unsat_successors)} unsat")
             if len(self.unconstrained_successors) != 0:
-                successor_strings.append("{} unconstrained".format(len(self.unconstrained_successors)))
+                successor_strings.append(f"{len(self.unconstrained_successors)} unconstrained")
 
             if len(successor_strings) == 0:
                 result = 'empty'
