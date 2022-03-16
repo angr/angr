@@ -5,7 +5,7 @@ import angr
 ######################################
 
 class error(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ,missing-class-docstring
 
     NO_RET = None
     DYNAMIC_RET = True
