@@ -1,4 +1,5 @@
-from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict
+from typing import TypeVar, Generic, List, Collection, Optional, Iterator, Set, Dict, Tuple
+from collections import defaultdict
 
 from ....misc.ux import deprecated
 from ....utils.algo import binary_insert
@@ -12,13 +13,18 @@ class GraphVisitor(Generic[NodeType]):
     returns successors of a CFGNode each time. This is the base class of all graph visitors.
     """
 
-    __slots__ = ('_sorted_nodes', '_nodes_set', '_node_to_index', '_reached_fixedpoint', )
+    __slots__ = ('_sorted_nodes', '_nodes_set', '_node_to_index', '_reached_fixedpoint', '_back_edges_by_src',
+                 '_back_edges_by_dst', '_pending_nodes', )
 
     def __init__(self):
         self._sorted_nodes: List[NodeType] = [ ]
         self._nodes_set: Set[NodeType] = set()
         self._node_to_index: Dict[NodeType, int] = { }
         self._reached_fixedpoint: Set[NodeType] = set()
+        self._back_edges_by_src: Optional[Dict[NodeType,Set[NodeType]]] = None
+        self._back_edges_by_dst: Optional[Dict[NodeType,Set[NodeType]]] = None
+
+        self._pending_nodes: Dict[NodeType,Set[NodeType]] = defaultdict(set)
 
     #
     # Interfaces
@@ -41,7 +47,6 @@ class GraphVisitor(Generic[NodeType]):
 
         :param node: The node to work with.
         :return:     A list of predecessors.
-        :rtype:      list
         """
 
         raise NotImplementedError()
@@ -52,9 +57,17 @@ class GraphVisitor(Generic[NodeType]):
 
         :param iterable nodes: A collection of nodes to sort. If none, all nodes in the graph will be used to sort.
         :return:               A list of sorted nodes.
-        :rtype:                list
         """
 
+        raise NotImplementedError()
+
+    def back_edges(self) -> List[Tuple[NodeType,NodeType]]:
+        """
+        Get a list of back edges. This function is optional. If not overriden, the traverser cannot achieve an optimal
+        graph traversal order.
+
+        :return:                A list of back edges (source -> destination).
+        """
         raise NotImplementedError()
 
     #
@@ -98,6 +111,8 @@ class GraphVisitor(Generic[NodeType]):
             binary_insert(self._sorted_nodes, n, lambda elem: self._node_to_index[elem])
             self._nodes_set.add(n)
 
+        self._populate_back_edges()
+
     def next_node(self) -> Optional[NodeType]:
         """
         Get the next node to visit.
@@ -108,8 +123,39 @@ class GraphVisitor(Generic[NodeType]):
         if not self._sorted_nodes:
             return None
 
-        node = self._sorted_nodes.pop(0)
-        self._nodes_set.remove(node)
+        node = None
+        for idx in range(len(self._sorted_nodes)):  # pylint:disable=consider-using-enumerate
+            node_ = self._sorted_nodes[idx]
+            if node_ in self._pending_nodes:
+                if not self._pending_nodes[node_]:
+                    # this pending node is cleared - take it
+                    node = node_
+                    del self._pending_nodes[node_]
+                    del self._sorted_nodes[idx]
+                    break
+                # try the next node
+                continue
+
+            node = node_
+            del self._sorted_nodes[idx]
+            break
+
+        if node is None:
+            # all nodes are pending... we will just pick the first one
+            node = self._sorted_nodes.pop(0)
+
+        self._nodes_set.discard(node)
+
+        #  check if this node should be added to pending
+        if self._back_edges_by_dst and node in self._back_edges_by_dst:
+            for back_edge_src in self._back_edges_by_dst[node]:
+                self._pending_nodes[node].add(back_edge_src)
+
+        # check if this node is being pended on by any other node
+        if self._back_edges_by_src and node in self._back_edges_by_src:
+            for back_edge_dst in self._back_edges_by_src[node]:
+                self._pending_nodes[back_edge_dst].discard(node)
+
         return node
 
     def all_successors(self, node: NodeType, skip_reached_fixedpoint=False) -> Set[NodeType]:
@@ -175,3 +221,19 @@ class GraphVisitor(Generic[NodeType]):
         """
 
         self._reached_fixedpoint.add(node)
+
+    #
+    # Private methods
+    #
+
+    def _populate_back_edges(self):
+        try:
+            back_edges = self.back_edges()
+        except NotImplementedError:
+            return
+
+        self._back_edges_by_src = defaultdict(set)
+        self._back_edges_by_dst = defaultdict(set)
+        for src, dst in back_edges:
+            self._back_edges_by_src[src].add(dst)
+            self._back_edges_by_dst[dst].add(src)
