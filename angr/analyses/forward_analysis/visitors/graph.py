@@ -135,10 +135,10 @@ class GraphVisitor(Generic[NodeType]):
                     break
                 # try the next node
                 continue
-            else:
-                node = node_
-                del self._sorted_nodes[idx]
-                break
+
+            node = node_
+            del self._sorted_nodes[idx]
+            break
 
         if node is None:
             # all nodes are pending... we will just pick the first one
