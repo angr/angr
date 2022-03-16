@@ -2197,7 +2197,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-metho
         """
         for func in self.kb.functions.values():
             graph = func.transition_graph
-            all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return_from_call']
+            all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data['type'] == 'return']
             for return_from_call_edge in all_return_edges:
                 callsite_block_addr, return_to_addr = return_from_call_edge
                 call_func_addr = func.get_call_target(callsite_block_addr)
