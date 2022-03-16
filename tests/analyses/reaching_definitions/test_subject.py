@@ -1,6 +1,8 @@
 from unittest import mock
 import unittest
 
+import networkx
+
 import ailment
 
 from archinfo.arch_x86 import ArchX86
@@ -47,7 +49,7 @@ class TestSubject(unittest.TestCase):
     @mock.patch.object(FunctionGraphVisitor, 'sort_nodes')
     def test_when_instanciated_with_a_function_need_other_attributes(self, _, __):
         function = _a_mock_function(0x42, 'function_name')
-        func_graph = 'mock_func_graph'
+        func_graph = networkx.DiGraph()
         cc = 'mock_cc'
 
         subject = Subject(function, func_graph, cc)
@@ -68,3 +70,7 @@ class TestSubject(unittest.TestCase):
         subject = Subject(block)
         with self.assertRaises(TypeError):
             _ = subject.func_graph
+
+
+if __name__ == "__main__":
+    unittest.main()
