@@ -71,9 +71,10 @@ class SimSuccessors:
             result = 'failure'
 
         if isinstance(self.addr, int):
-            return f'<{self.description} from {addr_display:#x}: {result}>'
+            return f'<{self.description} from {self.addr:#x}: {result}>'
         else:
-            return f'<{self.description} from {addr_display}: {result}>'
+            return f'<{self.description} from {self.addr}: {result}>'
+
     @property
     def is_empty(self):
         return not self.all_successors and not self.flat_successors and not self.unsat_successors and \
