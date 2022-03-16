@@ -2929,6 +2929,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # TODO: get a better estimate of the function address
             if jump.type == IndirectJumpType.Vtable:
                 target_func_addr = addr
+                self.kb.functions.function(target_func_addr, create=True)  # make sure the target function exists
             else:
                 target_func_addr = jump.func_addr if not to_outside else addr
             func_edge = FunctionTransitionEdge(self._nodes[source_addr], addr, jump.func_addr, to_outside=to_outside,
@@ -4541,7 +4542,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         return stmt2.data.args[1].con.value
         return None
 
-    def _is_call_returning(self, callsite_cfgnode: CFGNode, callee_func_addr: int) -> bool:
+    def _is_call_returning(self, callsite_cfgnode: CFGNode, callee_func_addr: int) -> Optional[bool]:
         if self.kb.functions.contains_addr(callee_func_addr):
             callee_func = self.kb.functions.get_by_addr(callee_func_addr)
         else:
@@ -4561,6 +4562,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         return self._is_call_returning(callsite_cfgnode, target_func.addr)
                 return True
 
+            return callee_func.returning
+
         if self.project.is_hooked(callee_func_addr):
             hooker = self.project.hooked_by(callee_func_addr)
             if hooker is not None:
@@ -4577,7 +4580,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 else:
                     return not hooker.NO_RET
 
-        return True
+        return None
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs): # pylint:disable=arguments-differ
         kwargs['extra_stop_points'] = set(self._known_thunks)
