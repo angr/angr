@@ -69,9 +69,10 @@ class SimSuccessors:
                 result = ' '.join(successor_strings)
         else:
             result = 'failure'
+        addr_display = hex(self.addr) if isinstance(self.addr, int) else self.addr
         if isinstance(self.initial_state.arch, ArchSoot):
-            return '<{} from {}: {}>'.format(self.description, self.addr, result)
-        return '<{} from {}: {}>'.format(self.description, self.addr, result)
+            return '<{} from {}: {}>'.format(self.description, addr_display, result)
+        return '<{} from {}: {}>'.format(self.description, addr_display, result)
 
     @property
     def is_empty(self):
