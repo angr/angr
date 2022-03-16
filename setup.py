@@ -1,4 +1,4 @@
-# pylint: disable=no-name-in-module,import-error,unused-variable
+# pylint: disable=no-name-in-module,import-error,unused-variable,missing-class-docstring
 import os
 import sys
 import subprocess
@@ -67,7 +67,7 @@ def _clean_native():
 class build_ext(st_build_ext):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
-        super().run(self, *args)
+        super().run(*args)
 
 class clean_native(Command):
     user_options = []
