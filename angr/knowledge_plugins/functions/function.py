@@ -667,7 +667,7 @@ class Function(Serializable):
         elif self.is_simprocedure:
             hooker = self.project.hooked_by(self.addr)
         if hooker:
-            if hasattr(hooker, 'DYNAMIC_RET'):
+            if hasattr(hooker, 'DYNAMIC_RET') and hooker.DYNAMIC_RET:
                 return True
             elif hasattr(hooker, 'NO_RET'):
                 return not hooker.NO_RET
