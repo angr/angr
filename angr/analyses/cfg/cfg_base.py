@@ -2067,7 +2067,7 @@ class CFGBase(Analysis):
             self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet,
                                            syscall=is_syscall, ins_addr=ins_addr, stmt_idx=stmt_idx)
 
-            if dst_function.returning:
+            if dst_function.returning and fakeret_node is not None:
                 returning_target = src.addr + src.size
                 if returning_target not in blockaddr_to_function:
                     if returning_target not in known_functions:

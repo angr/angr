@@ -666,8 +666,11 @@ class Function(Serializable):
             hooker = self.project.simos.syscall_from_addr(self.addr)
         elif self.is_simprocedure:
             hooker = self.project.hooked_by(self.addr)
-        if hooker and hasattr(hooker, 'NO_RET'):
-            return not hooker.NO_RET
+        if hooker:
+            if hasattr(hooker, 'DYNAMIC_RET') and hooker.DYNAMIC_RET:
+                return True
+            elif hasattr(hooker, 'NO_RET'):
+                return not hooker.NO_RET
 
         # Cannot determine
         return None

@@ -128,8 +128,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 func_addr = self._func_queue.get()
                 cc, proto, _ = self._analyze_core(func_addr)
 
+                func = self.kb.functions.get_by_addr(func_addr)
                 if cc is not None or proto is not None:
-                    func = self.kb.functions.get_by_addr(func_addr)
                     func.calling_convention = cc
                     func.prototype = proto
                     func.is_prototype_guessed = True
@@ -140,7 +140,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 idx += 1
 
                 percentage = idx / total_funcs * 100.0
-                self._update_progress(percentage)
+                self._update_progress(percentage, text=f"{idx}/{total_funcs} - {func.demangled_name}")
                 if self._low_priority:
                     self._release_gil(idx, 10, 0.000001)
 

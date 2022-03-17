@@ -890,6 +890,37 @@ class TestCfgfast(unittest.TestCase):
         assert len(n.successors[0].successors[0].successors) > 0
         assert n.successors[0].successors[0].successors[0].addr == 0x103D4
 
+    def test_error_returning(self):
+
+        # error() is a great function: its returning depends on the value of the first argument...
+        path = os.path.join(test_location, "x86_64", "mv_-O2")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+
+        error_not_returning = [
+            0x4030d4,
+            0x403100,
+            0x40313c,
+            0x4031f5,
+            0x40348a,
+        ]
+
+        error_returning = [
+            0x403179,
+            0x4031a2,
+            0x403981,
+            0x403e30,
+            0x40403b
+        ]
+
+        for error_site in error_not_returning:
+            node = cfg.model.get_any_node(error_site)
+            assert len(list(cfg.model.get_successors(node, excluding_fakeret=False))) == 1  # only the call successor
+
+        for error_site in error_returning:
+            node = cfg.model.get_any_node(error_site)
+            assert len(list(cfg.model.get_successors(node, excluding_fakeret=False))) == 2  # both a call and a fakeret
+
     def test_kepler_server_armhf(self):
         binary_path = os.path.join(test_location, "armhf", "kepler_server")
         proj = angr.Project(binary_path, auto_load_libs=False)

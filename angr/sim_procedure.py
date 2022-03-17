@@ -43,6 +43,8 @@ class SimProcedure:
     The following class variables should be set if necessary when implementing a new SimProcedure:
 
     :cvar NO_RET:           Set this to true if control flow will never return from this function
+    :cvar DYNAMIC_RET:      Set this to true if whether the control flow returns from this function or not depends on
+                            the context (e.g., libc's error() call). Must implement dynamic_returns() method.
     :cvar ADDS_EXITS:       Set this to true if you do any control flow other than returning
     :cvar IS_FUNCTION:      Does this procedure simulate a function? True by default
     :cvar ARGS_MISMATCH:    Does this procedure have a different list of arguments than what is provided in the
@@ -283,6 +285,7 @@ class SimProcedure:
     #
 
     NO_RET = False
+    DYNAMIC_RET = False
     ADDS_EXITS = False
     IS_FUNCTION = True
     ARGS_MISMATCH = False
@@ -310,6 +313,19 @@ class SimProcedure:
 
         # This SimProcedure does not add any new exit
         return []
+
+    def dynamic_returns(self, blocks, **kwargs) -> bool:  # pylint:disable=unused-argument
+        """
+        Determines if a call to this function returns or not by performing static analysis and heuristics.
+
+        :param blocks:  Blocks that are executed before reaching this SimProcedure.
+        :return:        True if the call returns, False otherwise.
+        """
+
+        if self.DYNAMIC_RET:
+            raise SimProcedureError(f"dynamic_returns() is not implemented for {self}")
+
+        return True
 
     #
     # misc properties
