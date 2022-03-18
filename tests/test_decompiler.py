@@ -11,7 +11,7 @@ from angr.analyses import (
     Decompiler,
 )
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
-l = logging.logger(__name__)
+l = logging.Logger(__name__)
 
 
 def test_decompiling_all_x86_64():
