@@ -724,6 +724,8 @@ def test_decompilation_x86_64_stack_arguments():
     # option.
     p.kb.structured_code.cached.clear()
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model, options=[(opt, True)])
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     lines = code.split("\n")
