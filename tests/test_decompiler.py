@@ -25,6 +25,7 @@ def test_decompiling_all_x86_64():
             continue
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+        l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_babypwn_i386():
@@ -40,6 +41,7 @@ def test_decompiling_babypwn_i386():
             continue
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+        l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_loop_x86_64():
@@ -50,6 +52,7 @@ def test_decompiling_loop_x86_64():
     f = cfg.functions['loop']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     # it should be properly structured to a while loop without conditional breaks
     assert "break" in dec.codegen.text
 
@@ -63,6 +66,7 @@ def test_decompiling_all_i386():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_aes_armel():
@@ -78,6 +82,7 @@ def test_decompiling_aes_armel():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_mips_allcmps():
@@ -89,6 +94,7 @@ def test_decompiling_mips_allcmps():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_linked_list():
@@ -100,6 +106,7 @@ def test_decompiling_linked_list():
     f = cfg.functions['sum']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_dir_gcc_O0_free_ent():
@@ -111,6 +118,7 @@ def test_decompiling_dir_gcc_O0_free_ent():
     f = cfg.functions['free_ent']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_dir_gcc_O0_main():
@@ -124,6 +132,7 @@ def test_decompiling_dir_gcc_O0_main():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_dir_gcc_O0_emit_ancillary_info():
@@ -135,6 +144,7 @@ def test_decompiling_dir_gcc_O0_emit_ancillary_info():
     f = cfg.functions['emit_ancillary_info']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_switch0_x86_64():
@@ -148,6 +158,7 @@ def test_decompiling_switch0_x86_64():
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
 
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     code = dec.codegen.text
     assert "switch" in code
     assert "case 1:" in code
@@ -176,6 +187,7 @@ def test_decompiling_switch1_x86_64():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     code = dec.codegen.text
     assert "switch" in code
     assert "case 1:" in code
@@ -205,6 +217,7 @@ def test_decompiling_switch2_x86_64():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     code = dec.codegen.text
     assert "switch" in code
     assert "case 1:" in code
@@ -239,6 +252,7 @@ def test_decompiling_true_x86_64_0():
     f = cfg.functions[0x4048c0]
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     code = dec.codegen.text
     assert "switch" in code
     assert "case" in code
@@ -258,6 +272,8 @@ def test_decompiling_true_x86_64_1():
 
     f = cfg.functions[0x404dc0]
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
+    assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     code: str = dec.codegen.text
 
     # constant propagation was failing. see https://github.com/angr/angr/issues/2659
@@ -284,6 +300,7 @@ def test_decompiling_true_a_x86_64_0():
     f = cfg.functions[0x401e60]
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
     assert dec.codegen.text.count("switch (") == 3  # there are three switch-cases in total
 
@@ -304,6 +321,7 @@ def test_decompiling_true_a_x86_64_1():
     f = cfg.functions[0x404410]
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_true_1804_x86_64():
@@ -318,6 +336,7 @@ def test_decompiling_true_1804_x86_64():
     f = cfg.functions["usage"]
     dec = p.analyses.Decompiler(f, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
 
 def test_decompiling_true_mips64():
@@ -332,6 +351,7 @@ def test_decompiling_true_mips64():
     f = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
     # make sure strings exist
     assert '"coreutils"' in dec.codegen.text
     assert '"/usr/local/share/locale"' in dec.codegen.text
@@ -358,8 +378,8 @@ def test_decompiling_1after909_verify_password():
     f.calling_convention = cca.cc
     f.prototype = cca.prototype
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
-    if dec.codegen is None:
-        assert False, "Failed to decompile function %r." % f
+    assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
     code = dec.codegen.text
     assert "stack_base" not in code, "Some stack variables are not recognized"
@@ -401,6 +421,7 @@ def test_decompiling_1after909_doit():
     ]
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=optimization_passes)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
+    l.debug("Decompiled function %s\n %s", repr(f), dec.codegen.text)
 
     code = dec.codegen.text
     # with EagerReturnSimplifier applied, there should be no goto!
@@ -436,6 +457,7 @@ def test_decompiling_libsoap():
     func = cfg.functions[0x41d000]
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
 
 
 def test_decompiling_no_arguments_in_variable_list():
@@ -450,6 +472,8 @@ def test_decompiling_no_arguments_in_variable_list():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     argc_name = " a0"  # update this variable once the decompiler picks up argument names from the common definition of
@@ -480,6 +504,7 @@ def test_decompiling_strings_local_strlen():
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
 
     code = dec.codegen.text
     # Make sure argument a0 is correctly typed to char*
@@ -501,6 +526,7 @@ def test_decompiling_strings_local_strcat():
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
 
     code = dec.codegen.text
     # Make sure argument a0 is correctly typed to char*
@@ -530,6 +556,7 @@ def test_decompiling_strings_local_strcat_with_local_strlen():
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
     assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
 
     code = dec.codegen.text
     # Make sure argument a0 is correctly typed to char*
@@ -547,6 +574,9 @@ def test_decompilation_call_expr_folding():
     func_0 = cfg.functions['strlen_should_fold']
     opt = [ o for o in angr.analyses.decompiler.decompilation_options.options if o.param == "remove_dead_memdefs" ][0]
     dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=[(opt, True)])
+    assert dec.codegen is not None, "Failed to decompile function %r." % func_0
+    l.debug("Decompiled function %s\n %s", repr(func_0), dec.codegen.text)
+
     code = dec.codegen.text
     m = re.search(r"v(\d+) = \(int\)strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
     assert m is not None, "The result of strlen() should be directly assigned to a stack " \
@@ -574,6 +604,9 @@ def test_decompilation_call_expr_folding_mips64_true():
 
     func_0 = cfg.functions['version_etc']
     dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func_0
+    l.debug("Decompiled function %s\n %s", repr(func_0), dec.codegen.text)
+
     code = dec.codegen.text
     assert "version_etc_va(" in code
 
@@ -589,6 +622,9 @@ def test_decompilation_call_expr_folding_x8664_calc():
 
     func_0 = cfg.functions['main']
     dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func_0
+    l.debug("Decompiled function %s\n %s", repr(func_0), dec.codegen.text)
+
     code = dec.codegen.text
 
     assert "root(" in code
@@ -611,6 +647,8 @@ def test_decompilation_excessive_condition_removal():
     func = cfg.functions[0x100003890]
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     code = code.replace(" ", "").replace("\n", "")
@@ -627,6 +665,9 @@ def test_decompilation_excessive_goto_removal():
     func = cfg.functions[0x100003890]
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
+
     code = dec.codegen.text
 
     assert "goto" not in code
@@ -642,6 +683,8 @@ def test_decompilation_switch_case_structuring_with_removed_nodes():
 
     func = cfg.functions["build_date"]
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     n = code.count("switch")
@@ -660,6 +703,8 @@ def test_decompilation_x86_64_stack_arguments():
 
     # no dead memdef removal
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     lines = code.split("\n")
@@ -702,6 +747,8 @@ def test_decompiling_amp_challenge03_arm():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     # make sure there are no empty code blocks
@@ -718,6 +765,8 @@ def test_decompiling_fauxware_mipsel():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     # The function calls must be correctly decompiled
@@ -739,6 +788,8 @@ def test_stack_canary_removal_x8664_extra_exits():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     # We should not find "__stack_chk_fail" in the code
@@ -755,6 +806,8 @@ def test_ifelseif_x8664():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     assert code.count("else if") == 3
@@ -768,6 +821,8 @@ def test_decompiling_missing_function_call():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     # the call to fileno() should not go missing
@@ -790,6 +845,8 @@ def test_decompiling_morton_my_message_callback():
     func = cfg.functions['my_message_callback']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     # we should not propagate generate_random() calls into function arguments without removing the original call
@@ -808,6 +865,8 @@ def test_decompiling_morton_lib_handle__suback():
     p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
 
     func = cfg.functions.function(name='handle__suback', plt=False)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
     code = dec.codegen.text
@@ -824,6 +883,8 @@ def test_decompiling_newburry_main():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     # return statements should not be wrapped into a for statement
@@ -839,6 +900,8 @@ def test_single_instruction_loop():
     func = cfg.functions['main']
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     code_without_spaces = code.replace(" ", "").replace("\n", "")
@@ -859,6 +922,8 @@ def test_simple_strcpy():
 
     f = p.kb.functions['simple_strcpy']
     d = p.analyses.Decompiler(f, cfg=cfg.model)
+    assert d.codegen is not None, "Failed to decompile function %r." % f
+    l.debug("Decompiled function %s\n %s", repr(f), d.codegen.text)
     dw = d.codegen.cfunc.statements.statements[1]
     assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
     stmts = dw.body.statements
@@ -879,6 +944,8 @@ def test_decompiling_nl_i386_pie():
 
     f = p.kb.functions['usage']
     d = p.analyses.Decompiler(f, cfg=cfg.model)
+    assert d.codegen is not None, "Failed to decompile function %r." % f
+    l.debug("Decompiled function %s\n %s", repr(f), d.codegen.text)
 
     assert '"Usage: %s [OPTION]... [FILE]...\\n"' in d.codegen.text
     assert '"Write each FILE to standard output, with line numbers added.\\nWith no FILE, or when FILE is -,' \
@@ -895,6 +962,8 @@ def test_decompiling_x8664_cvs():
 
     f = p.kb.functions['main']
     d = p.analyses.Decompiler(f, cfg=cfg.model)
+    assert d.codegen is not None, "Failed to decompile function %r." % f
+    l.debug("Decompiled function %s\n %s", repr(f), d.codegen.text)
 
     # at the very least, it should decompile within a reasonable amount of time...
     # the switch-case must be recovered
