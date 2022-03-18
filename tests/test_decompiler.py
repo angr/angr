@@ -21,7 +21,7 @@ def test_decompiling_all_x86_64():
     cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
     for f in cfg.functions.values():
         if f.is_simprocedure:
-            l.debug("Skipping SimProcedure %s." % repr(f))
+            l.debug("Skipping SimProcedure %s.", repr(f))
             continue
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
@@ -35,7 +35,7 @@ def test_decompiling_babypwn_i386():
     cfg = p.analyses[CFGFast].prep()(normalize=True, data_references=True)
     for f in cfg.functions.values():
         if f.is_simprocedure:
-            l.debug("Skipping SimProcedure %s." % repr(f))
+            l.debug("Skipping SimProcedure %s.", repr(f))
             continue
         if f.addr not in (0x8048a71, 0x8048c6b):
             continue
