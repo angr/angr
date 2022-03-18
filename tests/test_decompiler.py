@@ -865,10 +865,10 @@ def test_decompiling_morton_lib_handle__suback():
     p.analyses[CompleteCallingConventionsAnalysis].prep()(recover_variables=True)
 
     func = cfg.functions.function(name='handle__suback', plt=False)
-    assert dec.codegen is not None, "Failed to decompile function %r." % func
-    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
 
     dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
+    assert dec.codegen is not None, "Failed to decompile function %r." % func
+    l.debug("Decompiled function %s\n %s", repr(func), dec.codegen.text)
     code = dec.codegen.text
 
     assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
