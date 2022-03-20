@@ -628,7 +628,7 @@ class SimulationManager:
                 [x.func_addr for x in state.callstack],
                 set(state.posix.fd) if state.has_plugin('posix') else None)
 
-    def merge(self, merge_func=None, merge_key=None, stash='active'):
+    def merge(self, merge_func=None, merge_key=None, stash='active', prune=True):
         """
         Merge the states in a given stash.
 
@@ -638,11 +638,13 @@ class SimulationManager:
         :param merge_key:   If provided, should be a function that takes a state and returns a key that will compare
                             equal for all states that are allowed to be merged together, as a first aproximation.
                             By default: uses PC, callstack, and open file descriptors.
+        :param prune:       Whether to prune the stash prior to merging it
 
         :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        self.prune(from_stash=stash)
+        if prune:
+            self.prune(from_stash=stash)
         to_merge = self._fetch_states(stash=stash)
         not_to_merge = []
         if merge_key is None: merge_key = self._merge_key
