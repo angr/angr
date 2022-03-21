@@ -363,6 +363,12 @@ class SimulationManager:
             pre_errored = len(self._errored)
 
             successors = self.step_state(state, successor_func=successor_func, **run_args)
+
+            # add all active successors to state_hierarchy
+            if self._hierarchy and None in successors:
+                for s in successors[None]:
+                    self._hierarchy.add_state(s)
+
             # handle degenerate stepping cases here. desired behavior:
             # if a step produced only unsat states, always add them to the unsat stash since this usually indicates a bug
             # if a step produced sat states and save_unsat is False, drop the unsats

@@ -1,5 +1,4 @@
 import logging
-import weakref
 import networkx
 import itertools
 
@@ -15,43 +14,42 @@ class StateHierarchy(object):
         self._graph = networkx.DiGraph()
         self._leaves = set() # nodes with no children
         self._twigs = set() # nodes with one child
-        self._weakref_cache = {} # map from object id to weakref
-        self._reverse_weakref_cache = {} # map from weakref to object id
+        self._ref_cache = {} # map from object id to ref
+        self._reverse_ref_cache = {} # map from ref to object id
 
     def __getstate__(self):
-        histories = [ h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
+        histories = [ h for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
         return (histories,)
 
     def __setstate__(self, s):
         self._graph = networkx.DiGraph()
         self._leaves = set()
         self._twigs = set()
-        self._weakref_cache = {}
-        self._reverse_weakref_cache = {}
+        self._ref_cache = {}
+        self._reverse_ref_cache = {}
 
         nodes = s[0]
         for n in nodes:
             self.add_history(n)
 
     def get_ref(self, obj):
-        if id(obj) not in self._weakref_cache:
-            ref = weakref.ref(obj, self.clear_ref)
-            self._weakref_cache[id(obj)] = ref
-            self._reverse_weakref_cache[ref] = id(obj)
-            return ref
+        if id(obj) not in self._ref_cache:
+            self._ref_cache[id(obj)] = obj
+            self._reverse_ref_cache[obj] = id(obj)
+            return obj
         else:
-            return self._weakref_cache[id(obj)]
+            return self._ref_cache[id(obj)]
 
     def clear_ref(self, ref):
-        if ref not in self._reverse_weakref_cache:
-            l.error("Cleaning mystery weakref %s", ref)
+        if ref not in self._reverse_ref_cache:
+            l.error("Cleaning mystery ref %s", ref)
             return
 
         self._remove_history(ref)
 
         # TODO: this nonsense is very much not thread safe
-        del self._weakref_cache[self._reverse_weakref_cache[ref]]
-        del self._reverse_weakref_cache[ref]
+        del self._ref_cache[self._reverse_ref_cache[ref]]
+        del self._reverse_ref_cache[ref]
 
     #
     # Graph management
@@ -71,7 +69,7 @@ class StateHierarchy(object):
 
         self._leaves.discard(h)
         self._twigs.discard(h)
-        hh = h()
+        hh = h
         if hh is not None:
             hh.demote()
 
@@ -126,10 +124,10 @@ class StateHierarchy(object):
         return nodes
 
     def history_successors(self, h):
-        return [ ref() for ref in self._graph.successors(self.get_ref(h)) ]
+        return [ ref for ref in self._graph.successors(self.get_ref(h)) ]
 
     def history_predecessors(self, h):
-        return [ ref() for ref in self._graph.predecessors(self.get_ref(h)) ]
+        return [ ref for ref in self._graph.predecessors(self.get_ref(h)) ]
 
     def history_contains(self, h):
         return self.get_ref(h) in self._graph
@@ -140,7 +138,7 @@ class StateHierarchy(object):
 
     def _find_root_unreachable(self, h):
         lineage = self.lineage(h)
-        if len(lineage) == 0 or lineage[-1]().reachable():
+        if len(lineage) == 0 or lineage[-1].reachable():
             return h
 
         good = 0
@@ -151,13 +149,13 @@ class StateHierarchy(object):
             cur = (bad+good)//2
 
             if cur == good or cur == bad:
-                if lineage[bad]().reachable():
+                if lineage[bad].reachable():
                     bad += 1
 
                 root = lineage[bad]
                 l.debug("... returning %d (%s)", bad, root)
                 return root
-            elif lineage[cur]().reachable():
+            elif lineage[cur].reachable():
                 l.debug("... %d is reachable", cur)
                 good = cur
             else:
@@ -171,9 +169,9 @@ class StateHierarchy(object):
 
         all_children = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))
         for n in all_children:
-            n()._satisfiable = False
-            if n().state is not None:
-                n().state.add_constraints(claripy.false)
+            n._satisfiable = False
+            if n.state is not None:
+                n.state.add_constraints(claripy.false)
         self._graph.remove_nodes_from(all_children)
 
     def unreachable_state(self, state):
@@ -210,7 +208,7 @@ class StateHierarchy(object):
             if len(intersection) > 1:
                 return (
                     [ s for s in states if self.get_ref(s.history) in intersection ],
-                    n(),
+                    n,
                     [ s for s in states if self.get_ref(s.history) not in intersection ]
                 )
 
