@@ -36,3 +36,4 @@ class sysinfo(angr.SimProcedure):
                 'mem_unit': 13
         }
         sysinfo_ty.with_arch(self.arch).store(self.state, info, value)
+        return 0
