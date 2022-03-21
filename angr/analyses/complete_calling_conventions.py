@@ -3,7 +3,6 @@ import itertools
 import queue
 import threading
 import time
-import platform
 import logging
 
 import claripy
