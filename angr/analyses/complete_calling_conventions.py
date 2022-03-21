@@ -3,11 +3,11 @@ import itertools
 import queue
 import threading
 import time
-import multiprocessing as mp
 import logging
 
 import claripy
 
+from ..utils.mp import mp_context
 from ..knowledge_plugins.cfg import CFGModel
 from ..analyses.cfg import CFGUtils
 from . import Analysis, register_analysis, VariableRecoveryFast, CallingConventionAnalysis
@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
 _l = logging.getLogger(name=__name__)
+
+_mp_context = mp_context()
 
 
 class CompleteCallingConventionsAnalysis(Analysis):
@@ -65,9 +67,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
         self._results = [ ]
         if workers > 0:
-            self._func_queue = mp.Queue()
-            self._results = mp.Queue()
-            self._func_queue_lock = mp.Lock()
+            self._func_queue = _mp_context.Queue()
+            self._results = _mp_context.Queue()
+            self._func_queue_lock = _mp_context.Lock()
         else:
             self._func_queue = queue.Queue()
             self._func_queue_lock = threading.Lock()
@@ -151,7 +153,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
             # spawn workers to perform the analysis
             with self._func_queue_lock:
-                procs = [mp.Process(target=self._worker_routine, daemon=True) for _ in range(self._workers)]
+                procs = [_mp_context.Process(target=self._worker_routine, daemon=True) for _ in range(self._workers)]
                 for proc_idx, proc in enumerate(procs):
                     self._update_progress(0, text=f"Spawning worker {proc_idx}...")
                     proc.start()
