@@ -204,7 +204,7 @@ class RegionIdentifier(Analysis):
             self._start_node = self._get_start_node(graph)
 
             # Start from loops
-            for node in self._loop_headers:
+            for node in reversed(self._loop_headers):
                 if node in structured_loop_headers:
                     continue
                 region = self._make_cyclic_region(node, graph)
