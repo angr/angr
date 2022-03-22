@@ -134,8 +134,11 @@ class __libc_start_main(angr.SimProcedure):
 
         # TODO: __cxa_atexit calls for various at-exit needs
 
-        self.call(self.init, (self.argc[31:0], self.argv, self.envp), 'after_init',
-            prototype = 'int main(int argc, char **argv, char **envp)')
+        if not self.state.solver.is_true(self.init == 0):
+            self.call(self.init, (self.argc[31:0], self.argv, self.envp), 'after_init',
+                prototype = 'int main(int argc, char **argv, char **envp)')
+        else:
+            self.after_init(main, argc, argv, init, fini)
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         self.call(self.main, (self.argc[31:0], self.argv, self.envp), 'after_main',
