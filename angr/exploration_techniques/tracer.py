@@ -11,7 +11,6 @@ from ..errors import AngrTracerError, SimIRSBNoDecodeError
 
 l = logging.getLogger(name=__name__)
 
-
 class TracingMode:
     """
     :ivar Strict:       Strict mode, the default mode, where an exception is raised immediately if tracer's path
@@ -785,7 +784,6 @@ class Tracer(ExplorationTechnique):
         slide = self._aslr_slides[obj]
         trace_addr = self._trace[idx + 1] - slide
         l.info("Misfollow: angr says %#x, trace says %#x", angr_addr, trace_addr)
-
         if not obj.contains_addr(trace_addr):
             l.error("Translated trace address lives in a different object from the angr trace")
             return False
@@ -793,11 +791,15 @@ class Tracer(ExplorationTechnique):
         # TODO: add rep handling
 
         if 'IRSB' in state.history.recent_description:
+            VEXMaxInsnsPerBlock = 99
             last_block = state.block(state.history.bbl_addrs[-1])
+
+            # Case 1: angr block contains more instructions than trace block
             if self._trace[idx + 1] - slide in last_block.instruction_addrs:
                 # we have disparate block sizes!
                 # specifically, the angr block size is larger than the trace's.
                 # allow the trace to catch up.
+
                 while self._trace[idx + 1] - slide in last_block.instruction_addrs:
                     idx += 1
 
@@ -810,6 +812,14 @@ class Tracer(ExplorationTechnique):
                     state.globals['trace_idx'] = idx
                     #state.globals['trace_desync'] = True
                     return True
+
+            # Case 2: trace block contains more instructions than angr
+            # block.  Caused by VEX's maximum instruction limit of 99
+            # instructions
+            elif state.project.factory.block(state.history.addr).instructions == VEXMaxInsnsPerBlock and \
+                 state.history.jumpkind == 'Ijk_Boring':
+                l.info('...resolved: vex block limit')
+                return True
 
         prev_addr = state.history.bbl_addrs[-1]
         prev_obj = self.project.loader.find_object_containing(prev_addr)
