@@ -202,7 +202,11 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if idx % 3 == 0:
                     time.sleep(0.1)
 
-            cc, proto, varman = self._analyze_core(func_addr)
+            try:
+                cc, proto, varman = self._analyze_core(func_addr)
+            except Exception:  # pylint:disable=broad-except
+                _l.error("Exception occurred during _analyze_core().", exc_info=True)
+                cc, proto, varman = None, None, None
             self._results.put((func_addr, cc, proto, varman))
 
     def _analyze_core(self, func_addr: int) -> Tuple[Optional['SimCC'],Optional['SimTypeFunction'],
