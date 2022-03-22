@@ -322,6 +322,8 @@ class SimSuccessors:
                         cond_and_targets = self._eval_target_brutal(state, target, _max_targets + 1)
                         max_targets = _max_targets
                     else:
+                        if o.LAZY_SOLVES not in state.options:
+                            cond_and_targets = [(c,t) for (c,t) in cond_and_targets if state.solver.solution(target, t, extra_constraints=[c])]
                         max_targets = _max_jumptable_targets
 
                 if len(cond_and_targets) > max_targets:
