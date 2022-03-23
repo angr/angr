@@ -979,7 +979,8 @@ class ConditionProcessor:
     # Graph processing
     #
 
-    def _remove_crossing_edges_between_cases(self, graph: networkx.DiGraph,
+    @staticmethod
+    def _remove_crossing_edges_between_cases(graph: networkx.DiGraph,
                                              case_entry_to_switch_head: Dict[int,int]) -> networkx.DiGraph:
         starting_nodes = { node for node in graph if node.addr in case_entry_to_switch_head }
         if not starting_nodes:

@@ -1,4 +1,4 @@
-# pylint:disable=multiple-statements
+# pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
 from typing import Dict, Set, Optional, Any, List, Union, Tuple, TYPE_CHECKING
 import logging
 import itertools
@@ -826,7 +826,8 @@ class Structurer(Analysis):
         # should have been handling it when dealing with multi-exit regions. ignore it here.
         return True, node_a
 
-    def _switch_unpack_condition_node(self, cond_node: ConditionNode, jump_target: int) -> Optional[CodeNode]:
+    @staticmethod
+    def _switch_unpack_condition_node(cond_node: ConditionNode, jump_target: int) -> Optional[CodeNode]:
         """
         Unpack condition nodes by only removing one condition in the form of
         <Bool jump_table_402020 == 0x402ac4>.
@@ -1281,7 +1282,8 @@ class Structurer(Analysis):
                                                  None)
                     seq.nodes[i] = new_node
 
-    def _make_cascading_condition_nodes(self, seq: SequenceNode):
+    @staticmethod
+    def _make_cascading_condition_nodes(seq: SequenceNode):
         """
         Convert nested condition nodes into a CascadingConditionNode.
         """
