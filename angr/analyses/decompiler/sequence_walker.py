@@ -141,8 +141,9 @@ class SequenceWalker:
         if new_true_node is None and new_false_node is None:
             return None
 
-        return ConditionNode(node.addr, node.reaching_condition, node.condition, new_true_node,
-                             false_node=new_false_node)
+        return ConditionNode(node.addr, node.reaching_condition, node.condition,
+                             node.true_node if new_true_node is None else new_true_node,
+                             false_node=node.false_node if new_false_node is None else new_false_node)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
         for index, (_, child_node) in enumerate(node.condition_and_nodes):
