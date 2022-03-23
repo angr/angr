@@ -504,7 +504,7 @@ class ConditionProcessor:
             return ailment.Expr.Const(None, None, True, 1)
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
-        if cond.op == "BVS" and cond.args[0] in self._condition_mapping:
+        if cond.op in {"BVS", "BoolS"} and cond.args[0] in self._condition_mapping:
             return self._condition_mapping[cond.args[0]]
 
         def _binary_op_reduce(op, args, signed=False):
