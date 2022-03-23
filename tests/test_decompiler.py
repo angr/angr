@@ -983,6 +983,21 @@ def test_decompiling_x8664_cvs():
     assert "switch (" in d.codegen.text
 
 
+def test_decompiling_x8664_mv_O2():
+    bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True, show_progressbar=True)
+    p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+    f = p.kb.functions['main']
+    d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=True)
+    print(d.codegen.text)
+
+    assert "(False)" not in d.codegen.text
+    assert "None" not in d.codegen.text
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
