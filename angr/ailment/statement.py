@@ -73,13 +73,13 @@ class Assignment(Statement):
 
     def replace(self, old_expr, new_expr):
 
-        if self.dst.likes(old_expr):
+        if self.dst == old_expr:
             r_dst = True
             replaced_dst = new_expr
         else:
             r_dst, replaced_dst = self.dst.replace(old_expr, new_expr)
 
-        if self.src.likes(old_expr):
+        if self.src == old_expr:
             r_src = True
             replaced_src = new_expr
         else:
