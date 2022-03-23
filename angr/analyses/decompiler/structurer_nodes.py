@@ -1,5 +1,5 @@
 # pylint:disable=missing-class-docstring
-from typing import List, Tuple, Any, Optional
+from typing import List, Tuple, Any, Optional, Union, Dict
 
 import claripy
 import ailment
@@ -283,6 +283,6 @@ class SwitchCaseNode(BaseNode):
 
     def __init__(self, switch_expr, cases, default_node, addr=None):
         self.switch_expr = switch_expr
-        self.cases = cases
+        self.cases: Dict[Union[int,Tuple[int]],SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr

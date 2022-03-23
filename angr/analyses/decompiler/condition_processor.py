@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Generator, Dict, Any
+from typing import Generator, Dict, Any, Optional, Set
 import operator
 import logging
 
@@ -14,7 +14,6 @@ from ...block import Block, BlockNode
 from ..cfg.cfg_utils import CFGUtils
 from .structurer_nodes import (EmptyBlockNotice, SequenceNode, CodeNode, SwitchCaseNode, BreakNode,
                                ConditionalBreakNode, LoopNode, ConditionNode, ContinueNode, CascadingConditionNode)
-from .utils import extract_jump_targets, switch_extract_cmp_bounds
 
 l = logging.getLogger(__name__)
 
@@ -28,19 +27,23 @@ class ConditionProcessor:
     """
     Convert between claripy AST and AIL expressions. Also calculates reaching conditions of all nodes on a graph.
     """
-    def __init__(self, condition_mapping=None):
+    def __init__(self, arch, condition_mapping=None):
+        self.arch = arch
         self._condition_mapping: Dict[str,Any] = {} if condition_mapping is None else condition_mapping
+        self.jump_table_conds: Dict[int,Set] = defaultdict(set)
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
 
     def clear(self):
         self._condition_mapping = {}
+        self.jump_table_conds = defaultdict(set)
         self.reaching_conditions = {}
         self.guarding_conditions = {}
         self._ast2annotations = {}
 
-    def recover_reaching_conditions(self, region, with_successors=False, jump_tables=None):
+    def recover_reaching_conditions(self, region, with_successors=False,
+                                    case_entry_to_switch_head: Optional[Dict[int,int]]=None):
 
         def _strictly_postdominates(inv_idoms, node_a, node_b):
             """
@@ -66,13 +69,15 @@ class ConditionProcessor:
                     edge_conditions[edge] = predicate
                     predicate_mapping[predicate] = dst
 
-        if jump_tables:
-            self.recover_reaching_conditions_for_jumptables(region, jump_tables, edge_conditions)
-
         if with_successors and region.graph_with_successors is not None:
             _g = region.graph_with_successors
         else:
             _g = region.graph
+
+        # special handling for jump table entries - do not allow crossing between cases
+        if case_entry_to_switch_head:
+            _g = self._remove_crossing_edges_between_cases(_g, case_entry_to_switch_head)
+
         end_nodes = {n for n in _g.nodes() if _g.out_degree(n) == 0}
         inverted_graph: networkx.DiGraph = shallow_reverse(_g)
         if end_nodes:
@@ -94,7 +99,16 @@ class ConditionProcessor:
         sorted_nodes = CFGUtils.quasi_topological_sort_nodes(_g)
         terminating_nodes = [ ]
         for node in sorted_nodes:
-            preds = _g.predecessors(node)
+            # create special conditions for all nodes that are jump table entries
+            if case_entry_to_switch_head:
+                if node.addr in case_entry_to_switch_head:
+                    jump_target_var = self.create_jump_target_var(case_entry_to_switch_head[node.addr])
+                    cond = jump_target_var == claripy.BVV(node.addr, self.arch.bits)
+                    reaching_conditions[node] = cond
+                    self.jump_table_conds[case_entry_to_switch_head[node.addr]].add(cond)
+                    continue
+
+            preds = list(_g.predecessors(node))
             reaching_condition = None
 
             out_degree = _g.out_degree(node)
@@ -179,43 +193,6 @@ class ConditionProcessor:
 
         self.reaching_conditions = reaching_conditions
         self.guarding_conditions = guarding_conditions
-
-    def recover_reaching_conditions_for_jumptables(self, region, jump_tables, edge_conditions):
-
-        addr2nodes = dict((node.addr, node) for node in region.graph.nodes())
-
-        # special handling for jump tables
-        for src in region.graph.nodes():
-            try:
-                last_stmt = self.get_last_statement(src)
-            except EmptyBlockNotice:
-                continue
-            successor_addrs = extract_jump_targets(last_stmt)
-            if len(successor_addrs) != 2:
-                continue
-
-            for t in successor_addrs:
-                if t in addr2nodes and t in jump_tables:
-                    # this is a candidate!
-                    target = t
-                    break
-            else:
-                continue
-
-            cmp = switch_extract_cmp_bounds(last_stmt)
-            if not cmp:
-                continue
-
-            cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
-
-            jump_table = jump_tables[target]
-            node_a = addr2nodes[target]
-
-            # edge conditions
-            for i, entry_addr in enumerate(jump_table.jumptable_entries):
-                cond = self.claripy_ast_from_ail_condition(cmp_expr) == i + cmp_lb
-                edge = node_a, addr2nodes[entry_addr]
-                edge_conditions[edge] = cond
 
     def remove_claripy_bool_asts(self, node, memo=None):
 
@@ -521,9 +498,11 @@ class ConditionProcessor:
         if isinstance(cond, ailment.Expr.Expression):
             return cond
 
-        if cond.op == "BoolS" and claripy.is_true(cond):
-            return cond
-        if cond.args[0] in self._condition_mapping:
+        if cond.op in {"BoolS", "BoolV"} and claripy.is_true(cond):
+            return ailment.Expr.Const(None, None, True, 1)
+        if cond in self._condition_mapping:
+            return self._condition_mapping[cond]
+        if cond.op in {"BVS", "BoolS"} and cond.args[0] in self._condition_mapping:
             return self._condition_mapping[cond.args[0]]
 
         def _binary_op_reduce(op, args, signed=False):
@@ -993,6 +972,56 @@ class ConditionProcessor:
 
             # TODO: Finish the implementation
             print(term, "is redundant")
+
+    #
+    # Graph processing
+    #
+
+    @staticmethod
+    def _remove_crossing_edges_between_cases(graph: networkx.DiGraph,
+                                             case_entry_to_switch_head: Dict[int,int]) -> networkx.DiGraph:
+        starting_nodes = { node for node in graph if node.addr in case_entry_to_switch_head }
+        if not starting_nodes:
+            return graph
+
+        traversed_nodes = set()
+        edges_to_remove = set()
+        for starting_node in starting_nodes:
+
+            queue = [starting_node]
+            while queue:
+                src = queue.pop(0)
+                traversed_nodes.add(src)
+                successors = graph.successors(src)
+                for succ in successors:
+                    if succ in traversed_nodes:
+                        # we should not traverse this node twice
+                        if graph.out_degree(succ) > 0:
+                            edges_to_remove.add((src, succ))
+                        continue
+                    if succ in starting_nodes:
+                        # we do not want any jump from one node to a starting node
+                        edges_to_remove.add((src, succ))
+                        continue
+                    traversed_nodes.add(src)
+                    queue.append(succ)
+
+        if not edges_to_remove:
+            return graph
+
+        # make a copy before modifying the graph
+        graph = networkx.DiGraph(graph)
+        graph.remove_edges_from(edges_to_remove)
+        return graph
+
+    #
+    # Utils
+    #
+
+    def create_jump_target_var(self, jumptable_head_addr: int):
+        return claripy.BVS("jump_table_%x" % jumptable_head_addr,
+                           self.arch.bits,
+                           explicit_name=True)
 
 
 # delayed import

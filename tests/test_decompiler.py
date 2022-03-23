@@ -333,6 +333,8 @@ def test_decompiling_true_a_x86_64_0():
     dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
     print(dec.codegen.text)
 
+    assert dec.codegen.text.count("switch (") == 3  # there are three switch-cases in total
+
 
 def test_decompiling_true_a_x86_64_1():
 
