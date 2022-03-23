@@ -767,10 +767,7 @@ class Structurer(Analysis):
         # rewrite conditions in all case nodes to remove jump table entry conditions
         rewriter = JumpTableEntryConditionRewriter(self.cond_proc.jump_table_conds[jumptable_addr])
         for idx in range(len(seq.nodes)):
-            new_seq_node = rewriter.walk(seq.nodes[idx])
-            if new_seq_node is not None:
-                new_seq_node = EmptyNodeRemover(new_seq_node).result
-                seq.nodes[idx] = new_seq_node
+            rewriter.walk(seq.nodes[idx])  # update SequenceNodes in-place
 
     def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable_entries,
                                      addr2nodes: Dict[int,Any]):

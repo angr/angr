@@ -997,7 +997,8 @@ class ConditionProcessor:
                 for succ in successors:
                     if succ in traversed_nodes:
                         # we should not traverse this node twice
-                        edges_to_remove.add((src, succ))
+                        if graph.out_degree(succ) > 0:
+                            edges_to_remove.add((src, succ))
                         continue
                     if succ in starting_nodes:
                         # we do not want any jump from one node to a starting node

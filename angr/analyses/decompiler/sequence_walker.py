@@ -11,7 +11,8 @@ class SequenceWalker:
     """
     Walks a SequenceNode and all its nodes, recursively.
     """
-    def __init__(self, handlers=None, exception_on_unsupported=False):
+    def __init__(self, handlers=None, exception_on_unsupported=False, update_seqnode_in_place=True):
+        self._update_seqnode_in_place = update_seqnode_in_place
         self._exception_on_unsupported = exception_on_unsupported
 
         default_handlers = {
@@ -61,10 +62,17 @@ class SequenceWalker:
             new_node = self._handle(node_, parent=node, index=i)
             if new_node is not None:
                 changed = True
-                node.nodes[i] = new_node
+                if self._update_seqnode_in_place:
+                    node.nodes[i] = new_node
+                else:
+                    nodes_copy[i] = new_node
             i += 1
 
-        return None if not changed else node
+        if not changed:
+            return None
+        if self._update_seqnode_in_place:
+            return node
+        return SequenceNode(node.addr, nodes=nodes_copy)
 
     def _handle_MultiNode(self, node, **kwargs):
         i = 0
