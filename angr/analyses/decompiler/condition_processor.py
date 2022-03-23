@@ -102,9 +102,7 @@ class ConditionProcessor:
             # create special conditions for all nodes that are jump table entries
             if case_entry_to_switch_head:
                 if node.addr in case_entry_to_switch_head:
-                    jump_target_var = claripy.BVS("jump_table_%x" % case_entry_to_switch_head[node.addr],
-                                                  self.arch.bits,
-                                                  explicit_name=True)
+                    jump_target_var = self.create_jump_target_var(case_entry_to_switch_head[node.addr])
                     cond = jump_target_var == claripy.BVV(node.addr, self.arch.bits)
                     reaching_conditions[node] = cond
                     self.jump_table_conds[case_entry_to_switch_head[node.addr]].add(cond)
@@ -1015,6 +1013,15 @@ class ConditionProcessor:
         graph = networkx.DiGraph(graph)
         graph.remove_edges_from(edges_to_remove)
         return graph
+
+    #
+    # Utils
+    #
+
+    def create_jump_target_var(self, jumptable_head_addr: int):
+        return claripy.BVS("jump_table_%x" % jumptable_head_addr,
+                           self.arch.bits,
+                           explicit_name=True)
 
 
 # delayed import

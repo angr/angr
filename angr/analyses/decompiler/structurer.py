@@ -681,8 +681,7 @@ class Structurer(Analysis):
         node_b_addr = next(iter(t for t in successor_addrs if t != target))
 
         # Node A might have been structured. Un-structure it if that is the case.
-        r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table.jumptable_entries,
-                                                      addr2nodes)
+        r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table, addr2nodes)
         if not r:
             return False
 
@@ -776,7 +775,7 @@ class Structurer(Analysis):
         rewriter = JumpTableEntryConditionRewriter(self.cond_proc.jump_table_conds[jumptable_addr])
         rewriter.walk(seq)  # update SequenceNodes in-place
 
-    def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable_entries,
+    def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable,
                                      addr2nodes: Dict[int,Any]):
         """
         We might have already structured the actual body of the switch-case structure into a single Sequence node (node
@@ -785,13 +784,15 @@ class Structurer(Analysis):
         :param seq:                 The original Sequence node.
         :param node_a:              Node A.
         :param node_b_addr:         Address of node B.
-        :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
+        :param jumptable:           The corresponding jump table instance.
         :param addr2nodes:          A dict of addresses to their corresponding nodes in `seq`.
         :return:                    A boolean value indicating the result and an updated node_a. The boolean value is
                                     True if unpacking is not necessary or we successfully unpacked the sequence node,
                                     False otherwise.
         :rtype:                     bool
         """
+
+        jumptable_entries = jumptable.jumptable_entries
 
         if isinstance(node_a.node, SequenceNode):
             node_a_block_addrs = {n.addr for n in node_a.node.nodes}
@@ -806,7 +807,7 @@ class Structurer(Analysis):
             # unpacking is needed
             for n in node_a.node.nodes:
                 if isinstance(n, ConditionNode):
-                    unpacked = self._switch_unpack_condition_node(n, n.addr)
+                    unpacked = self._switch_unpack_condition_node(n, jumptable)
                     if unpacked is None:
                         # unsupported. bail
                         return False, None
@@ -826,8 +827,7 @@ class Structurer(Analysis):
         # should have been handling it when dealing with multi-exit regions. ignore it here.
         return True, node_a
 
-    @staticmethod
-    def _switch_unpack_condition_node(cond_node: ConditionNode, jump_target: int) -> Optional[CodeNode]:
+    def _switch_unpack_condition_node(self, cond_node: ConditionNode, jumptable) -> Optional[CodeNode]:
         """
         Unpack condition nodes by only removing one condition in the form of
         <Bool jump_table_402020 == 0x402ac4>.
@@ -847,43 +847,31 @@ class Structurer(Analysis):
         true_node = None
         false_node = None
 
+        jumptable_var = self.cond_proc.create_jump_target_var(jumptable.addr)
+
         if cond.op == "And":
             for arg in cond.args:
-                if arg.op == "__eq__" and isinstance(arg.args[1], claripy.Bits) \
-                        and arg.args[1]._model_concrete.value == jump_target:
+                if arg.op == "__eq__" \
+                        and arg.args[0] is jumptable_var \
+                        and isinstance(arg.args[1], claripy.Bits) \
+                        and arg.args[1].concrete:
                     # found it
                     eq_condition = arg
                     remaining_cond = claripy.And(*(arg_ for arg_ in cond.args if arg_ is not arg))
                     true_node = cond_node.true_node
                     false_node = cond_node.false_node
                     break
-                elif arg.op == "__ne__" and isinstance(arg.args[1], claripy.Bits) \
-                        and arg.args[1]._model_concrete.value == jump_target:
-                    # found it
-                    eq_condition = claripy.Not(arg)
-                    remaining_cond = claripy.And(*(arg_ for arg_ in cond.args if arg_ is not arg))
-                    true_node = cond_node.false_node
-                    false_node = cond_node.true_node
-                    break
             else:
                 # unsupported
                 return None
         elif cond.op == "__eq__":
-            if isinstance(cond.args[1], claripy.Bits) and cond.args[1]._model_concrete.value == jump_target:
+            if cond.args[0] is jumptable_var \
+                    and isinstance(cond.args[1], claripy.Bits) \
+                    and cond.args[1].concrete:
                 # found it
                 eq_condition = cond
                 true_node = cond_node.true_node
                 false_node = cond_node.false_node
-                remaining_cond = None
-            else:
-                # unsupported
-                return None
-        elif cond.op == "__ne__":
-            if isinstance(cond.args[1], claripy.Bits) and cond.args[1]._model_concrete.value == jump_target:
-                # found it
-                eq_condition = claripy.Not(cond)
-                true_node = cond_node.false_node
-                false_node = cond_node.true_node
                 remaining_cond = None
             else:
                 # unsupported
