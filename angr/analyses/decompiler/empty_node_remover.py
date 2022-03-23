@@ -118,6 +118,8 @@ class EmptyNodeRemover:
                                  ConditionProcessor.simplify_condition(claripy.Not(node.condition)),
                                  false_node,
                                  false_node=None)
+        if claripy.is_true(node.condition) and node.true_node is not None and node.false_node is None:
+            return node.true_node
         return ConditionNode(node.addr, node.reaching_condition, node.condition, true_node, false_node=false_node)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):

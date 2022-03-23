@@ -1,6 +1,7 @@
 # pylint:disable=multiple-statements
 from typing import Dict, Set, Optional, Any, List, Union, Tuple, TYPE_CHECKING
 import logging
+import itertools
 from collections import defaultdict
 
 import networkx
@@ -87,6 +88,13 @@ class RecursiveStructurer(Analysis):
                     break
 
                 self._replace_region(parent_region, current_region, st.result)
+
+        # rewrite conditions in the result to remove all jump table entry conditions
+        rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
+        rewriter.walk(self.result)  # update SequenceNodes in-place
+
+        # remove empty nodes (if any)
+        self.result = EmptyNodeRemover(self.result).result
 
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
@@ -764,10 +772,9 @@ class Structurer(Analysis):
             if BaseNode.test_empty_node(node_a):
                 seq.remove_node(node_a)
 
-        # rewrite conditions in all case nodes to remove jump table entry conditions
+        # rewrite conditions in the entire SequenceNode to remove jump table entry conditions
         rewriter = JumpTableEntryConditionRewriter(self.cond_proc.jump_table_conds[jumptable_addr])
-        for idx in range(len(seq.nodes)):
-            rewriter.walk(seq.nodes[idx])  # update SequenceNodes in-place
+        rewriter.walk(seq)  # update SequenceNodes in-place
 
     def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable_entries,
                                      addr2nodes: Dict[int,Any]):
@@ -929,7 +936,7 @@ class Structurer(Analysis):
             return False
 
         # finally, make sure all expected nodes exist
-        if node_a_block_addrs.issuperset(expected_node_a_addrs | {node_a_addr}):
+        if node_a_block_addrs.issuperset((expected_node_a_addrs | {node_a_addr}) - {node_b_addr}):
             return True
 
         # not sure what is going on...
