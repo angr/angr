@@ -571,12 +571,12 @@ class SimEngineRDVEX(
         elif expr0_v is None and expr1_v is not None:
             # subtracting a single value from a multivalue
             if len(expr0.values) == 1 and 0 in expr0.values:
-                vs = {v - expr1_v for v in expr0.values[0]}
+                vs = {v.sign_extend(expr1_v.size() - v.size()) - expr1_v for v in expr0.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         elif expr0_v is not None and expr1_v is None:
             # subtracting a single value from a multivalue
             if len(expr1.values) == 1 and 0 in expr1.values:
-                vs = {expr0_v - v for v in expr1.values[0]}
+                vs = {v.sign_extend(expr0_v.size() - v.size()) - expr0_v for v in expr1.values[0]}
                 r = MultiValues(offset_to_values={0: vs})
         else:
             # subtracting a single value from another single value

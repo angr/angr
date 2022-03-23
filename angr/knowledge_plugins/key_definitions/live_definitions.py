@@ -369,6 +369,8 @@ class LiveDefinitions:
             if isinstance(atom.addr, SpOffset):
                 if atom.addr.offset is not None:
                     stack_addr = self.stack_offset_to_stack_addr(atom.addr.offset)
+                    if len(d) < atom.size*self.arch.bytes:
+                        d.add_value(len(d)//self.arch.bytes, claripy.BVV(0x0, atom.size*self.arch.bytes - len(d)))
                     self.stack_definitions.store(stack_addr, d, size=atom.size, endness=endness)
                 else:
                     l.warning("Skip stack storing since the stack offset is None.")
