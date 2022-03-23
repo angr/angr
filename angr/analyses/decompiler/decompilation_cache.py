@@ -1,5 +1,6 @@
 from typing import Optional, Set, Dict, TYPE_CHECKING
 
+from .clinic import Clinic
 from .structured_codegen import BaseStructuredCodeGenerator
 
 
@@ -11,3 +12,4 @@ class DecompilationCache:
         self.type_constraints: Optional[Set] = None
         self.var_to_typevar: Optional[Dict] = None
         self.codegen: Optional[BaseStructuredCodeGenerator] = None
+        self.clinic: Optional[Clinic] = None
