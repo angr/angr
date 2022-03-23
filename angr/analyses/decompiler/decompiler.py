@@ -102,7 +102,7 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
-        cond_proc = ConditionProcessor()
+        cond_proc = ConditionProcessor(self.project.arch)
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
