@@ -26,7 +26,9 @@ class RegionIdentifier(Analysis):
     """
     def __init__(self, func, cond_proc=None, graph=None):
         self.function = func
-        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(
+            self.project.arch if self.project is not None else None  # it's only None in test cases
+        )
         self._graph = graph if graph is not None else self.function.graph
 
         self.region = None

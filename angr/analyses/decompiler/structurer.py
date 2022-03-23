@@ -97,6 +97,9 @@ class RecursiveStructurer(Analysis):
 
     def _get_switch_case_entries(self) -> Dict[int,int]:
 
+        if self.function is None:
+            return {}
+
         entries = {}
         func_block_addrs = self.function.block_addrs_set
 
