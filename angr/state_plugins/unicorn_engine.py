@@ -3,6 +3,7 @@ import copy
 import ctypes
 import itertools
 import logging
+import operator
 import os
 import sys
 import threading
@@ -432,7 +433,7 @@ def _load_native():
         _setup_prototype(h, 'get_symbolic_registers', ctypes.c_uint64, state_t, ctypes.POINTER(ctypes.c_uint64))
         _setup_prototype(h, 'is_interrupt_handled', ctypes.c_bool, state_t)
         _setup_prototype(h, 'set_cgc_syscall_details', None, state_t, ctypes.c_uint32, ctypes.c_uint64, ctypes.c_uint32,
-                         ctypes.c_uint64)
+                         ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint64)
         _setup_prototype(h, 'process_transmit', ctypes.POINTER(TRANSMIT_RECORD), state_t, ctypes.c_uint32)
         _setup_prototype(h, 'set_tracking', None, state_t, ctypes.c_bool, ctypes.c_bool)
         _setup_prototype(h, 'executed_pages', ctypes.c_uint64, state_t)
@@ -448,6 +449,8 @@ def _load_native():
         _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_fd_bytes', state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_uint64)
+        _setup_prototype(h, 'set_random_syscall_data', None, state_t, ctypes.POINTER(ctypes.c_uint64),
+                         ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -572,6 +575,9 @@ class Unicorn(SimStatePlugin):
         # the address for CGC receive
         self.cgc_receive_addr = None
 
+        # the address for CGC random
+        self.cgc_random_addr = None
+
         self.time = None
 
         # Concrete bytes of open fds
@@ -606,6 +612,7 @@ class Unicorn(SimStatePlugin):
         u.countdown_unsupported_stop = self.countdown_unsupported_stop
         u.countdown_stop_point = self.countdown_stop_point
         u.cgc_receive_addr = self.cgc_receive_addr
+        u.cgc_random_addr = self.cgc_random_addr
         u.cgc_transmit_addr = self.cgc_transmit_addr
         u._uncache_regions = list(self._uncache_regions)
         u.gdt = self.gdt
@@ -1073,7 +1080,7 @@ class Unicorn(SimStatePlugin):
         """
         return self.state.arch.name == "MIPS32"
 
-    def setup(self):
+    def setup(self, syscall_data=None):
         if self._is_mips32 and options.COPY_STATES not in self.state.options:
             # we always re-create the thread-local UC object for MIPS32 even if COPY_STATES is disabled in state
             # options. this is to avoid some weird bugs in unicorn (e.g., it reports stepping 1 step while in reality it
@@ -1119,20 +1126,38 @@ class Unicorn(SimStatePlugin):
 
         # set (cgc, for now) transmit and receive syscall handler
         if self.state.has_plugin('cgc'):
+            cgc_transmit_addr = 0
+            cgc_receive_addr = 0
+            cgc_random_addr = 0
             if options.UNICORN_HANDLE_CGC_TRANSMIT_SYSCALL in self.state.options:
                 if self.cgc_transmit_addr is None:
                     l.error("You haven't set the address for concrete transmits!!!!!!!!!!!")
-                    self.cgc_transmit_addr = 0
+                else:
+                    cgc_transmit_addr = self.cgc_transmit_addr
 
             if options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in self.state.options:
                 if self.cgc_receive_addr is None:
                     l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
-                    self.cgc_receive_addr = 0
                 else:
+                    cgc_receive_addr = self.cgc_receive_addr
                     # Set stdin bytes in native interface
                     self.fd_bytes[0] = bytearray(self.state.posix.fd.get(0).concretize()[0])
 
-            _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, self.cgc_transmit_addr, 3, self.cgc_receive_addr)
+            if options.UNICORN_HANDLE_CGC_RANDOM_SYSCALL in self.state.options and syscall_data is not None:
+                if self.cgc_random_addr is None:
+                    l.error("You haven't set the address for random syscall!!!!!!!!!!!!!!")
+                elif "random" not in syscall_data or not syscall_data["random"]:
+                    l.error("No syscall data specified for replaying random syscall!!!!!!!!!!!!!!")
+                else:
+                    cgc_random_addr = self.cgc_random_addr
+                    values = list(map(operator.itemgetter(0), syscall_data["random"]))
+                    sizes = list(map(operator.itemgetter(1), syscall_data["random"]))
+                    values_array = (ctypes.c_uint64 * len(values))(*map(ctypes.c_uint64, values))
+                    sizes_array = (ctypes.c_uint64 * len(sizes))(*map(ctypes.c_uint64, sizes))
+                    _UC_NATIVE.set_random_syscall_data(self._uc_state, values_array, sizes_array, len(values))
+
+            _UC_NATIVE.set_cgc_syscall_details(self._uc_state, 2, cgc_transmit_addr, 3, cgc_receive_addr,
+                                               7, cgc_random_addr)
 
         # set memory map callback so we can call it explicitly
         _UC_NATIVE.set_map_callback(self._uc_state, self._bullshit_cb)

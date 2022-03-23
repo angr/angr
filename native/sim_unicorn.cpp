@@ -35,6 +35,7 @@ State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addr
 	ignore_next_block = false;
 	ignore_next_selfmod = false;
 	interrupt_handled = false;
+	cgc_random_sysno = -1;
 	cgc_receive_sysno = -1;
 	cgc_transmit_sysno = -1;
 	vex_guest = VexArch_INVALID;
@@ -2356,7 +2357,107 @@ uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
 	return actual_count;
 }
 
+void State::init_random_bytes(uint64_t *values, uint64_t *sizes, uint64_t count) {
+	for (auto i = 0; i < count; i++) {
+		random_bytes.emplace_back(values[i], sizes[i]);
+	}
+	return;
+}
+
 // CGC syscall handlers
+
+void State::perform_cgc_random() {
+	uint32_t buf, count, rnd_bytes;
+	uint64_t number_of_items_to_process, actual_count, next_write_offset;
+	char *rand_bytes;
+
+	uc_reg_read(uc, UC_X86_REG_EBX, &buf);
+	uc_reg_read(uc, UC_X86_REG_ECX, &count);
+	uc_reg_read(uc, UC_X86_REG_EDX, &rnd_bytes);
+
+	if (count == 0) {
+		if (rnd_bytes != 0) {
+			handle_write(rnd_bytes, 4, true);
+			if (stopped) {
+				return;
+			}
+			uc_mem_write(uc, rnd_bytes, &count, 4);
+		}
+		uc_reg_write(uc, UC_X86_REG_EAX, &count);
+		interrupt_handled = true;
+		syscall_count++;
+		return;
+	}
+
+	number_of_items_to_process = 0;
+	actual_count = 0;
+	for (auto &val: random_bytes) {
+		if (actual_count == count) {
+			break;
+		}
+		actual_count += val.second;
+		number_of_items_to_process++;
+	}
+	assert((actual_count == count));
+	rand_bytes = (char *)malloc(actual_count);
+	next_write_offset = 0;
+	for (auto i = 0; i < number_of_items_to_process; i++) {
+		std::reverse_copy((char *)&(random_bytes[i].first), (char *)&(random_bytes[i].first) + random_bytes[i].second, rand_bytes + next_write_offset);
+		next_write_offset += random_bytes[i].second;
+	}
+	for (auto i = 0; i < number_of_items_to_process; i++) {
+		random_bytes.erase(random_bytes.begin());
+	}
+	handle_write(buf, actual_count, true, true);
+	if (stopped) {
+		free(rand_bytes);
+		return;
+	}
+	uc_mem_write(uc, buf, rand_bytes, actual_count);
+	free(rand_bytes);
+	if (rnd_bytes != 0) {
+		handle_write(rnd_bytes, 4, true);
+		if (stopped) {
+			return;
+		}
+		uc_mem_write(uc, rnd_bytes, &actual_count, 4);
+	}
+	next_write_offset = 0;
+	uc_reg_write(uc, UC_X86_REG_EAX, &next_write_offset);
+	step(cgc_random_bbl, 0, false);
+	commit();
+	if (actual_count > 0) {
+		// Save a block with an instruction to track that the random syscall needs to be re-executed. The instruction
+		// data is used only to work with existing mechanism to return data to python.
+		// Save all non-symbolic register arguments needed for syscall.
+		block_details_t block_for_random;
+		block_for_random.block_addr = cgc_random_bbl;
+		block_for_random.block_size = 0;
+		block_for_random.block_trace_ind = executed_blocks_count;
+		block_for_random.has_symbolic_exit = false;
+		instr_details_t instr_for_random;
+		// First argument: ebx
+		register_value_t reg_val;
+		if (!is_symbolic_register(20, 4)) {
+			reg_val.offset = 20;
+			reg_val.size = 4;
+			get_register_value(reg_val.offset, reg_val.value);
+			instr_for_random.reg_deps.emplace(reg_val);
+		}
+		// Second argument: ecx
+		if (!is_symbolic_register(12, 4)) {
+			reg_val.offset = 12;
+			reg_val.size = 4;
+			get_register_value(reg_val.offset, reg_val.value);
+			instr_for_random.reg_deps.emplace(reg_val);
+		}
+		block_for_random.symbolic_instrs.emplace_back(instr_for_random);
+		blocks_with_symbolic_instrs.emplace_back(block_for_random);
+	}
+	interrupt_handled = true;
+	syscall_count++;
+	return;
+}
 
 void State::perform_cgc_receive() {
 	uint32_t fd, buf, count, rx_bytes;
@@ -2613,6 +2714,9 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			else if ((sysno == state->cgc_receive_sysno) && (state->cgc_receive_bbl != 0)) {
 				state->perform_cgc_receive();
 			}
+			else if ((sysno == state->cgc_random_sysno) && (state->cgc_receive_bbl != 0)) {
+				state->perform_cgc_random();
+			}
 		}
 	}
 }
@@ -2709,6 +2813,11 @@ void simunicorn_set_last_block_details(State *state, address_t block_addr, uint6
 }
 
 extern "C"
+void simunicorn_set_random_syscall_data(State *state, uint64_t *values, uint64_t *sizes, uint64_t count) {
+	state->init_random_bytes(values, sizes, count);
+}
+
+extern "C"
 void simunicorn_set_stops(State *state, uint64_t count, uint64_t *stops)
 {
 	state->set_stops(count, stops);
@@ -2791,7 +2900,10 @@ bool simunicorn_is_interrupt_handled(State *state) {
 }
 
 extern "C"
-void simunicorn_set_cgc_syscall_details(State *state, uint32_t transmit_num, uint64_t transmit_bbl, uint32_t receive_num, uint64_t receive_bbl) {
+void simunicorn_set_cgc_syscall_details(State *state, uint32_t transmit_num, uint64_t transmit_bbl,
+  uint32_t receive_num, uint64_t receive_bbl, uint32_t random_num, uint64_t random_bbl) {
+	state->cgc_random_sysno = random_num;
+	state->cgc_random_bbl = random_bbl;
 	state->cgc_receive_sysno = receive_num;
 	state->cgc_receive_bbl = receive_bbl;
 	state->cgc_transmit_sysno = transmit_num;

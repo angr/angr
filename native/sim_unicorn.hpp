@@ -576,6 +576,9 @@ class State {
 	// Input fd bytes for tracing in unicorn
 	std::unordered_map<uint64_t, fd_data> fd_details;
 
+	// Random syscall data
+	std::vector<std::pair<int, int>> random_bytes;
+
 	// OS being simulated
 	simos_t simos;
 
@@ -716,6 +719,8 @@ class State {
 		uc_arch arch;
 		uc_mode unicorn_mode;
 		bool interrupt_handled;
+		int32_t cgc_random_sysno;
+		uint64_t cgc_random_bbl;
 		int32_t cgc_receive_sysno;
 		uint64_t cgc_receive_bbl;
 		int32_t cgc_transmit_sysno;
@@ -844,7 +849,11 @@ class State {
 
 		uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
 
+		// Set random syscall data for replaying
+		void init_random_bytes(uint64_t *values, uint64_t *sizes, uint64_t count);
+
 		// CGC syscall handlers
+		void perform_cgc_random();
 
 		void perform_cgc_receive();
 

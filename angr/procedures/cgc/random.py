@@ -1,12 +1,14 @@
-import angr
-
 import itertools
+
+import angr
+import claripy
+
 rand_count = itertools.count()
 
 class random(angr.SimProcedure):
-    #pylint:disable=arguments-differ
+    #pylint:disable=arguments-differ,missing-class-docstring
 
-    def run(self, buf, count, rnd_bytes):
+    def run(self, buf, count, rnd_bytes, concrete_data=None):
         if self.state.mode == 'fastpath':
             # Special case for CFG
             if (not self.state.solver.symbolic(count) and
@@ -17,7 +19,7 @@ class random(angr.SimProcedure):
                     return self.state.cgc.EFAULT
 
                 max_count = self.state.solver.eval_one(count)
-                random_num = self.state.solver.Unconstrained('random_%d' % next(rand_count), max_count * 8)
+                random_num = self.state.solver.Unconstrained(f'random_{next(rand_count)}', max_count * 8)
                 self.state.memory.store(buf, random_num, size=count)
                 if self.state.solver.is_true(rnd_bytes != 0):
                     self.state.memory.store(rnd_bytes, count, endness='Iend_LE')
@@ -36,7 +38,16 @@ class random(angr.SimProcedure):
                     self.state.solver.max_int(count * 8),
                     0x10000,
                     )
-            self.state.memory.store(buf, self.state.solver.Unconstrained('random_%d' % next(rand_count), max_size, key=('syscall', 'random')), size=count)
+
+            if concrete_data:
+                value = self.state.solver.BVS(f"random_{next(rand_count)}", max_size)
+                self.state.preconstrainer.preconstrain(concrete_data, value)
+            else:
+                value = self.state.solver.Unconstrained(f"random_{next(rand_count)}", max_size,
+                                                        key=('syscall', 'random'))
+
+            self.state.memory.store(buf, value, size=count)
+
         self.state.memory.store(rnd_bytes, count, endness='Iend_LE', condition=rnd_bytes != 0)
 
         return r

@@ -127,6 +127,7 @@ class Tracer(ExplorationTechnique):
     :param crash_addr:          If the trace resulted in a crash, provide the crashing instruction
                                 pointer here, and the 'crashed' stash will be populated with the
                                 crashing state.
+    :param syscall_data:        Data related to various syscalls recorded by tracer for replaying
     :param copy_states:         Whether COPY_STATES should be enabled for the tracing state. It is
                                 off by default because most tracing workloads benefit greatly from
                                 not performing copying. You want to enable it if you want to see
@@ -147,6 +148,7 @@ class Tracer(ExplorationTechnique):
             resiliency=False,
             keep_predecessors=1,
             crash_addr=None,
+            syscall_data=None,
             copy_states=False,
             fast_forward_to_entry=True,
             mode=TracingMode.Strict,
@@ -156,6 +158,7 @@ class Tracer(ExplorationTechnique):
         self._trace = trace
         self._resiliency = resiliency
         self._crash_addr = crash_addr
+        self._syscall_data = syscall_data
         self._copy_states = copy_states
         self._mode = mode
         self._aslr = aslr
@@ -318,7 +321,7 @@ class Tracer(ExplorationTechnique):
 
     def step(self, simgr, stash='active', **kwargs):
         simgr.drop(stash='missed')
-        return simgr.step(stash=stash, **kwargs)
+        return simgr.step(stash=stash, syscall_data=self._syscall_data, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):
         if state.history.jumpkind == 'Ijk_Exit':
@@ -495,7 +498,8 @@ class Tracer(ExplorationTechnique):
             assert state.history.recent_block_count == len(state.history.recent_bbl_addrs)
 
             for addr_idx, addr in enumerate(state.history.recent_bbl_addrs):
-                if addr in [state.unicorn.cgc_transmit_addr, state.unicorn.cgc_receive_addr]:
+                if addr in [state.unicorn.cgc_transmit_addr, state.unicorn.cgc_receive_addr,
+                  state.unicorn.cgc_random_addr]:
                     continue
 
                 if sync is not None and sync != 'entry':
