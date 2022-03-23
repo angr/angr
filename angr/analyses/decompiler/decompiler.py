@@ -128,6 +128,7 @@ class Decompiler(Analysis):
 
         self.codegen = codegen
         self.cache.codegen = codegen
+        self.clinic = clinic
 
     def _set_global_variables(self):
 
