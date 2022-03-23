@@ -173,9 +173,20 @@ class AILBlockWalker:
     def _handle_Return(self, stmt_idx: int, stmt: Return, block: Optional[Block]):
         if stmt.ret_exprs:
             i = 0
+            changed = False
+            new_ret_exprs = [None] * len(stmt.ret_exprs)
             while i < len(stmt.ret_exprs):
-                self._handle_expr(i, stmt.ret_exprs[i], stmt_idx, stmt, block)
+                new_ret_expr = self._handle_expr(i, stmt.ret_exprs[i], stmt_idx, stmt, block)
+                if new_ret_expr is not None:
+                    new_ret_exprs[i] = new_ret_expr
+                    changed = True
+                else:
+                    new_ret_exprs[i] = stmt.ret_exprs[i]
                 i += 1
+
+            if changed:
+                new_stmt = Return(stmt.idx, stmt.target, new_ret_exprs, **stmt.tags)
+                block.statements[stmt_idx] = new_stmt
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Optional[Block]):
         addr = self._handle_expr(0, expr.addr, stmt_idx, stmt, block)

@@ -57,11 +57,11 @@ class SimSuccessors:
         if self.processed:
             successor_strings = [ ]
             if len(self.flat_successors) != 0:
-                successor_strings.append("%d sat" % len(self.flat_successors))
+                successor_strings.append(f"{len(self.flat_successors)} sat")
             if len(self.unsat_successors) != 0:
-                successor_strings.append("%d unsat" % len(self.unsat_successors))
+                successor_strings.append(f"{len(self.unsat_successors)} unsat")
             if len(self.unconstrained_successors) != 0:
-                successor_strings.append("%d unconstrained" % len(self.unconstrained_successors))
+                successor_strings.append(f"{len(self.unconstrained_successors)} unconstrained")
 
             if len(successor_strings) == 0:
                 result = 'empty'
@@ -69,9 +69,11 @@ class SimSuccessors:
                 result = ' '.join(successor_strings)
         else:
             result = 'failure'
-        if isinstance(self.initial_state.arch, ArchSoot):
-            return '<%s from %s: %s>' % (self.description, self.addr, result)
-        return '<%s from %#x: %s>' % (self.description, self.addr, result)
+
+        if isinstance(self.addr, int):
+            return f'<{self.description} from {self.addr:#x}: {result}>'
+        else:
+            return f'<{self.description} from {self.addr}: {result}>'
 
     @property
     def is_empty(self):

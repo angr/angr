@@ -1,6 +1,6 @@
 # pylint:disable=wrong-import-position,arguments-differ
 import logging
-from typing import List
+from typing import List, Optional, Tuple
 
 import pyvex
 from pyvex import IRSB
@@ -127,12 +127,13 @@ class Block(Serializable):
     __slots__ = ['_project', '_bytes', '_vex', 'thumb', '_disassembly', '_capstone',
                  'addr', 'size', 'arch', '_instructions', '_instruction_addrs',
                  '_opt_level', '_vex_nostmt', '_collect_data_refs', '_strict_block_end',
-                 '_cross_insn_opt', '_load_from_ro_regions',
+                 '_cross_insn_opt', '_load_from_ro_regions', '_initial_regs',
                  ]
 
     def __init__(self, addr, project=None, arch=None, size=None, byte_string=None, vex=None, thumb=False,
                  backup_state=None, extra_stop_points=None, opt_level=None, num_inst=None, traceflags=0,
-                 strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False):
+                 strict_block_end=None, collect_data_refs=False, cross_insn_opt=True, load_from_ro_regions=False,
+                 initial_regs=None):
 
         # set up arch
         if project is not None:
@@ -155,6 +156,7 @@ class Block(Serializable):
         self.thumb = thumb
         self.addr = addr
         self._opt_level = opt_level
+        self._initial_regs: Optional[List[Tuple[int,int,int]]] = initial_regs if collect_data_refs else None
 
         if self._project is None and byte_string is None:
             raise ValueError('"byte_string" has to be specified if "project" is not provided.')
@@ -165,6 +167,8 @@ class Block(Serializable):
             elif vex is not None:
                 size = vex.size
             else:
+                if self._initial_regs:
+                    self.set_initial_regs()
                 vex = self._vex_engine.lift_vex(
                         clemory=project.loader.memory,
                         state=backup_state,
@@ -180,6 +184,8 @@ class Block(Serializable):
                         load_from_ro_regions=load_from_ro_regions,
                         cross_insn_opt=cross_insn_opt,
                 )
+                if self._initial_regs:
+                    self.reset_initial_regs()
                 size = vex.size
 
         self._vex = vex
@@ -252,6 +258,16 @@ class Block(Serializable):
         else:
             self.disassembly.pp()
 
+    def set_initial_regs(self):
+        # for data reference collection, on some architectures, we need to set up initial registers
+        if self._initial_regs is not None:
+            for offset, size, value in self._initial_regs:  # pylint:disable=not-an-iterable
+                pyvex.pvc.register_initial_register_value(offset, size, value)
+
+    @staticmethod
+    def reset_initial_regs():
+        pyvex.pvc.reset_initial_register_values()
+
     @property
     def _vex_engine(self):
         if self._project is None:
@@ -262,6 +278,8 @@ class Block(Serializable):
     @property
     def vex(self) -> IRSB:
         if not self._vex:
+            if self._initial_regs:
+                self.set_initial_regs()
             self._vex = self._vex_engine.lift_vex(
                     clemory=self._project.loader.memory if self._project is not None else None,
                     insn_bytes=self._bytes,
@@ -276,6 +294,8 @@ class Block(Serializable):
                     cross_insn_opt=self._cross_insn_opt,
                     load_from_ro_regions=self._load_from_ro_regions,
             )
+            if self._initial_regs:
+                self.reset_initial_regs()
             self._parse_vex_info(self._vex)
 
         return self._vex
@@ -288,6 +308,8 @@ class Block(Serializable):
         if self._vex:
             return self._vex
 
+        if self._initial_regs:
+            self.set_initial_regs()
         self._vex_nostmt = self._vex_engine.lift_vex(
             clemory=self._project.loader.memory if self._project is not None else None,
             insn_bytes=self._bytes,
@@ -303,6 +325,8 @@ class Block(Serializable):
             cross_insn_opt=self._cross_insn_opt,
             load_from_ro_regions=self._load_from_ro_regions,
         )
+        if self._initial_regs:
+            self.reset_initial_regs()
         self._parse_vex_info(self._vex_nostmt)
         return self._vex_nostmt
 

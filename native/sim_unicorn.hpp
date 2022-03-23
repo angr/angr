@@ -62,6 +62,7 @@ struct taint_entity_t {
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
 	address_t instr_addr;
 	int64_t value_size;
+	mutable bool used_in_mem_addr;
 
 	taint_entity_t() {
 		reg_offset = -1;
@@ -69,6 +70,7 @@ struct taint_entity_t {
 		mem_ref_entity_list.clear();
 		instr_addr = 0;
 		value_size = -1;
+		used_in_mem_addr = false;
 	}
 
 	bool operator==(const taint_entity_t &other_entity) const {
@@ -223,6 +225,8 @@ struct instr_details_t {
 struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
 	std::vector<instr_details_t> symbolic_instrs;
 	bool vex_lift_failed;
 	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
@@ -232,6 +236,8 @@ struct block_details_t {
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		vex_lift_failed = false;
 		vex_lift_result = NULL;
@@ -266,12 +272,16 @@ struct sym_instr_details_t {
 struct sym_block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
 	std::vector<sym_instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		register_values.clear();
 	}
@@ -281,7 +291,9 @@ struct sym_block_details_t {
 // C++ STL containers
 struct sym_block_details_ret_t {
 	uint64_t block_addr;
-    uint64_t block_size;
+	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
     sym_instr_details_t *symbolic_instrs;
     uint64_t symbolic_instrs_count;
     register_value_t *register_values;
@@ -301,7 +313,6 @@ enum stop_t {
 	STOP_NODECODE,
 	STOP_HLT,
 	STOP_VEX_LIFT_FAILED,
-	STOP_SYMBOLIC_CONDITION,
 	STOP_SYMBOLIC_PC,
 	STOP_SYMBOLIC_READ_ADDR,
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
@@ -521,6 +532,9 @@ class State {
 	// separately for easy rollback in case of errors.
 	block_details_t curr_block_details;
 
+	// List of symbolic instructions in processed basic blocks that need not be re-executed. Will be removed on commit.
+	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_instrs_to_erase;
+
 	// List of register values at start of block
 	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
 
@@ -565,6 +579,15 @@ class State {
 	// OS being simulated
 	simos_t simos;
 
+	// Determine if symbolic memory addresses should be handled or not
+	bool handle_symbolic_addrs;
+
+	// Determine if symbolic conditions should be handled or not
+	bool handle_symbolic_conditions;
+
+	// Count of blocks executed in native interface
+	int64_t executed_blocks_count;
+
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
@@ -601,6 +624,9 @@ class State {
 	void mark_temp_symbolic(vex_tmp_id_t temp_id);
 
 	void process_vex_block(IRSB *vex_block, address_t address);
+
+	void set_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry);
+	void update_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry);
 
 	void propagate_taints();
 	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
@@ -720,7 +746,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
@@ -802,11 +828,13 @@ class State {
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
-		void start_propagating_taint(address_t block_address, int32_t block_size);
+		void start_propagating_taint();
 
 		void continue_propagating_taint();
 
 		bool check_symbolic_stack_mem_dependencies_liveness() const;
+
+		void set_curr_block_details(address_t block_address, int32_t block_size);
 
 		address_t get_instruction_pointer() const;
 

@@ -20,7 +20,9 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from ...knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from ...knowledge_plugins.xrefs import XRef, XRefType
+from ...knowledge_plugins.functions import Function
 from ...misc.ux import deprecated
+from ...codenode import HookNode
 from ... import sim_options as o
 from ...errors import (AngrCFGError, AngrSkipJobNotice, AngrUnsupportedSyscallError, SimEngineError, SimMemoryError,
                        SimTranslationError, SimValueError, SimOperationError, SimError, SimIRSBNoDecodeError,
@@ -1693,7 +1695,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             blocks_ahead.append(self._lift(cfg_job.src_node.addr).vex)
             procedure.project = self.project
             procedure.arch = self.project.arch
-            new_exits = procedure.static_exits(blocks_ahead)
+            new_exits = procedure.static_exits(blocks_ahead, cfg=self)
 
             for new_exit in new_exits:
                 addr_ = new_exit['address']
@@ -1710,7 +1712,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     unique_label = self.kb.labels.get_unique_label(namehint)
                     self.kb.labels[addr_] = unique_label
 
-        if not procedure.NO_RET:
+        # determine if this procedure returns
+        if procedure.DYNAMIC_RET:
+            # whether this procedure returns or not depends on the context
+            # the procedure may return, but we will determine if we are inserting a fake_ret edge at each call site
+            proc_returns = True
+        else:
+            proc_returns = not procedure.NO_RET
+
+        if proc_returns:
             # it returns
             cfg_node.has_return = True
             self._function_exits[current_func_addr].add(addr)
@@ -1718,6 +1728,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         else:
             # the procedure does not return
             self._updated_nonreturning_functions.add(current_func_addr)
+            cfg_node.no_ret = True  # update cfg_node
+            self.kb.functions.get_by_addr(current_func_addr).returning = False
 
         return entries
 
@@ -2144,7 +2156,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if callee_might_return:
             func_edges = [ ]
             if return_site is not None:
-                if callee_function is not None and callee_function.returning is True:
+                call_returning: Optional[bool] = None
+                if callee_function is not None:
+                    call_returning = self._is_call_returning(cfg_node, callee_function.addr)
+                else:
+                    pass
+
+                if call_returning is True:
                     fakeret_edge = FunctionFakeRetEdge(cfg_node, return_site, current_function_addr, confirmed=True)
                     func_edges.append(fakeret_edge)
                     ret_edge = FunctionReturnEdge(new_function_addr, return_site, current_function_addr)
@@ -2159,9 +2177,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     self._register_analysis_job(current_function_addr, ce)
                     # since the callee must return, we should let the pending_jobs be aware of it
                     self._pending_jobs.add_returning_function(new_function_addr)
-                elif callee_function is not None and callee_function.returning is False:
-                    pass # Don't go past a call that does not return!
-                else:
+                elif call_returning is None:
                     # HACK: We don't know where we are jumping.  Let's assume we fakeret to the
                     # next instruction after the block
                     # TODO: FIXME: There are arch-specific hints to give the correct ret site
@@ -2918,6 +2934,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             # TODO: get a better estimate of the function address
             if jump.type == IndirectJumpType.Vtable:
                 target_func_addr = addr
+                self.kb.functions.function(target_func_addr, create=True)  # make sure the target function exists
             else:
                 target_func_addr = jump.func_addr if not to_outside else addr
             func_edge = FunctionTransitionEdge(self._nodes[source_addr], addr, jump.func_addr, to_outside=to_outside,
@@ -3830,7 +3847,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _lifter_register_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
 
-        if is_arm_arch(self.project.arch):
+        if self.project.arch.name in {"MIPS64"} or is_arm_arch(self.project.arch):
             self._ro_region_cdata_cache = [ ]
             for segment in self.project.loader.main_object.segments:
                 if segment.is_readable and not segment.is_writable:
@@ -3838,6 +3855,15 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     content_buf = pyvex.ffi.from_buffer(content)
                     self._ro_region_cdata_cache.append(content_buf)
                     pyvex.pvc.register_readonly_region(segment.vaddr, segment.memsize, content_buf)
+
+            if self.project.arch.name == "MIPS64":
+                # also map .got
+                for section in self.project.loader.main_object.sections:
+                    if section.name == ".got":
+                        content = self.project.loader.memory.load(section.vaddr, section.memsize)
+                        content_buf = pyvex.ffi.from_buffer(content)
+                        self._ro_region_cdata_cache.append(content_buf)
+                        pyvex.pvc.register_readonly_region(section.vaddr, section.memsize, content_buf)
 
     def _lifter_deregister_readonly_regions(self):
         pyvex.pvc.deregister_all_readonly_regions()
@@ -3985,6 +4011,63 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                 self._cascading_remove_lifted_blocks(cfg_job.src_node.addr & 0xffff_fffe)
                             return None, None, None, None
 
+            initial_regs = None
+            if self.project.arch.name == "MIPS64":
+                initial_regs = [
+                    (self.project.arch.registers['t9'][0],
+                     self.project.arch.registers['t9'][1],
+                     current_function_addr,
+                     )
+                ]
+                if self.kb.functions.contains_addr(current_function_addr):
+                    func = self.kb.functions.get_by_addr(current_function_addr)
+                    if 'gp' in func.info:
+                        initial_regs.append(
+                            (self.project.arch.registers['gp'][0],
+                             self.project.arch.registers['gp'][1],
+                             func.info['gp'],
+                             )
+                        )
+            elif self.project.arch.name == "X86":
+                # for x86 GCC-generated PIE binaries, detect calls to __x86.get_pc_thunk
+                if cfg_job.jumpkind == "Ijk_FakeRet" \
+                        and cfg_job.returning_source is not None \
+                        and self.kb.functions.contains_addr(cfg_job.returning_source):
+                    return_from_func = self.kb.functions.get_by_addr(cfg_job.returning_source)
+                    if 'get_pc' in return_from_func.info:
+                        func = self.kb.functions.get_by_addr(current_function_addr)
+                        pc_reg = return_from_func.info['get_pc']
+                        # the crazy thing is that GCC-generated code may adjust the register value accordingly after
+                        # returning! we must take into account the added offset (in the followin example, 0x8d36)
+                        #
+                        # e.g.
+                        #  000011A1 call    __x86_get_pc_thunk_bx
+                        #  000011A6 add     ebx, 8D36h
+                        #
+                        # this means, for the current block, the initial value of ebx is whatever __x86_get_pc_thunk_bx
+                        # returns. for future blocks in this function, the initial value of ebx must be the returning
+                        # value plus 0x8d36.
+                        pc_reg_offset, pc_reg_size = self.project.arch.registers[pc_reg]
+                        initial_regs = [
+                            (pc_reg_offset, pc_reg_size, addr)
+                        ]
+                        # find adjustment
+                        adjustment = self._x86_gcc_pie_find_pc_register_adjustment(addr, pc_reg_offset)
+                        if adjustment is not None:
+                            func.info['pc_reg'] = (pc_reg, addr + adjustment)
+                        else:
+                            func.info['pc_reg'] = (pc_reg, addr)
+                if self.kb.functions.contains_addr(current_function_addr):
+                    func = self.kb.functions.get_by_addr(current_function_addr)
+                    if not initial_regs and 'pc_reg' in func.info:
+                        pc_reg, pc_reg_value = func.info['pc_reg']
+                        initial_regs = [
+                            (self.project.arch.registers[pc_reg][0],
+                             self.project.arch.registers[pc_reg][1],
+                             pc_reg_value
+                             )
+                        ]
+
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
             irsb = None
@@ -3992,7 +4075,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             lifted_block = None
             try:
                 lifted_block = self._lift(addr, size=distance, collect_data_refs=True, strict_block_end=True,
-                                          load_from_ro_regions=True)
+                                          load_from_ro_regions=True, initial_regs=initial_regs)
                 irsb = lifted_block.vex_nostmt
                 irsb_string = lifted_block.bytes[:irsb.size]
             except SimTranslationError:
@@ -4026,7 +4109,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
                         try:
                             lifted_block = self._lift(addr_0, size=distance, collect_data_refs=True,
-                                                      strict_block_end=True, load_from_ro_regions=True)
+                                                      strict_block_end=True, load_from_ro_regions=True,
+                                                      initial_regs=initial_regs)
                             irsb = lifted_block.vex_nostmt
                             irsb_string = lifted_block.bytes[:irsb.size]
                         except SimTranslationError:
@@ -4195,7 +4279,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
     def _process_block_arch_specific(self, addr: int, cfg_node: CFGNode, irsb: pyvex.IRSB, func_addr: int,
                                      caller_gp: Optional[int]=None) -> None:  # pylint: disable=unused-argument
         """
-        According to arch types ['ARMEL', 'ARMHF', 'MIPS32'] does different
+        According to arch types ['ARMEL', 'ARMHF', 'MIPS32', 'X86'] does different
         fixes
 
         For ARM deals with link register on the stack
@@ -4255,7 +4339,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                     added_addrs.add(ref.data_addr)
 
         elif self.project.arch.name in {"MIPS32", "MIPS64"}:
-            func = self.kb.functions.function(func_addr)
+            func = self.kb.functions.get_by_addr(func_addr)
             if 'gp' not in func.info and addr >= func_addr and addr - func_addr < 15 * 4:
                 gp_value = self._mips_determine_function_gp(addr, irsb, func_addr)
                 if gp_value is not None and self._gp_value is None:
@@ -4265,6 +4349,17 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                 if gp_value is None:
                     gp_value = self._gp_value  # fallback to a previously found value
                 func.info['gp'] = gp_value
+
+        elif self.project.arch.name == "X86":
+            # detect __x86.get_pc_thunk.bx
+            # TODO: Handle __x86.get_pc_thunk.cx and __x86.get_pc_thunk.ax (but I haven't seen them yet)
+            # this requires us to analyze function calls before analyzing the return sites, which is exactly we have
+            # been doing for figuring out if a callee returns or not :)
+            if cfg_node.addr == func_addr and cfg_node.byte_string == b'\x8b\x1c\x24\xc3':
+                # mov ebx, dword ptr [esp]
+                # ret
+                func = self.kb.functions.get_by_addr(func_addr)
+                func.info['get_pc'] = 'ebx'
 
     def _extract_node_cluster_by_dependency(self, addr, include_successors=False) -> Set[int]:
         to_remove = {addr}
@@ -4399,6 +4494,105 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                     result[addr] = meaning
 
         return result
+
+    def _x86_gcc_pie_find_pc_register_adjustment(self, addr: int, reg_offset: int) -> Optional[int]:
+        """
+        Match against a single instruction that adds or subtracts a constant from a specified register.
+
+        :param addr:        Address of the instruction.
+        :param reg_offset:  Offset of the PC-storing register.
+        :return:            The adjustment, or None if matching fails.
+        """
+
+        try:
+            lifted_block = self._lift(addr, num_inst=1)
+        except SimTranslationError:
+            return None
+        # Expected:
+        #
+        # IRSB {
+        #    t0:Ity_I32 t1:Ity_I32 t2:Ity_I32 t3:Ity_I32
+        #
+        #    00 | ------ IMark(0x405b1d, 6, 0) ------
+        #    01 | t2 = GET:I32(ebx)
+        #    02 | t0 = Add32(t2,0x000043bf)
+        #    03 | PUT(cc_op) = 0x00000003
+        #    04 | PUT(cc_dep1) = t2
+        #    05 | PUT(cc_dep2) = 0x000043bf
+        #    06 | PUT(cc_ndep) = 0x00000000
+        #    07 | PUT(ebx) = t0
+        #    NEXT: PUT(eip) = 0x00405b23; Ijk_Boring
+        # }
+        if len(lifted_block.vex.statements) > 4:
+            stmt1 = lifted_block.vex.statements[1]
+            stmt2 = lifted_block.vex.statements[2]
+            stmt_last = lifted_block.vex.statements[-1]
+            if isinstance(stmt1, pyvex.IRStmt.WrTmp) \
+                    and isinstance(stmt1.data, pyvex.IRExpr.Get) \
+                    and stmt1.data.offset == reg_offset \
+                    and stmt1.data.result_size(lifted_block.vex.tyenv) == 32:
+                tmp_0 = stmt1.tmp
+                if isinstance(stmt2, pyvex.IRStmt.WrTmp) \
+                        and isinstance(stmt2.data, pyvex.IRExpr.Binop) \
+                        and stmt2.data.op == "Iop_Add32" \
+                        and isinstance(stmt2.data.args[0], pyvex.IRExpr.RdTmp) \
+                        and stmt2.data.args[0].tmp == tmp_0 \
+                        and isinstance(stmt2.data.args[1], pyvex.IRExpr.Const):
+                    tmp_1 = stmt2.tmp
+                    if isinstance(stmt_last, pyvex.IRStmt.Put) \
+                            and stmt_last.offset == reg_offset \
+                            and isinstance(stmt_last.data, pyvex.IRExpr.RdTmp) \
+                            and stmt_last.data.tmp == tmp_1:
+                        # found it!
+                        return stmt2.data.args[1].con.value
+        return None
+
+    def _is_call_returning(self, callsite_cfgnode: CFGNode, callee_func_addr: int) -> Optional[bool]:
+        """
+        Determine if a function call is returning or not, with a special care for DYNAMIC_RET functions.
+
+        :param callsite_cfgnode:    The CFG node at the call site.
+        :param callee_func_addr:    Address of the function to be called.
+        :return:                    True if the call must return, False if the call never returns, or None if it cannot
+                                    be determined at this moment.
+        """
+
+        if self.kb.functions.contains_addr(callee_func_addr):
+            callee_func = self.kb.functions.get_by_addr(callee_func_addr)
+        else:
+            callee_func = None
+        if callee_func is not None:
+            if callee_func.returning is False:
+                return False
+
+            if callee_func.is_plt:
+                # get the SimProcedure (if there is one)
+                edges = list(callee_func.transition_graph.edges())
+                if len(edges) == 1:
+                    target_func = edges[0][1]
+                    if isinstance(target_func, (HookNode, Function)):
+                        if self.project.is_hooked(target_func.addr):
+                            hooker = self.project.hooked_by(target_func.addr)
+                            if hooker.DYNAMIC_RET:
+                                return self._is_call_returning(callsite_cfgnode, target_func.addr)
+
+        if self.project.is_hooked(callee_func_addr):
+            hooker = self.project.hooked_by(callee_func_addr)
+            if hooker is not None:
+                if hooker.DYNAMIC_RET:
+                    parent_nodes = list(self.graph.predecessors(callsite_cfgnode))
+                    parent_node = parent_nodes[0] if parent_nodes else None
+                    blocks_ahead = []
+                    if parent_node is not None:
+                        blocks_ahead.append(self._lift(parent_node.addr).vex)
+                    blocks_ahead.append(self._lift(callsite_cfgnode.addr).vex)
+                    hooker.project = self.project
+                    hooker.arch = self.project.arch
+                    return hooker.dynamic_returns(blocks_ahead)
+
+        if callee_func is not None:
+            return callee_func.returning
+        return None
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs): # pylint:disable=arguments-differ
         kwargs['extra_stop_points'] = set(self._known_thunks)

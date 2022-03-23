@@ -14,7 +14,6 @@ class TestFunctionManager(unittest.TestCase):
     def setUpClass(cls):
         cls.project = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"), auto_load_libs=False)
 
-
     def test_amd64(self):
         expected_functions = { 0x4004e0, 0x400510, 0x400520, 0x400530, 0x400540, 0x400550, 0x400560, 0x400570,
                                0x400580, 0x4005ac, 0x400640, 0x400664, 0x4006ed, 0x4006fd, 0x40071d, 0x4007e0,
@@ -78,3 +77,7 @@ class TestFunctionManager(unittest.TestCase):
         self.project.kb.functions._add_call_to(0x400000, 0x400410, 0x400420, 0x400414)
         assert 0x400000 in self.project.kb.functions.keys()
         assert 0x400420 in self.project.kb.functions.keys()
+
+
+if __name__ == "__main__":
+    unittest.main()

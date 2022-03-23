@@ -650,7 +650,8 @@ class MemoryOperand(Operand):
             except ValueError:  #pylint: disable=try-except-raise
                 raise
 
-            self.prefix = self.children[ : paren_pos]
+            if all(isinstance(item, str) for item in self.children[:paren_pos]):
+                self.prefix = self.children[ : paren_pos]
 
         else:
             paren_pos = 0

@@ -3,7 +3,8 @@
 from itertools import count
 import logging
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar, Type, Optional
+
 if TYPE_CHECKING:
     from ..project import Project
     from ..knowledge_plugins import FunctionManager
@@ -13,8 +14,7 @@ if TYPE_CHECKING:
     from ..knowledge_plugins import StructuredCodeManager
     from ..knowledge_plugins import TypesStore
 
-from ..knowledge_plugins.plugin import default_plugins
-
+from ..knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
 
 l = logging.getLogger(name=__name__)
 
@@ -108,3 +108,31 @@ class KnowledgeBase:
     def release_plugin(self, name):
         if name in self._plugins:
             del self._plugins[name]
+
+    K = TypeVar("K", bound=KnowledgeBasePlugin)
+    def get_knowledge(self, requested_plugin_cls: Type[K]) -> Optional[K]:
+        """
+        Type inference safe method to request a knowledge base plugin
+        Explicitly passing the type of the requested plugin achieves two things:
+        1. Every location using this plugin can be easily found with an IDE by searching explicit references to the type
+        2. Basic type inference can deduce the result type and properly type check usages of it
+
+        If there isn't already an instance of this class None will be returned to make it clear to the caller that there
+        is no existing knowledge of this type yet. The code that initially creates this knowledge should use the
+        `register_plugin` method to register the initial knowledge state
+        :param requested_plugin_cls:
+        :return: Instance of the requested plugin class or null if it is not a known plugin
+        """
+        # Get first plugin of this type already registered, or default to None
+        return next(
+            filter(lambda registered_plugin: type(registered_plugin) == requested_plugin_cls, self._plugins.values()),
+            None)
+
+    def request_knowledge(self, requested_plugin_cls: Type[K]) -> K:
+        existing = self.get_knowledge(requested_plugin_cls)
+        if existing is not None:
+            return existing
+        else:
+            p = requested_plugin_cls(self)
+            self.register_plugin(requested_plugin_cls.__name__, p)
+            return p

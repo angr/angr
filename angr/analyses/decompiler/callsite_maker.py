@@ -157,7 +157,7 @@ class CallSiteMaker(Analysis):
         # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return
         # value of this call statement as useless and is removed.
 
-        new_stmts.append(Stmt.Call(last_stmt, last_stmt.target,
+        new_stmts.append(Stmt.Call(last_stmt.idx, last_stmt.target,
                                    calling_convention=cc,
                                    prototype=prototype,
                                    args=args,

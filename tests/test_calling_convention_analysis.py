@@ -250,6 +250,18 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert cca.prototype is not None
         assert cca.prototype.returnty is not None
 
+    def manual_test_workers(self):
+        binary_path = os.path.join(test_location, "tests", "x86_64", "1after909")
+        proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
+
+        cfg = proj.analyses.CFG(normalize=True)  # fill in the default kb
+
+        _ = proj.analyses.CompleteCallingConventions(cfg=cfg.model, recover_variables=True, workers=4,
+                                                     show_progressbar=True)
+
+        for func in cfg.functions.values():
+            assert func.is_prototype_guessed is True
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)

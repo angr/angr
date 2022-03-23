@@ -1,13 +1,17 @@
-import angr
 from itertools import count
+
+import angr
+
+from ... import sim_options as o
+from ...state_plugins.sim_action import SimActionData
 
 fastpath_data_counter = count()
 
 class receive(angr.SimProcedure):
-    #pylint:disable=arguments-differ,attribute-defined-outside-init,redefined-outer-name
+    #pylint:disable=arguments-differ,attribute-defined-outside-init,missing-class-docstring,redefined-outer-name
 
     def run(self, fd, buf, count, rx_bytes):
-        if angr.options.CGC_ENFORCE_FD in self.state.options:
+        if o.CGC_ENFORCE_FD in self.state.options:
             fd = 0
 
         simfd = self.state.posix.get_fd(fd)
@@ -18,7 +22,7 @@ class receive(angr.SimProcedure):
             # Special case for CFG generation
             if not self.state.solver.symbolic(count):
                 data = self.state.solver.Unconstrained(
-                    'receive_data_%d' % next(fastpath_data_counter),
+                    f'receive_data_{next(fastpath_data_counter)}',
                     self.state.solver.eval_one(count) * 8
                 )
                 self.state.memory.store(buf, data)
@@ -40,12 +44,14 @@ class receive(angr.SimProcedure):
         if not writable:
             return 2
 
-        if CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
+        if o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH in self.state.options:
             count = self.state.solver.eval(count)
             if self.state.cgc.max_receive_size > 0:
                 count = min(count, self.state.cgc.max_receive_size)
 
-            read_length = simfd.read(buf, count, short_reads=False)
+            do_concrete_update = o.UNICORN_HANDLE_SYMBOLIC_ADDRESSES in self.state.options or \
+                o.UNICORN_HANDLE_SYMBOLIC_CONDITIONS in self.state.options
+            read_length = simfd.read(buf, count, short_reads=False, do_concrete_update=do_concrete_update)
             if type(read_length) is int:
                 read_length = self.state.solver.BVV(read_length, 32)
             self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness='Iend_LE')
@@ -79,6 +85,3 @@ class receive(angr.SimProcedure):
                 read_length = self.state.solver.BVV(read_length, 32)
             self.state.memory.store(rx_bytes, read_length, condition=rx_bytes != 0, endness='Iend_LE')
             return 0
-
-from ...sim_options import CGC_NO_SYMBOLIC_RECEIVE_LENGTH
-from ...state_plugins.sim_action import SimActionData

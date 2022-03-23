@@ -90,6 +90,19 @@ class VariableManagerInternal(Serializable):
     # Serialization
     #
 
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        d['manager'] = None
+        d['types'].kb = None
+        return d
+
+    def set_manager(self, manager: 'VariableManager'):
+        self.manager = manager
+        self.types.kb = manager._kb
+
     @classmethod
     def _get_cmsg(cls):
         return variables_pb2.VariableManagerInternal()

@@ -17,6 +17,9 @@ test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 
 def is_linux_x64():
     return sys.platform.startswith("linux") and platform.machine().endswith("64")
 
+def is_linux():
+    return sys.platform.startswith("linux")
+
 
 def test_data_reference_collection_in_add():
 
@@ -243,6 +246,43 @@ def test_helloworld_gcc9():
         shutil.rmtree(tempdir)
 
 
+def test_partial_pie_ls_x86():
+
+    # https://github.com/angr/patcherex/issues/39
+    # a GCC-generated X86 binary with a few functions somehow being PIE
+
+    p = angr.Project(os.path.join(test_location, "i386", "ls_gcc_7.5_reassembler"), auto_load_libs=False)
+    r = p.analyses.Reassembler(syntax="at&t")
+    r.symbolize()
+    r.remove_unnecessary_stuff()
+    assembly = r.assembly(comments=True, symbolized=True)
+
+    if is_linux():
+        # we should be able to compile it and run it ... if we are running on x64 Linux
+        tempdir = tempfile.mkdtemp(prefix="angr_test_reassembler_")
+        asm_filename = "ls.s"
+        bin_filename = "ls"
+        asm_filepath = os.path.join(tempdir, asm_filename)
+        bin_filepath = os.path.join(tempdir, bin_filename)
+        with open(asm_filepath, "w", encoding="ascii") as f:
+            f.write(assembly)
+        # Call out to GCC, and it should return 0. Otherwise check_call() will raise an exception.
+        subprocess.check_call(["gcc", "-m32", "-no-pie", asm_filepath, "-o", bin_filepath],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Run the generated binary file, and it should not crash
+        subprocess.check_call([bin_filepath], stdout=subprocess.DEVNULL)
+        # We can also run it with "-h"
+        o = subprocess.check_output([bin_filepath, "--version"])
+        assert o == b'ls (GNU coreutils) 8.30\n' \
+                    b'Copyright (C) 2018 Free Software Foundation, Inc.\n' \
+                    b'License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\n' \
+                    b'This is free software: you are free to change and redistribute it.\n' \
+                    b'There is NO WARRANTY, to the extent permitted by law.\n\n' \
+                    b'Written by Richard M. Stallman and David MacKenzie.\n'
+        # Pick up after ourselves
+        shutil.rmtree(tempdir)
+
+
 if __name__ == "__main__":
     test_data_reference_collection_in_add()
     test_ln_gcc_O2()
@@ -252,3 +292,4 @@ if __name__ == "__main__":
     test_dir_gcc_O0()
     test_helloworld()
     test_helloworld_gcc9()
+    test_partial_pie_ls_x86()

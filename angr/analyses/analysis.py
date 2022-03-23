@@ -135,7 +135,28 @@ class AnalysisFactory(Generic[A]):
                   progress_callback=progress_callback,
                   show_progressbar=show_progressbar)
 
-        return w(*args, **kwargs)
+        r = w(*args, **kwargs)
+        # clean up so that it's always pickleable
+        r._progressbar = None
+        return r
+
+
+class StatusBar(progressbar.widgets.WidgetBase):
+    """
+    Implements a progressbar component for displaying raw text.
+    """
+    def __init__(self, width: Optional[int]=40):
+        super().__init__()
+        self.status: str = ""
+        self.width = width
+
+    def __call__(self, progress, data, **kwargs):  # pylint:disable=unused-argument
+        if self.width is None:
+            return self.status
+        if len(self.status) < self.width:
+            return self.status.ljust(self.width, " ")
+        else:
+            return self.status[:self.width]
 
 
 class Analysis:
@@ -162,6 +183,7 @@ class Analysis:
     _progress_callback = None
     _show_progressbar = False
     _progressbar = None
+    _statusbar: Optional[StatusBar] = None
 
     _PROGRESS_WIDGETS = [
         progressbar.Percentage(),
@@ -170,7 +192,9 @@ class Analysis:
         ' ',
         progressbar.Timer(),
         ' ',
-        progressbar.ETA()
+        progressbar.ETA(),
+        ' ',
+        StatusBar(),
     ]
 
     @contextlib.contextmanager
@@ -194,9 +218,10 @@ class Analysis:
         :return: None
         """
 
-        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, maxval=10000 * 100).start()
+        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, max_value=10000 * 100).start()
+        self._statusbar = self._progressbar.widgets[-1]
 
-    def _update_progress(self, percentage, **kwargs):
+    def _update_progress(self, percentage, text=None, **kwargs):
         """
         Update the progress with a percentage, including updating the progressbar as well as calling the progress
         callback.
@@ -212,8 +237,11 @@ class Analysis:
 
             self._progressbar.update(percentage * 10000)
 
+        if text is not None and self._statusbar is not None:
+            self._statusbar.status = text
+
         if self._progress_callback is not None:
-            self._progress_callback(percentage, **kwargs)  # pylint:disable=not-callable
+            self._progress_callback(percentage, text=text, **kwargs)  # pylint:disable=not-callable
 
     def _finish_progress(self):
         """
@@ -248,6 +276,19 @@ class Analysis:
 
         if ctr != 0 and ctr % freq == 0:
             time.sleep(sleep_time)
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        if "_progressbar" in d:
+            del d['_progressbar']
+        if '_progress_callback' in d:
+            del d['_progress_callback']
+        if '_statusbar' in d:
+            del d['_statusbar']
+        return d
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))

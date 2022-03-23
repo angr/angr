@@ -95,6 +95,8 @@ class PropValue:
         return value[chop_start : chop_end]
 
     def value_and_labels(self) -> Generator[Tuple[int,claripy.ast.Bits,int,Optional[Dict]],None,None]:
+        if not self.offset_and_details:
+            return
         keys = list(sorted(self.offset_and_details.keys()))
         if keys[0] != 0:
             # missing details at 0

@@ -768,80 +768,6 @@ class TestCfgfast(unittest.TestCase):
         assert cfb.ceiling_addr(0x400581) == 0x4005A9
 
     #
-    # Data references
-    #
-
-    def test_data_references_x86_64(self):
-
-        path = os.path.join(test_location, "x86_64", "fauxware")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True)
-
-        memory_data = cfg.memory_data
-        # There is no code reference
-        code_ref_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference]
-        )
-        assert code_ref_count >= 0, "There should be no code reference."
-
-        # There are at least 2 pointer arrays
-        ptr_array_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray]
-        )
-        assert ptr_array_count > 2, "Missing some pointer arrays."
-
-        assert 0x4008D0 in memory_data
-        sneaky_str = memory_data[0x4008D0]
-        assert sneaky_str.sort == "string"
-        assert sneaky_str.content == b"SOSNEAKY"
-
-    def test_data_references_mipsel(self):
-
-        path = os.path.join(test_location, "mipsel", "fauxware")
-        proj = angr.Project(path, auto_load_libs=False)
-
-        cfg = proj.analyses.CFGFast(data_references=True)
-
-        memory_data = cfg.memory_data
-        # There is no code reference
-        code_ref_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference]
-        )
-        assert code_ref_count >= 0, "There should be no code reference."
-
-        # There are at least 2 pointer arrays
-        ptr_array_count = len(
-            [d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray]
-        )
-        assert ptr_array_count >= 1, "Missing some pointer arrays."
-
-        assert 0x400C00 in memory_data
-        sneaky_str = memory_data[0x400C00]
-        assert sneaky_str.sort == "string"
-        assert sneaky_str.content == b"SOSNEAKY"
-
-        assert 0x400C0C in memory_data
-        str_ = memory_data[0x400C0C]
-        assert str_.sort == "string"
-        assert str_.content == b"Welcome to the admin console, trusted user!"
-
-        assert 0x400C38 in memory_data
-        str_ = memory_data[0x400C38]
-        assert str_.sort == "string"
-        assert str_.content == b"Go away!"
-
-        assert 0x400C44 in memory_data
-        str_ = memory_data[0x400C44]
-        assert str_.sort == "string"
-        assert str_.content == b"Username: "
-
-        assert 0x400C50 in memory_data
-        str_ = memory_data[0x400C50]
-        assert str_.sort == "string"
-        assert str_.content == b"Password: "
-
-    #
     # CFG with patches
     #
 
@@ -964,6 +890,37 @@ class TestCfgfast(unittest.TestCase):
         assert len(n.successors[0].successors[0].successors) > 0
         assert n.successors[0].successors[0].successors[0].addr == 0x103D4
 
+    def test_error_returning(self):
+
+        # error() is a great function: its returning depends on the value of the first argument...
+        path = os.path.join(test_location, "x86_64", "mv_-O2")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+
+        error_not_returning = [
+            0x4030d4,
+            0x403100,
+            0x40313c,
+            0x4031f5,
+            0x40348a,
+        ]
+
+        error_returning = [
+            0x403179,
+            0x4031a2,
+            0x403981,
+            0x403e30,
+            0x40403b
+        ]
+
+        for error_site in error_not_returning:
+            node = cfg.model.get_any_node(error_site)
+            assert len(list(cfg.model.get_successors(node, excluding_fakeret=False))) == 1  # only the call successor
+
+        for error_site in error_returning:
+            node = cfg.model.get_any_node(error_site)
+            assert len(list(cfg.model.get_successors(node, excluding_fakeret=False))) == 2  # both a call and a fakeret
+
     def test_kepler_server_armhf(self):
         binary_path = os.path.join(test_location, "armhf", "kepler_server")
         proj = angr.Project(binary_path, auto_load_libs=False)
@@ -985,40 +942,144 @@ class TestCfgfast(unittest.TestCase):
         func_3 = cfg.kb.functions[0x12631]
         assert func_3.returning is True
 
+    def test_func_in_added_segment_by_patcherex_arm(self):
+        path = os.path.join(test_location, "armel", "patcherex", "replace_function_patch_with_function_reference")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True,
+                                    function_starts={0xa00081},
+                                    regions=[(4195232, 4195244),
+                                             (4195244, 4195324),
+                                             (4195324, 4196016),
+                                             (4196016, 4196024),
+                                             (10485888, 10485950)])
 
-def test_func_in_added_segment_by_patcherex_arm():
-    path = os.path.join(test_location, "armel", "patcherex", "replace_function_patch_with_function_reference")
-    proj = angr.Project(path, auto_load_libs=False)
-    cfg = proj.analyses.CFGFast(normalize=True,
-                                function_starts={0xa00081},
-                                regions=[(4195232, 4195244),
-                                         (4195244, 4195324),
-                                         (4195324, 4196016),
-                                         (4196016, 4196024),
-                                         (10485888, 10485950)])
+        # Check whether the target function is in the functions list
+        assert 0xa00081 in cfg.kb.functions
+        # Check the number of basic blocks
+        assert len(list(cfg.functions[0xa00081].blocks)) == 8
 
-    # Check whether the target function is in the functions list
-    assert 0xa00081 in cfg.kb.functions
-    # Check the number of basic blocks
-    assert len(list(cfg.functions[0xa00081].blocks)) == 8
+    def test_func_in_added_segment_by_patcherex_x64(self):
+        path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True,
+                                    function_starts={0xa0013d},
+                                    regions=[(4195568, 4195591),
+                                             (4195600, 4195632),
+                                             (4195632, 4195640),
+                                             (4195648, 4196418),
+                                             (4196420, 4196429),
+                                             (10486064, 10486213)])
+
+        # Check whether the target function is in the functions list
+        assert 0xa0013d in cfg.kb.functions
+        # Check the number of basic blocks
+        assert len(list(cfg.functions[0xa0013d].blocks)) == 7
 
 
-def test_func_in_added_segment_by_patcherex_x64():
-    path = os.path.join(test_location, "x86_64", "patchrex", "replace_function_patch_with_function_reference")
-    proj = angr.Project(path, auto_load_libs=False)
-    cfg = proj.analyses.CFGFast(normalize=True,
-                                function_starts={0xa0013d},
-                                regions=[(4195568, 4195591),
-                                         (4195600, 4195632),
-                                         (4195632, 4195640),
-                                         (4195648, 4196418),
-                                         (4196420, 4196429),
-                                         (10486064, 10486213)])
+class TestCfgfastDataReferences(unittest.TestCase):
+    def test_data_references_x86_64(self):
 
-    # Check whether the target function is in the functions list
-    assert 0xa0013d in cfg.kb.functions
-    # Check the number of basic blocks
-    assert len(list(cfg.functions[0xa0013d].blocks)) == 7
+        path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True)
+
+        memory_data = cfg.memory_data
+        # There is no code reference
+        code_ref_count = len(
+            [d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference]
+        )
+        assert code_ref_count >= 0, "There should be no code reference."
+
+        # There are at least 2 pointer arrays
+        ptr_array_count = len(
+            [d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray]
+        )
+        assert ptr_array_count > 2, "Missing some pointer arrays."
+
+        assert 0x4008D0 in memory_data
+        sneaky_str = memory_data[0x4008D0]
+        assert sneaky_str.sort == "string"
+        assert sneaky_str.content == b"SOSNEAKY"
+
+    def test_data_references_mipsel(self):
+
+        path = os.path.join(test_location, "mipsel", "fauxware")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True)
+
+        memory_data = cfg.memory_data
+        # There is no code reference
+        code_ref_count = len(
+            [d for d in memory_data.values() if d.sort == MemoryDataSort.CodeReference]
+        )
+        assert code_ref_count >= 0, "There should be no code reference."
+
+        # There are at least 2 pointer arrays
+        ptr_array_count = len(
+            [d for d in memory_data.values() if d.sort == MemoryDataSort.PointerArray]
+        )
+        assert ptr_array_count >= 1, "Missing some pointer arrays."
+
+        assert 0x400C00 in memory_data
+        sneaky_str = memory_data[0x400C00]
+        assert sneaky_str.sort == "string"
+        assert sneaky_str.content == b"SOSNEAKY"
+
+        assert 0x400C0C in memory_data
+        str_ = memory_data[0x400C0C]
+        assert str_.sort == "string"
+        assert str_.content == b"Welcome to the admin console, trusted user!"
+
+        assert 0x400C38 in memory_data
+        str_ = memory_data[0x400C38]
+        assert str_.sort == "string"
+        assert str_.content == b"Go away!"
+
+        assert 0x400C44 in memory_data
+        str_ = memory_data[0x400C44]
+        assert str_.sort == "string"
+        assert str_.content == b"Username: "
+
+        assert 0x400C50 in memory_data
+        str_ = memory_data[0x400C50]
+        assert str_.sort == "string"
+        assert str_.content == b"Password: "
+
+    def test_data_references_mips64(self):
+
+        path = os.path.join(test_location, "mips64", "true")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
+        memory_data = cfg.memory_data
+
+        assert 0x120007dd8 in memory_data
+        assert memory_data[0x120007dd8].sort == "string"
+        assert memory_data[0x120007dd8].content == b"coreutils"
+
+        xrefs = proj.kb.xrefs
+        refs = list(xrefs.get_xrefs_by_dst(0x120007dd8))
+        assert len(refs) == 2
+        assert set(x.ins_addr for x in refs) == {0x1200020e8, 0x120002108}
+
+    def test_data_references_i386_gcc_pie(self):
+
+        path = os.path.join(test_location, "i386", "nl")
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True, cross_references=True)
+        memory_data = cfg.memory_data
+
+        assert 0x405bb0 in memory_data
+        assert memory_data[0x405bb0].sort == "string"
+        assert memory_data[0x405bb0].content == b"/usr/local/share/locale"
+
+        xrefs = proj.kb.xrefs
+        refs = list(xrefs.get_xrefs_by_dst(0x405bb0))
+        assert len(refs) == 1
+        assert set(x.ins_addr for x in refs) == {0x4011dd}
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ class TestPropagatorLoops(unittest.TestCase):
         # assert(cond_stmt is not None)
         # print('Condition:' + str(cond_stmt))
         # print(cond_proc.claripy_ast_from_ail_condition(cond_stmt.condition))
-        cond_proc = ConditionProcessor()
+        cond_proc = ConditionProcessor(p.arch)
         ri = p.analyses.RegionIdentifier(f, graph=a.graph, cond_proc=cond_proc, kb=p.kb)
         rs = p.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=p.kb, func=f)
         snodes = rs.result.nodes

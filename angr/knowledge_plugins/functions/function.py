@@ -41,7 +41,7 @@ class Function(Serializable):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed',
+                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed', 'ran_cca',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
@@ -121,6 +121,8 @@ class Function(Serializable):
         self._argument_stack_variables = []
 
         self._project = None  # type: Optional[Project] # will be initialized upon the first access to self.project
+
+        self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
         #
         # Initialize unspecified properties
@@ -664,8 +666,11 @@ class Function(Serializable):
             hooker = self.project.simos.syscall_from_addr(self.addr)
         elif self.is_simprocedure:
             hooker = self.project.hooked_by(self.addr)
-        if hooker and hasattr(hooker, 'NO_RET'):
-            return not hooker.NO_RET
+        if hooker:
+            if hasattr(hooker, 'DYNAMIC_RET') and hooker.DYNAMIC_RET:
+                return True
+            elif hasattr(hooker, 'NO_RET'):
+                return not hooker.NO_RET
 
         # Cannot determine
         return None

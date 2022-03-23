@@ -702,7 +702,7 @@ class CSwitchCase(CStatement):
         super().__init__(**kwargs)
 
         self.switch = switch
-        self.cases = cases
+        self.cases: List[Tuple[Union[int,Tuple[int]],CStatements]] = cases
         self.default = default
         self.tags = tags
 
@@ -726,9 +726,18 @@ class CSwitchCase(CStatement):
         yield "\n", self
 
         # cases
-        for idx, case in self.cases:
+        for id_or_ids, case in self.cases:
             yield indent_str, None
-            yield "case {}:\n".format(idx), self
+            if isinstance(id_or_ids, int):
+                yield f"case {id_or_ids}", self
+                yield ":\n", None
+            else:
+                for i, case_id in enumerate(id_or_ids):
+                    yield f"case {case_id}", self
+                    yield ":", None
+                    if i != len(id_or_ids) - 1:
+                        yield " ", None
+                yield "\n", None
             yield from case.c_repr_chunks(indent=indent + INDENT_DELTA)
 
         if self.default is not None:

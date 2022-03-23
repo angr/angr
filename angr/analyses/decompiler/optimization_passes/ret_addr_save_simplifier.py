@@ -1,17 +1,22 @@
+from typing import Tuple, Optional, List, Any
 import logging
 
 import ailment
 
+from ....calling_conventions import SimRegArg, DEFAULT_CC
 from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
 
 
-class BasePointerSaveSimplifier(OptimizationPass):
+class RetAddrSaveSimplifier(OptimizationPass):
+    """
+    Removes code in function prologues and epilogues for saving and restoring return address registers (ra, lr, etc.)
+    """
 
-    ARCHES = ['X86', 'AMD64', 'ARMEL', 'ARMHF', "ARMCortexM", "MIPS32", "MIPS64"]
-    PLATFORMS = ["cgc", 'linux']
+    ARCHES = ['MIPS32', 'MIPS64']
+    PLATFORMS = ['linux']
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
 
     def __init__(self, func, **kwargs):
@@ -19,10 +24,18 @@ class BasePointerSaveSimplifier(OptimizationPass):
         self.analyze()
 
     def _check(self):
-        save_stmt = self._find_baseptr_save_stmt()
+
+        if self.project.arch.name not in DEFAULT_CC:
+            return False, { }
+
+        default_cc = DEFAULT_CC[self.project.arch.name](self.project.arch)
+        if not isinstance(default_cc.return_addr, SimRegArg):
+            return False, { }
+
+        save_stmt = self._find_retaddr_save_stmt()
 
         # Note that restoring statements may not exist since they can be effectively removed by other optimization
-        restore_stmts = self._find_baseptr_restore_stmt()
+        restore_stmts = self._find_retaddr_restore_stmt()
 
         if save_stmt is None:
             return False, { }
@@ -40,7 +53,7 @@ class BasePointerSaveSimplifier(OptimizationPass):
 
         return True, {
             'save_stmt': save_stmt,
-            'restore_stmts': [ ]
+            'restore_stmts': [ ],
         }
 
     def _analyze(self, cache=None):
@@ -52,9 +65,9 @@ class BasePointerSaveSimplifier(OptimizationPass):
             restore_stmts = cache.get('restore_stmts', None)
 
         if save_stmt is None:
-            save_stmt = self._find_baseptr_save_stmt()
+            save_stmt = self._find_retaddr_save_stmt()
         if restore_stmts is None:
-            restore_stmts = self._find_baseptr_restore_stmt()
+            restore_stmts = self._find_retaddr_restore_stmt()
 
         if save_stmt is None:
             return
@@ -72,23 +85,27 @@ class BasePointerSaveSimplifier(OptimizationPass):
                 block_copy.statements.pop(stmt_idx)
                 self._update_block(block, block_copy)
 
-    def _find_baseptr_save_stmt(self):
+    def _find_retaddr_save_stmt(self) -> Optional[Tuple[Any,int,ailment.Expr.StackBaseOffset]]:
         """
-        Find the AIL statement that saves the base pointer to a stack slot.
+        Find the AIL statement that saves the return address to a stack slot.
 
         :return:    A tuple of (block_addr, statement_idx, save_dst) or None if not found.
-        :rtype:     tuple|None
         """
 
         first_block = self._get_block(self._func.addr)
         if first_block is None:
             return None
 
+        default_cc = DEFAULT_CC[self.project.arch.name](self.project.arch)
+        retaddr = default_cc.return_addr
+        assert isinstance(retaddr, SimRegArg)
+        retaddr_reg = self.project.arch.registers[retaddr.reg_name][0]
+
         for idx, stmt in enumerate(first_block.statements):
             if isinstance(stmt, ailment.Stmt.Store) \
                     and isinstance(stmt.addr, ailment.Expr.StackBaseOffset) \
                     and isinstance(stmt.data, ailment.Expr.Register) \
-                    and stmt.data.reg_offset == self.project.arch.bp_offset \
+                    and stmt.data.reg_offset == retaddr_reg \
                     and stmt.addr.offset < 0:
                 return first_block, idx, stmt.addr
             if isinstance(stmt, ailment.Stmt.Store) \
@@ -101,40 +118,45 @@ class BasePointerSaveSimplifier(OptimizationPass):
         # Not found
         return None
 
-    def _find_baseptr_restore_stmt(self):
+    def _find_retaddr_restore_stmt(self) -> Optional[List[Tuple[Any,int,ailment.Expr.StackBaseOffset]]]:
         """
-        Find the AIL statement that restores the base pointer from a stack slot.
+        Find the AIL statement that restores the return address from a stack slot.
 
         :return:    A list of tuples, where each tuple is like (block_addr, statement_idx, load_src), or None if not
                     found.
-        :rtype:     list|None
         """
 
         endpoints = self._func.endpoints
         callouts_and_jumpouts = { n.addr for n in self._func.callout_sites + self._func.jumpout_sites }
 
-        baseptr_restore_stmts = [ ]
+        retaddr_restore_stmts = [ ]
+
+        default_cc = DEFAULT_CC[self.project.arch.name](self.project.arch)
+        retaddr = default_cc.return_addr
+        assert isinstance(retaddr, SimRegArg)
+        retaddr_reg = self.project.arch.registers[retaddr.reg_name][0]
 
         for endpoint in endpoints:
             for endpoint_block in self._get_blocks(endpoint.addr):
                 for idx, stmt in enumerate(endpoint_block.statements):
                     if isinstance(stmt, ailment.Stmt.Assignment) \
                             and isinstance(stmt.dst, ailment.Expr.Register) \
-                            and stmt.dst.reg_offset == self.project.arch.bp_offset \
+                            and stmt.dst.reg_offset == retaddr_reg \
                             and isinstance(stmt.src, ailment.Expr.Load) \
                             and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset):
-                        baseptr_restore_stmts.append((endpoint_block, idx, stmt.src.addr))
+                        retaddr_restore_stmts.append((endpoint_block, idx, stmt.src.addr))
                         break
                 else:
                     if endpoint.addr not in callouts_and_jumpouts:
-                        _l.debug("Could not find baseptr restoring statement in function %#x.", endpoint.addr)
+                        _l.debug("Could not find retaddr restoring statement in function %#x.", endpoint.addr)
                         return None
                     else:
-                        _l.debug("No baseptr restoring statement is found at callout/jumpout site %#x. Might be expected.",
+                        _l.debug("No retaddr restoring statement is found at callout/jumpout site %#x. "
+                                 "Might be expected.",
                                  endpoint.addr
                                  )
 
-        return baseptr_restore_stmts
+        return retaddr_restore_stmts
 
 
-AnalysesHub.register_default('BasePointerSaveSimplifier', BasePointerSaveSimplifier)
+AnalysesHub.register_default('RetAddrSaveSimplifier', RetAddrSaveSimplifier)

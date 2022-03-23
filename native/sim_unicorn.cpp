@@ -1,4 +1,5 @@
 #define __STDC_FORMAT_MACROS 1
+#define NOMINMAX
 
 #include <algorithm>
 #include <cassert>
@@ -24,7 +25,8 @@ extern "C" {
 #include "sim_unicorn.hpp"
 //#include "log.h"
 
-State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os): uc(_uc), simos(curr_os) {
+State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond):
+  uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs), handle_symbolic_conditions(symb_cond) {
 	hooked = false;
 	h_read = h_write = h_block = h_prot = 0;
 	max_steps = cur_steps = 0;
@@ -55,6 +57,7 @@ State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os): uc(_uc), simo
 	trace_last_block_addr = 0;
 	trace_last_block_tot_count = -1;
 	trace_last_block_curr_count = -1;
+	executed_blocks_count = -1;
 }
 
 /*
@@ -153,6 +156,8 @@ void State::stop(stop_t reason, bool do_commit) {
 		sym_block.reset();
 		sym_block.block_addr = block.block_addr;
 		sym_block.block_size = block.block_size;
+		sym_block.block_trace_ind = block.block_trace_ind;
+		sym_block.has_symbolic_exit = block.has_symbolic_exit;
 		std::set<instr_details_t> sym_instrs;
 		std::unordered_set<register_value_t> reg_values;
 		for (auto &sym_instr: block.symbolic_instrs) {
@@ -167,7 +172,7 @@ void State::stop(stop_t reason, bool do_commit) {
 			sym_instr.instr_addr = instr.instr_addr;
 			sym_instr.memory_values = instr.memory_values;
 			sym_instr.memory_values_count = instr.memory_values_count;
-			sym_instr.has_memory_dep = instr.has_concrete_memory_dep;
+			sym_instr.has_memory_dep = instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep;
 			sym_block.symbolic_instrs.emplace_back(sym_instr);
 		}
 		block_details_to_return.emplace_back(sym_block);
@@ -213,6 +218,9 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 			stop(STOP_STOPPOINT);
 		}
 	}
+	if (!stopped) {
+		executed_blocks_count++;
+	}
 }
 
 void State::commit() {
@@ -250,6 +258,28 @@ void State::commit() {
 	for (auto &reg_offset: block_concrete_registers) {
 		symbolic_registers.erase(reg_offset);
 	}
+	// Remove instructions whose effects are overwritten by subsequent instructions from the re-execute list
+	std::vector<std::vector<block_details_t>::iterator> blocks_to_erase_it;
+	for (auto &instrs_to_erase_entry: symbolic_instrs_to_erase) {
+		std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
+		auto block_it = blocks_with_symbolic_instrs.begin() + instrs_to_erase_entry.first;
+		auto first_instr_it = block_it->symbolic_instrs.begin();
+		for (auto &instr_offset: instrs_to_erase_entry.second) {
+			instrs_to_erase_it.push_back(first_instr_it + instr_offset);
+		}
+		for (auto &instr_to_erase_it: instrs_to_erase_it) {
+			block_it->symbolic_instrs.erase(instr_to_erase_it);
+		}
+		if (block_it->symbolic_instrs.size() == 0) {
+			// There are no more instructions to re-execute in this block and thus it can be removed from list of blocks
+			// with instructions that need to be re-executed
+			blocks_to_erase_it.push_back(block_it);
+		}
+	}
+	for (auto &block_to_erase_it: blocks_to_erase_it) {
+		blocks_with_symbolic_instrs.erase(block_to_erase_it);
+	}
+	// Save details of symbolic instructions in current block
 	if (curr_block_details.symbolic_instrs.size() > 0) {
 		for (auto &symbolic_instr: curr_block_details.symbolic_instrs) {
 			compute_slice_of_instr(symbolic_instr);
@@ -269,6 +299,7 @@ void State::commit() {
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
 	block_mem_writes_taint_data.clear();
+	symbolic_instrs_to_erase.clear();
 	taint_engine_next_instr_address = 0;
 	taint_engine_stop_mem_read_instruction = 0;
 	taint_engine_stop_mem_read_size = 0;
@@ -697,10 +728,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		// since this concrete write nullifies their effects.
 		auto curr_write_start_addr = address;
 		auto curr_write_end_addr = address + size;
-		std::vector<std::vector<instr_details_t>::iterator> instrs_to_erase_it;
-		for (auto &block: blocks_with_symbolic_instrs) {
-			instrs_to_erase_it.clear();
-			for (auto sym_instr_it = block.symbolic_instrs.begin(); sym_instr_it != block.symbolic_instrs.end(); sym_instr_it++) {
+		auto first_block_it = blocks_with_symbolic_instrs.begin();
+		for (auto block_it = first_block_it; block_it != blocks_with_symbolic_instrs.end(); block_it++) {
+			std::unordered_set<uint32_t> instrs_to_erase;
+			auto first_instr_it = block_it->symbolic_instrs.begin();
+			for (auto sym_instr_it = first_instr_it; sym_instr_it != block_it->symbolic_instrs.end(); sym_instr_it++) {
 				int64_t symbolic_write_start_addr = sym_instr_it->mem_write_addr;
 				if (symbolic_write_start_addr == -1) {
 					// Instruction does not write a symbolic write to memory. No need to check this.
@@ -711,14 +743,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 					// Currrent write fully overwrites the previous written symbolic value and so the symbolic write
 					// instruction need not be re-executed
 					// TODO: How to handle partial overwrite?
-					// TODO: If this block is not fully executed in unicorn before control returns to python land,
-					// the state will be inconsistent until this concrete memory write is executed. If this happens,
-					// the symbolic memory write should be removed from list of instructions to re-execute in commit.
-					instrs_to_erase_it.emplace_back(sym_instr_it);
+					instrs_to_erase.emplace(sym_instr_it - first_instr_it);
 				}
 			}
-			for (auto &instr_to_erase_it: instrs_to_erase_it) {
-				block.symbolic_instrs.erase(instr_to_erase_it);
+			if (instrs_to_erase.size() > 0) {
+				symbolic_instrs_to_erase.emplace(block_it - first_block_it, instrs_to_erase);
 			}
 		}
 	}
@@ -805,12 +834,18 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 	}
 
 	// List of instructions modifying a register dependency. Their slice needs to be computed.
-	for (auto &dep_reg_modifier: instr_taint_entry.dep_reg_modifier_addr) {
-		if (!all_dep_regs_concrete && instr_concrete_regs_it->second.count(dep_reg_modifier.first) == 0) {
+	for (auto &reg_dep: instr_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
+		auto reg_modifier_entry = instr_taint_entry.dep_reg_modifier_addr.find(reg_dep.reg_offset);
+		if (reg_modifier_entry == instr_taint_entry.dep_reg_modifier_addr.end()) {
+			continue;
+		}
+		if (!all_dep_regs_concrete && instr_concrete_regs_it->second.count(reg_dep.reg_offset) == 0) {
 			// Register was not concrete before instruction was executed. Do not compute slice.
 			continue;
 		}
-		instrs_to_process.emplace(dep_reg_modifier.second);
+		if (!reg_dep.used_in_mem_addr) {
+			instrs_to_process.emplace(instr_taint_entry.dep_reg_modifier_addr.at(reg_dep.reg_offset));
+		}
 	}
 
 	// List of instructions modifying a VEX temp dependency. Their slice needs to be computed.
@@ -834,6 +869,39 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 		instr_details.reg_deps.clear();
 		instr_details.instr_deps.clear();
 		instr.instr_deps.insert(instr_details);
+	}
+	return;
+}
+
+void State::set_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry) {
+	std::queue<taint_entity_t> entities_to_process;
+	entities_to_process.emplace(entity);
+	while (!entities_to_process.empty()) {
+		auto curr_entity = entities_to_process.front();
+		entities_to_process.pop();
+		for (auto &dep_list: instr_taint_entry.dependencies) {
+			for (auto &dep: dep_list.second) {
+				if (dep == curr_entity) {
+					dep.used_in_mem_addr = true;
+					auto taint_sink_entry_it = std::find_if(instr_taint_entry.taint_sink_src_map.begin(), instr_taint_entry.taint_sink_src_map.end(),
+										[&dep](taint_vector_t::const_reference element) { return element.first == dep; });
+					while (taint_sink_entry_it != instr_taint_entry.taint_sink_src_map.end()) {
+						for (auto &elem: taint_sink_entry_it->second) {
+							entities_to_process.push(elem);
+					    }
+						taint_sink_entry_it++;
+						taint_sink_entry_it = std::find_if(taint_sink_entry_it, instr_taint_entry.taint_sink_src_map.end(),
+										[&dep](taint_vector_t::const_reference element) { return element.first == dep; });
+					}
+				}
+			}
+		}
+	}
+}
+
+void State::update_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry) {
+	for (auto &mem_entity: entity.mem_ref_entity_list) {
+		set_deps_mem_addr_status(mem_entity, instr_taint_entry);
 	}
 	return;
 }
@@ -873,12 +941,17 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
 					instruction_taint_entry.ite_cond_entity_list.insert(entry.second.begin(), entry.second.end());
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
+				}
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
 				}
 				// Mark this register as modified by this instruction for updating register setter later
 				modified_regs.emplace(sink.reg_offset);
@@ -924,8 +997,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
+				}
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
 					instruction_taint_entry.ite_cond_entity_list.insert(entry.second.begin(), entry.second.end());
@@ -968,8 +1046,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 				}
 				instruction_taint_entry.taint_sink_src_map.emplace_back(sink, srcs);
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
+				}
 
 				// Store ITE condition entities. Also, store them as dependencies of instruction.
 				for (auto &entry: result.ite_cond_entities) {
@@ -990,8 +1073,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					block_taint_entry.exit_stmt_guard_expr_deps.insert(entry.second.begin(), entry.second.end());
 				}
 				block_taint_entry.exit_stmt_instr_addr = curr_instr_addr;
-				instruction_taint_entry.mem_read_size += result.mem_read_size;
-				instruction_taint_entry.has_memory_read |= (result.mem_read_size != 0);
+				if (result.mem_read_size != 0) {
+					for (auto &mem_addr_dep: result.taint_sources.at(TAINT_ENTITY_MEM)) {
+						update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+					}
+					instruction_taint_entry.mem_read_size += result.mem_read_size;
+					instruction_taint_entry.has_memory_read = true;
+				}
 				break;
 			}
 			case Ist_IMark:
@@ -1096,8 +1184,13 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 			block_taint_entry.block_next_entities.insert(entry.second.begin(), entry.second.end());
 			instruction_taint_entry.dependencies.at(entry.first).insert(entry.second.begin(), entry.second.end());
 		}
-		instruction_taint_entry.mem_read_size += block_next_taint_sources.mem_read_size;
-		instruction_taint_entry.has_memory_read |= (block_next_taint_sources.mem_read_size != 0);
+		if (block_next_taint_sources.mem_read_size != 0) {
+			for (auto &mem_addr_dep: block_next_taint_sources.taint_sources.at(TAINT_ENTITY_MEM)) {
+				update_deps_mem_addr_status(mem_addr_dep, instruction_taint_entry);
+			}
+			instruction_taint_entry.mem_read_size += block_next_taint_sources.mem_read_size;
+			instruction_taint_entry.has_memory_read = true;
+		}
 	}
 	// Save register dependencies' info
 	for (auto &dep: instruction_taint_entry.dependencies.at(TAINT_ENTITY_REG)) {
@@ -1743,9 +1836,14 @@ void State::propagate_taints() {
 			return;
 		}
 		else if (is_block_exit_guard_symbolic()) {
-			stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
+			if (handle_symbolic_conditions) {
+				curr_block_details.has_symbolic_exit = true;
+			}
+			else {
+				stop(STOP_SYMBOLIC_BLOCK_EXIT_CONDITION);
+			}
 		}
-		else if (is_block_next_target_symbolic()) {
+		else if (!handle_symbolic_conditions && is_block_next_target_symbolic()) {
 			stop(STOP_SYMBOLIC_BLOCK_EXIT_TARGET);
 		}
 	}
@@ -1957,13 +2055,24 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 			auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
 			// Check if address written to is symbolic or is read from memory
 			if (addr_taint_status != TAINT_STATUS_CONCRETE) {
-				stop(STOP_SYMBOLIC_WRITE_ADDR);
-				return;
+				if (handle_symbolic_addrs) {
+					is_instr_symbolic = true;
+				}
+				else {
+					stop(STOP_SYMBOLIC_WRITE_ADDR);
+					return;
+				}
 			}
 			auto sink_taint_status = get_final_taint_status(taint_srcs);
 			if (sink_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
-				stop(STOP_SYMBOLIC_READ_ADDR);
-				return;
+				if (handle_symbolic_addrs) {
+					is_instr_symbolic = true;
+					sink_taint_status = TAINT_STATUS_SYMBOLIC;
+				}
+				else {
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
+				}
 			}
 			if (sink_taint_status == TAINT_STATUS_SYMBOLIC) {
 				// Save the memory location written to be marked as symbolic in write hook
@@ -1979,11 +2088,11 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 		else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
 			taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
-			if (final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) {
+			if ((final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) && !handle_symbolic_addrs) {
 				stop(STOP_SYMBOLIC_READ_ADDR);
 				return;
 			}
-			else if (final_taint_status == TAINT_STATUS_SYMBOLIC) {
+			else if (final_taint_status != TAINT_STATUS_CONCRETE) {
 				if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg_vex_offset())) {
 					stop(STOP_SYMBOLIC_PC);
 					return;
@@ -2007,8 +2116,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 		auto ite_cond_taint_status = get_final_taint_status(instr_taint_entry.ite_cond_entity_list);
 		if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
-			stop(STOP_SYMBOLIC_CONDITION);
-			return;
+			is_instr_symbolic = true;
 		}
 	}
 	if (is_instr_symbolic) {
@@ -2051,9 +2159,10 @@ void State::read_memory_value(address_t address, uint64_t size, uint8_t *result,
 	return;
 }
 
-void State::start_propagating_taint(address_t block_address, int32_t block_size) {
-	curr_block_details.block_addr = block_address;
-	curr_block_details.block_size = block_size;
+void State::start_propagating_taint() {
+	address_t block_address = curr_block_details.block_addr;
+	int32_t block_size = curr_block_details.block_size;
+	curr_block_details.block_trace_ind = executed_blocks_count;
 	if (is_symbolic_tracking_disabled()) {
 		// We're not checking symbolic registers so no need to propagate taints
 		return;
@@ -2140,7 +2249,7 @@ void State::continue_propagating_taint() {
 }
 
 void State::save_concrete_memory_deps(instr_details_t &instr) {
-	if (instr.has_concrete_memory_dep) {
+	if (instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep) {
 		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.instr_addr).memory_values);
 		instr.memory_values = &(archived_memory_values.back()[0]);
 		instr.memory_values_count = archived_memory_values.back().size();
@@ -2199,6 +2308,12 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 	return true;
 }
 
+void State::set_curr_block_details(address_t block_address, int32_t block_size) {
+	curr_block_details.block_addr = block_address;
+	curr_block_details.block_size = block_size;
+	return;
+}
+
 address_t State::get_instruction_pointer() const {
 	address_t out = 0;
 	int reg = arch_pc_reg();
@@ -2245,7 +2360,6 @@ uint64_t State::fd_read(uint64_t fd, char *buf, uint64_t count) {
 
 void State::perform_cgc_receive() {
 	uint32_t fd, buf, count, rx_bytes;
-	uc_err err;
 
 	uc_reg_read(uc, UC_X86_REG_EBX, &fd);
 	if (fd > 2) {
@@ -2263,11 +2377,12 @@ void State::perform_cgc_receive() {
 	uc_reg_read(uc, UC_X86_REG_ESI, &rx_bytes);
 	if (count == 0) {
 		// Requested to read 0 bytes. Set *rx_bytes and syscall return value to 0
-		err = uc_mem_write(uc, rx_bytes, &count, 4);
-		if (err == UC_ERR_OK) {
-			// Setting rx_bytes succeeded. Mark rx_bytes as concrete
-			// Since setting rx_bytes is optional, failed writes are ignored and taint is not updated.
+		if (rx_bytes != 0) {
 			handle_write(rx_bytes, 4, true);
+			if (stopped) {
+				return;
+			}
+			uc_mem_write(uc, rx_bytes, &count, 4);
 		}
 		uc_reg_write(uc, UC_X86_REG_EAX, &count);
 		interrupt_handled = true;
@@ -2284,16 +2399,22 @@ void State::perform_cgc_receive() {
 		return;
 	}
 	if (actual_count > 0) {
-		uc_mem_write(uc, buf, tmp_buf, actual_count);
 		// Mark buf as symbolic
 		handle_write(buf, actual_count, true, true);
+		if (stopped) {
+			free(tmp_buf);
+			return;
+		}
+		uc_mem_write(uc, buf, tmp_buf, actual_count);
 	}
 	free(tmp_buf);
-	err = uc_mem_write(uc, rx_bytes, &actual_count, 4);
-	if (err == UC_ERR_OK) {
-		// Setting rx_bytes succeeded. Mark rx_bytes as concrete.
-		// Since setting rx_bytes is optional, failed writes are ignored and taint is not updated.
+	if (rx_bytes != 0) {
 		handle_write(rx_bytes, 4, true);
+		if (stopped) {
+			free(tmp_buf);
+			return;
+		}
+		uc_mem_write(uc, rx_bytes, &actual_count, 4);
 	}
 	count = 0;
 	uc_reg_write(uc, UC_X86_REG_EAX, &count);
@@ -2306,6 +2427,8 @@ void State::perform_cgc_receive() {
 		block_details_t block_for_receive;
 		block_for_receive.block_addr = cgc_receive_bbl;
 		block_for_receive.block_size = 0;
+		block_for_receive.block_trace_ind = executed_blocks_count;
+		block_for_receive.has_symbolic_exit = false;
 		instr_details_t instr_for_receive;
 		// First argument: ebx
 		register_value_t reg_val;
@@ -2382,9 +2505,12 @@ void State::perform_cgc_transmit() {
 			return;
 		}
 
-		uc_err err = uc_mem_write(uc, tx_bytes, &count, 4);
 		if (tx_bytes != 0) {
 			handle_write(tx_bytes, 4, true);
+			if (stopped) {
+				return;
+			}
+			uc_mem_write(uc, tx_bytes, &count, 4);
 		}
 
 		if (stopped) {
@@ -2454,10 +2580,11 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	}
 	state->commit();
 	state->update_previous_stack_top();
+	state->set_curr_block_details(address, size);
 	state->step(address, size);
 
 	if (!state->stopped) {
-		state->start_propagating_taint(address, size);
+		state->start_propagating_taint();
 	}
 	return;
 }
@@ -2480,10 +2607,10 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			uint32_t sysno;
 			uc_reg_read(uc, UC_X86_REG_EAX, &sysno);
 			//printf("SYSCALL: %d\n", sysno);
-			if (sysno == state->cgc_transmit_sysno) {
+			if ((sysno == state->cgc_transmit_sysno) && (state->cgc_transmit_bbl != 0)) {
 				state->perform_cgc_transmit();
 			}
-			else if (sysno == state->cgc_receive_sysno) {
+			else if ((sysno == state->cgc_receive_sysno) && (state->cgc_receive_bbl != 0)) {
 				state->perform_cgc_receive();
 			}
 		}
@@ -2516,8 +2643,8 @@ static bool hook_mem_prot(uc_engine *uc, uc_mem_type type, uint64_t address, int
  */
 
 extern "C"
-State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos) {
-	State *state = new State(uc, cache_key, simos);
+State *simunicorn_alloc(uc_engine *uc, uint64_t cache_key, simos_t simos, bool handle_symbolic_addrs, bool handle_symb_cond) {
+	State *state = new State(uc, cache_key, simos, handle_symbolic_addrs, handle_symb_cond);
 	return state;
 }
 
@@ -2791,6 +2918,8 @@ void simunicorn_get_details_of_blocks_with_symbolic_instrs(State *state, sym_blo
 	for (auto i = 0; i < state->block_details_to_return.size(); i++) {
 		ret_block_details[i].block_addr = state->block_details_to_return[i].block_addr;
 		ret_block_details[i].block_size = state->block_details_to_return[i].block_size;
+		ret_block_details[i].block_trace_ind = state->block_details_to_return[i].block_trace_ind;
+		ret_block_details[i].has_symbolic_exit = state->block_details_to_return[i].has_symbolic_exit;
 		ret_block_details[i].symbolic_instrs = &(state->block_details_to_return[i].symbolic_instrs[0]);
 		ret_block_details[i].symbolic_instrs_count = state->block_details_to_return[i].symbolic_instrs.size();
 		ret_block_details[i].register_values = &(state->block_details_to_return[i].register_values[0]);

@@ -102,7 +102,7 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
-        cond_proc = ConditionProcessor()
+        cond_proc = ConditionProcessor(self.project.arch)
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
@@ -128,6 +128,7 @@ class Decompiler(Analysis):
 
         self.codegen = codegen
         self.cache.codegen = codegen
+        self.clinic = clinic
 
     def _set_global_variables(self):
 
