@@ -131,7 +131,7 @@ setup(
     setup_requires=[_UNICORN, 'pyvex'],
     extras_require={
         'AngrDB': ['sqlalchemy'],
-        'pcode': ['pypcode==1.0.2'],
+        'pcode': ['pypcode==1.0.5'],
         ':sys_platform == "win32"': ['colorama'],
     },
     cmdclass=cmdclass,
