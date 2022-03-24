@@ -388,6 +388,9 @@ class SimulationManager:
 
         self._clear_states(stash=stash)
         for to_stash, states in bucket.items():
+            for state in states:
+                if self._hierarchy:
+                    self._hierarchy.add_state(state)
             self._store_states(to_stash or stash, states)
 
         if step_func is not None:
@@ -661,6 +664,10 @@ class SimulationManager:
         for g in merge_groups:
             try:
                 m = self._merge_states(g) if merge_func is None else merge_func(*g)
+                if not m.satisfiable():
+                    breakpoint()
+                    m = self._merge_states(g) if merge_func is None else merge_func(*g)
+
                 not_to_merge.append(m)
             except SimMergeError:
                 l.warning("SimMergeError while merging %d states", len(g), exc_info=True)
