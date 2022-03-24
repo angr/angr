@@ -5,7 +5,7 @@ except ImportError:
     claripy = None
 
 from .tagged_object import TaggedObject
-from .utils import get_bits, stable_hash
+from .utils import get_bits, stable_hash, is_none_or_likeable
 
 
 class Expression(TaggedObject):
@@ -435,7 +435,7 @@ class BinaryOp(Op):
                self.op == other.op and \
                self.bits == other.bits and \
                self.signed == other.signed and \
-               self.operands == other.operands
+               is_none_or_likeable(self.operands, other.operands, is_list=True)
 
     __hash__ = TaggedObject.__hash__
 
@@ -537,9 +537,15 @@ class Load(Expression):
         else:
             return False, self
 
+    def _likes_addr(self, other_addr):
+        if hasattr(self.addr, "likes") and hasattr(other_addr, "likes"):
+            return self.addr.likes(other_addr)
+
+        return self.addr == other_addr
+
     def likes(self, other):
         return type(other) is Load and \
-               self.addr == other.addr and \
+               self._likes_addr(other.addr) and \
                self.size == other.size and \
                self.endness == other.endness and \
                self.guard == other.guard and \
