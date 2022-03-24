@@ -1,7 +1,10 @@
 from typing import Union, Tuple, Optional, TYPE_CHECKING
 import struct
 
-import claripy
+try:
+    import claripy
+except ImportError:
+    claripy = None
 
 try:
     import _md5 as md5lib
@@ -12,7 +15,12 @@ if TYPE_CHECKING:
     from .expression import Expression
 
 
-def get_bits(expr: Union[claripy.ast.Bits,'Expression',int]) -> Optional[int]:
+get_bits_type_params = Union[int, 'Expression']
+if claripy:
+    get_bits_type_params = Union[int, claripy.ast.Bits, 'Expression']
+
+
+def get_bits(expr: get_bits_type_params) -> Optional[int]:
     # delayed import
     from .expression import Expression
 
