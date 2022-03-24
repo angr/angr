@@ -14,7 +14,6 @@ from .errors import SimError, SimMergeError
 from .sim_state import SimState
 from .state_hierarchy import StateHierarchy
 from .errors import AngrError, SimUnsatError, SimulationManagerError
-from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer
 
 l = logging.getLogger(name=__name__)
 
@@ -846,3 +845,5 @@ class ErrorRecord:
 
     def __eq__(self, other):
         return self is other or self.state is other
+
+from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer
