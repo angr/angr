@@ -38,8 +38,8 @@ class memset(angr.SimProcedure):
         return r
 
     def run(self, dst_addr, char, num):
-        if char.size() != 8: # sizeof(char)
-            char = self.state.solver.Extract(7, 0, char)
+        if char.size() != self.state.arch.byte_width: # sizeof(char)
+            char = self.state.solver.Extract(self.state.arch.byte_width - 1, 0, char)
 
         if self.state.solver.symbolic(num):
             l.debug("symbolic length")
