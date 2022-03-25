@@ -9,6 +9,7 @@ import claripy
 import networkx
 import pyvex
 from archinfo import ArchARM
+from angr import options as o
 from .data_sensitive_vex_engine.engine_vex import DataSensitiveHeavyVEXMixin
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from ...engines.unicorn import SimEngineUnicorn
@@ -46,7 +47,8 @@ class DataSensitiveEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEng
 def annotate_with_new_replacements(state, variable, annotation):
     if o.REPLACEMENT_SOLVER in state.options and variable.cache_key in state.solver._solver._replacement_cache:
         new_variable = variable.annotate(annotation)
-        state.preconstrainer.preconstrain(state.solver._solver._replacement_cache[variable.cache_key], new_variable)
+        #state.preconstrainer.preconstrain(state.solver._solver._replacement_cache[variable.cache_key], new_variable)
+        state.solver._solver.add_replacement(variable, new_variable, invalidate_cache=False)
     else:
         new_variable = variable.annotate(annotation)
     return new_variable
@@ -398,7 +400,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         ### This is for storing the addresses of the found vm_instructions
         self.vm_instruction_addresses = []
         if model is not None:
-            graph_visitor = EmulatedCFGVisitor(model.graph, self.project.entry if start is None else start)
+            graph_visitor = EmulatedCFGVisitor(model.graph, self.project.entry if starts is None else starts[0])
             self._model = model
         ForwardAnalysis.__init__(self, order_jobs=True if base_graph is not None else False, graph_visitor=graph_visitor, allow_merging=False)
         if model is not None:
@@ -1090,9 +1092,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     def save_vm_vpc(self, state):
         # Save the vm program counter to state and use it in _pre_job_handling
-        l.debug("Modifying vm_vpc...... ")
+        #l.debug("Modifying vm_vpc...... ")
         state.globals['cur_vm_vpc'] = state.solver.eval_one(state.inspect.mem_write_expr)
-        l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')))
+        #l.debug("The value of PROGRAM COUNTER is: " + str(state.globals.get('cur_vm_vpc')))
 
     # def save_vm_vpc_from_reg(self, state):
     #     # Save the vm program counter to state and use it in _pre_job_handling
@@ -1106,7 +1108,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     def annotate_vm_vpc(self, state):
         l.debug("Annotating vm_vpc...... ")
-        print("Hello")
         state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr, VMProgramCounterAnnotation(1))
 
     def annotate_vm_instruction(self, state):
@@ -1141,6 +1142,14 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
     def _initial_abstract_state(self, node):
         state = StorageState()
+        # if not node.input_state:
+        #     node.input_state = self.project.factory.blank_state(addr=node.addr,
+        #                                                    mode='fastpath',
+        #                                                    add_options=o.sim_options.refs | {
+        #                                                        o.sim_options.REPLACEMENT_SOLVER,
+        #                                                        o.sim_options.DO_CCALLS})
+        #
+        #     node.input_state.globals['cur_block_id'] = node.block_id
         node.input_state.globals['cur_block_id'] = node.block_id
         state.concrete_states = [node.input_state]
         return state
@@ -1153,7 +1162,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # return reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
 
     def _run_on_node(self, node, abstract_state):
-        print("Running on node: "+str(node))
         input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
@@ -1463,6 +1471,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         l.debug("All possible successors: " + str(sim_successors.all_successors))
+        if block_id.addr == 0x1400d1bc7 and block_id.vm_vpc == 5369365971:
+            import ipdb;ipdb.set_trace()
         #### Keeping only symbolic and True successors
         if self.data_sensitive:
             symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
