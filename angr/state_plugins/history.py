@@ -137,16 +137,21 @@ class SimStateHistory(SimStatePlugin):
         # correct results when using constraints_since()
         self.parent = common_ancestor if common_ancestor is not None else self.parent
 
-        self.recent_events = [e.recent_events for e in itertools.chain([self], others)
-                              if not isinstance(e, SimActionConstraint)
-                              ]
+        self.recent_events = [
+                e.recent_events for e in itertools.chain([self], others) if not isinstance(e, SimActionConstraint)
+        ]
 
         # rebuild recent constraints
         recent_constraints = [h.constraints_since(common_ancestor) for h in itertools.chain([self], others)]
-        combined_constraint = self.state.solver.Or(
-            *[self.state.solver.simplify(self.state.solver.And(*history_constraints)) for history_constraints in
-              recent_constraints]
-        )
+        if sim_options.SIMPLIFY_MERGED_CONSTRAINTS in self.state.options:
+            combined_constraint = self.state.solver.Or(
+                *[self.state.solver.simplify(self.state.solver.And(*history_constraints)) for history_constraints in
+                  recent_constraints]
+            )
+        else:
+            combined_constraint = self.state.solver.Or(
+                *[self.state.solver.And(*history_constraints) for history_constraints in recent_constraints]
+            )
         self.recent_events.append(SimActionConstraint(self.state, combined_constraint))
 
         # hard to say what we should do with these others list of things...
