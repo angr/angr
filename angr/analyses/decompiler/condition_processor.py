@@ -108,7 +108,7 @@ class ConditionProcessor:
                     self.jump_table_conds[case_entry_to_switch_head[node.addr]].add(cond)
                     continue
 
-            preds = list(_g.predecessors(node))
+            preds = _g.predecessors(node)
             reaching_condition = None
 
             out_degree = _g.out_degree(node)
@@ -613,11 +613,17 @@ class ConditionProcessor:
             'Mulls': lambda expr, _: _dummy_bvs(expr),
         }
 
-        if isinstance(condition, (ailment.Expr.Load, ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
+        if isinstance(condition, (ailment.Expr.DirtyExpression, ailment.Expr.BasePointerOffset,
                                   ailment.Expr.ITE, ailment.Stmt.Call)):
             return _dummy_bvs(condition)
-        elif isinstance(condition, ailment.Expr.Register):
-            var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits, explicit_name=True)
+        elif isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register)):
+            # does it have a variable associated?
+            if condition.variable is not None:
+                var = claripy.BVS('ailexpr_%s-%s' % (repr(condition), condition.variable.name), condition.bits,
+                                  explicit_name=True)
+            else:
+                var = claripy.BVS('ailexpr_%s-%d' % (repr(condition), condition.idx), condition.bits,
+                                  explicit_name=True)
             self._condition_mapping[var.args[0]] = condition
             return var
         elif isinstance(condition, ailment.Expr.Convert):
