@@ -268,12 +268,9 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
         return state
 
     def _merge_states(self, node, *states):
-        #return states[0], True
-        ##merge abstract states
         if len(states) == 1:
             return states[0]
         merged_abstract_state = reduce(lambda s_0, s_1: s_0.merge(s_1), states[1:], states[0])
-        print(merged_abstract_state._replacements)
         return merged_abstract_state, True
 
     # def _add_input_state(self, node, input_state):
@@ -287,12 +284,10 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     #     return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
-        print("Constant-prop: "+str(node))
         concrete_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = concrete_state
         if concrete_state is None:
             # didn't find any state going to here
-            print("_run_on_node(): cannot find any state for address ", hex(node.addr))
             return False, abstract_state
 
         block_key = node.block_id
@@ -348,8 +343,6 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
                                                       successor.scratch.exit_stmt_idx,
                                                       successor.scratch.exit_ins_addr,
                                                       successor.scratch.source)
-        print(symbolic_sim_successors.all_successors)
-        print("Replacements: "+str(node.input_state.solver._solver._replacements))
         if node.is_simprocedure:
             if len(symbolic_sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
                 raise Exception("Sim Procedure has more than one successor")
