@@ -56,6 +56,7 @@ class SimEnginePropagatorAIL(
 
         if type(dst) is Expr.Tmp:
             self.state.store_temp(dst.tmp_idx, src)
+            self.state.temp_expressions[dst.tmp_idx] = stmt.src
 
         elif type(dst) is Expr.Register:
             if src.needs_details:
@@ -66,6 +67,8 @@ class SimEnginePropagatorAIL(
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
+
+            self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -161,6 +164,22 @@ class SimEnginePropagatorAIL(
         tmp = self.state.load_tmp(expr.tmp_idx)
 
         if tmp is not None:
+            # very first step - if we can get rid of this tmp and replace it with another, we should
+            if expr.tmp_idx in self.state.temp_expressions:
+                tmp_expr = self.state.temp_expressions[expr.tmp_idx]
+                for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
+                    if reg_expr.likes(tmp_expr):
+                        # make sure the register still holds the same value
+                        current_reg_value = self.state.load_register(reg_atom)
+                        if current_reg_value is not None:
+                            if 0 in current_reg_value.offset_and_details:
+                                detail = current_reg_value.offset_and_details[0]
+                                if detail.def_at == def_at:
+                                    l.debug("Add a replacement: %s with %s", expr, reg_atom)
+                                    self.state.add_replacement(self._codeloc(), expr, reg_atom)
+                                    top = self.state.top(expr.size * self.arch.byte_width)
+                                    return PropValue.from_value_and_details(top, expr.size, expr, self._codeloc())
+
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
             if None in all_subexprs or \
