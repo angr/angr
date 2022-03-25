@@ -1,5 +1,5 @@
 import weakref
-from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, TYPE_CHECKING
+from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING
 import logging
 
 import claripy
@@ -419,9 +419,9 @@ class LiveDefinitions:
         else:
             raise TypeError("Unsupported atom type %s." % type(atom))
 
-    def add_use_by_def(self, definition: Definition, code_loc: CodeLocation) -> None:
+    def add_use_by_def(self, definition: Definition, code_loc: CodeLocation, expr: Any=None) -> None:
         if isinstance(definition.atom, Register):
-            self._add_register_use_by_def(definition, code_loc)
+            self._add_register_use_by_def(definition, code_loc, expr=expr)
         elif isinstance(definition.atom, MemoryLocation):
             if isinstance(definition.atom.addr, SpOffset):
                 self._add_stack_use_by_def(definition, code_loc)
@@ -542,8 +542,8 @@ class LiveDefinitions:
                 for def_ in self.extract_defs(v):
                     self._add_register_use_by_def(def_, code_loc)
 
-    def _add_register_use_by_def(self, def_: Definition, code_loc: CodeLocation) -> None:
-        self.register_uses.add_use(def_, code_loc)
+    def _add_register_use_by_def(self, def_: Definition, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
+        self.register_uses.add_use(def_, code_loc, expr=expr)
         self.uses_by_codeloc[code_loc].add(def_)
 
     def _add_stack_use(self, atom: MemoryLocation, code_loc: CodeLocation) -> None:

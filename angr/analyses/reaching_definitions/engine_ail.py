@@ -327,7 +327,7 @@ class SimEngineRDAIL(
         self._handle_Call_base(expr, is_expr=True)
         return MultiValues(offset_to_values={0: {self.state.top(expr.bits)}})
 
-    def _ail_handle_Register(self, expr) -> MultiValues:
+    def _ail_handle_Register(self, expr: ailment.Expr.Register) -> MultiValues:
 
         self.state: ReachingDefinitionsState
 
@@ -364,7 +364,7 @@ class SimEngineRDAIL(
         else:
             codeloc = self._codeloc()
             for def_ in defs:
-                self.state.add_use_by_def(def_, codeloc)
+                self.state.add_use_by_def(def_, codeloc, expr=expr)
 
         return value
 

@@ -1,4 +1,4 @@
-from typing import Optional, Iterable, Set, Generator, Tuple, TYPE_CHECKING
+from typing import Optional, Iterable, Set, Generator, Tuple, Any, TYPE_CHECKING
 import logging
 
 import archinfo
@@ -411,11 +411,11 @@ class ReachingDefinitionsState:
 
         self.live_definitions.add_use(atom, code_loc)
 
-    def add_use_by_def(self, definition: Definition, code_loc: CodeLocation) -> None:
+    def add_use_by_def(self, definition: Definition, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
         self._cycle(code_loc)
         self.codeloc_uses.add(definition)
 
-        self.live_definitions.add_use_by_def(definition, code_loc)
+        self.live_definitions.add_use_by_def(definition, code_loc, expr=expr)
 
     def get_definitions(self, atom: Atom) -> Iterable[Definition]:
         yield from self.live_definitions.get_definitions(atom)

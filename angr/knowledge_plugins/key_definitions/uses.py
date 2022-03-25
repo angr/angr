@@ -1,4 +1,4 @@
-from typing import Dict, Set, TYPE_CHECKING
+from typing import Dict, Set, Optional, Tuple, Any, TYPE_CHECKING
 from collections import defaultdict
 
 from ...code_location import CodeLocation
@@ -12,17 +12,18 @@ class Uses:
     __slots__ = ('_uses_by_definition', '_uses_by_location' )
 
     def __init__(self):
-        self._uses_by_definition: Dict['Definition',Set[CodeLocation]] = defaultdict(set)
+        self._uses_by_definition: Dict['Definition',Set[Tuple[CodeLocation,Optional[Any]]]] = defaultdict(set)
         self._uses_by_location: Dict[CodeLocation, Set['Definition']] = defaultdict(set)
 
-    def add_use(self, definition: "Definition", codeloc: CodeLocation):
+    def add_use(self, definition: "Definition", codeloc: CodeLocation, expr: Optional[Any]=None):
         """
         Add a use for a given definition.
 
-        :param angr.analyses.reaching_definitions.definition.Definition definition: The definition that is used.
-        :param codeloc: The code location where the use occurs.
+        :param definition:  The definition that is used.
+        :param codeloc:     The code location where the use occurs.
+        :param expr:        The expression that uses the specified definition at this location.
         """
-        self._uses_by_definition[definition].add(codeloc)
+        self._uses_by_definition[definition].add((codeloc, expr))
         self._uses_by_location[codeloc].add(definition)
 
     def get_uses(self, definition: 'Definition') -> Set[CodeLocation]:
@@ -31,19 +32,33 @@ class Uses:
 
         :param definition: The definition for which we get the uses.
         """
+        return { codeloc for codeloc, _ in self._uses_by_definition.get(definition, set()) }
+
+    def get_uses_with_expr(self, definition: 'Definition') -> Set[Tuple[CodeLocation,Optional[Any]]]:
+        """
+        Retrieve the uses and the corresponding expressions of a given definition.
+
+        :param definition: The definition for which we get the uses and the corresponding expressions.
+        """
         return self._uses_by_definition.get(definition, set())
 
-    def remove_use(self, definition: 'Definition', codeloc: 'CodeLocation') -> None:
+    def remove_use(self, definition: 'Definition', codeloc: 'CodeLocation', expr: Optional[Any]=None) -> None:
         """
         Remove one use of a given definition.
 
         :param definition:  The definition of which to remove the uses.
         :param codeloc:     The code location where the use is.
+        :param expr:        The expression that uses the definition at the given location.
         :return:            None
         """
         if definition in self._uses_by_definition:
             if codeloc in self._uses_by_definition[definition]:
-                self._uses_by_definition[definition].remove(codeloc)
+                if expr is None:
+                    for codeloc_, expr_ in list(self._uses_by_definition[definition]):
+                        if codeloc_ == codeloc:
+                            self._uses_by_definition[definition].remove((codeloc_, expr_))
+                else:
+                    self._uses_by_definition[definition].remove((codeloc, expr))
 
         if codeloc in self._uses_by_location:
             self._uses_by_location[codeloc].remove(definition)
@@ -56,10 +71,10 @@ class Uses:
         :return:            None
         """
         if definition in self._uses_by_definition:
-            codelocs = self._uses_by_definition[definition]
+            codeloc_and_ids = self._uses_by_definition[definition]
             del self._uses_by_definition[definition]
 
-            for codeloc in codelocs:
+            for codeloc, _ in codeloc_and_ids:
                 self._uses_by_location[codeloc].remove(definition)
 
     def get_uses_by_location(self, codeloc: CodeLocation) -> Set:
