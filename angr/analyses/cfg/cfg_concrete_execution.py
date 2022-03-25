@@ -967,7 +967,6 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
 
 
     def _run_on_node(self, node, abstract_state):
-        print("Running semantic verification on node: "+str(node))
         input_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = input_state
         block_key = node.block_id
@@ -981,11 +980,6 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         else:
             jumpkind = "Ijk_Boring"
 
-        try:
-            print("Current node: \n" + str(node.irsb.pp()))
-        except:
-            pass
-
         sim_successors = self._graph_engine.process(
             input_state,
             opt_level=self._iropt_level,
@@ -998,8 +992,6 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             else:
                 sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
 
-
-        print("Successors: " + str(sim_successors.all_successors))
 
         node.final_states = sim_successors.successors
         #self._node_iterations[block_key] += 1
