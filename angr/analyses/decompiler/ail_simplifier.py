@@ -264,13 +264,14 @@ class AILSimplifier(Analysis):
                             continue
 
                         # find all its uses
-                        all_stackvar_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(stackvar_def))
+                        all_stackvar_uses: Set[Tuple[CodeLocation,Any]] = set(
+                            rd.all_uses.get_uses_with_expr(stackvar_def))
                         all_uses_with_def = set()
                         for use in all_stackvar_uses:
                             all_uses_with_def.add((stackvar_def, use))
 
-                        to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
-                                          eq.atom0.size, endness=self.project.arch.memory_endness)
+                        #to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
+                        #                  eq.atom0.size, endness=self.project.arch.memory_endness)
                         replace_with = eq.atom1
                         remove_initial_assignment = True
 

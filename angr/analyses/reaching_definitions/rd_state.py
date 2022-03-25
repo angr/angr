@@ -405,11 +405,11 @@ class ReachingDefinitionsState:
 
         return mv
 
-    def add_use(self, atom: Atom, code_loc) -> None:
+    def add_use(self, atom: Atom, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
         self._cycle(code_loc)
         self.codeloc_uses.update(self.get_definitions(atom))
 
-        self.live_definitions.add_use(atom, code_loc)
+        self.live_definitions.add_use(atom, code_loc, expr=expr)
 
     def add_use_by_def(self, definition: Definition, code_loc: CodeLocation, expr: Optional[Any]=None) -> None:
         self._cycle(code_loc)
