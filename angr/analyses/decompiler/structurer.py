@@ -782,7 +782,7 @@ class Structurer(Analysis):
         rewriter.walk(seq)  # update SequenceNodes in-place
 
     def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable,
-                                     addr2nodes: Dict[int,Set[CodeNode]]):
+                                     addr2nodes: Dict[int,Set[CodeNode]]) -> Tuple[bool,Optional[CodeNode]]:
         """
         We might have already structured the actual body of the switch-case structure into a single Sequence node (node
         A). If that is the case, we un-structure the sequence node in this method.
@@ -795,7 +795,6 @@ class Structurer(Analysis):
         :return:                    A boolean value indicating the result and an updated node_a. The boolean value is
                                     True if unpacking is not necessary or we successfully unpacked the sequence node,
                                     False otherwise.
-        :rtype:                     bool
         """
 
         jumptable_entries = jumptable.jumptable_entries
@@ -817,16 +816,20 @@ class Structurer(Analysis):
                     if unpacked is None:
                         # unsupported. bail
                         return False, None
+                    if n.addr in addr2nodes:
+                        del addr2nodes[n.addr]
                     addr2nodes[n.addr].add(unpacked)
                     seq.add_node(unpacked)
                 else:
                     the_node = CodeNode(n, None)
+                    if n.addr in addr2nodes:
+                        del addr2nodes[n.addr]
                     addr2nodes[n.addr].add(the_node)
                     seq.add_node(the_node)
             if node_a != addr2nodes[node_a.addr]:
                 # update node_a
                 seq.remove_node(node_a)
-                node_a = addr2nodes[node_a.addr]
+                node_a = next(iter(addr2nodes[node_a.addr]))
             return True, node_a
 
         # a jumptable entry is missing. it's very likely marked as the successor of the entire switch-case region. we
