@@ -68,7 +68,7 @@ class TestPropagatorLoops(unittest.TestCase):
             pop rbx
             pop rbp
             ret''')
-        assert re.match(r"\(Conv\(64->32, t\d+\) != 0x0<32>\)", str(cond)) is not None
+        assert re.match(r"\(Conv\(64->32, cc_dep1<8>\) != 0x0<32>\)", str(cond)) is not None
 
     def test_loop_counter_stack(self):
         cond = self._test_loop_variant_common('''
@@ -87,5 +87,4 @@ class TestPropagatorLoops(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    TestPropagatorLoops().test_loop_counter_stack()
-    TestPropagatorLoops().test_loop_counter_reg()
+    unittest.main()
