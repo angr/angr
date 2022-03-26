@@ -1060,8 +1060,6 @@ class Structurer(Analysis):
                         new_reaching_condition = claripy.And(*reaching_condition_subexprs)
                         new_node = CodeNode(node_.node, new_reaching_condition)
                         case_node.add_node(new_node)
-                        if node_.addr == 0x404f83:
-                            import ipdb; ipdb.set_trace()
                         to_remove.add(node_)
 
             # do we have a default node?
