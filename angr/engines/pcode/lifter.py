@@ -568,23 +568,6 @@ class Lifter:
         """
         raise NotImplementedError()
 
-
-class Postprocessor:
-    def __init__(self, irsb: IRSB):
-        self.irsb = irsb
-
-    def postprocess(self) -> None:
-        """
-        Modify the irsb
-
-        All of the postprocessors will be used in the order that they are registered
-        """
-
-
-lifters = defaultdict(list)
-postprocessors = defaultdict(list)
-
-
 def lift(
     data: Union[str, bytes, None],
     addr: int,
@@ -600,8 +583,7 @@ def lift(
     collect_data_refs: bool = False,
 ) -> IRSB:
     """
-    Recursively lifts blocks using the registered lifters and postprocessors. Tries each lifter in the order in
-    which they are registered on the data to lift.
+    Lift machine code in `data` to a P-code IRSB.
 
     If a lifter raises a LiftingException on the data, it is skipped.
     If it succeeds and returns a block with a jumpkind of Ijk_NoDecode, all of the lifters are tried on the rest
@@ -657,70 +639,36 @@ def lift(
         allow_arch_optimizations = False
         opt_level = 0
 
-    for lifter in lifters[arch.name]:
-        try:
-            u_data = data
-
-            # FIXME
-            assert (not lifter.REQUIRE_DATA_C) and (not lifter.REQUIRE_DATA_PY)
-            # if lifter.REQUIRE_DATA_C:
-            #     if c_data is None:
-            #         u_data = ffi.new(
-            #             "unsigned char [%d]" % (len(py_data) + 8), py_data + b"\0" * 8
-            #         )
-            #         max_bytes = (
-            #             min(len(py_data), max_bytes)
-            #             if max_bytes is not None
-            #             else len(py_data)
-            #         )
-            #     else:
-            #         u_data = c_data
-            # elif lifter.REQUIRE_DATA_PY:
-            #     if py_data is None:
-            #         if max_bytes is None:
-            #             l.debug(
-            #                 "Cannot create py_data from c_data when no max length is"
-            #                 " given"
-            #             )
-            #             continue
-            #         u_data = ffi.buffer(c_data, max_bytes)[:]
-            #     else:
-            #         u_data = py_data
-
-            try:
-                final_irsb = lifter(arch, addr)._lift(
-                    u_data,
-                    bytes_offset,
-                    max_bytes,
-                    max_inst,
-                    opt_level,
-                    traceflags,
-                    allow_arch_optimizations,
-                    strict_block_end,
-                    skip_stmts,
-                    collect_data_refs,
-                )
-            except SkipStatementsError:
-                assert skip_stmts is True
-                final_irsb = lifter(arch, addr)._lift(
-                    u_data,
-                    bytes_offset,
-                    max_bytes,
-                    max_inst,
-                    opt_level,
-                    traceflags,
-                    allow_arch_optimizations,
-                    strict_block_end,
-                    skip_stmts=False,
-                    collect_data_refs=collect_data_refs,
-                )
-            # l.debug('block lifted by %s' % str(lifter))
-            # l.debug(str(final_irsb))
-            break
-        except LiftingException as ex:
-            l.debug("Lifting Exception: %s", ex)
-            continue
-    else:
+    u_data = data
+    try:
+        final_irsb = PcodeLifter(arch, addr)._lift(
+            u_data,
+            bytes_offset,
+            max_bytes,
+            max_inst,
+            opt_level,
+            traceflags,
+            allow_arch_optimizations,
+            strict_block_end,
+            skip_stmts,
+            collect_data_refs,
+        )
+    except SkipStatementsError:
+        assert skip_stmts is True
+        final_irsb = PcodeLifter(arch, addr)._lift(
+            u_data,
+            bytes_offset,
+            max_bytes,
+            max_inst,
+            opt_level,
+            traceflags,
+            allow_arch_optimizations,
+            strict_block_end,
+            skip_stmts=False,
+            collect_data_refs=collect_data_refs,
+        )
+    except LiftingException as ex:
+        l.debug("Lifting Exception: %s", ex)
         final_irsb = IRSB.empty_block(
             arch,
             addr,
@@ -805,63 +753,7 @@ def lift(
                 final_irsb.jumpkind = "Ijk_Boring"
                 final_irsb.next = final_irsb.addr + final_irsb.size
 
-    if not inner:
-        for postprocessor in postprocessors[arch.name]:
-            try:
-                postprocessor(final_irsb).postprocess()
-            except NeedStatementsNotification:
-                # The post-processor cannot work without statements. Re-lift the current block with skip_stmts=False
-                if not skip_stmts:
-                    # sanity check
-                    # Why does the post-processor raise NeedStatementsNotification when skip_stmts is False?
-                    raise TypeError(
-                        "Bad post-processor %s: NeedStatementsNotification is raised"
-                        " when statements are available."
-                        % postprocessor.__class__
-                    ) from NeedStatementsNotification
-
-                # Re-lift the current IRSB
-                return lift(
-                    data,
-                    addr,
-                    arch,
-                    max_bytes=max_bytes,
-                    max_inst=max_inst,
-                    bytes_offset=bytes_offset,
-                    opt_level=opt_level,
-                    traceflags=traceflags,
-                    strict_block_end=strict_block_end,
-                    inner=inner,
-                    skip_stmts=False,
-                    collect_data_refs=collect_data_refs,
-                )
-            except LiftingException:
-                continue
-
     return final_irsb
-
-
-def register(lifter: Lifter, arch_name: str) -> None:
-    """
-    Registers a Lifter or Postprocessor to be used by the pcode lifter.
-    Lifters are are given priority based on the order in which they are
-    registered. Postprocessors will be run in registration order.
-
-    :param lifter:       The Lifter or Postprocessor to register
-    :vartype lifter:     :class:`Lifter` or :class:`Postprocessor`
-    """
-    if issubclass(lifter, Lifter):
-        l.debug(
-            "Registering lifter %s for architecture %s.", lifter.__name__, arch_name
-        )
-        lifters[arch_name].append(lifter)
-    if issubclass(lifter, Postprocessor):
-        l.debug(
-            "Registering postprocessor %s for architecture %s.",
-            lifter.__name__,
-            arch_name,
-        )
-        postprocessors[arch_name].append(lifter)
 
 
 class PcodeBasicBlockLifter:
@@ -973,14 +865,6 @@ class PcodeLifter(Lifter):
         if self.irsb.size == 0:
             l.debug('raising lifting exception')
             raise LiftingException("pypcode: could not decode any instructions @ 0x%x" % self.addr)
-
-
-register(PcodeLifter, "X86")
-register(PcodeLifter, "AMD64")
-register(PcodeLifter, "AVR8")
-for _arch in archinfo.all_arches:
-    if isinstance(_arch, ArchPcode):
-        register(PcodeLifter, _arch.name)
 
 
 class PcodeLifterEngineMixin(SimEngineBase):
