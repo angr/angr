@@ -112,7 +112,8 @@ class SimEnginePropagatorAIL(
         if target is None or target.one_expr == stmt.target:
             return
 
-        if target.one_expr is not None:
+        target_oneexpr = target.one_expr
+        if target_oneexpr is not None and isinstance(target_oneexpr, Expr.Const):
             new_jump_stmt = Stmt.Jump(stmt.idx, target.one_expr, **stmt.tags)
             self.state.add_replacement(self._codeloc(),
                                        stmt,
