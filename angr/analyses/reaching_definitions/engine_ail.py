@@ -327,7 +327,7 @@ class SimEngineRDAIL(
         self._handle_Call_base(expr, is_expr=True)
         return MultiValues(offset_to_values={0: {self.state.top(expr.bits)}})
 
-    def _ail_handle_Register(self, expr) -> MultiValues:
+    def _ail_handle_Register(self, expr: ailment.Expr.Register) -> MultiValues:
 
         self.state: ReachingDefinitionsState
 
@@ -364,7 +364,7 @@ class SimEngineRDAIL(
         else:
             codeloc = self._codeloc()
             for def_ in defs:
-                self.state.add_use_by_def(def_, codeloc)
+                self.state.add_use_by_def(def_, codeloc, expr=expr)
 
         return value
 
@@ -389,7 +389,7 @@ class SimEngineRDAIL(
             dummy_atom = MemoryLocation(0, size, endness=expr.endness)
             top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
             # add use
-            self.state.add_use(dummy_atom, self._codeloc())
+            self.state.add_use(dummy_atom, self._codeloc(), expr=expr)
             return MultiValues(offset_to_values={0: {top}})
 
         result: Optional[MultiValues] = None
@@ -405,7 +405,7 @@ class SimEngineRDAIL(
                     continue
 
                 memory_location = MemoryLocation(concrete_addr, size, endness=expr.endness)
-                self.state.add_use(memory_location, self._codeloc())
+                self.state.add_use(memory_location, self._codeloc(), expr=expr)
                 result = result.merge(vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
@@ -417,7 +417,7 @@ class SimEngineRDAIL(
                         continue
 
                     memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=expr.endness)
-                    self.state.add_use(memory_location, self._codeloc())
+                    self.state.add_use(memory_location, self._codeloc(), expr=expr)
                     result = result.merge(vs) if result is not None else vs
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
@@ -442,7 +442,7 @@ class SimEngineRDAIL(
             dummy_atom = MemoryLocation(0, size, endness=self.arch.memory_endness)
             top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
             # add use
-            self.state.add_use(dummy_atom, self._codeloc())
+            self.state.add_use(dummy_atom, self._codeloc(), expr=expr)
             return MultiValues(offset_to_values={0: {top}})
 
         converted = set()

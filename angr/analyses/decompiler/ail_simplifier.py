@@ -234,7 +234,6 @@ class AILSimplifier(Analysis):
                     # found it!
                     the_def = def_
                     break
-
             if the_def is None:
                 continue
 
@@ -265,13 +264,14 @@ class AILSimplifier(Analysis):
                             continue
 
                         # find all its uses
-                        all_stackvar_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(stackvar_def))
+                        all_stackvar_uses: Set[Tuple[CodeLocation,Any]] = set(
+                            rd.all_uses.get_uses_with_expr(stackvar_def))
                         all_uses_with_def = set()
                         for use in all_stackvar_uses:
                             all_uses_with_def.add((stackvar_def, use))
 
-                        to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
-                                          eq.atom0.size, endness=self.project.arch.memory_endness)
+                        #to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
+                        #                  eq.atom0.size, endness=self.project.arch.memory_endness)
                         replace_with = eq.atom1
                         remove_initial_assignment = True
 
@@ -279,33 +279,55 @@ class AILSimplifier(Analysis):
                     continue
 
             else:
-                # find all uses of this definition
-                # we make a copy of the set since we may touch the set (uses) when replacing expressions
-                all_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(the_def))
-                all_uses_with_def = set((the_def, use) for use in all_uses)
-
-                remove_initial_assignment = False  # expression folding will take care of it
                 if isinstance(eq.atom0, SimStackVariable):
                     # create the memory loading expression
                     to_replace = eq.atom1
                     replace_with = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
                                         eq.atom0.size, endness=self.project.arch.memory_endness)
                 elif isinstance(eq.atom0, Register):
-                    if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
-                        to_replace = eq.atom0
-                        replace_with = eq.atom1
+                    if isinstance(eq.atom1, Register):
+                        if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                            to_replace = eq.atom0
+                            replace_with = eq.atom1
+                        else:
+                            to_replace = eq.atom1
+                            replace_with = eq.atom0
                     else:
-                        to_replace = eq.atom1
-                        replace_with = eq.atom0
+                        raise RuntimeError("Unsupported atom1 type %s." % type(eq.atom1))
                 else:
                     raise RuntimeError("Unsupported atom0 type %s." % type(eq.atom0))
+
+                # find the definition of the argument that we are replacing
+                defs = [ ]
+                for def_ in rd.all_definitions:
+                    if def_.codeloc == eq.codeloc:
+                        if isinstance(to_replace, SimStackVariable):
+                            if isinstance(def_.atom, atoms.MemoryLocation) \
+                                    and isinstance(def_.atom.addr, atoms.SpOffset):
+                                if to_replace.offset == def_.atom.addr.offset:
+                                    defs.append(def_)
+                        elif isinstance(to_replace, Register):
+                            if isinstance(def_.atom, atoms.Register) and to_replace.reg_offset == def_.atom.reg_offset:
+                                defs.append(def_)
+                if len(defs) != 1:
+                    continue
+                to_replace_def = defs[0]
+
+                # find all uses of this definition
+                # we make a copy of the set since we may touch the set (uses) when replacing expressions
+                all_uses: Set[Tuple[CodeLocation,Any]] = set(rd.all_uses.get_uses_with_expr(to_replace_def))
+                all_uses_with_def = set((to_replace_def, use_and_expr) for use_and_expr in all_uses)
+
+                remove_initial_assignment = False  # expression folding will take care of it
+
 
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
             # TODO: re-assigned of a new value. Perform this check.
 
             # replace all uses
             all_uses_replaced = True
-            for def_, u in all_uses_with_def:
+            for def_, use_and_expr in all_uses_with_def:
+                u, used_expr = use_and_expr
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
@@ -317,7 +339,7 @@ class AILSimplifier(Analysis):
                 the_block = self.blocks.get(old_block, old_block)
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
-                r, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, def_, u, to_replace,
+                r, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, def_, u, used_expr,
                                                                    replace_with)
                 if r:
                     self.blocks[old_block] = new_block
