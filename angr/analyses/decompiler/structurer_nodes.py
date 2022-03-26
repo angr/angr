@@ -130,6 +130,8 @@ class CodeNode(BaseNode):
 
     def __repr__(self):
         if self.addr is not None:
+            if self.idx is not None:
+                return f"<CodeNode {self.addr:#x}.{self.idx}>"
             return "<CodeNode %#x>" % self.addr
         else:
             return "<CodeNode %s>" % repr(self.node)
@@ -140,6 +142,12 @@ class CodeNode(BaseNode):
             return self.node.addr
         else:
             return None
+
+    @property
+    def idx(self):
+        if hasattr(self.node, "idx"):
+            return self.node.idx
+        return None
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
