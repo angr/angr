@@ -97,7 +97,12 @@ class EagerReturnsSimplifier(OptimizationPass):
             elif len(in_edges) == 1:
                 # back-trace until it reaches a node with two predecessors
                 region, region_head = self._single_entry_region(graph, end_node)
-                in_edges = list(graph.in_edges(region_head))
+                tmp_in_edges = graph.in_edges(region_head)
+                # remove in_edges that are coming from a node inside the region
+                in_edges = [ ]
+                for src, dst in tmp_in_edges:
+                    if src not in region:
+                        in_edges.append((src, dst))
             else:  # len(in_edges) == 0
                 continue
 
