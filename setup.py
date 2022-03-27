@@ -98,7 +98,8 @@ setup(
     install_requires=[
         'sortedcontainers',
         'cachetools',
-        'capstone>=3.0.5rc2',
+        # capstone 5.0.0rc2 returns incorrect insn_name for nop instructions in ARM THUMB blocks
+        'capstone>=3.0.5rc2,!=5.0.0rc2',
         'dpkt',
         'mulpyplexer',
         'networkx>=2.0',
