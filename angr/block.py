@@ -233,13 +233,15 @@ class Block(Serializable):
         return '<Block for %#x, %d bytes>' % (self.addr, self.size)
 
     def __getstate__(self):
-        return dict((k, getattr(self, k)) for k in self.__slots__ if k not in ('_capstone', '_disassembly'))
+        return dict((k, getattr(self, k)) for k in self.__slots__
+                    if k not in {'_capstone', '_disassembly', '_project'})
 
     def __setstate__(self, data):
         for k, v in data.items():
             setattr(self, k, v)
         self._capstone = None
         self._disassembly = None
+        self._project = None
 
     def __hash__(self):
         return hash((type(self), self.addr, self.bytes))
