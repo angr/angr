@@ -290,6 +290,9 @@ class Function(Serializable):
     # compatibility
     _get_block = get_block
 
+    def get_block_size(self, addr: int) -> Optional[int]:
+        return self._block_sizes.get(addr, None)
+
     @property
     def nodes(self) -> Generator[CodeNode,None,None]:
         return self.transition_graph.nodes()
@@ -513,6 +516,19 @@ class Function(Serializable):
             return '<Syscall function %s (%s)>' % (self.name,
                                                    hex(self.addr) if isinstance(self.addr, int) else self.addr)
         return '<Function %s (%s)>' % (self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr)
+
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+
+    def __getstate__(self):
+        # self._local_transition_graph is a cache. don't pickle it
+        d = dict((k, getattr(self, k)) for k in self.__slots__)
+        d['_local_transition_graph'] = None
+        d['_project'] = None
+        d['_function_manager'] = None
+        d['_block_cache'] = { }
+        return d
 
     @property
     def endpoints(self):
