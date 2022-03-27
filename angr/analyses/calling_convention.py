@@ -241,7 +241,15 @@ class CallingConventionAnalysis(Analysis):
         call_sites_by_function: Dict['Function',List[Tuple[int,int]]] = defaultdict(list)
         for src, _, data in in_edges:
             edge_type = data.get('jumpkind', 'Ijk_Call')
-            if edge_type != 'Ijk_Call':
+            # Tail call: jump
+            if edge_type == 'Ijk_Boring':
+                # Whether the src block is one of the end points of the caller function
+                if not self.kb.functions.contains_addr(src.function_address):
+                    continue
+                caller = self.kb.functions[src.function_address]
+                if not src.addr in [b.addr for b in caller.endpoints]:
+                    continue
+            if edge_type not in ['Ijk_Call', 'Ijk_Boring']:
                 continue
             if not self.kb.functions.contains_addr(src.function_address):
                 continue
