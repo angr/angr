@@ -4,6 +4,7 @@ from collections import defaultdict
 import logging
 
 import nampa
+from archinfo.arch_arm import is_arm_arch
 
 from ..analyses import AnalysesHub
 from ..flirt import FlirtSignature, STRING_TO_LIBRARIES, LIBRARY_TO_SIGNATURES, FLIRT_SIGNATURES_BY_ARCH
@@ -57,6 +58,8 @@ class FlirtAnalysis(Analysis):
             self.signatures = list(self._find_hits_by_strings(all_strings))
             _l.debug("Identified %d signatures to apply.", len(self.signatures))
 
+        self._is_arm = is_arm_arch(self.project.arch)
+
         for sig_ in self.signatures:
             self._match_all_against_one_signature(sig_)
 
@@ -89,10 +92,15 @@ class FlirtAnalysis(Analysis):
                     continue
 
                 start = func.addr
+                if self._is_arm:
+                    start = start & 0xffff_fffe
 
                 max_block_addr = max(func.block_addrs_set)
                 end_block = func.get_block(max_block_addr)
                 end = max_block_addr + end_block.size
+
+                if self._is_arm:
+                    end = end & 0xffff_fffe
 
                 # load all bytes
                 func_bytes = self.project.loader.memory.load(start, end - start + 0x100)
@@ -103,10 +111,18 @@ class FlirtAnalysis(Analysis):
         func_addr = base_addr + flirt_func.offset
         if func_addr != base_addr:
             # get the correct function
+            func = None
             try:
                 func = self.kb.functions.get_by_addr(func_addr)
             except KeyError:
-                # the function is not found
+                # the function is not found. Try the THUMB version
+                if self._is_arm:
+                    try:
+                        func = self.kb.functions.get_by_addr(func_addr + 1)
+                    except KeyError:
+                        pass
+
+            if func is None:
                 _l.warning("FlirtAnalysis identified a function at %#x but it does not exist in function manager.",
                            func_addr)
                 return
