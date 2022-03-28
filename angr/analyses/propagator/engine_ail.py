@@ -121,7 +121,8 @@ class SimEnginePropagatorAIL(
                                        )
 
     def _ail_handle_Call(self, expr_stmt: Stmt.Call):
-        _ = self._expr(expr_stmt.target)
+        if isinstance(expr_stmt.target, Expr.Expression):
+            _ = self._expr(expr_stmt.target)
 
         self.state._inside_call_stmt = True
 
@@ -464,7 +465,8 @@ class SimEnginePropagatorAIL(
         )
 
     def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call) -> Optional[PropValue]:
-        _ = self._expr(expr_stmt.target)
+        if isinstance(expr_stmt.target, Expr.Expression):
+            _ = self._expr(expr_stmt.target)
 
         self.state._inside_call_stmt = True
 

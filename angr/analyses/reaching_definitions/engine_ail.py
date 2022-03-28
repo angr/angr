@@ -156,7 +156,10 @@ class SimEngineRDAIL(
         self._handle_Call_base(stmt, is_expr=False)
 
     def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool=False):
-        target = self._expr(stmt.target)  # pylint:disable=unused-variable
+        if isinstance(stmt.target, ailment.Expr.Expression):
+            target = self._expr(stmt.target)  # pylint:disable=unused-variable
+        else:
+            target = stmt.target
         codeloc = self._codeloc()
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
