@@ -15,7 +15,7 @@ class RetAddrSaveSimplifier(OptimizationPass):
     Removes code in function prologues and epilogues for saving and restoring return address registers (ra, lr, etc.), generally seen in non-leaf functions.
     """
 
-    ARCHES = ['MIPS32', 'MIPS64']
+    ARCHES = ['MIPS32', 'MIPS64', 'ARMEL', 'ARMHF', "ARMCortexM"]
     PLATFORMS = ['linux']
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify return address storage"

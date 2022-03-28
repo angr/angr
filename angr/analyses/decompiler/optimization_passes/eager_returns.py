@@ -30,7 +30,7 @@ class EagerReturnsSimplifier(OptimizationPass):
     """
 
     # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
+    ARCHES = None # everything
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Deduplicate return blocks"
