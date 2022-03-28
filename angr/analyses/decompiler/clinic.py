@@ -8,6 +8,7 @@ import networkx
 import ailment
 
 from ...knowledge_base import KnowledgeBase
+from ...knowledge_plugins.functions import Function
 from ...codenode import BlockNode
 from ...utils import timethis
 from ...calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
@@ -131,7 +132,7 @@ class Clinic(Analysis):
         if not self._func_graph:
             return
 
-        # Make sure calling conventions of all functions have been recovered
+        # Make sure calling conventions of all functions that the current function calls have been recovered
         self._update_progress(10., text="Recovering calling conventions")
         self._recover_calling_conventions()
 
@@ -260,7 +261,19 @@ class Clinic(Analysis):
 
     @timethis
     def _recover_calling_conventions(self):
-        self.project.analyses.CompleteCallingConventions()
+
+        callees = set()
+        for node in self.function.transition_graph:
+            if isinstance(node, Function):
+                callees.add(node.addr)
+        callees.add(self.function.addr)
+
+        self.project.analyses.CompleteCallingConventions(
+            recover_variables=False,
+            prioritize_func_addrs=callees,
+            skip_other_funcs=True,
+            skip_signature_matched_functions=True,
+        )
 
     @timethis
     def _track_stack_pointers(self):
