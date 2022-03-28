@@ -41,7 +41,7 @@ class SimplifierAILState:
         keys_to_remove = set()
 
         for k, v in self._variables.items():
-            if isinstance(v, Expr.Expression) and (v == atom or v.has_atom(atom)):
+            if isinstance(v, Expr.Expression) and (v == atom or v.has_atom(atom, identity=False)):
                 keys_to_remove.add(k)
 
         for k in keys_to_remove:
@@ -90,7 +90,7 @@ class SimplifierAILEngine(
         src = self._expr(stmt.src)
         dst = self._expr(stmt.dst)
 
-        if isinstance(dst, Expr.Register) and not src.has_atom(dst):
+        if isinstance(dst, Expr.Register) and not src.has_atom(dst, identity=False):
             self.state.filter_variables(dst)
             self.state.store_variable(dst, src)
 

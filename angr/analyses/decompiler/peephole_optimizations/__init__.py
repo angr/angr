@@ -1,7 +1,14 @@
 from typing import List, Type
 
+from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst
+from .a_mul_const_div_shr_const import AMulConstDivShrConst
+from .a_shl_const_sub_a import AShlConstSubA
+from .a_sub_a_div import ASubADiv
+from .a_sub_a_div_const_mul_const import ASubADivConstMulConst
+from .bswap import Bswap
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
 from .constant_derefs import ConstantDereferences
+from .conv_const_mull_a_shift import ConvConstMullAShift
 from .extended_byte_and_mask import ExtendedByteAndMask
 from .remove_empty_if_body import RemoveEmptyIfBody
 from .remove_redundant_ite_branch import RemoveRedundantITEBranches

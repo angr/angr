@@ -42,4 +42,9 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                              **expr.tags)
             return new_expr
 
+        elif expr.op == "Mul" \
+                and isinstance(expr.operands[1], Const) \
+                and expr.operands[1].value == 1:
+            return expr.operands[0]
+
         return None
