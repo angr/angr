@@ -13,7 +13,7 @@ class BasePointerSaveSimplifier(OptimizationPass):
     Removes the effects of base pointer stack storage at function invocation and restoring at function return.
     """
 
-    ARCHES = None # everything
+    ARCHES = ['X86', 'AMD64', 'ARMEL', 'ARMHF', "ARMCortexM", "MIPS32", "MIPS64"]
     PLATFORMS = ["cgc", 'linux']
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify base pointer saving"
