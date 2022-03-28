@@ -7,7 +7,7 @@ from .base import PeepholeOptimizationStmtBase
 class RemoveEmptyIfBody(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
-    name = "Remove empty If bodies"
+    NAME = "Remove empty If bodies"
     stmt_classes = (ConditionalJump, )
 
     def optimize(self, stmt: ConditionalJump):

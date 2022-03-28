@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class RemoveCascadingConversions(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Remove adjacent conversions"
+    NAME = "Remove adjacent conversions"
     expr_classes = (Convert, )
 
     def optimize(self, expr: Convert):

@@ -10,7 +10,7 @@ class RewriteMipsGpLoads(PeepholeOptimizationExprBase):
     """
     __slots__ = ()
 
-    name = "MIPS GP-based Loads Rewriter"
+    NAME = "MIPS GP-based Loads Rewriter"
     expr_classes = (Load, )
 
     def optimize(self, expr: Load):
