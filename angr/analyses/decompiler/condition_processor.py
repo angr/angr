@@ -546,6 +546,7 @@ class ConditionProcessor:
             '__and__': lambda cond_: _binary_op_reduce('And', cond_.args),
             '__lshift__': lambda cond_: _binary_op_reduce('Shl', cond_.args),
             '__rshift__': lambda cond_: _binary_op_reduce('Sar', cond_.args),
+            '__floordiv__': lambda cond_: _binary_op_reduce('Div', cond_.args),
             'LShR': lambda cond_: _binary_op_reduce('Shr', cond_.args),
             'BVV': lambda cond_: ailment.Expr.Const(None, None, cond_.args[0], cond_.size()),
             'BoolV': lambda cond_: ailment.Expr.Const(None, None, True, 1) if cond_.args[0] is True
