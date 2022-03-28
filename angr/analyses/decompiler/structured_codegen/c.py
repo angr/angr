@@ -1306,7 +1306,9 @@ class CBinaryOp(CExpression):
             'Add': self._c_repr_chunks_add,
             'Sub': self._c_repr_chunks_sub,
             'Mul': self._c_repr_chunks_mul,
+            'Mull': self._c_repr_chunks_mull,
             'Div': self._c_repr_chunks_div,
+            'DivMod': self._c_repr_chunks_divmod,
             'And': self._c_repr_chunks_and,
             'Xor': self._c_repr_chunks_xor,
             'Or': self._c_repr_chunks_or,
@@ -1367,8 +1369,14 @@ class CBinaryOp(CExpression):
     def _c_repr_chunks_mul(self):
         yield from self._c_repr_chunks(" * ")
 
+    def _c_repr_chunks_mull(self):
+        yield from self._c_repr_chunks(" * ")
+
     def _c_repr_chunks_div(self):
         yield from self._c_repr_chunks(" / ")
+
+    def _c_repr_chunks_divmod(self):
+        yield from self._c_repr_chunks(" % ")
 
     def _c_repr_chunks_and(self):
         yield from self._c_repr_chunks(" & ")
@@ -2145,12 +2153,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             target_func = None
 
         args = [ ]
-        if target_func is not None and stmt.args is not None:
+        if stmt.args is not None:
             for i, arg in enumerate(stmt.args):
-                if target_func.prototype is not None and i < len(target_func.prototype.args):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-                else:
-                    type_ = None
+                type_ = None
+                if target_func is not None:
+                    if target_func.prototype is not None and i < len(target_func.prototype.args):
+                        type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
                     new_arg = self._handle_Expr_Const(arg, type_=type_)
