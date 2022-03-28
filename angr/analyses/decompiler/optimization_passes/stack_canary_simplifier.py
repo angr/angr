@@ -19,12 +19,14 @@ def s2u(s, bits):
 
 class StackCanarySimplifier(OptimizationPass):
     """
-    Removes stack canary checks from AIL graphs.
+    Removes stack canary checks from decompilation results.
     """
 
     ARCHES = ["X86", "AMD64", ] # TODO: fs is x86 only. Figure out how stack canary is loaded in other architectures
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify stack canaries"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
 
