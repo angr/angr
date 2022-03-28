@@ -907,19 +907,21 @@ class Clinic(Analysis):
         walker = AILBlockWalker()
         variables = set()
 
-        def handle_Load(expr_idx: int, expr: ailment.expression.Load, stmt_idx: int, stmt: ailment.statement.Statement,
+        def handle_expr(expr_idx: int, expr: ailment.expression.Load, stmt_idx: int, stmt: ailment.statement.Statement,
                         block: Optional[ailment.Block]):
-            if expr.variable in global_vars:
-                variables.add(expr.variable)
-            walker._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+            for v in [getattr(expr, 'variable', None),
+                      expr.tags.get('reference_variable', None)]:
+                if v and v in global_vars:
+                    variables.add(v)
+            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: Optional[ailment.Block]):
-            if stmt.variable in global_vars:
+            if stmt.variable and stmt.variable in global_vars:
                 variables.add(stmt.variable)
-            walker._handle_Store(stmt_idx, stmt, block)
+            return AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
-        walker.expr_handlers[ailment.expression.Load] = handle_Load
+        walker._handle_expr = handle_expr
         AILGraphWalker(ail_graph, walker.walk).walk()
         return variables
 
