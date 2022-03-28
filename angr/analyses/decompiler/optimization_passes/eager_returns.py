@@ -37,7 +37,7 @@ class EagerReturnsSimplifier(OptimizationPass):
                  # internal parameters that should be used by Clinic
                  node_idx_start=0,
                  # settings
-                 max_level=3,
+                 max_level=2,
                  min_indegree=2):
 
         super().__init__(func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx,
@@ -201,7 +201,11 @@ class EagerReturnsSimplifier(OptimizationPass):
                     # add the entire "fork" to the region
                     for succ in graph.successors(pred_node):
                         region.add_edge(pred_node, succ)
-                elif graph.in_degree[pred_node] == 1:
+                elif graph.out_degree[pred_node] != 1:
+                    # the predecessor has more than one successor, and it's not a fork node
+                    break
+
+                if graph.in_degree[pred_node] == 1:
                     # continue search
                     pass
                 else:
