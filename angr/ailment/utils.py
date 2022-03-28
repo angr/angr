@@ -96,12 +96,16 @@ def is_none_or_likeable(arg1, arg2, is_list=False):
     """
     Returns whether two things are both None or can like each other
     """
+    from .expression import Expression
+
     if arg1 is None or arg2 is None:
         if arg1 == arg2:
             return True
         return False
 
     if is_list:
-        return len(arg1) == len(arg2) and all(a1.likes(a2) for a1, a2 in zip(arg1, arg2))
+        return len(arg1) == len(arg2) and all(is_none_or_likeable(a1, a2) for a1, a2 in zip(arg1, arg2))
 
-    return arg1.likes(arg2)
+    if isinstance(arg1, Expression):
+        return arg1.likes(arg2)
+    return arg1 == arg2

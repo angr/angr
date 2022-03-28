@@ -292,7 +292,7 @@ class Call(Expression, Statement):
 
     def __init__(self, idx, target, calling_convention: Optional['SimCC']=None, prototype=None, args=None,
                  ret_expr=None, **kwargs):
-        super().__init__(idx, target.depth + 1,**kwargs)
+        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1,**kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
