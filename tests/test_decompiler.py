@@ -795,7 +795,7 @@ def test_decompiling_fauxware_mipsel():
     # The function calls must be correctly decompiled
     assert "puts(" in code
     assert "read(" in code
-    assert "authenticate()" in code
+    assert "authenticate(" in code
     # The string references must be correctly recovered
     assert '"Username: "' in code
     assert '"Password: "' in code
