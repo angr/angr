@@ -269,7 +269,7 @@ class Clinic(Analysis):
         callees.add(self.function.addr)
 
         self.project.analyses.CompleteCallingConventions(
-            recover_variables=True,
+            recover_variables=False,
             prioritize_func_addrs=callees,
             skip_other_funcs=True,
             skip_signature_matched_functions=True,
