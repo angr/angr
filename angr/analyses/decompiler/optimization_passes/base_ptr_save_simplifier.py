@@ -9,10 +9,15 @@ _l = logging.getLogger(name=__name__)
 
 
 class BasePointerSaveSimplifier(OptimizationPass):
+    """
+    Removes the effects of base pointer stack storage at function invocation and restoring at function return.
+    """
 
     ARCHES = ['X86', 'AMD64', 'ARMEL', 'ARMHF', "ARMCortexM", "MIPS32", "MIPS64"]
     PLATFORMS = ["cgc", 'linux']
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify base pointer saving"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
