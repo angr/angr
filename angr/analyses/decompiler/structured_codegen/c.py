@@ -272,7 +272,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         indent_str = self.indent_str(indent)
 
         if self.codegen.show_externs:
-            for v in self.codegen.cexterns:
+            for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
                 yield f'extern {v.type.c_repr(name=v.variable.name)};\n', None
             yield '\n', None
 
@@ -1746,12 +1746,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._memo = None  # clear the memo since it's useless now
 
-        self.cexterns = {self._cvariable(v, variable_type=self._get_variable_type(v, is_global=True))
-                         for v in self.externs}
-
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
                                demangled_name=self._func.demangled_name, codegen=self)
+
+        self.cexterns = {self._cvariable(v, variable_type=self._get_variable_type(v, is_global=True))
+                         for v in self.externs}
+
         self._variables_in_use = None
 
         self.regenerate_text()
