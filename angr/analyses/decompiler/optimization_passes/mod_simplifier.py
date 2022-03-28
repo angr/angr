@@ -47,7 +47,7 @@ class ModSimplifier(OptimizationPass):
     Simplifies optimized forms of modulo computation back to "mod".
     """
 
-    ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
+    ARCHES = None # everything
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify optimized mod forms"

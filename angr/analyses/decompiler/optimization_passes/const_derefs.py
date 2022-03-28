@@ -182,7 +182,7 @@ class ConstantDereferencesSimplifier(OptimizationPass):
     """
 
     # TODO: This optimization pass may support more architectures and platforms
-    ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM"]
+    ARCHES = None # everything
     PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify constant dereferences"
