@@ -13,7 +13,7 @@ class PeepholeOptimizationStmtBase:
     kb: KnowledgeBase
     func_addr: Optional[int]
 
-    name = "Peephole Optimization - Statement"
+    NAME = "Peephole Optimization - Statement"
     description = "Peephole Optimization - Statement"
     stmt_classes = None
 
@@ -33,7 +33,7 @@ class PeepholeOptimizationExprBase:
     kb: KnowledgeBase
     func_addr: Optional[int]
 
-    name = "Peephole Optimization - Expression"
+    NAME = "Peephole Optimization - Expression"
     description = "Peephole Optimization - Expression"
     expr_classes = None
 

@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class ASubASubN(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "expr - (expr - N) => N"
+    NAME = "expr - (expr - N) => N"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):

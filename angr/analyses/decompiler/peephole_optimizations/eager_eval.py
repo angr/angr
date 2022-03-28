@@ -9,7 +9,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     """
     __slots__ = ()
 
-    name = "Eager expression evaluation"
+    NAME = "Eager expression evaluation"
     expr_classes = (BinaryOp, )
 
     def optimize(self, expr: BinaryOp):

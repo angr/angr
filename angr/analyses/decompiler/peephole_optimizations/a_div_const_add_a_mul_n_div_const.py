@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class ADivConstAddAMulNDivConst(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "a / N0 + (a * N1) / N0 => a * (N1 + 1) / N0"
+    NAME = "a / N0 + (a * N1) / N0 => a * (N1 + 1) / N0"
     expr_classes = (BinaryOp, )
 
     def optimize(self, expr: BinaryOp):

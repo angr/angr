@@ -8,7 +8,7 @@ from .base import PeepholeOptimizationExprBase
 class ConvConstMullAShift(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Conv(64->32, (N * a) >> 32) => a / N1"
+    NAME = "Conv(64->32, (N * a) >> 32) => a / N1"
     expr_classes = (Convert, )
 
     def optimize(self, expr: Convert):

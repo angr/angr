@@ -12,7 +12,7 @@ _MASK_TO_BITS = {
 class ExtendedByteAndMask(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "extended byte & 0xff..ff => extended byte"
+    NAME = "extended byte & 0xff..ff => extended byte"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
