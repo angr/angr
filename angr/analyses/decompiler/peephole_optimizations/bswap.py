@@ -31,11 +31,11 @@ class Bswap(PeepholeOptimizationExprBase):
                         isinstance(or_second, BinaryOp) and or_second.op == "And" and len(or_second.operands) == 2:
                     r, the_expr = self._match_inner(or_first, or_second)
                     if r:
-                        return Call(expr.idx, "intrinsic:bswap_16", args=[the_expr], bits=expr.bits, **expr.tags)
+                        return Call(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
 
                     r, the_expr = self._match_inner(or_second, or_first)
                     if r:
-                        return Call(expr.idx, "intrinsic:bswap_16", args=[the_expr], bits=expr.bits, **expr.tags)
+                        return Call(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
 
                     return None
 
