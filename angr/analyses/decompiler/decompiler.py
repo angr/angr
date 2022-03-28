@@ -78,7 +78,7 @@ class Decompiler(Analysis):
         else:
             reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
 
-        cache = DecompilationCache()
+        cache = DecompilationCache(self.func.addr)
 
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
