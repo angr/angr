@@ -1,7 +1,7 @@
 import copy
 from collections import defaultdict
 import logging
-from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, TYPE_CHECKING
+from typing import Dict, List, Tuple, Set, Optional, Iterable, Union, Type, Any, TYPE_CHECKING
 
 import networkx
 
@@ -777,12 +777,13 @@ class Clinic(Analysis):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr)
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
-                if isinstance(expr.addr, ailment.Expr.Const):
+                base_addr, offset = self.parse_variable_addr(expr.addr)
+                if base_addr is not None:
                     # is there a variable for it?
-                    global_vars = global_variables.get_global_variables(expr.addr.value)
+                    global_vars = global_variables.get_global_variables(base_addr)
                     if not global_vars:
                         # detect if there is a related symbol
-                        symbol = self.project.loader.find_symbol(expr.addr.value)
+                        symbol = self.project.loader.find_symbol(base_addr)
                         if symbol is not None:
                             # Create a new global variable if there isn't one already
                             global_vars = global_variables.get_global_variables(symbol.rebased_addr)
@@ -793,7 +794,7 @@ class Clinic(Analysis):
                     if global_vars:
                         global_var = next(iter(global_vars))
                         expr.variable = global_var
-                        expr.variable_offset = 0
+                        expr.variable_offset = offset
                 else:
                     # this is a local variable
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
@@ -901,6 +902,19 @@ class Clinic(Analysis):
         stmt = kwargs.pop('stmt')
         op_type = kwargs.pop('op_type')
         return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
+
+    @staticmethod
+    def parse_variable_addr(addr: ailment.Expr.Expression) -> Optional[Tuple[Any,Any]]:
+        if isinstance(addr, ailment.Expr.Const):
+            return addr.value, 0
+        if isinstance(addr, ailment.Expr.BinaryOp):
+            if addr.op == "Add":
+                op0, op1 = addr.operands
+                if isinstance(op0, ailment.Expr.Const):
+                    return op0.value, op1
+                elif isinstance(op1, ailment.Expr.Const):
+                    return op1.value, op0
+        return None, None
 
 
 register_analysis(Clinic, 'Clinic')

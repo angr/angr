@@ -1041,7 +1041,7 @@ class CVariable(CExpression):
                 paren = CClosingObject("(")
                 cast_type = SimTypePointer(self_type).with_arch(self.codegen.project.arch)
 
-                yield "*"
+                yield "*", None
                 yield "(", paren
                 yield cast_type.c_repr(), None
                 yield ")", paren
