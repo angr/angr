@@ -271,6 +271,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         indent_str = self.indent_str(indent)
 
+        if self.codegen.show_externs:
+            for v in self.codegen.cexterns:
+                yield f'extern {v.type.c_repr(name=v.variable.name)};\n', None
+            yield '\n', None
+
         if self.codegen.show_local_types:
             for ty in self.variable_manager.types.iter_own():
                 c_repr = ty.c_repr(full=True)
@@ -1642,7 +1647,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=20,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 flavor=None, stmt_comments=None, expr_comments=None):
+                 flavor=None, stmt_comments=None, expr_comments=None, externs=None, show_externs=True):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1697,6 +1702,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_local_types = show_local_types
         self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
+        self.externs = externs or set()
+        self.show_externs = show_externs
 
         self.text = None
         self.map_pos_to_node = None
@@ -1720,6 +1727,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.use_compound_assignments = value
             elif option.param == 'show_local_types':
                 self.show_local_types = value
+            elif option.param == 'show_externs':
+                self.show_externs = value
 
     def _analyze(self):
 
@@ -1736,6 +1745,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         obj = self._handle(self._sequence)
 
         self._memo = None  # clear the memo since it's useless now
+
+        self.cexterns = {self._cvariable(v, variable_type=self._get_variable_type(v, is_global=True))
+                         for v in self.externs}
 
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
