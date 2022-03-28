@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class ConvShlShr(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "(expr << P) >> Q => (expr & mask) >> R"
+    NAME = "(expr << P) >> Q => (expr & mask) >> R"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):

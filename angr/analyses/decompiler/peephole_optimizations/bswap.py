@@ -9,7 +9,7 @@ from .base import PeepholeOptimizationExprBase
 class Bswap(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Simplifying bswap_16()"
+    NAME = "Simplifying bswap_16()"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):

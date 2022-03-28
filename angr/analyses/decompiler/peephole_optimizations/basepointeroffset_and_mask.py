@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class BasePointerOffsetAndMask(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Ptr & mask => Ptr"
+    NAME = "Ptr & mask => Ptr"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
