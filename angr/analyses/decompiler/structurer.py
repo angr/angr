@@ -930,8 +930,8 @@ class Structurer(Analysis):
                         if successors[0].addr in all_node_addrs:
                             expected_node_a_addrs.add(successors[0].addr)
                             continue
-            # failed the check
-            return False
+            # it's also possible that this is just a jump that breaks out of the switch-case. we simply ignore it.
+            continue
 
         # finally, make sure all expected nodes exist
         if node_a_block_addrs.issuperset((expected_node_a_addrs | {node_a_addr}) - {node_b_addr}):
