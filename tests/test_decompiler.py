@@ -460,7 +460,9 @@ def test_decompiling_1after909_doit():
     # with global variables discovered, there should not be any loads of constant addresses.
     assert "fflush(stdout);" in code.lower()
 
-    m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) != 0\)", code)
+    assert code.count("access(") == 2, "The decompilation should contain 2 calls to access(), but instead %d calls are present." % code.count("access(")
+
+    m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
     assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
     # Arguments to the convert call should be fully folded into the call statement itself
