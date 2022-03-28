@@ -264,7 +264,7 @@ class PropagatorAILState(PropagatorState):
     """
 
     __slots__ = ('_registers', '_stack_variables', '_tmps', 'temp_expressions', 'register_expressions',
-                 '_inside_call_stmt', 'last_store')
+                 '_inside_call_stmt', 'last_stack_store', 'last_global_store')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
@@ -285,7 +285,8 @@ class PropagatorAILState(PropagatorState):
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
-        self.last_store = None
+        self.last_stack_store = None
+        self.last_global_store = None
 
     def __repr__(self):
         return "<PropagatorAILState>"

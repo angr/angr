@@ -79,11 +79,10 @@ class SimEnginePropagatorAIL(
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
-        self.state.last_store = stmt
-
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:
+            self.state.last_stack_store = stmt
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
@@ -106,6 +105,9 @@ class SimEnginePropagatorAIL(
             # set equivalence
             var = SimStackVariable(sp_offset, size)
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
+
+        else:
+            self.state.last_global_store = stmt
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)

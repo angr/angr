@@ -43,9 +43,9 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                     self.out_dated = True
 
     @staticmethod
-    def _check_store_preceeds_load(store: Stmt.Store, load: Expr.Load) -> bool:
+    def _check_store_precedes_load(store: Stmt.Store, load: Expr.Load) -> bool:
         """
-        Check if store preceeds load based on VEX tags.
+        Check if store precedes load based on VEX tags.
         """
         tags = ('vex_block_addr', 'vex_block_addr')
         if all((t in load.tags and t in store.tags) for t in tags):
@@ -57,7 +57,22 @@ class OutdatedDefinitionWalker(AILBlockWalker):
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
         if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
             self.out_dated = True
-        elif self.state.last_store and not self._check_store_preceeds_load(self.state.last_store, expr):
+        elif isinstance(expr.addr, Expr.StackBaseOffset) \
+                and self.state.last_stack_store is not None \
+                and not self._check_store_precedes_load(self.state.last_stack_store, expr):
+            self.out_dated = True
+        elif isinstance(expr.addr, Expr.Const) \
+                and self.state.last_global_store is not None \
+                and not self._check_store_precedes_load(self.state.last_global_store, expr):
+            self.out_dated = True
+        elif not isinstance(expr.addr, (Expr.StackBaseOffset, Expr.Const)) \
+                and (
+                self.state.last_global_store is not None and
+                not self._check_store_precedes_load(self.state.last_global_store, expr) or
+                self.state.last_stack_store is not None and
+                not self._check_store_precedes_load(self.state.last_stack_store, expr)
+        ):
+            # check both stack and global stores if the load address is unknown
             self.out_dated = True
         else:
             super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
