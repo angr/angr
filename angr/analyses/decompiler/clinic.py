@@ -778,6 +778,8 @@ class Clinic(Analysis):
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
                 base_addr, offset = self.parse_variable_addr(expr.addr)
+                if offset is not None:
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, offset)
                 if base_addr is not None:
                     # is there a variable for it?
                     global_vars = global_variables.get_global_variables(base_addr)
