@@ -107,7 +107,7 @@ class SimEnginePropagatorAIL(
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
         else:
-            self.state.last_global_store = stmt
+            self.state.global_stores.append((addr.one_expr, stmt))
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -603,6 +603,9 @@ class SimEnginePropagatorAIL(
             # Special logic for stack pointer alignment
             sp_offset = self.extract_offset_to_sp(o0_value.value)
             if sp_offset is not None and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
+                value = o0_value.value
+                new_expr = o0_expr
+            elif isinstance(o0_expr, Expr.StackBaseOffset) and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
                 value = o0_value.value
                 new_expr = o0_expr
             else:
