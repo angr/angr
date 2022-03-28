@@ -2143,7 +2143,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         try:
             # Try to handle it as a normal function call
-            target = self._handle(stmt.target)
+            if not isinstance(stmt.target, str):
+                target = self._handle(stmt.target)
+            else:
+                target = stmt.target
         except UnsupportedNodeTypeError:
             target = stmt.target
 
