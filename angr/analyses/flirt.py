@@ -1,4 +1,4 @@
-from typing import Union, List, Set, Dict, TYPE_CHECKING, Optional
+from typing import Union, List, Dict, TYPE_CHECKING, Optional
 from functools import partial
 from collections import defaultdict
 import logging
@@ -44,18 +44,12 @@ class FlirtAnalysis(Analysis):
                 raise RuntimeError("No FLIRT signatures exist. Please load FLIRT signatures by calling "
                                    "load_signatures() before running FlirtAnalysis.")
 
-            # determine all signatures to match against using strings in the CFG
-            cfg = self.kb.cfgs.get_most_accurate()
-            if cfg is None:
-                raise RuntimeError("Please generate a CFG before using FlirtAnalysis.")
+            # determine all signatures to match against strings in mapped memory regions
+            mem_regions = [ self.project.loader.memory.load(seg.vaddr, seg.memsize)
+                            for seg in self.project.loader.main_object.segments
+                            if seg.filesize > 0 and seg.memsize > 0 ]
 
-            all_strings = set()
-            for v in cfg.memory_data.values():
-                if v.sort == "string" and v.content:
-                    s = v.content.decode("utf-8")[:MAX_UNIQUE_STRING_LEN]
-                    all_strings.add(s)
-
-            self.signatures = list(self._find_hits_by_strings(all_strings))
+            self.signatures = list(self._find_hits_by_strings(mem_regions))
             _l.debug("Identified %d signatures to apply.", len(self.signatures))
 
         self._is_arm = is_arm_arch(self.project.arch)
@@ -63,12 +57,13 @@ class FlirtAnalysis(Analysis):
         for sig_ in self.signatures:
             self._match_all_against_one_signature(sig_)
 
-    def _find_hits_by_strings(self, s: Set[str]) -> List[FlirtSignature]:
-        common_strings = s.intersection(STRING_TO_LIBRARIES.keys())
-        library_hits: Dict[str,int] = defaultdict(int)
-        for hit_string in common_strings:
-            for lib in STRING_TO_LIBRARIES[hit_string]:
-                library_hits[lib] += 1
+    def _find_hits_by_strings(self, regions: List[bytes]) -> List[FlirtSignature]:
+        library_hits: Dict[str, int] = defaultdict(int)
+        for s, libs in STRING_TO_LIBRARIES.items():
+            for region in regions:
+                if s.encode("ascii") in region:
+                    for lib in libs:
+                        library_hits[lib] += 1
 
         # sort libraries based on the number of hits
         sorted_libraries = sorted(library_hits.keys(), key=lambda lib: library_hits[lib], reverse=True)
