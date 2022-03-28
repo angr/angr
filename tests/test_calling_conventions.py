@@ -1,9 +1,9 @@
 from unittest import TestCase
 
 import archinfo
-from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction
+from angr.calling_conventions import SimTypeInt, SimTypeFixedSizeArray, SimCCSystemVAMD64, SimTypeFunction, SimRegArg
 from angr.sim_type import parse_file, SimStructValue
-from angr import Project
+from angr import Project, load_shellcode
 
 import logging
 l = logging.getLogger("angr.tests.test_simcc")
@@ -60,3 +60,17 @@ class TestCallingConvention(TestCase):
         self.assertIsInstance(result, SimStructValue)
         self.assertTrue((result.a == 1).is_true())
         self.assertTrue((result.b == 2).is_true())
+
+    def test_array_ffi(self):
+        # NOTE: if this test is failing and you think it is wrong, you might be right :)
+        p = load_shellcode(b'\xc3', arch='amd64')
+        s = p.factory.blank_state()
+        s.regs.rdi = 123
+        s.regs.rsi = 456
+        s.regs.rdx = 789
+        execve = parse_file('int execve(const char *pathname, char *const argv[], char *const envp[]);')[0]['execve']
+        cc = p.factory.cc()
+        assert all((x == y).is_true() for x, y in zip(cc.get_args(s, execve), (123, 456, 789)))
+        # however, this is defintely right
+        assert [list(loc.get_footprint()) for loc in cc.arg_locs(execve)] \
+               == [[SimRegArg('rdi', 8)], [SimRegArg('rsi', 8)], [SimRegArg('rdx', 8)]]
