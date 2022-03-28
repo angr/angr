@@ -1119,9 +1119,24 @@ class CVariable(CExpression):
         bracket = CClosingObject("[")
 
         # cast the variable to a pointer
-        yield from self._c_repr_variable(v)
+        self_size = self.type.size // self.type._arch.byte_width
+        if isinstance(self.offset, int) and self.offset % self_size == 0:
+            offset = CConstant(self.offset // self_size, None, codegen=self.codegen)
+        else:
+            # uhhhhh divide by stuff
+            if isinstance(self.offset, int):
+                offset = CConstant(self.offset, None, codegen=self.codegen)
+            else:
+                offset = self.offset
+            offset = CBinaryOp('Div', offset, CConstant(self_size, None, codegen=self.codegen), None, codegen=self.codegen)
+
+        if isinstance(v_type, SimTypePointer) and v_type.pts_to == self.type:
+            yield from self._c_repr_variable(v)
+        else:
+            yield from CTypeCast(v_type, SimTypePointer(self.type).with_arch(self.type._arch), v, codegen=self.codegen).c_repr_chunks()
+
         yield "[", bracket
-        yield from CExpression._try_c_repr_chunks(self.offset)
+        yield from offset.c_repr_chunks()
         yield "]", bracket
         return
 
