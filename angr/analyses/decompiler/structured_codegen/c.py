@@ -1611,7 +1611,7 @@ class CClosingObject:
 
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
-                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
+                 func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=20,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, flavor=None,
                  stmt_comments=None, expr_comments=None):
         super().__init__(flavor=flavor)
