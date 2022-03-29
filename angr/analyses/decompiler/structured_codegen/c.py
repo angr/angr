@@ -1113,7 +1113,6 @@ class CVariable(CExpression):
             return
 
         # for other variables, we simplify perform a bit shift and type cast
-        breakpoint()
         shifted = CBinaryOp('Shr', v, offset, None, codegen=self.codegen, tags=getattr(v, 'tags', None))
         cast = CTypeCast(None, v_type, shifted, codegen=self.codegen)
         yield from cast.c_repr_chunks()
@@ -2403,7 +2402,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if type_ is None:
             # default to int
-            type_ = int
+            type_ = SimTypeInt().with_arch(self.project.arch)
 
         if variable is None and hasattr(expr, 'reference_variable') and expr.reference_variable is not None:
             variable = self._handle(expr.reference_variable)
