@@ -6,9 +6,9 @@ import pkg_resources
 import shutil
 import platform
 import glob
+from distutils.command.build import build as st_build
 
 from setuptools import setup, find_packages, Command
-from setuptools.command.build_ext import build_ext as st_build_ext
 from setuptools.errors import LibError
 
 if sys.platform == 'darwin':
@@ -64,7 +64,7 @@ def _clean_native():
     for fname in oglob:
         os.unlink(fname)
 
-class build_ext(st_build_ext):
+class build(st_build):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
         super().run(*args)
@@ -82,7 +82,7 @@ class clean_native(Command):
         self.execute(_clean_native, (), msg='Cleaning angr_native')
 
 cmdclass = {
-    'build_ext': build_ext,
+    'build': build,
     'clean_native': clean_native,
 }
 
