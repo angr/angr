@@ -9,6 +9,7 @@ import glob
 from distutils.command.build import build as st_build
 
 from setuptools import setup, find_packages, Command
+from setuptools.command.develop import develop as st_develop
 from setuptools.errors import LibError
 
 if sys.platform == 'darwin':
@@ -81,9 +82,15 @@ class clean_native(Command):
     def run(self, *args):
         self.execute(_clean_native, (), msg='Cleaning angr_native')
 
+class develop(st_develop):
+    def run(self):
+        self.run_command("build")
+        super().run()
+
 cmdclass = {
     'build': build,
     'clean_native': clean_native,
+    'develop': develop,
 }
 
 _UNICORN = "unicorn==1.0.2rc4"
