@@ -6,8 +6,8 @@ from collections import defaultdict
 class DecompilationOption:
     def __init__(self, name, description, value_type, cls, param, value_range=None, category="General",
                  default_value=None, clears_cache=True):
-        self.name = name
-        self.description = description
+        self.NAME = name
+        self.DESCRIPTION = description
         self.value_type = value_type
         self.cls = cls
         self.param = param

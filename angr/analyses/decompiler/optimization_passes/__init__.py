@@ -39,7 +39,8 @@ def get_optimization_passes(arch, platform):
 
     passes = [ ]
     for pass_, _ in _all_optimization_passes:
-        if arch in pass_.ARCHES and (platform is None or platform in pass_.PLATFORMS):
+        if (pass_.ARCHES is None or arch in pass_.ARCHES) \
+                and (pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS):
             passes.append(pass_)
 
     return passes
@@ -57,7 +58,8 @@ def get_default_optimization_passes(arch: Union[Arch,str], platform: Optional[st
     for pass_, default in _all_optimization_passes:
         if not default:
             continue
-        if arch in pass_.ARCHES and (platform is None or platform in pass_.PLATFORMS):
+        if (pass_.ARCHES is None or arch in pass_.ARCHES) \
+                and (pass_.PLATFORMS is None or platform is None or platform in pass_.PLATFORMS):
             passes.append(pass_)
 
     return passes

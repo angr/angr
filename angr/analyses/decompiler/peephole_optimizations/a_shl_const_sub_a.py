@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class AShlConstSubA(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "(a << N) - a => (a * (2 ** N - 1))"
+    NAME = "(a << N) - a => (a * (2 ** N - 1))"
     expr_classes = (BinaryOp, )
 
     def optimize(self, expr: BinaryOp):

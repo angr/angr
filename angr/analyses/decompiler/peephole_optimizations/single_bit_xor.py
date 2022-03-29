@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class SingleBitXor(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "bool_expr ^ 1 => !bool_expr (b)"
+    NAME = "bool_expr ^ 1 => !bool_expr (b)"
     expr_classes = (Convert, )  # all expressions are allowed
 
     def optimize(self, expr: Convert):

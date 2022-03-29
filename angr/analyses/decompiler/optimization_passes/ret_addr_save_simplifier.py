@@ -12,12 +12,15 @@ _l = logging.getLogger(name=__name__)
 
 class RetAddrSaveSimplifier(OptimizationPass):
     """
-    Removes code in function prologues and epilogues for saving and restoring return address registers (ra, lr, etc.)
+    Removes code in function prologues and epilogues for saving and restoring return address registers (ra, lr, etc.),
+    generally seen in non-leaf functions.
     """
 
     ARCHES = ['MIPS32', 'MIPS64']
     PLATFORMS = ['linux']
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify return address storage"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

@@ -1,6 +1,7 @@
 from typing import Any, Tuple, Dict, List
 from itertools import count
 import logging
+import inspect
 
 import networkx
 
@@ -32,6 +33,8 @@ class EagerReturnsSimplifier(OptimizationPass):
     ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+    NAME = "Deduplicate return blocks"
+    DESCRIPTION = inspect.cleandoc(__doc__[:__doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
 
     def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None,
                  # internal parameters that should be used by Clinic

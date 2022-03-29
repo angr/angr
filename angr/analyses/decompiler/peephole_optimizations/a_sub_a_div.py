@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class ASubADiv(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "a - a / N => a * (N - 1) / N"
+    NAME = "a - a / N => a * (N - 1) / N"
     expr_classes = (BinaryOp, )
 
     def optimize(self, expr: BinaryOp):

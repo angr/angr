@@ -270,10 +270,15 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
 
 class DivSimplifier(OptimizationPass):
+    """
+    Simplifies various division optimizations back to "div".
+    """
 
     ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
-    PLATFORMS = ["linux", "windows"]
+    PLATFORMS = None  #everything
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify arithmetic division"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
 

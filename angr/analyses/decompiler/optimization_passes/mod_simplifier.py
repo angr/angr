@@ -43,10 +43,15 @@ class ModSimplifierAILEngine(SimplifierAILEngine):
 
 
 class ModSimplifier(OptimizationPass):
+    """
+    Simplifies optimized forms of modulo computation back to "mod".
+    """
 
     ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify optimized mod forms"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
 

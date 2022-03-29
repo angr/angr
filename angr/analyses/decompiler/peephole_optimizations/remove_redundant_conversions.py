@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class RemoveRedundantConversions(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Remove redundant conversions around binary operators"
+    NAME = "Remove redundant conversions around binary operators"
     expr_classes = (BinaryOp, )
 
     def optimize(self, expr: BinaryOp):
