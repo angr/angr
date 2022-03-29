@@ -563,9 +563,9 @@ class SimEngineVRBase(SimEngineLight):
                     for vs in values.values.values():
                         for v in vs:
                             for _, var_ in self.state.extract_variables(v):
-                                var_: SimStackVariable
-                                var_offset = stack_offset - var_.offset
-                                all_vars.add((var_offset, var_))
+                                if isinstance(var_, SimStackVariable):
+                                    var_offset = stack_offset - var_.offset
+                                    all_vars.add((var_offset, var_))
 
                 if not all_vars:
                     variables = self.variable_manager[self.func_addr].find_variables_by_stack_offset(concrete_offset)

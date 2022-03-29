@@ -947,9 +947,9 @@ def test_simple_strcpy():
     assert len(stmts) == 5
     assert stmts[1].lhs.unified_variable == stmts[0].rhs.unified_variable
     assert stmts[3].lhs.unified_variable == stmts[2].rhs.unified_variable
-    assert stmts[4].lhs.variable.variable == stmts[2].lhs.variable
-    assert stmts[4].rhs.variable.variable == stmts[0].lhs.variable
-    assert dw.condition.lhs.expr.variable.variable == stmts[2].lhs.variable
+    assert stmts[4].lhs.operand.variable == stmts[2].lhs.variable
+    assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
+    assert dw.condition.lhs.expr.operand.variable == stmts[2].lhs.variable
 
 
 def test_decompiling_nl_i386_pie():
