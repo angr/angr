@@ -35,7 +35,7 @@ class strchr(angr.SimProcedure):
             # ensure that the string length is long enough to include
             # the character!
             chrpos = a - s_addr
-            self.state.add_constraints(chrpos < s_strlen.ret_expr)
+            self.state.add_constraints(chrpos <= s_strlen.ret_expr)
 
         return a
         #self.state.add_constraints(self.state.solver.ULT(a - s_addr, s_strlen.ret_expr))
