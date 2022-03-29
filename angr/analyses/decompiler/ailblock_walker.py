@@ -243,6 +243,7 @@ class AILBlockWalker:
         if changed:
             new_expr = expr.copy()
             new_expr.operands = (operand_0, operand_1)
+            new_expr.depth = max(operand_0.depth, operand_1.depth) + 1
             return new_expr
         return None
 
