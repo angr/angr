@@ -666,6 +666,13 @@ class Clinic(Analysis):
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
 
+        # for any left-over variables, assign Bottom type (which will get "corrected" into a default type in
+        # VariableManager)
+        bottype = SimTypeBottom().with_arch(self.project.arch)
+        for var in var_manager._variables:
+            if var not in var_manager.variable_to_types:
+                var_manager.set_variable_type(var, bottype)
+
         # Unify SSA variables
         tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
         var_manager.unify_variables()
