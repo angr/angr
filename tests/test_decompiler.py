@@ -1000,6 +1000,21 @@ def test_decompiling_x8664_mv_O2():
     assert "None" not in d.codegen.text
 
 
+def test_extern_decl():
+    bin_path = os.path.join(test_location, "x86_64", "test_gdb_plugin")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True)
+
+    f = p.kb.functions['set_globals']
+    d = p.analyses.Decompiler(f, cfg=cfg.model)
+    print(d.codegen.text)
+
+    assert "extern unsigned int a;" in d.codegen.text
+    assert "extern unsigned int b;" in d.codegen.text
+    assert "extern unsigned int c;" in d.codegen.text
+
+
 if __name__ == "__main__":
     for k, v in list(globals().items()):
         if k.startswith('test_') and callable(v):
