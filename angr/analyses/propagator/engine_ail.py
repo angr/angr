@@ -79,11 +79,10 @@ class SimEnginePropagatorAIL(
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
-        self.state.last_store = stmt
-
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:
+            self.state.last_stack_store = stmt
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
@@ -106,6 +105,9 @@ class SimEnginePropagatorAIL(
             # set equivalence
             var = SimStackVariable(sp_offset, size)
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
+
+        else:
+            self.state.global_stores.append((addr.one_expr, stmt))
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -159,8 +161,9 @@ class SimEnginePropagatorAIL(
     # AIL expression handlers
     #
 
-    def _expr(self, expr) -> Optional[PropValue]:  # this method exists so that I can annotate the return type
-        return super()._expr(expr)  # pylint:disable=useless-super-delegation
+    # this method exists so that I can annotate the return type
+    def _expr(self, expr) -> Optional[PropValue]:  # pylint:disable=useless-super-delegation
+        return super()._expr(expr)
 
     def _ail_handle_Tmp(self, expr: Expr.Tmp) -> PropValue:
         tmp = self.state.load_tmp(expr.tmp_idx)
@@ -603,6 +606,10 @@ class SimEnginePropagatorAIL(
             # Special logic for stack pointer alignment
             sp_offset = self.extract_offset_to_sp(o0_value.value)
             if sp_offset is not None and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
+                value = o0_value.value
+                new_expr = o0_expr
+            elif isinstance(o0_expr, Expr.StackBaseOffset) and type(o1_expr) is Expr.Const \
+                    and is_alignment_mask(o1_expr.value):
                 value = o0_value.value
                 new_expr = o0_expr
             else:
