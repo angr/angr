@@ -61,7 +61,8 @@ class Uses:
                     self._uses_by_definition[definition].remove((codeloc, expr))
 
         if codeloc in self._uses_by_location:
-            self._uses_by_location[codeloc].remove(definition)
+            if definition in self._uses_by_location[codeloc]:
+                self._uses_by_location[codeloc].remove(definition)
 
     def remove_uses(self, definition: 'Definition'):
         """

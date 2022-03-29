@@ -267,8 +267,16 @@ class AILSimplifier(Analysis):
                         all_stackvar_uses: Set[Tuple[CodeLocation,Any]] = set(
                             rd.all_uses.get_uses_with_expr(stackvar_def))
                         all_uses_with_def = set()
+
+                        should_abort = False
                         for use in all_stackvar_uses:
+                            used_expr = use[1]
+                            if used_expr is not None and used_expr.size != stackvar_def.size:
+                                should_abort = True
+                                break
                             all_uses_with_def.add((stackvar_def, use))
+                        if should_abort:
+                            continue
 
                         #to_replace = Load(None, StackBaseOffset(None, self.project.arch.bits, eq.atom0.offset),
                         #                  eq.atom0.size, endness=self.project.arch.memory_endness)
@@ -495,7 +503,7 @@ class AILSimplifier(Analysis):
 
             # update the uses
             rd = self._compute_reaching_definitions()
-            rd.all_uses.remove_use(the_def, codeloc)
+            rd.all_uses.remove_use(the_def, codeloc, expr=src_expr)
             return True, new_block
 
         return False, None
