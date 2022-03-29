@@ -178,7 +178,7 @@ void State::stop(stop_t reason, bool do_commit) {
 			sym_instr.instr_addr = instr.instr_addr;
 			sym_instr.memory_values = instr.memory_values;
 			sym_instr.memory_values_count = instr.memory_values_count;
-			sym_instr.has_memory_dep = instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep;
+			sym_instr.has_memory_dep = instr.has_concrete_memory_dep || (instr.has_symbolic_memory_dep && !instr.has_read_from_symbolic_addr);
 			sym_block.symbolic_instrs.emplace_back(sym_instr);
 		}
 		block_details_to_return.emplace_back(sym_block);
@@ -832,7 +832,7 @@ void State::compute_slice_of_instr(instr_details_t &instr) {
 			// Register was not concrete before instruction was executed. Do not compute slice.
 			continue;
 		}
-		if (!reg_dep.used_in_mem_addr) {
+		if (!reg_dep.used_in_mem_addr || instr.has_read_from_symbolic_addr) {
 			instrs_to_process.emplace(instr_taint_entry.dep_reg_modifier_addr.at(reg_dep.reg_offset));
 		}
 	}
@@ -2057,6 +2057,7 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 				if (handle_symbolic_addrs) {
 					is_instr_symbolic = true;
 					sink_taint_status = TAINT_STATUS_SYMBOLIC;
+					instr_details.has_read_from_symbolic_addr = true;
 				}
 				else {
 					stop(STOP_SYMBOLIC_READ_ADDR);
@@ -2077,9 +2078,16 @@ void State::propagate_taint_of_one_instr(address_t instr_addr, const instruction
 		}
 		else if (taint_sink.entity_type != TAINT_ENTITY_NONE) {
 			taint_status_result_t final_taint_status = get_final_taint_status(taint_srcs);
-			if ((final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR) && !handle_symbolic_addrs) {
-				stop(STOP_SYMBOLIC_READ_ADDR);
-				return;
+			if ((final_taint_status == TAINT_STATUS_DEPENDS_ON_READ_FROM_SYMBOLIC_ADDR)) {
+				if (handle_symbolic_addrs) {
+					is_instr_symbolic = true;
+					final_taint_status = TAINT_STATUS_SYMBOLIC;
+					instr_details.has_read_from_symbolic_addr = true;
+				}
+				else {
+					stop(STOP_SYMBOLIC_READ_ADDR);
+					return;
+				}
 			}
 			else if (final_taint_status != TAINT_STATUS_CONCRETE) {
 				if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (taint_sink.reg_offset == arch_pc_reg_vex_offset())) {
@@ -2244,7 +2252,7 @@ void State::continue_propagating_taint() {
 }
 
 void State::save_concrete_memory_deps(instr_details_t &instr) {
-	if (instr.has_concrete_memory_dep || instr.has_symbolic_memory_dep) {
+	if (instr.has_concrete_memory_dep || (instr.has_symbolic_memory_dep && !instr.has_read_from_symbolic_addr)) {
 		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.instr_addr).memory_values);
 		instr.memory_values = &(archived_memory_values.back()[0]);
 		instr.memory_values_count = archived_memory_values.back().size();

@@ -191,6 +191,7 @@ struct instr_details_t {
 	int64_t mem_write_size;
 	bool has_concrete_memory_dep;
 	bool has_symbolic_memory_dep;
+	bool has_read_from_symbolic_addr;
 	// Mark fields as mutable so that they can be updated after inserting into std::set
 	mutable memory_value_t *memory_values;
 	mutable uint64_t memory_values_count;
@@ -200,6 +201,7 @@ struct instr_details_t {
 	instr_details_t() {
 		has_concrete_memory_dep = false;
 		has_symbolic_memory_dep = false;
+		has_read_from_symbolic_addr = false;
 		instr_deps.clear();
 		mem_write_addr = -1;
 		mem_write_size = -1;
