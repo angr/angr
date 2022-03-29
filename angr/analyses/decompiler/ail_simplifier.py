@@ -271,7 +271,7 @@ class AILSimplifier(Analysis):
                         should_abort = False
                         for use in all_stackvar_uses:
                             used_expr = use[1]
-                            if used_expr.size != stackvar_def.size:
+                            if used_expr is not None and used_expr.size != stackvar_def.size:
                                 should_abort = True
                                 break
                             all_uses_with_def.add((stackvar_def, use))
