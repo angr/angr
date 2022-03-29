@@ -1048,6 +1048,14 @@ class CVariable(CExpression):
                 # no casting required
                 yield from self._c_repr_variable(v)
                 return
+            else:
+                # we need to cast
+                cast = CTypeCast(self_type, v_type, v, codegen=self.codegen)
+                return
+
+        #
+        # offset > 0 or is not an integer
+        #
 
         # if it's a pointer
         arch = v_type._arch
@@ -1081,17 +1089,32 @@ class CVariable(CExpression):
             yield "]", bracket
             return
 
-        # for values, we need to get the address, cast to char*, add offset, and then cast to type*, and finally
-        # dereference it
-        cv = CVariable(v, offset=0, codegen=self.codegen)
-        cast_inner = CTypeCast(None, SimTypePointer(SimTypeChar().with_arch(arch)).with_arch(arch),
-                               CUnaryOp("Reference", cv, None, codegen=self.codegen),
-                               codegen=self.codegen)
-        added = CBinaryOp('Add', cast_inner, offset, None, codegen=self.codegen)
+        # for stack and global variables, we need to get the address, cast to char*, add offset, and then cast to type*,
+        # and finally dereference it
+        if isinstance(v, SimMemoryVariable):
+            cv = CVariable(v, offset=0, codegen=self.codegen)
+        elif isinstance(v, CVariable) and isinstance(v.variable, SimMemoryVariable):
+            assert v.offset == 0
+            cv = v
+        else:
+            cv = None
 
-        yield "*", None
-        yield from CTypeCast(None, SimTypePointer(v_type).with_arch(arch), added,
-                             codegen=self.codegen).c_repr_chunks()
+        if cv is not None:
+            cast_inner = CTypeCast(None, SimTypePointer(SimTypeChar().with_arch(arch)).with_arch(arch),
+                                   CUnaryOp("Reference", cv, None, codegen=self.codegen),
+                                   codegen=self.codegen)
+            added = CBinaryOp('Add', cast_inner, offset, None, codegen=self.codegen)
+
+            yield "*", None
+            cast_outer = CTypeCast(None, SimTypePointer(v_type).with_arch(arch), added,
+                                 codegen=self.codegen)
+            yield from cast_outer.c_repr_chunks()
+            return
+
+        # for other variables, we simplify perform a bit shift and type cast
+        shifted = CBinaryOp('Shr', v, offset, None, codegen=self.codegen, tags=v.tags)
+        cast = CTypeCast(None, v_type, shifted, codegen=self.codegen)
+        yield from cast.c_repr_chunks()
 
     def c_repr_chunks(self, indent=0, asexpr=False):
 
@@ -1356,7 +1379,8 @@ class CBinaryOp(CExpression):
         # operator
         yield op, self
         # rhs
-        if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (1 if self.op in ['Sub', 'Div'] else 0):
+        if isinstance(self.rhs, CBinaryOp) \
+                and self.op_precedence > self.rhs.op_precedence - (1 if self.op in ['Sub', 'Div'] else 0):
             paren = CClosingObject("(")
             yield "(", paren
             yield from self._try_c_repr_chunks(self.rhs)
@@ -1449,6 +1473,7 @@ class CTypeCast(CExpression):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         leading_paren = False
+        wrapping_paren = False
         paren = CClosingObject("(")
         if self.codegen.show_casts:
             # look ahead to detect if a leading paren is required
@@ -1460,7 +1485,15 @@ class CTypeCast(CExpression):
             yield "(", paren
             yield "{}".format(self.dst_type.c_repr(name=None)), self
             yield ")", paren
+
+        if isinstance(self.expr, CBinaryOp):
+            wrapping_paren = True
+            yield "(", paren
+        else:
+            wrapping_paren = False
         yield from CExpression._try_c_repr_chunks(self.expr)
+        if wrapping_paren:
+            yield ")", paren
         if self.codegen.show_casts and leading_paren:
             yield ")", paren
 
