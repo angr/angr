@@ -500,6 +500,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  normalize=False,
                  start_at_entry=True,
                  function_starts=None,
+                 extra_executable_regions=None,
                  extra_memory_regions=None,
                  data_type_guessing_handlers=None,
                  arch_options=None,
@@ -554,6 +555,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                                         code scanning.
         :param list function_starts:    A list of extra function starting points. CFGFast will try to resume scanning
                                         from each address in the list.
+        :param list extra_executable_resions: A list of 2-tuple (start-address, end-address) that shows extra executable
+                                              regions. These regions will be added into self._regions.
         :param list extra_memory_regions: A list of 2-tuple (start-address, end-address) that shows extra memory
                                           regions. Integers falling inside will be considered as pointers.
         :param list indirect_jump_resolvers: A custom list of indirect jump resolvers. If this list is None or empty,
@@ -656,6 +659,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         if not regions and self.project.arch.name != 'Soot':
             raise AngrCFGError("Regions are empty or all regions are skipped. You may want to manually specify "
                                "regions.")
+        if extra_executable_regions:
+            for start_, end_ in extra_executable_regions:
+                if self._should_add_executable_region(start_) and (start_, end_) not in regions:
+                    regions.append((start_, end_))
+
         # sort the regions
         regions = sorted(regions, key=lambda x: x[0])
         self._regions_size = sum((b - a) for a, b in regions)
