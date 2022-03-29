@@ -460,7 +460,9 @@ def test_decompiling_1after909_doit():
     # with global variables discovered, there should not be any loads of constant addresses.
     assert "fflush(stdout);" in code.lower()
 
-    m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) != 0\)", code)
+    assert code.count("access(") == 2, "The decompilation should contain 2 calls to access(), but instead %d calls are present." % code.count("access(")
+
+    m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
     assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
     # Arguments to the convert call should be fully folded into the call statement itself
@@ -795,7 +797,7 @@ def test_decompiling_fauxware_mipsel():
     # The function calls must be correctly decompiled
     assert "puts(" in code
     assert "read(" in code
-    assert "authenticate()" in code
+    assert "authenticate(" in code
     # The string references must be correctly recovered
     assert '"Username: "' in code
     assert '"Password: "' in code
@@ -981,6 +983,21 @@ def test_decompiling_x8664_cvs():
     # at the very least, it should decompile within a reasonable amount of time...
     # the switch-case must be recovered
     assert "switch (" in d.codegen.text
+
+
+def test_decompiling_x8664_mv_O2():
+    bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
+    p = angr.Project(bin_path, auto_load_libs=False)
+
+    cfg = p.analyses.CFGFast(normalize=True, show_progressbar=True)
+    p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+    f = p.kb.functions['main']
+    d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=True)
+    print(d.codegen.text)
+
+    assert "(False)" not in d.codegen.text
+    assert "None" not in d.codegen.text
 
 
 if __name__ == "__main__":

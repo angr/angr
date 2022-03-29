@@ -271,6 +271,20 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         indent_str = self.indent_str(indent)
 
+        if self.codegen.show_local_types:
+            for ty in self.variable_manager.types.iter_own():
+                c_repr = ty.c_repr(full=True)
+                c_repr = f'typedef {c_repr} {ty._name}'
+                first = True
+                for line in c_repr.split('\n'):
+                    if first:
+                        first = False
+                    else:
+                        yield '\n', None
+                    yield indent_str, None
+                    yield line, None
+                yield ';\n\n', None
+
         yield indent_str, None
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), None
@@ -1041,7 +1055,7 @@ class CVariable(CExpression):
                 paren = CClosingObject("(")
                 cast_type = SimTypePointer(self_type).with_arch(self.codegen.project.arch)
 
-                yield "*"
+                yield "*", None
                 yield "(", paren
                 yield cast_type.c_repr(), None
                 yield ")", paren
@@ -1306,7 +1320,9 @@ class CBinaryOp(CExpression):
             'Add': self._c_repr_chunks_add,
             'Sub': self._c_repr_chunks_sub,
             'Mul': self._c_repr_chunks_mul,
+            'Mull': self._c_repr_chunks_mull,
             'Div': self._c_repr_chunks_div,
+            'DivMod': self._c_repr_chunks_divmod,
             'And': self._c_repr_chunks_and,
             'Xor': self._c_repr_chunks_xor,
             'Or': self._c_repr_chunks_or,
@@ -1367,8 +1383,14 @@ class CBinaryOp(CExpression):
     def _c_repr_chunks_mul(self):
         yield from self._c_repr_chunks(" * ")
 
+    def _c_repr_chunks_mull(self):
+        yield from self._c_repr_chunks(" * ")
+
     def _c_repr_chunks_div(self):
         yield from self._c_repr_chunks(" / ")
+
+    def _c_repr_chunks_divmod(self):
+        yield from self._c_repr_chunks(" % ")
 
     def _c_repr_chunks_and(self):
         yield from self._c_repr_chunks(" & ")
@@ -1604,8 +1626,8 @@ class CClosingObject:
 class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
-                 show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, flavor=None,
-                 stmt_comments=None, expr_comments=None):
+                 show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
+                 flavor=None, stmt_comments=None, expr_comments=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1657,6 +1679,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
         self.use_compound_assignments = use_compound_assignments
+        self.show_local_types = show_local_types
         self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
 
@@ -1680,6 +1703,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.show_casts = value
             elif option.param == 'use_compound_assignments':
                 self.use_compound_assignments = value
+            elif option.param == 'show_local_types':
+                self.show_local_types = value
 
     def _analyze(self):
 
@@ -1771,7 +1796,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Util methods
     #
 
-    def _parse_addr(self, addr) -> Tuple[Optional[CExpression],Optional[CExpression]]:
+    def _parse_addr(self, addr) -> Tuple[Optional[CExpression],Optional[Union[CExpression,int]]]:
 
         if isinstance(addr, CExpression):
             expr = addr
@@ -1829,6 +1854,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     # GUESS: we need some guessing here
                     base = expr.lhs
                     offset = expr.rhs
+
+                if base is None:
+                    # this is also a guess
+                    base = expr.lhs
+                    offset = expr.rhs
+
                 return base, offset
         elif isinstance(expr, CVariable):
             return expr, 0
@@ -1842,7 +1873,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         elif isinstance(expr, int):
             return None, expr
         elif isinstance(expr, Expr.DirtyExpression):
-            l.warning("Got a DirtyExpression %s. It should be handled during VEX->AIL conversion.", expr)
+            l.warning("Got a DirtyExpression %s. It should have been handled during VEX->AIL conversion.", expr)
             return expr, None
         elif isinstance(expr, CExpression):  # other expressions
             return expr, None
@@ -2129,7 +2160,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         try:
             # Try to handle it as a normal function call
-            target = self._handle(stmt.target)
+            if not isinstance(stmt.target, str):
+                target = self._handle(stmt.target)
+            else:
+                target = stmt.target
         except UnsupportedNodeTypeError:
             target = stmt.target
 
@@ -2139,12 +2173,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             target_func = None
 
         args = [ ]
-        if target_func is not None and stmt.args is not None:
+        if stmt.args is not None:
             for i, arg in enumerate(stmt.args):
-                if target_func.prototype is not None and i < len(target_func.prototype.args):
-                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
-                else:
-                    type_ = None
+                type_ = None
+                if target_func is not None:
+                    if target_func.prototype is not None and i < len(target_func.prototype.args):
+                        type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
                     new_arg = self._handle_Expr_Const(arg, type_=type_)
@@ -2220,14 +2254,27 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         base, offset = self._parse_addr(expr.addr)
 
-        if base is not None and offset is not None and isinstance(base, CVariable):
-            return self._cvariable(base,
-                                   offset=offset,
-                                   variable_type=self.default_simtype_from_size(expr.size),
-                                   tags=expr.tags,
-                                   )
-        else:
+        if base is not None and offset is not None:
+            if isinstance(base, CVariable):
+                return self._cvariable(base,
+                                       offset=offset,
+                                       variable_type=self.default_simtype_from_size(expr.size),
+                                       tags=expr.tags,
+                                       )
+            else:
+                return self._cvariable(base,
+                                       offset=offset,
+                                       variable_type=self.default_simtype_from_size(expr.size),
+                                       tags=expr.tags,
+                                       )
+
+        if base is not None and offset is None:
+            return self._cvariable(base, tags=expr.tags)
+        if base is None and offset is not None:
             return self._cvariable(CConstant(offset, SimTypePointer(SimTypeInt), codegen=self), tags=expr.tags)
+
+        l.error("FIXME: Load with an unparseable address leading to a None in output.")
+        return self._cvariable(CConstant(None, SimTypePointer(SimTypeInt), codegen=self), tags=expr.tags)
 
     def _handle_Expr_Tmp(self, expr):  # pylint:disable=no-self-use
 

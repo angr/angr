@@ -3,14 +3,18 @@ import itertools
 import types
 from collections import defaultdict
 from typing import List, Tuple, DefaultDict
+import logging
 
 import claripy
 import mulpyplexer
 
 from .misc.hookset import HookSet
 from .misc.ux import once
+from .errors import SimError, SimMergeError
+from .sim_state import SimState
+from .state_hierarchy import StateHierarchy
+from .errors import AngrError, SimUnsatError, SimulationManagerError
 
-import logging
 l = logging.getLogger(name=__name__)
 
 
@@ -50,13 +54,15 @@ class SimulationManager:
                             the state and some information about the error are placed in this list. You can adjust the
                             list of caught exceptions with the `resilience` parameter.
     :ivar stashes:          All the stashes on this instance, as a dictionary.
-    :ivar completion_mode:  A function describing how multiple exploration techniques with the ``complete`` hook set will
-                            interact. By default, the builtin function ``any``.
+    :ivar completion_mode:  A function describing how multiple exploration techniques with the ``complete`` hook set
+                            will interact. By default, the builtin function ``any``.
     """
     ALL = '_ALL'
     DROP = '_DROP'
 
-    _integral_stashes = 'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained' # type: Tuple[str]
+    _integral_stashes = (
+        'active', 'stashed', 'pruned', 'unsat', 'errored', 'deadended', 'unconstrained'
+    ) # type: Tuple[str]
 
     def __init__(self,
             project,
@@ -70,13 +76,15 @@ class SimulationManager:
             completion_mode=any,
             techniques=None,
             **kwargs):
-        super(SimulationManager, self).__init__()
+        super().__init__()
 
         self._project = project
         self.completion_mode = completion_mode
         self._errored = []
 
-        self._stashes = self._create_integral_stashes() if stashes is None else stashes # type: defaultdict[str, List['SimState']]
+        if stashes is None:
+            stashes = self._create_integral_stashes()
+        self._stashes = stashes # type: defaultdict[str, List['SimState']]
         self._hierarchy = StateHierarchy() if hierarchy is None else hierarchy
         self._save_unsat = save_unsat
         self._auto_drop = {SimulationManager.DROP, }
@@ -85,8 +93,10 @@ class SimulationManager:
         if resilience is None:
             self._resilience = (AngrError, SimError, claripy.ClaripyError)
         elif resilience is True:
-            self._resilience = (AngrError, SimError, claripy.ClaripyError, \
-                         KeyError, IndexError, TypeError, ValueError, ArithmeticError, MemoryError)
+            self._resilience = (
+                AngrError, SimError, claripy.ClaripyError, KeyError, IndexError, TypeError, ValueError, ArithmeticError,
+                MemoryError
+            )
         elif resilience is False:
             self._resilience = ()
         else:
@@ -124,7 +134,10 @@ class SimulationManager:
 
     def __repr__(self):
         stashes_repr = ', '.join(("%d %s" % (len(v), k)) for k, v in self._stashes.items() if len(v) != 0)
-        return "<SimulationManager with %s%s>" % (stashes_repr if stashes_repr else 'all stashes empty', ' (%d errored)' % len(self.errored) if self.errored else '')
+        if not stashes_repr:
+            stashes_repr = 'all stashes empty'
+        errored_repr = ' (%d errored)' % len(self.errored) if self.errored else ''
+        return f"<SimulationManager with {stashes_repr}{errored_repr}>"
 
     def __getattr__(self, item):
         try:
@@ -133,7 +146,11 @@ class SimulationManager:
             return SimulationManager._fetch_states(self, stash=item)
 
     def __dir__(self):
-        return list(self.__dict__) + dir(type(self)) + list(self._stashes) + ['one_' + stash for stash in self._stashes] + ['mp_' + stash for stash in self._stashes]
+        return list(self.__dict__) + \
+               dir(type(self)) + \
+               list(self._stashes) + \
+               ['one_' + stash for stash in self._stashes] + \
+               ['mp_' + stash for stash in self._stashes]
 
     @property
     def errored(self):
@@ -364,7 +381,7 @@ class SimulationManager:
 
             successors = self.step_state(state, successor_func=successor_func, **run_args)
             # handle degenerate stepping cases here. desired behavior:
-            # if a step produced only unsat states, always add them to the unsat stash since this usually indicates a bug
+            # if a step produced only unsat states, always add them to the unsat stash since this usually indicates bugs
             # if a step produced sat states and save_unsat is False, drop the unsats
             # if a step produced no successors, period, add the original state to deadended
 
@@ -388,6 +405,9 @@ class SimulationManager:
 
         self._clear_states(stash=stash)
         for to_stash, states in bucket.items():
+            for state in states:
+                if self._hierarchy:
+                    self._hierarchy.add_state(state)
             self._store_states(to_stash or stash, states)
 
         if step_func is not None:
@@ -404,7 +424,7 @@ class SimulationManager:
                        'unsat': successors.unsat_successors,
                        'unconstrained': successors.unconstrained_successors}
 
-        except (SimUnsatError, claripy.UnsatError) as e:
+        except (SimUnsatError, claripy.UnsatError):
             if self._hierarchy:
                 self._hierarchy.unreachable_state(state)
                 self._hierarchy.simplify()
@@ -647,7 +667,8 @@ class SimulationManager:
             self.prune(from_stash=stash)
         to_merge = self._fetch_states(stash=stash)
         not_to_merge = []
-        if merge_key is None: merge_key = self._merge_key
+        if merge_key is None:
+            merge_key = self._merge_key
 
         merge_groups = [ ]
         while to_merge:
@@ -677,7 +698,7 @@ class SimulationManager:
     def _store_states(self, stash, states):
         if stash not in self._auto_drop:
             if stash not in self._stashes:
-                self._stashes[stash] = list()
+                self._stashes[stash] = []
             self._stashes[stash].extend(states)
 
     def _clear_states(self, stash):
@@ -754,7 +775,7 @@ class SimulationManager:
 
     def _create_integral_stashes(self) -> DefaultDict[str, List['SimState']]:
         stashes = defaultdict(list)
-        stashes.update({name: list() for name in self._integral_stashes})
+        stashes.update({name: [] for name in self._integral_stashes})
         return stashes
 
     def _copy_stashes(self, deep=False):
@@ -825,9 +846,4 @@ class ErrorRecord:
     def __eq__(self, other):
         return self is other or self.state is other
 
-
-from .errors import SimError, SimMergeError
-from .sim_state import SimState
-from .state_hierarchy import StateHierarchy
-from .errors import AngrError, SimUnsatError, SimulationManagerError
 from .exploration_techniques import ExplorationTechnique, Veritesting, Threading, Explorer

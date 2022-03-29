@@ -9,7 +9,7 @@ class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
     """
     __slots__ = ()
 
-    name = "Simplify PC-relative loads"
+    NAME = "Simplify PC-relative loads"
     expr_classes = (BinaryOp, )
 
     def optimize(self, expr: BinaryOp):

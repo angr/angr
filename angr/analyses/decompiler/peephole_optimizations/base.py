@@ -13,8 +13,8 @@ class PeepholeOptimizationStmtBase:
     kb: KnowledgeBase
     func_addr: Optional[int]
 
-    name = "Peephole Optimization - Statement"
-    description = "Peephole Optimization - Statement"
+    NAME = "Peephole Optimization - Statement"
+    DESCRIPTION = "Peephole Optimization - Statement"
     stmt_classes = None
 
     def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):
@@ -33,8 +33,8 @@ class PeepholeOptimizationExprBase:
     kb: KnowledgeBase
     func_addr: Optional[int]
 
-    name = "Peephole Optimization - Expression"
-    description = "Peephole Optimization - Expression"
+    NAME = "Peephole Optimization - Expression"
+    DESCRIPTION = "Peephole Optimization - Expression"
     expr_classes = None
 
     def __init__(self, project: Project, kb: KnowledgeBase, func_addr: Optional[int] = None):

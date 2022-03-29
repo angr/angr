@@ -299,7 +299,7 @@ class CallingConventionAnalysis(Analysis):
             # include its successor.
 
             # Re-lift the target block
-            dst_bb = self.project.factory.block(dst.addr, func.get_block(dst.addr).size, opt_level=1)
+            dst_bb = self.project.factory.block(dst.addr, func.get_block_size(dst.addr), opt_level=1)
 
             # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
             if len(dst_bb.vex.statements) == 1 and dst_bb.vex.statements[0].tag == 'Ist_IMark'\

@@ -170,10 +170,15 @@ class MultiSimplifierAILEngine(SimplifierAILEngine):
         return expr
 
 class MultiSimplifier(OptimizationPass):
+    """
+    Implements several different arithmetic optimizations.
+    """
 
     ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify various arithmetic expressions"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
 

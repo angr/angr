@@ -244,9 +244,6 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
-        if self.arch.is_artificial_register(offset, size):
-            # skip all writes to artificial registers
-            return
         if offset in (self.arch.ip_offset, self.arch.sp_offset):
             # only store the value. don't worry about variables.
             v = MultiValues(offset_to_values={0: {richr.data}})
@@ -748,10 +745,6 @@ class SimEngineVRBase(SimEngineLight):
         except SimMemoryMissingError:
             values = None
 
-        if self.arch.is_artificial_register(offset, size):
-            # don't even load values for artificial registers
-            r_value = self.state.top(size * self.arch.byte_width)
-            return RichR(r_value, variable=None, typevar=None)
         if offset in (self.arch.sp_offset, self.arch.ip_offset):
             # load values. don't worry about variables
             if values is None:
@@ -783,7 +776,8 @@ class SimEngineVRBase(SimEngineLight):
                     self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
                     variable_set.add(var)
 
-        if self.arch.is_artificial_register(offset, size) or offset == self.arch.sp_offset:
+        if offset == self.arch.sp_offset:
+            # ignore sp
             typevar = None
             var = None
         else:

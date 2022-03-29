@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class BoolExprXor1(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "bool_expr ^ 1 => !bool_expr (a)"
+    NAME = "bool_expr ^ 1 => !bool_expr (a)"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):

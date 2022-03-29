@@ -28,12 +28,14 @@ class StructuredCodeManager(KnowledgeBasePlugin):
         from ...analyses.decompiler.structured_codegen import BaseStructuredCodeGenerator
         from ...analyses.decompiler.decompilation_cache import DecompilationCache
 
+        nkey = self._normalize_key(key)
+
         if isinstance(value, BaseStructuredCodeGenerator):
-            cache = DecompilationCache()
+            cache = DecompilationCache(nkey)
             cache.codegen = value
         else:
             cache = value
-        self.cached[self._normalize_key(key)] = cache
+        self.cached[nkey] = cache
 
     def __contains__(self, key):
         return self._normalize_key(key) in self.cached

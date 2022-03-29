@@ -56,6 +56,7 @@ class SimEnginePropagatorAIL(
 
         if type(dst) is Expr.Tmp:
             self.state.store_temp(dst.tmp_idx, src)
+            self.state.temp_expressions[dst.tmp_idx] = stmt.src
 
         elif type(dst) is Expr.Register:
             if src.needs_details:
@@ -66,6 +67,8 @@ class SimEnginePropagatorAIL(
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
+
+            self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
         else:
             l.warning('Unsupported type of Assignment dst %s.', type(dst).__name__)
 
@@ -76,11 +79,10 @@ class SimEnginePropagatorAIL(
         addr = self._expr(stmt.addr)
         data = self._expr(stmt.data)
 
-        self.state.last_store = stmt
-
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:
+            self.state.last_stack_store = stmt
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
@@ -104,12 +106,16 @@ class SimEnginePropagatorAIL(
             var = SimStackVariable(sp_offset, size)
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
+        else:
+            self.state.global_stores.append((addr.one_expr, stmt))
+
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
         if target is None or target.one_expr == stmt.target:
             return
 
-        if target.one_expr is not None:
+        target_oneexpr = target.one_expr
+        if target_oneexpr is not None and isinstance(target_oneexpr, Expr.Const):
             new_jump_stmt = Stmt.Jump(stmt.idx, target.one_expr, **stmt.tags)
             self.state.add_replacement(self._codeloc(),
                                        stmt,
@@ -117,7 +123,8 @@ class SimEnginePropagatorAIL(
                                        )
 
     def _ail_handle_Call(self, expr_stmt: Stmt.Call):
-        _ = self._expr(expr_stmt.target)
+        if isinstance(expr_stmt.target, Expr.Expression):
+            _ = self._expr(expr_stmt.target)
 
         self.state._inside_call_stmt = True
 
@@ -154,13 +161,30 @@ class SimEnginePropagatorAIL(
     # AIL expression handlers
     #
 
-    def _expr(self, expr) -> Optional[PropValue]:  # this method exists so that I can annotate the return type
-        return super()._expr(expr)  # pylint:disable=useless-super-delegation
+    # this method exists so that I can annotate the return type
+    def _expr(self, expr) -> Optional[PropValue]:  # pylint:disable=useless-super-delegation
+        return super()._expr(expr)
 
     def _ail_handle_Tmp(self, expr: Expr.Tmp) -> PropValue:
         tmp = self.state.load_tmp(expr.tmp_idx)
 
         if tmp is not None:
+            # very first step - if we can get rid of this tmp and replace it with another, we should
+            if expr.tmp_idx in self.state.temp_expressions:
+                tmp_expr = self.state.temp_expressions[expr.tmp_idx]
+                for _, (reg_atom, reg_expr, def_at) in self.state.register_expressions.items():
+                    if reg_expr.likes(tmp_expr):
+                        # make sure the register still holds the same value
+                        current_reg_value = self.state.load_register(reg_atom)
+                        if current_reg_value is not None:
+                            if 0 in current_reg_value.offset_and_details:
+                                detail = current_reg_value.offset_and_details[0]
+                                if detail.def_at == def_at:
+                                    l.debug("Add a replacement: %s with %s", expr, reg_atom)
+                                    self.state.add_replacement(self._codeloc(), expr, reg_atom)
+                                    top = self.state.top(expr.size * self.arch.byte_width)
+                                    return PropValue.from_value_and_details(top, expr.size, expr, self._codeloc())
+
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
             if None in all_subexprs or \
@@ -444,7 +468,8 @@ class SimEnginePropagatorAIL(
         )
 
     def _ail_handle_CallExpr(self, expr_stmt: Stmt.Call) -> Optional[PropValue]:
-        _ = self._expr(expr_stmt.target)
+        if isinstance(expr_stmt.target, Expr.Expression):
+            _ = self._expr(expr_stmt.target)
 
         self.state._inside_call_stmt = True
 
@@ -581,6 +606,10 @@ class SimEnginePropagatorAIL(
             # Special logic for stack pointer alignment
             sp_offset = self.extract_offset_to_sp(o0_value.value)
             if sp_offset is not None and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
+                value = o0_value.value
+                new_expr = o0_expr
+            elif isinstance(o0_expr, Expr.StackBaseOffset) and type(o1_expr) is Expr.Const \
+                    and is_alignment_mask(o1_expr.value):
                 value = o0_value.value
                 new_expr = o0_expr
             else:

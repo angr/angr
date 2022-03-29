@@ -64,12 +64,14 @@ class SimStatePreconstrainer(SimStatePlugin):
         l.debug("Preconstraint: %s", constraint)
 
         # add the constraint for reconstraining later
+        if next(iter(variable.variables)) in self.variable_map:
+            l.warning("%s is already preconstrained. Are you misusing preconstrainer?", next(iter(variable.variables)))
         self.variable_map[next(iter(variable.variables))] = constraint
         self.preconstraints.append(constraint)
         if o.REPLACEMENT_SOLVER in self.state.options:
             self.state.solver._solver.add_replacement(variable, value, invalidate_cache=False)
         else:
-            self.state.add_constraints(*self.preconstraints)
+            self.state.add_constraints(constraint)
         if not self.state.satisfiable():
             l.warning("State went unsat while adding preconstraints")
 

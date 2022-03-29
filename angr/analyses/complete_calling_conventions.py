@@ -33,7 +33,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                  analyze_callsites: bool=False, skip_signature_matched_functions: bool=False,
                  max_function_blocks: Optional[int]=None, max_function_size: Optional[int]=None, workers: int=0,
                  cc_callback: Optional[Callable]=None, prioritize_func_addrs: Optional[Iterable[int]]=None,
-                 auto_start: bool=True):
+                 skip_other_funcs: bool=False, auto_start: bool=True):
         """
 
         :param recover_variables:   Recover variables on each function before performing calling convention analysis.
@@ -62,6 +62,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._workers = workers
         self._cc_callback = cc_callback
         self._prioritize_func_addrs = prioritize_func_addrs
+        self._skip_other_funcs = skip_other_funcs
         self._auto_start = auto_start
         self._total_funcs = None
 
@@ -193,7 +194,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         while not self._func_queue.empty():
             try:
                 with self._func_queue_lock:
-                    func_addr = self._func_queue.get(True)
+                    func_addr = self._func_queue.get(True, timeout=1)
             except queue.Empty:
                 break
 
@@ -254,7 +255,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 if addr in func_addrs:
                     to_prioritize.append(addr)
                 else:
-                    remaining.append(addr)
+                    if not self._skip_other_funcs:
+                        remaining.append(addr)
 
             for addr in itertools.chain(to_prioritize, remaining):
                 self._func_queue.put(addr)

@@ -12,7 +12,8 @@ from claripy.utils.orderedset import OrderedSet
 from ...protos import variables_pb2
 from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
-from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer
+from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer, SimTypeBottom, SimTypeChar, \
+    SimTypeInt, SimTypeLong
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
 from ..types import TypesStore
@@ -518,7 +519,7 @@ class VariableManagerInternal(Serializable):
         """
 
         if block_addr not in self._phi_variables_by_block:
-            return dict()
+            return { }
         variables = { }
         for phi in self._phi_variables_by_block[block_addr]:
             variables[phi] = self._phi_variables[phi]
@@ -664,7 +665,20 @@ class VariableManagerInternal(Serializable):
         self.types[name] = ty
         return ty
 
-    def set_variable_type(self, var: SimVariable, ty: SimType, name: Optional[str]=None) -> None:
+    def set_variable_type(self, var: SimVariable, ty: SimType, name: Optional[str]=None,
+                          override_bot: bool=True) -> None:
+        if isinstance(ty, SimTypeBottom) and override_bot:
+            # we fall back to assigning a default unsigned integer type for the variable
+            if var.size is not None:
+                size_to_type = {
+                    1: SimTypeChar,
+                    2: SimType,
+                    4: SimTypeInt,
+                    8: SimTypeLong,
+                }
+                if var.size in size_to_type:
+                    ty = size_to_type[var.size](signed=False, label=ty.label).with_arch(self.manager._kb._project.arch)
+
         if name:
             if name not in self.types:
                 self.types[name] = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
@@ -675,6 +689,7 @@ class VariableManagerInternal(Serializable):
             ty.pts_to = typeref
         elif isinstance(ty, SimStruct):
             ty = self._register_struct_type(ty, name=name)
+
         self.variable_to_types[var] = ty
 
     def get_variable_type(self, var) -> Optional[SimType]:

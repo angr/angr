@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, List, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -263,7 +263,8 @@ class PropagatorAILState(PropagatorState):
     Describes the state used in the AIL engine of Propagator.
     """
 
-    __slots__ = ('_registers', '_stack_variables', '_tmps', '_inside_call_stmt', 'last_store')
+    __slots__ = ('_registers', '_stack_variables', '_tmps', 'temp_expressions', 'register_expressions',
+                 '_inside_call_stmt', 'last_stack_store', 'global_stores')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
@@ -278,11 +279,14 @@ class PropagatorAILState(PropagatorState):
         self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if registers is None else registers
         self._tmps = {}
+        self.temp_expressions = { }
+        self.register_expressions = { }
         self._inside_call_stmt = False  # temporary variable that is only used internally
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
-        self.last_store = None
+        self.last_stack_store = None
+        self.global_stores: List[Tuple[Any,ailment.Stmt.Store]] = [ ]
 
     def __repr__(self):
         return "<PropagatorAILState>"
@@ -322,7 +326,8 @@ class PropagatorAILState(PropagatorState):
             return
 
         for offset, chopped_value, size, label in value.value_and_labels():
-            self._registers.store(reg.reg_offset + offset, chopped_value, size=size, label=label)
+            self._registers.store(reg.reg_offset + offset, chopped_value, size=size, label=label,
+                                  endness=self.project.arch.register_endness)
 
     def store_stack_variable(self, sp_offset: int, new: PropValue, endness=None) -> None:  # pylint:disable=unused-argument
         # normalize sp_offset to handle negative offsets
@@ -334,7 +339,8 @@ class PropagatorAILState(PropagatorState):
 
     def load_register(self, reg: ailment.Expr.Register) -> Optional[PropValue]:
         try:
-            value, labels = self._registers.load_with_labels(reg.reg_offset, size=reg.size)
+            value, labels = self._registers.load_with_labels(reg.reg_offset, size=reg.size,
+                                                             endness=self.project.arch.register_endness)
         except SimMemoryMissingError:
             # value does not exist
             return None

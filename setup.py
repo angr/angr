@@ -90,7 +90,7 @@ _UNICORN = "unicorn==1.0.2rc4"
 
 setup(
     name='angr',
-    version='9.1.gitrolling',
+    version='9.2.0.dev0',
     python_requires='>=3.6',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
@@ -98,7 +98,8 @@ setup(
     install_requires=[
         'sortedcontainers',
         'cachetools',
-        'capstone>=3.0.5rc2',
+        # capstone 5.0.0rc2 returns incorrect insn_name for nop instructions in ARM THUMB blocks
+        'capstone>=3.0.5rc2,!=5.0.0rc2',
         'dpkt',
         'mulpyplexer',
         'networkx>=2.0',
@@ -106,11 +107,11 @@ setup(
         'rpyc',
         'cffi>=1.14.0',
         _UNICORN,
-        'archinfo==9.1.gitrolling',
-        'claripy==9.1.gitrolling',
-        'cle==9.1.gitrolling',
-        'pyvex==9.1.gitrolling',
-        'ailment==9.1.gitrolling',
+        'archinfo==9.2.0.dev0',
+        'claripy==9.2.0.dev0',
+        'cle==9.2.0.dev0',
+        'pyvex==9.2.0.dev0',
+        'ailment==9.2.0.dev0',
         'GitPython',
         'psutil',
         'pycparser>=2.18',

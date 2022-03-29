@@ -17,6 +17,8 @@ class X86GccGetPcSimplifier(OptimizationPass):
     ARCHES = ['X86']
     PLATFORMS = ['linux']
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+    NAME = "Simplify getpc()"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
