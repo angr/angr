@@ -800,6 +800,7 @@ class CAssignment(CStatement):
         }
 
         if (self.codegen.use_compound_assignments
+            and isinstance(self.lhs, CVariable)
             and isinstance(self.rhs, CBinaryOp)
             and isinstance(self.rhs.lhs, CVariable)
             and self.lhs.unified_variable is self.rhs.lhs.unified_variable
@@ -1064,7 +1065,7 @@ class CVariable(CExpression):
 
             # cast the variable to a pointer
             if self.type is not None:
-                self_size = self.type.size // self.type._arch.byte_width
+                self_size = self.type.size // arch.byte_width
             else:
                 self_size = 1
             if isinstance(self.offset, int) and self.offset % self_size == 0:
@@ -1112,7 +1113,8 @@ class CVariable(CExpression):
             return
 
         # for other variables, we simplify perform a bit shift and type cast
-        shifted = CBinaryOp('Shr', v, offset, None, codegen=self.codegen, tags=v.tags)
+        breakpoint()
+        shifted = CBinaryOp('Shr', v, offset, None, codegen=self.codegen, tags=getattr(v, 'tags', None))
         cast = CTypeCast(None, v_type, shifted, codegen=self.codegen)
         yield from cast.c_repr_chunks()
 
