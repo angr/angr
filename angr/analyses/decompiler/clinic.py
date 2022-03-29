@@ -563,6 +563,7 @@ class Clinic(Analysis):
             if block is not None \
                     and not stmt.ret_exprs \
                     and self.function.prototype is not None \
+                    and self.function.prototype.returnty is not None \
                     and type(self.function.prototype.returnty) is not SimTypeBottom:
                 new_stmt = stmt.copy()
                 ret_val = self.function.calling_convention.return_val(self.function.prototype.returnty)
