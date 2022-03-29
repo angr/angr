@@ -160,8 +160,9 @@ class SimEnginePropagatorAIL(
     # AIL expression handlers
     #
 
-    def _expr(self, expr) -> Optional[PropValue]:  # this method exists so that I can annotate the return type
-        return super()._expr(expr)  # pylint:disable=useless-super-delegation
+    # this method exists so that I can annotate the return type
+    def _expr(self, expr) -> Optional[PropValue]:  # pylint:disable=useless-super-delegation
+        return super()._expr(expr)
 
     def _ail_handle_Tmp(self, expr: Expr.Tmp) -> PropValue:
         tmp = self.state.load_tmp(expr.tmp_idx)
@@ -605,7 +606,8 @@ class SimEnginePropagatorAIL(
             if sp_offset is not None and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
                 value = o0_value.value
                 new_expr = o0_expr
-            elif isinstance(o0_expr, Expr.StackBaseOffset) and type(o1_expr) is Expr.Const and is_alignment_mask(o1_expr.value):
+            elif isinstance(o0_expr, Expr.StackBaseOffset) and type(o1_expr) is Expr.Const \
+                    and is_alignment_mask(o1_expr.value):
                 value = o0_value.value
                 new_expr = o0_expr
             else:

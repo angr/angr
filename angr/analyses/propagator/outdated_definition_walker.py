@@ -1,6 +1,5 @@
 from typing import Optional, Any, TYPE_CHECKING
 
-import claripy
 from ailment import Block, Stmt, Expr
 
 from ..decompiler.ailblock_walker import AILBlockWalker
@@ -40,7 +39,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             if v is not None:
                 if not self.expr.likes(v):
                     self.out_dated = True
-                elif isinstance(v, Expr.TaggedObject) and v.tags.get('def_at', None) != self.expr.tags.get('def_at', None):
+                elif isinstance(v, Expr.TaggedObject) \
+                        and v.tags.get('def_at', None) != self.expr.tags.get('def_at', None):
                     self.out_dated = True
 
     @staticmethod
@@ -81,7 +81,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         return False
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
-        if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):
+        if self.avoid is not None and (expr == self.avoid or expr.addr == self.avoid):  # pylint:disable=consider-using-in
             self.out_dated = True
         elif isinstance(expr.addr, Expr.StackBaseOffset) \
                 and self.state.last_stack_store is not None \
