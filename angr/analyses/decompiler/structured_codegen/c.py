@@ -1000,20 +1000,20 @@ class CVariable(CExpression):
 
     .. code-block:: text
 
-    v0 (on the stack, int)      -  CVariable(variable=SimStackVariable(), offset=0, variable_type=int)
-    v0 (in a register, int)     -  CVariable(variable=SimRegisterVariable(), offset=0, variable_type=int)
-    v0[0] (v0 is an int array)  -  CIndexedVariable(variable=CVariable(variable=..., offset=0, variable_type=int[]),
-                                                    index=CConstant(0))
-    v0[n] (v0 is an int array)  -  CIndexedVariable(variable=CVariable(variable=..., offset=0, variable_type=int[]),
-                                                    index=CVariable(variable=n))
-    v0->field (v0 is a struct)  -  CVariableField(variable=CVariable(variable=v0, offset=0, variable_type=struct *),
-                                                  field="field", var_is_ptr=True)
-    *(short*)((char*)&v0 + 1)   -  CVariable(variable=CVariable(variable=v0, offset=0, variable_type=int),
-                                             offset=1, variable_type=short)
-    *(short*)((char*)&v0 + n)   -  CVariable(variable=CVariable(variable=v0, offset=0, variable_type=int),
-                                             offset=CVariable(variable=n, ...), variable_type=short)
-    *(int*)((char*)g0 + off)  (g0 is a global variable: an array of structs, but we don't know the struct type)
-                                -  CVariable(variable=CVariable(variable=g0,...), offset=off, variable_type=int)
+       v0 (on the stack, int)      -  CVariable(variable=SimStackVariable(), offset=0, variable_type=int)
+       v0 (in a register, int)     -  CVariable(variable=SimRegisterVariable(), offset=0, variable_type=int)
+       v0[0] (v0 is an int array)  -  CIndexedVariable(variable=CVariable(variable=..., offset=0, variable_type=int[]),
+                                                       index=CConstant(0))
+       v0[n] (v0 is an int array)  -  CIndexedVariable(variable=CVariable(variable=..., offset=0, variable_type=int[]),
+                                                       index=CVariable(variable=n))
+       v0->field (v0 is a struct)  -  CVariableField(variable=CVariable(variable=v0, offset=0, variable_type=struct *),
+                                                     field="field", var_is_ptr=True)
+       *(short*)((char*)&v0 + 1)   -  CVariable(variable=CVariable(variable=v0, offset=0, variable_type=int),
+                                                offset=1, variable_type=short)
+       *(short*)((char*)&v0 + n)   -  CVariable(variable=CVariable(variable=v0, offset=0, variable_type=int),
+                                                offset=CVariable(variable=n, ...), variable_type=short)
+       *(int*)((char*)g0 + off)  (g0 is a global variable: an array of structs, but we don't know the struct type)
+                                   -  CVariable(variable=CVariable(variable=g0,...), offset=off, variable_type=int)
     """
 
     __slots__ = ('variable', 'offset', 'variable_type', 'unified_variable', 'tags', )
