@@ -60,7 +60,11 @@ class SimStatePreconstrainer(SimStatePlugin):
                       "claripy replacement backend.", variable)
             l.warning("Please use a leaf AST as the preconstraining variable instead.")
 
-        constraint = variable == value
+        # Add the constraint with a simplification avoidance tag.  If
+        # this is not added, claripy may simplify new constraints if
+        # they are redundant with respect to the preconstraints.  This
+        # is problematic when the preconstraints are removed.
+        constraint = (variable == value).annotate(claripy.SimplificationAvoidanceAnnotation())
         l.debug("Preconstraint: %s", constraint)
 
         # add the constraint for reconstraining later
