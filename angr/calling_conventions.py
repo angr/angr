@@ -632,6 +632,8 @@ class SimCC:
         return self.RETURN_ADDR
 
     def next_arg(self, session: ArgSession, arg_type: SimType):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)): # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
             raise TypeError(f"{self} doesn't know how to store aggregate types. Consider overriding next_arg to "
                             "implement its ABI logic")
@@ -1118,6 +1120,8 @@ class SimCCCdecl(SimCC):
     ARCH = archinfo.ArchX86
 
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)): # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         locs_size = 0
         byte_size = arg_type.size // self.arch.byte_width
         locs = []
@@ -1188,6 +1192,8 @@ class SimCCMicrosoftAMD64(SimCC):
 
     ArgSession = MicrosoftAMD64ArgSession
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)): # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         try:
             int_loc = next(session.int_iter)
             fp_loc = next(session.fp_iter)
@@ -1340,6 +1346,8 @@ class SimCCSystemVAMD64(SimCC):
     # https://raw.githubusercontent.com/wiki/hjl-tools/x86-psABI/x86-64-psABI-1.0.pdf
     # section 3.2.3
     def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)): # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         state = session.getstate()
         classification = self._classify(arg_type)
         try:
