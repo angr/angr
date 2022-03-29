@@ -194,7 +194,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         while not self._func_queue.empty():
             try:
                 with self._func_queue_lock:
-                    func_addr = self._func_queue.get(True)
+                    func_addr = self._func_queue.get(True, timeout=1)
             except queue.Empty:
                 break
 
