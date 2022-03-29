@@ -1,4 +1,4 @@
-# pylint:disable=line-too-long,missing-class-docstring
+# pylint:disable=line-too-long,missing-class-docstring,too-many-boolean-expressions
 from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
 from collections import defaultdict
 import logging
@@ -1209,7 +1209,7 @@ class CVariableField(CExpression):
         self.var_is_ptr = var_is_ptr
         self.tags = tags
 
-    @type
+    @property
     def type(self):
         return self.field.type
 
@@ -1277,7 +1277,6 @@ class CUnaryOp(CExpression):
         yield ")", paren
 
     def _c_repr_chunks_reference(self):
-        paren = CClosingObject("(")
         yield "&", self
         yield from CExpression._try_c_repr_chunks(self.operand)
 
