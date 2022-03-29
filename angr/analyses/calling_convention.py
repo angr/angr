@@ -441,8 +441,9 @@ class CallingConventionAnalysis(Analysis):
                     # skip the return address on the stack
                     # TODO: make sure it was the return address
                     continue
-                arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
-                args.add(arg)
+                if variable.offset - ret_addr_offset >= 0:
+                    arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
+                    args.add(arg)
             elif isinstance(variable, SimRegisterVariable):
                 # a register variable, convert it to a register argument
                 if not self._is_sane_register_variable(variable):
