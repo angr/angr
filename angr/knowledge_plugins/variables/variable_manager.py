@@ -12,7 +12,7 @@ from claripy.utils.orderedset import OrderedSet
 from ...protos import variables_pb2
 from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
-from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer, SimTypeBottom, SimTypeChar, SimTypeShort, \
+from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer, SimTypeBottom, SimTypeChar, \
     SimTypeInt, SimTypeLong
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
@@ -519,7 +519,7 @@ class VariableManagerInternal(Serializable):
         """
 
         if block_addr not in self._phi_variables_by_block:
-            return dict()
+            return { }
         variables = { }
         for phi in self._phi_variables_by_block[block_addr]:
             variables[phi] = self._phi_variables[phi]
