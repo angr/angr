@@ -174,7 +174,7 @@ class MultiSimplifier(OptimizationPass):
     Implements several different arithmetic optimizations.
     """
 
-    ARCHES = None # everything
+    ARCHES = ["X86", "AMD64"]
     PLATFORMS = ["linux", "windows"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Simplify various arithmetic expressions"
