@@ -287,6 +287,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     yield line, None
                 yield ';\n\n', None
 
+        if self.codegen.show_externs and self.codegen.cexterns:
+            for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
+                yield f'extern {v.type.c_repr(name=v.variable.name)};\n', None
+            yield '\n', None
+
         yield indent_str, None
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), None
@@ -1661,7 +1666,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 flavor=None, stmt_comments=None, expr_comments=None):
+                 flavor=None, stmt_comments=None, expr_comments=None, show_externs=True, externs=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1716,6 +1721,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_local_types = show_local_types
         self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
+        self.externs = externs or set()
+        self.show_externs = show_externs
 
         self.text = None
         self.map_pos_to_node = None
@@ -1723,6 +1730,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_pos = None
         self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.cfunc = None
+        self.cexterns: Optional[Set[CVariable]] = None
 
         self._analyze()
 
@@ -1739,6 +1747,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.use_compound_assignments = value
             elif option.param == 'show_local_types':
                 self.show_local_types = value
+            elif option.param == 'show_externs':
+                self.show_externs = value
 
     def _analyze(self):
 
@@ -1759,6 +1769,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
                                demangled_name=self._func.demangled_name, codegen=self)
+
+        self.cexterns = {self._cvariable(v, variable_type=self._get_variable_type(v, is_global=True))
+                         for v in self.externs}
+
         self._variables_in_use = None
 
         self.regenerate_text()

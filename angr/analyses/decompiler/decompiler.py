@@ -123,6 +123,7 @@ class Decompiler(Analysis):
                                                                 variable_kb=clinic.variable_kb,
                                                                 expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                                                                 stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+                                                                externs=clinic.externs,
                                                                 **self.options_to_params(options_by_class['codegen']))
         self._update_progress(90., text='Finishing up')
 
