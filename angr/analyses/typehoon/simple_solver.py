@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 import itertools
 from collections import defaultdict
 from typing import Union, Type, Callable
@@ -74,9 +75,9 @@ class SimpleSolver:
         # import pprint
         # pprint.pprint(self._constraints)
 
+        eq_constraints = self._eq_constraints_from_add()
+        self._constraints |= eq_constraints
         constraints = self._handle_equivalence()
-        subtype_constraints = self._subtype_constraints_from_add()
-        constraints.update(subtype_constraints)
         subtypevars, supertypevars = self._calculate_closure(constraints)
         self._find_recursive_types(subtypevars)
         self._compute_lower_upper_bounds(subtypevars, supertypevars)
@@ -143,7 +144,7 @@ class SimpleSolver:
                     graph.add_edge(ta, tb)
 
         for components in networkx.connected_components(graph):
-            components_lst = list(sorted(components, key=lambda x: str(x)))
+            components_lst = list(sorted(components, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
             representative = components_lst[0]
             for tv in components_lst[1:]:
                 replacements[tv] = representative
@@ -177,16 +178,23 @@ class SimpleSolver:
         self._equivalence = replacements
         return constraints
 
-    def _subtype_constraints_from_add(self):
+    def _eq_constraints_from_add(self):
         """
         Handle Add constraints.
         """
         new_constraints = set()
         for constraint in self._constraints:
             if isinstance(constraint, Add):
-                # we want to be conservative and take a guess here - normally the resulting type variable is a subtype
-                # of the first type variable
-                new_constraints.add(Subtype(constraint.type_0, constraint.type_r))
+                if isinstance(constraint.type_0, TypeVariable) \
+                        and not isinstance(constraint.type_0, DerivedTypeVariable) \
+                        and isinstance(constraint.type_r, TypeVariable) \
+                        and not isinstance(constraint.type_r, DerivedTypeVariable):
+                    new_constraints.add(Equivalence(constraint.type_0, constraint.type_r))
+                if isinstance(constraint.type_1, TypeVariable) \
+                        and not isinstance(constraint.type_1, DerivedTypeVariable) \
+                        and isinstance(constraint.type_r, TypeVariable) \
+                        and not isinstance(constraint.type_r, DerivedTypeVariable):
+                    new_constraints.add(Equivalence(constraint.type_1, constraint.type_r))
         return new_constraints
 
     def _pointer_class(self) -> Union[Type[Pointer32],Type[Pointer64]]:
