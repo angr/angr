@@ -114,7 +114,7 @@ class SimEngineVRAIL(
 
         # dump the type of the return value
         if prototype is not None:
-            ret_ty = TypeLifter(self.arch.bits).lift(prototype.returnty)
+            ret_ty = typevars.TypeVariable()  # TypeLifter(self.arch.bits).lift(prototype.returnty)
         else:
             ret_ty = typevars.TypeVariable()
         if isinstance(ret_ty, typeconsts.BottomType):

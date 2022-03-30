@@ -22,7 +22,7 @@ class CodeTagging(Analysis):
         self.ANALYSES = [
             (self.has_xor, {'X86', 'AMD64'}),
             (self.has_bitshifts, {'X86', 'AMD64'}),
-            (self.has_sql, None),
+            (self.has_sql, {'X86', 'AMD64'}),
         ]
 
         self.analyze()
