@@ -23,7 +23,7 @@ def test_decompiling_all_x86_64():
         if f.is_simprocedure:
             l.debug("Skipping SimProcedure %s.", repr(f))
             continue
-        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
+        dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)  # pylint: disable=unused-variable
         # FIXME: This test does not pass
         # assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         # l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
@@ -431,7 +431,10 @@ def test_decompiling_1after909_doit():
     # with global variables discovered, there should not be any loads of constant addresses.
     assert "fflush(stdout);" in code.lower()
 
-    assert code.count("access(") == 2, "The decompilation should contain 2 calls to access(), but instead %d calls are present." % code.count("access(")
+    assert code.count("access(") == 2, (
+        "The decompilation should contain 2 calls to access(), but instead %d calls are present."
+        % code.count("access(")
+    )
 
     m = re.search(r"if \([\S]*access\(&[\S]+, [\S]+\) == -1\)", code)
     assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
