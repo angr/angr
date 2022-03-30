@@ -248,8 +248,8 @@ class SimpleSolver:
                             if v not in subtypevars[supertype]:
                                 if supertype is not v:
                                     subtypevars[supertype].add(v)
-                                    for sub in supertypevars[v]:
-                                        constraints.add(Subtype(sub, supertype))
+                                    for sup in supertypevars[v]:
+                                        constraints.add(Subtype(subtype, sup))
 
                 if isinstance(subtype, TypeVariable):
                     if supertype not in supertypevars[subtype]:
@@ -264,8 +264,8 @@ class SimpleSolver:
                             if v not in supertypevars[subtype]:
                                 if v is not subtype:
                                     supertypevars[subtype].add(v)
-                                    for s in supertypevars[v]:
-                                        constraints.add(Subtype(subtype, s))
+                                    for sup in supertypevars[v]:
+                                        constraints.add(Subtype(subtype, sup))
 
             elif isinstance(constraint, Equivalence):
                 raise Exception("Shouldn't exist anymore.")
