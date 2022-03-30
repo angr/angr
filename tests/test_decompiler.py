@@ -392,7 +392,7 @@ def test_decompiling_1after909_verify_password():
     strncmp_stmt = strncmp_expr + ";"
     assert strncmp_stmt not in code, "Call expressions folding failed for strncmp()"
 
-    lines = code.split("\n)
+    lines = code.split("\n")
     for line in lines:
         if '"%02x"' in line:
             assert "sprintf(" in line
