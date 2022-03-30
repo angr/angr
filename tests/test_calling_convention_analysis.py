@@ -11,6 +11,7 @@ from angr.calling_conventions import (
     SimCCCdecl,
     SimCCSystemVAMD64,
 )
+from angr.sim_type import SimTypeFunction
 
 test_location = os.path.join(
     os.path.dirname(os.path.realpath(str(__file__))),
@@ -249,6 +250,19 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         assert cca.prototype is not None
         assert cca.prototype.returnty is not None
+
+    def test_armhf_thumb_movcc(self):
+        binary_path = os.path.join(test_location, "tests", "armhf", "amp_challenge_07.gcc")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        _ = proj.analyses.CFGFast(normalize=True, data_references=True, regions=[(0xfec94, 0xfef60)])
+        f = proj.kb.functions[0xfec95]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+
+        assert cca.prototype is not None
+        assert cca.cc is not None
+        assert isinstance(cca.prototype, SimTypeFunction)
+        assert len(cca.prototype.args) == 2
 
     def manual_test_workers(self):
         binary_path = os.path.join(test_location, "tests", "x86_64", "1after909")
