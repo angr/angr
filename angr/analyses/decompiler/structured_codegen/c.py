@@ -1943,7 +1943,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return SimTypeNum(n * self.project.arch.byte_width).with_arch(self.project.arch)
 
     def _cvariable(self, variable: Union[SimVariable,CExpression], offset: Union[int,CExpression]=0,
-                   has_offset: bool=True, variable_type=None, tags=None):
+                   has_offset: bool=True, variable_type=None, tags=None) -> Union[CVariable, CVariableField,
+                                                                                  CIndexedVariable]:
         if isinstance(variable, SimVariable):
             unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
         else:
