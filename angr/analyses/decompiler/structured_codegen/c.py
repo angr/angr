@@ -289,7 +289,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
-                yield f'extern {v.type.c_repr(name=v.variable.name)};\n', None
+                if v.type is None:
+                    typed_varname = f"<missing-type> {v.c_repr()}"
+                else:
+                    typed_varname = v.type.c_repr(name=v.variable.name)
+                yield f'extern {typed_varname};\n', None
             yield '\n', None
 
         yield indent_str, None
@@ -1594,13 +1598,14 @@ class CConstant(CExpression):
 
 class CRegister(CExpression):
 
-    __slots__ = ('reg', )
+    __slots__ = ('reg', 'tags', )
 
-    def __init__(self, reg, **kwargs):
+    def __init__(self, reg, tags=None, **kwargs):
 
         super().__init__(**kwargs)
 
         self.reg = reg
+        self.tags = tags
 
     @property
     def type(self):
@@ -2408,7 +2413,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.variable:
             return self._handle(expr.variable)
         else:
-            return CRegister(expr, codegen=self)
+            return CRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load):
 

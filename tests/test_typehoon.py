@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,no-self-use
 import os
 import unittest
 
@@ -31,7 +32,6 @@ class TestTypehoon(unittest.TestCase):
 
         #t = p.analyses.Typehoon(main_func) #, clinic)
         #print(t)
-
 
     def test_type_inference_byte_pointer_cast(self):
 
