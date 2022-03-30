@@ -24,6 +24,7 @@ BASE_LATTICE_64.add_edge(Pointer64, BottomType)
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
 BASE_LATTICE_32.add_edge(TopType, Int)
+BASE_LATTICE_32.add_edge(Int, Int64)
 BASE_LATTICE_32.add_edge(Int, Int32)
 BASE_LATTICE_32.add_edge(Int, Int16)
 BASE_LATTICE_32.add_edge(Int, Int8)
@@ -142,7 +143,7 @@ class SimpleSolver:
                     graph.add_edge(ta, tb)
 
         for components in networkx.connected_components(graph):
-            components_lst = list(components)
+            components_lst = list(sorted(components, key=lambda x: str(x)))
             representative = components_lst[0]
             for tv in components_lst[1:]:
                 replacements[tv] = representative
@@ -228,31 +229,35 @@ class SimpleSolver:
 
                 if isinstance(supertype, TypeVariable):
                     if subtype not in subtypevars[supertype]:
-                        subtypevars[supertype].add(subtype)
-                        for s in supertypevars[subtype]:
-                            # re-add impacted constraints
-                            constraints.add(Subtype(s, subtype))
+                        if supertype is not subtype:
+                            subtypevars[supertype].add(subtype)
+                            for s in supertypevars[subtype]:
+                                # re-add impacted constraints
+                                constraints.add(Subtype(subtype, s))
 
                     if subtype in subtypevars:
                         for v in subtypevars[subtype]:
                             if v not in subtypevars[supertype]:
-                                subtypevars[supertype].add(v)
-                                for sub in supertypevars[v]:
-                                    constraints.add(Subtype(supertype, sub))
+                                if supertype is not v:
+                                    subtypevars[supertype].add(v)
+                                    for sub in supertypevars[v]:
+                                        constraints.add(Subtype(sub, supertype))
 
                 if isinstance(subtype, TypeVariable):
                     if supertype not in supertypevars[subtype]:
-                        supertypevars[subtype].add(supertype)
-                        for s in subtypevars[supertype]:
-                            # re-add impacted constraints
-                            constraints.add(Subtype(supertype, s))
+                        if subtype is not supertype:
+                            supertypevars[subtype].add(supertype)
+                            for s in subtypevars[supertype]:
+                                # re-add impacted constraints
+                                constraints.add(Subtype(s, supertype))
 
                     if supertype in supertypevars:
                         for v in supertypevars[supertype]:
                             if v not in supertypevars[subtype]:
-                                supertypevars[subtype].add(v)
-                                for s in supertypevars[v]:
-                                    constraints.add(Subtype(s, subtype))
+                                if v is not subtype:
+                                    supertypevars[subtype].add(v)
+                                    for s in supertypevars[v]:
+                                        constraints.add(Subtype(subtype, s))
 
             elif isinstance(constraint, Equivalence):
                 raise Exception("Shouldn't exist anymore.")
@@ -321,7 +326,30 @@ class SimpleSolver:
             self._upper_bounds[typevar] = self._meet(typevar, *upper_bounds, translate=self._get_upper_bound)
 
         # compute the greatest lower bound for each type variable
-        for typevar, lower_bounds in subtypevars.items():
+        seen = set()  # loop avoidance
+        queue = list(subtypevars)
+        while queue:
+            typevar = queue.pop(0)
+            lower_bounds = subtypevars[typevar]
+
+            if typevar not in seen:
+                # we detect if it depends on any other typevar upon the first encounter
+                seen.add(typevar)
+
+                abort = False
+                for subtypevar in lower_bounds:
+                    if isinstance(subtypevar, TypeVariable) and subtypevar not in self._lower_bounds:
+                        # oops - we should analyze the subtypevar first
+                        queue.append(typevar)
+                        # to avoid loops, make sure typevar does not rely on
+                        abort = True
+                        break
+                if abort:
+                    continue
+            else:
+                # avoid loop and continue no matter what
+                pass
+
             if isinstance(typevar, TypeConstant):
                 continue
             self._lower_bounds[typevar] = self._join(typevar, *lower_bounds, translate=self._get_lower_bound)

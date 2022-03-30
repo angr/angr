@@ -866,14 +866,15 @@ class Clinic(Analysis):
             global_vars = global_variables.get_global_variables(expr.value)
             if not global_vars:
                 # detect if there is a related symbol
-                symbol = self.project.loader.find_symbol(expr.value)
-                if symbol is not None:
-                    # Create a new global variable if there isn't one already
-                    global_vars = global_variables.get_global_variables(symbol.rebased_addr)
-                    if not global_vars:
-                        global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
-                        global_variables.add_variable('global', global_var.addr, global_var)
-                        global_vars = {global_var}
+                if self.project.loader.find_object_containing(expr.value):
+                    symbol = self.project.loader.find_symbol(expr.value)
+                    if symbol is not None:
+                        # Create a new global variable if there isn't one already
+                        global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                        if not global_vars:
+                            global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                            global_variables.add_variable('global', global_var.addr, global_var)
+                            global_vars = {global_var}
             if global_vars:
                 global_var = next(iter(global_vars))
                 expr.tags['reference_variable'] = global_var

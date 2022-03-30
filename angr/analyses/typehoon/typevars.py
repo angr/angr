@@ -116,8 +116,8 @@ class Subtype(TypeConstraint):
 
         if subtype is not None or supertype is not None:
             # replacement has happened
-            return True, Subtype(supertype if supertype is not None else self.super_type,
-                                 subtype if subtype is not None else self.sub_type)
+            return True, Subtype(subtype if subtype is not None else self.sub_type,
+                                 supertype if supertype is not None else self.super_type)
         else:
             return False, self
 

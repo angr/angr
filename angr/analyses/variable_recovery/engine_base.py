@@ -216,18 +216,11 @@ class SimEngineVRBase(SimEngineLight):
         else:
             return
 
-        if self.state.typevars.has_type_variable_for(variable, codeloc):
-            variable_typevar = self.state.typevars.get_type_variable(variable, codeloc)
-        else:
+        if not self.state.typevars.has_type_variable_for(variable, codeloc):
             variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
-        addr_typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-        derived_typevar = typevars.DerivedTypeVariable(
-            typevars.DerivedTypeVariable(addr_typevar, typevars.Load()),
-            typevars.HasField(1 * 8, 0)  # at least one byte
-        )
-        type_constraint = typevars.Subtype(variable_typevar, derived_typevar)
-        self.state.add_type_constraint(type_constraint)
+        # we do not add any type constraint here because we are not sure if the given memory address will ever be
+        # accessed or not
 
         # find all variables
         for var, offset in existing_vars:
@@ -244,7 +237,7 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
-        if offset in (self.arch.ip_offset, self.arch.sp_offset):
+        if offset in (self.arch.ip_offset, self.arch.sp_offset, self.arch.lr_offset):
             # only store the value. don't worry about variables.
             v = MultiValues(offset_to_values={0: {richr.data}})
             self.state.register_region.store(offset, v)

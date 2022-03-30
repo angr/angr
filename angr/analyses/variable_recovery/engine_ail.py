@@ -208,9 +208,11 @@ class SimEngineVRAIL(
         if r.typevar is not None:
             if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(r.typevar.label, typevars.ConvertTo):
                 # there is already a conversion - overwrite it
-                typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))
+                if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
+                    typevar = typevars.DerivedTypeVariable(r.typevar.type_var, typevars.ConvertTo(expr.to_bits))
             else:
-                typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ConvertTo(expr.to_bits))
+                if not isinstance(r.typevar, typeconsts.TypeConstant):
+                    typevar = typevars.DerivedTypeVariable(r.typevar, typevars.ConvertTo(expr.to_bits))
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
