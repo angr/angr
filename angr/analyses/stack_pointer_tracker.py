@@ -5,6 +5,7 @@ import logging
 
 import pyvex
 
+from ..utils.constants import is_alignment_mask
 from ..analyses import AnalysesHub
 from ..knowledge_plugins import Function
 from ..block import BlockNode
@@ -445,6 +446,17 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                     if arg1_expr is BOTTOM:
                         return BOTTOM
                     return arg0_expr - arg1_expr
+                elif expr.op.startswith("Iop_And"):
+                    # handle stack pointer alignments
+                    arg0_expr = _resolve_expr(arg0)
+                    arg1_expr = _resolve_expr(arg1)
+                    if isinstance(arg1_expr, (Register, OffsetVal)) \
+                            and isinstance(arg0_expr, Constant) and is_alignment_mask(arg0_expr.val):
+                        return arg1_expr
+                    if isinstance(arg0_expr, (Register, OffsetVal)) \
+                            and isinstance(arg1_expr, Constant) and is_alignment_mask(arg1_expr.val):
+                        return arg0_expr
+                    raise CouldNotResolveException()
             elif type(expr) is pyvex.IRExpr.RdTmp and expr.tmp in tmps and tmps[expr.tmp] is not None:
                 return tmps[expr.tmp]
             elif type(expr) is pyvex.IRExpr.Const:
