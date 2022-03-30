@@ -351,7 +351,11 @@ class Call(Expression, Statement):
         return "call"
 
     def replace(self, old_expr, new_expr):
-        r0, replaced_target = self.target.replace(old_expr, new_expr)
+        if isinstance(self.target, Expression):
+            r0, replaced_target = self.target.replace(old_expr, new_expr)
+        else:
+            r0 = False
+            replaced_target = self.target
 
         r = r0
 
