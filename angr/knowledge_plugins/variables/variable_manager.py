@@ -12,7 +12,7 @@ from claripy.utils.orderedset import OrderedSet
 from ...protos import variables_pb2
 from ...serializable import Serializable
 from ...sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
-from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer, SimTypeBottom, SimTypeChar, \
+from ...sim_type import TypeRef, SimType, SimStruct, SimTypePointer, SimTypeBottom, SimTypeChar, SimTypeShort, \
     SimTypeInt, SimTypeLong
 from ...keyed_region import KeyedRegion
 from ..plugin import KnowledgeBasePlugin
@@ -672,7 +672,7 @@ class VariableManagerInternal(Serializable):
             if var.size is not None:
                 size_to_type = {
                     1: SimTypeChar,
-                    2: SimType,
+                    2: SimTypeShort,
                     4: SimTypeInt,
                     8: SimTypeLong,
                 }

@@ -562,8 +562,10 @@ class SimEngineVRBase(SimEngineLight):
                 if values:
                     for vs in values.values.values():
                         for v in vs:
-                            for var_offset, var_ in self.state.extract_variables(v):
-                                all_vars.add((var_offset, var_))
+                            for _, var_ in self.state.extract_variables(v):
+                                if isinstance(var_, SimStackVariable):
+                                    var_offset = stack_offset - var_.offset
+                                    all_vars.add((var_offset, var_))
 
                 if not all_vars:
                     variables = self.variable_manager[self.func_addr].find_variables_by_stack_offset(concrete_offset)
@@ -592,7 +594,7 @@ class SimEngineVRBase(SimEngineLight):
                 var_offset, var = next(iter(all_vars))  # won't fail
                 # calculate variable_offset
                 if dynamic_offset is None:
-                    offset_into_variable = None
+                    offset_into_variable = var_offset
                 else:
                     if var_offset == 0:
                         offset_into_variable = dynamic_offset
@@ -607,17 +609,26 @@ class SimEngineVRBase(SimEngineLight):
                                                                 # overwrite=True
                                                                 )
 
-                # add delayed type constraints
-                if var in self.state.delayed_type_constraints:
-                    for constraint in self.state.delayed_type_constraints[var]:
-                        self.state.add_type_constraint(constraint)
-                    self.state.delayed_type_constraints.pop(var)
-                # create type constraints
-                if not self.state.typevars.has_type_variable_for(var, codeloc):
-                    typevar = typevars.TypeVariable()
-                    self.state.typevars.add_type_variable(var, codeloc, typevar)
+                if var.size == size:
+                    # add delayed type constraints
+                    if var in self.state.delayed_type_constraints:
+                        for constraint in self.state.delayed_type_constraints[var]:
+                            self.state.add_type_constraint(constraint)
+                        self.state.delayed_type_constraints.pop(var)
+
+                    # create type constraints
+                    if not self.state.typevars.has_type_variable_for(var, codeloc):
+                        typevar = typevars.TypeVariable()
+                        self.state.typevars.add_type_variable(var, codeloc, typevar)
+                    else:
+                        typevar = self.state.typevars.get_type_variable(var, codeloc)
+
                 else:
-                    typevar = self.state.typevars.get_type_variable(var, codeloc)
+                    typevar = typevars.TypeVariable()
+                    self.state.add_type_constraint(
+                        typevars.Subtype(typeconsts.int_type(size * 8), typevar)
+                    )
+
                 # TODO: Create a tv_sp.load.<bits>@N type variable for the stack variable
                 #typevar = typevars.DerivedTypeVariable(
                 #    typevars.DerivedTypeVariable(typevar, typevars.Load()),

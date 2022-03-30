@@ -789,23 +789,15 @@ class Clinic(Analysis):
                 if offset is not None:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, offset)
                 if base_addr is not None:
-                    # is there a variable for it?
-                    global_vars = global_variables.get_global_variables(base_addr)
-                    if not global_vars:
-                        # detect if there is a related symbol
-                        symbol = self.project.loader.find_symbol(base_addr)
-                        if symbol is not None:
-                            # Create a new global variable if there isn't one already
-                            global_vars = global_variables.get_global_variables(symbol.rebased_addr)
-                            if not global_vars:
-                                global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
-                                global_variables.add_variable('global', global_var.addr, global_var)
-                                global_vars = {global_var}
-                    if global_vars:
-                        global_var = next(iter(global_vars))
-                        expr.variable = global_var
-                        expr.variable_offset = offset
-                else:
+                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, base_addr)
+
+                # if we are accessing the variable directly (offset == 0), we link the variable onto this expression
+                if offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0):
+                    if 'reference_variable' in base_addr.tags:
+                        expr.variable = base_addr.reference_variable
+                        expr.variable_offset = base_addr.reference_variable_offset
+
+                if base_addr is None and offset is None:
                     # this is a local variable
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
                     if 'reference_variable' in expr.addr.tags and expr.addr.reference_variable is not None:
@@ -869,11 +861,21 @@ class Clinic(Analysis):
 
         elif isinstance(expr, ailment.Expr.Const):
             # global variable?
-            variables = global_variables.get_global_variables(expr.value)
-            if variables:
-                var = next(iter(variables))
-                expr.tags['reference_variable'] = var
-                expr.tags['reference_variable_offset'] = None
+            global_vars = global_variables.get_global_variables(expr.value)
+            if not global_vars:
+                # detect if there is a related symbol
+                symbol = self.project.loader.find_symbol(expr.value)
+                if symbol is not None:
+                    # Create a new global variable if there isn't one already
+                    global_vars = global_variables.get_global_variables(symbol.rebased_addr)
+                    if not global_vars:
+                        global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                        global_variables.add_variable('global', global_var.addr, global_var)
+                        global_vars = {global_var}
+            if global_vars:
+                global_var = next(iter(global_vars))
+                expr.tags['reference_variable'] = global_var
+                expr.tags['reference_variable_offset'] = 0
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
@@ -916,14 +918,14 @@ class Clinic(Analysis):
     @staticmethod
     def parse_variable_addr(addr: ailment.Expr.Expression) -> Optional[Tuple[Any,Any]]:
         if isinstance(addr, ailment.Expr.Const):
-            return addr.value, 0
+            return addr, 0
         if isinstance(addr, ailment.Expr.BinaryOp):
             if addr.op == "Add":
                 op0, op1 = addr.operands
                 if isinstance(op0, ailment.Expr.Const):
-                    return op0.value, op1
+                    return op0, op1
                 elif isinstance(op1, ailment.Expr.Const):
-                    return op1.value, op0
+                    return op1, op0
         return None, None
 
 
