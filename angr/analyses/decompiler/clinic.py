@@ -57,6 +57,7 @@ class Clinic(Analysis):
         self.cc_graph: Optional[networkx.DiGraph] = None
         self.arg_list = None
         self.variable_kb = variable_kb
+        self.externs: Set[SimMemoryVariable] = set()
 
         self._func_graph: Optional[networkx.DiGraph] = None
         self._ail_manager = None
@@ -226,6 +227,7 @@ class Clinic(Analysis):
         self.arg_list = arg_list
         self.variable_kb = variable_kb
         self.cc_graph = self._copy_graph()
+        self.externs = self._collect_externs(ail_graph, variable_kb)
 
     def _copy_graph(self):
         """
@@ -903,6 +905,32 @@ class Clinic(Analysis):
                 graph.add_edge(src, dst, **data)
 
         return graph
+
+    @staticmethod
+    def _collect_externs(ail_graph, variable_kb):
+        global_vars = variable_kb.variables.global_manager.get_variables()
+        walker = AILBlockWalker()
+        variables = set()
+
+        def handle_expr(expr_idx: int, expr: ailment.expression.Load, stmt_idx: int, stmt: ailment.statement.Statement,
+                        block: Optional[ailment.Block]):
+            if expr is None:
+                return None
+            for v in [getattr(expr, 'variable', None),
+                      expr.tags.get('reference_variable', None)]:
+                if v and v in global_vars:
+                    variables.add(v)
+            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: Optional[ailment.Block]):
+            if stmt.variable and stmt.variable in global_vars:
+                variables.add(stmt.variable)
+            return AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+
+        walker.stmt_handlers[ailment.statement.Store] = handle_Store
+        walker._handle_expr = handle_expr
+        AILGraphWalker(ail_graph, walker.walk).walk()
+        return variables
 
     def _next_atom(self) -> int:
         return self._ail_manager.next_atom()

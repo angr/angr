@@ -287,6 +287,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     yield line, None
                 yield ';\n\n', None
 
+        if self.codegen.show_externs and self.codegen.cexterns:
+            for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
+                yield f'extern {v.type.c_repr(name=v.variable.name)};\n', None
+            yield '\n', None
+
         yield indent_str, None
         # return type
         yield self.functy.returnty.c_repr(name="").strip(" "), None
@@ -1661,7 +1666,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 flavor=None, stmt_comments=None, expr_comments=None):
+                 flavor=None, stmt_comments=None, expr_comments=None, show_externs=True, externs=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1708,6 +1713,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: Optional[Dict] = None
+        self._inlined_strings: Set[SimMemoryVariable] = set()
         self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
         self._indent = indent
         self.show_casts = show_casts
@@ -1716,6 +1722,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_local_types = show_local_types
         self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
+        self.externs = externs or set()
+        self.show_externs = show_externs
 
         self.text = None
         self.map_pos_to_node = None
@@ -1723,6 +1731,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_pos = None
         self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
         self.cfunc = None
+        self.cexterns: Optional[Set[CVariable]] = None
 
         self._analyze()
 
@@ -1739,6 +1748,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.use_compound_assignments = value
             elif option.param == 'show_local_types':
                 self.show_local_types = value
+            elif option.param == 'show_externs':
+                self.show_externs = value
 
     def _analyze(self):
 
@@ -1759,6 +1770,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
                                demangled_name=self._func.demangled_name, codegen=self)
+
+        self.cexterns = {self._cvariable(v, variable_type=self._get_variable_type(v, is_global=True))
+                         for v in self.externs if v not in self._inlined_strings}
+
         self._variables_in_use = None
 
         self.regenerate_text()
@@ -1928,7 +1943,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return SimTypeNum(n * self.project.arch.byte_width).with_arch(self.project.arch)
 
     def _cvariable(self, variable: Union[SimVariable,CExpression], offset: Union[int,CExpression]=0,
-                   has_offset: bool=True, variable_type=None, tags=None):
+                   has_offset: bool=True, variable_type=None, tags=None) -> Union[CVariable, CVariableField,
+                                                                                  CIndexedVariable]:
         if isinstance(variable, SimVariable):
             unified = self._variable_kb.variables[self._func.addr].unified_variable(variable)
         else:
@@ -2382,15 +2398,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_Const(self, expr, type_=None, reference_values=None, variable=None):  # pylint:disable=no-self-use
 
+        inline_string = False
+
         if reference_values is None:
             reference_values = { }
             type_ = unpack_typeref(type_)
             if isinstance(type_, SimTypePointer) and isinstance(type_.pts_to, SimTypeChar):
                 # char*
                 # Try to get a string
-                if self._cfg is not None:
-                    if expr.value in self._cfg.memory_data and self._cfg.memory_data[expr.value].sort == 'string':
-                        reference_values[type_] = self._cfg.memory_data[expr.value]
+                if (self._cfg is not None
+                    and expr.value in self._cfg.memory_data
+                    and self._cfg.memory_data[expr.value].sort == MemoryDataSort.String):
+                    reference_values[type_] = self._cfg.memory_data[expr.value]
+                    inline_string = True
             elif isinstance(type_, SimTypeInt):
                 # int
                 reference_values[type_] = expr.value
@@ -2404,9 +2424,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     expr.bits == self.project.arch.bits and \
                     expr.value > 0x10000 and \
                     expr.value in self._cfg.memory_data and \
-                    self._cfg.memory_data[expr.value].sort == 'string':
+                    self._cfg.memory_data[expr.value].sort == MemoryDataSort.String:
                 type_ = SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
                 reference_values[type_] = self._cfg.memory_data[expr.value]
+                inline_string = True
 
         if type_ is None:
             # default to int
@@ -2414,6 +2435,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if variable is None and hasattr(expr, 'reference_variable') and expr.reference_variable is not None:
             variable = self._handle(expr.reference_variable)
+            if inline_string:
+                self._inlined_strings.add(expr.reference_variable)
 
         return CConstant(expr.value, type_,
                          reference_values=reference_values,
