@@ -1,3 +1,4 @@
+# pylint:disable=wrong-import-position,wrong-import-order
 from typing import Optional, List, Tuple
 import logging
 from collections import defaultdict
@@ -10,10 +11,10 @@ from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...block import Block
 from ...errors import AngrVariableRecoveryError, SimEngineError
 from ...knowledge_plugins import Function
-from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable
+from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
 from ...engines.vex.claripy.irop import vexop_to_simop
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ..typehoon.typevars import Equivalence, TypeVariable, Subtype
+from ..typehoon.typevars import Equivalence, TypeVariable
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
@@ -141,7 +142,7 @@ class VariableRecoveryFastState(VariableRecoveryStateBase):
             else:
                 typevar = TypeVariable()
                 for orig_typevar in all_typevars:
-                    merged_typeconstraints.add(Subtype(orig_typevar, typevar))
+                    merged_typeconstraints.add(Equivalence(orig_typevar, typevar))
             stack_offset_typevars[offset] = typevar
 
         # clean up
@@ -222,7 +223,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         self._node_iterations = defaultdict(int)
 
         self._node_to_cc = { }
-        self.var_to_typevar = { }
+        self.var_to_typevars = defaultdict(set)
         self.type_constraints = None
 
         self._analyze()
@@ -345,7 +346,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         self._node_iterations[node.addr] += 1
         self.type_constraints |= state.type_constraints
-        self.var_to_typevar.update(state.typevars._typevars)
+        for var, typevar in state.typevars._typevars.items():
+            self.var_to_typevars[var].add(typevar)
 
         state.downsize()
         self._outstates[node.addr] = state
@@ -366,6 +368,13 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
                     state.downsize_region(state.register_region),
                     state.downsize_region(state.stack_region),
                 )
+
+        # unify type variables for global variables
+        for var, typevars in self.var_to_typevars.items():
+            if len(typevars) > 1 and isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
+                sorted_typevars = list(sorted(typevars, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
+                for tv in sorted_typevars[1:]:
+                    self.type_constraints.add(Equivalence(sorted_typevars[0], tv))
 
     #
     # Private methods

@@ -967,7 +967,7 @@ class CStructField(CExpression):
 
     __slots__ = ('struct_type', 'offset', 'field', 'tags', )
 
-    def __init__(self, struct_type, offset, field, tags=None, **kwargs):
+    def __init__(self, struct_type: SimStruct, offset, field, tags=None, **kwargs):
 
         super().__init__(**kwargs)
 
@@ -978,7 +978,7 @@ class CStructField(CExpression):
 
     @property
     def type(self):
-        return self.struct_type
+        return self.struct_type.fields[self.field]
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield str(self.field), self
@@ -1183,6 +1183,14 @@ class CIndexedVariable(CExpression):
         self.index: Union[int,CExpression] = index
         self._type = variable_type
         self.tags = tags
+
+        if self._type is None and isinstance(self.variable, (CVariable, CIndexedVariable, CVariableField)) \
+                and self.variable.type is not None:
+            u = unpack_typeref(self.variable.type)
+            if isinstance(u, SimTypePointer):
+                self._type = u.pts_to
+            elif isinstance(u, SimTypeArray):
+                self._type = u.elem_type
 
     @property
     def type(self):

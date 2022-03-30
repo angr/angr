@@ -184,11 +184,17 @@ class SimEngineVRAIL(
         addr_r = self._expr(expr.addr)
         size = expr.size
 
-        return self._load(addr_r, size, expr=expr)
+        r = self._load(addr_r, size, expr=expr)
+        return r
 
     def _ail_handle_Const(self, expr):
+        if self.project.loader.find_segment_containing(expr.value) is not None:
+            r = self._load_from_global(expr.value, 1, expr=expr)
+            ty = r.typevar
+        else:
+            ty = typeconsts.int_type(expr.size * self.state.arch.byte_width)
         v = claripy.BVV(expr.value, expr.size * self.state.arch.byte_width)
-        r = RichR(v, typevar=typeconsts.int_type(expr.size * self.state.arch.byte_width))
+        r = RichR(v, typevar=ty)
         self._reference(r, self._codeloc())
         return r
 
@@ -276,14 +282,20 @@ class SimEngineVRAIL(
         r1 = self._expr(arg1)
 
         type_constraints = set()
-        if r0.typevar is not None and r1.data.concrete:
-            # addition with constants. create a derived type variable
-            typevar = typevars.DerivedTypeVariable(r0.typevar, typevars.AddN(r1.data._model_concrete.value))
+        if r0.typevar is not None:
+            r0_typevar = r0.typevar
         else:
             # create a new type variable and add constraints accordingly
+            r0_typevar = typevars.TypeVariable()
+
+        if r1.data.concrete:
+            # addition with constants. create a derived type variable
+            typevar = typevars.DerivedTypeVariable(r0_typevar, typevars.AddN(r1.data._model_concrete.value))
+        elif r1.typevar is not None:
             typevar = typevars.TypeVariable()
-            if r0.typevar is not None and r1.typevar is not None:
-                type_constraints.add(typevars.Add(r0.typevar, r1.typevar, typevar))
+            type_constraints.add(typevars.Add(r0_typevar, r1.typevar, typevar))
+        else:
+            typevar = None
 
         sum_ = None
         if r0.data is not None and r1.data is not None:
