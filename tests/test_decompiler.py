@@ -55,8 +55,7 @@ def test_decompiling_loop_x86_64():
     assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
     l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
     # it should be properly structured to a while loop without conditional breaks
-    # FIXME: This test does not pass
-    # assert "break" in dec.codegen.text
+    assert "break" not in dec.codegen.text
 
 
 def test_decompiling_all_i386():
