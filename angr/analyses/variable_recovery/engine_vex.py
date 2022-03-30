@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 import claripy
 import pyvex
+from archinfo.arch_arm import is_arm_arch
 
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.light import SimEngineLightVEXMixin
@@ -102,6 +103,23 @@ class SimEngineVRVEX(
         reg_offset = expr.offset
         reg_size = expr.result_size(self.tyenv) // 8
 
+        # because of how VEX implements MOVCC and MOVCS instructions in ARM THUMB mode, we need to skip the register
+        # read if the immediate next instruction is an WrTmp(ITE).
+        #
+        # MOVCC           R3, #0
+        #
+        #    46 | ------ IMark(0xfeca2, 2, 1) ------
+        #    47 | t299 = CmpLT32U(t8,0x00010000)
+        #    48 | t143 = GET:I32(r3)      <-   this read does not exist
+        #    49 | t300 = ITE(t299,0x00000000,t143)
+        #    50 | PUT(r3) = t300
+        #    51 | PUT(pc) = 0x000feca5
+        if is_arm_arch(self.arch) and (self.ins_addr & 1) == 1:
+            if self.stmt_idx < len(self.block.vex.statements) - 1:
+                next_stmt = self.block.vex.statements[self.stmt_idx + 1]
+                if isinstance(next_stmt, pyvex.IRStmt.WrTmp) and isinstance(next_stmt.data, pyvex.IRExpr.ITE):
+                    return RichR(self.state.top(reg_size * 8))
+
         return self._read_from_register(reg_offset, reg_size, expr=expr)
 
     def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
@@ -116,7 +134,6 @@ class SimEngineVRVEX(
 
     def _handle_Conversion(self, expr: pyvex.IRExpr.Unop) -> RichR:
         return RichR(self.state.top(expr.result_size(self.tyenv)))
-
 
     # Function handlers
 
