@@ -54,7 +54,7 @@ class OpBehavior:
         """
         Reduce input BV to a single bit of truth: out <- 1 if (in1 != 0) else 0.
         """
-        return cls.generic_compare(in1, claripy.BVV(0, in1.size()), operator.ne)
+        return cls.generic_compare((in1, claripy.BVV(0, in1.size())), operator.ne)
 
 
 class OpBehaviorCopy(OpBehavior):
