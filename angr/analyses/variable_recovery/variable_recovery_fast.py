@@ -1,3 +1,4 @@
+# pylint:disable=wrong-import-position,wrong-import-order
 from typing import Optional, List, Tuple
 import logging
 from collections import defaultdict
@@ -13,7 +14,7 @@ from ...knowledge_plugins import Function
 from ...sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
 from ...engines.vex.claripy.irop import vexop_to_simop
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor
-from ..typehoon.typevars import Equivalence, TypeVariable, Subtype
+from ..typehoon.typevars import Equivalence, TypeVariable
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
@@ -371,7 +372,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         # unify type variables for global variables
         for var, typevars in self.var_to_typevars.items():
             if len(typevars) > 1 and isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable):
-                sorted_typevars = list(sorted(typevars, key=lambda x: str(x)))
+                sorted_typevars = list(sorted(typevars, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
                 for tv in sorted_typevars[1:]:
                     self.type_constraints.add(Equivalence(sorted_typevars[0], tv))
 
