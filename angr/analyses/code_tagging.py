@@ -20,15 +20,17 @@ class CodeTagging(Analysis):
         self.tags = set()
 
         self.ANALYSES = [
-            self.has_xor,
-            self.has_bitshifts,
-            self.has_sql,
+            (self.has_xor, {'X86', 'AMD64'}),
+            (self.has_bitshifts, {'X86', 'AMD64'}),
+            (self.has_sql, None),
         ]
 
         self.analyze()
 
     def analyze(self):
-        for analysis in self.ANALYSES:
+        for analysis, arches in self.ANALYSES:
+            if not arches is None and self.project.arch.name not in arches:
+                continue
             tags = analysis()
             if tags:
                 self.tags |= tags
