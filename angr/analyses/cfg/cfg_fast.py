@@ -1451,7 +1451,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             edges_to_remove = [ ]
             for src, dst, data in all_edges:
                 if 'type' in data:
-                    if data['type'] == 'fake_return' and 'confirmed' not in data:
+                    if data['type'] == 'fake_return' and data.get('confirmed', False) is False:
 
                         # Get all possible functions being called here
                         target_funcs = [ self.functions.function(addr=func_addr)
