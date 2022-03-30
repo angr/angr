@@ -81,7 +81,7 @@ class SimpleSolver:
         subtypevars, supertypevars = self._calculate_closure(constraints)
         self._find_recursive_types(subtypevars)
         self._compute_lower_upper_bounds(subtypevars, supertypevars)
-        # self._unify_struct_fields()
+        self._lower_struct_fields()
         # import pprint
         # print("Lower bounds")
         # pprint.pprint(self._lower_bounds)
@@ -372,30 +372,35 @@ class SimpleSolver:
                     subtype_infimum = self._join(subtypevar, typevar, translate=self._get_lower_bound)
                     self._lower_bounds[subtypevar] = subtype_infimum
 
-    def _unify_struct_fields(self):
+    def _lower_struct_fields(self):
 
-        for v, ptrv_subtype in self._lower_bounds.items():
-            if isinstance(v, DerivedTypeVariable) and isinstance(v.label, HasField):
+        # tv_680: ptr32(struct{0: int32})
+        # tv_680.load.<32>@0: ptr32(struct{5: int8})
+        #    becomes
+        # tv_680: ptr32(struct{0: ptr32(struct{5: int8})})
+
+        for outer, outer_lb in self._lower_bounds.items():
+            if isinstance(outer, DerivedTypeVariable) and isinstance(outer.label, HasField):
                 # unpack v
-                ptrv = v.type_var.type_var
+                base = outer.type_var.type_var
 
-                if ptrv in self._lower_bounds:
-                    # unification
+                if base in self._lower_bounds:
 
-                    v_subtype = self._lower_bounds[v]
+                    base_lb = self._lower_bounds[base]
 
                     # make sure it's a pointer at the offset that v.label specifies
-                    if isinstance(ptrv_subtype, Pointer):
-                        if isinstance(ptrv_subtype.basetype, Struct):
-                            the_field = ptrv_subtype.basetype.fields[v.label.offset]
-                            new_field = self._join(the_field, v_subtype, translate=self._get_lower_bound)
+                    if isinstance(base_lb, Pointer):
+                        if isinstance(base_lb.basetype, Struct):
+                            the_field = base_lb.basetype.fields[outer.label.offset]
+                            # replace this field
+                            new_field = self._meet(the_field, outer_lb, translate=self._get_upper_bound)
                             if new_field != the_field:
-                                new_fields = ptrv_subtype.basetype.fields.copy()
+                                new_fields = base_lb.basetype.fields.copy()
                                 new_fields.update(
-                                    {v.label.offset: new_field,
+                                    {outer.label.offset: new_field,
                                      }
                                 )
-                                self._lower_bounds[ptrv] = ptrv_subtype.__class__(Struct(new_fields))
+                                self._lower_bounds[base] = base_lb.__class__(Struct(new_fields))
 
     def _abstract(self, t):  # pylint:disable=no-self-use
         return t.__class__

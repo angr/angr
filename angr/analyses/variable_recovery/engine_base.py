@@ -634,41 +634,42 @@ class SimEngineVRBase(SimEngineLight):
 
         elif addr.concrete:
             # Loading data from memory
-            self._load_from_global(addr._model_concrete.value, size, expr=expr)
+            v = self._load_from_global(addr._model_concrete.value, size, expr=expr)
+            typevar = v.typevar
 
         elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
             # Loading data from a memory address with an offset
             base_addr, offset, elem_size = self._parse_offseted_addr(addr)
-            self._load_from_global(base_addr._model_concrete.value, size, expr=expr, offset=offset,
-                                   elem_size=elem_size)
+            v = self._load_from_global(base_addr._model_concrete.value, size, expr=expr, offset=offset,
+                                          elem_size=elem_size)
+            typevar = v.typevar
 
+        # Loading data from a pointer
+        if richr_addr.type_constraints:
+            for tc in richr_addr.type_constraints:
+                self.state.add_type_constraint(tc)
+
+        # parse the loading offset
+        offset = 0
+        if (isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and
+                isinstance(richr_addr.typevar.label, typevars.AddN)):
+            offset = richr_addr.typevar.label.n
+            richr_addr_typevar = richr_addr.typevar.type_var  # unpack
         else:
-            # Loading data from a pointer
-            if richr_addr.type_constraints:
-                for tc in richr_addr.type_constraints:
-                    self.state.add_type_constraint(tc)
+            richr_addr_typevar = richr_addr.typevar
 
-            # parse the loading offset
-            offset = 0
-            if (isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and
-                    isinstance(richr_addr.typevar.label, typevars.AddN)):
-                offset = richr_addr.typevar.label.n
-                richr_addr_typevar = richr_addr.typevar.type_var  # unpack
-            else:
-                richr_addr_typevar = richr_addr.typevar
-
-            if richr_addr_typevar is not None:
-                # create a type constraint
-                typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
-                    typevars.HasField(size * self.state.arch.byte_width, offset)
-                )
-                self.state.add_type_constraint(typevars.Existence(typevar))
+        if richr_addr_typevar is not None:
+            # create a type constraint
+            typevar = typevars.DerivedTypeVariable(
+                typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
+                typevars.HasField(size * self.state.arch.byte_width, offset)
+            )
+            self.state.add_type_constraint(typevars.Existence(typevar))
 
         return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
 
     def _load_from_global(self, addr: int, size, expr=None, offset: Optional[claripy.ast.BV]=None,
-                          elem_size: Optional[claripy.ast.BV]=None):
+                          elem_size: Optional[claripy.ast.BV]=None) -> RichR:
 
         variable_manager = self.variable_manager['global']
         if expr is None:
@@ -691,7 +692,7 @@ class SimEngineVRBase(SimEngineLight):
         if not existing_vars:
             # is this address mapped?
             if self.project.loader.find_object_containing(addr) is None:
-                return
+                return RichR(self.state.top(size * self.state.arch.byte_width))
             variable = SimMemoryVariable(addr, size,
                                          ident=variable_manager.next_variable_ident('global'),
                                          )
@@ -733,6 +734,8 @@ class SimEngineVRBase(SimEngineLight):
                     self.state.add_type_constraint(
                         typevars.Existence(load_typevar)
                     )
+
+        return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
 
     def _read_from_register(self, offset, size, expr=None):
         """

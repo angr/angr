@@ -646,7 +646,8 @@ class Clinic(Analysis):
         for variable in var_manager.variables_with_manual_types:
             vartype = var_manager.types.get(variable, None)
             if vartype is not None:
-                groundtruth[vr.var_to_typevar[variable]] = vartype
+                for tv in vr.var_to_typevars[variable]:
+                    groundtruth[tv] = vartype
         # clean up existing types for this function
         var_manager.remove_types()
         # TODO: Type inference for global variables
@@ -659,12 +660,12 @@ class Clinic(Analysis):
         else:
             must_struct = None
         try:
-            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevar,
+            tp = self.project.analyses.Typehoon(vr.type_constraints, kb=tmp_kb, var_mapping=vr.var_to_typevars,
                                                 must_struct=must_struct, ground_truth=groundtruth)
             # tp.pp_constraints()
             # tp.pp_solution()
-            tp.update_variable_types(self.function.addr, vr.var_to_typevar)
-            tp.update_variable_types('global', vr.var_to_typevar)
+            tp.update_variable_types(self.function.addr, vr.var_to_typevars)
+            tp.update_variable_types('global', vr.var_to_typevars)
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
@@ -690,7 +691,7 @@ class Clinic(Analysis):
 
         if self._cache is not None:
             self._cache.type_constraints = vr.type_constraints
-            self._cache.var_to_typevar = vr.var_to_typevar
+            self._cache.var_to_typevars = vr.var_to_typevars
 
         return tmp_kb
 
