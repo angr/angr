@@ -2191,11 +2191,13 @@ class CFGBase(Analysis):
             # We may have determined that this does not happen, since the time this path
             # was scheduled for exploration
             called_function = None
+            called_function_addr = None
             # Try to find the call that this fakeret goes with
             for _, d, e in all_edges:
                 if e['jumpkind'] == 'Ijk_Call':
                     if d.addr in blockaddr_to_function:
                         called_function = blockaddr_to_function[d.addr]
+                        called_function_addr = d.addr
                         break
             # We may have since figured out that the called function doesn't ret.
             # It's important to assume that all unresolved targets do return
@@ -2205,9 +2207,9 @@ class CFGBase(Analysis):
 
             to_outside = not target_function is src_function
 
-            # FIXME: Not sure we should confirm this fakeret or not.
-            self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=True,
-                                              to_outside=to_outside, to_function_addr=target_function.addr
+            confirmed = called_function is None or called_function.returning is True
+            self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=confirmed,
+                                              to_outside=to_outside, to_function_addr=called_function_addr
                                               )
 
         else:
