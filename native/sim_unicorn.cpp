@@ -2512,7 +2512,6 @@ void State::perform_cgc_receive() {
 	if (rx_bytes != 0) {
 		handle_write(rx_bytes, 4, true);
 		if (stopped) {
-			free(tmp_buf);
 			return;
 		}
 		uc_mem_write(uc, rx_bytes, &actual_count, 4);
