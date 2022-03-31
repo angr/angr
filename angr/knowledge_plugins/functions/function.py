@@ -17,6 +17,7 @@ from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
 from ...serializable import Serializable
 from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
+from ...procedures.definitions import SimSyscallLibrary
 from ...protos import function_pb2
 from ...calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
@@ -1404,11 +1405,14 @@ class Function(Serializable):
             # try all libraries or all libraries that match the given library name hint
             libraries = set()
             for lib_name, lib in SIM_LIBRARIES.items():
-                if binary_name_hint:
-                    if binary_name_hint.lower() in lib_name.lower():
+                # TODO: Add support for syscall libraries. Note that syscall libraries have different function
+                #  prototypes for .has_prototype() and .get_prototype()...
+                if not isinstance(lib, SimSyscallLibrary):
+                    if binary_name_hint:
+                        if binary_name_hint.lower() in lib_name.lower():
+                            libraries.add(lib)
+                    else:
                         libraries.add(lib)
-                else:
-                    libraries.add(lib)
 
         if not libraries:
             return False

@@ -35,6 +35,7 @@ class FlirtAnalysis(Analysis):
         self._all_suggestions: Dict[str, Dict[str, Dict[int, str]]] = {}
         self._suggestions: Dict[int, str] = {}
         self.matched_suggestions: Dict[str, Tuple[FlirtSignature, Dict[int, str]]] = {}
+        self._temporary_sig = False
 
         if sig:
             if isinstance(sig, str):
@@ -43,6 +44,7 @@ class FlirtAnalysis(Analysis):
                                           sig, None)
 
                 self.signatures = [sig]
+                self._temporary_sig = True
 
         else:
             if not FLIRT_SIGNATURES_BY_ARCH:
@@ -78,7 +80,8 @@ class FlirtAnalysis(Analysis):
             if max_suggestion_sig_path is not None:
                 sig = path_to_sig.get(max_suggestion_sig_path, None)
                 _l.info("Applying FLIRT signature %s for library %s.", sig, lib)
-                self._apply_changes(sig.sig_name, sig_to_suggestions[max_suggestion_sig_path])
+                self._apply_changes(sig.sig_name if not self._temporary_sig else None,
+                                    sig_to_suggestions[max_suggestion_sig_path])
                 self.matched_suggestions[lib] = (sig, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: List[bytes]) -> List[FlirtSignature]:
@@ -162,7 +165,7 @@ class FlirtAnalysis(Analysis):
                 func_name = f"unknown_function_{func.addr:x}"
             self._suggestions[func.addr] = func_name
 
-    def _apply_changes(self, library_name: str, suggestion: Dict[int,str]) -> None:
+    def _apply_changes(self, library_name: Optional[str], suggestion: Dict[int,str]) -> None:
         for func_addr, suggested_name in suggestion.items():
             func = self.kb.functions.get_by_addr(func_addr)
             func.name = suggested_name
