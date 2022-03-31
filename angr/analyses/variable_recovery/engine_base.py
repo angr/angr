@@ -444,11 +444,6 @@ class SimEngineVRBase(SimEngineLight):
         else:
             typevar = self.state.typevars.get_type_variable(variable, codeloc)
 
-        if data.typevar is not None:
-            self.state.add_type_constraint(
-                typevars.Subtype(data.typevar, typevar)
-            )
-
         if offset is not None and elem_size is not None:
             # it's an array!
             if offset.concrete and elem_size.concrete:
@@ -461,16 +456,33 @@ class SimEngineVRBase(SimEngineLight):
                     typevars.Existence(store_typevar)
                 )
             else:
-                # FIXME: This is a hack
-                for i in range(0, 4):
-                    concrete_offset = size * i
-                    store_typevar = typevars.DerivedTypeVariable(
-                        typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                        typevars.HasField(size * self.state.arch.byte_width, concrete_offset)
-                    )
-                    self.state.add_type_constraint(
-                        typevars.Existence(store_typevar)
-                    )
+                store_typevar = typevars.DerivedTypeVariable(
+                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
+                    typevars.HasField(size * self.state.arch.byte_width, 0)
+                )
+                self.state.add_type_constraint(
+                    typevars.Existence(store_typevar)
+                )
+            # FIXME: This is a hack so that we can interpret the target as an array
+            is_array = typevars.DerivedTypeVariable(
+                typevar,
+                typevars.IsArray()
+            )
+            self.state.add_type_constraint(
+                typevars.Existence(is_array)
+            )
+
+            if data.typevar is not None:
+                self.state.add_type_constraint(
+                    typevars.Subtype(data.typevar, store_typevar)
+                )
+
+        else:
+            # it's just a variable
+            if data.typevar is not None:
+                self.state.add_type_constraint(
+                    typevars.Subtype(data.typevar, typevar)
+                )
 
     def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument
 

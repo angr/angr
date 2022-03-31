@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring
 from typing import Dict, Any, Optional, TYPE_CHECKING
 from itertools import count
 
@@ -160,23 +161,23 @@ class Add(TypeConstraint):
         if self.type_0 in replacements:
             t0 = replacements[self.type_0]
         elif isinstance(self.type_0, DerivedTypeVariable):
-                r, newtype = self.type_0.replace(replacements)
-                if r:
-                    t0 = newtype
+            r, newtype = self.type_0.replace(replacements)
+            if r:
+                t0 = newtype
 
         if self.type_1 in replacements:
             t1 = replacements[self.type_1]
         elif isinstance(self.type_1, DerivedTypeVariable):
-                r, newtype = self.type_1.replace(replacements)
-                if r:
-                    t1 = newtype
+            r, newtype = self.type_1.replace(replacements)
+            if r:
+                t1 = newtype
 
         if self.type_r in replacements:
             tr = replacements[self.type_r]
         elif isinstance(self.type_r, DerivedTypeVariable):
-                r, newtype = self.type_r.replace(replacements)
-                if r:
-                    tr = newtype
+            r, newtype = self.type_r.replace(replacements)
+            if r:
+                tr = newtype
 
         if t0 is not None or t1 is not None or tr is not None:
             # replacement has happened
@@ -224,23 +225,23 @@ class Sub(TypeConstraint):
         if self.type_0 in replacements:
             t0 = replacements[self.type_0]
         elif isinstance(self.type_0, DerivedTypeVariable):
-                r, newtype = self.type_0.replace(replacements)
-                if r:
-                    t0 = newtype
+            r, newtype = self.type_0.replace(replacements)
+            if r:
+                t0 = newtype
 
         if self.type_1 in replacements:
             t1 = replacements[self.type_1]
         elif isinstance(self.type_1, DerivedTypeVariable):
-                r, newtype = self.type_1.replace(replacements)
-                if r:
-                    t1 = newtype
+            r, newtype = self.type_1.replace(replacements)
+            if r:
+                t1 = newtype
 
         if self.type_r in replacements:
             tr = replacements[self.type_r]
         elif isinstance(self.type_r, DerivedTypeVariable):
-                r, newtype = self.type_r.replace(replacements)
-                if r:
-                    tr = newtype
+            r, newtype = self.type_r.replace(replacements)
+            if r:
+                tr = newtype
 
         if t0 is not None or t1 is not None or tr is not None:
             # replacement has happened
@@ -265,7 +266,10 @@ class TypeVariable:
             self.idx: int = idx
 
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
-        return repr(mapping.get(self, repr(self)))
+        varname = mapping.get(self, None)
+        if varname is None:
+            return repr(self)
+        return f"{varname} ({repr(self)})"
 
     def __eq__(self, other):
         return type(other) is TypeVariable and other.idx == self.idx
@@ -487,3 +491,9 @@ class HasField(BaseLabel):
 
     def __repr__(self):
         return "<%d>@%d" % (self.bits, self.offset)
+
+
+class IsArray(BaseLabel):
+
+    def __repr__(self):
+        return "is_array"
