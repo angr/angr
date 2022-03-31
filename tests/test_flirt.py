@@ -1,3 +1,4 @@
+# pylint:disable=missing-class-docstring,no-self-use
 import unittest
 import os.path
 

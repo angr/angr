@@ -71,18 +71,18 @@ class FlirtAnalysis(Analysis):
         for lib, sig_to_suggestions in self._all_suggestions.items():
             max_suggestions = None
             max_suggestion_sig_path = None
-            for sig, suggestion in sig_to_suggestions.items():
-                _l.debug("Signature %s has %d function name suggestions.", sig, len(suggestion))
+            for sig_, suggestion in sig_to_suggestions.items():
+                _l.debug("Signature %s has %d function name suggestions.", sig_, len(suggestion))
                 if max_suggestions is None or len(suggestion) > max_suggestions:
-                    max_suggestion_sig_path = sig
+                    max_suggestion_sig_path = sig_
                     max_suggestions = len(suggestion)
 
             if max_suggestion_sig_path is not None:
-                sig = path_to_sig.get(max_suggestion_sig_path, None)
-                _l.info("Applying FLIRT signature %s for library %s.", sig, lib)
-                self._apply_changes(sig.sig_name if not self._temporary_sig else None,
+                sig_ = path_to_sig.get(max_suggestion_sig_path, None)
+                _l.info("Applying FLIRT signature %s for library %s.", sig_, lib)
+                self._apply_changes(sig_.sig_name if not self._temporary_sig else None,
                                     sig_to_suggestions[max_suggestion_sig_path])
-                self.matched_suggestions[lib] = (sig, sig_to_suggestions[max_suggestion_sig_path])
+                self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: List[bytes]) -> List[FlirtSignature]:
         library_hits: Dict[str, int] = defaultdict(int)
