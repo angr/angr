@@ -1,4 +1,4 @@
-# pylint:disable=superfluous-parens
+# pylint:disable=superfluous-parens,too-many-boolean-expressions
 import itertools
 import logging
 import math
@@ -265,7 +265,7 @@ class FunctionTransitionEdge(FunctionEdge):
     Describes a transition edge in functions' transition graphs.
     """
 
-    __slots__ = ('src_node', 'dst_addr', 'src_func_addr', 'to_outside', 'dst_func_addr', 'is_exception', )
+    __slots__ = ('src_node', 'dst_addr', 'to_outside', 'dst_func_addr', 'is_exception', )
 
     def __init__(self, src_node, dst_addr, src_func_addr, to_outside=False, dst_func_addr=None, stmt_idx=None,
                  ins_addr=None, is_exception=False):
