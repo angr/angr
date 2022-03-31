@@ -4232,7 +4232,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             nodecode_size = 4
 
                 if not valid_ins:
-                    l.error("Decoding error occurred at address %#x of function %#x.",
+                    l.debug("Decoding error occurred at address %#x of function %#x.",
                             addr + irsb_size,
                             current_function_addr
                             )
