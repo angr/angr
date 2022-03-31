@@ -51,11 +51,11 @@ class CConstruct:
 
     def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
-        Creates the C reperesentation of the code and displays it by
+        Creates the C representation of the code and displays it by
         constructing a large string. This function is called by each program function that needs to be decompiled.
         The map_pos_to_node and map_pos_to_addr act as position maps for the location of each variable and statment to be
         tracked for later GUI operations. The map_pos_to_addr also contains expressions that are nested inside of
-        statments.
+        statements.
 
         :param indent:  # of indents (int)
         :param pos_to_nodemap_pos_to_ast:
@@ -96,7 +96,7 @@ class CConstruct:
                                 addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
-                    if isinstance(obj, (CVariable, CConstant, CStructField)):
+                    if isinstance(obj, (CVariable, CConstant, CStructField, CIndexedVariable, CVariableField)):
                         if pos_to_node is not None:
                             pos_to_node.add_mapping(pos, len(s), obj)
                     elif isinstance(obj, CFunctionCall):
@@ -111,6 +111,12 @@ class CConstruct:
                         continue
 
                     if pos_to_node is not None:
+                        pos_to_node.add_mapping(pos, len(s), obj)
+
+                elif isinstance(obj, SimType):
+                    if isinstance(obj, TypeRef):
+                        pos_to_node.add_mapping(pos, len(s), obj.type)
+                    else:
                         pos_to_node.add_mapping(pos, len(s), obj)
 
                 if s.endswith('\n'):
@@ -243,9 +249,16 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
                 assert name in raw_type_str
                 type_pre, type_post = raw_type_str.split(name, 1)
-                yield type_pre, None
+                if type_pre.endswith(" "):
+                    type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
+                    type_pre = type_pre.rstrip(" ")
+                else:
+                    type_pre_spaces = ""
+                yield type_pre, var_type
+                if type_pre_spaces:
+                    yield type_pre_spaces, None
                 yield name, cvariable
-                yield type_post, None
+                yield type_post, var_type
             else:
                 # multiple types...
                 for i, var_type in enumerate(set(typ for _, typ in cvar_and_vartypes)):
@@ -253,9 +266,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                         yield "|", None
 
                     if isinstance(var_type, SimType):
-                        yield var_type.c_repr(), None
+                        yield var_type.c_repr(), var_type
                     else:
-                        yield str(var_type), None
+                        yield str(var_type), var_type
 
                 yield " ", None
                 yield name, cvariable
@@ -290,10 +303,27 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
                 if v.type is None:
-                    typed_varname = f"<missing-type> {v.c_repr()}"
+                    varname = v.c_repr()
+                    raw_typed_varname = f"<missing-type> {varname}"
                 else:
-                    typed_varname = v.type.c_repr(name=v.variable.name)
-                yield f'extern {typed_varname};\n', None
+                    varname = v.variable.name
+                    raw_typed_varname = v.type.c_repr(name=varname)
+                # FIXME: Add a .c_repr_chunks() to SimType so that we no longer need to parse the string output
+                varname_pos = raw_typed_varname.rfind(varname)
+                type_pre = raw_typed_varname[:varname_pos]
+                if type_pre.endswith(" "):
+                    type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
+                    type_pre = type_pre.rstrip(" ")
+                else:
+                    type_pre_spaces = ""
+                type_post = raw_typed_varname[varname_pos + len(raw_typed_varname):]
+                yield 'extern ', None
+                yield type_pre, v.type
+                if type_pre_spaces:
+                    yield type_pre_spaces, None
+                yield varname, v
+                yield type_post, v.type
+                yield ";\n", None
             yield '\n', None
 
         yield indent_str, None
@@ -320,13 +350,21 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             else:
                 variable_name = arg.c_repr()
             raw_type_str: str = arg_type.c_repr(name=variable_name)
+            # FIXME: Add a .c_repr_chunks() to SimType so that we no longer need to parse the string output
             assert variable_name in raw_type_str
             varname_pos = raw_type_str.rfind(variable_name)
             type_pre, type_post = raw_type_str[:varname_pos], raw_type_str[varname_pos + len(variable_name):]
+            if type_pre.endswith(" "):
+                type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
+                type_pre = type_pre.rstrip(" ")
+            else:
+                type_pre_spaces = ""
 
-            yield type_pre, None
+            yield type_pre, arg_type
+            if type_pre_spaces:
+                yield type_pre_spaces, None
             yield variable_name, arg
-            yield type_post, None
+            yield type_post, arg_type
         yield ")", paren
         # function body
         if self.codegen.braces_on_own_lines:
@@ -1233,9 +1271,9 @@ class CVariableField(CExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield from self.variable.c_repr_chunks()
         if self.var_is_ptr:
-            yield "->", None
+            yield "->", self
         else:
-            yield ".", None
+            yield ".", self
         yield from self.field.c_repr_chunks()
 
 
@@ -1831,6 +1869,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     ast_to_pos[node.obj.unified_variable].add(elem)
                 else:
                     ast_to_pos[node.obj.variable].add(elem)
+            elif isinstance(node.obj, SimType):
+                ast_to_pos[node.obj].add(elem)
             elif isinstance(node.obj, CFunctionCall):
                 if node.obj.callee_func is not None:
                     ast_to_pos[node.obj.callee_func].add(elem)
