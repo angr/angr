@@ -645,7 +645,10 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
             if self._skip_unmapped_addrs:
                 regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
             else:
-                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+                if objects:
+                    regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+                else:
+                    regions = [(obj.min_addr, obj.max_addr) for obj in self.project.loader.all_objects]
 
         if exclude_sparse_regions:
             new_regions = [ ]
