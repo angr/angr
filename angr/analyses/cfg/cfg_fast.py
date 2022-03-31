@@ -515,6 +515,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  use_patches=False,
                  elf_eh_frame=True,
                  exceptions=True,
+                 skip_unmapped_addrs=True,
                  nodecode_window_size=512,
                  nodecode_threshold=0.3,
                  nodecode_step=16483,
@@ -563,6 +564,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool detect_tail_calls:  Enable aggressive tail-call optimization detection.
         :param bool elf_eh_frame:       Retrieve function starts (and maybe sizes later) from the .eh_frame of ELF
                                         binaries.
+        :param skip_unmapped_addrs:     Ignore all branches into unmapped regions. True by default. You may want to set
+                                        it to False if you are analyzing manually patched binaries or malware samples.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
@@ -670,6 +673,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         self._force_complete_scan = force_complete_scan
         self._use_elf_eh_frame = elf_eh_frame
         self._use_exceptions = exceptions
+        self._skip_unmapped_addrs = skip_unmapped_addrs
 
         self._nodecode_window_size = nodecode_window_size
         self._nodecode_threshold = nodecode_threshold
@@ -1223,13 +1227,14 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
 
-        if not self._inside_regions(job.addr):
-            obj = self.project.loader.find_object_containing(job.addr)
-            if obj is not None and isinstance(obj, self._cle_pseudo_objects):
-                pass
-            else:
-                # it's outside permitted regions. skip.
-                raise AngrSkipJobNotice()
+        if self._skip_unmapped_addrs:
+            if not self._inside_regions(job.addr):
+                obj = self.project.loader.find_object_containing(job.addr)
+                if obj is not None and isinstance(obj, self._cle_pseudo_objects):
+                    pass
+                else:
+                    # it's outside permitted regions. skip.
+                    raise AngrSkipJobNotice()
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
