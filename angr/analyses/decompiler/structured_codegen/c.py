@@ -1226,9 +1226,13 @@ class CIndexedVariable(CExpression):
                 and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
             if isinstance(u, SimTypePointer):
-                self._type = u.pts_to
-            elif isinstance(u, SimTypeArray):
-                self._type = u.elem_type
+                u = u.pts_to
+                u = unpack_typeref(u)
+            else:
+                u = None
+            if isinstance(u, SimTypeArray):
+                u = u.elem_type
+            self._type = u
 
     @property
     def type(self):
@@ -1923,18 +1927,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     if isinstance(expr.rhs, CVariable):
                         offset = expr.lhs.value
                         base_addr = expr.rhs
-                    elif isinstance(expr.lhs.reference_variable, CVariable) and \
-                            isinstance(expr.lhs.reference_variable.variable, SimMemoryVariable):
-                        base_addr = CUnaryOp("Reference", expr.lhs.reference_variable, codegen=self)
+                    elif isinstance(expr.lhs.reference_variable, CVariable) \
+                            and isinstance(expr.lhs.reference_variable.variable, SimMemoryVariable):
+                        base_addr = expr.lhs.reference_variable
                         offset = expr.rhs
                 elif isinstance(expr.rhs, CConstant):
                     # ... + const
                     if isinstance(expr.lhs, CVariable):
                         offset = expr.rhs.value
                         base_addr = expr.lhs
-                    elif isinstance(expr.rhs.reference_variable, CVariable) and \
-                            isinstance(expr.rhs.reference_variable.variable, SimMemoryVariable):
-                        base_addr = CUnaryOp("Reference", expr.rhs.reference_variable, codegen=self)
+                    elif isinstance(expr.rhs.reference_variable, CVariable) \
+                            and isinstance(expr.rhs.reference_variable.variable, SimMemoryVariable):
+                        base_addr = expr.rhs.reference_variable
                         offset = expr.lhs
                 elif isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CTypeCast):
                     # variable and a typecast
@@ -2141,13 +2145,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         addr_type = unpack_typeref(addr_type)
         if addr_type is not None and not isinstance(addr_type, SimTypeBottom):
-            # array element?
-            var = self._array_element(addr, addr_type, displacement, tags=tags)
+            # struct field?
+            var = self._struct_field(addr, addr_type, displacement, tags=tags)
             if var is not None:
                 return var
 
-            # struct field?
-            var = self._struct_field(addr, addr_type, displacement, tags=tags)
+            # array element?
+            var = self._array_element(addr, addr_type, displacement, tags=tags)
             if var is not None:
                 return var
 

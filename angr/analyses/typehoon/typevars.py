@@ -265,7 +265,10 @@ class TypeVariable:
             self.idx: int = idx
 
     def pp_str(self, mapping: Dict['TypeVariable',Any]) -> str:
-        return repr(mapping.get(self, repr(self)))
+        varname = mapping.get(self, None)
+        if varname is None:
+            return repr(self)
+        return f"{varname} ({repr(self)})"
 
     def __eq__(self, other):
         return type(other) is TypeVariable and other.idx == self.idx
@@ -487,3 +490,9 @@ class HasField(BaseLabel):
 
     def __repr__(self):
         return "<%d>@%d" % (self.bits, self.offset)
+
+
+class IsArray(BaseLabel):
+
+    def __repr__(self):
+        return "is_array"

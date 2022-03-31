@@ -5,7 +5,8 @@ from typing import Union, Type, Callable
 
 import networkx
 
-from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add, ConvertTo
+from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add, ConvertTo, \
+    IsArray
 from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer, Pointer32,
                          Pointer64, Struct, int_type, TypeVariableReference)
 
@@ -82,6 +83,7 @@ class SimpleSolver:
         self._find_recursive_types(subtypevars)
         self._compute_lower_upper_bounds(subtypevars, supertypevars)
         self._lower_struct_fields()
+        self._convert_arrays(constraints)
         # import pprint
         # print("Lower bounds")
         # pprint.pprint(self._lower_bounds)
@@ -211,6 +213,8 @@ class SimpleSolver:
         # a mapping from type variables to all the variables which are {super,sub}types of them
         subtypevars = defaultdict(set)  # {k: {v}}: v <: k
         supertypevars = defaultdict(set)  # {k: {v}}: k <: v
+
+        constraints = set(constraints)  # make a copy
 
         while constraints:
             constraint = constraints.pop()
@@ -401,6 +405,21 @@ class SimpleSolver:
                                      }
                                 )
                                 self._lower_bounds[base] = base_lb.__class__(Struct(new_fields))
+
+    def _convert_arrays(self, constraints):
+        for constraint in constraints:
+            if not isinstance(constraint, Existence):
+                continue
+            inner = constraint.type_
+            if isinstance(inner, DerivedTypeVariable) and isinstance(inner.label, IsArray):
+                if inner.type_var in self._lower_bounds:
+                    curr_type = self._lower_bounds[inner.type_var]
+                    if isinstance(curr_type, Pointer) and isinstance(curr_type.basetype, Struct):
+                        # replace all fields with the first field
+                        if 0 in curr_type.basetype.fields:
+                            first_field = curr_type.basetype.fields[0]
+                            for offset in curr_type.basetype.fields.keys():
+                                curr_type.basetype.fields[offset] = first_field
 
     def _abstract(self, t):  # pylint:disable=no-self-use
         return t.__class__
