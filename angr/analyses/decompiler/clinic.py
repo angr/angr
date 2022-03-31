@@ -274,7 +274,7 @@ class Clinic(Analysis):
             recover_variables=False,
             prioritize_func_addrs=callees,
             skip_other_funcs=True,
-            skip_signature_matched_functions=True,
+            skip_signature_matched_functions=False,
         )
 
     @timethis

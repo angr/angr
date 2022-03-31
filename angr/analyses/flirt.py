@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, TYPE_CHECKING, Optional
+from typing import Union, List, Dict, Tuple, TYPE_CHECKING, Optional
 from functools import partial
 from collections import defaultdict
 import logging
@@ -31,6 +31,12 @@ class FlirtAnalysis(Analysis):
     """
     def __init__(self, sig: Optional[Union[FlirtSignature,str]]=None):
 
+        self._is_arm = is_arm_arch(self.project.arch)
+        self._all_suggestions: Dict[str, Dict[str, Dict[int, str]]] = {}
+        self._suggestions: Dict[int, str] = {}
+        self.matched_suggestions: Dict[str, Tuple[FlirtSignature, Dict[int, str]]] = {}
+        self._temporary_sig = False
+
         if sig:
             if isinstance(sig, str):
                 # this is a file path
@@ -38,6 +44,7 @@ class FlirtAnalysis(Analysis):
                                           sig, None)
 
                 self.signatures = [sig]
+                self._temporary_sig = True
 
         else:
             if not FLIRT_SIGNATURES_BY_ARCH:
@@ -52,10 +59,30 @@ class FlirtAnalysis(Analysis):
             self.signatures = list(self._find_hits_by_strings(mem_regions))
             _l.debug("Identified %d signatures to apply.", len(self.signatures))
 
-        self._is_arm = is_arm_arch(self.project.arch)
-
+        path_to_sig: Dict[str,FlirtSignature] = { }
         for sig_ in self.signatures:
             self._match_all_against_one_signature(sig_)
+            if sig_.sig_name not in self._all_suggestions:
+                self._all_suggestions[sig_.sig_name] = {}
+            path_to_sig[sig_.sig_path] = sig_
+            self._all_suggestions[sig_.sig_name][sig_.sig_path] = self._suggestions
+            self._suggestions = { }
+
+        for lib, sig_to_suggestions in self._all_suggestions.items():
+            max_suggestions = None
+            max_suggestion_sig_path = None
+            for sig_, suggestion in sig_to_suggestions.items():
+                _l.debug("Signature %s has %d function name suggestions.", sig_, len(suggestion))
+                if max_suggestions is None or len(suggestion) > max_suggestions:
+                    max_suggestion_sig_path = sig_
+                    max_suggestions = len(suggestion)
+
+            if max_suggestion_sig_path is not None:
+                sig_ = path_to_sig.get(max_suggestion_sig_path, None)
+                _l.info("Applying FLIRT signature %s for library %s.", sig_, lib)
+                self._apply_changes(sig_.sig_name if not self._temporary_sig else None,
+                                    sig_to_suggestions[max_suggestion_sig_path])
+                self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: List[bytes]) -> List[FlirtSignature]:
         library_hits: Dict[str, int] = defaultdict(int)
@@ -73,9 +100,13 @@ class FlirtAnalysis(Analysis):
             for sig in LIBRARY_TO_SIGNATURES[lib]:
                 if sig.arch == arch_lowercase:
                     yield sig
+                elif sig.arch == "armel" and self._is_arm:
+                    # ARMHF may use ARMEL libraries
+                    yield sig
 
     def _match_all_against_one_signature(self, sig: FlirtSignature):
         # match each function
+        self._suggestions = {}
         with open(sig.sig_path, "rb") as sigfile:
             flirt = nampa.parse_flirt_file(sigfile)
             for func in self.project.kb.functions.values():
@@ -104,6 +135,8 @@ class FlirtAnalysis(Analysis):
 
     def _on_func_matched(self, func: 'Function', base_addr: int, flirt_func: 'nampa.FlirtFunction'):
         func_addr = base_addr + flirt_func.offset
+        _l.debug("_on_func_matched() is called with func_addr %#x with a suggested name %s.",
+                 func_addr, flirt_func.name)
         if func_addr != base_addr:
             # get the correct function
             func = None
@@ -118,7 +151,7 @@ class FlirtAnalysis(Analysis):
                         pass
 
             if func is None:
-                _l.warning("FlirtAnalysis identified a function at %#x but it does not exist in function manager.",
+                _l.debug("FlirtAnalysis identified a function at %#x but it does not exist in function manager.",
                            func_addr)
                 return
 
@@ -127,11 +160,18 @@ class FlirtAnalysis(Analysis):
             # TODO: Make sure function names do not conflict with existing ones
             _l.debug("Identified %s @ %#x (%#x-%#x)", flirt_func.name, func_addr, base_addr, flirt_func.offset)
             if flirt_func.name != "?":
-                func.name = flirt_func.name
+                func_name = flirt_func.name
             else:
-                func.name = f"unknown_function_{func.addr:x}"
+                func_name = f"unknown_function_{func.addr:x}"
+            self._suggestions[func.addr] = func_name
+
+    def _apply_changes(self, library_name: Optional[str], suggestion: Dict[int,str]) -> None:
+        for func_addr, suggested_name in suggestion.items():
+            func = self.kb.functions.get_by_addr(func_addr)
+            func.name = suggested_name
             func.is_default_name = False
             func.from_signature = "flirt"
+            func.find_declaration(ignore_binary_name=True, binary_name_hint=library_name)
 
 
 AnalysesHub.register_default('Flirt', FlirtAnalysis)
