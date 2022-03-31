@@ -41,7 +41,7 @@ class CFGBase(Analysis):
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
                  indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
-                 sp_tracking_track_memory=True, model=None,
+                 skip_unmapped_addrs=True, sp_tracking_track_memory=True, model=None,
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -57,6 +57,9 @@ class CFGBase(Analysis):
                                                     If this list is None or empty, default indirect jump resolvers
                                                     specific to this architecture and binary types will be loaded.
         :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
+        :param skip_unmapped_addrs:                 Ignore all branches into unmapped regions. True by default. You may
+                                                    want to set it to False if you are analyzing manually patched
+                                                    binaries or malware samples.
         :param bool detect_tail_calls:              Aggressive tail-call optimization detection. This option is only
                                                     respected in make_functions().
         :param bool sp_tracking_track_memory:       Whether or not to track memory writes if tracking the stack pointer.
@@ -81,6 +84,7 @@ class CFGBase(Analysis):
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
         self._low_priority = low_priority
+        self._skip_unmapped_addrs = skip_unmapped_addrs
 
         # Initialization
         self._edge_map = None
@@ -2107,11 +2111,12 @@ class CFGBase(Analysis):
             else:
                 dst_node = self._to_snippet(cfg_node=n)
 
-            # pre-check: if source and destination do not belong to the same section, it must be jumping to another
-            # function
-            belong_to_same_section = self._addrs_belong_to_same_section(src_addr, dst_addr)
-            if not belong_to_same_section:
-                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+            if self._skip_unmapped_addrs:
+                # pre-check: if source and destination do not belong to the same section, it must be jumping to another
+                # function
+                belong_to_same_section = self._addrs_belong_to_same_section(src_addr, dst_addr)
+                if not belong_to_same_section:
+                    _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             if self._detect_tail_calls:
                 if self._is_tail_call_optimization(g, src_addr, dst_addr, src_function, all_edges, known_functions,
