@@ -316,7 +316,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     type_pre = type_pre.rstrip(" ")
                 else:
                     type_pre_spaces = ""
-                type_post = raw_typed_varname[varname_pos + len(raw_typed_varname):]
+                type_post = raw_typed_varname[varname_pos + len(varname):]
                 yield 'extern ', None
                 yield type_pre, v.type
                 if type_pre_spaces:
