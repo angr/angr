@@ -2188,6 +2188,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if isinstance(variable, SimVariable):
             self._variables_in_use[variable] = cvariable
+
+        if variable_type is not None and isinstance(variable, SimVariable) \
+                and variable_type.size // self.project.arch.byte_width < variable.size:
+            # we need a type cast
+            cvariable = CTypeCast(cvariable.type, variable_type, cvariable, codegen=self)
+
         return cvariable
 
     #
