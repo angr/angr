@@ -515,6 +515,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                  use_patches=False,
                  elf_eh_frame=True,
                  exceptions=True,
+                 skip_unmapped_addrs=True,
                  nodecode_window_size=512,
                  nodecode_threshold=0.3,
                  nodecode_step=16483,
@@ -563,6 +564,8 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :param bool detect_tail_calls:  Enable aggressive tail-call optimization detection.
         :param bool elf_eh_frame:       Retrieve function starts (and maybe sizes later) from the .eh_frame of ELF
                                         binaries.
+        :param skip_unmapped_addrs:     Ignore all branches into unmapped regions. True by default. You may want to set
+                                        it to False if you are analyzing manually patched binaries or malware samples.
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
