@@ -994,7 +994,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = p.kb.functions['main']
         d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=True)
-        print(d.codegen.text)
+        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
 
         assert "(False)" not in d.codegen.text
         assert "None" not in d.codegen.text
@@ -1008,7 +1008,7 @@ class TestDecompiler(unittest.TestCase):
 
         f = p.kb.functions['set_globals']
         d = p.analyses.Decompiler(f, cfg=cfg.model)
-        print(d.codegen.text)
+        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
 
         assert "extern unsigned int a;" in d.codegen.text
         assert "extern unsigned int b;" in d.codegen.text
