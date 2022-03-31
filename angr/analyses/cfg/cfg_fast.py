@@ -639,9 +639,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
 
         if binary is not None and not objects:
             objects = [ binary ]
-        regions = regions if regions is not None else self._executable_memory_regions(objects=objects,
-                                                                                      force_segment=force_segment
-                                                                                      )
+        regions = regions if regions is not None else None
+
+        if regions is None:
+            if self._skip_unmapped_addrs:
+                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
+            else:
+                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
 
         if exclude_sparse_regions:
             new_regions = [ ]
@@ -1227,14 +1231,13 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         # a new entry is picked. Deregister it
         self._deregister_analysis_job(job.func_addr, job)
 
-        if self._skip_unmapped_addrs:
-            if not self._inside_regions(job.addr):
-                obj = self.project.loader.find_object_containing(job.addr)
-                if obj is not None and isinstance(obj, self._cle_pseudo_objects):
-                    pass
-                else:
-                    # it's outside permitted regions. skip.
-                    raise AngrSkipJobNotice()
+        if not self._inside_regions(job.addr):
+            obj = self.project.loader.find_object_containing(job.addr)
+            if obj is not None and isinstance(obj, self._cle_pseudo_objects):
+                pass
+            else:
+                # it's outside permitted regions. skip.
+                raise AngrSkipJobNotice()
 
         # Do not calculate progress if the user doesn't care about the progress at all
         if self._show_progressbar or self._progress_callback:
@@ -2237,7 +2240,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         :rtype:     tuple
         """
 
-        if not self._addrs_belong_to_same_section(src_addr, target_addr):
+        if self._skip_unmapped_addrs and not self._addrs_belong_to_same_section(src_addr, target_addr):
             # if the target address is at another section, it has to be jumping to a new function
             target_func_addr = target_addr
             to_outside = True
