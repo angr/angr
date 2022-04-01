@@ -2075,7 +2075,10 @@ def parse_cpp_file(cpp_decl, with_param_names: bool=False):
     # CppHeaderParser does not like missing function body
     s += "\n\n{}"
 
-    h = CppHeaderParser.CppHeader(s, argType="string")
+    try:
+        h = CppHeaderParser.CppHeader(s, argType="string")
+    except CppHeaderParser.CppParseError:
+        return None, None
     if not h.functions:
         return None, None
 
