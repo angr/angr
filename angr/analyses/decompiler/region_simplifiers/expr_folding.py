@@ -8,7 +8,7 @@ from ailment.statement import Statement
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode
+from ..structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode, CascadingConditionNode
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
@@ -49,13 +49,14 @@ class ExpressionLocation(LocationBase):
 
 class ConditionLocation(LocationBase):
 
-    __slots__ = ('node_addr', )
+    __slots__ = ('node_addr', 'case_idx', )
 
-    def __init__(self, cond_node_addr):
+    def __init__(self, cond_node_addr, case_idx: Optional[int]=None):
         self.node_addr = cond_node_addr
+        self.case_idx = case_idx
 
     def __repr__(self):
-        return f"Loc: ConditionNode@{self.node_addr:x}"
+        return f"Loc: ConditionNode@{self.node_addr:x}.{self.case_idx}"
 
 
 class ConditionalBreakLocation(LocationBase):
@@ -172,6 +173,11 @@ class ExpressionCounter(SequenceWalker):
         self._collect_uses(node.condition, ConditionLocation(node.addr))
         return super()._handle_Condition(node, **kwargs)
 
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+        for idx, (condition, _) in enumerate(node.condition_and_nodes):
+            self._collect_uses(condition, ConditionLocation(node.addr, idx))
+        return super()._handle_CascadingCondition(node, **kwargs)
+
     def _handle_Loop(self, node: LoopNode, **kwargs):
         # collect uses on the condition expression
         if node.initializer is not None:
@@ -246,6 +252,15 @@ class ExpressionFolder(SequenceWalker):
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_Condition(node, **kwargs)
+
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+        replacer = ExpressionReplacer(self._assignments, self._uses)
+        for idx in range(len(node.condition_and_nodes)):
+            cond, _ = node.condition_and_nodes[idx]
+            r = replacer.walk_expression(cond)
+            if r is not None and r is not cond:
+                node.condition_and_nodes[idx] = (r, node.condition_and_nodes[idx][1])
+        return super()._handle_CascadingCondition(node, **kwargs)
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
         replacer = ExpressionReplacer(self._assignments, self._uses)
