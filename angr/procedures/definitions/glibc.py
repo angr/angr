@@ -625,6 +625,8 @@ _libc_decls = \
         "getline": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["lineptr", "n", "stream"]),
         # ssize_t getdelim (char **LINEPTR, size_t *N, int DELIMITER, FILE *STREAM);
         "getdelim": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["lineptr", "n", "delimiter", "stream"]),
+        # char * gets (char *S);
+        "gets": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s"]),
         # char * fgets (char *S, int COUNT, FILE *STREAM);
         "fgets": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "count", "stream"]),
         # wchar_t * fgetws (wchar_t *WS, int COUNT, FILE *STREAM);
@@ -3395,6 +3397,7 @@ _libc_c_decls = \
         "int getw (FILE *STREAM);",
         "ssize_t getline (char **LINEPTR, size_t *N, FILE *STREAM);",
         "ssize_t getdelim (char **LINEPTR, size_t *N, int DELIMITER, FILE *STREAM);",
+        "char * gets (char *S);",
         "char * fgets (char *S, int COUNT, FILE *STREAM);",
         "wchar_t * fgetws (wchar_t *WS, int COUNT, FILE *STREAM);",
         "char * fgets_unlocked (char *S, int COUNT, FILE *STREAM);",
