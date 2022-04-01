@@ -1035,6 +1035,10 @@ class CPlaceholder(CExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         yield self.placeholder, self
 
+    @property
+    def type(self):
+        return None
+
 
 class CVariable(CExpression):
     """
