@@ -1,10 +1,12 @@
+# pylint:disable=missing-class-docstring
 import itertools
 from collections import defaultdict
 from typing import Union, Type, Callable
 
 import networkx
 
-from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add, ConvertTo
+from .typevars import Existence, Equivalence, Subtype, TypeVariable, DerivedTypeVariable, HasField, Add, ConvertTo, \
+    IsArray
 from .typeconsts import (BottomType, TopType, TypeConstant, Int, Int8, Int16, Int32, Int64, Pointer, Pointer32,
                          Pointer64, Struct, int_type, TypeVariableReference)
 
@@ -24,6 +26,7 @@ BASE_LATTICE_64.add_edge(Pointer64, BottomType)
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
 BASE_LATTICE_32.add_edge(TopType, Int)
+BASE_LATTICE_32.add_edge(Int, Int64)
 BASE_LATTICE_32.add_edge(Int, Int32)
 BASE_LATTICE_32.add_edge(Int, Int16)
 BASE_LATTICE_32.add_edge(Int, Int8)
@@ -73,13 +76,14 @@ class SimpleSolver:
         # import pprint
         # pprint.pprint(self._constraints)
 
+        eq_constraints = self._eq_constraints_from_add()
+        self._constraints |= eq_constraints
         constraints = self._handle_equivalence()
-        subtype_constraints = self._subtype_constraints_from_add()
-        constraints.update(subtype_constraints)
         subtypevars, supertypevars = self._calculate_closure(constraints)
         self._find_recursive_types(subtypevars)
         self._compute_lower_upper_bounds(subtypevars, supertypevars)
-        # self._unify_struct_fields()
+        self._lower_struct_fields()
+        self._convert_arrays(constraints)
         # import pprint
         # print("Lower bounds")
         # pprint.pprint(self._lower_bounds)
@@ -142,7 +146,7 @@ class SimpleSolver:
                     graph.add_edge(ta, tb)
 
         for components in networkx.connected_components(graph):
-            components_lst = list(components)
+            components_lst = list(sorted(components, key=lambda x: str(x)))  # pylint:disable=unnecessary-lambda
             representative = components_lst[0]
             for tv in components_lst[1:]:
                 replacements[tv] = representative
@@ -176,16 +180,23 @@ class SimpleSolver:
         self._equivalence = replacements
         return constraints
 
-    def _subtype_constraints_from_add(self):
+    def _eq_constraints_from_add(self):
         """
         Handle Add constraints.
         """
         new_constraints = set()
         for constraint in self._constraints:
             if isinstance(constraint, Add):
-                # we want to be conservative and take a guess here - normally the resulting type variable is a subtype
-                # of the first type variable
-                new_constraints.add(Subtype(constraint.type_0, constraint.type_r))
+                if isinstance(constraint.type_0, TypeVariable) \
+                        and not isinstance(constraint.type_0, DerivedTypeVariable) \
+                        and isinstance(constraint.type_r, TypeVariable) \
+                        and not isinstance(constraint.type_r, DerivedTypeVariable):
+                    new_constraints.add(Equivalence(constraint.type_0, constraint.type_r))
+                if isinstance(constraint.type_1, TypeVariable) \
+                        and not isinstance(constraint.type_1, DerivedTypeVariable) \
+                        and isinstance(constraint.type_r, TypeVariable) \
+                        and not isinstance(constraint.type_r, DerivedTypeVariable):
+                    new_constraints.add(Equivalence(constraint.type_1, constraint.type_r))
         return new_constraints
 
     def _pointer_class(self) -> Union[Type[Pointer32],Type[Pointer64]]:
@@ -202,6 +213,8 @@ class SimpleSolver:
         # a mapping from type variables to all the variables which are {super,sub}types of them
         subtypevars = defaultdict(set)  # {k: {v}}: v <: k
         supertypevars = defaultdict(set)  # {k: {v}}: k <: v
+
+        constraints = set(constraints)  # make a copy
 
         while constraints:
             constraint = constraints.pop()
@@ -228,31 +241,35 @@ class SimpleSolver:
 
                 if isinstance(supertype, TypeVariable):
                     if subtype not in subtypevars[supertype]:
-                        subtypevars[supertype].add(subtype)
-                        for s in supertypevars[subtype]:
-                            # re-add impacted constraints
-                            constraints.add(Subtype(s, subtype))
+                        if supertype is not subtype:
+                            subtypevars[supertype].add(subtype)
+                            for s in supertypevars[subtype]:
+                                # re-add impacted constraints
+                                constraints.add(Subtype(subtype, s))
 
                     if subtype in subtypevars:
                         for v in subtypevars[subtype]:
                             if v not in subtypevars[supertype]:
-                                subtypevars[supertype].add(v)
-                                for sub in supertypevars[v]:
-                                    constraints.add(Subtype(supertype, sub))
+                                if supertype is not v:
+                                    subtypevars[supertype].add(v)
+                                    for sup in supertypevars[v]:
+                                        constraints.add(Subtype(subtype, sup))
 
                 if isinstance(subtype, TypeVariable):
                     if supertype not in supertypevars[subtype]:
-                        supertypevars[subtype].add(supertype)
-                        for s in subtypevars[supertype]:
-                            # re-add impacted constraints
-                            constraints.add(Subtype(supertype, s))
+                        if subtype is not supertype:
+                            supertypevars[subtype].add(supertype)
+                            for s in subtypevars[supertype]:
+                                # re-add impacted constraints
+                                constraints.add(Subtype(s, supertype))
 
                     if supertype in supertypevars:
                         for v in supertypevars[supertype]:
                             if v not in supertypevars[subtype]:
-                                supertypevars[subtype].add(v)
-                                for s in supertypevars[v]:
-                                    constraints.add(Subtype(s, subtype))
+                                if v is not subtype:
+                                    supertypevars[subtype].add(v)
+                                    for sup in supertypevars[v]:
+                                        constraints.add(Subtype(subtype, sup))
 
             elif isinstance(constraint, Equivalence):
                 raise Exception("Shouldn't exist anymore.")
@@ -321,7 +338,30 @@ class SimpleSolver:
             self._upper_bounds[typevar] = self._meet(typevar, *upper_bounds, translate=self._get_upper_bound)
 
         # compute the greatest lower bound for each type variable
-        for typevar, lower_bounds in subtypevars.items():
+        seen = set()  # loop avoidance
+        queue = list(subtypevars)
+        while queue:
+            typevar = queue.pop(0)
+            lower_bounds = subtypevars[typevar]
+
+            if typevar not in seen:
+                # we detect if it depends on any other typevar upon the first encounter
+                seen.add(typevar)
+
+                abort = False
+                for subtypevar in lower_bounds:
+                    if isinstance(subtypevar, TypeVariable) and subtypevar not in self._lower_bounds:
+                        # oops - we should analyze the subtypevar first
+                        queue.append(typevar)
+                        # to avoid loops, make sure typevar does not rely on
+                        abort = True
+                        break
+                if abort:
+                    continue
+            else:
+                # avoid loop and continue no matter what
+                pass
+
             if isinstance(typevar, TypeConstant):
                 continue
             self._lower_bounds[typevar] = self._join(typevar, *lower_bounds, translate=self._get_lower_bound)
@@ -336,30 +376,50 @@ class SimpleSolver:
                     subtype_infimum = self._join(subtypevar, typevar, translate=self._get_lower_bound)
                     self._lower_bounds[subtypevar] = subtype_infimum
 
-    def _unify_struct_fields(self):
+    def _lower_struct_fields(self):
 
-        for v, ptrv_subtype in self._lower_bounds.items():
-            if isinstance(v, DerivedTypeVariable) and isinstance(v.label, HasField):
+        # tv_680: ptr32(struct{0: int32})
+        # tv_680.load.<32>@0: ptr32(struct{5: int8})
+        #    becomes
+        # tv_680: ptr32(struct{0: ptr32(struct{5: int8})})
+
+        for outer, outer_lb in self._lower_bounds.items():
+            if isinstance(outer, DerivedTypeVariable) and isinstance(outer.label, HasField):
                 # unpack v
-                ptrv = v.type_var.type_var
+                base = outer.type_var.type_var
 
-                if ptrv in self._lower_bounds:
-                    # unification
+                if base in self._lower_bounds:
 
-                    v_subtype = self._lower_bounds[v]
+                    base_lb = self._lower_bounds[base]
 
                     # make sure it's a pointer at the offset that v.label specifies
-                    if isinstance(ptrv_subtype, Pointer):
-                        if isinstance(ptrv_subtype.basetype, Struct):
-                            the_field = ptrv_subtype.basetype.fields[v.label.offset]
-                            new_field = self._join(the_field, v_subtype, translate=self._get_lower_bound)
+                    if isinstance(base_lb, Pointer):
+                        if isinstance(base_lb.basetype, Struct):
+                            the_field = base_lb.basetype.fields[outer.label.offset]
+                            # replace this field
+                            new_field = self._meet(the_field, outer_lb, translate=self._get_upper_bound)
                             if new_field != the_field:
-                                new_fields = ptrv_subtype.basetype.fields.copy()
+                                new_fields = base_lb.basetype.fields.copy()
                                 new_fields.update(
-                                    {v.label.offset: new_field,
+                                    {outer.label.offset: new_field,
                                      }
                                 )
-                                self._lower_bounds[ptrv] = ptrv_subtype.__class__(Struct(new_fields))
+                                self._lower_bounds[base] = base_lb.__class__(Struct(new_fields))
+
+    def _convert_arrays(self, constraints):
+        for constraint in constraints:
+            if not isinstance(constraint, Existence):
+                continue
+            inner = constraint.type_
+            if isinstance(inner, DerivedTypeVariable) and isinstance(inner.label, IsArray):
+                if inner.type_var in self._lower_bounds:
+                    curr_type = self._lower_bounds[inner.type_var]
+                    if isinstance(curr_type, Pointer) and isinstance(curr_type.basetype, Struct):
+                        # replace all fields with the first field
+                        if 0 in curr_type.basetype.fields:
+                            first_field = curr_type.basetype.fields[0]
+                            for offset in curr_type.basetype.fields.keys():
+                                curr_type.basetype.fields[offset] = first_field
 
     def _abstract(self, t):  # pylint:disable=no-self-use
         return t.__class__

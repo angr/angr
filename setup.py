@@ -1,4 +1,4 @@
-# pylint: disable=no-name-in-module,import-error,unused-variable
+# pylint: disable=no-name-in-module,import-error,unused-variable,missing-class-docstring
 import os
 import sys
 import subprocess
@@ -6,39 +6,11 @@ import pkg_resources
 import shutil
 import platform
 import glob
+from distutils.command.build import build as st_build
 
-if bytes is str:
-    raise Exception("""
-
-=-=-=-=-=-=-=-=-=-=-=-=-=  WELCOME TO THE FUTURE!  =-=-=-=-=-=-=-=-=-=-=-=-=-=
-
-angr has transitioned to python 3. Due to the small size of the team behind it,
-we can't reasonably maintain compatibility between both python 2 and python 3.
-If you want to continue using the most recent version of angr (you definitely
-want that, trust us) you should upgrade to python 3. It's like getting your
-vaccinations. It hurts a little bit initially but in the end it's worth it.
-
-If you are staying on python 2 and would like to make sure you don't get
-incompatible versions, make sure your pip is at least version 9.0, and it will
-use our metadata to implicitly avoid them.
-
-For more information, see here: https://docs.angr.io/appendix/migration
-
-Good luck!
-""")
-
-try:
-    from setuptools import setup
-    from setuptools import find_packages
-    packages = find_packages()
-except ImportError:
-    from distutils.core import setup
-    packages = [x.strip('./').replace('/','.') for x in os.popen('find -name "__init__.py" | xargs -n1 dirname').read().strip().split('\n')]
-
-from distutils.util import get_platform
-from distutils.errors import LibError
-from distutils.command.build import build as _build
-from distutils.command.clean import clean as _clean
+from setuptools import setup, find_packages, Command
+from setuptools.command.develop import develop as st_develop
+from setuptools.errors import LibError
 
 if sys.platform == 'darwin':
     library_file = "angr_native.dylib"
@@ -93,68 +65,60 @@ def _clean_native():
     for fname in oglob:
         os.unlink(fname)
 
-class build(_build):
+class build(st_build):
     def run(self, *args):
         self.execute(_build_native, (), msg='Building angr_native')
-        _build.run(self, *args)
+        super().run(*args)
 
-class clean(_clean):
+class clean_native(Command):
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
     def run(self, *args):
         self.execute(_clean_native, (), msg='Cleaning angr_native')
-        _clean.run(self, *args)
+
+class develop(st_develop):
+    def run(self):
+        self.run_command("build")
+        super().run()
 
 cmdclass = {
     'build': build,
-    'clean': clean,
+    'clean_native': clean_native,
+    'develop': develop,
 }
-
-try:
-    from setuptools.command.develop import develop as _develop
-    class develop(_develop):
-        def run(self, *args):
-            self.execute(_build_native, (), msg='Building angr_native')
-            _develop.run(self, *args)
-
-    cmdclass['develop'] = develop
-except ImportError:
-    pass
-
-if 'bdist_wheel' in sys.argv and '--plat-name' not in sys.argv:
-    sys.argv.append('--plat-name')
-    name = get_platform()
-    if 'linux' in name:
-        # linux_* platform tags are disallowed because the python ecosystem is fubar
-        # linux builds should be built in the centos 5 vm for maximum compatibility
-        sys.argv.append('manylinux1_' + platform.machine())
-    else:
-        # https://www.python.org/dev/peps/pep-0425/
-        sys.argv.append(name.replace('.', '_').replace('-', '_'))
 
 _UNICORN = "unicorn==1.0.2rc4"
 
 setup(
     name='angr',
-    version='9.1.gitrolling',
+    version='9.2.0.dev0',
     python_requires='>=3.6',
     description='A multi-architecture binary analysis toolkit, with the ability to perform dynamic symbolic execution and various static analyses on binaries',
     url='https://github.com/angr/angr',
-    packages=packages,
+    packages=find_packages(),
     install_requires=[
         'sortedcontainers',
         'cachetools',
-        'capstone>=3.0.5rc2',
+        # capstone 5.0.0rc2 returns incorrect insn_name for nop instructions in ARM THUMB blocks
+        'capstone>=3.0.5rc2,!=5.0.0rc2',
         'dpkt',
         'mulpyplexer',
         'networkx>=2.0',
-        'progressbar2',
+        'progressbar2>=3',
         'rpyc',
         'cffi>=1.14.0',
         _UNICORN,
-        'archinfo==9.1.gitrolling',
-        'claripy==9.1.gitrolling',
-        'cle==9.1.gitrolling',
-        'pyvex==9.1.gitrolling',
-        'ailment==9.1.gitrolling',
+        'archinfo==9.2.0.dev0',
+        'claripy==9.2.0.dev0',
+        'cle==9.2.0.dev0',
+        'pyvex==9.2.0.dev0',
+        'ailment==9.2.0.dev0',
         'GitPython',
         'psutil',
         'pycparser>=2.18',
@@ -167,7 +131,7 @@ setup(
     setup_requires=[_UNICORN, 'pyvex'],
     extras_require={
         'AngrDB': ['sqlalchemy'],
-        'pcode': ['pypcode==1.0.2'],
+        'pcode': ['pypcode==1.0.5'],
         ':sys_platform == "win32"': ['colorama'],
     },
     cmdclass=cmdclass,

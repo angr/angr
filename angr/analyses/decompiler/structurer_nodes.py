@@ -1,5 +1,5 @@
 # pylint:disable=missing-class-docstring
-from typing import List, Tuple, Any, Optional
+from typing import List, Tuple, Any, Optional, Union, Dict
 
 import claripy
 import ailment
@@ -130,6 +130,8 @@ class CodeNode(BaseNode):
 
     def __repr__(self):
         if self.addr is not None:
+            if self.idx is not None:
+                return f"<CodeNode {self.addr:#x}.{self.idx}>"
             return "<CodeNode %#x>" % self.addr
         else:
             return "<CodeNode %s>" % repr(self.node)
@@ -140,6 +142,12 @@ class CodeNode(BaseNode):
             return self.node.addr
         else:
             return None
+
+    @property
+    def idx(self):
+        if hasattr(self.node, "idx"):
+            return self.node.idx
+        return None
 
     def dbg_repr(self, indent=0):
         indent_str = indent * " "
@@ -283,6 +291,6 @@ class SwitchCaseNode(BaseNode):
 
     def __init__(self, switch_expr, cases, default_node, addr=None):
         self.switch_expr = switch_expr
-        self.cases = cases
+        self.cases: Dict[Union[int,Tuple[int]],SequenceNode] = cases
         self.default_node = default_node
         self.addr = addr

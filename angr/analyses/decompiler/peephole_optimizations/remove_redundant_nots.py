@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class RemoveRedundantNots(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Remove redundant Nots"
+    NAME = "Remove redundant Nots"
     expr_classes = (UnaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: UnaryOp):

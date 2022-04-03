@@ -30,6 +30,14 @@ class strchr(angr.SimProcedure):
             a = a.annotate(MultiwriteAnnotation())
             self.state.add_constraints(*c)
 
+        # If we found the character we are looking for, we need to
+        # ensure that the string length is long enough to include
+        # the character!
+        chrpos = a - s_addr
+        self.state.add_constraints(self.state.solver.If(a != 0,
+                                                        chrpos <= s_strlen.ret_expr,
+                                                        True))
+
         return a
         #self.state.add_constraints(self.state.solver.ULT(a - s_addr, s_strlen.ret_expr))
         #self.max_chr_index = max(i)

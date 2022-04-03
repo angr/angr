@@ -26,7 +26,8 @@ class Typehoon(Analysis):
 
     User may specify ground truth, which will override all types at certain program points during constraint solving.
     """
-    def __init__(self, constraints, ground_truth=None, var_mapping: Optional[Dict['SimVariable','TypeVariable']]=None,
+    def __init__(self, constraints, ground_truth=None,
+                 var_mapping: Optional[Dict['SimVariable',Set['TypeVariable']]]=None,
                  prioritize_char_array_over_struct: bool=True,
                  must_struct: Optional[Set['TypeVariable']]=None,
                  ):
@@ -63,16 +64,17 @@ class Typehoon(Analysis):
     # Public methods
     #
 
-    def update_variable_types(self, func_addr: Union[int,str], var_to_typevar):
+    def update_variable_types(self, func_addr: Union[int,str], var_to_typevars):
 
-        for var, typevar in var_to_typevar.items():
-            type_ = self.simtypes_solution.get(typevar, None)
-            if type_ is not None:
-                # print("{} -> {}: {}".format(var, typevar, type_))
-                name = None
-                if isinstance(type_, SimStruct):
-                    name = type_.name
-                self.kb.variables[func_addr].set_variable_type(var, type_, name=name)
+        for var, typevars in var_to_typevars.items():
+            for typevar in typevars:
+                type_ = self.simtypes_solution.get(typevar, None)
+                if type_ is not None:
+                    # print("{} -> {}: {}".format(var, typevar, type_))
+                    name = None
+                    if isinstance(type_, SimStruct):
+                        name = type_.name
+                    self.kb.variables[func_addr].set_variable_type(var, type_, name=name)
 
     def pp_constraints(self) -> None:
         """
@@ -81,7 +83,11 @@ class Typehoon(Analysis):
         if self._var_mapping is None:
             raise ValueError("Variable mapping does not exist.")
 
-        typevar_to_var = dict((v, k) for k, v in self._var_mapping.items())
+        typevar_to_var = { }
+        for k, typevars in self._var_mapping.items():
+            for tv in typevars:
+                typevar_to_var[tv] = k
+
         print("### {} constraints".format(len(self._constraints)))
         for constraint in self._constraints:
             print("    " + constraint.pp_str(typevar_to_var))
@@ -96,7 +102,11 @@ class Typehoon(Analysis):
         if self.solution is None:
             raise RuntimeError("Please run type solver before calling pp_solution().")
 
-        typevar_to_var = dict((v, k) for k, v in self._var_mapping.items())
+        typevar_to_var = { }
+        for k, typevars in self._var_mapping.items():
+            for tv in typevars:
+                typevar_to_var[tv] = k
+
         print("### {} solutions".format(len(self.solution)))
         for typevar in sorted(self.solution.keys(), key=str):
             sol = self.solution[typevar]

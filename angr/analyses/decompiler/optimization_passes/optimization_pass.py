@@ -30,19 +30,19 @@ class OptimizationPass(Analysis):
 
         self._func: 'Function' = func
         # self._blocks is just a cache
-        self._blocks_by_addr: Dict[Tuple[int,Optional[int]],Set[ailment.Block]] = blocks_by_addr
-        self._blocks_by_addr_and_idx: Dict[int,ailment.Block] = blocks_by_addr_and_idx
+        self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
+        self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
         self._graph = graph  # type: Optional[networkx.DiGraph]
 
         # output
         self.out_graph = None  # type: Optional[networkx.DiGraph]
 
     @property
-    def blocks_by_addr(self) -> Dict[Tuple[int,Optional[int]],Set[ailment.Block]]:
+    def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:
         return self._blocks_by_addr
 
     @property
-    def blocks_by_addr_and_idx(self) -> Dict[int,ailment.Block]:
+    def blocks_by_addr_and_idx(self) -> Dict[Tuple[int,Optional[int]],ailment.Block]:
         return self._blocks_by_addr_and_idx
 
     def analyze(self):

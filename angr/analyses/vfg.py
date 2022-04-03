@@ -1,3 +1,4 @@
+from typing import Generator
 import logging
 from collections import defaultdict
 
@@ -5,7 +6,7 @@ import archinfo
 from archinfo.arch_arm import is_arm_arch
 import claripy
 import networkx
-from . import Analysis
+from . import Analysis, CFGEmulated
 
 from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
 from .cfg.cfg_utils import CFGUtils
@@ -416,6 +417,11 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             if n.addr == addr:
                 return n
 
+    def get_all_nodes(self, addr) -> Generator[VFGNode,None,None]:
+        for n in self.graph.nodes():
+            if n.addr == addr:
+                yield n
+
     def irsb_from_node(self, node):
         return self.project.factory.successors(node.state, addr=node.addr)
 
@@ -462,7 +468,8 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             l.debug("Generating a CFG, since none was given...")
             # TODO: can we use a fast CFG instead? note that fast CFG does not care of context sensitivity at all, but
             # TODO: for state merging, we also don't really care about context sensitivity.
-            self._cfg = self.project.analyses.CFGEmulated(context_sensitivity_level=self._context_sensitivity_level,
+            self._cfg = self.project.analyses[CFGEmulated].prep()(
+                context_sensitivity_level=self._context_sensitivity_level,
                 starts=(self._start,)
             )
 
@@ -669,7 +676,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                              src_exit_stmt_idx=src_exit_stmt_idx
                              )
 
-    def _get_successors(self, job):
+    def _get_successors(self, job: VFGJob):
         # Extract initial values
         state = job.state
         addr = job.addr
@@ -681,7 +688,9 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             all_successors = []
 
         # save those states
-        job.vfg_node.final_states = all_successors[:]
+        if job.vfg_node.final_states is None:
+            job.vfg_node.final_states = [ ]
+        job.vfg_node.final_states.extend(all_successors)
 
         # Update thumb_addrs
         if job.sim_successors.sort == 'IRSB' and state.thumb:
@@ -910,7 +919,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         return new_jobs
 
-    def _post_job_handling(self, job, new_jobs, successors):  # pylint:disable=unused-argument
+    def _post_job_handling(self, job: VFGJob, new_jobs, successors):  # pylint:disable=unused-argument
 
         # Debugging output
         if l.level == logging.DEBUG:
@@ -1561,7 +1570,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
                 l.debug("Removed (%s) from FakeExits dict.",
                         ",".join([hex(i) if i is not None else 'None' for i in tpl]))
 
-    def _post_job_handling_debug(self, job, successors):
+    def _post_job_handling_debug(self, job: VFGJob, successors):
         """
         Print out debugging information after handling a VFGJob and generating the succeeding jobs.
 

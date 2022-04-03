@@ -8,7 +8,7 @@ from ailment.statement import Statement
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
-from ..structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode
+from ..structurer_nodes import ConditionNode, ConditionalBreakNode, LoopNode, CascadingConditionNode
 
 if TYPE_CHECKING:
     from angr.sim_variable import SimVariable
@@ -49,13 +49,14 @@ class ExpressionLocation(LocationBase):
 
 class ConditionLocation(LocationBase):
 
-    __slots__ = ('node_addr', )
+    __slots__ = ('node_addr', 'case_idx', )
 
-    def __init__(self, cond_node_addr):
+    def __init__(self, cond_node_addr, case_idx: Optional[int]=None):
         self.node_addr = cond_node_addr
+        self.case_idx = case_idx
 
     def __repr__(self):
-        return f"Loc: ConditionNode@{self.node_addr:x}"
+        return f"Loc: ConditionNode@{self.node_addr:x}.{self.case_idx}"
 
 
 class ConditionalBreakLocation(LocationBase):
@@ -120,12 +121,9 @@ class ExpressionCounter(SequenceWalker):
                     u = self._u(stmt.dst.variable)
                     if u is not None:
                         # dependency
-                        dependencies = [ ]
-                        if isinstance(stmt.src, ailment.Expr.Register):
-                            dep_u = self._u(stmt.src.variable)
-                            if dep_u is not None:
-                                dependencies.append(dep_u)
-                        # TODO: Replace the above logic with an expression walker
+                        dependency_finder = ExpressionUseFinder()
+                        dependency_finder.walk_expression(stmt.src)
+                        dependencies = set(self._u(v) for v in dependency_finder.uses)
                         self.assignments[u].add((stmt.src,
                                                  tuple(dependencies),
                                                  StatementLocation(node.addr, node.idx, idx)))
@@ -134,8 +132,11 @@ class ExpressionCounter(SequenceWalker):
                     and stmt.ret_expr.variable is not None):
                 u = self._u(stmt.ret_expr.variable)
                 if u is not None:
+                    dependency_finder = ExpressionUseFinder()
+                    dependency_finder.walk_expression(stmt)
+                    dependencies = set(self._u(v) for v in dependency_finder.uses)
                     self.assignments[u].add((stmt,
-                                             (),
+                                             tuple(dependencies),
                                              StatementLocation(node.addr, node.idx, idx)))
 
         # walk the block and find uses of variables
@@ -171,6 +172,11 @@ class ExpressionCounter(SequenceWalker):
         # collect uses on the condition expression
         self._collect_uses(node.condition, ConditionLocation(node.addr))
         return super()._handle_Condition(node, **kwargs)
+
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+        for idx, (condition, _) in enumerate(node.condition_and_nodes):
+            self._collect_uses(condition, ConditionLocation(node.addr, idx))
+        return super()._handle_CascadingCondition(node, **kwargs)
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
         # collect uses on the condition expression
@@ -246,6 +252,15 @@ class ExpressionFolder(SequenceWalker):
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_Condition(node, **kwargs)
+
+    def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
+        replacer = ExpressionReplacer(self._assignments, self._uses)
+        for idx in range(len(node.condition_and_nodes)):
+            cond, _ = node.condition_and_nodes[idx]
+            r = replacer.walk_expression(cond)
+            if r is not None and r is not cond:
+                node.condition_and_nodes[idx] = (r, node.condition_and_nodes[idx][1])
+        return super()._handle_CascadingCondition(node, **kwargs)
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
         replacer = ExpressionReplacer(self._assignments, self._uses)

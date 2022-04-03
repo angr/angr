@@ -96,7 +96,7 @@ class StructuredCodeManagerSerializer:
                                                          stmt_comments=stmt_comments,
                                                          configuration=configuration,
                                                          )
-            cache = DecompilationCache()
+            cache = DecompilationCache(db_code.func_addr)
             cache.codegen = dummy_codegen
             manager[(db_code.func_addr, db_code.flavor)] = cache
 

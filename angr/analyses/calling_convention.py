@@ -16,8 +16,8 @@ from ..knowledge_plugins.variables.variable_access import VariableAccessSort
 from ..utils.constants import DEFAULT_STATEMENT
 from .reaching_definitions import get_all_definitions
 from .reaching_definitions.external_codeloc import ExternalCodeLocation
+from . import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from .reaching_definitions.function_handler import FunctionHandler
-from . import Analysis, register_analysis
 
 if TYPE_CHECKING:
     from ..knowledge_plugins.functions import Function
@@ -265,7 +265,7 @@ class CallingConventionAnalysis(Analysis):
                 func = self.kb.functions[caller.addr]
                 subgraph = self._generate_callsite_subgraph(func, caller_block_addr)
 
-                rda = self.project.analyses.ReachingDefinitions(
+                rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(
                     func,
                     func_graph=subgraph,
                     observation_points=[
@@ -294,6 +294,18 @@ class CallingConventionAnalysis(Analysis):
 
         for _, dst, data in func.graph.out_edges(the_block, data=True):
             subgraph.add_edge(the_block, dst, **data)
+
+            # If the target block contains only direct jump statements and has only one successor,
+            # include its successor.
+
+            # Re-lift the target block
+            dst_bb = self.project.factory.block(dst.addr, func.get_block_size(dst.addr), opt_level=1)
+
+            # If there is only one 'IMark' statement in vex --> the target block contains only direct jump
+            if len(dst_bb.vex.statements) == 1 and dst_bb.vex.statements[0].tag == 'Ist_IMark'\
+                    and func.graph.out_degree(dst) == 1:
+                for _, jmp_dst, jmp_data in func.graph.out_edges(dst, data=True):
+                    subgraph.add_edge(dst, jmp_dst, **jmp_data)
 
         return subgraph
 
@@ -425,12 +437,13 @@ class CallingConventionAnalysis(Analysis):
             if isinstance(variable, SimStackVariable):
                 # a stack variable. convert it to a stack argument.
                 # TODO: deal with the variable base
-                if variable.offset <= 0:
+                if self.project.arch.call_pushes_ret and variable.offset <= 0:
                     # skip the return address on the stack
                     # TODO: make sure it was the return address
                     continue
-                arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
-                args.add(arg)
+                if variable.offset - ret_addr_offset >= 0:
+                    arg = SimStackArg(variable.offset - ret_addr_offset, variable.size)
+                    args.add(arg)
             elif isinstance(variable, SimRegisterVariable):
                 # a register variable, convert it to a register argument
                 if not self._is_sane_register_variable(variable):

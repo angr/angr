@@ -17,6 +17,7 @@ from ...codenode import CodeNode, BlockNode, HookNode, SyscallNode
 from ...serializable import Serializable
 from ...errors import AngrValueError, SimEngineError, SimMemoryError
 from ...procedures import SIM_LIBRARIES
+from ...procedures.definitions import SimSyscallLibrary
 from ...protos import function_pb2
 from ...calling_conventions import DEFAULT_CC
 from .function_parser import FunctionParser
@@ -41,7 +42,7 @@ class Function(Serializable):
                  'bp_on_stack', 'retaddr_on_stack', 'sp_delta', 'calling_convention', 'prototype', '_returning',
                  'prepared_registers', 'prepared_stack_variables', 'registers_read_afterwards',
                  'startpoint', '_addr_to_block_node', '_block_sizes', '_block_cache', '_local_blocks',
-                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed',
+                 '_local_block_addrs', 'info', 'tags', 'alignment', 'is_prototype_guessed', 'ran_cca',
                  )
 
     def __init__(self, function_manager, addr, name=None, syscall=None, is_simprocedure=None, binary_name=None,
@@ -121,6 +122,8 @@ class Function(Serializable):
         self._argument_stack_variables = []
 
         self._project = None  # type: Optional[Project] # will be initialized upon the first access to self.project
+
+        self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
 
         #
         # Initialize unspecified properties
@@ -287,6 +290,9 @@ class Function(Serializable):
 
     # compatibility
     _get_block = get_block
+
+    def get_block_size(self, addr: int) -> Optional[int]:
+        return self._block_sizes.get(addr, None)
 
     @property
     def nodes(self) -> Generator[CodeNode,None,None]:
@@ -512,6 +518,19 @@ class Function(Serializable):
                                                    hex(self.addr) if isinstance(self.addr, int) else self.addr)
         return '<Function %s (%s)>' % (self.name, hex(self.addr) if isinstance(self.addr, int) else self.addr)
 
+    def __setstate__(self, state):
+        for k, v in state.items():
+            setattr(self, k, v)
+
+    def __getstate__(self):
+        # self._local_transition_graph is a cache. don't pickle it
+        d = dict((k, getattr(self, k)) for k in self.__slots__)
+        d['_local_transition_graph'] = None
+        d['_project'] = None
+        d['_function_manager'] = None
+        d['_block_cache'] = { }
+        return d
+
     @property
     def endpoints(self):
         return list(itertools.chain(*self._endpoints.values()))
@@ -664,8 +683,11 @@ class Function(Serializable):
             hooker = self.project.simos.syscall_from_addr(self.addr)
         elif self.is_simprocedure:
             hooker = self.project.hooked_by(self.addr)
-        if hooker and hasattr(hooker, 'NO_RET'):
-            return not hooker.NO_RET
+        if hooker:
+            if hasattr(hooker, 'DYNAMIC_RET') and hooker.DYNAMIC_RET:
+                return True
+            elif hasattr(hooker, 'NO_RET'):
+                return not hooker.NO_RET
 
         # Cannot determine
         return None
@@ -1199,7 +1221,9 @@ class Function(Serializable):
         if self.calling_convention is None:
             return self._argument_registers + self._argument_stack_variables
         else:
-            return self.calling_convention.args
+            if self.prototype is None:
+                return []
+            return self.calling_convention.arg_locs(self.prototype)
 
     @property
     def has_return(self):
@@ -1332,55 +1356,100 @@ class Function(Serializable):
 
         self.normalized = True
 
-    def find_declaration(self):
+    def find_declaration(self, ignore_binary_name: bool=False, binary_name_hint: str=None) -> bool:
         """
         Find the most likely function declaration from the embedded collection of prototypes, set it to self.prototype,
         and update self.calling_convention with the declaration.
 
-        :return: None
+        :param ignore_binary_name:  Do not rely on the executable or library where the function belongs to determine
+                                    its source library. This is useful when working on statically linked binaries
+                                    (because all functions will belong to the main executable). We will search for all
+                                    libraries in angr to find the first declaration match.
+        :param binary_name_hint:    Substring of the library name where this function might be originally coming from.
+                                    Useful for FLIRT-identified functions in statically linked binaries.
+        :return:                    True if a declaration is found and self.prototype and self.calling_convention are
+                                    updated. False if we fail to find a matching function declaration, in which case
+                                    self.prototype or self.calling_convention will be kept untouched.
         """
 
-        # determine the library name
+        if not ignore_binary_name:
+            # determine the library name
+            if not self.is_plt:
+                binary_name = self.binary_name
+                if binary_name not in SIM_LIBRARIES:
+                    return False
+            else:
+                binary_name = None
+                # PLT entries must have the same declaration as their jump targets
+                # Try to determine which library this PLT entry will jump to
+                edges = self.transition_graph.edges()
+                if len(edges) == 0:
+                    return False
+                node = next(iter(edges))[1]
+                if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
+                    target = node.addr
+                    if target in self._function_manager:
+                        target_func = self._function_manager[target]
+                        binary_name = target_func.binary_name
 
-        if not self.is_plt:
-            binary_name = self.binary_name
-            if binary_name not in SIM_LIBRARIES:
-                return
+            # cannot determine the binary name. since we are forced to respect binary name, we give up in this case.
+            if binary_name is None:
+                return False
+
+            lib = SIM_LIBRARIES.get(binary_name, None)
+            libraries = set()
+            if lib is not None:
+                libraries.add(lib)
+
         else:
-            binary_name = None
-            # PLT entries must have the same declaration as their jump targets
-            # Try to determine which library this PLT entry will jump to
-            edges = self.transition_graph.edges()
-            if len(edges) == 0: return
-            node = next(iter(edges))[1]
-            if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
-                target = node.addr
-                if target in self._function_manager:
-                    target_func = self._function_manager[target]
-                    binary_name = target_func.binary_name
+            # try all libraries or all libraries that match the given library name hint
+            libraries = set()
+            for lib_name, lib in SIM_LIBRARIES.items():
+                # TODO: Add support for syscall libraries. Note that syscall libraries have different function
+                #  prototypes for .has_prototype() and .get_prototype()...
+                if not isinstance(lib, SimSyscallLibrary):
+                    if binary_name_hint:
+                        if binary_name_hint.lower() in lib_name.lower():
+                            libraries.add(lib)
+                    else:
+                        libraries.add(lib)
 
-        if binary_name is None:
-            return
+        if not libraries:
+            return False
 
-        library = SIM_LIBRARIES.get(binary_name, None)
+        name_variants = [self.name]
+        # remove "_" prefixes
+        if self.name.startswith("_"):
+            name_variants.append(self.name[1:])
+        if self.name.startswith("__"):
+            name_variants.append(self.name[2:])
+        # special handling for libc
+        if self.name.startswith("__libc_"):
+            name_variants.append(self.name[7:])
 
-        if library is None:
-            return
+        for library in libraries:
+            for name in name_variants:
+                if not library.has_prototype(name):
+                    continue
 
-        if not library.has_prototype(self.name):
-            return
+                proto = library.get_prototype(name)
+                if self.project is None:
+                    # we need to get arch from self.project
+                    l.warning("Function %s does not have .project set. A possible prototype is found, but we cannot set it "
+                              "without .project.arch.")
+                    return False
+                self.prototype = proto.with_arch(self.project.arch)
 
-        proto = library.get_prototype(self.name)
-        if self.project is None:
-            # we need to get arch from self.project
-            l.warning("Function %s does not have .project set. A possible prototype is found, but we cannot set it "
-                      "without .project.arch.")
-            return
-        self.prototype = proto.with_arch(self.project.arch)
+                # update self.calling_convention if necessary
+                if self.calling_convention is None:
+                    if self.project.arch.name in library.default_ccs:
+                        self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
+                    elif self.project.arch.name in DEFAULT_CC:
+                        self.calling_convention = DEFAULT_CC[self.project.arch.name](self.project.arch)
 
-        # update self.calling_convention if necessary
-        if self.calling_convention is None and self.project.arch.name in library.default_ccs:
-            self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
+                return True
+
+        return False
 
     @staticmethod
     def _addr_to_funcloc(addr):

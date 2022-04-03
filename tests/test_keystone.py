@@ -1,7 +1,6 @@
 import os
 import logging
 import sys
-
 import unittest
 
 from common import skip_if_not_linux
@@ -20,9 +19,8 @@ insn_texts = {
     'mips': b"addi $1, $1, 0xf"
 }
 
-
-class TestKeystone(unittest.TestCase):
-    def run_keystone(self, arch):
+class TestKeyStone(unittest.TestCase):
+    def _run_keystone(self,arch):
         proj_arch = arch
         is_thumb = False
         if arch == "armel_thumb":
@@ -50,19 +48,55 @@ class TestKeystone(unittest.TestCase):
         else:
             assert sm.one_active.solver.eval(sm.one_active.regs.r1) == 0x12
 
-    @skip_if_not_linux
-    def test_keystone(self):
 
+    def test_i386(self):
         # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
         # re-enabling this test on Windows.
         if not sys.platform.startswith('linux'):
             return
 
-        for arch_name in insn_texts:
-            yield self.run_keystone, arch_name
+        self._run_keystone('i386')
+
+    def test_x86_64(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('x86_64')
+
+
+    def test_ppc(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('ppc')
+
+    def test_armel(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('armel')
+
+    def test_armel_thumb(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('armel_thumb')
+
+    def test_mips(self):
+        # Installing keystone on Windows is currently a pain. Fix the installation first (may it pip installable) before
+        # re-enabling this test on Windows.
+        if not sys.platform.startswith('linux'):
+            return
+
+        self._run_keystone('mips')
 
 if __name__ == "__main__":
-    for arch_name in insn_texts:
-        print(arch_name)
     unittest.main()
-

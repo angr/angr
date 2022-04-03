@@ -26,7 +26,9 @@ class RegionIdentifier(Analysis):
     """
     def __init__(self, func, cond_proc=None, graph=None):
         self.function = func
-        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(
+            self.project.arch if self.project is not None else None  # it's only None in test cases
+        )
         self._graph = graph if graph is not None else self.function.graph
 
         self.region = None
@@ -204,7 +206,7 @@ class RegionIdentifier(Analysis):
             self._start_node = self._get_start_node(graph)
 
             # Start from loops
-            for node in self._loop_headers:
+            for node in reversed(self._loop_headers):
                 if node in structured_loop_headers:
                     continue
                 region = self._make_cyclic_region(node, graph)
@@ -373,12 +375,19 @@ class RegionIdentifier(Analysis):
                         else:
                             # none of the two branches is jumping out of the loop
                             continue
+                    elif isinstance(last_stmt, ailment.Stmt.Jump):
+                        if isinstance(last_stmt.target, ailment.Expr.Const):
+                            new_last_stmt = ailment.Stmt.Jump(
+                                last_stmt.idx,
+                                ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
+                                ins_addr=last_stmt.ins_addr,
+                            )
+                        else:
+                            # an indirect jump - might be a jump table. ignore it
+                            continue
                     else:
-                        new_last_stmt = ailment.Stmt.Jump(
-                            last_stmt.idx,
-                            ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                            ins_addr=last_stmt.ins_addr,
-                        )
+                        l.error("Unexpected last_stmt type %s. Ignore.", type(last_stmt))
+                        continue
                     replace_last_statement(src, last_stmt, new_last_stmt)
                     replaced_any_stmt = True
                 if not replaced_any_stmt:

@@ -156,7 +156,10 @@ class SimEngineRDAIL(
         self._handle_Call_base(stmt, is_expr=False)
 
     def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool=False):
-        target = self._expr(stmt.target)  # pylint:disable=unused-variable
+        if isinstance(stmt.target, ailment.Expr.Expression):
+            target = self._expr(stmt.target)  # pylint:disable=unused-variable
+        else:
+            target = stmt.target
         codeloc = self._codeloc()
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
@@ -327,7 +330,7 @@ class SimEngineRDAIL(
         self._handle_Call_base(expr, is_expr=True)
         return MultiValues(offset_to_values={0: {self.state.top(expr.bits)}})
 
-    def _ail_handle_Register(self, expr) -> MultiValues:
+    def _ail_handle_Register(self, expr: ailment.Expr.Register) -> MultiValues:
 
         self.state: ReachingDefinitionsState
 
@@ -364,7 +367,7 @@ class SimEngineRDAIL(
         else:
             codeloc = self._codeloc()
             for def_ in defs:
-                self.state.add_use_by_def(def_, codeloc)
+                self.state.add_use_by_def(def_, codeloc, expr=expr)
 
         return value
 
@@ -389,7 +392,7 @@ class SimEngineRDAIL(
             dummy_atom = MemoryLocation(0, size, endness=expr.endness)
             top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
             # add use
-            self.state.add_use(dummy_atom, self._codeloc())
+            self.state.add_use(dummy_atom, self._codeloc(), expr=expr)
             return MultiValues(offset_to_values={0: {top}})
 
         result: Optional[MultiValues] = None
@@ -398,14 +401,14 @@ class SimEngineRDAIL(
                 continue
             if addr.concrete:
                 # a concrete address
-                addr = addr._model_concrete.value
+                concrete_addr: int = addr._model_concrete.value
                 try:
-                    vs: MultiValues = self.state.memory_definitions.load(addr, size=size, endness=expr.endness)
+                    vs: MultiValues = self.state.memory_definitions.load(concrete_addr, size=size, endness=expr.endness)
                 except SimMemoryMissingError:
                     continue
 
-                memory_location = MemoryLocation(addr, size, endness=expr.endness)
-                self.state.add_use(memory_location, self._codeloc())
+                memory_location = MemoryLocation(concrete_addr, size, endness=expr.endness)
+                self.state.add_use(memory_location, self._codeloc(), expr=expr)
                 result = result.merge(vs) if result is not None else vs
             elif self.state.is_stack_address(addr):
                 stack_offset = self.state.get_stack_offset(addr)
@@ -417,7 +420,7 @@ class SimEngineRDAIL(
                         continue
 
                     memory_location = MemoryLocation(SpOffset(self.arch.bits, stack_offset), size, endness=expr.endness)
-                    self.state.add_use(memory_location, self._codeloc())
+                    self.state.add_use(memory_location, self._codeloc(), expr=expr)
                     result = result.merge(vs) if result is not None else vs
             else:
                 l.debug('Memory address %r undefined or unsupported at pc %#x.', addr, self.ins_addr)
@@ -442,7 +445,7 @@ class SimEngineRDAIL(
             dummy_atom = MemoryLocation(0, size, endness=self.arch.memory_endness)
             top = self.state.annotate_with_def(top, Definition(dummy_atom, ExternalCodeLocation()))
             # add use
-            self.state.add_use(dummy_atom, self._codeloc())
+            self.state.add_use(dummy_atom, self._codeloc(), expr=expr)
             return MultiValues(offset_to_values={0: {top}})
 
         converted = set()
@@ -558,6 +561,42 @@ class SimEngineRDAIL(
         if r is None:
             r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
 
+        return r
+
+    def _ail_handle_Div(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        self._expr(arg0)
+        self._expr(arg1)
+        bits = expr.bits
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
+
+    def _ail_handle_DivMod(self, expr):
+        return self._ail_handle_Div(expr)
+
+    def _ail_handle_Mul(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        self._expr(arg0)
+        self._expr(arg1)
+        bits = expr.bits
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
+        return r
+
+    def _ail_handle_Mull(self, expr):
+
+        arg0, arg1 = expr.operands
+
+        self._expr(arg0)
+        self._expr(arg1)
+        bits = expr.bits
+
+        r = MultiValues(offset_to_values={0: {self.state.top(bits)}})
         return r
 
     def _ail_handle_Shr(self, expr: ailment.Expr.BinaryOp) -> MultiValues:

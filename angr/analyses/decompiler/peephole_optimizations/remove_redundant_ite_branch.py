@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class RemoveRedundantITEBranches(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Remove redundant ITE branches"
+    NAME = "Remove redundant ITE branches"
     expr_classes = (ITE, )  # all expressions are allowed
 
     def optimize(self, expr: ITE):

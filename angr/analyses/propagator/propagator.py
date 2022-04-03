@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, List, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
@@ -263,7 +263,8 @@ class PropagatorAILState(PropagatorState):
     Describes the state used in the AIL engine of Propagator.
     """
 
-    __slots__ = ('_registers', '_stack_variables', '_tmps', '_inside_call_stmt')
+    __slots__ = ('_registers', '_stack_variables', '_tmps', 'temp_expressions', 'register_expressions',
+                 '_inside_call_stmt', 'last_stack_store', 'global_stores')
 
     def __init__(self, arch, project=None, replacements=None, only_consts=False, prop_count=None, equivalence=None,
                  stack_variables=None, registers=None):
@@ -278,10 +279,14 @@ class PropagatorAILState(PropagatorState):
         self._registers = LabeledMemory(memory_id='reg', top_func=self.top, page_kwargs={'mo_cmp': self._mo_cmp}) \
             if registers is None else registers
         self._tmps = {}
+        self.temp_expressions = { }
+        self.register_expressions = { }
         self._inside_call_stmt = False  # temporary variable that is only used internally
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
+        self.last_stack_store = None
+        self.global_stores: List[Tuple[Any,ailment.Stmt.Store]] = [ ]
 
     def __repr__(self):
         return "<PropagatorAILState>"
@@ -321,7 +326,8 @@ class PropagatorAILState(PropagatorState):
             return
 
         for offset, chopped_value, size, label in value.value_and_labels():
-            self._registers.store(reg.reg_offset + offset, chopped_value, size=size, label=label)
+            self._registers.store(reg.reg_offset + offset, chopped_value, size=size, label=label,
+                                  endness=self.project.arch.register_endness)
 
     def store_stack_variable(self, sp_offset: int, new: PropValue, endness=None) -> None:  # pylint:disable=unused-argument
         # normalize sp_offset to handle negative offsets
@@ -333,7 +339,8 @@ class PropagatorAILState(PropagatorState):
 
     def load_register(self, reg: ailment.Expr.Register) -> Optional[PropValue]:
         try:
-            value, labels = self._registers.load_with_labels(reg.reg_offset, size=reg.size)
+            value, labels = self._registers.load_with_labels(reg.reg_offset, size=reg.size,
+                                                             endness=self.project.arch.register_endness)
         except SimMemoryMissingError:
             # value does not exist
             return None
@@ -512,15 +519,31 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         if isinstance(node, ailment.Block):
             # AIL
             state = PropagatorAILState(self.project.arch, project=self.project, only_consts=self._only_consts)
+            ail = True
         else:
             # VEX
             state = PropagatorVEXState(self.project.arch, project=self.project, only_consts=self._only_consts,
                                        do_binops=self._do_binops, store_tops=self._store_tops)
             spoffset_var = self._engine_vex.sp_offset(0)
+            ail = False
             state.store_register(self.project.arch.sp_offset,
                                  self.project.arch.bytes,
                                  spoffset_var,
                                  )
+
+        if self.project.arch.name == "MIPS64":
+            if self._function is not None:
+                if ail:
+                    state.store_register(ailment.Expr.Register(None, None, self.project.arch.registers['t9'][0],
+                                                               self.project.arch.registers['t9'][0]),
+                                         PropValue(claripy.BVV(self._function.addr, 64)),
+                                         )
+                else:
+                    state.store_register(self.project.arch.registers['t9'][0],  # pylint:disable=too-many-function-args
+                                         self.project.arch.registers['t9'][1],
+                                         claripy.BVV(self._function.addr, 64),
+                                         )
+
         self._initial_state = state
         return state
 

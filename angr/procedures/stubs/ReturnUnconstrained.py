@@ -13,6 +13,7 @@ class ReturnUnconstrained(angr.SimProcedure):
 
         return_val = kwargs.pop('return_val', None)
         if return_val is None:
+            # code duplicated to syscall_stub
             size = self.prototype.returnty.size
             # ummmmm do we really want to rely on this behavior?
             if size is NotImplemented:

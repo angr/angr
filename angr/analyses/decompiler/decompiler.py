@@ -78,7 +78,7 @@ class Decompiler(Analysis):
         else:
             reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
 
-        cache = DecompilationCache()
+        cache = DecompilationCache(self.func.addr)
 
         # convert function blocks to AIL blocks
         clinic = self.project.analyses.Clinic(self.func,
@@ -102,7 +102,7 @@ class Decompiler(Analysis):
             # the function is empty
             return
 
-        cond_proc = ConditionProcessor()
+        cond_proc = ConditionProcessor(self.project.arch)
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
@@ -123,11 +123,13 @@ class Decompiler(Analysis):
                                                                 variable_kb=clinic.variable_kb,
                                                                 expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                                                                 stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+                                                                externs=clinic.externs,
                                                                 **self.options_to_params(options_by_class['codegen']))
         self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen
         self.cache.codegen = codegen
+        self.cache.clinic = self.clinic
 
     def _set_global_variables(self):
 

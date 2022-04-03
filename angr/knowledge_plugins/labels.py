@@ -1,4 +1,4 @@
-
+from archinfo.arch_arm import is_arm_arch
 import cle
 
 from .plugin import KnowledgeBasePlugin
@@ -10,8 +10,12 @@ class Labels(KnowledgeBasePlugin):
         self._kb = kb
         self._labels = {}
         self._reverse_labels = {}
+
+        is_arm = is_arm_arch(kb._project.arch)
         for obj in kb._project.loader.all_objects:
             for v in obj.symbols:
+                if is_arm and v.name in {"$d", "$t", "$a"}:
+                    continue
                 if v.name and not v.is_import and v.type not in {cle.SymbolType.TYPE_OTHER, }:
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr

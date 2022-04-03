@@ -299,7 +299,7 @@ def test_vtable_amd64_libc_ubuntu_2004():
     assert ij.type == IndirectJumpType.Vtable
     assert len(ij.jumptable_entries) == 213
 
-    # all non-zere entries in a vtable should be made functions
+    # all non-zero entries in a vtable should be made functions
     for entry in ij.jumptable_entries:
         if entry != 0:
             assert entry in cfg.functions

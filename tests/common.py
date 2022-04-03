@@ -9,8 +9,12 @@ try:
 except ImportError:
     tracer = None
 
-bin_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries')
-bin_priv_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries-private')
+bin_location = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries"
+)
+bin_priv_location = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "..", "..", "binaries-private"
+)
 
 if not os.path.isdir(bin_location):
     raise Exception(
@@ -19,17 +23,35 @@ if not os.path.isdir(bin_location):
 
 
 def broken(func):
-    return skip("Broken test method")(func)
+    return skip(reason="Broken test method")(func)
+
+
+def requires_binaries_private(func):
+    return skipIf(
+        not os.path.exists(
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "binaries-private"),
+        ),
+        "Skip this test since we do not have the binaries-private repo cloned on Travis CI.",
+    )(func)
 
 
 def slow_test(func):
     func.slow = True
-    slow_test_env = os.environ['SKIP_SLOW_TESTS'].lower() if 'SKIP_SLOW_TESTS' in os.environ else str()
-    return skipIf(slow_test_env == "true" or slow_test_env == "1", 'Skipping slow test')(func)
+    slow_test_env = (
+        os.environ["SKIP_SLOW_TESTS"].lower()
+        if "SKIP_SLOW_TESTS" in os.environ
+        else str()
+    )
+    return skipIf(
+        slow_test_env == "true" or slow_test_env == "1", "Skipping slow test"
+    )(func)
 
 
 def skip_if_not_linux(func):
-    return skipUnless(sys.platform.startswith("linux"), "Skipping Linux Test Cases")(func)
+    return skipUnless(sys.platform.startswith("linux"), "Skipping Linux Test Cases")(
+        func
+    )
 
 
 TRACE_VERSION = 1
@@ -39,12 +61,16 @@ def do_trace(proj, test_name, input_data, **kwargs):
     """
     trace, magic, crash_mode, crash_addr = load_cached_trace(proj, "test_blurble")
     """
-    fname = os.path.join(bin_location, 'tests_data', 'runner_traces',
-                         '%s_%s_%s.p' % (test_name, os.path.basename(proj.filename), proj.arch.name))
+    fname = os.path.join(
+        bin_location,
+        "tests_data",
+        "runner_traces",
+        "%s_%s_%s.p" % (test_name, os.path.basename(proj.filename), proj.arch.name),
+    )
 
     if os.path.isfile(fname):
         try:
-            with open(fname, 'rb') as f:
+            with open(fname, "rb") as f:
                 r = pickle.load(f)
                 if type(r) is tuple and len(r) == 2 and r[1] == TRACE_VERSION:
                     return r[0]
@@ -52,11 +78,13 @@ def do_trace(proj, test_name, input_data, **kwargs):
             print("Can't unpickle trace - rerunning")
 
     if tracer is None:
-        raise Exception("Tracer is not installed and cached data is not present - cannot run test")
+        raise Exception(
+            "Tracer is not installed and cached data is not present - cannot run test"
+        )
 
     runner = tracer.QEMURunner(project=proj, input=input_data, **kwargs)
     r = (runner.trace, runner.magic, runner.crash_mode, runner.crash_addr)
-    with open(fname, 'wb') as f:
+    with open(fname, "wb") as f:
         pickle.dump((r, TRACE_VERSION), f, -1)
     return r
 

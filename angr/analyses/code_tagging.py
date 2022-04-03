@@ -20,15 +20,17 @@ class CodeTagging(Analysis):
         self.tags = set()
 
         self.ANALYSES = [
-            self.has_xor,
-            self.has_bitshifts,
-            self.has_sql,
+            (self.has_xor, {'X86', 'AMD64'}),
+            (self.has_bitshifts, {'X86', 'AMD64'}),
+            (self.has_sql, {'X86', 'AMD64'}),
         ]
 
         self.analyze()
 
     def analyze(self):
-        for analysis in self.ANALYSES:
+        for analysis, arches in self.ANALYSES:
+            if not arches is None and self.project.arch.name not in arches:
+                continue
             tags = analysis()
             if tags:
                 self.tags |= tags
@@ -100,17 +102,23 @@ class CodeTagging(Analysis):
         Detects if there is any reference to strings that look like SQL queries.
         """
 
+        if self._function.is_plt or self._function.is_simprocedure:
+            return False
+
+        min_addr, max_addr = None, None
         # what strings are the current function referencing?
         for block in self._function.blocks:
-            if block.size == 0:
-                continue
-            for ins_addr in block.instruction_addrs:
-                xrefs = self.kb.xrefs.get_xrefs_by_ins_addr(ins_addr)
-                for xref in xrefs:
-                    xref: XRef
-                    if xref.memory_data is not None and xref.memory_data.sort == 'string':
-                        if looks_like_sql(xref.memory_data.content.decode("utf-8")):
-                            return { CodeTags.HAS_SQL }
+            if min_addr is None or block.addr < min_addr:
+                min_addr = block.addr
+            if max_addr is None or block.addr + block.size > max_addr:
+                max_addr = block.addr + block.size
+
+        xrefs = self.kb.xrefs.get_xrefs_by_ins_addr_region(min_addr, max_addr)
+        for xref in xrefs:
+            xref: XRef
+            if xref.memory_data is not None and xref.memory_data.sort == 'string':
+                if looks_like_sql(xref.memory_data.content.decode("utf-8")):
+                    return { CodeTags.HAS_SQL }
 
         return False
 

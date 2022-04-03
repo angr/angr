@@ -13,7 +13,8 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
-from ...knowledge_plugins.functions import FunctionManager, Function
+from ...knowledge_plugins.functions.function_manager import FunctionManager
+from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
 from ...utils.constants import DEFAULT_STATEMENT
@@ -23,6 +24,7 @@ from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngi
 from ...codenode import HookNode, BlockNode
 from ...engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from .. import Analysis
+from ..stack_pointer_tracker import StackPointerTracker
 from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_resolvers
 
 l = logging.getLogger(name=__name__)
@@ -33,13 +35,13 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
 
-    tag = None
+    tag: Optional[str] = None
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(self, sort, context_sensitivity_level, normalize=False, binary=None, force_segment=False,
                  base_state=None, resolve_indirect_jumps=True, indirect_jump_resolvers=None,
                  indirect_jump_target_limit=100000, detect_tail_calls=False, low_priority=False,
-                 sp_tracking_track_memory=True, model=None,
+                 skip_unmapped_addrs=True, sp_tracking_track_memory=True, model=None,
                  ):
         """
         :param str sort:                            'fast' or 'emulated'.
@@ -55,6 +57,9 @@ class CFGBase(Analysis):
                                                     If this list is None or empty, default indirect jump resolvers
                                                     specific to this architecture and binary types will be loaded.
         :param int indirect_jump_target_limit:      Maximum indirect jump targets to be recovered.
+        :param skip_unmapped_addrs:                 Ignore all branches into unmapped regions. True by default. You may
+                                                    want to set it to False if you are analyzing manually patched
+                                                    binaries or malware samples.
         :param bool detect_tail_calls:              Aggressive tail-call optimization detection. This option is only
                                                     respected in make_functions().
         :param bool sp_tracking_track_memory:       Whether or not to track memory writes if tracking the stack pointer.
@@ -79,6 +84,7 @@ class CFGBase(Analysis):
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
         self._low_priority = low_priority
+        self._skip_unmapped_addrs = skip_unmapped_addrs
 
         # Initialization
         self._edge_map = None
@@ -160,6 +166,8 @@ class CFGBase(Analysis):
 
         # Cache if an object has executable sections or not
         self._object_to_executable_sections = { }
+        # Cache if an object has executable segments or not
+        self._object_to_executable_segments = {}
 
         if model is not None:
             self._model = model
@@ -680,6 +688,20 @@ class CFGBase(Analysis):
             return self._object_to_executable_sections[obj]
         r = any(sec.is_executable for sec in obj.sections)
         self._object_to_executable_sections[obj] = r
+        return r
+
+    def _object_has_executable_segments(self, obj):
+        """
+        Check whether an object has at least one executable segment.
+
+        :param cle.Backend obj: The object to test.
+        :return:                None
+        """
+
+        if obj in self._object_to_executable_segments:
+            return self._object_to_executable_segments[obj]
+        r = any(seg.is_executable for seg in obj.segments)
+        self._object_to_executable_segments[obj] = r
         return r
 
     def _addr_hooked_or_syscall(self, addr):
@@ -1424,15 +1446,19 @@ class CFGBase(Analysis):
 
         def _is_function_a_plt_stub(arch_, func):
             if len(func.block_addrs_set) != 1:
+                # multiple blocks? no idea what this is...
                 return False
             block = next(func.blocks)
             if self._is_noop_block(arch_, block):
                 # alignments
-                return True
-            if len(block.vex.instruction_addresses) <= 2 and block.vex.jumpkind == 'Ijk_Boring':
+                return False
+            if arch_.name in {'X86', 'AMD64'} and \
+                    len(block.vex.instruction_addresses) == 2 and block.vex.jumpkind == 'Ijk_Boring':
                 # push ordinal; jump _resolve
-                return True
-            return False
+                return False
+            # TODO: We may want to add support for filtering dummy PLT stubs for other architectures, but I haven't
+            # TODO: seen any need for those.
+            return True
 
         to_remove = set()
 
@@ -1447,7 +1473,7 @@ class CFGBase(Analysis):
             fn = functions.get_by_addr(fn_addr)
             addr = fn.addr - (fn.addr % 16)
             if addr != fn.addr:
-                if addr in functions and functions[addr].is_plt and _is_function_a_plt_stub(arch, fn):
+                if addr in functions and functions[addr].is_plt and not _is_function_a_plt_stub(arch, fn):
                     to_remove.add(fn.addr)
                     continue
 
@@ -1909,9 +1935,8 @@ class CFGBase(Analysis):
                 regs = {self.project.arch.sp_offset}
                 if hasattr(self.project.arch, 'bp_offset') and self.project.arch.bp_offset is not None:
                     regs.add(self.project.arch.bp_offset)
-                sptracker = self.project.analyses.StackPointerTracker(src_function, regs,
-                                                                      track_memory=self._sp_tracking_track_memory)
-
+                sptracker = self.project.analyses[StackPointerTracker].prep()(src_function, regs,
+                                                                            track_memory=self._sp_tracking_track_memory)
                 sp_delta = sptracker.offset_after_block(src_addr, self.project.arch.sp_offset)
                 if sp_delta == 0:
                     return True
@@ -2046,7 +2071,7 @@ class CFGBase(Analysis):
             self.kb.functions._add_call_to(src_function.addr, src_snippet, dst_addr, fakeret_snippet,
                                            syscall=is_syscall, ins_addr=ins_addr, stmt_idx=stmt_idx)
 
-            if dst_function.returning:
+            if dst_function.returning and fakeret_node is not None:
                 returning_target = src.addr + src.size
                 if returning_target not in blockaddr_to_function:
                     if returning_target not in known_functions:
@@ -2086,11 +2111,12 @@ class CFGBase(Analysis):
             else:
                 dst_node = self._to_snippet(cfg_node=n)
 
-            # pre-check: if source and destination do not belong to the same section, it must be jumping to another
-            # function
-            belong_to_same_section = self._addrs_belong_to_same_section(src_addr, dst_addr)
-            if not belong_to_same_section:
-                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+            if self._skip_unmapped_addrs:
+                # pre-check: if source and destination do not belong to the same section, it must be jumping to another
+                # function
+                belong_to_same_section = self._addrs_belong_to_same_section(src_addr, dst_addr)
+                if not belong_to_same_section:
+                    _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
 
             if self._detect_tail_calls:
                 if self._is_tail_call_optimization(g, src_addr, dst_addr, src_function, all_edges, known_functions,
@@ -2170,11 +2196,13 @@ class CFGBase(Analysis):
             # We may have determined that this does not happen, since the time this path
             # was scheduled for exploration
             called_function = None
+            called_function_addr = None
             # Try to find the call that this fakeret goes with
             for _, d, e in all_edges:
                 if e['jumpkind'] == 'Ijk_Call':
                     if d.addr in blockaddr_to_function:
                         called_function = blockaddr_to_function[d.addr]
+                        called_function_addr = d.addr
                         break
             # We may have since figured out that the called function doesn't ret.
             # It's important to assume that all unresolved targets do return
@@ -2184,9 +2212,9 @@ class CFGBase(Analysis):
 
             to_outside = not target_function is src_function
 
-            # FIXME: Not sure we should confirm this fakeret or not.
-            self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=True,
-                                              to_outside=to_outside, to_function_addr=target_function.addr
+            confirmed = called_function is None or called_function.returning is True
+            self.kb.functions._add_fakeret_to(src_function.addr, src_node, dst_node, confirmed=confirmed,
+                                              to_outside=to_outside, to_function_addr=called_function_addr
                                               )
 
         else:

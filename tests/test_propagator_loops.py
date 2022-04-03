@@ -46,7 +46,7 @@ class TestPropagatorLoops(unittest.TestCase):
         # assert(cond_stmt is not None)
         # print('Condition:' + str(cond_stmt))
         # print(cond_proc.claripy_ast_from_ail_condition(cond_stmt.condition))
-        cond_proc = ConditionProcessor()
+        cond_proc = ConditionProcessor(p.arch)
         ri = p.analyses.RegionIdentifier(f, graph=a.graph, cond_proc=cond_proc, kb=p.kb)
         rs = p.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=p.kb, func=f)
         snodes = rs.result.nodes
@@ -68,7 +68,7 @@ class TestPropagatorLoops(unittest.TestCase):
             pop rbx
             pop rbp
             ret''')
-        assert re.match(r"\(Conv\(64->32, t\d+\) != 0x0<32>\)", str(cond)) is not None
+        assert re.match(r"\(Conv\(64->32, cc_dep1<8>\) != 0x0<32>\)", str(cond)) is not None
 
     def test_loop_counter_stack(self):
         cond = self._test_loop_variant_common('''
@@ -87,5 +87,4 @@ class TestPropagatorLoops(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    TestPropagatorLoops().test_loop_counter_stack()
-    TestPropagatorLoops().test_loop_counter_reg()
+    unittest.main()

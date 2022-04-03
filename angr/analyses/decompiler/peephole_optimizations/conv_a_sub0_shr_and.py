@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class ConvASub0ShrAnd(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "Conv(M->1, (expr >> N) & 1) => expr < 0"
+    NAME = "Conv(M->1, (expr >> N) & 1) => expr < 0"
     expr_classes = (Convert, )  # all expressions are allowed
 
     def optimize(self, expr: Convert):

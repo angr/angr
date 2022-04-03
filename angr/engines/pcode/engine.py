@@ -7,7 +7,7 @@ from angr.engines.engine import SuccessorsMixin, SimSuccessors
 from ...utils.constants import DEFAULT_STATEMENT
 from ... import sim_options as o
 from ... import errors
-from .lifter import PcodeLifterEngineMixin, lifters, IRSB
+from .lifter import PcodeLifterEngineMixin, IRSB
 from .emulate import PcodeEmulatorMixin
 
 l = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class HeavyPcodeMixin(
         **kwargs
     ) -> None:
         # pylint:disable=arguments-differ
-        if not lifters[self.state.arch.name] or type(successors.addr) is not int:
+        if type(successors.addr) is not int:
             return super().process_successors(successors,
                                               extra_stop_points=extra_stop_points,
                                               num_inst=num_inst,

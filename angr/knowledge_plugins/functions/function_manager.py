@@ -60,6 +60,13 @@ class FunctionDict(SortedDict):
         except StopIteration:
             raise KeyError(addr)
 
+    def __setstate__(self, state):
+        for v, k in state.items():
+            self[k] = v
+
+    def __getstate__(self):
+        return dict((v, k) for (v, k) in self.items())
+
 
 class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
     """
@@ -86,6 +93,10 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
         self._function_map = state["_function_map"]
         self.callgraph = state["callgraph"]
         self.block_map = state["block_map"]
+
+        self._function_map._backref = self
+        for func in self._function_map.values():
+            func._function_manager = self
 
     def __getstate__(self):
         s = {

@@ -185,6 +185,8 @@ class ConstantDereferencesSimplifier(OptimizationPass):
     ARCHES = ["X86", "AMD64", "ARMEL", "ARMHF", "ARMCortexM"]
     PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    NAME = "Simplify constant dereferences"
+    DESCRIPTION = __doc__.strip()
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

@@ -22,6 +22,12 @@ typedef uint64_t unicorn_reg_id_t;
 typedef int64_t vex_reg_offset_t;
 typedef int64_t vex_tmp_id_t;
 
+enum simos_t: uint8_t {
+	SIMOS_CGC = 0,
+	SIMOS_LINUX = 1,
+	SIMOS_OTHER = 2,
+};
+
 enum taint_t: uint8_t {
 	TAINT_NONE = 0,
 	TAINT_SYMBOLIC = 1, // this should be 1 to match the UltraPage impl
@@ -56,6 +62,7 @@ struct taint_entity_t {
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
 	address_t instr_addr;
 	int64_t value_size;
+	mutable bool used_in_mem_addr;
 
 	taint_entity_t() {
 		reg_offset = -1;
@@ -63,6 +70,7 @@ struct taint_entity_t {
 		mem_ref_entity_list.clear();
 		instr_addr = 0;
 		value_size = -1;
+		used_in_mem_addr = false;
 	}
 
 	bool operator==(const taint_entity_t &other_entity) const {
@@ -150,6 +158,12 @@ struct register_value_t {
 	uint8_t value[MAX_REGISTER_BYTE_SIZE];
 	int64_t size;
 
+	register_value_t() {
+		offset = 0;
+		size = -1;
+		memset(value, 0, MAX_REGISTER_BYTE_SIZE);
+	}
+
 	bool operator==(const register_value_t &reg_value) const {
 		if (offset != reg_value.offset) {
 			return false;
@@ -211,6 +225,8 @@ struct instr_details_t {
 struct block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
 	std::vector<instr_details_t> symbolic_instrs;
 	bool vex_lift_failed;
 	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
@@ -220,6 +236,8 @@ struct block_details_t {
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		vex_lift_failed = false;
 		vex_lift_result = NULL;
@@ -254,12 +272,16 @@ struct sym_instr_details_t {
 struct sym_block_details_t {
 	address_t block_addr;
 	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
 	std::vector<sym_instr_details_t> symbolic_instrs;
 	std::vector<register_value_t> register_values;
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
+		block_trace_ind = -1;
+		has_symbolic_exit = false;
 		symbolic_instrs.clear();
 		register_values.clear();
 	}
@@ -269,7 +291,9 @@ struct sym_block_details_t {
 // C++ STL containers
 struct sym_block_details_ret_t {
 	uint64_t block_addr;
-    uint64_t block_size;
+	uint64_t block_size;
+	int64_t block_trace_ind;
+	bool has_symbolic_exit;
     sym_instr_details_t *symbolic_instrs;
     uint64_t symbolic_instrs_count;
     register_value_t *register_values;
@@ -289,7 +313,6 @@ enum stop_t {
 	STOP_NODECODE,
 	STOP_HLT,
 	STOP_VEX_LIFT_FAILED,
-	STOP_SYMBOLIC_CONDITION,
 	STOP_SYMBOLIC_PC,
 	STOP_SYMBOLIC_READ_ADDR,
 	STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED,
@@ -438,12 +461,23 @@ typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
 std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
-typedef std::unordered_map<vex_reg_offset_t, unicorn_reg_id_t> RegisterMap;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
+
+struct fd_data {
+	char *bytes;
+	uint64_t curr_pos;
+	uint64_t len;
+
+	fd_data(char *fd_bytes, uint64_t fd_len, uint64_t fd_read_pos) {
+		bytes = fd_bytes;
+		curr_pos = fd_read_pos;
+		len = fd_len;
+	}
+};
 
 struct mem_write_t {
 	address_t address;
-	uint8_t value[MAX_MEM_ACCESS_SIZE]; // assume size of any memory write is no more than 8
+	std::vector<uint8_t> value;
 	int size;
 	std::vector<taint_t> previous_taint;
 };
@@ -498,8 +532,11 @@ class State {
 	// separately for easy rollback in case of errors.
 	block_details_t curr_block_details;
 
+	// List of symbolic instructions in processed basic blocks that need not be re-executed. Will be removed on commit.
+	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_instrs_to_erase;
+
 	// List of register values at start of block
-	std::unordered_map<vex_reg_offset_t, register_value_t> block_start_reg_values;
+	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
 
 	// Similar to memory reads in a block, we track the state of registers and VEX temps when
 	// propagating taint in a block for easy rollback if we need to abort due to read from/write to
@@ -535,6 +572,21 @@ class State {
 
 	// Pointer to memory writes' data passed to Python land
 	mem_update_t *mem_updates_head;
+
+	// Input fd bytes for tracing in unicorn
+	std::unordered_map<uint64_t, fd_data> fd_details;
+
+	// OS being simulated
+	simos_t simos;
+
+	// Determine if symbolic memory addresses should be handled or not
+	bool handle_symbolic_addrs;
+
+	// Determine if symbolic conditions should be handled or not
+	bool handle_symbolic_conditions;
+
+	// Count of blocks executed in native interface
+	int64_t executed_blocks_count;
 
 	// Private functions
 
@@ -573,6 +625,9 @@ class State {
 
 	void process_vex_block(IRSB *vex_block, address_t address);
 
+	void set_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry);
+	void update_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry);
+
 	void propagate_taints();
 	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
 
@@ -592,13 +647,13 @@ class State {
 	inline unsigned int arch_pc_reg_vex_offset() const {
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
+				return unicorn_mode == UC_MODE_64 ? OFFSET_amd64_RIP : OFFSET_x86_EIP;
 			case UC_ARCH_ARM:
 				return OFFSET_arm_R15T;
 			case UC_ARCH_ARM64:
 				return OFFSET_arm64_PC;
 			case UC_ARCH_MIPS:
-				return mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
+				return unicorn_mode == UC_MODE_64 ? OFFSET_mips64_PC : OFFSET_mips32_PC;
 			default:
 				return -1;
 		}
@@ -607,7 +662,7 @@ class State {
 	inline int arch_pc_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
+				return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RIP : UC_X86_REG_EIP;
 			case UC_ARCH_ARM:
 				return UC_ARM_REG_PC;
 			case UC_ARCH_ARM64:
@@ -622,7 +677,7 @@ class State {
 	inline int arch_sp_reg() const {
 		switch (arch) {
 			case UC_ARCH_X86:
-				return mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
+				return unicorn_mode == UC_MODE_64 ? UC_X86_REG_RSP : UC_X86_REG_ESP;
 			case UC_ARCH_ARM:
 				return UC_ARM_REG_SP;
 			case UC_ARCH_ARM64:
@@ -659,19 +714,22 @@ class State {
 		int32_t cur_size;
 
 		uc_arch arch;
-		uc_mode mode;
+		uc_mode unicorn_mode;
 		bool interrupt_handled;
-		uint32_t transmit_sysno;
-		uint32_t transmit_bbl_addr;
+		int32_t cgc_receive_sysno;
+		uint64_t cgc_receive_bbl;
+		int32_t cgc_transmit_sysno;
+		uint64_t cgc_transmit_bbl;
 
 		VexArch vex_guest;
 		VexArchInfo vex_archinfo;
 		RegisterSet symbolic_registers; // tracking of symbolic registers
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
-		RegisterMap vex_to_unicorn_map; // Mapping of VEX offsets to unicorn registers
+		// Mapping of VEX offsets to unicorn register IDs and register sizes
+		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
-		std::unordered_map<vex_reg_offset_t, uint64_t> cpu_flags;	// VEX register offset and bitmask for CPU flags
-		int64_t cpu_flags_register;
+		// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
+		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
 		stop_details_t stop_details;
 
 		// List of all values read from memory in current block
@@ -688,7 +746,7 @@ class State {
 
 		uc_cb_eventmem_t py_mem_callback;
 
-		State(uc_engine *_uc, uint64_t cache_key);
+		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond);
 
 		~State() {
 			for (auto it = active_pages.begin(); it != active_pages.end(); it++) {
@@ -764,23 +822,39 @@ class State {
 		// Returns -1 if no tainted data is present.
 		int64_t find_tainted(address_t address, int size);
 
-		void handle_write(address_t address, int size, bool is_interrupt);
+		void handle_write(address_t address, int size, bool is_interrupt, bool interrupt_value_symbolic);
 
 		void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
 
 		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
-		void start_propagating_taint(address_t block_address, int32_t block_size);
+		void start_propagating_taint();
 
 		void continue_propagating_taint();
 
 		bool check_symbolic_stack_mem_dependencies_liveness() const;
 
+		void set_curr_block_details(address_t block_address, int32_t block_size);
+
 		address_t get_instruction_pointer() const;
 
 		address_t get_stack_pointer() const;
 
+		void fd_init_bytes(uint64_t fd, char *bytes, uint64_t len, uint64_t read_pos);
+
+		uint64_t fd_read(uint64_t fd, char *buf, uint64_t count);
+
+		// CGC syscall handlers
+
+		void perform_cgc_receive();
+
+		void perform_cgc_transmit();
+
 		// Inline functions
+
+		inline simos_t get_simos() const {
+			return simos;
+		}
 
 		/*
 		* Feasibility checks for unicorn

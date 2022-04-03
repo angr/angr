@@ -18,6 +18,7 @@ def make_bv_sizes_equal(bv1: BV, bv2: BV) -> Tuple[BV, BV]:
     else:
         return (bv1, bv2)
 
+
 # FIXME: Unimplemented ops (mostly floating point related) have associated C++
 # reference code from Ghidra which will need to be ported.
 
@@ -47,6 +48,13 @@ class OpBehavior:
         return claripy.If(
             comparison(args[0], args[1]), claripy.BVV(1, 1), claripy.BVV(0, 1)
         )
+
+    @classmethod
+    def booleanize(cls, in1: BV) -> BV:
+        """
+        Reduce input BV to a single bit of truth: out <- 1 if (in1 != 0) else 0.
+        """
+        return cls.generic_compare((in1, claripy.BVV(0, in1.size())), operator.ne)
 
 
 class OpBehaviorCopy(OpBehavior):
@@ -406,7 +414,7 @@ class OpBehaviorBoolNegate(OpBehavior):
         super().__init__(OpCode.BOOL_NEGATE, True)
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
-        return in1 ^ 1
+        return self.generic_compare((in1, claripy.BVV(0, in1.size())), operator.eq)
 
 
 class OpBehaviorBoolXor(OpBehavior):
@@ -417,7 +425,7 @@ class OpBehaviorBoolXor(OpBehavior):
         super().__init__(OpCode.BOOL_XOR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1 ^ in2
+        return self.booleanize(in1) ^ self.booleanize(in2)
 
 
 class OpBehaviorBoolAnd(OpBehavior):
@@ -428,7 +436,7 @@ class OpBehaviorBoolAnd(OpBehavior):
         super().__init__(OpCode.BOOL_AND, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1 & in2
+        return self.booleanize(in1) & self.booleanize(in2)
 
 
 class OpBehaviorBoolOr(OpBehavior):
@@ -439,7 +447,7 @@ class OpBehaviorBoolOr(OpBehavior):
         super().__init__(OpCode.BOOL_OR, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1 | in2
+        return self.booleanize(in1) | self.booleanize(in2)
 
 
 class OpBehaviorFloatEqual(OpBehavior):

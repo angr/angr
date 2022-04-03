@@ -1,6 +1,7 @@
 from typing import Any, Tuple, Dict, List
 from itertools import count
 import logging
+import inspect
 
 import networkx
 
@@ -32,13 +33,15 @@ class EagerReturnsSimplifier(OptimizationPass):
     ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
     PLATFORMS = ["cgc", "linux"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
+    NAME = "Deduplicate return blocks"
+    DESCRIPTION = inspect.cleandoc(__doc__[:__doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
 
     def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None,
                  # internal parameters that should be used by Clinic
                  node_idx_start=0,
                  # settings
                  max_level=2,
-                 min_indegree=4):
+                 min_indegree=2):
 
         super().__init__(func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx,
                          graph=graph)
@@ -51,8 +54,8 @@ class EagerReturnsSimplifier(OptimizationPass):
 
     def _check(self):
 
-        # does this function return?
-        if self._func.returning is False:
+        # does this function have end points?
+        if not self._func.endpoints:
             return False, None
 
         # TODO: More filtering
@@ -97,7 +100,12 @@ class EagerReturnsSimplifier(OptimizationPass):
             elif len(in_edges) == 1:
                 # back-trace until it reaches a node with two predecessors
                 region, region_head = self._single_entry_region(graph, end_node)
-                in_edges = list(graph.in_edges(region_head))
+                tmp_in_edges = graph.in_edges(region_head)
+                # remove in_edges that are coming from a node inside the region
+                in_edges = [ ]
+                for src, dst in tmp_in_edges:
+                    if src not in region:
+                        in_edges.append((src, dst))
             else:  # len(in_edges) == 0
                 continue
 
@@ -149,7 +157,7 @@ class EagerReturnsSimplifier(OptimizationPass):
     def _single_entry_region(graph, end_node) -> Tuple[networkx.DiGraph, Any]:
         """
         Back track on the graph from `end_node` and find the longest chain of nodes where each node has only one
-        predecessor and one successor (the last-but-two node may have two successors to account for the typical
+        predecessor and one successor (the second-to-last node may have two successors to account for the typical
         stack-canary-detection logic).
 
         :param end_node:    A node in the graph.
@@ -179,30 +187,39 @@ class EagerReturnsSimplifier(OptimizationPass):
         region.add_node(end_node)
 
         traversed = { end_node }
-        node = end_node
         region_head = end_node
         while True:
-            preds = list(graph.predecessors(node))
+            preds = list(graph.predecessors(region_head))
             if len(preds) != 1:
                 break
-            last_but_two_node = node is end_node
+            second_to_last_node = region_head is end_node
 
             pred_node = preds[0]
 
             if pred_node in traversed:
                 break
 
-            if last_but_two_node:
+            if second_to_last_node:
                 if _is_fork_node(pred_node):
                     # add the entire "fork" to the region
                     for succ in graph.successors(pred_node):
                         region.add_edge(pred_node, succ)
-                else:
+                elif graph.out_degree[pred_node] != 1:
+                    # the predecessor has more than one successor, and it's not a fork node
                     break
-            elif not last_but_two_node and graph.out_degree[pred_node] != 1:
+
+                if graph.in_degree[pred_node] == 1:
+                    # continue search
+                    pass
+                else:
+                    region.add_edge(pred_node, region_head)
+                    traversed.add(pred_node)
+                    region_head = pred_node
+                    break
+            elif not second_to_last_node and graph.out_degree[pred_node] != 1:
                 break
 
-            region.add_edge(pred_node, node)
+            region.add_edge(pred_node, region_head)
             traversed.add(pred_node)
             region_head = pred_node
 

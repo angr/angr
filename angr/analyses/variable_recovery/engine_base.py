@@ -216,18 +216,11 @@ class SimEngineVRBase(SimEngineLight):
         else:
             return
 
-        if self.state.typevars.has_type_variable_for(variable, codeloc):
-            variable_typevar = self.state.typevars.get_type_variable(variable, codeloc)
-        else:
+        if not self.state.typevars.has_type_variable_for(variable, codeloc):
             variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, codeloc, variable_typevar)
-        addr_typevar = typevars.TypeVariable() if richr.typevar is None else richr.typevar
-        derived_typevar = typevars.DerivedTypeVariable(
-            typevars.DerivedTypeVariable(addr_typevar, typevars.Load()),
-            typevars.HasField(1 * 8, 0)  # at least one byte
-        )
-        type_constraint = typevars.Subtype(variable_typevar, derived_typevar)
-        self.state.add_type_constraint(type_constraint)
+        # we do not add any type constraint here because we are not sure if the given memory address will ever be
+        # accessed or not
 
         # find all variables
         for var, offset in existing_vars:
@@ -244,10 +237,7 @@ class SimEngineVRBase(SimEngineLight):
         :return:
         """
 
-        if self.arch.is_artificial_register(offset, size):
-            # skip all writes to artificial registers
-            return
-        if offset in (self.arch.ip_offset, self.arch.sp_offset):
+        if offset in (self.arch.ip_offset, self.arch.sp_offset, self.arch.lr_offset):
             # only store the value. don't worry about variables.
             v = MultiValues(offset_to_values={0: {richr.data}})
             self.state.register_region.store(offset, v)
@@ -454,11 +444,6 @@ class SimEngineVRBase(SimEngineLight):
         else:
             typevar = self.state.typevars.get_type_variable(variable, codeloc)
 
-        if data.typevar is not None:
-            self.state.add_type_constraint(
-                typevars.Subtype(data.typevar, typevar)
-            )
-
         if offset is not None and elem_size is not None:
             # it's an array!
             if offset.concrete and elem_size.concrete:
@@ -471,16 +456,33 @@ class SimEngineVRBase(SimEngineLight):
                     typevars.Existence(store_typevar)
                 )
             else:
-                # FIXME: This is a hack
-                for i in range(0, 4):
-                    concrete_offset = size * i
-                    store_typevar = typevars.DerivedTypeVariable(
-                        typevars.DerivedTypeVariable(typevar, typevars.Store()),
-                        typevars.HasField(size * self.state.arch.byte_width, concrete_offset)
-                    )
-                    self.state.add_type_constraint(
-                        typevars.Existence(store_typevar)
-                    )
+                store_typevar = typevars.DerivedTypeVariable(
+                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
+                    typevars.HasField(size * self.state.arch.byte_width, 0)
+                )
+                self.state.add_type_constraint(
+                    typevars.Existence(store_typevar)
+                )
+            # FIXME: This is a hack so that we can interpret the target as an array
+            is_array = typevars.DerivedTypeVariable(
+                typevar,
+                typevars.IsArray()
+            )
+            self.state.add_type_constraint(
+                typevars.Existence(is_array)
+            )
+
+            if data.typevar is not None:
+                self.state.add_type_constraint(
+                    typevars.Subtype(data.typevar, store_typevar)
+                )
+
+        else:
+            # it's just a variable
+            if data.typevar is not None:
+                self.state.add_type_constraint(
+                    typevars.Subtype(data.typevar, typevar)
+                )
 
     def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument
 
@@ -565,8 +567,10 @@ class SimEngineVRBase(SimEngineLight):
                 if values:
                     for vs in values.values.values():
                         for v in vs:
-                            for var_offset, var_ in self.state.extract_variables(v):
-                                all_vars.add((var_offset, var_))
+                            for _, var_ in self.state.extract_variables(v):
+                                if isinstance(var_, SimStackVariable):
+                                    var_offset = stack_offset - var_.offset
+                                    all_vars.add((var_offset, var_))
 
                 if not all_vars:
                     variables = self.variable_manager[self.func_addr].find_variables_by_stack_offset(concrete_offset)
@@ -595,7 +599,7 @@ class SimEngineVRBase(SimEngineLight):
                 var_offset, var = next(iter(all_vars))  # won't fail
                 # calculate variable_offset
                 if dynamic_offset is None:
-                    offset_into_variable = None
+                    offset_into_variable = var_offset
                 else:
                     if var_offset == 0:
                         offset_into_variable = dynamic_offset
@@ -610,17 +614,26 @@ class SimEngineVRBase(SimEngineLight):
                                                                 # overwrite=True
                                                                 )
 
-                # add delayed type constraints
-                if var in self.state.delayed_type_constraints:
-                    for constraint in self.state.delayed_type_constraints[var]:
-                        self.state.add_type_constraint(constraint)
-                    self.state.delayed_type_constraints.pop(var)
-                # create type constraints
-                if not self.state.typevars.has_type_variable_for(var, codeloc):
-                    typevar = typevars.TypeVariable()
-                    self.state.typevars.add_type_variable(var, codeloc, typevar)
+                if var.size == size:
+                    # add delayed type constraints
+                    if var in self.state.delayed_type_constraints:
+                        for constraint in self.state.delayed_type_constraints[var]:
+                            self.state.add_type_constraint(constraint)
+                        self.state.delayed_type_constraints.pop(var)
+
+                    # create type constraints
+                    if not self.state.typevars.has_type_variable_for(var, codeloc):
+                        typevar = typevars.TypeVariable()
+                        self.state.typevars.add_type_variable(var, codeloc, typevar)
+                    else:
+                        typevar = self.state.typevars.get_type_variable(var, codeloc)
+
                 else:
-                    typevar = self.state.typevars.get_type_variable(var, codeloc)
+                    typevar = typevars.TypeVariable()
+                    self.state.add_type_constraint(
+                        typevars.Subtype(typeconsts.int_type(size * 8), typevar)
+                    )
+
                 # TODO: Create a tv_sp.load.<bits>@N type variable for the stack variable
                 #typevar = typevars.DerivedTypeVariable(
                 #    typevars.DerivedTypeVariable(typevar, typevars.Load()),
@@ -633,41 +646,42 @@ class SimEngineVRBase(SimEngineLight):
 
         elif addr.concrete:
             # Loading data from memory
-            self._load_from_global(addr._model_concrete.value, size, expr=expr)
+            v = self._load_from_global(addr._model_concrete.value, size, expr=expr)
+            typevar = v.typevar
 
         elif self._addr_has_concrete_base(addr) and self._parse_offseted_addr(addr) is not None:
             # Loading data from a memory address with an offset
             base_addr, offset, elem_size = self._parse_offseted_addr(addr)
-            self._load_from_global(base_addr._model_concrete.value, size, expr=expr, offset=offset,
-                                   elem_size=elem_size)
+            v = self._load_from_global(base_addr._model_concrete.value, size, expr=expr, offset=offset,
+                                          elem_size=elem_size)
+            typevar = v.typevar
 
+        # Loading data from a pointer
+        if richr_addr.type_constraints:
+            for tc in richr_addr.type_constraints:
+                self.state.add_type_constraint(tc)
+
+        # parse the loading offset
+        offset = 0
+        if (isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and
+                isinstance(richr_addr.typevar.label, typevars.AddN)):
+            offset = richr_addr.typevar.label.n
+            richr_addr_typevar = richr_addr.typevar.type_var  # unpack
         else:
-            # Loading data from a pointer
-            if richr_addr.type_constraints:
-                for tc in richr_addr.type_constraints:
-                    self.state.add_type_constraint(tc)
+            richr_addr_typevar = richr_addr.typevar
 
-            # parse the loading offset
-            offset = 0
-            if (isinstance(richr_addr.typevar, typevars.DerivedTypeVariable) and
-                    isinstance(richr_addr.typevar.label, typevars.AddN)):
-                offset = richr_addr.typevar.label.n
-                richr_addr_typevar = richr_addr.typevar.type_var  # unpack
-            else:
-                richr_addr_typevar = richr_addr.typevar
-
-            if richr_addr_typevar is not None:
-                # create a type constraint
-                typevar = typevars.DerivedTypeVariable(
-                    typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
-                    typevars.HasField(size * self.state.arch.byte_width, offset)
-                )
-                self.state.add_type_constraint(typevars.Existence(typevar))
+        if richr_addr_typevar is not None:
+            # create a type constraint
+            typevar = typevars.DerivedTypeVariable(
+                typevars.DerivedTypeVariable(richr_addr_typevar, typevars.Load()),
+                typevars.HasField(size * self.state.arch.byte_width, offset)
+            )
+            self.state.add_type_constraint(typevars.Existence(typevar))
 
         return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
 
     def _load_from_global(self, addr: int, size, expr=None, offset: Optional[claripy.ast.BV]=None,
-                          elem_size: Optional[claripy.ast.BV]=None):
+                          elem_size: Optional[claripy.ast.BV]=None) -> RichR:
 
         variable_manager = self.variable_manager['global']
         if expr is None:
@@ -690,7 +704,7 @@ class SimEngineVRBase(SimEngineLight):
         if not existing_vars:
             # is this address mapped?
             if self.project.loader.find_object_containing(addr) is None:
-                return
+                return RichR(self.state.top(size * self.state.arch.byte_width))
             variable = SimMemoryVariable(addr, size,
                                          ident=variable_manager.next_variable_ident('global'),
                                          )
@@ -733,6 +747,8 @@ class SimEngineVRBase(SimEngineLight):
                         typevars.Existence(load_typevar)
                     )
 
+        return RichR(self.state.top(size * self.state.arch.byte_width), typevar=typevar)
+
     def _read_from_register(self, offset, size, expr=None):
         """
 
@@ -748,10 +764,6 @@ class SimEngineVRBase(SimEngineLight):
         except SimMemoryMissingError:
             values = None
 
-        if self.arch.is_artificial_register(offset, size):
-            # don't even load values for artificial registers
-            r_value = self.state.top(size * self.arch.byte_width)
-            return RichR(r_value, variable=None, typevar=None)
         if offset in (self.arch.sp_offset, self.arch.ip_offset):
             # load values. don't worry about variables
             if values is None:
@@ -783,7 +795,8 @@ class SimEngineVRBase(SimEngineLight):
                     self.variable_manager[self.func_addr].read_from(var, None, codeloc, atom=expr)
                     variable_set.add(var)
 
-        if self.arch.is_artificial_register(offset, size) or offset == self.arch.sp_offset:
+        if offset == self.arch.sp_offset:
+            # ignore sp
             typevar = None
             var = None
         else:

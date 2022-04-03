@@ -1,6 +1,8 @@
 import os
 import unittest
 
+import nose
+
 import angr
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(str(__file__))), '..', '..', 'binaries', 'tests')
@@ -21,7 +23,7 @@ arch_data = {  # (steps, [hit addrs], finished)
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
 class TestAccuracy(unittest.TestCase):
-    def emulate(self, arch, binary, use_sim_procs, steps, hit_addrs, finished):
+    def _emulate(self, arch, binary, use_sim_procs, steps, hit_addrs, finished):
         # auto_load_libs can't be disabled as the test takes longer time to execute
         p = angr.Project(os.path.join(test_location, arch, binary), use_sim_procedures=use_sim_procs,
                          rebase_granularity=0x1000000, load_debug_info=False, auto_load_libs=True)
@@ -61,13 +63,40 @@ class TestAccuracy(unittest.TestCase):
         if finished:
             assert is_finished
 
-    def test_emulation(self):
-        for arch in arch_data:
-            steps, hit_addrs, finished = arch_data[arch]
-            yield self.emulate, arch, 'test_arrays', False, steps, hit_addrs, finished
-
     def test_windows(self):
-        yield self.emulate, 'i386', 'test_arrays.exe', True, 41, [], False  # blocked on GetLastError or possibly dynamic loading
+        self._emulate('i386', 'test_arrays.exe', True, 41, [], False) # blocked on GetLastError or possibly dynamic loading
+
+    def test_x86_64(self):
+        steps, hit_addrs, finished = arch_data['x86_64']
+        self._emulate('x86_64','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_i386(self):
+        steps, hit_addrs, finished = arch_data['i386']
+        self._emulate('i386','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_ppc(self):
+        steps, hit_addrs, finished = arch_data['ppc']
+        self._emulate('ppc','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_ppc64(self):
+        steps, hit_addrs, finished = arch_data['ppc64']
+        self._emulate('ppc64','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_mips(self):
+        steps, hit_addrs, finished = arch_data['mips']
+        self._emulate('mips','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_mips64(self):
+        steps, hit_addrs, finished = arch_data['mips64']
+        self._emulate('mips64','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_armel(self):
+        steps, hit_addrs, finished = arch_data['armel']
+        self._emulate('armel','test_arrays', False, steps, hit_addrs, finished)
+
+    def test_aarch64(self):
+        steps, hit_addrs, finished = arch_data['aarch64']
+        self._emulate('aarch64','test_arrays', False, steps, hit_addrs, finished)
 
     def test_locale(self):
         # auto_load_libs can't be disabled as the test takes longer time to execute

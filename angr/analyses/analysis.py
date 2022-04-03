@@ -1,19 +1,23 @@
+import functools
 import sys
 import contextlib
 from collections import defaultdict
 from inspect import Signature
+from typing import TYPE_CHECKING, TypeVar, Type, Generic, Callable, Optional
+
 import progressbar
 import logging
 import time
-from typing import TYPE_CHECKING
 
 from ..misc.plugins import PluginVendor, VendorPreset
 from ..misc.ux import deprecated
-from ..errors import AngrAnalysisError
 
 if TYPE_CHECKING:
     from ..knowledge_base import KnowledgeBase
     import angr
+    from ..project import Project
+    from typing_extensions import ParamSpec
+    AnalysisParams = ParamSpec("AnalysisParams")
 
 l = logging.getLogger(name=__name__)
 
@@ -58,6 +62,7 @@ class AnalysisLogEntry:
             return '<AnalysisLogEntry %s with %s: %s>' % (msg_str, self.exc_type.__name__, self.exc_value)
 
 
+A = TypeVar("A", bound="Analysis")
 class AnalysesHub(PluginVendor):
     """
     This class contains functions for all the registered and runnable analyses,
@@ -70,7 +75,7 @@ class AnalysesHub(PluginVendor):
     def reload_analyses(self): # pylint: disable=no-self-use
         return
 
-    def _init_plugin(self, plugin_cls):
+    def _init_plugin(self, plugin_cls: Type[A]) -> "AnalysisFactory[A]":
         return AnalysisFactory(self.project, plugin_cls)
 
     def __getstate__(self):
@@ -81,9 +86,12 @@ class AnalysesHub(PluginVendor):
         s, self.project = sd
         super(AnalysesHub, self).__setstate__(s)
 
+    def __getitem__(self, plugin_cls: "Type[A]") -> "AnalysisFactory[A]":
+        return AnalysisFactory(self.project, plugin_cls)
 
-class AnalysisFactory:
-    def __init__(self, project, analysis_cls):
+
+class AnalysisFactory(Generic[A]):
+    def __init__(self, project: "Project", analysis_cls: Type[A]):
         self._project = project
         self._analysis_cls = analysis_cls
         self.__doc__ = ''
@@ -91,30 +99,64 @@ class AnalysisFactory:
         self.__doc__ += analysis_cls.__init__.__doc__ or ''
         self.__call__.__func__.__signature__ = Signature.from_callable(analysis_cls.__init__)
 
+    def prep(self,
+              fail_fast=False,
+              kb: Optional["KnowledgeBase"] = None,
+              progress_callback: Optional[Callable] = None,
+              show_progressbar: bool = False) -> Type[A]:
+
+        @functools.wraps(self._analysis_cls.__init__)
+        def wrapper(*args, **kwargs):
+            oself = object.__new__(self._analysis_cls)
+            oself.named_errors = {}
+            oself.errors = []
+            oself.log = []
+
+            oself._fail_fast = fail_fast
+            oself._name = self._analysis_cls.__name__
+            oself.project = self._project
+            oself.kb = kb or self._project.kb
+            oself._progress_callback = progress_callback
+
+            oself._show_progressbar = show_progressbar
+            oself.__init__(*args, **kwargs)
+            return oself
+
+        return wrapper # type: ignore
+
     def __call__(self, *args, **kwargs):
         fail_fast = kwargs.pop('fail_fast', False)
         kb = kwargs.pop('kb', self._project.kb)
         progress_callback = kwargs.pop('progress_callback', None)
         show_progressbar = kwargs.pop('show_progressbar', False)
 
-        oself = object.__new__(self._analysis_cls)
-        oself.named_errors = {}
-        oself.errors = []
-        oself.log = []
+        w = self.prep(fail_fast=fail_fast,
+                  kb=kb,
+                  progress_callback=progress_callback,
+                  show_progressbar=show_progressbar)
 
-        oself._fail_fast = fail_fast
-        oself._name = self._analysis_cls.__name__
-        oself.project = self._project
-        oself.kb = kb
-        oself._progress_callback = progress_callback
+        r = w(*args, **kwargs)
+        # clean up so that it's always pickleable
+        r._progressbar = None
+        return r
 
-        if oself._progress_callback is not None:
-            if not hasattr(oself._progress_callback, '__call__'):
-                raise AngrAnalysisError('The "progress_callback" parameter must be a None or a callable.')
 
-        oself._show_progressbar = show_progressbar
-        oself.__init__(*args, **kwargs)
-        return oself
+class StatusBar(progressbar.widgets.WidgetBase):
+    """
+    Implements a progressbar component for displaying raw text.
+    """
+    def __init__(self, width: Optional[int]=40):
+        super().__init__()
+        self.status: str = ""
+        self.width = width
+
+    def __call__(self, progress, data, **kwargs):  # pylint:disable=unused-argument
+        if self.width is None:
+            return self.status
+        if len(self.status) < self.width:
+            return self.status.ljust(self.width, " ")
+        else:
+            return self.status[:self.width]
 
 
 class Analysis:
@@ -132,7 +174,7 @@ class Analysis:
     :ivar progressbar.ProgressBar _progressbar: The progress bar object.
     """
 
-    project = None # type: 'angr.Project'
+    project: "Project" = None
     kb: 'KnowledgeBase' = None
     _fail_fast = None
     _name = None
@@ -141,6 +183,7 @@ class Analysis:
     _progress_callback = None
     _show_progressbar = False
     _progressbar = None
+    _statusbar: Optional[StatusBar] = None
 
     _PROGRESS_WIDGETS = [
         progressbar.Percentage(),
@@ -149,7 +192,9 @@ class Analysis:
         ' ',
         progressbar.Timer(),
         ' ',
-        progressbar.ETA()
+        progressbar.ETA(),
+        ' ',
+        StatusBar(),
     ]
 
     @contextlib.contextmanager
@@ -173,9 +218,10 @@ class Analysis:
         :return: None
         """
 
-        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, maxval=10000 * 100).start()
+        self._progressbar = progressbar.ProgressBar(widgets=Analysis._PROGRESS_WIDGETS, max_value=10000 * 100).start()
+        self._statusbar = self._progressbar.widgets[-1]
 
-    def _update_progress(self, percentage, **kwargs):
+    def _update_progress(self, percentage, text=None, **kwargs):
         """
         Update the progress with a percentage, including updating the progressbar as well as calling the progress
         callback.
@@ -191,8 +237,11 @@ class Analysis:
 
             self._progressbar.update(percentage * 10000)
 
+        if text is not None and self._statusbar is not None:
+            self._statusbar.status = text
+
         if self._progress_callback is not None:
-            self._progress_callback(percentage, **kwargs)  # pylint:disable=not-callable
+            self._progress_callback(percentage, text=text, **kwargs)  # pylint:disable=not-callable
 
     def _finish_progress(self):
         """
@@ -227,6 +276,19 @@ class Analysis:
 
         if ctr != 0 and ctr % freq == 0:
             time.sleep(sleep_time)
+
+    def __getstate__(self):
+        d = dict(self.__dict__)
+        if "_progressbar" in d:
+            del d['_progressbar']
+        if '_progress_callback' in d:
+            del d['_progress_callback']
+        if '_statusbar' in d:
+            del d['_statusbar']
+        return d
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
 
     def __repr__(self):
         return '<%s Analysis Result at %#x>' % (self._name, id(self))

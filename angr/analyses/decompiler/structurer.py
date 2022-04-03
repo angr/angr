@@ -1,6 +1,7 @@
-# pylint:disable=multiple-statements
-from typing import Dict, Set, Optional, Any, List, TYPE_CHECKING
+# pylint:disable=multiple-statements,line-too-long,consider-using-enumerate
+from typing import Dict, Set, Optional, Any, List, Union, Tuple, TYPE_CHECKING
 import logging
+import itertools
 from collections import defaultdict
 
 import networkx
@@ -15,6 +16,7 @@ from .region_identifier import GraphRegion
 from .structurer_nodes import BaseNode, SequenceNode, CodeNode, ConditionNode, ConditionalBreakNode, LoopNode, \
     SwitchCaseNode, BreakNode, ContinueNode, EmptyBlockNotice, MultiNode, CascadingConditionNode
 from .empty_node_remover import EmptyNodeRemover
+from .jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from .condition_processor import ConditionProcessor
 from .utils import remove_last_statement, extract_jump_targets, get_ast_subexprs, switch_extract_cmp_bounds, \
     insert_node
@@ -37,7 +39,7 @@ class RecursiveStructurer(Analysis):
     """
     def __init__(self, region, cond_proc=None, func: Optional['Function']=None):
         self._region = region
-        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor()
+        self.cond_proc = cond_proc if cond_proc is not None else ConditionProcessor(self.project.arch)
         self.function = func
 
         self.result = None
@@ -47,6 +49,7 @@ class RecursiveStructurer(Analysis):
     def _analyze(self):
 
         region = self._region.recursive_copy()
+        self._case_entry_to_switch_head: Dict[int,int] = self._get_switch_case_entries()
 
         # visit the region in post-order DFS
         parent_map = { }
@@ -76,6 +79,7 @@ class RecursiveStructurer(Analysis):
                 # structure this region
                 st = self.project.analyses.Structurer(current_region, parent_map=parent_map,
                                                       condition_processor=self.cond_proc,
+                                                      case_entry_to_switch_head=self._case_entry_to_switch_head,
                                                       func=self.function)
                 # replace this region with the resulting node in its parent region... if it's not an orphan
                 if not parent_region:
@@ -85,12 +89,36 @@ class RecursiveStructurer(Analysis):
 
                 self._replace_region(parent_region, current_region, st.result)
 
+        # rewrite conditions in the result to remove all jump table entry conditions
+        rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
+        rewriter.walk(self.result)  # update SequenceNodes in-place
+
+        # remove empty nodes (if any)
+        self.result = EmptyNodeRemover(self.result).result
+
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
     def _replace_region(parent_region, sub_region, node):
 
         parent_region.replace_region(sub_region, node)
+
+    def _get_switch_case_entries(self) -> Dict[int,int]:
+
+        if self.function is None:
+            return {}
+
+        entries = {}
+        func_block_addrs = self.function.block_addrs_set
+
+        jump_tables = self.kb.cfgs['CFGFast'].jump_tables
+        for jump_table_head_addr, jumptable in jump_tables.items():
+            if jump_table_head_addr not in func_block_addrs:
+                continue
+            for entry_addr in jumptable.jumptable_entries:
+                entries[entry_addr] = jump_table_head_addr
+
+        return entries
 
 
 class Structurer(Analysis):
@@ -101,14 +129,17 @@ class Structurer(Analysis):
     longer exist due to empty node removal during structuring or prior steps.
     """
     def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
+                 case_entry_to_switch_head: Optional[Dict[int,int]]=None,
                  is_loop_body=False):
 
         self._region: GraphRegion = region
         self._parent_map = parent_map
         self.function = func
+        self._case_entry_to_switch_head = case_entry_to_switch_head
         self._is_loop_body = is_loop_body
 
-        self.cond_proc = condition_processor if condition_processor is not None else ConditionProcessor()
+        self.cond_proc = condition_processor if condition_processor is not None \
+            else ConditionProcessor(self.project.arch)
 
         # intermediate states
         self._new_sequences = [ ]
@@ -158,8 +189,8 @@ class Structurer(Analysis):
     def _analyze_acyclic(self):
 
         # let's generate conditions first
-        self.cond_proc.recover_reaching_conditions(self._region, with_successors=True)
-                                                   # jump_tables=self.kb.cfgs['CFGFast'].jump_tables)
+        self.cond_proc.recover_reaching_conditions(self._region, with_successors=True,
+                                                   case_entry_to_switch_head=self._case_entry_to_switch_head)
 
         # make the sequence node and pack reaching conditions into CodeNode instances
         seq = self._make_sequence()
@@ -394,8 +425,15 @@ class Structurer(Analysis):
             new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
         elif type(last_stmt) is ailment.Stmt.ConditionalJump:
             # add a conditional break
-            if last_stmt.true_target.value in loop_successor_addrs and \
-                    last_stmt.false_target.value not in loop_successor_addrs:
+            true_target_value = None
+            false_target_value = None
+            if last_stmt.true_target is not None:
+                true_target_value = last_stmt.true_target.value
+            if last_stmt.false_target is not None:
+                false_target_value = last_stmt.false_target.value
+
+            if (true_target_value is not None and true_target_value in loop_successor_addrs) and \
+                    (false_target_value is None or false_target_value not in loop_successor_addrs):
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
                 new_node = ConditionalBreakNode(
@@ -403,8 +441,8 @@ class Structurer(Analysis):
                     self.cond_proc.claripy_ast_from_ail_condition(cond),
                     target
                 )
-            elif last_stmt.false_target.value in loop_successor_addrs and \
-                    last_stmt.true_target.value not in loop_successor_addrs:
+            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
+                    (true_target_value is None or true_target_value not in loop_successor_addrs):
                 cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, 'Not', (last_stmt.condition))
                 target = last_stmt.false_target.value
                 new_node = ConditionalBreakNode(
@@ -412,8 +450,8 @@ class Structurer(Analysis):
                     self.cond_proc.claripy_ast_from_ail_condition(cond),
                     target
                 )
-            elif last_stmt.false_target.value in loop_successor_addrs and \
-                    last_stmt.true_target.value in loop_successor_addrs:
+            elif (false_target_value is not None and false_target_value in loop_successor_addrs) and \
+                    (true_target_value is not None and true_target_value in loop_successor_addrs):
                 # both targets are pointing outside the loop
                 # we should use just add a break node
                 new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
@@ -573,7 +611,9 @@ class Structurer(Analysis):
 
         jump_tables = self.kb.cfgs['CFGFast'].jump_tables
 
-        addr2nodes = dict((node.addr, node) for node in seq.nodes)
+        addr2nodes: Dict[int,Set[CodeNode]] = defaultdict(set)
+        for node in seq.nodes:
+            addr2nodes[node.addr].add(node)
 
         while True:
             for i in range(len(seq.nodes)):
@@ -596,7 +636,7 @@ class Structurer(Analysis):
                 # we did not find any node that looks like a switch-case. exit.
                 break
 
-    def _make_switch_cases_address_loaded_from_memory(self, seq, i, node, addr2nodes: Dict,
+    def _make_switch_cases_address_loaded_from_memory(self, seq, i, node, addr2nodes: Dict[int,Set[CodeNode]],
                                                       jump_tables: Dict[int,IndirectJump]) -> bool:
         """
         A typical jump table involves multiple nodes, which look like the following:
@@ -638,18 +678,19 @@ class Structurer(Analysis):
         cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
 
         # the real indirect jump
-        node_a = addr2nodes[target]
+        if len(addr2nodes[target]) != 1:
+            return False
+        node_a = next(iter(addr2nodes[target]))
         # the default case
         node_b_addr = next(iter(t for t in successor_addrs if t != target))
 
         # Node A might have been structured. Un-structure it if that is the case.
-        r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table.jumptable_entries,
-                                                      addr2nodes)
+        r, node_a = self._switch_unpack_sequence_node(seq, node_a, node_b_addr, jump_table, addr2nodes)
         if not r:
             return False
 
         # build switch-cases
-        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jump_table.jumptable_entries,
+        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jump_table.jumptable_entries, i,
                                                                   node_b_addr, addr2nodes)
         if node_default is None:
             switch_end_addr = node_b_addr
@@ -659,11 +700,11 @@ class Structurer(Analysis):
         self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
         self._make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, last_stmt.ins_addr, addr2nodes,
-                                     to_remove, node_a=node_a)
+                                     to_remove, node_a=node_a, jumptable_addr=jump_table.addr)
 
         return True
 
-    def _make_switch_cases_address_computed(self, seq, i, node, addr2nodes: Dict,
+    def _make_switch_cases_address_computed(self, seq, i, node, addr2nodes: Dict[int,Set[CodeNode]],
                                             jump_tables: Dict[int,IndirectJump]) -> bool:
         if node.addr not in jump_tables:
             return False
@@ -699,18 +740,19 @@ class Structurer(Analysis):
         else:
             return False
 
-        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, default_addr,
+        cases, node_default, to_remove = self._switch_build_cases(seq, cmp_lb, jumptable_entries, default_addr, i,
                                                                   addr2nodes)
         if node_default is None:
             # there must be a default case
             return False
 
-        self._make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, node.addr, addr2nodes, to_remove)
+        self._make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, node.addr, addr2nodes, to_remove,
+                                     jumptable_addr=jump_table.addr)
 
         return True
 
-    @staticmethod
-    def _make_switch_cases_core(seq, i, node, cmp_expr, cases, node_default, addr, addr2nodes, to_remove, node_a=None):
+    def _make_switch_cases_core(self, seq, i, node, cmp_expr, cases, node_default, addr, addr2nodes, to_remove,
+                                node_a=None, jumptable_addr=None):
 
         scnode = SwitchCaseNode(cmp_expr, cases, node_default, addr=addr)
         scnode = CodeNode(scnode, node.reaching_condition)
@@ -722,7 +764,9 @@ class Structurer(Analysis):
             to_remove.add(node_default)
         for node_ in to_remove:
             seq.remove_node(node_)
-            del addr2nodes[node_.addr]
+            addr2nodes[node_.addr].discard(node_)
+            if not addr2nodes[node_.addr]:
+                del addr2nodes[node_.addr]
         # remove the last statement in node
         remove_last_statement(node)
         if BaseNode.test_empty_node(node):
@@ -733,8 +777,12 @@ class Structurer(Analysis):
             if BaseNode.test_empty_node(node_a):
                 seq.remove_node(node_a)
 
-    def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable_entries,
-                                     addr2nodes: Dict[int,Any]):
+        # rewrite conditions in the entire SequenceNode to remove jump table entry conditions
+        rewriter = JumpTableEntryConditionRewriter(self.cond_proc.jump_table_conds[jumptable_addr])
+        rewriter.walk(seq)  # update SequenceNodes in-place
+
+    def _switch_unpack_sequence_node(self, seq: SequenceNode, node_a, node_b_addr: int, jumptable,
+                                     addr2nodes: Dict[int,Set[CodeNode]]) -> Tuple[bool,Optional[CodeNode]]:
         """
         We might have already structured the actual body of the switch-case structure into a single Sequence node (node
         A). If that is the case, we un-structure the sequence node in this method.
@@ -742,13 +790,14 @@ class Structurer(Analysis):
         :param seq:                 The original Sequence node.
         :param node_a:              Node A.
         :param node_b_addr:         Address of node B.
-        :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
+        :param jumptable:           The corresponding jump table instance.
         :param addr2nodes:          A dict of addresses to their corresponding nodes in `seq`.
         :return:                    A boolean value indicating the result and an updated node_a. The boolean value is
                                     True if unpacking is not necessary or we successfully unpacked the sequence node,
                                     False otherwise.
-        :rtype:                     bool
         """
+
+        jumptable_entries = jumptable.jumptable_entries
 
         if isinstance(node_a.node, SequenceNode):
             node_a_block_addrs = {n.addr for n in node_a.node.nodes}
@@ -763,29 +812,91 @@ class Structurer(Analysis):
             # unpacking is needed
             for n in node_a.node.nodes:
                 if isinstance(n, ConditionNode):
-                    if n.true_node is not None and n.false_node is None:
-                        the_node = CodeNode(n.true_node, n.condition)
-                        addr2nodes[n.addr] = the_node
-                        seq.add_node(the_node)
-                    elif n.false_node is not None and n.true_node is None:
-                        the_node = CodeNode(n.false_node, n.condition)
-                        addr2nodes[n.addr] = the_node
-                        seq.add_node(the_node)
-                    else:
+                    unpacked = self._switch_unpack_condition_node(n, jumptable)
+                    if unpacked is None:
                         # unsupported. bail
                         return False, None
+                    if n.addr in addr2nodes:
+                        del addr2nodes[n.addr]
+                    addr2nodes[n.addr].add(unpacked)
+                    seq.add_node(unpacked)
                 else:
                     the_node = CodeNode(n, None)
-                    addr2nodes[n.addr] = the_node
+                    if n.addr in addr2nodes:
+                        del addr2nodes[n.addr]
+                    addr2nodes[n.addr].add(the_node)
                     seq.add_node(the_node)
             if node_a != addr2nodes[node_a.addr]:
                 # update node_a
                 seq.remove_node(node_a)
-                node_a = addr2nodes[node_a.addr]
+                node_a = next(iter(addr2nodes[node_a.addr]))
             return True, node_a
 
-        # not sure what's going on... give up on this case
-        return False, None
+        # a jumptable entry is missing. it's very likely marked as the successor of the entire switch-case region. we
+        # should have been handling it when dealing with multi-exit regions. ignore it here.
+        return True, node_a
+
+    def _switch_unpack_condition_node(self, cond_node: ConditionNode, jumptable) -> Optional[CodeNode]:
+        """
+        Unpack condition nodes by only removing one condition in the form of
+        <Bool jump_table_402020 == 0x402ac4>.
+
+        :param cond_node:   The condition node to unpack.
+        :return:            The new unpacked node.
+        """
+
+        # FIXME: With the new jump table entry condition, this function is probably never used. Remove sequence node
+        # FIXME: unpacking logic if that is the case.
+
+        cond = cond_node.condition
+
+        # look for a condition in the form of xxx == jump_target
+        eq_condition = None
+        remaining_cond = None
+        true_node = None
+        false_node = None
+
+        jumptable_var = self.cond_proc.create_jump_target_var(jumptable.addr)
+
+        if cond.op == "And":
+            for arg in cond.args:
+                if arg.op == "__eq__" \
+                        and arg.args[0] is jumptable_var \
+                        and isinstance(arg.args[1], claripy.Bits) \
+                        and arg.args[1].concrete:
+                    # found it
+                    eq_condition = arg
+                    remaining_cond = claripy.And(*(arg_ for arg_ in cond.args if arg_ is not arg))
+                    true_node = cond_node.true_node
+                    false_node = cond_node.false_node
+                    break
+            else:
+                # unsupported
+                return None
+        elif cond.op == "__eq__":
+            if cond.args[0] is jumptable_var \
+                    and isinstance(cond.args[1], claripy.Bits) \
+                    and cond.args[1].concrete:
+                # found it
+                eq_condition = cond
+                true_node = cond_node.true_node
+                false_node = cond_node.false_node
+                remaining_cond = None
+            else:
+                # unsupported
+                return None
+        else:
+            # unsupported
+            return None
+
+        if remaining_cond is None:
+            if true_node is not None and false_node is None:
+                return CodeNode(true_node, eq_condition)
+            # unsupported
+            return None
+
+        return CodeNode(ConditionNode(cond_node.addr, claripy.true, remaining_cond, true_node, false_node=false_node),
+                        eq_condition)
 
     def _switch_check_existence_of_jumptable_entries(self, jumptable_entries, node_a_block_addrs: Set[int],
                                                      known_node_addrs: Set[int], node_a_addr: int,
@@ -819,17 +930,17 @@ class Structurer(Analysis):
                         if successors[0].addr in all_node_addrs:
                             expected_node_a_addrs.add(successors[0].addr)
                             continue
-            # failed the check
-            return False
+            # it's also possible that this is just a jump that breaks out of the switch-case. we simply ignore it.
+            continue
 
-        # finally, make sure all nodes under node A have been accounted for
-        if node_a_block_addrs.issubset(expected_node_a_addrs | {node_a_addr}):
+        # finally, make sure all expected nodes exist
+        if node_a_block_addrs.issuperset((expected_node_a_addrs | {node_a_addr}) - {node_b_addr}):
             return True
 
         # not sure what is going on...
         return False
 
-    def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: Dict[int,Any]) -> Optional[Any]:
+    def _switch_find_jumptable_entry_node(self, entry_addr: int, addr2nodes: Dict[int,Set[CodeNode]]) -> Optional[Any]:
         """
         Find the correct node for a given jump table entry address in addr2nodes.
 
@@ -842,8 +953,8 @@ class Structurer(Analysis):
         :return:            The correct node if we can find it, or None if we fail to find one.
         """
 
-        if entry_addr in addr2nodes:
-            return addr2nodes[entry_addr]
+        if entry_addr in addr2nodes and len(addr2nodes[entry_addr]) == 1:
+            return next(iter(addr2nodes[entry_addr]))
         # magic
         if self.function is None:
             return None
@@ -862,44 +973,73 @@ class Structurer(Analysis):
             successor = successors[0]
             if successor.addr in addr2nodes:
                 # found it!
-                return addr2nodes[successor.addr]
+                return next(iter(addr2nodes[successor.addr]))
             # keep looking
             node = successor
         return None
 
-    def _switch_build_cases(self, seq, cmp_lb, jumptable_entries, node_b_addr, addr2nodes):
+    def _switch_build_cases(self, seq: SequenceNode, cmp_lb: int, jumptable_entries: List[int], head_node_idx: int,
+                            node_b_addr: int, addr2nodes: Dict[int,Set[CodeNode]]):
         """
         Discover all cases for the switch-case structure and build the switch-cases dict.
 
         :param seq:                 The original Sequence node.
-        :param int cmp_lb:          The lower bound of the jump table comparison.
-        :param list jumptable_entries:  Addresses of indirect jump targets in the jump table.
-        :param int node_b_addr:     Address of node B. Potentially, node B is the default node.
-        :param dict addr2nodes:     A dict of addresses to their corresponding nodes in `seq`.
+        :param cmp_lb:              The lower bound of the jump table comparison.
+        :param jumptable_entries:   Addresses of indirect jump targets in the jump table.
+        :param head_node_addr:      The index of the head block of this jump table in `seq`.
+        :param node_b_addr:         Address of node B. Potentially, node B is the default node.
+        :param addr2nodes:          A dict of addresses to their corresponding nodes in `seq`.
         :return:
         """
 
-        cases = { }
+        cases: Dict[Union[int,Tuple[int]],SequenceNode] = { }
         to_remove = set()
         node_default = addr2nodes.get(node_b_addr, None)
+        if node_default is not None:
+            node_default = next(iter(node_default))
 
         entry_addrs_set = set(jumptable_entries)
+        converted_nodes: Dict[int,Any] = { }
+        entry_addr_to_ids = defaultdict(set)
+
         for j, entry_addr in enumerate(jumptable_entries):
             cases_idx = cmp_lb + j
             if entry_addr == node_b_addr:
                 # jump to default or end of the switch-case structure - ignore this case
                 continue
 
+            entry_addr_to_ids[entry_addr].add(cases_idx)
+
+            if entry_addr in converted_nodes:
+                continue
+
             entry_node = self._switch_find_jumptable_entry_node(entry_addr, addr2nodes)
             if entry_node is None:
-                l.warning("Missing jump table entry %#x for jump table %#x. Please report it to GitHub.",
-                          entry_addr,
-                          seq.addr,
-                          )
+                # Missing entries. They are probably *after* the entire switch-case construct. Replace it with an empty
+                # Goto node.
+                case_inner_node = ailment.Block(0, 0, statements=[
+                    ailment.Stmt.Jump(None, ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits),
+                                      ins_addr=0, stmt_idx=0)
+                ])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+                converted_nodes[entry_addr] = case_node
                 continue
+
             case_node = SequenceNode(entry_node.addr, nodes=[CodeNode(entry_node.node, claripy.true)])
             to_remove.add(entry_node)
             entry_node_idx = seq.nodes.index(entry_node)
+
+            if entry_node_idx <= head_node_idx:
+                # it's jumping to a block that dominates the head. it's likely to be an optimized continue; statement
+                # in a switch-case wrapped inside a while loop.
+                # replace it with an empty Goto node
+                case_inner_node = ailment.Block(0, 0, statements=[
+                    ailment.Stmt.Jump(None, ailment.Expr.Const(None, None, entry_addr, self.project.arch.bits),
+                                      ins_addr=0, stmt_idx=0)
+                ])
+                case_node = SequenceNode(0, nodes=[CodeNode(case_inner_node, claripy.true)])
+                converted_nodes[entry_addr] = case_node
+                continue
 
             # find nodes that this entry node dominates
             cond_subexprs = list(get_ast_subexprs(entry_node.reaching_condition))
@@ -909,7 +1049,8 @@ class Structurer(Analysis):
                 if guarded_nodes is None:
                     guarded_nodes = set(node_ for _, node_, _ in guarded_node_candidates)
                 else:
-                    guarded_nodes = guarded_nodes.intersection(set(node_ for _, node_, _ in guarded_node_candidates))
+                    guarded_nodes = guarded_nodes.intersection(
+                        set(node_ for _, node_, _ in guarded_node_candidates))
 
             if guarded_nodes is not None:
                 # keep the topological order of nodes in Sequence node
@@ -917,7 +1058,8 @@ class Structurer(Analysis):
                 for node_ in sorted_guarded_nodes:
                     if node_ is not entry_node and node_.addr not in entry_addrs_set:
                         # fix reaching condition
-                        reaching_condition_subexprs = set(ex for ex in get_ast_subexprs(node_.reaching_condition)).difference(set(cond_subexprs))
+                        reaching_condition_subexprs = set(
+                            ex for ex in get_ast_subexprs(node_.reaching_condition)).difference(set(cond_subexprs))
                         new_reaching_condition = claripy.And(*reaching_condition_subexprs)
                         new_node = CodeNode(node_.node, new_reaching_condition)
                         case_node.add_node(new_node)
@@ -932,8 +1074,16 @@ class Structurer(Analysis):
                     # switch-case struct
                     node_default = None
 
-            self._new_sequences.append(case_node)
-            cases[cases_idx] = case_node
+            converted_nodes[entry_addr] = case_node
+
+        for entry_addr, converted_node in converted_nodes.items():
+            cases_ids = entry_addr_to_ids[entry_addr]
+            if len(cases_ids) == 1:
+                cases[next(iter(cases_ids))] = converted_node
+            else:
+                cases[tuple(sorted(cases_ids))] = converted_node
+
+            self._new_sequences.append(converted_node)
 
         return cases, node_default, to_remove
 
@@ -1121,7 +1271,7 @@ class Structurer(Analysis):
                     node.node in self.cond_proc.guarding_conditions:
                 guarding_condition = self.cond_proc.guarding_conditions[node.node]
                 # the op of guarding condition is always "Or"
-                if len(guarding_condition.args) < len(node.reaching_condition.args) or \
+                if len(guarding_condition.args) < len(node.reaching_condition.args) and \
                         guarding_condition.depth < node.reaching_condition.depth:
                     node.reaching_condition = guarding_condition
 
@@ -1145,7 +1295,8 @@ class Structurer(Analysis):
                                                  None)
                     seq.nodes[i] = new_node
 
-    def _make_cascading_condition_nodes(self, seq: SequenceNode):
+    @staticmethod
+    def _make_cascading_condition_nodes(seq: SequenceNode):
         """
         Convert nested condition nodes into a CascadingConditionNode.
         """

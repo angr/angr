@@ -6,11 +6,10 @@ from capstone import CS_GRP_CALL, CS_GRP_IRET, CS_GRP_JUMP, CS_GRP_RET
 
 from . import ExplorationTechnique
 from .. import BP_BEFORE, BP_AFTER, sim_options
-from ..errors import AngrTracerError
+from ..errors import AngrTracerError, SimIRSBNoDecodeError
 
 
 l = logging.getLogger(name=__name__)
-
 
 class TracingMode:
     """
@@ -456,21 +455,20 @@ class Tracer(ExplorationTechnique):
         idx = succs[0].globals['trace_idx']
 
         res = []
-        for succ in succs:
-            try:
-                if self._compare_addr(self._trace[idx + 1], succ.addr):
+        last_description = succs[0].history.descriptions[-1]
+        if 'Unicorn' in last_description:
+            # Multiple new states were created in SimEngineUnicorn. State which has non-zero recent block count is a
+            # valid successor since only correct successor is sync'd with native state
+            for succ in succs:
+                if succ.history.recent_block_count > 0:
                     res.append(succ)
-                else:
-                    last_description = succ.history.descriptions[-1]
-                    if 'Unicorn' in last_description:
-                        # A new state was created in SimEngineUnicorn. Check every recent basic block to see if any
-                        # match the next expected index
-                        for bbl_addr in succ.history.recent_bbl_addrs:
-                            if self._compare_addr(self._trace[idx + 1], bbl_addr):
-                                res.append(succ)
-                                break
-            except AngrTracerError:
-                pass
+        else:
+            for succ in succs:
+                try:
+                    if self._compare_addr(self._trace[idx + 1], succ.addr):
+                        res.append(succ)
+                except AngrTracerError:
+                    pass
 
         if not res:
             raise Exception("No states followed the trace?")
@@ -497,7 +495,7 @@ class Tracer(ExplorationTechnique):
             assert state.history.recent_block_count == len(state.history.recent_bbl_addrs)
 
             for addr_idx, addr in enumerate(state.history.recent_bbl_addrs):
-                if addr == state.unicorn.transmit_addr:
+                if addr in [state.unicorn.cgc_transmit_addr, state.unicorn.cgc_receive_addr]:
                     continue
 
                 if sync is not None and sync != 'entry':
@@ -786,7 +784,6 @@ class Tracer(ExplorationTechnique):
         slide = self._aslr_slides[obj]
         trace_addr = self._trace[idx + 1] - slide
         l.info("Misfollow: angr says %#x, trace says %#x", angr_addr, trace_addr)
-
         if not obj.contains_addr(trace_addr):
             l.error("Translated trace address lives in a different object from the angr trace")
             return False
@@ -794,11 +791,15 @@ class Tracer(ExplorationTechnique):
         # TODO: add rep handling
 
         if 'IRSB' in state.history.recent_description:
+            VEXMaxInsnsPerBlock = 99
             last_block = state.block(state.history.bbl_addrs[-1])
+
+            # Case 1: angr block contains more instructions than trace block
             if self._trace[idx + 1] - slide in last_block.instruction_addrs:
                 # we have disparate block sizes!
                 # specifically, the angr block size is larger than the trace's.
                 # allow the trace to catch up.
+
                 while self._trace[idx + 1] - slide in last_block.instruction_addrs:
                     idx += 1
 
@@ -811,6 +812,14 @@ class Tracer(ExplorationTechnique):
                     state.globals['trace_idx'] = idx
                     #state.globals['trace_desync'] = True
                     return True
+
+            # Case 2: trace block contains more instructions than angr
+            # block.  Caused by VEX's maximum instruction limit of 99
+            # instructions
+            elif state.project.factory.block(state.history.addr).instructions == VEXMaxInsnsPerBlock and \
+                 state.history.jumpkind == 'Ijk_Boring':
+                l.info('...resolved: vex block limit')
+                return True
 
         prev_addr = state.history.bbl_addrs[-1]
         prev_obj = self.project.loader.find_object_containing(prev_addr)
@@ -875,7 +884,7 @@ class Tracer(ExplorationTechnique):
         self._current_slide = self._aslr_slides[target_obj]
         target_addr += self._current_slide
         try:
-            target_idx = self._trace.index(target_addr, state.globals['trace_idx'] + 1)
+            target_idx = self._trace.index(target_addr, state.globals['trace_idx'])
         except ValueError as e:
             # if the user wants to catch desync caused by sim_procedure,
             # mark this state as a desync state and then end the tracing prematurely
@@ -952,7 +961,12 @@ class Tracer(ExplorationTechnique):
         state.preconstrainer.reconstrain()
 
         l.debug("final step...")
-        succs = state.step(num_inst=1)
+        try:
+            succs = state.step(num_inst=1)
+        except SimIRSBNoDecodeError:
+            # See https://github.com/angr/angr/issues/71
+            # Basically, we probably tried to single step over a delay slot.
+            succs = state.step(num_inst=2)
 
         successors = succs.flat_successors + succs.unconstrained_successors
         crash_state = successors[0]

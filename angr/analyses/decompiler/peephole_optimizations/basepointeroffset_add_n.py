@@ -6,7 +6,7 @@ from .base import PeepholeOptimizationExprBase
 class BasePointerOffsetAddN(PeepholeOptimizationExprBase):
     __slots__ = ()
 
-    name = "(Ptr - M) + N => Ptr - (M - N)"
+    NAME = "(Ptr - M) + N => Ptr - (M - N)"
     expr_classes = (BinaryOp, )  # all expressions are allowed
 
     def optimize(self, expr: BinaryOp):
