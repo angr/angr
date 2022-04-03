@@ -637,8 +637,11 @@ class ConditionProcessor:
 
         lambda_expr = _mapping.get(condition.verbose_op, None)
         if lambda_expr is None:
-            raise NotImplementedError("Unsupported AIL expression operation %s. Consider implementing."
-                                      % condition.verbose_op)
+            # fall back to op
+            lambda_expr = _mapping.get(condition.op, None)
+        if lambda_expr is None:
+            raise NotImplementedError("Unsupported AIL expression operation %s or %s. Consider implementing."
+                                      % (condition.op, condition.verbose_op))
         r = lambda_expr(condition, self.claripy_ast_from_ail_condition)
         if r is NotImplemented:
             r = claripy.BVS("ailexpr_%r" % condition, condition.bits, explicit_name=True)
