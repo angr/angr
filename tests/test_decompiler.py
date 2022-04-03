@@ -1014,6 +1014,22 @@ class TestDecompiler(unittest.TestCase):
         assert "extern unsigned int b;" in d.codegen.text
         assert "extern unsigned int c;" in d.codegen.text
 
+'''
+def test_decompiling_py_representation():
+    bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")    
+    p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
+
+    cfg = p.analyses.CFG(data_references=True, normalize=True)
+    
+    func = cfg.functions['main']
+
+    dec = p.analyses.Decompiler(func, cfg=cfg.model)
+    code = dec.codegen.text   
+
+    split_code = code.split('\n')
+    assert split_code[38].strip() == "while (true):"
+    assert split_code[77].strip() == "elif (int(ingest_emaillist()) == 0):"
+'''
 
 if __name__ == "__main__":
     unittest.main()
