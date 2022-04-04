@@ -134,10 +134,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         if execute_default_exit and block_details["has_symbolic_exit"]:
             # Process block's default exit
-            saved_state = self.state.copy()
             self.stmt_idx = DEFAULT_STATEMENT  # pylint:disable=attribute-defined-outside-init
             super()._handle_vex_defaultexit(vex_block.next, vex_block.jumpkind)  # pylint:disable=no-member
-            self.state = saved_state
 
         # Restore breakpoints
         for succ_state in self.successors.successors:
