@@ -5,15 +5,17 @@ l = logging.getLogger(name=__name__)
 
 class getcwd(angr.SimProcedure):
     def run(self, buf, size):
-        cwd = self.state.fs.cwd
-        size = self.state.solver.If(size-1 > len(cwd), len(cwd), size-1)
+        if self.state.solver.unique(size):
+            size = self.state.solver.eval_one(size)
+
+        cwd = self.state.fs.cwd + b'\0'
+        if len(cwd) > size:
+            return -self.state.posix.ERANGE
         try:
-            self.state.memory.store(buf, cwd, size=size)
-            self.state.memory.store(buf + size, b'\0')
+            self.state.memory.store(buf, cwd, size=len(cwd))
         except angr.errors.SimSegfaultException:
-            return 0
-        else:
-            return buf
+            return -self.state.posix.EFAULT
+        return len(cwd)
 
 class chdir(angr.SimProcedure):
     def run(self, buf):
