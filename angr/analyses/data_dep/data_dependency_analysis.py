@@ -445,14 +445,12 @@ class DataDependencyGraphAnalysis(Analysis):
         :returns: The instruction address and last statement index of the parsed instruction
         """
 
-        # ins_addr = loc.ins_addr if loc else None
-        loc = self._parse_statement()
+        while True:
+            loc = self._parse_statement()
 
-        if not self._actions or loc.ins_addr != self._peek().ins_addr:
-            # End of instruction
-            return loc
-        else:
-            return self._parse_instruction()
+            if not self._actions or loc.ins_addr != self._peek().ins_addr:
+                # End of instruction
+                return loc
 
     def _parse_block(self):
         """
@@ -460,19 +458,18 @@ class DataDependencyGraphAnalysis(Analysis):
         block -> instruction block
         """
 
-        start_stmt_idx = self._peek().stmt_idx  # Statement index of first statement in instruction
+        while True:
+            start_stmt_idx = self._peek().stmt_idx  # Statement index of first statement in instruction
 
-        end_loc = self._parse_instruction()
+            end_loc = self._parse_instruction()
 
-        # Add most recently parsed instruction to instructions data structure
-        parsed_ins = ParsedInstruction(end_loc.ins_addr, start_stmt_idx, end_loc.stmt_idx)
-        self._parsed_ins_addrs.insert(0, parsed_ins)
+            # Add most recently parsed instruction to instructions data structure
+            parsed_ins = ParsedInstruction(end_loc.ins_addr, start_stmt_idx, end_loc.stmt_idx)
+            self._parsed_ins_addrs.insert(0, parsed_ins)
 
-        if self._actions and end_loc.bbl_addr == self._peek().bbl_addr:
-            # Block continues with at least one more instruction
-            self._parse_block()
-        else:
-            return
+            if not self._actions or end_loc.bbl_addr != self._peek().bbl_addr:
+                # Block continues with at least one more instruction
+                break
 
     def _parse_blocks(self):
         """
