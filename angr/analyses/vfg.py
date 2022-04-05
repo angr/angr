@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import List, Generator, TYPE_CHECKING
 import logging
 from collections import defaultdict
 
@@ -18,6 +18,10 @@ from ..errors import AngrDelayJobNotice, AngrSkipJobNotice, AngrVFGError, AngrEr
     AngrJobMergingFailureNotice, SimValueError, SimIRSBError, SimError
 from ..procedures import SIM_PROCEDURES
 from ..state_plugins.callstack import CallStack
+
+if TYPE_CHECKING:
+    from angr.sim_state import SimState
+
 
 l = logging.getLogger(name=__name__)
 
@@ -66,7 +70,7 @@ class VFGJob(CFGJobBase):
         return "//".join(s)
 
 
-class PendingJob(object):
+class PendingJob:
 
     __slots__ = ('block_id', 'state', 'call_stack', 'src_block_id', 'src_stmt_idx', 'src_ins_addr', )
 
@@ -79,7 +83,7 @@ class PendingJob(object):
         self.src_ins_addr = src_ins_addr
 
 
-class AnalysisTask(object):
+class AnalysisTask:
     """
     An analysis task describes a task that should be done before popping this task out of the task stack and discard it.
     """
@@ -177,7 +181,7 @@ class CallAnalysis(AnalysisTask):
         return job
 
 
-class VFGNode(object):
+class VFGNode:
     """
     A descriptor of nodes in a Value-Flow Graph
     """
@@ -683,7 +687,7 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
 
         # Obtain successors
         if addr not in self._avoid_runs:
-            all_successors = job.sim_successors.flat_successors + job.sim_successors.unconstrained_successors
+            all_successors: List['SimState'] = job.sim_successors.flat_successors + job.sim_successors.unconstrained_successors
         else:
             all_successors = []
 
@@ -718,7 +722,17 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
         # is artificial) into the CFG. The exits will be Ijk_Call and
         # Ijk_FakeRet, and Ijk_Call always goes first
         job.is_call_jump = any([self._is_call_jumpkind(i.history.jumpkind) for i in all_successors])
-        call_targets = [i.solver.eval_one(i.ip) for i in all_successors if self._is_call_jumpkind(i.history.jumpkind)]
+        call_targets = [ ]
+        for succ in all_successors:
+            if self._is_call_jumpkind(succ.history.jumpkind):
+                try:
+                    call_targets.append(succ.solver.eval_one(succ._ip))
+                    # finding one is enough!
+                    break
+                except SimValueError:
+                    # this call has multiple possible targets. ignore it
+                    pass
+
         job.call_target = None if not call_targets else call_targets[0]
 
         job.is_return_jump = len(all_successors) and all_successors[0].history.jumpkind == 'Ijk_Ret'
