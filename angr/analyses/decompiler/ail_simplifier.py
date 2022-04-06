@@ -401,6 +401,8 @@ class AILSimplifier(Analysis):
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
+        def_locations_to_remove: Set[CodeLocation] = set()
+
         for eq in prop.equivalence:
             eq: Equivalence
 
@@ -427,11 +429,17 @@ class AILSimplifier(Analysis):
                 the_def: Definition = defs[0]
 
                 # find all uses of this definition
-                all_uses: Set[CodeLocation] = set(rd.all_uses.get_uses(the_def))
+                all_uses: Set[Tuple[CodeLocation,Any]] = set(rd.all_uses.get_uses_with_expr(the_def))
 
                 if len(all_uses) != 1:
                     continue
-                u = next(iter(all_uses))
+                u, used_expr = next(iter(all_uses))
+
+                if u in def_locations_to_remove:
+                    # this use site has been altered by previous folding attempts. the corresponding statement will be
+                    # removed in the end. in this case, this Equivalence is probably useless, and we must rerun
+                    # Propagator to get an updated Equivalence.
+                    continue
 
                 # check the statement and make sure it's not a conditional jump
                 the_block = addr_and_idx_to_block[(u.block_addr, u.block_idx)]
@@ -455,7 +463,7 @@ class AILSimplifier(Analysis):
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
                 if isinstance(eq.atom0, Register):
-                    src = eq.atom0
+                    src = used_expr
                     dst = call
                 else:
                     continue
@@ -468,6 +476,7 @@ class AILSimplifier(Analysis):
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
                     simplified = True
+                    def_locations_to_remove.add(eq.codeloc)
 
         # no need to clear the cache at the end of this method
         return simplified

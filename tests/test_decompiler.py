@@ -613,8 +613,7 @@ class TestDecompiler(unittest.TestCase):
         func_0 = cfg.functions['main']
         dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
-        l.debug("Decompiled function %s\n%s", repr(func_0), dec.codegen.text)
-
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         assert "root(" in code
