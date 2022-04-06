@@ -285,8 +285,8 @@ class PropagatorAILState(PropagatorState):
 
         self._registers.set_state(self)
         self._stack_variables.set_state(self)
-        self.last_stack_store = None
-        self.global_stores: List[Tuple[Any,ailment.Stmt.Store]] = [ ]
+        self.last_stack_store: Optional[Tuple[int,int,ailment.Stmt.Store]] = None
+        self.global_stores: List[Tuple[int,int,Any,ailment.Stmt.Store]] = [ ]
 
     def __repr__(self):
         return "<PropagatorAILState>"

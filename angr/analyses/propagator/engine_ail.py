@@ -13,6 +13,7 @@ from .prop_value import PropValue, Detail
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState
+    from angr.code_location import CodeLocation
 
 l = logging.getLogger(name=__name__)
 
@@ -82,7 +83,7 @@ class SimEnginePropagatorAIL(
         # is it accessing the stack?
         sp_offset = self.extract_offset_to_sp(addr.one_expr) if addr.one_expr is not None else None
         if sp_offset is not None:
-            self.state.last_stack_store = stmt
+            self.state.last_stack_store = (self.block.addr, self.stmt_idx, stmt)
             if isinstance(data.one_expr, Expr.StackBaseOffset):
                 # convert it to a BV
                 expr = data.one_expr
@@ -107,7 +108,7 @@ class SimEnginePropagatorAIL(
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
         else:
-            self.state.global_stores.append((addr.one_expr, stmt))
+            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr.one_expr, stmt))
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -187,8 +188,15 @@ class SimEnginePropagatorAIL(
 
             # check if this new_expr uses any expression that has been overwritten
             all_subexprs = list(tmp.all_exprs())
-            if None in all_subexprs or \
-                    any(self.is_using_outdated_def(sub_expr, avoid=expr) for sub_expr in all_subexprs):
+            outdated = False
+            for detail in tmp.offset_and_details.values():
+                if detail.expr is None:
+                    continue
+                if self.is_using_outdated_def(detail.expr, detail.def_at, avoid=expr):
+                    outdated = True
+                    break
+
+            if None in all_subexprs or outdated:
                 top = self.state.top(expr.size * self.arch.byte_width)
                 self.state.add_replacement(self._codeloc(), expr, top)
                 return PropValue.from_value_and_details(top, expr.size, expr, self._codeloc())
@@ -267,9 +275,16 @@ class SimEnginePropagatorAIL(
         if new_expr is not None:
             # check if this new_expr uses any expression that has been overwritten
             replaced = False
+            outdated = False
             all_subexprs = list(new_expr.all_exprs())
-            if all_subexprs and None not in all_subexprs \
-                    and not any(self.is_using_outdated_def(subexpr) for subexpr in all_subexprs):
+            for _, detail in new_expr.offset_and_details.items():
+                if detail.expr is None:
+                    break
+                if self.is_using_outdated_def(detail.expr, detail.def_at):
+                    outdated = True
+                    break
+
+            if all_subexprs and None not in all_subexprs and not outdated:
                 if len(all_subexprs) == 1:
                     # trivial case
                     subexpr = all_subexprs[0]
@@ -309,7 +324,7 @@ class SimEnginePropagatorAIL(
                     # replacing stack variables, unless this is in the middle of a call statement.
                     if self.state._inside_call_stmt:
                         if var.one_expr is not None:
-                            if not self.is_using_outdated_def(var.one_expr, avoid=expr.addr):
+                            if not self.is_using_outdated_def(var.one_expr, var.one_defat, avoid=expr.addr):
                                 l.debug("Add a replacement: %s with %s", expr, var.one_expr)
                                 self.state.add_replacement(self._codeloc(), expr, var.one_expr)
                         else:
@@ -806,10 +821,11 @@ class SimEnginePropagatorAIL(
     # Util methods
     #
 
-    def is_using_outdated_def(self, expr: Expr.Expression, avoid: Optional[Expr.Expression]=None) -> bool:
+    def is_using_outdated_def(self, expr: Expr.Expression, expr_defat: 'CodeLocation',
+                              avoid: Optional[Expr.Expression]=None) -> bool:
 
         from .outdated_definition_walker import OutdatedDefinitionWalker  # pylint:disable=import-outside-toplevel
 
-        walker = OutdatedDefinitionWalker(expr, self.state, avoid=avoid)
+        walker = OutdatedDefinitionWalker(expr, expr_defat, self.state, avoid=avoid)
         walker.walk_expression(expr)
         return walker.out_dated

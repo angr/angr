@@ -1,3 +1,4 @@
+# pylint: disable=missing-class-docstring,no-self-use
 import logging
 import os
 import re
@@ -14,10 +15,16 @@ from angr.analyses import (
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 l = logging.Logger(__name__)
 
+WORKER = bool(os.environ.get('WORKER', False))  # this variable controls whether we print the decompilation code or not
 
-# pylint: disable=missing-class-docstring
-# pylint: disable=no-self-use
+
 class TestDecompiler(unittest.TestCase):
+
+    def _print_decompilation_result(self, dec):
+        if not WORKER:
+            print("Decompilation result:")
+            print(dec.codegen.text)
+
     def test_decompiling_all_x86_64(self):
         bin_path = os.path.join(test_location, "x86_64", "all")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -31,7 +38,6 @@ class TestDecompiler(unittest.TestCase):
             # FIXME: This test does not pass
             # assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
             # l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
-
 
     def test_decompiling_babypwn_i386(self):
         bin_path = os.path.join(test_location, "i386", "decompiler", "codegate2017_babypwn")
@@ -48,7 +54,6 @@ class TestDecompiler(unittest.TestCase):
             assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
             l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
 
-
     def test_decompiling_loop_x86_64(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "loop")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -61,7 +66,6 @@ class TestDecompiler(unittest.TestCase):
         # it should be properly structured to a while loop without conditional breaks
         assert "break" not in dec.codegen.text
 
-
     def test_decompiling_all_i386(self):
         bin_path = os.path.join(test_location, "i386", "all")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -72,7 +76,6 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
-
 
     def test_decompiling_aes_armel(self):
         # EDG Says: This binary is invalid.
@@ -89,7 +92,6 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
 
-
     def test_decompiling_mips_allcmps(self):
         bin_path = os.path.join(test_location, "mips", "allcmps")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -100,7 +102,6 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
-
 
     def test_decompiling_linked_list(self):
         bin_path = os.path.join(test_location, "x86_64", "linked_list")
@@ -125,7 +126,6 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
 
-
     def test_decompiling_dir_gcc_O0_main(self):
 
         # tests loop structuring
@@ -139,7 +139,6 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
 
-
     def test_decompiling_dir_gcc_O0_emit_ancillary_info(self):
         bin_path = os.path.join(test_location, "x86_64", "dir_gcc_-O0")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -150,7 +149,6 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
-
 
     def test_decompiling_switch0_x86_64(self):
 
@@ -174,7 +172,6 @@ class TestDecompiler(unittest.TestCase):
         assert "case 6:" in code
         assert "case 7:" in code
         assert "default:" in code
-
 
     def test_decompiling_switch1_x86_64(self):
 
@@ -204,7 +201,6 @@ class TestDecompiler(unittest.TestCase):
         assert "case 7:" in code
         assert "case 8:" in code
         assert "default:" not in code
-
 
     def test_decompiling_switch2_x86_64(self):
 
@@ -237,7 +233,6 @@ class TestDecompiler(unittest.TestCase):
 
         assert code.count("break;") == 4
 
-
     def test_decompiling_true_x86_64_0(self):
 
         # in fact this test case tests if CFGBase._process_jump_table_targeted_functions successfully removes "function"
@@ -261,7 +256,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         assert "switch" in code
         assert "case" in code
-
 
     def test_decompiling_true_x86_64_1(self):
         bin_path = os.path.join(test_location, "x86_64", "true_ubuntu_2004")
@@ -289,7 +283,6 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
-
     def test_decompiling_true_a_x86_64_0(self):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
         p = angr.Project(bin_path, auto_load_libs=False, load_debug_info=True)
@@ -309,7 +302,6 @@ class TestDecompiler(unittest.TestCase):
 
         assert dec.codegen.text.count("switch (") == 3  # there are three switch-cases in total
 
-
     def test_decompiling_true_a_x86_64_1(self):
 
         bin_path = os.path.join(test_location, "x86_64", "true_a")
@@ -328,7 +320,6 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
 
-
     def test_decompiling_true_1804_x86_64(self):
         # true in Ubuntu 18.04, with -O2, has special optimizations that
         # may mess up the way we structure loops and conditionals
@@ -342,7 +333,6 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses.Decompiler(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
-
 
     def test_decompiling_true_mips64(self):
 
@@ -366,7 +356,6 @@ class TestDecompiler(unittest.TestCase):
         assert "set_program_name(" in dec.codegen.text
         assert "setlocale(" in dec.codegen.text
         assert "usage();" in dec.codegen.text
-
 
     def test_decompiling_1after909_verify_password(self):
 
@@ -403,7 +392,6 @@ class TestDecompiler(unittest.TestCase):
                     "Failed to find v0, v1, and v2 in the same line. Is propagator over-propagating?"
 
         assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"
-
 
     def test_decompiling_1after909_doit(self):
 
@@ -454,7 +442,6 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "Call to convert() is not found in decompilation output."
 
-
     def test_decompiling_libsoap(self):
 
         bin_path = os.path.join(test_location, "armel", "libsoap.so")
@@ -466,7 +453,6 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(func)
         l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
-
 
     def test_decompiling_no_arguments_in_variable_list(self):
 
@@ -519,7 +505,6 @@ class TestDecompiler(unittest.TestCase):
         lines = code.split("\n")
         assert "local_strlen(char *a0)" in lines[0], "Argument a0 seems to be incorrectly typed: %s" % lines[0]
 
-
     def test_decompiling_strings_local_strcat(self):
         bin_path = os.path.join(test_location, "x86_64", "types", "strings")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -541,7 +526,6 @@ class TestDecompiler(unittest.TestCase):
         lines = code.split("\n")
         assert "local_strcat(char *a0, char *a1)" in lines[0], \
             "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
-
 
     def test_decompiling_strings_local_strcat_with_local_strlen(self):
         bin_path = os.path.join(test_location, "x86_64", "types", "strings")
@@ -572,7 +556,6 @@ class TestDecompiler(unittest.TestCase):
         assert "local_strcat(char *a0, char *a1)" in lines[0], \
             "Argument a0 and a1 seem to be incorrectly typed: %s" % lines[0]
 
-
     def test_decompilation_call_expr_folding(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "call_expr_folding")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -602,7 +585,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
-
     def test_decompilation_call_expr_folding_mips64_true(self):
 
         # This test is to ensure call expression folding correctly replaces call expressions in return statements
@@ -619,7 +601,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         assert "version_etc_va(" in code
 
-
     def test_decompilation_call_expr_folding_x8664_calc(self):
 
         # This test is to ensure call expression folding do not re-use out-dated definitions when folding expressions
@@ -632,8 +613,7 @@ class TestDecompiler(unittest.TestCase):
         func_0 = cfg.functions['main']
         dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
-        l.debug("Decompiled function %s\n%s", repr(func_0), dec.codegen.text)
-
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         assert "root(" in code
@@ -646,7 +626,6 @@ class TestDecompiler(unittest.TestCase):
         for line in lines:
             if "root(" in line:
                 assert "strlen(" in line
-
 
     def test_decompilation_excessive_condition_removal(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
@@ -665,7 +644,6 @@ class TestDecompiler(unittest.TestCase):
         # s_1a += 1 should not be wrapped inside any if-statements. it is always reachable.
         assert "}v4+=1;}" in code or "}v4+=0x1;}" in code
 
-
     def test_decompilation_excessive_goto_removal(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "bf")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -681,7 +659,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
 
         assert "goto" not in code
-
 
     def test_decompilation_switch_case_structuring_with_removed_nodes(self):
 
@@ -699,7 +676,6 @@ class TestDecompiler(unittest.TestCase):
 
         n = code.count("switch")
         assert n == 2, f"Expect two switch-case constructs, only found {n} instead."
-
 
     def test_decompilation_x86_64_stack_arguments(self):
 
@@ -751,7 +727,6 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert False, "The line with snprintf() is not found."
 
-
     def test_decompiling_amp_challenge03_arm(self):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "challenge_03")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -769,7 +744,6 @@ class TestDecompiler(unittest.TestCase):
         code = code.replace(" ", "").replace("\n", "")
         assert "{}" not in code, "Found empty code blocks in decompilation output. This may indicate some " \
                                  "assignments are incorrectly removed."
-
 
     def test_decompiling_fauxware_mipsel(self):
         bin_path = os.path.join(test_location, "mipsel", "fauxware")
@@ -791,7 +765,6 @@ class TestDecompiler(unittest.TestCase):
         assert '"Username: "' in code
         assert '"Password: "' in code
 
-
     def test_stack_canary_removal_x8664_extra_exits(self):
 
         # Test stack canary removal on functions with extra exit
@@ -810,7 +783,6 @@ class TestDecompiler(unittest.TestCase):
         # We should not find "__stack_chk_fail" in the code
         assert "__stack_chk_fail" not in code
 
-
     def test_ifelseif_x8664(self):
 
         # nested if-else should be transformed to cascading if-elseif constructs
@@ -826,7 +798,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
 
         assert code.count("else if") == 3
-
 
     def test_decompiling_missing_function_call(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "adams")
@@ -849,7 +820,6 @@ class TestDecompiler(unittest.TestCase):
         replaced = replaced.replace("break;}", "")
         assert "break" not in replaced
 
-
     def test_decompiling_morton_my_message_callback(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -871,7 +841,6 @@ class TestDecompiler(unittest.TestCase):
         assert code.count("mosquitto_publish()") == 0
         assert code.count("mosquitto_publish(") == 6
 
-
     def test_decompiling_morton_lib_handle__suback(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "morton.libmosquitto.so.1")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -887,7 +856,6 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
 
         assert "__stack_chk_fail" not in code  # stack canary checks should be removed by default
-
 
     def test_decompiling_newburry_main(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "newbury")
@@ -905,7 +873,6 @@ class TestDecompiler(unittest.TestCase):
         # return statements should not be wrapped into a for statement
         assert re.search(r"for[^\n]*return[^\n]*;", code) is None
 
-
     def test_single_instruction_loop(self):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "level_12_teaching")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -922,7 +889,6 @@ class TestDecompiler(unittest.TestCase):
         code_without_spaces = code.replace(" ", "").replace("\n", "")
         assert "while(true" not in code_without_spaces
         assert "for(" in code_without_spaces
-
 
     def test_simple_strcpy(self):
         """
@@ -949,7 +915,6 @@ class TestDecompiler(unittest.TestCase):
         assert stmts[4].rhs.operand.variable == stmts[0].lhs.variable
         assert dw.condition.lhs.expr.operand.variable == stmts[2].lhs.variable
 
-
     def test_decompiling_nl_i386_pie(self):
         bin_path = os.path.join(test_location, "i386", "nl")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -967,7 +932,6 @@ class TestDecompiler(unittest.TestCase):
                ' read standard input.\\n\\n"' in d.codegen.text
         assert '"For complete documentation, run: info coreutils \'%s invocation\'\\n"' in d.codegen.text
 
-
     def test_decompiling_x8664_cvs(self):
         bin_path = os.path.join(test_location, "x86_64", "cvs")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -984,7 +948,6 @@ class TestDecompiler(unittest.TestCase):
         # the switch-case must be recovered
         assert "switch (" in d.codegen.text
 
-
     def test_decompiling_x8664_mv_O2(self):
         bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -999,7 +962,6 @@ class TestDecompiler(unittest.TestCase):
         assert "(False)" not in d.codegen.text
         assert "None" not in d.codegen.text
 
-
     def test_extern_decl(self):
         bin_path = os.path.join(test_location, "x86_64", "test_gdb_plugin")
         p = angr.Project(bin_path, auto_load_libs=False)
@@ -1013,6 +975,31 @@ class TestDecompiler(unittest.TestCase):
         assert "extern unsigned int a;" in d.codegen.text
         assert "extern unsigned int b;" in d.codegen.text
         assert "extern unsigned int c;" in d.codegen.text
+
+    def test_decompiling_amp_challenge_07(self):
+        bin_path = os.path.join(test_location, "armhf", "amp_challenge_07.gcc.dyn.unstripped")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x401865]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        self._print_decompilation_result(d)
+
+        lines = d.codegen.text.split("\n")
+
+        # make sure the line with printf("Recieved packet %d for connection with %d\n"...) does not have
+        # "v23->field_5 + 1". otherwise it's an incorrect variable folding result
+        line_0s = [ line for line in lines
+                    if 'printf(' in line and 'Recieved packet %d for connection with %d' in line ]
+        assert len(line_0s) == 1
+        line_0 = line_0s[0].replace(" ", "")
+        assert "+1" not in line_0
 
 
 if __name__ == "__main__":

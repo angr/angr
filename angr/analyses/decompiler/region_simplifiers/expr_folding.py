@@ -71,9 +71,28 @@ class ConditionalBreakLocation(LocationBase):
 
 
 class ExpressionUseFinder(AILBlockWalker):
+    """
+    Find where each variable is used.
+
+    Additionally, determine if the expression being walked is unlikely to be safely folded. For example, we cannot
+    safely fold variable assignments that use Load() because the loaded expression may get updated later by a Store.
+
+    Here is a real AIL block:
+
+    .. code-block:: none
+
+        v16 = ((int)v23->field_5) + 1 & 255;
+        v23->field_5 = ((char)(((int)v23->field_5) + 1 & 255));
+        v13 = printf("Recieved packet %d for connection with %d\\n", v16, a0 & 255);
+
+    In this case, folding v16 into the last printf() expression would be incorrect, since v23->field_5 is updated by
+    the second statement.
+    """
+
     def __init__(self):
         super().__init__()
         self.uses = defaultdict(set)
+        self.unsupported = False
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
                      block: Optional[Block]) -> Any:
@@ -85,6 +104,11 @@ class ExpressionUseFinder(AILBlockWalker):
                     self.uses[expr.variable].add((expr, None))
             return None
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Load(self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement,
+                     block: Optional[Block]):
+        self.unsupported = True
+        return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ExpressionCounter(SequenceWalker):
@@ -123,10 +147,11 @@ class ExpressionCounter(SequenceWalker):
                         # dependency
                         dependency_finder = ExpressionUseFinder()
                         dependency_finder.walk_expression(stmt.src)
-                        dependencies = set(self._u(v) for v in dependency_finder.uses)
-                        self.assignments[u].add((stmt.src,
-                                                 tuple(dependencies),
-                                                 StatementLocation(node.addr, node.idx, idx)))
+                        if not dependency_finder.unsupported:
+                            dependencies = set(self._u(v) for v in dependency_finder.uses)
+                            self.assignments[u].add((stmt.src,
+                                                     tuple(dependencies),
+                                                     StatementLocation(node.addr, node.idx, idx)))
             if (isinstance(stmt, ailment.Stmt.Call)
                     and isinstance(stmt.ret_expr, ailment.Expr.Register)
                     and stmt.ret_expr.variable is not None):
@@ -134,10 +159,11 @@ class ExpressionCounter(SequenceWalker):
                 if u is not None:
                     dependency_finder = ExpressionUseFinder()
                     dependency_finder.walk_expression(stmt)
-                    dependencies = set(self._u(v) for v in dependency_finder.uses)
-                    self.assignments[u].add((stmt,
-                                             tuple(dependencies),
-                                             StatementLocation(node.addr, node.idx, idx)))
+                    if not dependency_finder.unsupported:
+                        dependencies = set(self._u(v) for v in dependency_finder.uses)
+                        self.assignments[u].add((stmt,
+                                                 tuple(dependencies),
+                                                 StatementLocation(node.addr, node.idx, idx)))
 
         # walk the block and find uses of variables
         use_finder = ExpressionUseFinder()

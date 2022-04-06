@@ -88,14 +88,8 @@ class CallSiteMaker(Analysis):
                     if type(arg_loc) is SimRegArg:
                         size = arg_loc.size
                         offset = arg_loc.check_offset(cc.arch)
-
-                        _, the_arg = self._resolve_register_argument(last_stmt, arg_loc)
-
-                        if the_arg is not None:
-                            args.append(the_arg)
-                        else:
-                            # Reaching definitions are not available. Create a register expression instead.
-                            args.append(Expr.Register(self._atom_idx(), None, offset, size * 8, reg_name=arg_loc.reg_name))
+                        args.append(Expr.Register(self._atom_idx(), None, offset, size * 8,
+                                                  reg_name=arg_loc.reg_name))
                     elif type(arg_loc) is SimStackArg:
 
                         stack_arg_locs.append(arg_loc)
