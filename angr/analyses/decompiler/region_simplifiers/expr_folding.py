@@ -77,11 +77,13 @@ class ExpressionUseFinder(AILBlockWalker):
     Additionally, determine if the expression being walked is unlikely to be safely folded. For example, we cannot
     safely fold variable assignments that use Load() because the loaded expression may get updated later by a Store.
 
-    Here is a real AIL block::
+    Here is a real AIL block:
+
+    .. code-block:: none
 
         v16 = ((int)v23->field_5) + 1 & 255;
         v23->field_5 = ((char)(((int)v23->field_5) + 1 & 255));
-        v13 = printf("Recieved packet %d for connection with %d\n", v16, a0 & 255);
+        v13 = printf("Recieved packet %d for connection with %d\\n", v16, a0 & 255);
 
     In this case, folding v16 into the last printf() expression would be incorrect, since v23->field_5 is updated by
     the second statement.
