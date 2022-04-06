@@ -1367,23 +1367,20 @@ class VFG(ForwardAnalysis, Analysis):   # pylint:disable=abstract-method
             # does not support. I'll create a terminating stub there
             l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
             error_occured = True
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](
-                state, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
             sim_successors = ProcedureEngine().process(state, procedure=inst)
         except claripy.ClaripyError:
             l.error("ClaripyError: ", exc_info=True)
             error_occured = True
             # Generate a PathTerminator to terminate the current path
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](
-                state, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
             sim_successors = ProcedureEngine().process(state, procedure=inst)
         except SimError:
             l.error("SimError: ", exc_info=True)
 
             error_occured = True
             # Generate a PathTerminator to terminate the current path
-            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](
-                    state, self.project.arch)
+            inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
             sim_successors = ProcedureEngine().process(state, procedure=inst)
         except AngrError as ex:
             #segment = self.project.loader.main_object.in_which_segment(addr)
