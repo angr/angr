@@ -20,7 +20,7 @@ from ailment.manager import Manager
 from ..reaching_definitions.dep_graph import DepGraph
 from ..reaching_definitions.external_codeloc import ExternalCodeLocation
 from ..analysis import Analysis
-from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements
+from ..cfg.cfg_vm_deobfuscation import StackPointerAnnotation, StackTouchedAnnotation, DataRegionAnnotation, annotate_with_new_replacements, VMStackVariableAnnotation
 from ... import BP, BP_BEFORE, BP_AFTER
 from ...knowledge_plugins.key_definitions import atoms
 from ...engines.light.data import SpOffset
@@ -650,14 +650,18 @@ class VMDeobfuscation(Analysis):
         self.vm_start_addr = vm_start_addr
         self.start_addr = start_addr
         self.vm_vpc_addr = vm_vpc_addr
+        saved_start_state = copy.deepcopy(start_state)
         cfg, proj = self.data_sensitive_graph(self.project.filename, vm_vpc_addr, start_addr=start_addr, start_state=start_state, cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs)
+        import ipdb;ipdb.set_trace()
         folder_name = os.path.dirname(self.project.filename)
-        self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
+
 
         # removing path terminators, cause...............they causing problems
         cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
 
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state)
+
+        cfg = self.remove_non_local_variable_dep_branches(cfg, proj, start_state, start_addr, verification_input, cfg_fast_graph, avoid_runs)
 
         self.draw_graph(cfg, os.path.join(folder_name, "input.svg"))
 
@@ -830,6 +834,156 @@ class VMDeobfuscation(Analysis):
         self.compare_vex(initial_cfg, new_cfg, folder_name)
         self.pattern_match_to_x86_instructions(new_cfg, cfg, proj, folder_name)
 
+    def remove_non_local_variable_dep_branches(self, cfg, proj, start_state, start_addr, user_input, cfg_fast_graph, avoid_runs):
+        # This function removes constant guard branches that are not dependent on a local variable that was created in the actual program.
+        # e.g. removes constant guard branches that virtual stack tainted but belong to the VM's local variables
+
+        # convert the cfg to a non cross inss optimization cfg because some stack operations weer being clubbed
+        to_remove_inst_addrs = []
+        for cfg_node in cfg.graph.nodes():
+            for orig_ins in proj.factory.block(cfg_node.addr, opt_level=1, cross_insn_opt=False).capstone.insns:
+                if orig_ins.mnemonic in ['btc', 'bts', 'bt', 'btr']:
+                    to_remove_inst_addrs.append(orig_ins.address)
+
+
+        new_model = self.new_model_graph(cfg.graph, proj, 'remove_non_local_variable_dep_branches')
+        for node in list(new_model.graph.nodes()):
+            if node.is_simprocedure:
+                continue
+            node.irsb = proj.factory.block(node.addr, opt_level=1, cross_insn_opt=False).vex
+
+        data_sens_cfg = self.convert_to_data_sensitive_irsb(new_model, proj, start_state)
+        new_model = self.new_model_graph(data_sens_cfg.graph, proj, 'remove_non_local_variable_dep_branches')
+
+        # Method 1: using the longest living variable as the local variable
+        input_state = proj.factory.blank_state(addr=start_addr, add_options={angr.sim_options.REPLACEMENT_SOLVER, angr.sim_options.DO_CCALLS},
+                                        concrete_fs=True, stdin=user_input)
+        input_state.globals['prev_rsp'] = 0
+        input_state.globals['prev_vsp'] = 0
+        input_state.globals['vsp_active'] = False
+        input_state.globals['stack_variables_list'] = defaultdict(list)
+
+
+        # actual_stack_end = input_state.solver.eval(input_state.regs.sp)
+        # input_state.regs.sp = input_state.solver.BVS("precon_sp", 64)
+        # input_state.preconstrainer.preconstrain(actual_stack_end, input_state.regs.sp)
+
+        def activate_vsp(state):
+            state.globals['prev_vsp'] = state.globals['prev_rsp']
+            state.globals['vsp_active'] = True
+
+        def deactivate_vsp(state):
+            state.globals['prev_rsp'] = state.globals['prev_vsp']
+            state.globals['vsp_active'] = False
+
+        def save_vm_vsp(state):
+            if state.globals['vsp_active']:
+                print(state.solver.eval(state.regs.r8)-state.solver.eval(state.globals['prev_vsp']))
+                stack_diff = state.solver.eval(state.regs.r8) - state.solver.eval(state.globals['prev_vsp'])
+                start_addr=0
+                if stack_diff < 0:
+                    start_addr = state.solver.eval(state.globals['prev_vsp'])
+                    size = stack_diff
+                    state.globals['stack_variables_list'][(start_addr, abs(size))].append(('push', state.scratch.ins_addr, state.globals['cur_block_id']))
+                elif stack_diff > 0:
+                    start_addr = state.solver.eval(state.regs.r8)
+                    size = stack_diff
+                    state.globals['stack_variables_list'][(start_addr, abs(size))].append(('pop', state.scratch.ins_addr, state.globals['cur_block_id']))
+
+                print(state.regs.r8)
+                print(hex(state.addr))
+                print("")
+                state.globals['prev_vsp'] = state.regs.r8
+
+        def save_rsp(state):
+            if not state.globals['vsp_active']:
+                print(state.solver.eval(state.regs.rsp)-state.solver.eval(state.globals['prev_rsp']))
+                stack_diff = state.solver.eval(state.regs.rsp) - state.solver.eval(state.globals['prev_rsp'])
+                start_addr = 0
+                if stack_diff < 0:
+                    start_addr = state.solver.eval(state.globals['prev_rsp'])
+                    size = stack_diff
+                    state.globals['stack_variables_list'][(start_addr, abs(size))].append(('push', state.scratch.ins_addr, state.globals['cur_block_id']))
+                elif stack_diff > 0:
+                    start_addr = state.solver.eval(state.regs.rsp)
+                    size = stack_diff
+                    state.globals['stack_variables_list'][(start_addr, abs(size))].append(('pop', state.scratch.ins_addr, state.globals['cur_block_id']))
+                print(state.regs.rsp)
+                print(hex(state.addr))
+                print("")
+                state.globals['prev_rsp'] = state.regs.rsp
+
+        input_state.inspect.add_breakpoint('instruction', BP(BP_AFTER, instruction=0x140188D8A, action=activate_vsp))
+        input_state.inspect.add_breakpoint('instruction', BP(BP_BEFORE, instruction=0x14018D665, action=deactivate_vsp))
+
+        input_state.inspect.add_breakpoint('reg_write', BP(BP_AFTER, reg_write_offset=input_state.project.arch.registers["r8"][0],
+                                                     action=save_vm_vsp))
+
+        input_state.inspect.add_breakpoint('reg_write', BP(BP_AFTER, reg_write_offset=input_state.project.arch.registers["rsp"][0],
+                                                     action=save_rsp))
+
+        new_model._nodes_by_addr[self.start_addr][0].input_state = input_state
+
+
+        new_cfg = proj.analyses.CFGConcreteExecution(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True)
+
+        possible_variable_push_addrs = []
+        for node in new_cfg.graph.nodes():
+            succs = new_cfg.model.get_successors(node)
+            if len(succs) == 0:
+                final_state = node.input_state
+                print(final_state.globals['stack_variables_list'])
+
+                for stack_tuple, action_list in final_state.globals['stack_variables_list'].items():
+                    print(action_list)
+                    if action_list[-1][0] == 'push':
+                        # (ins_addr, block_id, size)
+                        possible_variable_push_addrs.append((action_list[-1][1], action_list[-1][2], stack_tuple[1]))
+                        print(hex(stack_tuple[0]))
+                        print(action_list[-1][1])
+
+                print(possible_variable_push_addrs)
+                import ipdb;ipdb.set_trace()
+
+        def mark_stack_var(state):
+            # (ins_addr, block_id, size) = stack_var_loc
+            for stack_var_loc in state.globals['stack_variable_locs']:
+                print(hex(stack_var_loc[0]))
+                print(hex(state.inspect.instruction))
+                print(state.globals['cur_block_id'])
+                print(stack_var_loc[1])
+                if stack_var_loc[0] == state.inspect.instruction and state.globals['cur_block_id'] == stack_var_loc[1]:
+                    # code to mark the stack, with annotations
+                    import ipdb;
+                    ipdb.set_trace()
+                    for i in range(stack_var_loc[2]//8):
+                        annotated_stack_var = annotate_with_new_replacements(state, state.memory.load(state.regs.rsp+(i*8), 8), VMStackVariableAnnotation(1))
+                        state.memory.store(state.regs.rsp+(i*8), annotated_stack_var)
+                    print("lola")
+            import ipdb;ipdb.set_trace()
+
+        initial_input_state = proj.factory.blank_state(addr=self.start_addr,
+                                                       mode='fastpath',
+                                                       add_options=angr.sim_options.refs | {
+                                                           angr.sim_options.REPLACEMENT_SOLVER,
+                                                           angr.sim_options.DO_CCALLS})
+
+        initial_input_state.globals['stack_variable_locs'] = possible_variable_push_addrs
+
+        for addr, block_id, size in possible_variable_push_addrs:
+            initial_input_state.inspect.add_breakpoint('instruction',
+                                               BP(BP_AFTER, instruction=addr, action=mark_stack_var))
+
+        new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
+        new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,
+                                                   resolve_indirect_jumps=True, max_iterations=1,
+                                                   vm_vpc_addr=self.vm_vpc_addr)
+        print("Done")
+
+        import ipdb;ipdb.set_trace()
+        return cfg
+
     def remove_troublesome_instructions(self, cfg, proj, start_state, remove_insts):
         print("Remove troublesome insts")
         new_model = self.new_model_graph(cfg.graph, proj, 'remove_trouble_insts')
@@ -953,6 +1107,9 @@ class VMDeobfuscation(Analysis):
             add_to_list = 0
             for ind, stmt in enumerate(node.irsb.statements):
                 if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in to_remove_inst_addrs:
+                    if node.addr == 0x14018d665:
+                        import ipdb;
+                        ipdb.set_trace()
                     add_to_list = 1
                 elif isinstance(stmt, pyvex.stmt.IMark) and stmt.addr not in to_remove_inst_addrs:
                     add_to_list = 0
@@ -1147,7 +1304,6 @@ class VMDeobfuscation(Analysis):
                                                                angr.sim_options.REPLACEMENT_SOLVER,
                                                                angr.sim_options.DO_CCALLS})
         new_model._nodes_by_addr[self.start_addr][0].input_state = initial_input_state
-        import ipdb;ipdb.set_trace()
         new_cfg = proj.analyses.CFGVMDeobfuscation(model=new_model, keep_state=True, iropt_level=1,starts=[self.start_addr],
                                                    resolve_indirect_jumps=True, max_iterations=1,
                                                    vm_vpc_addr=self.vm_vpc_addr)
