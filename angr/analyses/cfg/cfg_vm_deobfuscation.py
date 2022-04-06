@@ -85,6 +85,23 @@ class DataRegionAnnotation(claripy.Annotation):
     def relocate(self, src, dst):
         return self
 
+class VMStackVariableAnnotation(claripy.Annotation):
+    def __init__(self, taint):
+        self.taint = taint
+        claripy.Annotation.__init__(self)
+
+    @property
+    def eliminatable(self):
+        return False
+
+    @property
+    def relocatable(self):
+        return True
+
+    def relocate(self, src, dst):
+        return self
+
+
 class StackTouchedAnnotation(claripy.Annotation):
     def __init__(self, taint):
         self.taint = taint
@@ -1231,12 +1248,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             self._insert_job(path_wrapper)
             self._register_analysis_job(path_wrapper.func_addr, path_wrapper)
 
-            if self.data_sensitive:
-                state.inspect.add_breakpoint('mem_read',
-                                             BP(
-                                                 BP_AFTER,
-                                                 action=self.annotate_stack_read_value
-                                             ))
+            # if self.data_sensitive:
+            #     state.inspect.add_breakpoint('mem_read',
+            #                                  BP(
+            #                                      BP_AFTER,
+            #                                      action=self.annotate_stack_read_value
+            #                                  ))
 
     def show_annotations(self, state):
         if len(state.inspect.expr_result.annotations) != 0:
@@ -1471,8 +1488,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
         l.debug("All possible successors: " + str(sim_successors.all_successors))
-        if block_id.addr == 0x1400d1bc7 and block_id.vm_vpc == 5369365971:
-            import ipdb;ipdb.set_trace()
         #### Keeping only symbolic and True successors
         if self.data_sensitive:
             symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
@@ -1516,7 +1531,17 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                                                   successor.scratch.exit_ins_addr,
                                                                   successor.scratch.source)
                             break
-                    elif isinstance(annotation, StackTouchedAnnotation):
+                    # elif isinstance(annotation, StackTouchedAnnotation):
+                    #     is_stack_tainted = True
+                    #     symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                    #                                           successor.scratch.guard,
+                    #                                           successor.history.jumpkind, True,
+                    #                                           successor.scratch.exit_stmt_idx,
+                    #                                           successor.scratch.exit_ins_addr,
+                    #                                           successor.scratch.source)
+                    #     break
+
+                    elif isinstance(annotation, VMStackVariableAnnotation):
                         is_stack_tainted = True
                         symbolic_sim_successors.add_successor(successor, successor.scratch.target,
                                                               successor.scratch.guard,
