@@ -402,6 +402,7 @@ class AILSimplifier(Analysis):
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         def_locations_to_remove: Set[CodeLocation] = set()
+        updated_use_locations: Set[CodeLocation] = set()
 
         for eq in prop.equivalence:
             eq: Equivalence
@@ -415,6 +416,11 @@ class AILSimplifier(Analysis):
                     continue
 
                 if self._is_call_using_temporaries(call):
+                    continue
+
+                if eq.codeloc in updated_use_locations:
+                    # this def is now created by an updated use. the corresponding statement will be updated in the end.
+                    # we must rerun Propagator to get an updated definition (and Equivalence)
                     continue
 
                 # find the definition of this register
@@ -477,6 +483,7 @@ class AILSimplifier(Analysis):
                     self._calls_to_remove.add(eq.codeloc)
                     simplified = True
                     def_locations_to_remove.add(eq.codeloc)
+                    updated_use_locations.add(u)
 
         # no need to clear the cache at the end of this method
         return simplified
