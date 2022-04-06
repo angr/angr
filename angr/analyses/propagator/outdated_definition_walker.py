@@ -6,15 +6,17 @@ from ..decompiler.ailblock_walker import AILBlockWalker
 
 if TYPE_CHECKING:
     from .propagator import PropagatorAILState
+    from angr.code_location import CodeLocation
 
 
 class OutdatedDefinitionWalker(AILBlockWalker):
     """
     Walks an AIL expression to find outdated definitions.
     """
-    def __init__(self, expr, state: 'PropagatorAILState', avoid: Optional[Expr.Expression]=None):
+    def __init__(self, expr, expr_defat: 'CodeLocation', state: 'PropagatorAILState', avoid: Optional[Expr.Expression]=None):
         super().__init__()
         self.expr = expr
+        self.expr_defat = expr_defat
         self.state = state
         self.avoid = avoid
         self.expr_handlers[Expr.Register] = self._handle_Register
@@ -40,22 +42,20 @@ class OutdatedDefinitionWalker(AILBlockWalker):
                 if not self.expr.likes(v):
                     self.out_dated = True
                 elif isinstance(v, Expr.TaggedObject) \
-                        and v.tags.get('def_at', None) != self.expr.tags.get('def_at', None):
+                        and v.tags.get('def_at', None) != self.expr_defat:
                     self.out_dated = True
 
     @staticmethod
-    def _check_store_precedes_load(store: Stmt.Store, load: Expr.Load) -> bool:
+    def _check_store_precedes_load(store_block_addr: int, store_stmt_idx: int, store: Stmt.Store,
+                                   load_block_addr: int, load_stmt_idx: int, load: Expr.Load) -> bool:
         """
-        Check if store precedes load based on VEX tags.
+        Check if store precedes load based on their AIL statement IDs.
         """
-        tags = ('vex_block_addr', 'vex_stmt_idx')
-        if all((t in load.tags and t in store.tags) for t in tags):
-            return (store.tags['vex_block_addr'] == load.tags['vex_block_addr'] and
-                    store.tags['vex_stmt_idx'] <= load.tags['vex_stmt_idx'])
-        return False
+        return store_block_addr == load_block_addr and store_stmt_idx <= load_stmt_idx
 
     @staticmethod
-    def _check_global_store_conflicts_load(addr: Any, store: Stmt.Store, load: Expr.Load) -> bool:
+    def _check_global_store_conflicts_load(store_block_addr: int, store_stmt_idx: int, addr: Any, store: Stmt.Store,
+                                           load_block_addr: int, load_stmt_idx: int, load: Expr.Load) -> bool:
         """
         Check if the load may conflict with any existing stores that happened in the past.
 
@@ -65,19 +65,16 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         :param load:
         :return:
         """
-        tags = ('vex_block_addr', 'vex_stmt_idx')
-        if all((t in load.tags and t in store.tags) for t in tags):
-            if store.tags['vex_block_addr'] == load.tags['vex_block_addr'] and \
-                    store.tags['vex_stmt_idx'] < load.tags['vex_stmt_idx']:
-                written = set()
-                if isinstance(addr, Expr.Const) and isinstance(store.size, int):
-                    written |= { addr.value + i for i in range(store.size) }
-                else:
-                    return False  # FIXME: This is unsafe
-                if isinstance(load.addr, Expr.Const) and isinstance(load.size, int):
-                    read = { load.addr.value + i for i in range(load.size) }
-                    return bool(written.intersection(read))
-                return True
+        if store_block_addr == load_block_addr and store_stmt_idx <= load_stmt_idx:
+            written = set()
+            if isinstance(addr, Expr.Const) and isinstance(store.size, int):
+                written |= { addr.value + i for i in range(store.size) }
+            else:
+                return False  # FIXME: This is unsafe
+            if isinstance(load.addr, Expr.Const) and isinstance(load.size, int):
+                read = { load.addr.value + i for i in range(load.size) }
+                return bool(written.intersection(read))
+            return True
         return False
 
     def _handle_Load(self, expr_idx: int, expr: Expr.Load, stmt_idx: int, stmt: Stmt.Statement, block: Optional[Block]):
@@ -85,20 +82,24 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             self.out_dated = True
         elif isinstance(expr.addr, Expr.StackBaseOffset) \
                 and self.state.last_stack_store is not None \
-                and not self._check_store_precedes_load(self.state.last_stack_store, expr):
+                and not self._check_store_precedes_load(*self.state.last_stack_store,
+                                                        self.expr_defat.block_addr, self.expr_defat.stmt_idx, expr):
             self.out_dated = True
         elif isinstance(expr.addr, Expr.Const) \
                 and self.state.global_stores \
-                and any(self._check_global_store_conflicts_load(addr, store, expr)
-                        for addr, store in self.state.global_stores):
+                and any(self._check_global_store_conflicts_load(store_block_addr, store_stmt_idx, addr, store,
+                                                            self.expr_defat.block_addr, self.expr_defat.stmt_idx, expr)
+                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores):
             self.out_dated = True
         elif not isinstance(expr.addr, (Expr.StackBaseOffset, Expr.Const)) \
                 and (
                 self.state.global_stores and
-                not any(self._check_store_precedes_load(global_store, expr)
-                        for _, global_store in self.state.global_stores) or
+                not all(self._check_store_precedes_load(store_block_addr, store_stmt_idx, store,
+                                                        self.expr_defat.block_addr, self.expr_defat.stmt_idx, expr)
+                        for store_block_addr, store_stmt_idx, addr, store in self.state.global_stores) or
                 self.state.last_stack_store is not None and
-                not self._check_store_precedes_load(self.state.last_stack_store, expr)
+                not self._check_store_precedes_load(*self.state.last_stack_store,
+                                                    self.expr_defat.block_addr, self.expr_defat.stmt_idx, expr)
         ):
             # check both stack and global stores if the load address is unknown
             self.out_dated = True
