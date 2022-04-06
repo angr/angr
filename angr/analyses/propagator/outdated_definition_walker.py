@@ -13,7 +13,8 @@ class OutdatedDefinitionWalker(AILBlockWalker):
     """
     Walks an AIL expression to find outdated definitions.
     """
-    def __init__(self, expr, expr_defat: 'CodeLocation', state: 'PropagatorAILState', avoid: Optional[Expr.Expression]=None):
+    def __init__(self, expr, expr_defat: 'CodeLocation', state: 'PropagatorAILState',
+                 avoid: Optional[Expr.Expression]=None):
         super().__init__()
         self.expr = expr
         self.expr_defat = expr_defat
