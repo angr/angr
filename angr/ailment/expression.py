@@ -626,11 +626,12 @@ class ITE(Expression):
 
 class DirtyExpression(Expression):
 
-    __slots__ = ('dirty_expr', )
+    __slots__ = ('dirty_expr', 'bits', )
 
-    def __init__(self, idx, dirty_expr, **kwargs):
+    def __init__(self, idx, dirty_expr, bits=None, **kwargs):
         super().__init__(idx, 1, **kwargs)
         self.dirty_expr = dirty_expr
+        self.bits = bits
 
     def likes(self, other):
         return type(other) is DirtyExpression and other.dirty_expr == self.dirty_expr
@@ -647,15 +648,15 @@ class DirtyExpression(Expression):
         return "[D] %s" % str(self.dirty_expr)
 
     def copy(self) -> 'DirtyExpression':
-        return DirtyExpression(self.idx, self.dirty_expr, **self.tags)
+        return DirtyExpression(self.idx, self.dirty_expr, bits=self.bits, **self.tags)
 
     def replace(self, old_expr, new_expr):
         if old_expr is self.dirty_expr:
-            return True, DirtyExpression(self.idx, new_expr, **self.tags)
+            return True, DirtyExpression(self.idx, new_expr, bits=self.bits, **self.tags)
 
         replaced, new_dirty_expr = self.dirty_expr.replace(old_expr, new_expr)
         if replaced:
-            return True, DirtyExpression(self.idx, new_dirty_expr, **self.tags)
+            return True, DirtyExpression(self.idx, new_dirty_expr, bits=self.bits, **self.tags)
         else:
             return False, self
 
@@ -666,23 +667,25 @@ class DirtyExpression(Expression):
 
 class VEXCCallExpression(Expression):
 
-    __slots__ = ('cee_name', 'operands', )
+    __slots__ = ('cee_name', 'operands', 'bits', )
 
-    def __init__(self, idx, cee_name, operands, **kwargs):
+    def __init__(self, idx, cee_name, operands, bits=None, **kwargs):
         super().__init__(idx, max(operand.depth for operand in operands), **kwargs)
         self.cee_name = cee_name
         self.operands = operands
+        self.bits = bits
 
     def likes(self, other):
         return type(other) is VEXCCallExpression and \
                other.cee_name == self.cee_name and \
                len(self.operands) == len(other.operands) and \
+               self.bits == other.bits and \
                all(op1.likes(op2) for op1, op2 in zip(other.operands, self.operands))
 
     __hash__ = TaggedObject.__hash__
 
     def _hash_core(self):
-        return stable_hash((VEXCCallExpression, self.cee_name, tuple(self.operands)))
+        return stable_hash((VEXCCallExpression, self.cee_name, self.bits, tuple(self.operands)))
 
     def __repr__(self):
         return f"VEXCCallExpression [{self.cee_name}]"
@@ -692,7 +695,7 @@ class VEXCCallExpression(Expression):
         return f"{self.cee_name}({operands_str})"
 
     def copy(self) -> 'VEXCCallExpression':
-        return VEXCCallExpression(self.idx, self.cee_name, self.operands, **self.tags)
+        return VEXCCallExpression(self.idx, self.cee_name, self.operands, bits=self.bits, **self.tags)
 
     def replace(self, old_expr, new_expr):
         new_operands = [ ]
@@ -710,7 +713,7 @@ class VEXCCallExpression(Expression):
                     new_operands.append(operand)
 
         if replaced:
-            return True, VEXCCallExpression(self.idx, self.cee_name, tuple(new_operands), **self.tags)
+            return True, VEXCCallExpression(self.idx, self.cee_name, tuple(new_operands), bits=self.bits, **self.tags)
         else:
             return False, self
 

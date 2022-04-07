@@ -1,3 +1,4 @@
+from typing import Dict
 
 
 class TaggedObject:
@@ -5,18 +6,19 @@ class TaggedObject:
     A class that takes arbitrary tags.
     """
 
-    __slots__ = ('idx', 'tags', '_hash', )
+    __slots__ = ('idx', '_tags', '_hash', )
 
     def __init__(self, idx, **kwargs):
-        self.tags = { }
+        self._tags = None
         self.idx = idx
         self._hash = None
         if kwargs:
             self.initialize_tags(kwargs)
 
     def initialize_tags(self, tags):
+        self._tags = { }
         for k, v in tags.items():
-            self.tags[k] = v
+            self._tags[k] = v
 
     def __getattr__(self, item):
         try:
@@ -31,3 +33,9 @@ class TaggedObject:
 
     def _hash_core(self):
         raise NotImplementedError()
+
+    @property
+    def tags(self) -> Dict:
+        if not self._tags:
+            return { }
+        return self._tags
