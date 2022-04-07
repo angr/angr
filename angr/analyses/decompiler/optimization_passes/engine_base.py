@@ -9,6 +9,9 @@ _l = logging.getLogger(name=__name__)
 
 
 class SimplifierAILState:
+    """
+    The abstract state used in SimplifierAILEngine.
+    """
     def __init__(self, arch, variables=None):
         self.arch = arch
         self._variables = {} if variables is None else variables
@@ -52,6 +55,10 @@ class SimplifierAILEngine(
     SimEngineLightAILMixin,
     SimEngineLight,
     ):
+    """
+    Essentially implements a peephole optimization engine for AIL statements (because we do not perform memory or
+    register loads).
+    """
 
     def __init__(self): #pylint: disable=useless-super-delegation
 
@@ -72,6 +79,8 @@ class SimplifierAILEngine(
             if whitelist is not None and stmt_idx not in whitelist:
                 continue
 
+            self.ins_addr = stmt.ins_addr
+            self.stmt_idx = stmt_idx
             new_stmt = self._ail_handle_Stmt(stmt)
             if new_stmt and new_stmt != stmt:
                 self.block.statements[stmt_idx] = new_stmt
@@ -150,9 +159,11 @@ class SimplifierAILEngine(
         return stmt
 
     def _ail_handle_Load(self, expr):
-
+        # We don't want to load new values and construct new AIL expressions in caller methods without def-use
+        # information. Otherwise, we may end up creating incorrect expressions.
+        # Therefore, we do not perform memory load, which essentially turns SimplifierAILEngine into a peephole
+        # optimization engine.
         addr = self._expr(expr.addr)
-
         if addr != expr.addr:
             return Expr.Load(expr.idx, addr, expr.size, expr.endness, **expr.tags)
         return expr
@@ -173,11 +184,12 @@ class SimplifierAILEngine(
     def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_Register(self, expr):
-
-        new_expr = self.state.get_variable(expr)
-        # TODO if got new expr here, former assignment can be killed
-        return expr if new_expr is None else new_expr
+    def _ail_handle_Register(self, expr):  # pylint:disable=no-self-use
+        # We don't want to return new values and construct new AIL expressions in caller methods without def-use
+        # information. Otherwise, we may end up creating incorrect expressions.
+        # Therefore, we do not perform register load, which essentially turns SimplifierAILEngine into a peephole
+        # optimization engine.
+        return expr
 
     def _ail_handle_Mul(self, expr):
         operand_0 = self._expr(expr.operands[0])
@@ -192,7 +204,6 @@ class SimplifierAILEngine(
 
     def _ail_handle_Convert(self, expr: Expr.Convert):
         operand_expr = self._expr(expr.operand)
-        # import ipdb; ipdb.set_trace()
 
         if type(operand_expr) is Expr.Convert:
             if expr.from_bits == operand_expr.to_bits and expr.to_bits == operand_expr.from_bits:
