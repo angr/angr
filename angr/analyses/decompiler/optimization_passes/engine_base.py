@@ -9,6 +9,9 @@ _l = logging.getLogger(name=__name__)
 
 
 class SimplifierAILState:
+    """
+    The abstract state used in SimplifierAILEngine.
+    """
     def __init__(self, arch, variables=None):
         self.arch = arch
         self._variables = {} if variables is None else variables
@@ -52,6 +55,10 @@ class SimplifierAILEngine(
     SimEngineLightAILMixin,
     SimEngineLight,
     ):
+    """
+    Essentially implements a peephole optimization engine for AIL statements (because we do not perform memory or
+    register loads).
+    """
 
     def __init__(self): #pylint: disable=useless-super-delegation
 
@@ -177,7 +184,7 @@ class SimplifierAILEngine(
     def _ail_handle_StackBaseOffset(self, expr):  # pylint:disable=no-self-use
         return expr
 
-    def _ail_handle_Register(self, expr):
+    def _ail_handle_Register(self, expr):  # pylint:disable=no-self-use
         # We don't want to return new values and construct new AIL expressions in caller methods without def-use
         # information. Otherwise, we may end up creating incorrect expressions.
         # Therefore, we do not perform register load, which essentially turns SimplifierAILEngine into a peephole
