@@ -484,6 +484,12 @@ class CFGBase(Analysis):
                             while itstate != 0:
                                 it_counter += 1
                                 itstate >>= 8
+                    elif val.tag == 'Iex_Const':
+                        it_counter = 0
+                        itstate = val.con.value
+                        while itstate != 0:
+                            it_counter += 1
+                            itstate >>= 8
 
         if it_counter != 0:
             l.debug('Basic block ends before calculated IT block (%#x)', irsb.addr)
