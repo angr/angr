@@ -120,6 +120,13 @@ class SimEngineVRVEX(
                 if isinstance(next_stmt, pyvex.IRStmt.WrTmp) and isinstance(next_stmt.data, pyvex.IRExpr.ITE):
                     return RichR(self.state.top(reg_size * 8))
 
+        if self.arch.name.startswith("MIPS"):
+            t9_offset, t9_size = self.arch.registers["t9"]
+            if reg_offset == t9_offset and self.block.addr in self.project.kb.functions:
+                if self.state.is_top(self._read_from_register(reg_offset, reg_size, expr=expr).data):
+                    self._assign_to_register(reg_offset, RichR(claripy.BVV(self.block.addr, reg_size*8)), reg_size)
+
+
         return self._read_from_register(reg_offset, reg_size, expr=expr)
 
     def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
