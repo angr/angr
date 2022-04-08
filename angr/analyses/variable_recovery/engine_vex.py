@@ -124,7 +124,7 @@ class SimEngineVRVEX(
             t9_offset, t9_size = self.arch.registers["t9"]
             if reg_offset == t9_offset and self.block.addr in self.project.kb.functions:
                 if self.state.is_top(self._read_from_register(reg_offset, reg_size, expr=expr).data):
-                    self._assign_to_register(reg_offset, RichR(claripy.BVV(self.block.addr, reg_size*8)), reg_size)
+                    self._assign_to_register(t9_offset, RichR(claripy.BVV(self.block.addr, reg_size*8)), t9_size)
 
 
         return self._read_from_register(reg_offset, reg_size, expr=expr)
