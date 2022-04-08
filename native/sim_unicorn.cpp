@@ -2714,7 +2714,7 @@ static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data) {
 			else if ((sysno == state->cgc_receive_sysno) && (state->cgc_receive_bbl != 0)) {
 				state->perform_cgc_receive();
 			}
-			else if ((sysno == state->cgc_random_sysno) && (state->cgc_receive_bbl != 0)) {
+			else if ((sysno == state->cgc_random_sysno) && (state->cgc_random_bbl != 0)) {
 				state->perform_cgc_random();
 			}
 		}
