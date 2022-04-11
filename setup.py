@@ -1,6 +1,7 @@
 # pylint: disable=missing-class-docstring
 import glob
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -71,7 +72,9 @@ def _clean_native():
 
 class build(st_build):
     def run(self, *args):
-        self.execute(_build_native, (), msg="Building angr_native")
+        # unicorn 1.0.2rc4 only works on x86_64 currently, so skip it
+        if platform.machine() in ("AMD64", "x86_64"):
+            self.execute(_build_native, (), msg="Building angr_native")
         super().run(*args)
 
 
