@@ -131,3 +131,6 @@ class BaseStructuredCodeGenerator:
 
     def regenerate_text(self) -> None:
         pass
+
+    def reload_variable_types(self) -> None:
+        pass

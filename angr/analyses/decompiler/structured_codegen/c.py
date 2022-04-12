@@ -1839,8 +1839,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cexterns = {self._try_make_cvariable(v, variable_type=self._get_variable_type(v, is_global=True))
                          for v in self.externs if v not in self._inlined_strings}
 
-        self._variables_in_use = None
-
         self.regenerate_text()
 
     def cleanup(self):
@@ -1907,6 +1905,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if isinstance(ty, SimTypeArray):
             return unpack_typeref(ty.elem_type).with_arch(self.project.arch)
         return ty
+
+    def reload_variable_types(self) -> None:
+        for var in self._variables_in_use.values():
+            if isinstance(var, CVariable):
+                var.variable_type = self._get_variable_type(var.variable,
+                                                            is_global=isinstance(var.variable, SimMemoryVariable))
+
+        for var in self.cexterns:
+            if isinstance(var, CVariable):
+                var.variable_type = self._get_variable_type(var.variable, is_global=True)
 
     #
     # Util methods

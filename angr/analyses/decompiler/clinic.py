@@ -644,7 +644,7 @@ class Clinic(Analysis):
         var_manager = tmp_kb.variables[self.function.addr]
         groundtruth = {}
         for variable in var_manager.variables_with_manual_types:
-            vartype = var_manager.types.get(variable, None)
+            vartype = var_manager.variable_to_types.get(variable, None)
             if vartype is not None:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
@@ -691,7 +691,7 @@ class Clinic(Analysis):
 
         if self._cache is not None:
             self._cache.type_constraints = vr.type_constraints
-            self._cache.var_to_typevars = vr.var_to_typevars
+            self._cache.var_to_typevar = vr.var_to_typevars
 
         return tmp_kb
 
