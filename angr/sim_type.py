@@ -1705,7 +1705,7 @@ def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
 
 
 _include_re = re.compile(r'^\s*#include')
-def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_file(defn, preprocess=True, predefined_types: Optional[Dict[Any,SimType]]=None, arch=None):
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
@@ -1723,6 +1723,11 @@ def parse_file(defn, preprocess=True, predefined_types=None, arch=None):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
     extra_types = {}
+
+    # populate extra_types
+    if predefined_types:
+        extra_types = dict(predefined_types)
+
     for piece in node.ext:
         if isinstance(piece, pycparser.c_ast.FuncDef):
             out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
@@ -1762,7 +1767,7 @@ def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pyli
     """
     return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
 
-def parse_type_with_name(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
+def parse_type_with_name(defn, preprocess=True, predefined_types:Optional[Dict[Any,SimType]]=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning the a tuple of the type object and any associated name
     that might be found in the place a name would go in a type declaration.
@@ -1781,7 +1786,8 @@ def parse_type_with_name(defn, preprocess=True, predefined_types=None, arch=None
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
-    return _decl_to_type(decl, arch=arch), node.name
+    extra_types = { } if not predefined_types else dict(predefined_types)
+    return _decl_to_type(decl, extra_types=extra_types, arch=arch), node.name
 
 def _accepts_scope_stack():
     """
