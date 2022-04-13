@@ -8,6 +8,9 @@ class DecompilationCache:
     """
     Caches key data structures that can be used later for refining decompilation results, such as retyping variables.
     """
+
+    __slots__ = ('addr', 'type_constraints', 'var_to_typevar', 'codegen', 'clinic', )
+
     def __init__(self, addr):
         self.addr = addr
         self.type_constraints: Optional[Set] = None
