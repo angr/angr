@@ -544,7 +544,7 @@ class SimTypePointer(SimTypeReg):
     SimTypePointer is a type that specifies a pointer to some other type.
     """
 
-    _fields = SimTypeReg._fields + ('pts_to',)
+    _fields = tuple(x for x in SimTypeReg._fields if x != 'size') + ('pts_to',)
 
     def __init__(self, pts_to, label=None, offset=0):
         """
@@ -967,7 +967,7 @@ class SimTypeLength(SimTypeLong):
     ...I'm not really sure what the original design of this class was going for
     """
 
-    _fields = SimTypeNum._fields + ('addr', 'length') # ?
+    _fields = tuple(x for x in SimTypeReg._fields if x != 'size') + ('addr', 'length') # ?
 
     def __init__(self, signed=False, addr=None, length=None, label=None):
         """
