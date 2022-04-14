@@ -666,10 +666,10 @@ class Clinic(Analysis):
             # tp.pp_solution()
             tp.update_variable_types(self.function.addr,
                                      dict((v, t) for v, t in vr.var_to_typevars.items()
-                                          if not isinstance(v, SimMemoryVariable)))
+                                          if isinstance(v, (SimRegisterVariable, SimStackVariable))))
             tp.update_variable_types('global',
                                      dict((v, t) for v, t in vr.var_to_typevars.items()
-                                          if isinstance(v, SimMemoryVariable)))
+                                          if isinstance(v, SimMemoryVariable) and not isinstance(v, SimStackVariable)))
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
