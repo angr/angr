@@ -287,7 +287,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         if self.project.arch.name.startswith("MIPS"):
             t9_offset, t9_size = self.project.arch.registers["t9"]
-            state.register_region.store(t9_offset, claripy.BVV(node.addr, t9_size*8))
+            if state.is_top(state.register_region.load(t9_offset, t9_size)):
+                state.register_region.store(t9_offset, claripy.BVV(node.addr, t9_size*8))
 
         if self._func_args:
             for arg in self._func_args:
