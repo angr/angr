@@ -479,9 +479,17 @@ class SimEngineVRBase(SimEngineLight):
 
         else:
             # it's just a variable
+            # however, since it's a global address, we still treat it as writing to a location
             if data.typevar is not None:
+                store_typevar = typevars.DerivedTypeVariable(
+                    typevars.DerivedTypeVariable(typevar, typevars.Store()),
+                    typevars.HasField(size * self.state.arch.byte_width, 0)
+                )
                 self.state.add_type_constraint(
-                    typevars.Subtype(data.typevar, typevar)
+                    typevars.Existence(store_typevar)
+                )
+                self.state.add_type_constraint(
+                    typevars.Subtype(data.typevar, store_typevar)
                 )
 
     def _store_to_variable(self, richr_addr: RichR, size: int, stmt=None):  # pylint:disable=unused-argument

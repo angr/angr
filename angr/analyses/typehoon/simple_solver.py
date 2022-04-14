@@ -362,8 +362,6 @@ class SimpleSolver:
                 # avoid loop and continue no matter what
                 pass
 
-            if isinstance(typevar, TypeConstant):
-                continue
             self._lower_bounds[typevar] = self._join(typevar, *lower_bounds, translate=self._get_lower_bound)
 
             # because of T-InheritR, fields are propagated *both ways* in a subtype relation
@@ -384,7 +382,8 @@ class SimpleSolver:
         # tv_680: ptr32(struct{0: ptr32(struct{5: int8})})
 
         for outer, outer_lb in self._lower_bounds.items():
-            if isinstance(outer, DerivedTypeVariable) and isinstance(outer.label, HasField):
+            if isinstance(outer, DerivedTypeVariable) and isinstance(outer.label, HasField) \
+                    and not isinstance(outer_lb, BottomType):
                 # unpack v
                 base = outer.type_var.type_var
 

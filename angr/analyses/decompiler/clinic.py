@@ -664,8 +664,12 @@ class Clinic(Analysis):
                                                 must_struct=must_struct, ground_truth=groundtruth)
             # tp.pp_constraints()
             # tp.pp_solution()
-            tp.update_variable_types(self.function.addr, vr.var_to_typevars)
-            tp.update_variable_types('global', vr.var_to_typevars)
+            tp.update_variable_types(self.function.addr,
+                                     dict((v, t) for v, t in vr.var_to_typevars.items()
+                                          if not isinstance(v, SimMemoryVariable)))
+            tp.update_variable_types('global',
+                                     dict((v, t) for v, t in vr.var_to_typevars.items()
+                                          if isinstance(v, SimMemoryVariable)))
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
