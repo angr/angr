@@ -7,6 +7,7 @@ import claripy
 import pyvex
 import ailment
 
+import angr.errors
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from ...block import Block
 from ...errors import AngrVariableRecoveryError, SimEngineError
@@ -287,8 +288,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
 
         if self.project.arch.name.startswith("MIPS"):
             t9_offset, t9_size = self.project.arch.registers["t9"]
-            if state.is_top(state.register_region.load(t9_offset, t9_size)):
-                state.register_region.store(t9_offset, claripy.BVV(node.addr, t9_size*8))
+            try:
+                t9_val = state.register_region.load(t9_offset, t9_size)
+                if state.is_top(t9_val):
+                    state.register_region.store(t9_offset, claripy.BVV(node.addr, t9_size*8))
+            except angr.errors.SimMemoryMissingError:
+                state.register_region.store(t9_offset, claripy.BVV(node.addr, t9_size * 8))
 
         if self._func_args:
             for arg in self._func_args:
