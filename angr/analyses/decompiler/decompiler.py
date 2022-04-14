@@ -156,16 +156,18 @@ class Decompiler(Analysis):
             # ground-truth types
             groundtruth = {}
             for variable in var_manager.variables_with_manual_types:
-                vartype = var_manager.types.get(variable, None)
+                vartype = var_manager.variable_to_types.get(variable, None)
                 if vartype is not None:
-                    groundtruth[var_to_typevar[variable]] = vartype
+                    for typevar in var_to_typevar[variable]:
+                        groundtruth[typevar] = vartype
 
         # variables that must be interpreted as structs
         if self._vars_must_struct:
             must_struct = set()
-            for var, typevar in var_to_typevar.items():
-                if var.ident in self._vars_must_struct:
-                    must_struct.add(typevar)
+            for var, typevars in var_to_typevar.items():
+                for typevar in typevars:
+                    if var.ident in self._vars_must_struct:
+                        must_struct.add(typevar)
         else:
             must_struct = None
 
@@ -174,9 +176,12 @@ class Decompiler(Analysis):
             tp = self.project.analyses.Typehoon(type_constraints, kb=var_kb, var_mapping=var_to_typevar,
                                                 must_struct=must_struct, ground_truth=groundtruth)
             tp.update_variable_types(self.func.addr, var_to_typevar)
+            tp.update_variable_types('global', var_to_typevar)
         except Exception:  # pylint:disable=broad-except
             l.warning("Typehoon analysis failed. Variables will not have types. Please report to GitHub.",
                       exc_info=True)
+
+        codegen.reload_variable_types()
 
         return codegen
 

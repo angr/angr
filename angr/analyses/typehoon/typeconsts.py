@@ -43,9 +43,6 @@ class Int(TypeConstant):
         return "intbase"
 
 
-class Char(Int):
-    SIZE = 1
-
 
 class Int1(Int):
     SIZE = 1

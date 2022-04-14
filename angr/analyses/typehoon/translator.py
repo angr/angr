@@ -190,8 +190,8 @@ class TypeTranslator:
     def _translate_SimTypeLongLong(self, st: sim_type.SimTypeLongLong) -> typeconsts.Int64:
         return typeconsts.Int64()
 
-    def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Char:
-        return typeconsts.Char()
+    def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Int8:
+        return typeconsts.Int8()
 
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct:
         fields = { }

@@ -90,7 +90,7 @@ class ImportSourceCode(BaseStructuredCodeGenerator, Analysis):
             return []
 
         if self.function.addr not in obj.addr_to_line:
-            l.warning("No line data for function %s", self.function.name)
+            l.info("No line data for function %s", self.function.name)
             return []
 
         lines = SortedList()
