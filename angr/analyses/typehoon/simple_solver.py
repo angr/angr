@@ -403,7 +403,14 @@ class SimpleSolver:
                                     {outer.label.offset: new_field,
                                      }
                                 )
-                                self._lower_bounds[base] = base_lb.__class__(Struct(new_fields))
+                                base_lb = base_lb.__class__(Struct(new_fields))
+                                self._lower_bounds[base] = base_lb
+
+                            # another attempt: if a pointer to a struct has only one field, remove the struct
+                            if len(base_lb.basetype.fields) == 1 and 0 in base_lb.basetype.fields:
+                                base_lb = base_lb.__class__(base_lb.basetype.fields[0])
+                                self._lower_bounds[base] = base_lb
+
 
     def _convert_arrays(self, constraints):
         for constraint in constraints:
