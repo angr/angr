@@ -26,6 +26,8 @@ class SimEngineVRVEX(
     # Statement handlers
 
     def _handle_Put(self, stmt):
+        if self.ins_addr in [0x404704, 0x40473c, 0x40474c, 0x404734]:
+            import ipdb; ipdb.set_trace()
         offset = stmt.offset
         r = self._expr(stmt.data)
         size = stmt.data.result_size(self.tyenv) // 8
@@ -120,13 +122,6 @@ class SimEngineVRVEX(
                 if isinstance(next_stmt, pyvex.IRStmt.WrTmp) and isinstance(next_stmt.data, pyvex.IRExpr.ITE):
                     return RichR(self.state.top(reg_size * 8))
 
-        if self.arch.name.startswith("MIPS"):
-            t9_offset, t9_size = self.arch.registers["t9"]
-            if reg_offset == t9_offset and self.block.addr in self.project.kb.functions:
-                if self.state.is_top(self._read_from_register(reg_offset, reg_size, expr=expr).data):
-                    self._assign_to_register(t9_offset, RichR(claripy.BVV(self.block.addr, reg_size*8)), t9_size)
-
-
         return self._read_from_register(reg_offset, reg_size, expr=expr)
 
     def _handle_Load(self, expr: pyvex.IRExpr.Load) -> RichR:
@@ -152,6 +147,8 @@ class SimEngineVRVEX(
                      typevar=typeconsts.int_type(expr.con.size))
 
     def _handle_Add(self, expr):
+        if self.ins_addr == 0x403d9c:
+            import ipdb; ipdb.set_trace()
         arg0, arg1 = expr.args
         r0 = self._expr(arg0)
         r1 = self._expr(arg1)

@@ -75,7 +75,10 @@ class SimEngineVRBase(SimEngineLight):
         self.variable_manager = state.variable_manager
 
         try:
-            self._process(state, None, block=kwargs.pop('block', None))
+            block = kwargs.pop('block', None)
+            if 0x403d64 <= block.addr <= 0x404734:
+                import ipdb; ipdb.set_trace()
+            self._process(state, None, block=block)
         except SimEngineError as e:
             if kwargs.pop('fail_fast', False) is True:
                 raise e
