@@ -362,8 +362,6 @@ class SimpleSolver:
                 # avoid loop and continue no matter what
                 pass
 
-            if isinstance(typevar, TypeConstant):
-                continue
             self._lower_bounds[typevar] = self._join(typevar, *lower_bounds, translate=self._get_lower_bound)
 
             # because of T-InheritR, fields are propagated *both ways* in a subtype relation
@@ -384,7 +382,8 @@ class SimpleSolver:
         # tv_680: ptr32(struct{0: ptr32(struct{5: int8})})
 
         for outer, outer_lb in self._lower_bounds.items():
-            if isinstance(outer, DerivedTypeVariable) and isinstance(outer.label, HasField):
+            if isinstance(outer, DerivedTypeVariable) and isinstance(outer.label, HasField) \
+                    and not isinstance(outer_lb, BottomType):
                 # unpack v
                 base = outer.type_var.type_var
 
@@ -404,7 +403,14 @@ class SimpleSolver:
                                     {outer.label.offset: new_field,
                                      }
                                 )
-                                self._lower_bounds[base] = base_lb.__class__(Struct(new_fields))
+                                base_lb = base_lb.__class__(Struct(new_fields))
+                                self._lower_bounds[base] = base_lb
+
+                            # another attempt: if a pointer to a struct has only one field, remove the struct
+                            if len(base_lb.basetype.fields) == 1 and 0 in base_lb.basetype.fields:
+                                base_lb = base_lb.__class__(base_lb.basetype.fields[0])
+                                self._lower_bounds[base] = base_lb
+
 
     def _convert_arrays(self, constraints):
         for constraint in constraints:

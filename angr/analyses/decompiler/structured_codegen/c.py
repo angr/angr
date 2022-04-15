@@ -1910,7 +1910,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         for var in self._variables_in_use.values():
             if isinstance(var, CVariable):
                 var.variable_type = self._get_variable_type(var.variable,
-                                                            is_global=isinstance(var.variable, SimMemoryVariable))
+                                                            is_global=isinstance(var.variable, SimMemoryVariable) and
+                                                                      not isinstance(var.variable, SimStackVariable))
 
         for var in self.cexterns:
             if isinstance(var, CVariable):
@@ -2501,7 +2502,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if not offset and expr.size == expr.variable.size:
                 vartype = self._get_variable_type(
                     expr.variable,
-                    is_global=isinstance(expr.variable, SimMemoryVariable)
+                    is_global=isinstance(expr.variable, SimMemoryVariable) and
+                              not isinstance(expr.variable, SimStackVariable)
                 )
             if vartype is None:
                 vartype = self.default_simtype_from_size(expr.size)

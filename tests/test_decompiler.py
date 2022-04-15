@@ -991,6 +991,11 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses.Decompiler(f, cfg=cfg.model)
         self._print_decompilation_result(d)
 
+        # make sure the types of extern variables are correct
+        assert "extern char num_connections;" in d.codegen.text
+        assert "extern char num_packets;" in d.codegen.text
+        assert "extern char src;" in d.codegen.text
+
         lines = d.codegen.text.split("\n")
 
         # make sure the line with printf("Recieved packet %d for connection with %d\n"...) does not have
