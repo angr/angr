@@ -148,7 +148,7 @@ class Structurer(Analysis):
 
         self._analyze()
 
-        if self.result is not None:
+        if self.result is not None and not is_loop_body:
             Structurer._remove_conditional_jumps(self.result)
 
     def _analyze(self):

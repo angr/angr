@@ -905,7 +905,7 @@ class TestDecompiler(unittest.TestCase):
         f = p.kb.functions['simple_strcpy']
         d = p.analyses.Decompiler(f, cfg=cfg.model)
         assert d.codegen is not None, "Failed to decompile function %r." % f
-        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
+        self._print_decompilation_result(d)
         dw = d.codegen.cfunc.statements.statements[1]
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
