@@ -16,6 +16,7 @@ from ....annocfg import AnnotatedCFG
 from .... import sim_options as o
 from .... import BP, BP_BEFORE, BP_AFTER
 from ....exploration_techniques.slicecutor import Slicecutor
+from ....exploration_techniques.local_loop_seer import LocalLoopSeer
 from ....exploration_techniques.explorer import Explorer
 from ....utils.constants import DEFAULT_STATEMENT
 from .resolver import IndirectJumpResolver
@@ -791,6 +792,7 @@ class JumpTableResolver(IndirectJumpResolver):
             simgr = self.project.factory.simulation_manager(start_state, resilience=True)
             slicecutor = Slicecutor(annotatedcfg, force_taking_exit=True)
             simgr.use_technique(slicecutor)
+            simgr.use_technique(LocalLoopSeer(bound=1))
             if load_stmt is not None:
                 explorer = Explorer(find=load_stmt_loc[0])
             elif ite_stmt is not None:
