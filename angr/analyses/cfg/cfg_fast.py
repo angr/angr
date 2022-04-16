@@ -4001,6 +4001,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             if current_function_addr == addr:
                                 current_function_addr &= ~1
                             addr &= ~1
+                        elif addr % 2 == 0:
+                            # we are about to attempt ARM mode
+                            pass
                         else:
                             # we have attempted THUMB mode and failed to decode.
                             if cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL and \
@@ -4015,6 +4018,9 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                             if current_function_addr == addr:
                                 current_function_addr |= 1
                             addr |= 1
+                        elif addr % 2 == 1:
+                            # we are about to attempt THUMB mode
+                            pass
                         else:
                             # we have attempted ARM mode and failed to decode.
                             if cfg_job.job_type == CFGJob.JOB_TYPE_NORMAL and \
