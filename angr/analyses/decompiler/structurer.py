@@ -146,10 +146,10 @@ class Structurer(Analysis):
 
         self.result = None
 
-        if self.result is not None:
-            Structurer._remove_conditional_jumps(self.result)
-
         self._analyze()
+
+        if self.result is not None and not is_loop_body:
+            Structurer._remove_conditional_jumps(self.result)
 
     def _analyze(self):
 
@@ -543,8 +543,6 @@ class Structurer(Analysis):
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
         self._remove_redundant_jumps(seq)
-        # remove conditional jumps of the current level
-        seq = self._remove_conditional_jumps(seq, follow_seq=False)
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result

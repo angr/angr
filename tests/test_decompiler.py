@@ -374,6 +374,7 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         assert "stack_base" not in code, "Some stack variables are not recognized"
@@ -904,7 +905,7 @@ class TestDecompiler(unittest.TestCase):
         f = p.kb.functions['simple_strcpy']
         d = p.analyses.Decompiler(f, cfg=cfg.model)
         assert d.codegen is not None, "Failed to decompile function %r." % f
-        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
+        self._print_decompilation_result(d)
         dw = d.codegen.cfunc.statements.statements[1]
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
@@ -1005,6 +1006,24 @@ class TestDecompiler(unittest.TestCase):
         assert len(line_0s) == 1
         line_0 = line_0s[0].replace(" ", "")
         assert "+1" not in line_0
+
+    def test_decompiling_fmt_get_space(self):
+
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x4020f0]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        self._print_decompilation_result(d)
+
+        assert "break" in d.codegen.text
 
 
 if __name__ == "__main__":
