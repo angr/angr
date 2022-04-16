@@ -1,9 +1,9 @@
-import angr # type annotations; pylint:disable=unused-import
+import angr # type annotations; pylint:disable=unused-import,missing-class-docstring,wrong-import-position
 
 # 8<----------------- Compatibility layer -----------------
 class ExplorationTechniqueMeta(type):
     def __new__(cls, name, bases, attrs):
-        import inspect
+        import inspect  # pylint:disable=import-outside-toplevel
         if name != 'ExplorationTechniqueCompat':
             if 'step' in attrs and not inspect.getfullargspec(attrs['step']).defaults:
                 attrs['step'] = cls._step_factory(attrs['step'])
@@ -155,7 +155,8 @@ class ExplorationTechnique:
 
     def complete(self, simgr):  # pylint:disable=no-self-use,unused-argument
         """
-        Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should halt.
+        Return whether or not this manager has reached a "completed" state, i.e. ``SimulationManager.run()`` should
+        halt.
 
         This is the one hook which is *not* subject to the nesting rules of hooks.
         You should *not* call ``simgr.complete``, you should make your own decision and return True or False.
@@ -188,3 +189,4 @@ from .symbion import Symbion
 from ..errors import AngrError, AngrExplorationTechniqueError
 from .memory_watcher import MemoryWatcher
 from .bucketizer import Bucketizer
+from .local_loop_seer import LocalLoopSeer
