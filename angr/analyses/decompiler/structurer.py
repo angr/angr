@@ -146,10 +146,10 @@ class Structurer(Analysis):
 
         self.result = None
 
+        self._analyze()
+
         if self.result is not None:
             Structurer._remove_conditional_jumps(self.result)
-
-        self._analyze()
 
     def _analyze(self):
 

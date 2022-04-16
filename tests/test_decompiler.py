@@ -374,6 +374,7 @@ class TestDecompiler(unittest.TestCase):
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
         l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         assert "stack_base" not in code, "Some stack variables are not recognized"
