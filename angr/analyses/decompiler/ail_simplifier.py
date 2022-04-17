@@ -178,44 +178,46 @@ class AILSimplifier(Analysis):
                 needs_narrowing, to_size, use_exprs = self._narrowing_needed(def_, rd, addr_and_idx_to_block)
                 if needs_narrowing:
                     # replace the definition
-                    old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
-                    the_block = self.blocks.get(old_block, old_block)
-                    stmt = the_block.statements[def_.codeloc.stmt_idx]
-                    r, new_block = False, None
-                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
-                        new_assignment_dst = Register(stmt.dst.idx,
-                                                      None,
-                                                      def_.atom.reg_offset,
-                                                      to_size * self.project.arch.byte_width,
-                                                      **stmt.dst.tags
-                                                      )
-                        new_assignment_src = Convert(stmt.src.idx,  # FIXME: This is a hack
-                                                     stmt.src.bits,
-                                                     to_size * self.project.arch.byte_width,
-                                                     False,
-                                                     stmt.src,
-                                                     **stmt.src.tags
-                                                     )
-                        r, new_block = BlockSimplifier._replace_and_build(the_block,
-                                                                          {def_.codeloc:
-                                                                               {stmt.dst: new_assignment_dst,
-                                                                                stmt.src: new_assignment_src,
-                                                                                }},
-                                                                          replace_assignment_dsts=True)
-                    elif isinstance(stmt, Call):
-                        new_retexpr = Register(stmt.ret_expr.idx,
-                                               None,
-                                               def_.atom.reg_offset,
-                                               to_size * self.project.arch.byte_width,
-                                               **stmt.ret_expr.tags
-                                               )
-                        r, new_block = BlockSimplifier._replace_and_build(the_block,
-                                                                          {def_.codeloc:{stmt.ret_expr: new_retexpr}}
-                                                                          )
-                    if not r:
-                        # couldn't replace the definition...
-                        continue
-                    self.blocks[old_block] = new_block
+                    if not isinstance(def_.codeloc, ExternalCodeLocation):
+                        old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
+                        the_block = self.blocks.get(old_block, old_block)
+                        stmt = the_block.statements[def_.codeloc.stmt_idx]
+                        r, new_block = False, None
+                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, Register):
+                            new_assignment_dst = Register(stmt.dst.idx,
+                                                          None,
+                                                          def_.atom.reg_offset,
+                                                          to_size * self.project.arch.byte_width,
+                                                          **stmt.dst.tags
+                                                          )
+                            new_assignment_src = Convert(stmt.src.idx,  # FIXME: This is a hack
+                                                         stmt.src.bits,
+                                                         to_size * self.project.arch.byte_width,
+                                                         False,
+                                                         stmt.src,
+                                                         **stmt.src.tags
+                                                         )
+                            r, new_block = BlockSimplifier._replace_and_build(the_block,
+                                                                              {def_.codeloc:
+                                                                                   {stmt.dst: new_assignment_dst,
+                                                                                    stmt.src: new_assignment_src,
+                                                                                    }},
+                                                                              replace_assignment_dsts=True)
+                        elif isinstance(stmt, Call):
+                            new_retexpr = Register(stmt.ret_expr.idx,
+                                                   None,
+                                                   def_.atom.reg_offset,
+                                                   to_size * self.project.arch.byte_width,
+                                                   **stmt.ret_expr.tags
+                                                   )
+                            r, new_block = BlockSimplifier._replace_and_build(
+                                the_block,
+                                {def_.codeloc:{stmt.ret_expr: new_retexpr}}
+                            )
+                        if not r:
+                            # couldn't replace the definition...
+                            continue
+                        self.blocks[old_block] = new_block
 
                     # replace all uses
                     for use_loc, use_expr in use_exprs:
