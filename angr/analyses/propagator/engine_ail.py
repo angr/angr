@@ -7,7 +7,7 @@ from ailment import Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
-from ...sim_variable import SimStackVariable
+from ...sim_variable import SimStackVariable, SimMemoryVariable
 from .engine_base import SimEnginePropagatorBase
 from .prop_value import PropValue, Detail
 
@@ -108,7 +108,13 @@ class SimEnginePropagatorAIL(
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
         else:
-            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr.one_expr, stmt))
+            addr_concrete = addr.one_expr
+            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr_concrete, stmt))
+
+            if addr_concrete is not None and isinstance(addr_concrete, Expr.Const) and isinstance(stmt.size, int):
+                # set equivalence
+                var = SimMemoryVariable(addr_concrete.value, stmt.size)
+                self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)

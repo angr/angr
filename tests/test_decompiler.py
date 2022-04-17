@@ -1025,6 +1025,26 @@ class TestDecompiler(unittest.TestCase):
 
         assert "break" in d.codegen.text
 
+    def test_decompiling_fmt_main(self):
+
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        f = proj.kb.functions[0x401900]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        self._print_decompilation_result(d)
+
+        assert "max_width = (int)xdectoumax(" in d.codegen.text
+        assert "goal_width = (int)xdectoumax(" in d.codegen.text
+        assert "max_width = goal_width + 10;" in d.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

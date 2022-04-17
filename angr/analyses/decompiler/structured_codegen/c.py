@@ -853,11 +853,12 @@ class CAssignment(CStatement):
         }
 
         if (self.codegen.use_compound_assignments
-            and isinstance(self.lhs, CVariable)
-            and isinstance(self.rhs, CBinaryOp)
-            and isinstance(self.rhs.lhs, CVariable)
-            and self.lhs.unified_variable is self.rhs.lhs.unified_variable
-            and self.rhs.op in compound_assignment_ops):
+                and isinstance(self.lhs, CVariable)
+                and isinstance(self.rhs, CBinaryOp)
+                and isinstance(self.rhs.lhs, CVariable)
+                and self.lhs.unified_variable is not None and self.rhs.lhs.unified_variable is not None
+                and self.lhs.unified_variable is self.rhs.lhs.unified_variable
+                and self.rhs.op in compound_assignment_ops):
             # a = a + x  =>  a += x
             yield f' {compound_assignment_ops[self.rhs.op]}= ', self
             yield from CExpression._try_c_repr_chunks(self.rhs.rhs)
