@@ -283,7 +283,7 @@ class Convert(UnaryOp):
         return stable_hash((self.operand, self.from_bits, self.to_bits, self.bits, self.is_signed))
 
     def replace(self, old_expr, new_expr):
-        if self.operand.likes(old_expr):
+        if self.operand == old_expr:
             r = True
             replaced_operand = new_expr
         else:
@@ -334,7 +334,7 @@ class Reinterpret(UnaryOp):
         return stable_hash((self.operand, self.from_bits, self.from_type, self.to_bits, self.to_type, ))
 
     def replace(self, old_expr, new_expr):
-        if self.operand.likes(old_expr):
+        if self.operand == old_expr:
             r = True
             replaced_operand = new_expr
         else:
