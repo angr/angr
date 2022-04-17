@@ -37,5 +37,5 @@ class TaggedObject:
     @property
     def tags(self) -> Dict:
         if not self._tags:
-            return { }
+            self._tags = { }
         return self._tags
