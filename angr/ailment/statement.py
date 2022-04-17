@@ -329,9 +329,15 @@ class Call(Expression, Statement):
             s = ("%s: %s" % (cc, self.args)) if self.prototype is None else "%s: %s" % (self.calling_convention,
                                                                                         self.args)
 
-        return "Call(%s, %s)" % (
+        if self.ret_expr is None:
+            ret_s = "no-ret-value"
+        else:
+            ret_s = f"{self.ret_expr}"
+
+        return "Call(%s, %s, ret: %s)" % (
             self.target,
-            s
+            s,
+            ret_s
         )
 
     @property
