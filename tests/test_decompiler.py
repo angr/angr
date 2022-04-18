@@ -568,21 +568,23 @@ class TestDecompiler(unittest.TestCase):
                 if o.param == "remove_dead_memdefs" ][0]
         dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=[(opt, True)])
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
-        l.debug("Decompiled function %s\n%s", repr(func_0), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
-        m = re.search(r"v(\d+) = \(int\)strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
+        m = re.search(r"v(\d+) = strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
         assert m is not None, "The result of strlen() should be directly assigned to a stack " \
                               "variable because of call-expression folding."
         assert m.group(1) != m.group(2)
 
         func_1 = cfg.functions['strlen_should_not_fold']
         dec = p.analyses[Decompiler].prep()(func_1, cfg=cfg.model)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
         func_2 = cfg.functions['strlen_should_not_fold_into_loop']
         dec = p.analyses[Decompiler].prep()(func_2, cfg=cfg.model)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
