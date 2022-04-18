@@ -41,6 +41,9 @@ class OutdatedDefinitionWalker(AILBlockWalker):
             v = self.state.load_register(reg_expr)
             if v is not None:
                 for detail in v.offset_and_details.values():
+                    if detail.expr is None:
+                        self.out_dated = True
+                        break
                     if isinstance(detail.expr, Expr.Expression) and detail.expr.has_atom(reg_expr, identity=False):
                         self.out_dated = True
                         break

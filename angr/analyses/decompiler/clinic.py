@@ -950,17 +950,19 @@ class Clinic(Analysis):
         op_type = kwargs.pop('op_type')
         return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
 
-    @staticmethod
-    def parse_variable_addr(addr: ailment.Expr.Expression) -> Optional[Tuple[Any,Any]]:
+    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> Optional[Tuple[Any,Any]]:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0
         if isinstance(addr, ailment.Expr.BinaryOp):
             if addr.op == "Add":
                 op0, op1 = addr.operands
-                if isinstance(op0, ailment.Expr.Const):
+                if isinstance(op0, ailment.Expr.Const) \
+                        and self.project.loader.find_object_containing(op0.value) is not None:
                     return op0, op1
-                elif isinstance(op1, ailment.Expr.Const):
+                elif isinstance(op1, ailment.Expr.Const) \
+                        and self.project.loader.find_object_containing(op1.value) is not None:
                     return op1, op0
+                return op0, op1  # best-effort guess
         return None, None
 
 

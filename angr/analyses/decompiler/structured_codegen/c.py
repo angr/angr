@@ -2025,7 +2025,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         type_size = None
         if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeArray):
             # unpack the pointer
-            type_size = variable_type.pts_to.size // self.project.arch.byte_width
+            type_size = variable_type.pts_to.elem_type.size // self.project.arch.byte_width
         elif isinstance(variable_type, SimTypePointer):
             inner_type = unpack_typeref(variable_type.pts_to)
             if isinstance(inner_type, SimTypePointer):
