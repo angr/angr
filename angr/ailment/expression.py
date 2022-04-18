@@ -449,9 +449,9 @@ class BinaryOp(Op):
         for op in self.operands:
             if identity and op == atom:
                 return True
-            if not identity and isinstance(op, Atom) and op.likes(atom):
+            if not identity and isinstance(op, Expression) and op.likes(atom):
                 return True
-            if isinstance(op, Atom) and op.has_atom(atom, identity=identity):
+            if isinstance(op, Expression) and op.has_atom(atom, identity=identity):
                 return True
         return False
 
