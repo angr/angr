@@ -390,7 +390,8 @@ class TestDecompiler(unittest.TestCase):
         for line in lines:
             if '"%02x"' in line:
                 assert "sprintf(" in line
-                assert "v0" in line and "v1" in line and "v2" in line, \
+                assert ("v0" in line and "v1" in line and "v2" in line or
+                        "v2" in line and "v3" in line and "v4" in line), \
                     "Failed to find v0, v1, and v2 in the same line. Is propagator over-propagating?"
 
         assert "= sprintf" not in code, "Failed to remove the unused return value of sprintf()"

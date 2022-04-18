@@ -538,6 +538,7 @@ class AILSimplifier(Analysis):
                 remove_initial_assignment = False  # expression folding will take care of it
 
             if not all_uses_with_def:
+                # definitions without uses may simply be our data-flow analysis being incorrect. do not remove them.
                 continue
 
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
