@@ -2519,7 +2519,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return expr
 
         if base_addr is not None and displacement is None:
-            return self._deref_addr_displacement(base_addr, displacement=0, tags=expr.tags)
+            return self._deref_addr_displacement(base_addr, displacement=0, addr_type=base_addr.type, tags=expr.tags)
         if base_addr is None and displacement is not None:
             return self._deref_addr_displacement(
                 CConstant(displacement, SimTypePointer(SimTypeInt), codegen=self), tags=expr.tags)
