@@ -58,7 +58,8 @@ class RegionSimplifier(Analysis):
     #
 
     def _fold_oneuse_expressions(self, region):
-        expr_counter = ExpressionCounter(region, self.variable_kb.variables[self.func.addr])
+        variable_manager = self.variable_kb.variables[self.func.addr]
+        expr_counter = ExpressionCounter(region, variable_manager)
 
         variable_assignments = {}
         variable_uses = {}
@@ -98,7 +99,7 @@ class RegionSimplifier(Analysis):
                 del variable_uses[var]
 
         # replace them
-        ExpressionFolder(variable_assignments, variable_uses, region)
+        ExpressionFolder(variable_assignments, variable_uses, region, variable_manager)
         return region
 
     @staticmethod

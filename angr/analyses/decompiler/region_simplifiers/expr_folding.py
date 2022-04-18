@@ -125,7 +125,7 @@ class ExpressionCounter(SequenceWalker):
 
         self.assignments = defaultdict(set)
         self.uses = { }
-        self._variable_manger: 'VariableManagerInternal' = variable_manager
+        self._variable_manager: 'VariableManagerInternal' = variable_manager
 
         super().__init__(handlers)
         self.walk(node)
@@ -135,7 +135,7 @@ class ExpressionCounter(SequenceWalker):
         Get unified variable for a given variable.
         """
 
-        return self._variable_manger.unified_variable(v)
+        return self._variable_manager.unified_variable(v)
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # find assignments
@@ -216,21 +216,30 @@ class ExpressionCounter(SequenceWalker):
 
 
 class ExpressionReplacer(AILBlockWalker):
-    def __init__(self, assignments: Dict, uses: Dict):
+    def __init__(self, assignments: Dict, uses: Dict, variable_manager):
         super().__init__()
         self._assignments = assignments
         self._uses = uses
+        self._variable_manager: 'VariableManagerInternal' = variable_manager
+
+    def _u(self, v) -> Optional['SimVariable']:
+        """
+        Get unified variable for a given variable.
+        """
+        return self._variable_manager.unified_variable(v)
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
                      block: Optional[Block]) -> Any:
-        if isinstance(expr, ailment.Register) and expr.variable is not None and expr.variable in self._uses:
-            replace_with, _ = self._assignments[expr.variable]
-            return replace_with
+        if isinstance(expr, ailment.Register) and expr.variable is not None:
+            unified_var = self._u(expr.variable)
+            if unified_var in self._uses:
+                replace_with, _ = self._assignments[unified_var]
+                return replace_with
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
 class ExpressionFolder(SequenceWalker):
-    def __init__(self, assignments: Dict, uses: Dict, node):
+    def __init__(self, assignments: Dict, uses: Dict, node, variable_manager):
 
         handlers = {
             ailment.Block: self._handle_Block,
@@ -241,7 +250,14 @@ class ExpressionFolder(SequenceWalker):
         super().__init__(handlers)
         self._assignments = assignments
         self._uses = uses
+        self._variable_manager = variable_manager
         self.walk(node)
+
+    def _u(self, v) -> Optional['SimVariable']:
+        """
+        Get unified variable for a given variable.
+        """
+        return self._variable_manager.unified_variable(v)
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # Walk the block to remove each assignment and replace uses of each variable
@@ -254,33 +270,34 @@ class ExpressionFolder(SequenceWalker):
                         continue
             if (isinstance(stmt, ailment.Stmt.Call)
                     and isinstance(stmt.ret_expr, ailment.Expr.Register)
-                    and stmt.ret_expr.variable is not None
-                    and stmt.ret_expr.variable in self._assignments):
-                # remove this statement
-                continue
+                    and stmt.ret_expr.variable is not None):
+                unified_var = self._u(stmt.ret_expr.variable)
+                if unified_var in self._assignments:
+                    # remove this statement
+                    continue
             new_stmts.append(stmt)
         node.statements = new_stmts
 
         # Walk the block to replace the use of each variable
-        replacer = ExpressionReplacer(self._assignments, self._uses)
+        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
         replacer.walk(node)
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses)
+        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
         r = replacer.walk_expression(node.condition)
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_ConditionalBreak(node, **kwargs)
 
     def _handle_Condition(self, node: ConditionNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses)
+        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
         r = replacer.walk_expression(node.condition)
         if r is not None and r is not node.condition:
             node.condition = r
         return super()._handle_Condition(node, **kwargs)
 
     def _handle_CascadingCondition(self, node: CascadingConditionNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses)
+        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
         for idx in range(len(node.condition_and_nodes)):
             cond, _ = node.condition_and_nodes[idx]
             r = replacer.walk_expression(cond)
@@ -289,7 +306,7 @@ class ExpressionFolder(SequenceWalker):
         return super()._handle_CascadingCondition(node, **kwargs)
 
     def _handle_Loop(self, node: LoopNode, **kwargs):
-        replacer = ExpressionReplacer(self._assignments, self._uses)
+        replacer = ExpressionReplacer(self._assignments, self._uses, self._variable_manager)
 
         # iterator
         if node.iterator is not None:
