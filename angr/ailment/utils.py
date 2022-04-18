@@ -40,7 +40,6 @@ md5_unpacker = struct.Struct('4I')
 def stable_hash(t: Tuple) -> int:
     cnt = _dump_tuple(t)
     hd = md5lib.md5(cnt).digest()
-    v = md5_unpacker.unpack(hd)[0]
     return md5_unpacker.unpack(hd)[0]  # 32 bits
 
 
