@@ -1000,7 +1000,7 @@ class TestDecompiler(unittest.TestCase):
         assert "extern char num_packets;" in d.codegen.text
         assert "extern char src;" in d.codegen.text
 
-        lines = d.codegen.text.split("\n")
+        lines = [ line.strip(" ") for line in d.codegen.text.split("\n") ]
 
         # make sure the line with printf("Recieved packet %d for connection with %d\n"...) does not have
         # "v23->field_5 + 1". otherwise it's an incorrect variable folding result
@@ -1009,6 +1009,12 @@ class TestDecompiler(unittest.TestCase):
         assert len(line_0s) == 1
         line_0 = line_0s[0].replace(" ", "")
         assert "+1" not in line_0
+
+        # make sure v % 7 is present
+        line_assignment_mod_7 = [ line for line in lines if re.search(r"v\d+ = v\d+ % 7", line)]
+        assert len(line_assignment_mod_7) == 1
+        line_mod_7 = [line for line in lines if re.search(r"v\d+ % 7", line)]
+        assert len(line_mod_7) == 2
 
     def test_decompiling_fmt_get_space(self):
 
