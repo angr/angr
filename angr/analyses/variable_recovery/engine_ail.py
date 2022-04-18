@@ -123,15 +123,22 @@ class SimEngineVRAIL(
         if isinstance(ret_ty, typeconsts.BottomType):
             ret_ty = typevars.TypeVariable()
 
+        # TODO: Expose it as an option
+        return_value_use_full_width_reg = True
+
         if is_expr:
             # call expression mode
             ret_val = RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
         else:
             if ret_expr is not None:
                 # update the return value register
+                if return_value_use_full_width_reg:
+                    expr_bits = self.state.arch.bits
+                else:
+                    expr_bits = ret_expr_bits
                 self._assign_to_register(
                     ret_reg_offset,
-                    RichR(self.state.top(ret_expr_bits), typevar=ret_ty),
+                    RichR(self.state.top(expr_bits), typevar=ret_ty),
                     self.state.arch.bytes,
                     dst=ret_expr,
                 )

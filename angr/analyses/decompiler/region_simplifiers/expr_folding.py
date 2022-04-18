@@ -4,7 +4,7 @@ from typing import Optional, Any, Dict, TYPE_CHECKING
 
 import ailment
 from ailment import Expression, Block
-from ailment.statement import Statement
+from ailment.statement import Statement, Assignment, Call
 
 from ..ailblock_walker import AILBlockWalker
 from ..sequence_walker import SequenceWalker
@@ -227,6 +227,27 @@ class ExpressionReplacer(AILBlockWalker):
         Get unified variable for a given variable.
         """
         return self._variable_manager.unified_variable(v)
+
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Optional[Block]):
+        # override the base handler and make sure we do not replace .dst with a Call expression
+        changed = False
+
+        dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
+        if dst is not None and dst is not stmt.dst and not isinstance(dst, Call):
+            changed = True
+        else:
+            dst = stmt.dst
+
+        src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
+        if src is not None and src is not stmt.src:
+            changed = True
+        else:
+            src = stmt.src
+
+        if changed:
+            # update the statement directly in the block
+            new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
+            block.statements[stmt_idx] = new_stmt
 
     def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Optional[Statement],
                      block: Optional[Block]) -> Any:
