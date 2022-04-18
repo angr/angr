@@ -151,6 +151,16 @@ class CallSiteMaker(Analysis):
         # if ret_expr is None, it means in previous steps (such as during AIL simplification) we have deemed the return
         # value of this call statement as useless and is removed.
 
+        if ret_expr is not None \
+                and prototype is not None \
+                and prototype.returnty is not None \
+                and not isinstance(prototype.returnty, SimTypeBottom):
+            # try to narrow the return expression if needed
+            ret_type_bits = prototype.returnty.with_arch(self.project.arch).size
+            if ret_expr.bits > ret_type_bits:
+                ret_expr = ret_expr.copy()
+                ret_expr.bits = ret_type_bits
+
         new_stmts.append(Stmt.Call(last_stmt.idx, last_stmt.target,
                                    calling_convention=cc,
                                    prototype=prototype,

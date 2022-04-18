@@ -81,12 +81,14 @@ class AILSimplifier(Analysis):
 
     def _simplify(self):
 
+        _l.debug("Narrowing expressions")
         narrowed_exprs = self._narrow_exprs()
         self.simplified |= narrowed_exprs
         if narrowed_exprs:
             self._rebuild_func_graph()
             return
 
+        _l.debug("Folding expressions")
         folded_exprs = self._fold_exprs()
         self.simplified |= folded_exprs
         if folded_exprs:
@@ -94,22 +96,27 @@ class AILSimplifier(Analysis):
             # reaching definition analysis results are no longer reliable
             return
 
+        _l.debug("Rewriting ccalls")
         ccalls_rewritten = self._rewrite_ccalls()
+        self.simplified |= ccalls_rewritten
         if ccalls_rewritten:
             self._rebuild_func_graph()
             return
 
         if self._unify_vars:
+            _l.debug("Unifying local variables")
             r = self._unify_local_variables()
             if r:
                 self.simplified = True
                 self._rebuild_func_graph()
             # _fold_call_exprs() may set self._calls_to_remove, which will be honored in _remove_dead_assignments()
+            _l.debug("Folding call expressions")
             r = self._fold_call_exprs()
             if r:
                 self.simplified = True
                 self._rebuild_func_graph()
 
+        _l.debug("Removing dead assignments")
         r = self._remove_dead_assignments()
         if r:
             self.simplified = True
@@ -348,10 +355,16 @@ class AILSimplifier(Analysis):
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
         equivalences: Dict[Any,Set[Equivalence]] = defaultdict(set)
+        atom_by_loc = set()
         for eq in prop.equivalence:
             equivalences[eq.atom1].add(eq)
+            atom_by_loc.add((eq.codeloc, eq.atom1))
 
-        for _, eqs in equivalences.items():
+        # sort keys to ensure a reproducible result
+        sorted_loc_and_atoms = sorted(atom_by_loc, key=lambda x: x[0])
+
+        for _, atom in sorted_loc_and_atoms:
+            eqs = equivalences[atom]
             if len(eqs) > 1:
                 continue
 
@@ -367,7 +380,6 @@ class AILSimplifier(Analysis):
             # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
             # eq.atom1 is the use.
             the_def = None
-            to_replace_is_def = None
             if isinstance(eq.atom0, SimMemoryVariable):  # covers both Stack and Global variables
                 if isinstance(eq.atom1, Register):
                     # stack_var == register or global_var == register
@@ -551,7 +563,8 @@ class AILSimplifier(Analysis):
                 # the initial statement can be removed
                 self._assignments_to_remove.add(eq.codeloc)
 
-        self._clear_cache()
+        if simplified:
+            self._clear_cache()
         return simplified
 
     #
@@ -606,6 +619,9 @@ class AILSimplifier(Analysis):
             if isinstance(eq.atom0, Register):
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
+                    call = eq.atom1
+                elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
+                    # register variable = Convert(Call)
                     call = eq.atom1
                 else:
                     continue
@@ -666,6 +682,9 @@ class AILSimplifier(Analysis):
                 if isinstance(eq.atom0, Register):
                     src = used_expr
                     dst = call
+
+                    if src.bits != dst.bits:
+                        dst = Convert(None, dst.bits, src.bits, False, dst)
                 else:
                     continue
 

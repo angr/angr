@@ -68,6 +68,9 @@ class SimEnginePropagatorAIL(
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
+            if isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
+                # set equivalence
+                self.state.add_equivalence(self._codeloc(), dst, stmt.src)
 
             self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
         else:
@@ -142,11 +145,24 @@ class SimEnginePropagatorAIL(
         if expr_stmt.ret_expr is not None:
             if isinstance(expr_stmt.ret_expr, Expr.Register):
                 # it has a return expression. awesome - treat it as an assignment
-                v = PropValue.from_value_and_details(
-                    self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
-                    expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
-                )
-                self.state.store_register(expr_stmt.ret_expr, v)
+
+                # assume the return value always uses a full-width register
+                # FIXME: Expose it as a configuration option
+                return_value_use_full_width_reg = True
+                if return_value_use_full_width_reg:
+                    v = PropValue.from_value_and_details(
+                        self.state.top(self.arch.bits), self.arch.bytes, expr_stmt.ret_expr, self._codeloc()
+                    )
+                    self.state.store_register(
+                        Expr.Register(None, expr_stmt.ret_expr.variable, expr_stmt.ret_expr.reg_offset, self.arch.bits),
+                        v
+                    )
+                else:
+                    v = PropValue.from_value_and_details(
+                        self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
+                        expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
+                    )
+                    self.state.store_register(expr_stmt.ret_expr, v)
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
             else:
@@ -156,8 +172,10 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_ConditionalJump(self, stmt):
         _ = self._expr(stmt.condition)
-        _ = self._expr(stmt.true_target)
-        _ = self._expr(stmt.false_target)
+        if stmt.true_target is not None:
+            _ = self._expr(stmt.true_target)
+        if stmt.false_target is not None:
+            _ = self._expr(stmt.false_target)
 
     def _ail_handle_Return(self, stmt: Stmt.Return):
         if stmt.ret_exprs:

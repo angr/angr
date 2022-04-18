@@ -123,7 +123,11 @@ class BlockSimplifier(Analysis):
                     elif isinstance(stmt, Assignment) and not replace_assignment_dsts:
                         # special case: do not replace the dst
                         new_stmt = None
-                        r, new_src = stmt.src.replace(old, new)
+                        if stmt.src == old:
+                            r = True
+                            new_src = new.copy()
+                        else:
+                            r, new_src = stmt.src.replace(old, new)
                         if r:
                             new_stmt = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
                     else:

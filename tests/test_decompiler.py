@@ -1,10 +1,11 @@
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,
 import logging
 import os
 import re
 import unittest
 
 import angr
+from angr.sim_type import SimTypeInt
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -1028,11 +1029,17 @@ class TestDecompiler(unittest.TestCase):
         assert "break" in d.codegen.text
 
     def test_decompiling_fmt_main(self):
-
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        xdectoumax = proj.kb.functions[0x406010]
+        proj.analyses.VariableRecoveryFast(xdectoumax)
+        cca = proj.analyses.CallingConvention(xdectoumax)
+        xdectoumax.prototype = cca.prototype
+        xdectoumax.calling_convention = cca.cc
+        assert isinstance(xdectoumax.prototype.returnty, SimTypeInt)
 
         f = proj.kb.functions[0x401900]
         proj.analyses.VariableRecoveryFast(f)
@@ -1043,8 +1050,8 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses.Decompiler(f, cfg=cfg.model)
         self._print_decompilation_result(d)
 
-        assert "max_width = (int)xdectoumax(" in d.codegen.text
-        assert "goal_width = (int)xdectoumax(" in d.codegen.text
+        assert "max_width = (int)xdectoumax(" in d.codegen.text or "max_width = xdectoumax(" in d.codegen.text
+        assert "goal_width = xdectoumax(" in d.codegen.text
         assert "max_width = goal_width + 10;" in d.codegen.text
 
 
