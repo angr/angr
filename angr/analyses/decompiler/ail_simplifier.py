@@ -517,10 +517,29 @@ class AILSimplifier(Analysis):
                 # find all uses of this definition
                 # we make a copy of the set since we may touch the set (uses) when replacing expressions
                 all_uses: Set[Tuple[CodeLocation,Any]] = set(rd.all_uses.get_uses_with_expr(to_replace_def))
+                # make sure none of these uses are phi nodes (depends on more than one def)
+                all_uses_with_unique_def = set()
+                for use_and_expr in all_uses:
+                    use_loc, used_expr = use_and_expr
+                    defs_and_exprs = rd.all_uses.get_uses_by_location(use_loc, exprs=True)
+                    filtered_defs = { def_ for def_, expr_ in defs_and_exprs if expr_ == used_expr}
+                    if len(filtered_defs) == 1:
+                        all_uses_with_unique_def.add(use_and_expr)
+                    else:
+                        # optimization: break early
+                        break
+
+                if len(all_uses) != len(all_uses_with_unique_def):
+                    # only when all uses are determined by the same definition will we continue with the simplification
+                    continue
+
                 all_uses_with_def = set((to_replace_def, use_and_expr) for use_and_expr in all_uses)
 
                 remove_initial_assignment = False  # expression folding will take care of it
 
+            if not all_uses_with_def:
+                # definitions without uses may simply be our data-flow analysis being incorrect. do not remove them.
+                continue
 
             # TODO: We can only replace all these uses with the stack variable if the stack variable isn't
             # TODO: re-assigned of a new value. Perform this check.
