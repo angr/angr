@@ -78,7 +78,7 @@ class Uses:
             for codeloc, _ in codeloc_and_ids:
                 self._uses_by_location[codeloc].remove(definition)
 
-    def get_uses_by_location(self, codeloc: CodeLocation) -> Set:
+    def get_uses_by_location(self, codeloc: CodeLocation) -> Set['Definition']:
         """
         Retrieve all definitions that are used at a given location.
 
@@ -87,11 +87,25 @@ class Uses:
         """
         return self._uses_by_location.get(codeloc, set())
 
-    def copy(self):
+    def get_uses_by_insaddr(self, ins_addr: int) -> Set['Definition']:
+        """
+        Retrieve all definitions that are used at a given location specified by the instruction address.
+
+        :param ins_addr:    The instruction address.
+        :return:            A set of definitions that are used at the given location.
+        """
+
+        all_uses = set()
+        for codeloc, uses in self._uses_by_location.items():
+            if codeloc.ins_addr == ins_addr:
+                all_uses |= uses
+        return all_uses
+
+    def copy(self) -> 'Uses':
         """
         Copy the instance.
 
-        :return angr.angr.analyses.reaching_definitions.uses.Uses: Return a new <Uses> instance containing the same data.
+        :return:    Return a new <Uses> instance containing the same data.
         """
         u = Uses()
         u._uses_by_definition = defaultdict(set, ((k, set(v)) for k, v in self._uses_by_definition.items()))

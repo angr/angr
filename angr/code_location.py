@@ -82,6 +82,13 @@ class CodeLocation:
                 self.context == other.context and \
                 self.block_idx == other.block_idx
 
+    def __lt__(self, other):
+        if self.block_addr != other.block_addr:
+            return self.block_addr < other.block_addr
+        if self.stmt_idx != other.stmt_idx:
+            return self.stmt_idx < other.stmt_idx
+        return False
+
     def __hash__(self):
         """
         returns the hash value of self.

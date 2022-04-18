@@ -7,7 +7,7 @@ from ailment import Stmt, Expr
 
 from ...utils.constants import is_alignment_mask
 from ...engines.light import SimEngineLightAILMixin
-from ...sim_variable import SimStackVariable
+from ...sim_variable import SimStackVariable, SimMemoryVariable
 from .engine_base import SimEnginePropagatorBase
 from .prop_value import PropValue, Detail
 
@@ -68,6 +68,9 @@ class SimEnginePropagatorAIL(
             if isinstance(stmt.src, (Expr.Register, Stmt.Call)):
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), dst, stmt.src)
+            if isinstance(stmt.src, (Expr.Convert)) and isinstance(stmt.src.operand, Stmt.Call):
+                # set equivalence
+                self.state.add_equivalence(self._codeloc(), dst, stmt.src)
 
             self.state.register_expressions[(dst.reg_offset, dst.size)] = dst, stmt.src, self._codeloc()
         else:
@@ -108,7 +111,13 @@ class SimEnginePropagatorAIL(
             self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
         else:
-            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr.one_expr, stmt))
+            addr_concrete = addr.one_expr
+            self.state.global_stores.append((self.block.addr, self.stmt_idx, addr_concrete, stmt))
+
+            if addr_concrete is not None and isinstance(addr_concrete, Expr.Const) and isinstance(stmt.size, int):
+                # set equivalence
+                var = SimMemoryVariable(addr_concrete.value, stmt.size)
+                self.state.add_equivalence(self._codeloc(), var, stmt.data)
 
     def _ail_handle_Jump(self, stmt):
         target = self._expr(stmt.target)
@@ -136,11 +145,24 @@ class SimEnginePropagatorAIL(
         if expr_stmt.ret_expr is not None:
             if isinstance(expr_stmt.ret_expr, Expr.Register):
                 # it has a return expression. awesome - treat it as an assignment
-                v = PropValue.from_value_and_details(
-                    self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
-                    expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
-                )
-                self.state.store_register(expr_stmt.ret_expr, v)
+
+                # assume the return value always uses a full-width register
+                # FIXME: Expose it as a configuration option
+                return_value_use_full_width_reg = True
+                if return_value_use_full_width_reg:
+                    v = PropValue.from_value_and_details(
+                        self.state.top(self.arch.bits), self.arch.bytes, expr_stmt.ret_expr, self._codeloc()
+                    )
+                    self.state.store_register(
+                        Expr.Register(None, expr_stmt.ret_expr.variable, expr_stmt.ret_expr.reg_offset, self.arch.bits),
+                        v
+                    )
+                else:
+                    v = PropValue.from_value_and_details(
+                        self.state.top(expr_stmt.ret_expr.size * self.arch.byte_width),
+                        expr_stmt.ret_expr.size, expr_stmt.ret_expr, self._codeloc()
+                    )
+                    self.state.store_register(expr_stmt.ret_expr, v)
                 # set equivalence
                 self.state.add_equivalence(self._codeloc(), expr_stmt.ret_expr, expr_stmt)
             else:
@@ -150,8 +172,10 @@ class SimEnginePropagatorAIL(
 
     def _ail_handle_ConditionalJump(self, stmt):
         _ = self._expr(stmt.condition)
-        _ = self._expr(stmt.true_target)
-        _ = self._expr(stmt.false_target)
+        if stmt.true_target is not None:
+            _ = self._expr(stmt.true_target)
+        if stmt.false_target is not None:
+            _ = self._expr(stmt.false_target)
 
     def _ail_handle_Return(self, stmt: Stmt.Return):
         if stmt.ret_exprs:
@@ -280,7 +304,7 @@ class SimEnginePropagatorAIL(
             for _, detail in new_expr.offset_and_details.items():
                 if detail.expr is None:
                     break
-                if self.is_using_outdated_def(detail.expr, detail.def_at):
+                if self.is_using_outdated_def(detail.expr, detail.def_at, avoid=expr):
                     outdated = True
                     break
 

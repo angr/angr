@@ -1,10 +1,11 @@
-# pylint: disable=missing-class-docstring,no-self-use
+# pylint: disable=missing-class-docstring,no-self-use,
 import logging
 import os
 import re
 import unittest
 
 import angr
+from angr.sim_type import SimTypeInt
 from angr.analyses import (
     VariableRecoveryFast,
     CallingConventionAnalysis,
@@ -568,21 +569,23 @@ class TestDecompiler(unittest.TestCase):
                 if o.param == "remove_dead_memdefs" ][0]
         dec = p.analyses[Decompiler].prep()(func_0, cfg=cfg.model, options=[(opt, True)])
         assert dec.codegen is not None, "Failed to decompile function %r." % func_0
-        l.debug("Decompiled function %s\n%s", repr(func_0), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
-        m = re.search(r"v(\d+) = \(int\)strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
+        m = re.search(r"v(\d+) = strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
         assert m is not None, "The result of strlen() should be directly assigned to a stack " \
                               "variable because of call-expression folding."
         assert m.group(1) != m.group(2)
 
         func_1 = cfg.functions['strlen_should_not_fold']
         dec = p.analyses[Decompiler].prep()(func_1, cfg=cfg.model)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
         func_2 = cfg.functions['strlen_should_not_fold_into_loop']
         dec = p.analyses[Decompiler].prep()(func_2, cfg=cfg.model)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
         assert code.count("strlen(") == 1
 
@@ -638,7 +641,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         code = code.replace(" ", "").replace("\n", "")
@@ -738,7 +741,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         # make sure there are no empty code blocks
@@ -795,7 +798,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         assert code.count("else if") == 3
@@ -868,7 +871,7 @@ class TestDecompiler(unittest.TestCase):
 
         dec = p.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, "Failed to decompile function %r." % func
-        l.debug("Decompiled function %s\n%s", repr(func), dec.codegen.text)
+        self._print_decompilation_result(dec)
         code = dec.codegen.text
 
         # return statements should not be wrapped into a for statement
@@ -943,7 +946,7 @@ class TestDecompiler(unittest.TestCase):
         f = p.kb.functions['main']
         d = p.analyses.Decompiler(f, cfg=cfg.model)
         assert d.codegen is not None, "Failed to decompile function %r." % f
-        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
+        self._print_decompilation_result(d)
 
         # at the very least, it should decompile within a reasonable amount of time...
         # the switch-case must be recovered
@@ -953,12 +956,12 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = p.analyses.CFGFast(normalize=True, show_progressbar=True)
+        cfg = p.analyses.CFGFast(normalize=True, show_progressbar=not WORKER)
         p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         f = p.kb.functions['main']
-        d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=True)
-        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=not WORKER)
+        self._print_decompilation_result(d)
 
         assert "(False)" not in d.codegen.text
         assert "None" not in d.codegen.text
@@ -1024,6 +1027,32 @@ class TestDecompiler(unittest.TestCase):
         self._print_decompilation_result(d)
 
         assert "break" in d.codegen.text
+
+    def test_decompiling_fmt_main(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+
+        xdectoumax = proj.kb.functions[0x406010]
+        proj.analyses.VariableRecoveryFast(xdectoumax)
+        cca = proj.analyses.CallingConvention(xdectoumax)
+        xdectoumax.prototype = cca.prototype
+        xdectoumax.calling_convention = cca.cc
+        assert isinstance(xdectoumax.prototype.returnty, SimTypeInt)
+
+        f = proj.kb.functions[0x401900]
+        proj.analyses.VariableRecoveryFast(f)
+        cca = proj.analyses.CallingConvention(f)
+        f.prototype = cca.prototype
+        f.calling_convention = cca.cc
+
+        d = proj.analyses.Decompiler(f, cfg=cfg.model)
+        self._print_decompilation_result(d)
+
+        assert "max_width = (int)xdectoumax(" in d.codegen.text or "max_width = xdectoumax(" in d.codegen.text
+        assert "goal_width = xdectoumax(" in d.codegen.text
+        assert "max_width = goal_width + 10;" in d.codegen.text
 
 
 if __name__ == "__main__":

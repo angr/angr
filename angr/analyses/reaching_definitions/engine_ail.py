@@ -146,8 +146,10 @@ class SimEngineRDAIL(
     def _ail_handle_ConditionalJump(self, stmt):
 
         _ = self._expr(stmt.condition)  # pylint:disable=unused-variable
-        _ = self._expr(stmt.true_target)  # pylint:disable=unused-variable
-        _ = self._expr(stmt.false_target)  # pylint:disable=unused-variable
+        if stmt.true_target is not None:
+            _ = self._expr(stmt.true_target)  # pylint:disable=unused-variable
+        if stmt.false_target is not None:
+            _ = self._expr(stmt.false_target)  # pylint:disable=unused-variable
 
         ip = Register(self.arch.ip_offset, self.arch.bytes)
         self.state.kill_definitions(ip)
@@ -203,11 +205,13 @@ class SimEngineRDAIL(
 
         # Add definition
         return_reg_offset = None
+        # TODO: Expose it as an option
+        return_value_use_full_width_reg = True
         if not is_expr:
             if stmt.ret_expr is not None:
                 if isinstance(stmt.ret_expr, ailment.Expr.Register):
                     return_reg_offset = stmt.ret_expr.reg_offset
-                    return_reg_size = stmt.ret_expr.size
+                    return_reg_size = stmt.ret_expr.size if not return_value_use_full_width_reg else self.arch.bytes
                     reg_atom = Register(return_reg_offset, return_reg_size)
                     top = self.state.top(return_reg_size * self.arch.byte_width)
                     self.state.kill_and_add_definition(reg_atom, codeloc, MultiValues(offset_to_values={0: {top}}))
