@@ -956,12 +956,12 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "mv_-O2")
         p = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = p.analyses.CFGFast(normalize=True, show_progressbar=True)
+        cfg = p.analyses.CFGFast(normalize=True, show_progressbar=not WORKER)
         p.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
 
         f = p.kb.functions['main']
-        d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=True)
-        l.debug("Decompiled function %s\n%s", repr(f), d.codegen.text)
+        d = p.analyses.Decompiler(f, cfg=cfg.model, show_progressbar=not WORKER)
+        self._print_decompilation_result(d)
 
         assert "(False)" not in d.codegen.text
         assert "None" not in d.codegen.text

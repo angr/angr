@@ -15,9 +15,13 @@ class EmptyNodeRemover:
 
     The following optimizations are performed at the same time:
     - Convert if (A) { } else { ... } to if(!A) { ... } else { }
+
+    :ivar _claripy_ast_conditions:  True if all node conditions are claripy ASTs. False if all node conditions are AIL
+                                    expressions.
     """
-    def __init__(self, node):
+    def __init__(self, node, claripy_ast_conditions: bool=True):
         self.root = node
+        self._claripy_ast_conditions = claripy_ast_conditions
 
         self.removed_sequences = [ ]
         self.replaced_sequences = { }
@@ -95,10 +99,12 @@ class EmptyNodeRemover:
         inner_node = self._walker._handle(node.node)
         if inner_node is None:
             return None
-        if claripy.is_true(node.reaching_condition):
+        if self._claripy_ast_conditions \
+                and node.reaching_condition is not None \
+                and claripy.is_true(node.reaching_condition):
             # Remove the unnecessary CodeNode
             return inner_node
-        if isinstance(inner_node, CodeNode):
+        if self._claripy_ast_conditions and isinstance(inner_node, CodeNode):
             # unpack the codenode so we don't have directly nested CodeNodes
             return CodeNode(inner_node.node, claripy.And(node.reaching_condition, inner_node.reaching_condition))
         return CodeNode(inner_node, node.reaching_condition)
@@ -111,14 +117,16 @@ class EmptyNodeRemover:
         if true_node is None and false_node is None:
             # empty node
             return None
-        if true_node is None and false_node is not None:
+        if true_node is None and false_node is not None and self._claripy_ast_conditions:
             # swap them
             return ConditionNode(node.addr,
                                  node.reaching_condition,
                                  ConditionProcessor.simplify_condition(claripy.Not(node.condition)),
                                  false_node,
                                  false_node=None)
-        if claripy.is_true(node.condition) and node.true_node is not None and node.false_node is None:
+        if self._claripy_ast_conditions \
+                and claripy.is_true(node.condition) \
+                and node.true_node is not None and node.false_node is None:
             return node.true_node
         return ConditionNode(node.addr, node.reaching_condition, node.condition, true_node, false_node=false_node)
 
