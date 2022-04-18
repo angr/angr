@@ -45,15 +45,18 @@ class ExpressionNarrowingWalker(AILBlockWalkerBase):
                 r |= self._handle_expr(i, arg, stmt_idx, stmt, block)
         return r
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: 'BinaryOp', stmt_idx: int, stmt: 'Statement', block: Optional['Block']):
+    def _handle_BinaryOp(self, expr_idx: int, expr: 'BinaryOp', stmt_idx: int, stmt: 'Statement',
+                         block: Optional['Block']):
         r = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         r |= self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
         return r
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: 'UnaryOp', stmt_idx: int, stmt: 'Statement', block: Optional['Block']):
+    def _handle_UnaryOp(self, expr_idx: int, expr: 'UnaryOp', stmt_idx: int, stmt: 'Statement',
+                        block: Optional['Block']):
         return self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
-    def _handle_Convert(self, expr_idx: int, expr: 'Convert', stmt_idx: int, stmt: 'Statement', block: Optional['Block']):
+    def _handle_Convert(self, expr_idx: int, expr: 'Convert', stmt_idx: int, stmt: 'Statement',
+                        block: Optional['Block']):
         return self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
 
     def _handle_ITE(self, expr_idx: int, expr: 'ITE', stmt_idx: int, stmt: 'Statement', block: Optional['Block']):
