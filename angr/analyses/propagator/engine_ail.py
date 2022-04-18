@@ -286,7 +286,7 @@ class SimEnginePropagatorAIL(
             for _, detail in new_expr.offset_and_details.items():
                 if detail.expr is None:
                     break
-                if self.is_using_outdated_def(detail.expr, detail.def_at):
+                if self.is_using_outdated_def(detail.expr, detail.def_at, avoid=expr):
                     outdated = True
                     break
 
