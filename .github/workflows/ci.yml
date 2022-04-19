@@ -1,0 +1,10 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
