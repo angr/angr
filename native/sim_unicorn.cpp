@@ -138,6 +138,11 @@ uc_err State::start(address_t pc, uint64_t step) {
 }
 
 void State::stop(stop_t reason, bool do_commit) {
+	if (stopped) {
+		// Do not stop if already stopped. Sometimes, python lands initiates a stop even though native interface has
+		// already stopped leading to multiple issues.
+		return;
+	}
 	stopped = true;
 	stop_details.stop_reason = reason;
 	stop_details.block_addr = curr_block_details.block_addr;
