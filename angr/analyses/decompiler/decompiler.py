@@ -4,10 +4,15 @@ from collections import defaultdict
 from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, TYPE_CHECKING
 
 from cle import SymbolType
+import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
+from ...utils import timethis
 from .. import Analysis, AnalysesHub
+from .optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from .optimization_passes import get_default_optimization_passes
+from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
 from .decompilation_options import DecompilationOption
 from .decompilation_cache import DecompilationCache
@@ -31,7 +36,11 @@ class Decompiler(Analysis):
         self.func = func
         self._cfg = cfg
         self._options = options
-        self._optimization_passes = optimization_passes
+        if optimization_passes is None:
+            self._optimization_passes = get_default_optimization_passes(self.project.arch, self.project.simos.name)
+            l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
+        else:
+            self._optimization_passes = optimization_passes
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
@@ -106,6 +115,8 @@ class Decompiler(Analysis):
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
+        # run optimizations that may require re-RegionIdentification
+        self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri)
         self._update_progress(75., text='Structuring code')
 
         # structure it
@@ -130,6 +141,52 @@ class Decompiler(Analysis):
         self.codegen = codegen
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
+
+    @timethis
+    def _run_region_simplification_passes(self, ail_graph, ri):
+        """
+        Runs optimizations that should be executed after a single region identification. This function will return
+        two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
+        back to the clinic object that the graph is from.
+
+        Note: After each optimization run, if the optimization modifies the graph in any way then RegionIdentification
+        will be run again.
+
+        @param ail_graph:   DiGraph with AIL Statements
+        @param ri:          RegionIdentifier
+        @return:            The possibly new AIL DiGraph and RegionIdentifier
+        """
+        cond_proc = ri.cond_proc
+        addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
+        addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
+
+        # update blocks_map to allow node_addr to node lookup
+        def _updatedict_handler(node):
+            addr_and_idx_to_blocks[(node.addr, node.idx)] = node
+            addr_to_blocks[node.addr].add(node)
+
+        AILGraphWalker(ail_graph, _updatedict_handler).walk()
+
+        # run each pass
+        for pass_ in self._optimization_passes:
+
+            # only for post region id opts
+            if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
+                continue
+
+            analysis = getattr(self.project.analyses, pass_.__name__)
+            a = analysis(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
+                         graph=ail_graph, region_identifier=ri)
+
+            # should be None if no changes
+            if a.out_graph:
+                # use the new graph
+                ail_graph = a.out_graph
+                # always update RI on graph change
+                ri = self.project.analyses.RegionIdentifier(self.func, graph=ail_graph, cond_proc=cond_proc,
+                                                            kb=self.kb)
+
+        return ail_graph, ri
 
     def _set_global_variables(self):
 

@@ -18,6 +18,7 @@ class OptimizationPassStage:
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 0
     AFTER_GLOBAL_SIMPLIFICATION = 1
     AFTER_VARIABLE_RECOVERY = 2
+    DURING_REGION_IDENTIFICATION = 3
 
 
 class OptimizationPass(Analysis):
