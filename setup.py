@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from distutils.command.build import build as st_build
+from distutils.util import get_platform
 
 import pkg_resources
 from setuptools import Command, setup
@@ -103,5 +104,9 @@ cmdclass = {
     "clean_native": clean_native,
     "develop": develop,
 }
+
+if "bdist_wheel" in sys.argv and "--plat-name" not in sys.argv:
+    sys.argv.append("--plat-name")
+    sys.argv.append(get_platform())
 
 setup(cmdclass=cmdclass)
