@@ -48,7 +48,7 @@ def annotate_with_new_replacements(state, variable, annotation):
     if o.REPLACEMENT_SOLVER in state.options and variable.cache_key in state.solver._solver._replacement_cache:
         new_variable = variable.annotate(annotation)
         #state.preconstrainer.preconstrain(state.solver._solver._replacement_cache[variable.cache_key], new_variable)
-        state.solver._solver.add_replacement(variable, new_variable, invalidate_cache=False)
+        state.solver._solver.add_replacement(new_variable, state.solver._solver._replacement_cache[variable.cache_key], invalidate_cache=False)
     else:
         new_variable = variable.annotate(annotation)
     return new_variable
@@ -1373,6 +1373,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                      call_stack=pending_job_call_stack,
                      vm_vpc=pending_job.vm_vpc,
         )
+#        import ipdb;ipdb.set_trace()
         l.debug("Tracing a missing return exit %s", self._block_id_repr(pending_job_key))
 
         return job
@@ -1449,6 +1450,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # Generate a unique key for this job
         block_id = job.block_id
+        job.state.globals['cur_block_id'] = job.block_id
 
         # Extract initial info the CFGJob
         job.call_stack_suffix = job.get_call_stack_suffix()
@@ -1483,6 +1485,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         l.debug("Data offset: "+str(job.vm_vpc))
         #print("R10 Value: "+str(hex(job.state.solver.eval(job.state.regs.r10))))
 
+        # if block_id.addr in [0x140179251, 0x1401791DA]:
+        #     import ipdb;ipdb.set_trace()
+        if block_id.addr == 0x1401463f4:
+            import ipdb;ipdb.set_trace()
 
         # Get a SimSuccessors out of current job
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
@@ -1540,8 +1546,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                     #                                           successor.scratch.exit_ins_addr,
                     #                                           successor.scratch.source)
                     #     break
-
                     elif isinstance(annotation, VMStackVariableAnnotation):
+                        import ipdb;ipdb.set_trace()
                         is_stack_tainted = True
                         symbolic_sim_successors.add_successor(successor, successor.scratch.target,
                                                               successor.scratch.guard,
