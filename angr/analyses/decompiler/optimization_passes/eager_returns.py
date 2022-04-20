@@ -32,7 +32,7 @@ class EagerReturnsSimplifier(OptimizationPass):
     # TODO: This optimization pass may support more architectures and platforms
     ARCHES = ["X86", "AMD64", "ARMCortexM", "ARMHF", "ARMEL", ]
     PLATFORMS = ["cgc", "linux"]
-    STAGE = OptimizationPassStage.AFTER_REGION_IDENTIFICATION
+    STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = "Duplicate return blocks to reduce goto statements"
     DESCRIPTION = inspect.cleandoc(__doc__[:__doc__.index(":ivar")])  # pylint:disable=unsubscriptable-object
 

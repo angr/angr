@@ -115,10 +115,9 @@ class Decompiler(Analysis):
 
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
-        self._update_progress(75., text='Structuring code')
-
-        # run optimizations requiring region identification
+        # run optimizations that may require re-RegionIdentification
         self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri)
+        self._update_progress(75., text='Structuring code')
 
         # structure it
         rs = self.project.analyses.RecursiveStructurer(ri.region, cond_proc=cond_proc, kb=self.kb, func=self.func)
@@ -146,7 +145,7 @@ class Decompiler(Analysis):
     @timethis
     def _run_region_simplification_passes(self, ail_graph, ri):
         """
-        Runs optimizations that should be executed after region identification. This function will return
+        Runs optimizations that should be executed after a single region identification. This function will return
         two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
         back to the clinic object that the graph is from.
 
@@ -172,7 +171,7 @@ class Decompiler(Analysis):
         for pass_ in self._optimization_passes:
 
             # only for post region id opts
-            if pass_.STAGE != OptimizationPassStage.AFTER_REGION_IDENTIFICATION:
+            if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
 
             analysis = getattr(self.project.analyses, pass_.__name__)
