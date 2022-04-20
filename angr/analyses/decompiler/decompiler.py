@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, TYPE_CHECKING
 
 from cle import SymbolType
+import ailment
 
 from ...knowledge_base import KnowledgeBase
 from ...sim_variable import SimMemoryVariable
@@ -144,6 +145,18 @@ class Decompiler(Analysis):
 
     @timethis
     def _run_region_simplification_passes(self, ail_graph, ri):
+        """
+        Runs optimizations that should be executed after region identification. This function will return
+        two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
+        back to the clinic object that the graph is from.
+
+        Note: After each optimization run, if the optimization modifies the graph in any way then RegionIdentification
+        will be run again.
+
+        @param ail_graph:   DiGraph with AIL Statements
+        @param ri:          RegionIdentifier
+        @return:            The possibly new AIL DiGraph and RegionIdentifier
+        """
         cond_proc = ri.cond_proc
         addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
         addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
@@ -155,19 +168,22 @@ class Decompiler(Analysis):
 
         AILGraphWalker(ail_graph, _updatedict_handler).walk()
 
-        # Run each pass
+        # run each pass
         for pass_ in self._optimization_passes:
 
+            # only for post region id opts
             if pass_.STAGE != OptimizationPassStage.AFTER_REGION_IDENTIFICATION:
                 continue
 
             analysis = getattr(self.project.analyses, pass_.__name__)
-
             a = analysis(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                          graph=ail_graph, region_identifier=ri)
+
+            # should be None if no changes
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph
+                # always update RI on graph change
                 ri = self.project.analyses.RegionIdentifier(self.func, graph=ail_graph, cond_proc=cond_proc,
                                                             kb=self.kb)
 
