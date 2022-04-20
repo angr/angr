@@ -187,7 +187,6 @@ class SimEngineUnicorn(SuccessorsMixin):
                         else:
                             concrete_data = None
 
-                            # self.state.memory.store(syscall_args[0], concrete_data)
                         syscall_simproc.arch = self.state.arch
                         syscall_simproc.project = self.state.project
                         syscall_simproc.state = self.state
