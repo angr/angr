@@ -99,7 +99,7 @@ class BlockSimplifier(Analysis):
         return new_block
 
     @staticmethod
-    def _replace_and_build(block, replacements) -> Tuple[bool,'Block']:
+    def _replace_and_build(block, replacements, replace_assignment_dsts: bool=False) -> Tuple[bool,'Block']:
 
         new_statements = block.statements[::]
         replaced = False
@@ -120,10 +120,14 @@ class BlockSimplifier(Analysis):
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None
-                    elif isinstance(stmt, Assignment):
+                    elif isinstance(stmt, Assignment) and not replace_assignment_dsts:
                         # special case: do not replace the dst
                         new_stmt = None
-                        r, new_src = stmt.src.replace(old, new)
+                        if stmt.src == old:
+                            r = True
+                            new_src = new.copy()
+                        else:
+                            r, new_src = stmt.src.replace(old, new)
                         if r:
                             new_stmt = Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
                     else:

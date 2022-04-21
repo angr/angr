@@ -1,3 +1,5 @@
+import itertools
+
 import networkx
 
 import pyvex
@@ -15,7 +17,7 @@ class Blade:
     """
     def __init__(self, graph, dst_run, dst_stmt_idx, direction='backward', project=None, cfg=None, ignore_sp=False,
                  ignore_bp=False, ignored_regs=None, max_level=3, base_state=None, stop_at_calls=False,
-                 cross_insn_opt=False):
+                 cross_insn_opt=False, max_predecessors: int=10):
         """
         :param networkx.DiGraph graph:  A graph representing the control flow graph. Note that it does not take
                                         angr.analyses.CFGEmulated or angr.analyses.CFGFast.
@@ -42,6 +44,7 @@ class Blade:
         self._base_state = base_state
         self._stop_at_calls = stop_at_calls
         self._cross_insn_opt = cross_insn_opt
+        self._max_predecessors = max_predecessors
 
         self._slice = networkx.DiGraph()
 
@@ -288,19 +291,24 @@ class Blade:
 
         if regs or stack_offsets:
             cfgnode = self._get_cfgnode(self._dst_run)
-            in_edges = self._graph.in_edges(cfgnode, data=True)
+            if cfgnode is not None:
+                in_edges = self._graph.in_edges(cfgnode, data=True)
 
-            for pred, _, data in in_edges:
-                if 'jumpkind' in data:
-                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
-                        # Skip calls
+                if len(in_edges) > self._max_predecessors:
+                    # take the first N edges
+                    in_edges = itertools.islice(in_edges, self._max_predecessors)
+
+                for pred, _, data in in_edges:
+                    if 'jumpkind' in data:
+                        if self._stop_at_calls and data['jumpkind'] in {'Ijk_Call', 'Ijk_Ret'}:
+                            # Skip calls
+                            continue
+                    if self.project.is_hooked(pred.addr):
+                        # Skip SimProcedures
                         continue
-                if self.project.is_hooked(pred.addr):
-                    # Skip SimProcedures
-                    continue
-                self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev,
-                                               data.get('stmt_idx', None)
-                                               )
+                    self._backward_slice_recursive(self._max_level - 1, pred, regs, stack_offsets, prev,
+                                                   data.get('stmt_idx', None)
+                                                   )
 
     def _backward_slice_recursive(self, level, run, regs, stack_offsets, prev, exit_stmt_idx):
 
@@ -371,15 +379,22 @@ class Blade:
         prev = slicer.inslice_callback_infodict['prev']
 
         if regs or stack_offsets:
-            in_edges = self._graph.in_edges(self._get_cfgnode(run), data=True)
+            next_node = self._get_cfgnode(run)
+            if next_node is not None:
+                in_edges = self._graph.in_edges(next_node, data=True)
 
-            for pred, _, data in in_edges:
-                if 'jumpkind' in data:
-                    if self._stop_at_calls and data['jumpkind'] == 'Ijk_Call':
-                        # skip calls as instructed
+                if len(in_edges) > self._max_predecessors:
+                    # take the first N edges
+                    in_edges = itertools.islice(in_edges, self._max_predecessors)
+
+                for pred, _, data in in_edges:
+                    if 'jumpkind' in data:
+                        if self._stop_at_calls and data['jumpkind'] in {'Ijk_Call', 'Ijk_Ret'}:
+                            # skip calls as instructed
+                            continue
+                    if self.project.is_hooked(pred.addr):
+                        # Stop at SimProcedures
                         continue
-                if self.project.is_hooked(pred.addr):
-                    # Stop at SimProcedures
-                    continue
 
-                self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev, data.get('stmt_idx', None))
+                    self._backward_slice_recursive(level - 1, pred, regs, stack_offsets, prev,
+                                                   data.get('stmt_idx', None))

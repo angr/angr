@@ -225,8 +225,13 @@ class SimplifierAILEngine(
                         expr.from_bits == operand_expr.operands[0].bits:
                     converted = Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed,
                                              operand_expr.operands[0])
+                    converted_const = Expr.Const(operand_expr.operands[1].idx,
+                                                 operand_expr.operands[1].variable,
+                                                 operand_expr.operands[1].value,
+                                                 expr.to_bits,
+                                                 **operand_expr.operands[1].tags)
                     return Expr.BinaryOp(operand_expr.idx, operand_expr.op,
-                                         [converted, operand_expr.operands[1]], operand_expr.signed, **expr.tags)
+                                         [converted, converted_const], operand_expr.signed, **expr.tags)
                 # TODO: the below optimization was unsound
                 # Conv(32->64, (Conv(64->32, r14<8>) + 0x1<32>)) became Add(r14<8>, 0x1<32>)
                 # ideally it should become Conv(32->64, Conv(64->32, r14<8> + 0x1<64>))

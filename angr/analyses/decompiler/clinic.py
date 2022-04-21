@@ -447,6 +447,7 @@ class Clinic(Analysis):
             remove_dead_memdefs=remove_dead_memdefs,
             unify_variables=unify_variables,
             stack_arg_offsets=stack_arg_offsets,
+            ail_manager=self._ail_manager,
         )
         # the function graph has been updated at this point
         return simp.simplified
@@ -793,7 +794,7 @@ class Clinic(Analysis):
             if len(variables) == 0:
                 # if it's a constant addr, maybe it's referencing an extern location
                 base_addr, offset = self.parse_variable_addr(expr.addr)
-                if offset is not None:
+                if offset is not None and isinstance(offset, ailment.Expr.Expression):
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, offset)
                 if base_addr is not None:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, base_addr)
@@ -949,17 +950,19 @@ class Clinic(Analysis):
         op_type = kwargs.pop('op_type')
         return isinstance(stmt, ailment.Stmt.Call) and op_type == OP_BEFORE
 
-    @staticmethod
-    def parse_variable_addr(addr: ailment.Expr.Expression) -> Optional[Tuple[Any,Any]]:
+    def parse_variable_addr(self, addr: ailment.Expr.Expression) -> Optional[Tuple[Any,Any]]:
         if isinstance(addr, ailment.Expr.Const):
             return addr, 0
         if isinstance(addr, ailment.Expr.BinaryOp):
             if addr.op == "Add":
                 op0, op1 = addr.operands
-                if isinstance(op0, ailment.Expr.Const):
+                if isinstance(op0, ailment.Expr.Const) \
+                        and self.project.loader.find_object_containing(op0.value) is not None:
                     return op0, op1
-                elif isinstance(op1, ailment.Expr.Const):
+                elif isinstance(op1, ailment.Expr.Const) \
+                        and self.project.loader.find_object_containing(op1.value) is not None:
                     return op1, op0
+                return op0, op1  # best-effort guess
         return None, None
 
 

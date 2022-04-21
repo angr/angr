@@ -96,6 +96,9 @@ class RecursiveStructurer(Analysis):
         # remove empty nodes (if any)
         self.result = EmptyNodeRemover(self.result).result
 
+        # remove conditional jumps
+        Structurer._remove_conditional_jumps(self.result)
+
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
     @staticmethod
@@ -129,14 +132,12 @@ class Structurer(Analysis):
     longer exist due to empty node removal during structuring or prior steps.
     """
     def __init__(self, region, parent_map=None, condition_processor=None, func: Optional['Function']=None,
-                 case_entry_to_switch_head: Optional[Dict[int,int]]=None,
-                 is_loop_body=False):
+                 case_entry_to_switch_head: Optional[Dict[int,int]]=None):
 
         self._region: GraphRegion = region
         self._parent_map = parent_map
         self.function = func
         self._case_entry_to_switch_head = case_entry_to_switch_head
-        self._is_loop_body = is_loop_body
 
         self.cond_proc = condition_processor if condition_processor is not None \
             else ConditionProcessor(self.project.arch)
@@ -145,9 +146,6 @@ class Structurer(Analysis):
         self._new_sequences = [ ]
 
         self.result = None
-
-        if self.result is not None:
-            Structurer._remove_conditional_jumps(self.result)
 
         self._analyze()
 
@@ -388,8 +386,7 @@ class Structurer(Analysis):
             loop_successors.add(dst)
         region = GraphRegion(loop_head, loop_region_graph, successors=None,
                              graph_with_successors=None, cyclic=False)
-        structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc, func=self.function,
-                                                      is_loop_body=True)
+        structurer = self.project.analyses.Structurer(region, condition_processor=self.cond_proc, func=self.function)
         seq = structurer.result
 
         # traverse this node and rewrite all conditional jumps that go outside the loop to breaks
@@ -543,8 +540,6 @@ class Structurer(Analysis):
         self._structure_common_subexpression_conditions(seq)
         self._make_ites(seq)
         self._remove_redundant_jumps(seq)
-        # remove conditional jumps of the current level
-        seq = self._remove_conditional_jumps(seq, follow_seq=False)
 
         empty_node_remover = EmptyNodeRemover(seq)
         new_seq = empty_node_remover.result

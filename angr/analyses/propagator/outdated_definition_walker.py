@@ -40,11 +40,16 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         else:
             v = self.state.load_register(reg_expr)
             if v is not None:
-                if not self.expr.likes(v):
-                    self.out_dated = True
-                elif isinstance(v, Expr.TaggedObject) \
-                        and v.tags.get('def_at', None) != self.expr_defat:
-                    self.out_dated = True
+                for detail in v.offset_and_details.values():
+                    if detail.expr is None:
+                        self.out_dated = True
+                        break
+                    if isinstance(detail.expr, Expr.Expression) and detail.expr.has_atom(reg_expr, identity=False):
+                        self.out_dated = True
+                        break
+                    if isinstance(detail.expr, Expr.TaggedObject) and detail.def_at != self.expr_defat:
+                        self.out_dated = True
+                        break
 
     @staticmethod
     def _check_store_precedes_load(store_block_addr: int, store_stmt_idx: int, store: Stmt.Store,
@@ -66,7 +71,7 @@ class OutdatedDefinitionWalker(AILBlockWalker):
         :param load:
         :return:
         """
-        if store_block_addr == load_block_addr and store_stmt_idx <= load_stmt_idx:
+        if store_block_addr == load_block_addr and store_stmt_idx >= load_stmt_idx:
             written = set()
             if isinstance(addr, Expr.Const) and isinstance(store.size, int):
                 written |= { addr.value + i for i in range(store.size) }

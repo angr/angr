@@ -20,13 +20,13 @@ _all_optimization_passes = [
     (RegisterSaveAreaSimplifier, True),
     (StackCanarySimplifier, True),
     (BasePointerSaveSimplifier, True),
-    (EagerReturnsSimplifier, True),
     (DivSimplifier, True),
     (MultiSimplifier, True),
     (ModSimplifier, True),
     (ConstantDereferencesSimplifier, True),
     (RetAddrSaveSimplifier, True),
     (X86GccGetPcSimplifier, True),
+    (EagerReturnsSimplifier, True),
 ]
 
 def get_optimization_passes(arch, platform):

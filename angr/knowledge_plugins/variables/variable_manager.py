@@ -727,11 +727,20 @@ class VariableManagerInternal(Serializable):
         for v, subvs in self._phi_variables.items():
             if not isinstance(v, SimRegisterVariable):
                 continue
-            if not self.get_variable_accesses(v):
-                # this phi node has never been used - discard it
-                continue
             for subv in subvs:
                 graph.add_edge(v, subv)
+
+        # prune the graph: remove nodes that have never been used
+        while True:
+            unused_nodes = set()
+            for node in [ nn for nn in graph.nodes() if graph.degree[nn] == 1]:
+                if not self.get_variable_accesses(node):
+                    # this node has never been used - discard it
+                    unused_nodes.add(node)
+            if unused_nodes:
+                graph.remove_nodes_from(unused_nodes)
+            else:
+                break
 
         for nodes in networkx.connected_components(graph):
             if len(nodes) <= 1:

@@ -853,11 +853,12 @@ class CAssignment(CStatement):
         }
 
         if (self.codegen.use_compound_assignments
-            and isinstance(self.lhs, CVariable)
-            and isinstance(self.rhs, CBinaryOp)
-            and isinstance(self.rhs.lhs, CVariable)
-            and self.lhs.unified_variable is self.rhs.lhs.unified_variable
-            and self.rhs.op in compound_assignment_ops):
+                and isinstance(self.lhs, CVariable)
+                and isinstance(self.rhs, CBinaryOp)
+                and isinstance(self.rhs.lhs, CVariable)
+                and self.lhs.unified_variable is not None and self.rhs.lhs.unified_variable is not None
+                and self.lhs.unified_variable is self.rhs.lhs.unified_variable
+                and self.rhs.op in compound_assignment_ops):
             # a = a + x  =>  a += x
             yield f' {compound_assignment_ops[self.rhs.op]}= ', self
             yield from CExpression._try_c_repr_chunks(self.rhs.rhs)
@@ -2024,7 +2025,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         type_size = None
         if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeArray):
             # unpack the pointer
-            type_size = variable_type.pts_to.size // self.project.arch.byte_width
+            type_size = variable_type.pts_to.elem_type.size // self.project.arch.byte_width
         elif isinstance(variable_type, SimTypePointer):
             inner_type = unpack_typeref(variable_type.pts_to)
             if isinstance(inner_type, SimTypePointer):
@@ -2518,7 +2519,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return expr
 
         if base_addr is not None and displacement is None:
-            return self._deref_addr_displacement(base_addr, displacement=0, tags=expr.tags)
+            return self._deref_addr_displacement(base_addr, displacement=0, addr_type=base_addr.type, tags=expr.tags)
         if base_addr is None and displacement is not None:
             return self._deref_addr_displacement(
                 CConstant(displacement, SimTypePointer(SimTypeInt), codegen=self), tags=expr.tags)
