@@ -1,5 +1,6 @@
-
 import logging
+
+from cle import AT
 
 import angr
 
@@ -9,11 +10,11 @@ l = logging.getLogger(name=__name__)
 # __libc_start_main
 ######################################
 class __libc_start_main(angr.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
+    #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 
     ADDS_EXITS = True
     NO_RET = True
-    local_vars = ('main', 'argc', 'argv', 'init', 'fini')
+    local_vars = ('main', 'argc', 'argv', 'init', 'fini', 'initializers')
 
     def _initialize_b_loc_table(self):
         """
@@ -135,10 +136,26 @@ class __libc_start_main(angr.SimProcedure):
         # TODO: __cxa_atexit calls for various at-exit needs
 
         if not self.state.solver.is_true(self.init == 0):
+            self.initializers = None
             self.call(self.init, (self.argc[31:0], self.argv, self.envp), 'after_init',
                 prototype = 'int main(int argc, char **argv, char **envp)')
         else:
+            obj = self.project.loader.main_object
+            init_func = getattr(obj, '_init_func', None)
+            init_arr = getattr(obj, '_init_arr', None)
+            init_func = [init_func] if init_func else []
+            self.initializers = init_func + list(init_arr)
+            for i, x in enumerate(self.initializers):
+                self.initializers[i] = AT.from_lva(x, obj).to_mva()
+            self.inside_init(main, argc, argv, init, fini)
+
+    def inside_init(self, main, argc, argv, init, fini):
+        if len(self.initializers) == 0:
             self.after_init(main, argc, argv, init, fini)
+        else:
+            addr = self.initializers.pop(0)
+            self.call(addr, (self.argc[31:0], self.argv, self.envp), 'inside_init',
+                  prototype='int main(int argc, char **argv, char **envp)')
 
     def after_init(self, main, argc, argv, init, fini, exit_addr=0):
         self.call(self.main, (self.argc[31:0], self.argv, self.envp), 'after_main',
