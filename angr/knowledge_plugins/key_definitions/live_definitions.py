@@ -57,6 +57,8 @@ class DefinitionAnnotation(Annotation):
         else:
             raise ValueError("DefinitionAnnotation can only check equality with other DefinitionAnnotation")
 
+    def __repr__(self):
+        return f"<{self.__class__.__name__}({repr(self.definition)})"
 
 # pylint: disable=W1116
 class LiveDefinitions:
