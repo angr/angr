@@ -120,8 +120,8 @@ class Store(Statement):
 
     def likes(self, other):
         return type(other) is Store and \
-               self.eq(self.addr, other.addr) and \
-               self.eq(self.data, other.data) and \
+               self.addr.likes(other.addr) and \
+               self.data.likes(other.data) and \
                self.size == other.size and \
                self.guard == other.guard and \
                self.endness == other.endness
