@@ -21,6 +21,7 @@ class Test0Div(unittest.TestCase):
         assert isinstance(simgr.errored[0].error, angr.errors.SimZeroDivisionException)
 
     def test_0div_i386(self):
+        assert False
         self._run_0div('i386')
 
     def test_0div_x86_64(self):
