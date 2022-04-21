@@ -1,8 +1,8 @@
-
 import logging
 
-import angr
 from cle import AT
+
+import angr
 
 l = logging.getLogger(name=__name__)
 
@@ -10,7 +10,7 @@ l = logging.getLogger(name=__name__)
 # __libc_start_main
 ######################################
 class __libc_start_main(angr.SimProcedure):
-    #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init
+    #pylint:disable=arguments-differ,unused-argument,attribute-defined-outside-init,missing-class-docstring
 
     ADDS_EXITS = True
     NO_RET = True
