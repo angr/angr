@@ -312,7 +312,7 @@ class CallStack(SimStatePlugin):
                 i,
                 "None" if frame.call_site_addr is None else "%#x" % frame.call_site_addr,
                 "None" if frame.func_addr is None else "%#x" % frame.func_addr,
-                "None" if frame.return_target is None else "%#x" % frame.return_target,
+                "None" if frame.current_return_target is None else "%#x" % frame.current_return_target,
             )
             stack.append(s)
 
