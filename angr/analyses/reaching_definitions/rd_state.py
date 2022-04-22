@@ -5,6 +5,7 @@ import archinfo
 import claripy
 
 from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
+from ...storage.memory_mixins import MultiValuedMemory
 from ...knowledge_plugins.key_definitions import LiveDefinitions
 from ...knowledge_plugins.key_definitions.atoms import Atom, GuardUse, Register, MemoryLocation, FunctionCall, \
     ConstantSrc
@@ -132,7 +133,7 @@ class ReachingDefinitionsState:
         else:
             raise ValueError("Unsupported architecture word size %d" % self.arch.bits)
 
-    def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition):
+    def annotate_with_def(self, symvar: claripy.ast.Base, definition: Definition) -> claripy.ast.Base:
         """
 
         :param symvar:
@@ -161,11 +162,11 @@ class ReachingDefinitionsState:
         return self.live_definitions.register_uses
 
     @property
-    def register_definitions(self):
+    def register_definitions(self) -> MultiValuedMemory:
         return self.live_definitions.register_definitions
 
     @property
-    def stack_definitions(self):
+    def stack_definitions(self) -> MultiValuedMemory:
         return self.live_definitions.stack_definitions
 
     @property
@@ -173,7 +174,7 @@ class ReachingDefinitionsState:
         return self.live_definitions.stack_uses
 
     @property
-    def heap_definitions(self):
+    def heap_definitions(self) -> MultiValuedMemory:
         return self.live_definitions.heap_definitions
 
     @property
@@ -185,7 +186,7 @@ class ReachingDefinitionsState:
         return self.live_definitions.memory_uses
 
     @property
-    def memory_definitions(self):
+    def memory_definitions(self) -> MultiValuedMemory:
         return self.live_definitions.memory_definitions
 
     @property
