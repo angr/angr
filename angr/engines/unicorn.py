@@ -145,29 +145,55 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         del self.stmt_idx
 
-    def _execute_symbolic_instrs(self):
+    def _execute_symbolic_instrs(self, syscall_data):
         recent_bbl_addrs = None
         stop_details = None
 
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
-                if self.state.os_name == "CGC" and block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
-                    # Re-execute receive syscall
+                if self.state.os_name == "CGC" and \
+                  block_details["block_addr"] in {self.state.unicorn.cgc_random_addr,
+                                                  self.state.unicorn.cgc_receive_addr}:
+                    # Re-execute CGC syscall
                     reg_vals = dict(block_details["registers"])
                     curr_regs = self.state.regs
                     # If any regs are not present in the block details for re-execute, they are probably symbolic and so
                     # were not saved in native interface. Use current register values in those cases: they should have
-                    # correct values right now. rx_bytes argument is set to 0 since we care about updating symbolic
-                    # values only
-                    syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx),
-                                    reg_vals.get("edx", curr_regs.edx), 0]
-                    syscall_simproc = self.state.project.simos.syscall_from_number(3, abi=None)
-                    syscall_simproc.arch = self.state.arch
-                    syscall_simproc.project = self.state.project
-                    syscall_simproc.state = self.state
-                    syscall_simproc.cc = self.state.project.simos.syscall_cc(self.state)
-                    ret_val = getattr(syscall_simproc, syscall_simproc.run_func)(*syscall_args)
-                    self.state.registers.store("eax", ret_val, inspect=False, disable_actions=True)
+                    # correct values right now.
+                    if block_details["block_addr"] == self.state.unicorn.cgc_receive_addr:
+                        # rx_bytes argument is set to 0 since we care about updating symbolic values only
+                        syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx),
+                                        reg_vals.get("edx", curr_regs.edx), 0]
+                        syscall_simproc = self.state.project.simos.syscall_from_number(3, abi=None)
+                        syscall_simproc.arch = self.state.arch
+                        syscall_simproc.project = self.state.project
+                        syscall_simproc.state = self.state
+                        syscall_simproc.cc = self.state.project.simos.syscall_cc(self.state)
+                        ret_val = getattr(syscall_simproc, syscall_simproc.run_func)(*syscall_args)
+                        self.state.registers.store("eax", ret_val, inspect=False, disable_actions=True)
+                    elif block_details["block_addr"] == self.state.unicorn.cgc_random_addr:
+                        syscall_simproc = self.state.project.simos.syscall_from_number(7, abi=None)
+                        # rnd_bytes argument is set to 0 since we care about updating symbolic values only
+                        syscall_args = [reg_vals.get("ebx", curr_regs.ebx), reg_vals.get("ecx", curr_regs.ecx), 0]
+                        if o.UNICORN_HANDLE_CGC_RANDOM_SYSCALL in self.state.options:
+                            # Update concrete value before invoking syscall
+                            concrete_data = b""
+                            curr_size = 0
+                            max_size = self.state.solver.eval(syscall_args[1])
+                            while curr_size != max_size:
+                                next_entry = syscall_data["random"].pop(0)
+                                curr_size = curr_size + next_entry[1]
+                                endianness = "little" if self.state.arch.memory_endness == "Iend_LE" else "big"
+                                concrete_data = concrete_data + next_entry[0].to_bytes(next_entry[1], endianness)
+                        else:
+                            concrete_data = None
+
+                        syscall_simproc.arch = self.state.arch
+                        syscall_simproc.project = self.state.project
+                        syscall_simproc.state = self.state
+                        syscall_simproc.cc = self.state.project.simos.syscall_cc(self.state)
+                        ret_val = getattr(syscall_simproc, syscall_simproc.run_func)(*syscall_args, concrete_data)
+                        self.state.registers.store("eax", ret_val, inspect=False, disable_actions=True)
                 else:
                     if block_details["has_symbolic_exit"]:
                         curr_succs_count = len(self.successors.successors)
@@ -335,7 +361,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         # initialize unicorn plugin
         try:
-            state.unicorn.setup()
+            syscall_data = kwargs["syscall_data"] if "syscall_data" in kwargs else None
+            state.unicorn.setup(syscall_data=syscall_data)
         except SimValueError:
             # it's trying to set a symbolic register somehow
             # fail out, force fallback to next engine
@@ -350,7 +377,7 @@ class SimEngineUnicorn(SuccessorsMixin):
                                        track_stack=o.UNICORN_TRACK_STACK_POINTERS in state.options)
             state.unicorn.hook()
             state.unicorn.start(step=step)
-            self._execute_symbolic_instrs()
+            self._execute_symbolic_instrs(syscall_data=syscall_data)
             state.unicorn.finish(self.state)
         finally:
             state.unicorn.destroy(self.state)
@@ -387,3 +414,5 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         successors.description = description
         successors.processed = True
+
+        return None

@@ -40,3 +40,4 @@ EXPORTS
   simunicorn_set_cgc_syscall_details
   simunicorn_process_transmit
   simunicorn_set_fd_bytes
+  simunicorn_set_random_syscall_data

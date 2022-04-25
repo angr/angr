@@ -8,7 +8,7 @@ import angr
 
 
 def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False, read_strategies=None,
-               write_strategies=None, add_options=None, remove_options=None):
+               write_strategies=None, add_options=None, remove_options=None, syscall_data=None):
     p = angr.Project(filename)
     p.simos.syscall_library.update(angr.SIM_LIBRARIES["cgcabi_tracer"])
 
@@ -30,6 +30,7 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False
         keep_predecessors=1,
         copy_states=copy_states,
         follow_unsat=follow_unsat,
+        syscall_data=syscall_data,
     )
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
@@ -46,12 +47,14 @@ def trace_cgc_with_pov_file(
         read_strategies=None,
         write_strategies=None,
         add_options=None,
-        remove_options=None
+        remove_options=None,
+        syscall_data=None
 ):
     assert os.path.isfile(pov_file)
     pov = load_cgc_pov(pov_file)
     trace_result = tracer_cgc(binary, test_name, b''.join(pov.writes), copy_states, read_strategies=read_strategies,
-                              write_strategies=write_strategies, add_options=add_options, remove_options=remove_options)
+                              write_strategies=write_strategies, add_options=add_options, remove_options=remove_options,
+                              syscall_data=syscall_data)
     simgr = trace_result[0]
     simgr.run()
     assert "traced" in simgr.stashes
@@ -193,6 +196,44 @@ def test_cgc_receive_unicorn_native_interface_rx_bytes():
     )
 
 
+def test_cgc_random_syscall_handling_native_interface():
+    """
+    Test if random syscal is correctly handled in native interface
+    """
+
+    binary = os.path.join(bin_location, "tests", "cgc", "KPRCA_00011")
+    pov_file = os.path.join(
+        bin_location, "tests_data", "cgc_povs", "KPRCA_00011_POV_00000.xml"
+    )
+    output_file = os.path.join(bin_location, "tests_data", "cgc_povs", "KPRCA_00011_stdout.txt")
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_CGC_RANDOM_SYSCALL,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES, angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+
+    rand_syscall_data = {
+        'random': [
+            (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1), (16705, 2), (16705, 2), (65, 1),
+            (16705, 2), (16705, 2)
+        ]
+    }
+    with open(output_file, 'rb') as fh:
+        output_bytes = fh.read()
+
+    add_options = {angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL, angr.options.UNICORN_HANDLE_SYMBOLIC_ADDRESSES,
+                   angr.options.UNICORN_HANDLE_SYMBOLIC_CONDITIONS}
+    trace_cgc_with_pov_file(
+        binary,
+        "tracer_cgc_receive_unicorn_native_interface_rx_bytes",
+        pov_file,
+        output_bytes,
+        add_options=add_options,
+        syscall_data=rand_syscall_data
+    )
 
 def test_cgc_se1_palindrome_raw():
     b = os.path.join(bin_location, "tests", "cgc", "sc1_0b32aa01_01")

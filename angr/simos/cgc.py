@@ -68,6 +68,7 @@ class SimCGC(SimUserland):
         # set up the address for concrete transmits and receive
         s.unicorn.cgc_transmit_addr = self.syscall_from_number(2).addr
         s.unicorn.cgc_receive_addr = self.syscall_from_number(3).addr
+        s.unicorn.cgc_random_addr = self.syscall_from_number(7).addr
 
         s.libc.max_str_len = 1000000
         s.libc.max_strtol_len = 10
