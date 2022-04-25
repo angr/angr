@@ -5,6 +5,11 @@ import angr
 ######################################
 
 class getenv(angr.SimProcedure):
+    '''
+    The getenv() function searches the environment list to find the
+    environment variable name, and returns a pointer to the
+    corresponding value string.
+    '''
     #pylint:disable=arguments-differ
 
     def run(self, m_name):
@@ -12,8 +17,11 @@ class getenv(angr.SimProcedure):
         name_len = self.inline_call(strlen, m_name)
         name_expr = self.state.memory.load(m_name, name_len.max_null_index, endness='Iend_BE')
         name = self.state.solver.eval(name_expr, cast_to=bytes)
-        
+
         p = self.state.posix.environ
+        if p is None:
+            return self.state.solver.BVS(b"getenv__" + name, self.state.arch.bits)
+
         while True:
             m_line = self.state.memory.load(p, self.state.arch.byte_width, endness=self.arch.memory_endness)
             if self.state.solver.eval(m_line, cast_to=int) == 0:
