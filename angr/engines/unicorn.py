@@ -152,7 +152,8 @@ class SimEngineUnicorn(SuccessorsMixin):
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
             try:
                 if self.state.os_name == "CGC" and \
-                  block_details["block_addr"] in {self.state.unicorn.cgc_random_addr, self.state.unicorn.cgc_receive_addr}:
+                  block_details["block_addr"] in {self.state.unicorn.cgc_random_addr,
+                                                  self.state.unicorn.cgc_receive_addr}:
                     # Re-execute CGC syscall
                     reg_vals = dict(block_details["registers"])
                     curr_regs = self.state.regs
@@ -362,7 +363,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         try:
             syscall_data = kwargs["syscall_data"] if "syscall_data" in kwargs else None
             state.unicorn.setup(syscall_data=syscall_data)
-        except SimValueError as e:
+        except SimValueError:
             # it's trying to set a symbolic register somehow
             # fail out, force fallback to next engine
             self.__reset_countdowns(successors.initial_state, state)
@@ -413,3 +414,5 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         successors.description = description
         successors.processed = True
+
+        return None
