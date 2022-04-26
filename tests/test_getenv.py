@@ -9,7 +9,7 @@ l = logging.getLogger("angr.tests.getenv")
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-class TestRunEcho(unittest.TestCase):
+class TestRunEcho(unittest.TestCase): #pylint: disable=missing-class-docstring
     flag = "!! Bingo this_is_a_string!"
 
     def _run_getenv_with_env(self,arch):
@@ -26,12 +26,12 @@ class TestRunEcho(unittest.TestCase):
         expect_output = ["# {k}={v}".format(k=k,v=v) for k,v in env.items()] + \
             [ "{k}: {v}".format(k=k, v=env.get(k,"__NULL__"))  for k in TEST_name ] + \
                 [self.flag]
-        
+
         output_lines.sort()
         expect_output.sort()
 
         assert output_lines == expect_output
-    
+
     def _run_getenv_without_env(self,arch):
         p = angr.Project(os.path.join(test_location, arch, 'test_getenv'))
         s = p.factory.entry_state()
