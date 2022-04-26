@@ -8,7 +8,7 @@ from archinfo import RegisterName
 
 from .sim_type import SimType, SimTypeChar, SimTypePointer, SimTypeFixedSizeArray, SimTypeArray, SimTypeString, \
     SimTypeFunction, SimTypeFloat, SimTypeDouble, SimTypeReg, SimStruct, SimStructValue, SimTypeInt, SimTypeNum, \
-    SimUnion, SimTypeBottom, parse_signature
+    SimUnion, SimTypeBottom, parse_signature, SimTypeReference
 
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -877,7 +877,7 @@ class SimCC:
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         elif isinstance(arg, PointerWrapper):
-            if not isinstance(ty, SimTypePointer):
+            if not isinstance(ty, (SimTypePointer, SimTypeReference)):
                 raise TypeError("Type mismatch: expected %s, got pointer-wrapper" % ty)
 
             if arg.buffer:
@@ -929,7 +929,7 @@ class SimCC:
             return val
 
         elif isinstance(arg, list):
-            if isinstance(ty, SimTypePointer):
+            if isinstance(ty, (SimTypePointer, SimTypeReference)):
                 ref = True
                 subty = ty.pts_to
             elif isinstance(ty, SimTypeFixedSizeArray):
@@ -1420,7 +1420,7 @@ class SimCCSystemVAMD64(SimCC):
             nchunks = 1
         else:
             nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
-        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom)):
+        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ['INTEGER'] * nchunks
         elif isinstance(ty, (SimTypeFloat,)):
             return ['SSE'] + ['SSEUP'] * (nchunks - 1)
