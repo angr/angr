@@ -407,6 +407,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         :param state_add_options:                   State options that will be added to the initial state.
         :param state_remove_options:                State options that will be removed from the initial state.
         """
+        self.saved_expr=None
         ### This is a temporary solution for overlapping blocks, by using the block size from CFGFast
         self.cfg_fast_graph = cfg_fast_graph
         ##If an existing graph is being passed that needs to be analysed
@@ -1487,11 +1488,38 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         # if block_id.addr in [0x140179251, 0x1401791DA]:
         #     import ipdb;ipdb.set_trace()
-        if block_id.addr == 0x1401463f4:
-            import ipdb;ipdb.set_trace()
+        # if block_id.addr == 0x1401463f4:
+        #     import ipdb;ipdb.set_trace()
 
         # Get a SimSuccessors out of current job
+        if self.saved_expr is not None:
+            if len(job.state.solver.eval_upto(self.saved_expr,2))<2:
+                import ipdb;ipdb.set_trace()
+
+        # remove btc, btr
+        cur_block = job.state.block(addr)
+        clear_cache=None
+        for ins in cur_block.capstone.insns:
+            if ins.mnemonic in ['btc', 'bts', 'bt', 'btr']:
+                job.state.memory.store(ins.address, ins.size*b"\x90")
+                clear_cache=True
+        # if addr == 0x1400fef57:# and block_id.vm_vpc == 5369366910:
+        #     import ipdb;ipdb.set_trace()
+        # or we can just call clear_cache()
+        # if clear_cache:
+        self.project.factory.default_engine.clear_cache()
+
+
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+
+        if addr == 0x1401463f4:
+            import ipdb;ipdb.set_trace()
+
+        # if block_id.addr == 0x1400FBBB0:
+        #     self.saved_expr = sim_successors.all_successors[0].regs.r10.args[1] == 0
+        #     import ipdb;
+        #     ipdb.set_trace()
+
 
         l.debug("All possible successors: " + str(sim_successors.all_successors))
         #### Keeping only symbolic and True successors
@@ -1780,6 +1808,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         is_indirect_jump = sim_successors.sort == 'IRSB' and self._is_indirect_jump(cfg_node, sim_successors)
         indirect_jump_resolved_by_resolvers = False
 
+        if addr == 0x1401463f4:
+            import ipdb;ipdb.set_trace()
         if is_indirect_jump and self._resolve_indirect_jumps:
             # Try to resolve indirect jumps
             irsb = input_state.block().vex

@@ -2532,12 +2532,13 @@ class VMDeobfuscation(Analysis):
                                         starts=[start_addr],
                                         initial_state=start_state,
                                         max_iterations=1,
-                                        resolve_indirect_jumps=False, ##### Need to resolve the issue that arises when this is set to True
+                                        resolve_indirect_jumps=True,
                                         keep_state=True,
                                         state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS},
                                         iropt_level=1,
                                         cfg_fast_graph=cfg_fast_graph,
                                         avoid_runs=avoid_runs,
+                                        enable_advanced_backward_slicing=True
                                         )
         return cfg, proj
 
