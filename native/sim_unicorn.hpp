@@ -196,7 +196,6 @@ struct instr_details_t {
 	mutable uint64_t memory_values_count;
 	std::set<instr_details_t> instr_deps;
 	std::unordered_set<register_value_t> reg_deps;
-	std::vector<std::pair<address_t, uint64_t>> symbolic_mem_deps;
 
 	instr_details_t() {
 		has_concrete_memory_dep = false;
@@ -205,7 +204,6 @@ struct instr_details_t {
 		mem_write_addr = -1;
 		mem_write_size = -1;
 		reg_deps.clear();
-		symbolic_mem_deps.clear();
 	}
 
 	bool operator==(const instr_details_t &other_instr) const {
@@ -590,6 +588,8 @@ class State {
 
 	// Count of blocks executed in native interface
 	int64_t executed_blocks_count;
+
+	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
 
 	// Private functions
 
