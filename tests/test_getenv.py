@@ -11,7 +11,7 @@ l = logging.getLogger("angr.tests.getenv")
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-class TestRunEcho(unittest.TestCase): #pylint: disable=missing-class-docstring
+class TestRunEcho(unittest.TestCase): #pylint: disable=missing-class-docstring, no-self-use
     flag = "this_is_a_string!"
 
     def test_run_getenv_with_env(self):
