@@ -1,17 +1,18 @@
+# Disable some pylint warnings: no-self-use, missing-docstring
+# pylint: disable=R0201, C0111
+
 import os
 import logging
 
 import unittest
-
 import claripy
-
 import angr
 
 l = logging.getLogger("angr.tests.getenv")
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'binaries', 'tests')
 
-class TestRunEcho(unittest.TestCase): #pylint: disable=missing-class-docstring, no-self-use
+class TestRunEcho(unittest.TestCase):
     flag = "this_is_a_string!"
 
     def test_run_getenv_with_env(self):
