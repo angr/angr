@@ -134,10 +134,8 @@ class SimEngineUnicorn(SuccessorsMixin):
 
         if execute_default_exit and block_details["has_symbolic_exit"]:
             # Process block's default exit
-            saved_state = self.state.copy()
             self.stmt_idx = DEFAULT_STATEMENT  # pylint:disable=attribute-defined-outside-init
             super()._handle_vex_defaultexit(vex_block.next, vex_block.jumpkind)  # pylint:disable=no-member
-            self.state = saved_state
 
         # Restore breakpoints
         for succ_state in self.successors.successors:
@@ -209,11 +207,11 @@ class SimEngineUnicorn(SuccessorsMixin):
                         if len(curr_succs) == curr_succs_count + 1:
                             # There is only one newly added satisfiable successor state and so that is the state that
                             # follows path being traced
-                            self.state = curr_succs[curr_succs_count].copy()
+                            self.state = curr_succs[curr_succs_count]
+                            self.successors.flat_successors.remove(self.state)
+                            self.successors.all_successors.remove(self.state)
+                            self.successors.successors.remove(self.state)
                             self.state.scratch.guard = self.state.solver.true
-                            self.successors.flat_successors.remove(curr_succs[curr_succs_count])
-                            self.successors.all_successors.remove(curr_succs[curr_succs_count])
-                            self.successors.successors.remove(curr_succs[curr_succs_count])
                         else:
                             # There are multiple satisfiable states. Use the state's record of basic blocks executed
                             # and block where native interface stopped to determine which state followed the path traced
@@ -227,10 +225,10 @@ class SimEngineUnicorn(SuccessorsMixin):
 
                             for succ in curr_succs[curr_succs_count:]:
                                 if succ.addr == next_block_on_path:
-                                    self.state = succ.copy()
-                                    self.state.scratch.guard = self.state.solver.true
+                                    self.state = succ
                                     self.successors.flat_successors.remove(succ)
                                     self.successors.successors.remove(succ)
+                                    self.state.scratch.guard = self.state.solver.true
                                     break
                             else:
                                 raise Exception("Multiple valid successor states found but none followed the trace!")
