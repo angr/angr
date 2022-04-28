@@ -148,6 +148,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         stop_details = None
 
         for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
+            self.state.scratch.guard = self.state.solver.true
             try:
                 if self.state.os_name == "CGC" and \
                   block_details["block_addr"] in {self.state.unicorn.cgc_random_addr,
@@ -211,7 +212,6 @@ class SimEngineUnicorn(SuccessorsMixin):
                             self.successors.flat_successors.remove(self.state)
                             self.successors.all_successors.remove(self.state)
                             self.successors.successors.remove(self.state)
-                            self.state.scratch.guard = self.state.solver.true
                         else:
                             # There are multiple satisfiable states. Use the state's record of basic blocks executed
                             # and block where native interface stopped to determine which state followed the path traced
@@ -228,7 +228,6 @@ class SimEngineUnicorn(SuccessorsMixin):
                                     self.state = succ
                                     self.successors.flat_successors.remove(succ)
                                     self.successors.successors.remove(succ)
-                                    self.state.scratch.guard = self.state.solver.true
                                     break
                             else:
                                 raise Exception("Multiple valid successor states found but none followed the trace!")
