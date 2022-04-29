@@ -168,6 +168,8 @@ class Tracer(ExplorationTechnique):
         self._aslr_slides = {}  # type: Dict[cle.Backend, int]
         self._current_slide = None
 
+        self._fd_bytes = None
+
         # keep track of the last basic block we hit
         self.predecessors = [None] * keep_predecessors # type: List[angr.SimState]
         self.last_state = None
@@ -262,6 +264,13 @@ class Tracer(ExplorationTechnique):
             # this is an awful fucking heuristic but it's as good as we've got
             return abs(self._trace[idx] - self._trace[idx + 1]) > 0x1000
 
+    def set_fd_data(self, fd_data: Dict[int, bytes]):
+        """
+        Set concrete bytes of various fds read by the program
+        """
+
+        self._fd_bytes = fd_data
+
     def setup(self, simgr):
         simgr.populate('missed', [])
         simgr.populate('traced', [])
@@ -321,7 +330,7 @@ class Tracer(ExplorationTechnique):
 
     def step(self, simgr, stash='active', **kwargs):
         simgr.drop(stash='missed')
-        return simgr.step(stash=stash, syscall_data=self._syscall_data, **kwargs)
+        return simgr.step(stash=stash, syscall_data=self._syscall_data, fd_bytes=self._fd_bytes, **kwargs)
 
     def step_state(self, simgr, state, **kwargs):
         if state.history.jumpkind == 'Ijk_Exit':

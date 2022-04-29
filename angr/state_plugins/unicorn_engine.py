@@ -580,9 +580,6 @@ class Unicorn(SimStatePlugin):
 
         self.time = None
 
-        # Concrete bytes of open fds
-        self.fd_bytes = {}
-
         self._bullshit_cb = ctypes.cast(unicorn.unicorn.UC_HOOK_MEM_INVALID_CB(self._hook_mem_unmapped),
                                         unicorn.unicorn.UC_HOOK_MEM_INVALID_CB)
         self._skip_next_callback = False
@@ -1080,7 +1077,7 @@ class Unicorn(SimStatePlugin):
         """
         return self.state.arch.name == "MIPS32"
 
-    def setup(self, syscall_data=None):
+    def setup(self, syscall_data=None, fd_bytes=None):
         if self._is_mips32 and options.COPY_STATES not in self.state.options:
             # we always re-create the thread-local UC object for MIPS32 even if COPY_STATES is disabled in state
             # options. this is to avoid some weird bugs in unicorn (e.g., it reports stepping 1 step while in reality it
@@ -1140,8 +1137,6 @@ class Unicorn(SimStatePlugin):
                     l.error("You haven't set the address for receive syscall!!!!!!!!!!!!!!")
                 else:
                     cgc_receive_addr = self.cgc_receive_addr
-                    # Set stdin bytes in native interface
-                    self.fd_bytes[0] = bytearray(self.state.posix.fd.get(0).concretize()[0])
 
             if options.UNICORN_HANDLE_CGC_RANDOM_SYSCALL in self.state.options and syscall_data is not None:
                 if self.cgc_random_addr is None:
@@ -1167,10 +1162,11 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate_page(self._uc_state, self.gdt.addr, bytes(0x1000), None)
 
         # Pass all concrete fd bytes to native interface so that it can handle relevant syscalls
-        for fd_num, fd_data in self.fd_bytes.items():
-            fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
-            read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
-            _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
+        if fd_bytes is not None:
+            for fd_num, fd_data in fd_bytes.items():
+                fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
+                read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
+                _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = self.state.arch.artificial_registers_offsets
