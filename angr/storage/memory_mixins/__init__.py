@@ -176,8 +176,8 @@ from .symbolic_merger_mixin import SymbolicMergerMixin
 from .top_merger_mixin import TopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
-
-from .paged_memory.page_backer_mixins import ClemoryBackerMixin, DictBackerMixin
+f
+from .paged_memory.page_backer_mixins import ClemoryBackerMixin, ConcreteBackerMixin, DictBackerMixin
 from .paged_memory.paged_memory_mixin import PagedMemoryMixin, ListPagesMixin, UltraPagesMixin, \
     ListPagesWithLabelsMixin, MVListPagesMixin, MVListPagesWithLabelsMixin
 from .paged_memory.privileged_mixin import PrivilegedPagingMixin
@@ -211,6 +211,7 @@ class DefaultMemory(
     DirtyAddrsMixin,
     # -----
     StackAllocationMixin,
+    ConcreteBackerMixin,
     ClemoryBackerMixin,
     DictBackerMixin,
     PrivilegedPagingMixin,
