@@ -1168,7 +1168,7 @@ class Unicorn(SimStatePlugin):
                 read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
                 _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
         else:
-            l.warning("Input fds concrete data not specified. Handling some syscalls in native interface could fail.")
+            l.info("Input fds concrete data not specified. Handling some syscalls in native interface could fail.")
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = self.state.arch.artificial_registers_offsets
