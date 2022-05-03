@@ -1220,7 +1220,7 @@ void State::get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) 
 		else {
 			// The flag is not 0 so we shift right until first non-zero bit is in LSB so that value of flag register
 			// will be set correctly when re-executing
-			for (int i = 1; i < MAX_REGISTER_BYTE_SIZE && (reg_value & 1 == 0); i++) {
+			for (int i = 1; i < MAX_REGISTER_BYTE_SIZE && ((reg_value & 1) == 0); i++) {
 				reg_value >>= i;
 			}
 			memcpy(out_reg_value, (uint8_t *)&reg_value, MAX_REGISTER_BYTE_SIZE);
