@@ -1167,6 +1167,8 @@ class Unicorn(SimStatePlugin):
                 fd_bytes_p = int(ffi.cast('uint64_t', ffi.from_buffer(memoryview(fd_data))))
                 read_pos = self.state.solver.eval(self.state.posix.fd.get(fd_num).read_pos)
                 _UC_NATIVE.set_fd_bytes(self._uc_state, fd_num, fd_bytes_p, len(fd_data), read_pos)
+        else:
+            l.warning("No concrete data specified for input fds. Some syscalls may not be handled in native interface if requested.")
 
         # Initialize list of artificial VEX registers
         artificial_regs_list = self.state.arch.artificial_registers_offsets
