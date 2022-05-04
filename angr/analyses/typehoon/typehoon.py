@@ -184,7 +184,10 @@ class Typehoon(Analysis):
             # are all fields the same?
             if len(tc.fields) > 1 and all(tc.fields[off] == field0 for off in offsets):
                 # are all fields aligned properly?
-                alignment = field0.size
+                try:
+                    alignment = field0.size
+                except NotImplementedError:
+                    alignment = 1
                 if all(off % alignment == 0 for off in offsets):
                     # yeah!
                     max_offset = offsets[-1]
