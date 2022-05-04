@@ -50,6 +50,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         self.max_level = max_level
         self.min_indegree = min_indegree
         self.node_idx = count(start=node_idx_start)
+        self._ri = kwargs.get("region_identifier", None)
 
         self.analyze()
 

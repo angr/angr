@@ -71,7 +71,7 @@ class Clinic(Analysis):
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
-        self.reaching_definitions: Optional['ReachingDefinitionsAnalysis'] = None
+        self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
 
         # sanity checks
