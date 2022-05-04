@@ -81,8 +81,9 @@ class RegionIdentifier(Analysis):
 
     def _make_regions_by_block_addrs(self) -> List[List[int]]:
         """
-        Creates a list of addr lists representing each region without recursion. Each address is the address
-        of the block in that region. The head of each recursive region is also included in each sub-region.
+        Creates a list of addr lists representing each region without recursion. A single region is defined
+        as a set of only blocks, no Graphs containing nested regions. The list contains the address of each
+        block in the region, including the heads of each recursive region.
 
         @return: List of addr lists
         """
