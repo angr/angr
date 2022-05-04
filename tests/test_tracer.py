@@ -32,6 +32,9 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False
         follow_unsat=follow_unsat,
         syscall_data=syscall_data,
     )
+    if add_options is not None and angr.options.UNICORN_HANDLE_CGC_RECEIVE_SYSCALL in add_options:
+        t.set_fd_data({0: stdin})
+
     simgr.use_technique(t)
     simgr.use_technique(angr.exploration_techniques.Oppologist())
 

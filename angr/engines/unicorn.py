@@ -359,7 +359,8 @@ class SimEngineUnicorn(SuccessorsMixin):
         # initialize unicorn plugin
         try:
             syscall_data = kwargs["syscall_data"] if "syscall_data" in kwargs else None
-            state.unicorn.setup(syscall_data=syscall_data)
+            fd_bytes = kwargs["fd_bytes"] if "fd_bytes" in kwargs else None
+            state.unicorn.setup(syscall_data=syscall_data, fd_bytes=fd_bytes)
         except SimValueError:
             # it's trying to set a symbolic register somehow
             # fail out, force fallback to next engine
