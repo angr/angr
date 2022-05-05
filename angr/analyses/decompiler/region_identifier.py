@@ -1,9 +1,11 @@
 from itertools import count
 import logging
+from typing import List
 
 import networkx
 
 import ailment
+from ailment import Block
 from claripy.utils.orderedset import OrderedSet
 
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
@@ -34,6 +36,7 @@ class RegionIdentifier(Analysis):
         self.region = None
         self._start_node = None
         self._loop_headers = None
+        self.regions_by_block_addrs = []
 
         self._analyze()
 
@@ -72,6 +75,45 @@ class RegionIdentifier(Analysis):
         self._loop_headers = self._find_loop_headers(graph)
 
         self.region = self._make_regions(graph)
+
+        # make regions into block address lists
+        self.regions_by_block_addrs = self._make_regions_by_block_addrs()
+
+    def _make_regions_by_block_addrs(self) -> List[List[int]]:
+        """
+        Creates a list of addr lists representing each region without recursion. A single region is defined
+        as a set of only blocks, no Graphs containing nested regions. The list contains the address of each
+        block in the region, including the heads of each recursive region.
+
+        @return: List of addr lists
+        """
+
+        work_list = [self.region]
+        block_only_regions = []
+        seen_regions = set()
+        while work_list:
+            children_regions = []
+            for region in work_list:
+                children_blocks = []
+                for node in region.graph.nodes:
+                    if isinstance(node, Block):
+                        children_blocks.append(node.addr)
+                    elif isinstance(node, MultiNode):
+                        children_blocks += [n.addr for n in node.nodes]
+                    elif isinstance(node, GraphRegion):
+                        if node not in seen_regions:
+                            children_regions.append(node)
+                            children_blocks.append(node.head.addr)
+                            seen_regions.add(node)
+                    else:
+                        continue
+
+                if children_blocks:
+                    block_only_regions.append(children_blocks)
+
+            work_list = children_regions
+
+        return block_only_regions
 
     def _get_start_node(self, graph: networkx.DiGraph):
         try:
