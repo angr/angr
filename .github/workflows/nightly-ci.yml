@@ -10,3 +10,4 @@ jobs:
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
     with:
       nightly: true
+    secrets: inherit
