@@ -1512,7 +1512,48 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 
-        if addr == 0x1401463f4:
+        ## dealing with indirect jumps that are dependent on user input and user input based loads
+        if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1:
+            new_states = []
+            for ast in sim_successors.unconstrained_successors[0].regs.rip.leaf_asts():
+                if ast in sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict']:
+                    conc_addrs = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][0]
+                    if len(conc_addrs) > 2:
+                        print("More than two possible jumps? is this not a direct jump converted to an indirect jump?")
+                        import ipdb;ipdb.set_trace()
+                    for conc_addr in conc_addrs:
+                        sym_addr = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][2]
+                        size = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][1]
+                        new_state = sim_successors.unconstrained_successors[0].copy()
+                        value = new_state.memory.load(conc_addr, size, endness=new_state.arch.memory_endness)
+
+                        new_state.add_constraints(sym_addr == conc_addr)
+                        import ipdb;ipdb.set_trace()
+                        new_state.solver._solver.add_replacement(new_state.solver.simplify(sym_addr), conc_addr, invalidate_cache=False)
+
+                        new_state.add_constraints(ast == value)
+                        new_state.solver._solver.add_replacement(ast, value, invalidate_cache=False)
+                        new_states.append(new_state)
+
+            if len(new_states) != 0:
+                import ipdb;ipdb.set_trace()
+                new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                new_sim_successors.artifacts = sim_successors.artifacts
+                new_sim_successors.engine = sim_successors.engine
+                new_sim_successors.processed = sim_successors.processed
+                new_sim_successors.description = sim_successors.description
+                new_sim_successors.sort = sim_successors.sort
+                for new_state in new_states:
+                    new_sim_successors.add_successor(new_state, new_state.solver.eval(new_state.scratch.target), new_state.scratch.guard,
+                                                              new_state.history.jumpkind, True,
+                                                              new_state.scratch.exit_stmt_idx,
+                                                              new_state.scratch.exit_ins_addr,
+                                                              new_state.scratch.source)
+                sim_successors=new_sim_successors
+                sim_successors.artifacts['irsb_direct_next'] = True
+
+        elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
+            print("More than one unconstrained successor?!")
             import ipdb;ipdb.set_trace()
 
         # if block_id.addr == 0x1400FBBB0:
