@@ -887,7 +887,7 @@ class VMDeobfuscation(Analysis):
         # This function removes constant guard branches that are not dependent on a local variable that was created in the actual program.
         # e.g. removes constant guard branches that virtual stack tainted but belong to the VM's local variables
 
-        # convert the cfg to a non cross inss optimization cfg because some stack operations weer being clubbed
+        # convert the cfg to a non cross inss optimization cfg because some stack operations were being clubbed
         to_remove_inst_addrs = []
         for cfg_node in cfg.graph.nodes():
             for orig_ins in proj.factory.block(cfg_node.addr, opt_level=1, cross_insn_opt=False).capstone.insns:
@@ -2538,7 +2538,7 @@ class VMDeobfuscation(Analysis):
                                         iropt_level=1,
                                         cfg_fast_graph=cfg_fast_graph,
                                         avoid_runs=avoid_runs,
-                                        enable_advanced_backward_slicing=True
+                                        # enable_advanced_backward_slicing=True
                                         )
         return cfg, proj
 
