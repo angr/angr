@@ -96,7 +96,8 @@ class CConstruct:
                                 addr_to_pos.add_mapping(obj.tags['ins_addr'], pos)
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
-                    if isinstance(obj, (CVariable, CConstant, CStructField, CIndexedVariable, CVariableField)):
+                    # add ops to pos_to_node but NOT ast_to_pos
+                    if isinstance(obj, (CVariable, CConstant, CStructField, CIndexedVariable, CVariableField, CBinaryOp, CUnaryOp)):
                         if pos_to_node is not None:
                             pos_to_node.add_mapping(pos, len(s), obj)
                     elif isinstance(obj, CFunctionCall):
@@ -394,11 +395,12 @@ class CExpression(CConstruct):
     Base class for C expressions.
     """
 
-    __slots__ = ('_type', )
+    __slots__ = ('_type', 'collapsed', )
 
-    def __init__(self, **kwargs):
+    def __init__(self, collapsed=False, **kwargs):
         super().__init__(**kwargs)
         self._type = None
+        self.collapsed = collapsed
 
     @property
     def type(self):
@@ -1020,25 +1022,10 @@ class CStructField(CExpression):
         return self.struct_type.fields[self.field]
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
         yield str(self.field), self
-
-
-class CPlaceholder(CExpression):
-    # pylint:disable=abstract-method
-
-    __slots__ = ('placeholder', )
-
-    def __init__(self, placeholder, **kwargs):
-        super().__init__(**kwargs)
-
-        self.placeholder: str = placeholder
-
-    def c_repr_chunks(self, indent=0, asexpr=False):
-        yield self.placeholder, self
-
-    @property
-    def type(self):
-        return None
 
 
 class CVariable(CExpression):
@@ -1179,6 +1166,9 @@ class CVariable(CExpression):
         yield from cast.c_repr_chunks()
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
 
         v = self.variable if self.unified_variable is None else self.unified_variable
 
@@ -1244,6 +1234,9 @@ class CIndexedVariable(CExpression):
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
         if isinstance(self.index, int):
             bracket = CClosingObject("[")
             # it's pointing to an array! take the corresponding element
@@ -1278,6 +1271,9 @@ class CVariableField(CExpression):
         return self.field.type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
         yield from self.variable.c_repr_chunks()
         if self.var_is_ptr:
             yield "->", self
@@ -1322,6 +1318,9 @@ class CUnaryOp(CExpression):
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
 
         OP_MAP = {
             'Not': self._c_repr_chunks_not,
@@ -1404,6 +1403,9 @@ class CBinaryOp(CExpression):
         return len(precedence_list)
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
 
         if self.variable is not None:
             yield "&", self
@@ -1553,6 +1555,9 @@ class CTypeCast(CExpression):
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
         leading_paren = False
         wrapping_paren = False
         paren = CClosingObject("(")
@@ -1608,6 +1613,9 @@ class CConstant(CExpression):
         return f"\"{base_str}\""
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
@@ -1687,6 +1695,9 @@ class CITE(CExpression):
         return SimTypeInt()
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
         paren = CClosingObject("(")
         yield "(", paren
         yield from self.cond.c_repr_chunks()
@@ -1714,6 +1725,9 @@ class CDirtyExpression(CExpression):
         return SimTypeInt()
 
     def c_repr_chunks(self, indent=0, asexpr=False):
+        if self.collapsed:
+            yield '...', self
+            return
         yield str(self.dirty), None
 
 
@@ -2588,10 +2602,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         )
 
     def _handle_Expr_BinaryOp(self, expr):
-
-        if expr.depth > self.binop_depth_cutoff:
-            return CPlaceholder("...", codegen=self)
-
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1])
 
@@ -2599,6 +2609,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                          variable=self._handle(expr.variable) if expr.variable is not None else None,
                          tags=expr.tags,
                          codegen=self,
+                         collapsed=expr.depth > self.binop_depth_cutoff,
                          )
 
     def _handle_Expr_Convert(self, expr):

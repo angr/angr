@@ -1061,6 +1061,21 @@ class TestDecompiler(unittest.TestCase):
         assert "goal_width = xdectoumax(" in d.codegen.text
         assert "max_width = goal_width + 10;" in d.codegen.text
 
+    def test_expr_collapsing(self):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "deep_expr")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+        d = proj.analyses.Decompiler(proj.kb.functions['main'])
+        assert '...' in d.codegen.text, "codegen should have a too-deep expression replaced with '...'"
+        collapsed = d.codegen.map_pos_to_node.get_node(d.codegen.text.find('...'))
+        assert collapsed is not None, "collapsed node should appear in map"
+        assert collapsed.collapsed, "collapsed node should be marked as collapsed"
+        collapsed.collapsed = False
+        old_len = len(d.codegen.text)
+        d.codegen.regenerate_text()
+        new_len = len(d.codegen.text)
+        assert new_len > old_len, "un-collapsing node should expand decompilation output"
 
 if __name__ == "__main__":
     unittest.main()
