@@ -554,6 +554,9 @@ class AILSimplifier(Analysis):
                 old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
                 if old_block is None:
                     continue
+                if used_expr is None:
+                    all_uses_replaced = False
+                    continue
 
                 # if there is an updated block, use it
                 the_block = self.blocks.get(old_block, old_block)
