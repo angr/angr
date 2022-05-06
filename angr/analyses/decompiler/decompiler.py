@@ -143,7 +143,7 @@ class Decompiler(Analysis):
         self.cache.clinic = self.clinic
 
     @timethis
-    def _run_region_simplification_passes(self, ail_graph, ri, reaching_defenitions):
+    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions):
         """
         Runs optimizations that should be executed after a single region identification. This function will return
         two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
@@ -176,7 +176,7 @@ class Decompiler(Analysis):
 
             analysis = getattr(self.project.analyses, pass_.__name__)
             a = analysis(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
-                         graph=ail_graph, region_identifier=ri, reaching_defenitions=reaching_defenitions)
+                         graph=ail_graph, region_identifier=ri, reaching_definitions=reaching_definitions)
 
             # should be None if no changes
             if a.out_graph:
