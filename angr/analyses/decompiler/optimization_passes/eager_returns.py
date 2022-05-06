@@ -42,7 +42,8 @@ class EagerReturnsSimplifier(OptimizationPass):
                  # settings
                  max_level=2,
                  min_indegree=2,
-                 region_identifier=None):
+                 region_identifier=None,
+                 reaching_definitions=None):
 
         super().__init__(func, blocks_by_addr=blocks_by_addr, blocks_by_addr_and_idx=blocks_by_addr_and_idx,
                          graph=graph)
@@ -51,6 +52,7 @@ class EagerReturnsSimplifier(OptimizationPass):
         self.min_indegree = min_indegree
         self.node_idx = count(start=node_idx_start)
         self._ri = region_identifier
+        self._rd = reaching_definitions
 
         self.analyze()
 

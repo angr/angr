@@ -19,6 +19,7 @@ from ...procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from .. import Analysis, register_analysis
 from ..cfg.cfg_base import CFGBase
+from ..reaching_definitions import ReachingDefinitionsAnalysis
 from .ailgraph_walker import AILGraphWalker
 from .ailblock_walker import AILBlockWalker
 from .optimization_passes import get_default_optimization_passes, OptimizationPassStage
@@ -70,6 +71,7 @@ class Clinic(Analysis):
         self.peephole_optimizations = peephole_optimizations
         self._must_struct = must_struct
         self._reset_variable_names = reset_variable_names
+        self.reaching_definitions: Optional[ReachingDefinitionsAnalysis] = None
         self._cache = cache
 
         # sanity checks
@@ -449,6 +451,9 @@ class Clinic(Analysis):
             stack_arg_offsets=stack_arg_offsets,
             ail_manager=self._ail_manager,
         )
+        # cache the simplifier's RDA analysis
+        self.reaching_definitions = simp._reaching_definitions
+
         # the function graph has been updated at this point
         return simp.simplified
 
