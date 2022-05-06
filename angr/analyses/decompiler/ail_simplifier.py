@@ -560,11 +560,11 @@ class AILSimplifier(Analysis):
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
                 replace_with_copy = replace_with.copy()
-                if to_replace.size != replace_with_copy.size:
+                if used_expr.size != replace_with_copy.size:
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
                     replace_with_copy = Convert(new_idx,
                                                 replace_with_copy.bits,
-                                                to_replace.bits,
+                                                used_expr.bits,
                                                 False,
                                                 replace_with_copy,
                                                 )
