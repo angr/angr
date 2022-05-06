@@ -554,17 +554,20 @@ class AILSimplifier(Analysis):
                 old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
                 if old_block is None:
                     continue
+                if used_expr is None:
+                    all_uses_replaced = False
+                    continue
 
                 # if there is an updated block, use it
                 the_block = self.blocks.get(old_block, old_block)
                 stmt: Statement = the_block.statements[u.stmt_idx]
 
                 replace_with_copy = replace_with.copy()
-                if to_replace.size != replace_with_copy.size:
+                if used_expr.size != replace_with_copy.size:
                     new_idx = None if self._ail_manager is None else next(self._ail_manager.atom_ctr)
                     replace_with_copy = Convert(new_idx,
                                                 replace_with_copy.bits,
-                                                to_replace.bits,
+                                                used_expr.bits,
                                                 False,
                                                 replace_with_copy,
                                                 )
