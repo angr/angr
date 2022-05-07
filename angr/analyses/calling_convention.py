@@ -475,7 +475,7 @@ class CallingConventionAnalysis(Analysis):
             else:
                 reg_offsets: Set[int] = set(r.reg for r in reg_vars_with_single_access)
                 for var_ in var_manager.get_variables(sort="reg"):
-                    if var_.reg in reg_offsets:
+                    if var_.reg in (reg_offsets - {self.project.arch.ret_offset}):
                         # check if there is only a write to it
                         accesses = var_manager.get_variable_accesses(var_)
                         if len(accesses) == 1 and accesses[0].access_type == VariableAccessSort.WRITE:
