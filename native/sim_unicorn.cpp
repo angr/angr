@@ -869,7 +869,7 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					stmt_taint_entry.mem_read_size += result.mem_read_size;
 					stmt_taint_entry.has_memory_read = true;
 				}
-				block_taint_entry.block_stmts_taint_data.emplace_back(stmt_taint_entry);
+				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
 				break;
 			}
@@ -905,7 +905,7 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					stmt_taint_entry.mem_read_size += result.mem_read_size;
 					stmt_taint_entry.has_memory_read = true;
 				}
-				block_taint_entry.block_stmts_taint_data.emplace_back(stmt_taint_entry);
+				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
 				break;
 			}
@@ -947,7 +947,7 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					stmt_taint_entry.mem_read_size += result.mem_read_size;
 					stmt_taint_entry.has_memory_read = true;
 				}
-				block_taint_entry.block_stmts_taint_data.emplace_back(stmt_taint_entry);
+				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
 				stmt_taint_entry.reset();
 				break;
 			}
@@ -1688,7 +1688,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		if (block_mem_reads_data.size() > 0) {
 			// There are previous reads that need to be insert into block's memory reads map
 			while (vex_stmt_taint_entry_it != block_taint_entry.block_stmts_taint_data.end()) {
-				if (vex_stmt_taint_entry_it->has_memory_read) {
+				if (vex_stmt_taint_entry_it->second.has_memory_read) {
 					mem_read_result_t mem_read_result;
 					while (block_mem_reads_data.size() != 0) {
 						auto &next_mem_read = block_mem_reads_data.front();
@@ -1696,19 +1696,19 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 						mem_read_result.is_mem_read_symbolic |= next_mem_read.is_value_symbolic;
 						mem_read_result.read_size += next_mem_read.size;
 						block_mem_reads_data.erase(block_mem_reads_data.begin());
-						if (mem_read_result.read_size == vex_stmt_taint_entry_it->mem_read_size) {
-							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->sink.instr_addr, mem_read_result);
+						if (mem_read_result.read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
+							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.instr_addr, mem_read_result);
 							break;
 						}
 						else if (block_mem_reads_data.size() == 0) {
 							// This entry is of a partial memory read for the instruction being processed.
-							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->sink.instr_addr, mem_read_result);
+							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.instr_addr, mem_read_result);
 							break;
 						}
 					}
 					if (block_mem_reads_data.size() == 0) {
 						// All pending reads have been processed and inserted into the map
-						if (block_mem_reads_map.at(vex_stmt_taint_entry_it->sink.instr_addr).read_size == vex_stmt_taint_entry_it->mem_read_size) {
+						if (block_mem_reads_map.at(vex_stmt_taint_entry_it->second.sink.instr_addr).read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
 							// Update iterator since all reads for current instruction have been processed. We should
 							// start searching for next instruction with memory read from successor of this instruction.
 							vex_stmt_taint_entry_it++;
@@ -1725,17 +1725,17 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 			}
 		}
 		// Find next instruction with memory read
-		while (!vex_stmt_taint_entry_it->has_memory_read) {
+		while (!vex_stmt_taint_entry_it->second.has_memory_read) {
 			vex_stmt_taint_entry_it++;
 			if (vex_stmt_taint_entry_it == block_taint_entry.block_stmts_taint_data.end()) {
 				// Current read does not belong to any possible instruction in current block. This should not happen!
 				assert(false && "Unable to identify instruction for current memory read. This should not happen!");
 			}
 		}
-		curr_instr_addr = vex_stmt_taint_entry_it->sink.instr_addr;
+		curr_instr_addr = vex_stmt_taint_entry_it->second.sink.instr_addr;
 		taint_engine_stop_mem_read_instruction = curr_instr_addr;
-		taint_engine_stop_mem_read_size = vex_stmt_taint_entry_it->mem_read_size;
-		taint_engine_next_stmt_idx = std::next(vex_stmt_taint_entry_it)->sink.stmt_idx;
+		taint_engine_stop_mem_read_size = vex_stmt_taint_entry_it->second.mem_read_size;
+		taint_engine_next_stmt_idx = std::next(vex_stmt_taint_entry_it)->first;
 	}
 	auto mem_reads_map_entry = block_mem_reads_map.find(curr_instr_addr);
 	if (mem_reads_map_entry == block_mem_reads_map.end()) {
