@@ -1574,7 +1574,7 @@ void State::propagate_taints() {
 	// We continue propagating taint until we encounter 1) a memory read, 2) end of block or
 	// 3) a stop state for concrete execution
 	for (auto curr_stmt_idx = taint_engine_next_stmt_idx; curr_stmt_idx < total_stmt_count && !stopped; ++curr_stmt_idx) {
-		auto &curr_stmt_taint_data = block_taint_entry.block_stmts_taint_data.at(taint_engine_next_stmt_idx);
+		auto &curr_stmt_taint_data = block_taint_entry.block_stmts_taint_data.at(curr_stmt_idx);
 		address_t curr_instr_addr = curr_stmt_taint_data.sink.instr_addr;
 		if (curr_stmt_taint_data.has_memory_read) {
 			// Pause taint propagation to process the memory read and continue from instruction
