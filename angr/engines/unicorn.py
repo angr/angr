@@ -147,7 +147,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         recent_bbl_addrs = None
         stop_details = None
 
-        for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
+        for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
             self.state.scratch.guard = self.state.solver.true
             try:
                 if self.state.os_name == "CGC" and \
@@ -238,7 +238,7 @@ class SimEngineUnicorn(SuccessorsMixin):
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
         # pylint:disable=no-member
-        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size, cross_insn_opt=False)
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
         if irsb.size == 0:
             if irsb.jumpkind == 'Ijk_NoDecode':
                 if not self.state.project.is_hooked(irsb.addr):

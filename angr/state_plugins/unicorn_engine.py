@@ -88,13 +88,13 @@ class RegisterValue(ctypes.Structure):
         ('value', ctypes.c_uint8 * _MAX_REGISTER_BYTE_SIZE),
         ('size', ctypes.c_int64)
     ]
-class InstrDetails(ctypes.Structure):
+class VEXStmtDetails(ctypes.Structure):
     """
-    struct sym_instr_details_t
+    struct sym_vex_stmt_details_t
     """
 
     _fields_ = [
-        ('instr_addr', ctypes.c_uint64),
+        ('stmt_idx', ctypes.c_int64),
         ('has_memory_dep', ctypes.c_bool),
         ('memory_values', ctypes.POINTER(MemoryValue)),
         ('memory_values_count', ctypes.c_uint64),
@@ -110,8 +110,8 @@ class BlockDetails(ctypes.Structure):
         ('block_size', ctypes.c_uint64),
         ('block_trace_ind', ctypes.c_int64),
         ('has_symbolic_exit', ctypes.c_bool),
-        ('symbolic_instrs', ctypes.POINTER(InstrDetails)),
-        ('symbolic_instrs_count', ctypes.c_uint64),
+        ('symbolic_vex_stmts', ctypes.POINTER(VEXStmtDetails)),
+        ('symbolic_vex_stmts_count', ctypes.c_uint64),
         ('register_values', ctypes.POINTER(RegisterValue)),
         ('register_values_count', ctypes.c_uint64),
     ]
@@ -442,8 +442,8 @@ def _load_native():
         _setup_prototype(h, 'set_vex_to_unicorn_reg_mappings', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint64), ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_artificial_registers', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
-        _setup_prototype(h, 'get_count_of_blocks_with_symbolic_instrs', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'get_details_of_blocks_with_symbolic_instrs', None, state_t, ctypes.POINTER(BlockDetails))
+        _setup_prototype(h, 'get_count_of_blocks_with_symbolic_vex_stmts', ctypes.c_uint64, state_t)
+        _setup_prototype(h, 'get_details_of_blocks_with_symbolic_vex_stmts', None, state_t, ctypes.POINTER(BlockDetails))
         _setup_prototype(h, 'get_stop_details', StopDetails, state_t)
         _setup_prototype(h, 'set_register_blacklist', None, state_t, ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'set_cpu_flags_details', None, state_t, ctypes.POINTER(ctypes.c_uint64),
@@ -1017,8 +1017,7 @@ class Unicorn(SimStatePlugin):
             _UC_NATIVE.activate_page(self._uc_state, addr, int(ffi.cast('uint64_t', ffi.from_buffer(bitmap))),
                                      int(ffi.cast('unsigned long', ffi.from_buffer(data))))
 
-
-    def _get_details_of_blocks_with_symbolic_instrs(self):
+    def _get_details_of_blocks_with_symbolic_vex_stmts(self):
         def _get_reg_values(register_values):
             for register_value in register_values:
                 # Convert the register value in bytes to number of appropriate size and endianness
@@ -1036,26 +1035,26 @@ class Unicorn(SimStatePlugin):
                 yield {"address": memory_value.address, "value": bytes(memory_value.value[:memory_value.size]),
                        "size": memory_value.size, "symbolic": memory_value.is_value_symbolic}
 
-        def _get_instr_details(symbolic_instrs):
-            for instr in symbolic_instrs:
-                instr_entry = {"instr_addr": instr.instr_addr, "mem_dep": []}
+        def _get_vex_stmt_details(symbolic_stmts):
+            for instr in symbolic_stmts:
+                instr_entry = {"stmt_idx": instr.stmt_idx, "mem_dep": []}
                 if instr.has_memory_dep:
                     instr_entry["mem_dep"] = _get_memory_values(instr.memory_values[:instr.memory_values_count])
 
                 yield instr_entry
 
-        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_instrs(self._uc_state)
+        block_count = _UC_NATIVE.get_count_of_blocks_with_symbolic_vex_stmts(self._uc_state)
         if block_count == 0:
             return
 
         block_details_list = (BlockDetails * block_count)()
-        _UC_NATIVE.get_details_of_blocks_with_symbolic_instrs(self._uc_state, block_details_list)
+        _UC_NATIVE.get_details_of_blocks_with_symbolic_vex_stmts(self._uc_state, block_details_list)
         for block_details in block_details_list:
             entry = {"block_addr": block_details.block_addr, "block_size": block_details.block_size,
                      "block_hist_ind": block_details.block_trace_ind,
                      "has_symbolic_exit": block_details.has_symbolic_exit}
             entry["registers"] = _get_reg_values(block_details.register_values[:block_details.register_values_count])
-            entry["instrs"] = _get_instr_details(block_details.symbolic_instrs[:block_details.symbolic_instrs_count])
+            entry["stmts"] = _get_vex_stmt_details(block_details.symbolic_vex_stmts[:block_details.symbolic_vex_stmts_count])
             yield entry
 
     def uncache_region(self, addr, length):
