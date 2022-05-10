@@ -815,6 +815,14 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 				}
 			}
 		}
+		else if (source.entity_type == TAINT_ENTITY_MEM) {
+			// Compute slice to set up the read address correctly
+			for (auto &mem_ref_entity: source.mem_ref_entity_list) {
+				// TODO: Are addresses for memory reads always stored in VEX temps?
+				assert(mem_ref_entity.entity_type == TAINT_ENTITY_TMP);
+				stmts_to_process.emplace_back(mem_ref_entity.stmt_idx);
+			}
+		}
 	}
 
 	// If statement performs a memory store, compute slice to set up the write address correctly.
