@@ -782,7 +782,7 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 
 	auto &stmt_taint_entry = block_taint_entry.block_stmts_taint_data.at(stmt.stmt_idx);
 	for (auto &source: stmt_taint_entry.sources) {
-		if (source.stmt_idx != -1) {
+		if (source.entity_type == TAINT_ENTITY_TMP) {
 			stmts_to_process.emplace_back(source.stmt_idx);
 		}
 		else if ((source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(source.reg_offset)) {
