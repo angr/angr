@@ -306,7 +306,7 @@ void State::commit() {
 	block_mem_reads_map.clear();
 	block_mem_writes_taint_data.clear();
 	symbolic_stmts_to_erase.clear();
-	taint_engine_next_stmt_idx = 0;
+	taint_engine_next_stmt_idx = -1;
 	taint_engine_stop_mem_read_instruction = 0;
 	taint_engine_stop_mem_read_size = 0;
 	return;
@@ -1567,14 +1567,19 @@ void State::propagate_taints() {
 		return;
 	}
 	// Resume propagating taints using symbolic_registers and symbolic_temps from where we paused
-	auto total_stmt_count = block_taint_entry.block_stmts_taint_data.size();
-	if (taint_engine_next_stmt_idx > total_stmt_count) {
-		return;
+	std::map<int64_t, vex_stmt_taint_entry_t>::iterator stmt_taint_data_entries_it;
+	if (taint_engine_next_stmt_idx != -1) {
+		stmt_taint_data_entries_it = block_taint_entry.block_stmts_taint_data.find(taint_engine_next_stmt_idx);
 	}
+	else {
+		stmt_taint_data_entries_it = block_taint_entry.block_stmts_taint_data.begin();
+	}
+	auto stmt_taint_data_stop_it = block_taint_entry.block_stmts_taint_data.end();
 	// We continue propagating taint until we encounter 1) a memory read, 2) end of block or
 	// 3) a stop state for concrete execution
-	for (auto curr_stmt_idx = taint_engine_next_stmt_idx; curr_stmt_idx < total_stmt_count && !stopped; ++curr_stmt_idx) {
-		auto &curr_stmt_taint_data = block_taint_entry.block_stmts_taint_data.at(curr_stmt_idx);
+	for (; stmt_taint_data_entries_it != stmt_taint_data_stop_it && !stopped; ++stmt_taint_data_entries_it) {
+		auto curr_stmt_idx = stmt_taint_data_entries_it->first;
+		auto &curr_stmt_taint_data = stmt_taint_data_entries_it->second;
 		address_t curr_instr_addr = curr_stmt_taint_data.sink.instr_addr;
 		if (curr_stmt_taint_data.has_memory_read) {
 			// Pause taint propagation to process the memory read and continue from instruction
@@ -1620,6 +1625,7 @@ void State::propagate_taints() {
 void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size) {
 	memory_value_t memory_read_value;
 	address_t curr_instr_addr;
+	int64_t curr_stmt_idx;
 
 	auto tainted = find_tainted(read_address, read_size);
 	if (is_symbolic_tracking_disabled()) {
@@ -1680,6 +1686,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		// Taint has been propagated and so we can rely on information from taint engine to find current instruction
 		// address and hence update the block's memory reads map
 		curr_instr_addr = taint_engine_stop_mem_read_instruction;
+		curr_stmt_idx = taint_engine_next_stmt_idx;
 	}
 	else {
 		// Symbolic taint is being introduced by this memory read so we cannot rely on taint engine to find current
@@ -1733,9 +1740,8 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 			}
 		}
 		curr_instr_addr = vex_stmt_taint_entry_it->second.sink.instr_addr;
-		taint_engine_stop_mem_read_instruction = curr_instr_addr;
+		curr_stmt_idx = vex_stmt_taint_entry_it->first;
 		taint_engine_stop_mem_read_size = vex_stmt_taint_entry_it->second.mem_read_size;
-		taint_engine_next_stmt_idx = std::next(vex_stmt_taint_entry_it)->first;
 	}
 	auto mem_reads_map_entry = block_mem_reads_map.find(curr_instr_addr);
 	if (mem_reads_map_entry == block_mem_reads_map.end()) {
@@ -1789,7 +1795,7 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 	// There are no more pending reads at this instruction. Now we can propagate taint.
 	// This allows us to also handle cases when only some of the memory reads are symbolic: we treat all as symbolic
 	// and overtaint.
-	auto& vex_stmt_taint_data_entry = block_taint_entry.block_stmts_taint_data.at(taint_engine_next_stmt_idx);
+	auto& vex_stmt_taint_data_entry = block_taint_entry.block_stmts_taint_data.at(curr_stmt_idx);
 	if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0) || (block_symbolic_registers.size() > 0) ||
 	  block_symbolic_temps.size() > 0) {
 		if (block_taint_entry.has_unsupported_stmt_or_expr_type) {
@@ -1801,7 +1807,11 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		propagate_taint_of_one_stmt(vex_stmt_taint_data_entry);
 	}
 	if (!stopped) {
-		continue_propagating_taint();
+		auto curr_stmt_entry = block_taint_entry.block_stmts_taint_data.find(curr_stmt_idx);
+		if (curr_stmt_entry != block_taint_entry.block_stmts_taint_data.end()) {
+			taint_engine_next_stmt_idx = std::next(curr_stmt_entry)->first;
+			continue_propagating_taint();
+		}
 	}
 	return;
 }
@@ -2000,7 +2010,6 @@ void State::start_propagating_taint() {
 			}
 			process_vex_block(curr_block_details.vex_lift_result->irsb, block_address);
 		}
-		taint_engine_next_stmt_idx = 0;
 		propagate_taints();
 	}
 	return;

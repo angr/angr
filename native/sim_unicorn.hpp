@@ -379,7 +379,7 @@ struct vex_stmt_taint_entry_t {
 };
 
 struct block_taint_entry_t {
-	std::map<uint32_t, vex_stmt_taint_entry_t> block_stmts_taint_data;
+	std::map<int64_t, vex_stmt_taint_entry_t> block_stmts_taint_data;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
 	bool has_cpuid_instr;
 	bool has_unsupported_stmt_or_expr_type;
@@ -540,7 +540,8 @@ class State {
 	int64_t trace_last_block_curr_count;
 	int64_t trace_last_block_tot_count;
 
-	address_t taint_engine_next_stmt_idx, taint_engine_stop_mem_read_instruction;
+	address_t taint_engine_stop_mem_read_instruction;
+	int64_t taint_engine_next_stmt_idx;
 	uint32_t taint_engine_stop_mem_read_size;
 	bool symbolic_read_in_progress;
 
