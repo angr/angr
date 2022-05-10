@@ -215,17 +215,17 @@ struct vex_stmt_details_t {
 		reg_deps.clear();
 	}
 
-	bool operator==(const vex_stmt_details_t &other_instr) const {
-		if ((instr_addr != other_instr.instr_addr) || (has_concrete_memory_dep != other_instr.has_concrete_memory_dep) ||
-			(has_symbolic_memory_dep != other_instr.has_symbolic_memory_dep) || (stmt_deps != other_instr.stmt_deps) ||
-			(reg_deps != other_instr.reg_deps)) {
+	bool operator==(const vex_stmt_details_t &other_stmt) const {
+		if ((instr_addr != other_stmt.instr_addr) || (stmt_idx != other_stmt.stmt_idx) ||
+			(has_concrete_memory_dep != other_stmt.has_concrete_memory_dep) || (reg_deps != other_stmt.reg_deps) ||
+			(has_symbolic_memory_dep != other_stmt.has_symbolic_memory_dep) || (stmt_deps != other_stmt.stmt_deps)) {
 				return false;
 		}
 		return true;
 	}
 
-	bool operator<(const vex_stmt_details_t &other_instr) const {
-		return (instr_addr < other_instr.instr_addr);
+	bool operator<(const vex_stmt_details_t &other_stmt) const {
+		return (instr_addr < other_stmt.instr_addr) || (stmt_idx < other_stmt.stmt_idx);
 	}
 };
 
