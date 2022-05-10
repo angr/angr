@@ -817,6 +817,15 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 		}
 	}
 
+	// If statement performs a memory store, compute slice to set up the write address correctly.
+	if (stmt_taint_entry.sink.entity_type == TAINT_ENTITY_MEM) {
+		for (auto &source: stmt_taint_entry.sink.mem_ref_entity_list) {
+			// TODO: Are addresses for memory writes always stored in VEX temps?
+			assert(source.entity_type == TAINT_ENTITY_TMP);
+			stmts_to_process.emplace_back(source.stmt_idx);
+		}
+	}
+
 	for (auto &dep_stmt_idx: stmts_to_process) {
 		auto &dep_stmt_taint_entry = block_taint_entry.block_stmts_taint_data.at(dep_stmt_idx);
 		vex_stmt_details_t dep_stmt_details = compute_vex_stmt_details(dep_stmt_taint_entry);
