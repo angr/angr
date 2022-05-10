@@ -22,11 +22,19 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
+_PEEPHOLE_OPTIMIZATIONS_TYPE = \
+    Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]
 
 class Decompiler(Analysis):
+    """
+    The decompiler analysis.
+
+    Run this on a Function object for which a normalized CFG has been constructed.
+    The fully processed output can be found in result.codegen.text
+    """
     def __init__(self, func, cfg=None, options=None, optimization_passes=None, sp_tracker_track_memory=True,
                  variable_kb=None,
-                 peephole_optimizations: Optional[Iterable[Union[Type['PeepholeOptimizationStmtBase'],Type['PeepholeOptimizationExprBase']]]]=None,
+                 peephole_optimizations: _PEEPHOLE_OPTIMIZATIONS_TYPE=None,
                  vars_must_struct: Optional[Set[str]]=None,
                  flavor='pseudocode',
                  expr_comments=None,
@@ -90,6 +98,7 @@ class Decompiler(Analysis):
         cache = DecompilationCache(self.func.addr)
 
         # convert function blocks to AIL blocks
+        progress_callback = lambda p, **kwargs: self._update_progress(p * (70 - 5) / 100. + 5, **kwargs)
         clinic = self.project.analyses.Clinic(self.func,
                                               kb=self.kb,
                                               variable_kb=variable_kb,
@@ -100,7 +109,7 @@ class Decompiler(Analysis):
                                               peephole_optimizations=self._peephole_optimizations,
                                               must_struct=self._vars_must_struct,
                                               cache=cache,
-                                              progress_callback=lambda p, **kwargs: self._update_progress(p*(70-5)/100.+5, **kwargs),
+                                              progress_callback=progress_callback,
                                               **self.options_to_params(options_by_class['clinic'])
                                               )
         self.clinic = clinic
@@ -127,16 +136,18 @@ class Decompiler(Analysis):
         s = self.project.analyses.RegionSimplifier(self.func, rs.result, kb=self.kb, variable_kb=clinic.variable_kb)
         self._update_progress(85., text='Generating code')
 
-        codegen = self.project.analyses.StructuredCodeGenerator(self.func, s.result, cfg=self._cfg,
-                                                                flavor=self._flavor,
-                                                                func_args=clinic.arg_list,
-                                                                kb=self.kb,
-                                                                variable_kb=clinic.variable_kb,
-                                                                expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
-                                                                stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
-                                                                const_formats=old_codegen.const_formats if old_codegen is not None else None,
-                                                                externs=clinic.externs,
-                                                                **self.options_to_params(options_by_class['codegen']))
+        codegen = self.project.analyses.StructuredCodeGenerator(
+            self.func, s.result, cfg=self._cfg,
+            flavor=self._flavor,
+            func_args=clinic.arg_list,
+            kb=self.kb,
+            variable_kb=clinic.variable_kb,
+            expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
+            stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+            const_formats=old_codegen.const_formats if old_codegen is not None else None,
+            externs=clinic.externs,
+            **self.options_to_params(options_by_class['codegen'])
+        )
         self._update_progress(90., text='Finishing up')
 
         self.codegen = codegen

@@ -181,8 +181,8 @@ class VariableManagerInternal(Serializable):
 
         # phi vars
         phi_relations = []
-        for phi, vars in self._phi_variables.items():
-            for var in vars:
+        for phi, vars_ in self._phi_variables.items():
+            for var in vars_:
                 if var not in self._variables and var not in self._phi_variables:
                     l.error("Saving a variable which is not in the registered list. The database is likely corrupted.")
                 relation = variables_pb2.Phi2Var()
@@ -352,7 +352,8 @@ class VariableManagerInternal(Serializable):
                                      atom=atom)
 
     def _record_variable_access(self, sort: int, variable, offset, location, overwrite=False, atom=None):
-        self._variables.add(variable)  # TODO can this be removed, should we be only adding to _variables in add_variable?
+        # TODO can this line be removed, should we be only adding to _variables in add_variable?
+        self._variables.add(variable)
         var_and_offset = variable, offset
         atom_hash = (hash(atom) & 0xffff_ffff) if atom is not None else None
         if overwrite:
