@@ -811,7 +811,7 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 					stmt.reg_deps.insert(dep_reg_val);
 				}
 				else {
-					assert(false && "[sim_unicorn] Dependency register not saved at block start. Please create a bug with repro instructions.");
+					assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
 				}
 			}
 		}
