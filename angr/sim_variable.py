@@ -41,7 +41,8 @@ class SimVariable(Serializable):
             obj.base.category = self.category
         if self.region is not None:
             obj.base.region = self.region
-        obj.base.name = self.name
+        if self.name is not None:
+            obj.base.name = self.name
         obj.base.renamed = self.renamed
 
     def _from_base(self, obj):

@@ -134,6 +134,7 @@ class Decompiler(Analysis):
                                                                 variable_kb=clinic.variable_kb,
                                                                 expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
                                                                 stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+                                                                const_formats=old_codegen.const_formats if old_codegen is not None else None,
                                                                 externs=clinic.externs,
                                                                 **self.options_to_params(options_by_class['codegen']))
         self._update_progress(90., text='Finishing up')
@@ -195,8 +196,13 @@ class Decompiler(Analysis):
         global_variables = self.kb.variables['global']
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type == SymbolType.TYPE_OBJECT:
-                global_variables.set_variable('global', symbol.rebased_addr, SimMemoryVariable(symbol.rebased_addr, 1,
-                                                                                               name=symbol.name))
+                ident = global_variables.next_variable_ident('global')
+                global_variables.set_variable('global', symbol.rebased_addr, SimMemoryVariable(
+                    symbol.rebased_addr,
+                    1,
+                    name=symbol.name,
+                    ident=ident
+                ))
 
     def reflow_variable_types(self, type_constraints: Set, var_to_typevar: Dict, codegen):
         """

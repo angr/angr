@@ -1,5 +1,6 @@
 from typing import Dict, Any, TYPE_CHECKING
 import json
+import pickle
 
 from ...analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from ...analyses.decompiler.decompilation_cache import DecompilationCache
@@ -42,12 +43,17 @@ class StructuredCodeManagerSerializer:
             if cache.codegen.stmt_comments:
                 stmt_comments = json.dumps(cache.codegen.stmt_comments).encode("utf-8")
 
+            const_formats = None
+            if cache.codegen.const_formats:
+                const_formats = pickle.dumps(cache.codegen.const_formats)
+
             db_code = DbStructuredCode(
                 kb=db_kb,
                 func_addr=func_addr,
                 flavor=flavor,
                 expr_comments=expr_comments,
                 stmt_comments=stmt_comments,
+                const_formats=const_formats,
                 # configuration=configuration,
             )
             session.add(db_code)
@@ -90,11 +96,18 @@ class StructuredCodeManagerSerializer:
             else:
                 stmt_comments = json.loads(db_code.stmt_comments.decode("utf-8"))
                 stmt_comments = StructuredCodeManagerSerializer.dict_strkey_to_intkey(stmt_comments)
+
+            if not db_code.const_formats:
+                const_formats = None
+            else:
+                const_formats = pickle.loads(db_code.const_formats)
+
             configuration = None
             dummy_codegen = DummyStructuredCodeGenerator(db_code.flavor,
                                                          expr_comments=expr_comments,
                                                          stmt_comments=stmt_comments,
                                                          configuration=configuration,
+                                                         const_formats=const_formats,
                                                          )
             cache = DecompilationCache(db_code.func_addr)
             cache.codegen = dummy_codegen

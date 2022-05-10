@@ -10,6 +10,7 @@ message VariableBase {
     optional uint64 region = 3;
     optional string category = 4;
     bool        renamed = 5;
+    bool        is_phi = 6;
 }
 
 
@@ -69,6 +70,11 @@ message Var2Unified {
     string          unified_var_ident = 2;
 }
 
+message Phi2Var {
+    string          phi_ident = 1;
+    string          var_ident = 2;
+}
+
 
 message VariableManagerInternal {
     // Variables of each type
@@ -86,4 +92,6 @@ message VariableManagerInternal {
     repeated Var2Unified var2unified = 10;
     // Types
     repeated VariableType types = 11;
+    // Phi variables
+    repeated Phi2Var phi2var = 12;
 }
