@@ -93,14 +93,15 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     def _execute_block_instrs_in_vex(self, block_details):
         if block_details["block_addr"] not in self.block_details_cache:
-            vex_block_details = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
-            self.block_details_cache[block_details["block_addr"]] = vex_block_details
+            vex_block = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
+            self.block_details_cache[block_details["block_addr"]] = vex_block
         else:
-            vex_block_details = self.block_details_cache[block_details["block_addr"]]
+            vex_block = self.block_details_cache[block_details["block_addr"]]
+
+        self.vex_state_addr = block_details["block_addr"]
 
         # Save breakpoints for restoring later
         saved_mem_read_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_read"])
-        vex_block = vex_block_details["block"]
         for reg_name, reg_value in block_details["registers"]:
             self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
 
@@ -243,21 +244,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
             raise SimIRSBError(f"Empty IRSB found at 0x{irsb.addr:02x}.")
 
-        instrs_stmt_indices = {}
-        curr_instr_addr = None
-        curr_instr_stmts_start_idx = 0
-        for idx, statement in enumerate(irsb.statements):
-            if statement.tag == "Ist_IMark":
-                if curr_instr_addr is not None:
-                    instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": idx - 1}
-
-                curr_instr_addr = statement.addr
-                curr_instr_stmts_start_idx = idx
-
-        # Adding details of the last instruction
-        instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": len(irsb.statements) - 1}
-        block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
-        return block_details
+        return irsb
 
     def _set_correct_mem_read_addr(self, state):
         assert len(self._instr_mem_reads) != 0
