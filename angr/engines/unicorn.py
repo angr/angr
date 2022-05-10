@@ -104,29 +104,22 @@ class SimEngineUnicorn(SuccessorsMixin):
         for reg_name, reg_value in block_details["registers"]:
             self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
 
-        # VEX statements to ignore when re-executing instructions that touched symbolic data
-        ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
-        for instr_entry in block_details["instrs"]:
-            self._instr_mem_reads = list(instr_entry["mem_dep"])  # pylint:disable=attribute-defined-outside-init
+        for stmt_entry in block_details["stmts"]:
+            self._instr_mem_reads = list(stmt_entry["mem_dep"])  # pylint:disable=attribute-defined-outside-init
             if self._instr_mem_reads:
                 # Insert breakpoint to set the correct memory read address
                 self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
 
-            instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
-            start_index = instr_vex_stmt_indices["start"]
-            end_index = instr_vex_stmt_indices["end"]
             execute_default_exit = True
-            for vex_stmt_idx in range(start_index, end_index + 1):
-                # Execute handler from HeavyVEXMixin for the statement
-                vex_stmt = vex_block.statements[vex_stmt_idx]
-                if vex_stmt.tag not in ignored_statement_tags:
-                    self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
-                    try:
-                        super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
-                    except VEXEarlyExit:
-                        # Only one path is satisfiable in this branch.
-                        execute_default_exit = False
+            # Execute handler from HeavyVEXMixin for the statement
+            vex_stmt = vex_block.statements[stmt_entry['stmt_idx']]
+            self.stmt_idx = stmt_entry['stmt_idx']  # pylint:disable=attribute-defined-outside-init
+            try:
+                super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+            except VEXEarlyExit:
+                # Only one path is satisfiable in this branch.
+                execute_default_exit = False
 
             # Restore breakpoints
             self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
