@@ -139,6 +139,10 @@ struct memory_value_t {
 		return (memcmp(value, other_mem_value.value, size) == 0);
 	}
 
+	memory_value_t() {
+		reset();
+	}
+
 	void reset() {
 		address = 0;
 		size = 0;
@@ -240,6 +244,10 @@ struct block_details_t {
 	// if they end in syscall. Remove it after syscalls are correctly setup on ARM in native interface itself.
 	VEXLiftResult *vex_lift_result;
 
+	block_details_t() {
+		reset();
+	}
+
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
@@ -283,6 +291,10 @@ struct sym_block_details_t {
 	bool has_symbolic_exit;
 	std::vector<sym_vex_stmt_details_t> symbolic_stmts;
 	std::vector<register_value_t> register_values;
+
+	sym_block_details_t() {
+		reset();
+	}
 
 	void reset() {
 		block_addr = 0;
@@ -367,6 +379,10 @@ struct vex_stmt_taint_entry_t {
 			   (mem_write_size == other_stmt.mem_write_size);
 	}
 
+	vex_stmt_taint_entry_t() {
+		reset();
+	}
+
 	void reset() {
 		sink.reset();
 		sources.clear();
@@ -415,6 +431,10 @@ struct processed_vex_expr_t {
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_size;
 	int64_t value_size;
+
+	processed_vex_expr_t() {
+		reset();
+	}
 
 	void reset() {
 		taint_sources.clear();
