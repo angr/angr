@@ -785,7 +785,8 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 		if (source.entity_type == TAINT_ENTITY_TMP) {
 			stmts_to_process.emplace_back(source.stmt_idx);
 		}
-		else if ((source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(source.reg_offset)) {
+		else if ((source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(source.reg_offset) &&
+		  !is_symbolic_register(source.reg_offset, source.value_size)) {
 			// Source is a register dependency that is not modified from start of block till this instruction.
 			register_value_t dep_reg_val;
 			dep_reg_val.offset = source.reg_offset;
