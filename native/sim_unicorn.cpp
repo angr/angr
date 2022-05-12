@@ -826,6 +826,13 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 		}
 	}
 
+	for (auto &entity: stmt_taint_entry.ite_cond_entity_list) {
+		// Compute slice for VEX temps used in condition of ITE expression
+		// TODO: Do ITE conditions contain only VEX temps?
+		assert(entity.entity_type == TAINT_ENTITY_TMP);
+		stmts_to_process.emplace_back(entity.stmt_idx);
+	}
+
 	// If statement performs a memory store, compute slice to set up the write address correctly.
 	if (stmt_taint_entry.sink.entity_type == TAINT_ENTITY_MEM) {
 		for (auto &source: stmt_taint_entry.sink.mem_ref_entity_list) {
