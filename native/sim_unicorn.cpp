@@ -256,14 +256,6 @@ void State::commit() {
 	mem_writes.clear();
 	cur_steps++;
 
-	// Sync all block level taint statuses reads with state's taint statuses and block level
-	// symbolic instruction list with state's symbolic instruction list
-	for (auto &reg_offset: block_symbolic_registers) {
-		symbolic_registers.emplace(reg_offset);
-	}
-	for (auto &reg_offset: block_concrete_registers) {
-		symbolic_registers.erase(reg_offset);
-	}
 	// Remove instructions whose effects are overwritten by subsequent instructions from the re-execute list
 	std::vector<std::vector<block_details_t>::iterator> blocks_to_erase_it;
 	for (auto &stmts_to_erase_entry: symbolic_stmts_to_erase) {
@@ -296,6 +288,14 @@ void State::commit() {
 	}
 	if (curr_block_details.block_addr == trace_last_block_addr) {
 		trace_last_block_curr_count += 1;
+	}
+	// Sync all block level taint statuses reads with state's taint statuses and block level
+	// symbolic instruction list with state's symbolic instruction list
+	for (auto &reg_offset: block_symbolic_registers) {
+		symbolic_registers.emplace(reg_offset);
+	}
+	for (auto &reg_offset: block_concrete_registers) {
+		symbolic_registers.erase(reg_offset);
 	}
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
