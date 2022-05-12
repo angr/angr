@@ -98,8 +98,6 @@ class SimEngineUnicorn(SuccessorsMixin):
         else:
             vex_block = self.block_details_cache[block_details["block_addr"]]
 
-        self.vex_state_addr = block_details["block_addr"]
-
         # Save breakpoints for restoring later
         saved_mem_read_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_read"])
         for reg_name, reg_value in block_details["registers"]:
