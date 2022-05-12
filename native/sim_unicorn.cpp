@@ -786,7 +786,7 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 			stmts_to_process.emplace_back(source.stmt_idx);
 		}
 		else if ((source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(source.reg_offset) &&
-		  !is_symbolic_register(source.reg_offset, source.value_size)) {
+		  !is_symbolic_register(source.reg_offset, source.value_size, false)) {
 			// Source is a register dependency that is not modified from start of block till this instruction.
 			register_value_t dep_reg_val;
 			dep_reg_val.offset = source.reg_offset;
@@ -1521,44 +1521,50 @@ void State::mark_register_concrete(vex_reg_offset_t reg_offset, int64_t reg_size
 	return;
 }
 
-bool State::is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const {
+bool State::is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size, bool with_block_changes) const {
 	// We check if this register is symbolic or concrete in the block level taint statuses since
 	// those are more recent. If not found in either, check the state's symbolic register list.
 	// TODO: Is checking only first byte of artificial and blacklisted registers to determine if they are symbolic fine
 	// or should all be checked?
 	if ((cpu_flags.find(reg_offset) != cpu_flags.end()) || (artificial_vex_registers.count(reg_offset) > 0)
-	    || (blacklisted_registers.count(reg_offset) > 0)) {
-		if (block_symbolic_registers.count(reg_offset) > 0) {
-			return true;
+	  || (blacklisted_registers.count(reg_offset) > 0)) {
+		if (with_block_changes) {
+			// Check if taint status changes when block is executed
+			if (block_symbolic_registers.count(reg_offset) > 0) {
+				return true;
+			}
+			else if (block_concrete_registers.count(reg_offset) > 0) {
+				return false;
+			}
 		}
-		else if (block_concrete_registers.count(reg_offset) > 0) {
-			return false;
-		}
-		else if (symbolic_registers.count(reg_offset) > 0) {
+		if (symbolic_registers.count(reg_offset) > 0) {
 			return true;
 		}
 		return false;
 	}
 	// The register is not a CPU flag and so we check every byte of the register
-	for (auto i = 0; i < reg_size; i++) {
-		// If any of the register's bytes are symbolic, we deem the register to be symbolic
-		if (block_symbolic_registers.count(reg_offset + i) > 0) {
-			return true;
+	if (with_block_changes) {
+		for (auto i = 0; i < reg_size; i++) {
+			// If any of the register's bytes are symbolic, we deem the register to be symbolic
+			if (block_symbolic_registers.count(reg_offset + i) > 0) {
+				return true;
+			}
+		}
+		bool is_concrete = true;
+		for (auto i = 0; i < reg_size; i++) {
+			if (block_concrete_registers.count(reg_offset) == 0) {
+				is_concrete = false;
+				break;
+			}
+		}
+		if (is_concrete) {
+			// All bytes of register are concrete and so the register is concrete
+			return false;
 		}
 	}
-	bool is_concrete = true;
-	for (auto i = 0; i < reg_size; i++) {
-		if (block_concrete_registers.count(reg_offset) == 0) {
-			is_concrete = false;
-			break;
-		}
-	}
-	if (is_concrete) {
-		// All bytes of register are concrete and so the register is concrete
-		return false;
-	}
-	// If we reach here, it means that the register is not marked symbolic or concrete in the block
-	// level taint status tracker. We check the state's symbolic register list.
+	// If we reach here, it means that either the register is not marked symbolic or concrete in the block
+	// level taint status tracker or any changes to taint when executing the block should be ignored. We check the
+	// state's symbolic register list.
 	for (auto i = 0; i < reg_size; i++) {
 		if (symbolic_registers.count(reg_offset + i) > 0) {
 			return true;

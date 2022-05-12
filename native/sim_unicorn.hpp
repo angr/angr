@@ -620,7 +620,7 @@ class State {
 
 	bool is_block_exit_guard_symbolic() const;
 	bool is_block_next_target_symbolic() const;
-	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size) const;
+	bool is_symbolic_register(vex_reg_offset_t reg_offset, int64_t reg_size, bool with_block_changes = true) const;
 	bool is_symbolic_temp(vex_tmp_id_t temp_id) const;
 
 	bool is_cpuid_in_block(address_t block_address, int32_t block_size);
