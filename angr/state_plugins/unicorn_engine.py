@@ -453,6 +453,8 @@ def _load_native():
         _setup_prototype(h, 'set_fd_bytes', state_t, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_uint64, ctypes.c_uint64)
         _setup_prototype(h, 'set_random_syscall_data', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
+        _setup_prototype(h, 'set_vex_cc_reg_data', None, state_t, ctypes.POINTER(ctypes.c_uint64),
+                         ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
 
         l.info('native plugin is enabled')
 
@@ -1214,6 +1216,19 @@ class Unicorn(SimStatePlugin):
         if len(blacklist_regs_offsets) > 0:
             blacklist_regs_array = (ctypes.c_uint64 * len(blacklist_regs_offsets))(*map(ctypes.c_uint64, blacklist_regs_offsets))
             _UC_NATIVE.set_register_blacklist(self._uc_state, blacklist_regs_array, len(blacklist_regs_offsets))
+
+        # Initialize VEX CC registers data
+        if len(self.state.arch.vex_cc_regs) > 0:
+            cc_regs_offsets = []
+            cc_regs_sizes = []
+            for cc_reg in self.state.arch.vex_cc_regs:
+                cc_regs_offsets.append(cc_reg.vex_offset)
+                cc_regs_sizes.append(cc_reg.size)
+
+            cc_regs_offsets_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*map(ctypes.c_uint64, cc_regs_offsets))
+            cc_regs_sizes_array = (ctypes.c_uint64 * len(cc_regs_offsets))(*map(ctypes.c_uint64, cc_regs_sizes))
+            _UC_NATIVE.set_vex_cc_reg_data(self._uc_state, cc_regs_offsets_array, cc_regs_sizes_array,
+                                           len(cc_regs_offsets))
 
     def start(self, step=None):
         self.jumpkind = 'Ijk_Boring'

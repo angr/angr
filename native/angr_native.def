@@ -41,3 +41,4 @@ EXPORTS
   simunicorn_process_transmit
   simunicorn_set_fd_bytes
   simunicorn_set_random_syscall_data
+  simunicorn_set_vex_cc_reg_data

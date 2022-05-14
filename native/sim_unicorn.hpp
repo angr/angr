@@ -238,7 +238,9 @@ struct block_details_t {
 	uint64_t block_size;
 	int64_t block_trace_ind;
 	bool has_symbolic_exit;
+	bool marks_vex_cc_reg_symbolic;
 	std::vector<vex_stmt_details_t> symbolic_stmts;
+	std::vector<vex_stmt_details_t> vex_cc_reg_setter_details;
 	bool vex_lift_failed;
 	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
 	// if they end in syscall. Remove it after syscalls are correctly setup on ARM in native interface itself.
@@ -253,7 +255,9 @@ struct block_details_t {
 		block_size = 0;
 		block_trace_ind = -1;
 		has_symbolic_exit = false;
+		marks_vex_cc_reg_symbolic = false;
 		symbolic_stmts.clear();
+		vex_cc_reg_setter_details.clear();
 		vex_lift_failed = false;
 		vex_lift_result = NULL;
 	}
@@ -401,6 +405,7 @@ struct block_taint_entry_t {
 	bool has_unsupported_stmt_or_expr_type;
 	stop_t unsupported_stmt_stop_reason;
 	std::unordered_set<taint_entity_t> block_next_entities;
+	std::unordered_set<int64_t> vex_cc_setter_stmts;
 
 	block_taint_entry_t() {
 		block_stmts_taint_data.clear();
@@ -408,12 +413,14 @@ struct block_taint_entry_t {
 		has_cpuid_instr = false;
 		has_unsupported_stmt_or_expr_type = false;
 		block_next_entities.clear();
+		vex_cc_setter_stmts.clear();
 	}
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
 		return (block_stmts_taint_data == other_entry.block_stmts_taint_data) &&
 			   (has_cpuid_instr == other_entry.has_cpuid_instr) &&
 			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps) &&
+			   (vex_cc_setter_stmts == other_entry.vex_cc_setter_stmts) &&
 			   (block_next_entities == other_entry.block_next_entities);
 	}
 };
@@ -736,6 +743,8 @@ class State {
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 		// Mapping of VEX offsets to unicorn register IDs and register sizes
 		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
+		// VEX CC registers
+		std::unordered_map<vex_reg_offset_t, uint64_t> vex_cc_regs;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
 		// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
 		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;

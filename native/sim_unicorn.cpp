@@ -895,6 +895,9 @@ void State::process_vex_block(IRSB *vex_block, address_t address) {
 					stmt_taint_entry.has_memory_read = true;
 				}
 				block_taint_entry.block_stmts_taint_data.emplace(stmt_idx, stmt_taint_entry);
+				if (vex_cc_regs.find(stmt_taint_entry.sink.reg_offset) != vex_cc_regs.end()) {
+					block_taint_entry.vex_cc_setter_stmts.emplace(stmt_idx);
+				}
 				stmt_taint_entry.reset();
 				break;
 			}
@@ -1850,9 +1853,16 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_taint_entry) {
 	vex_stmt_details_t vex_stmt_details;
 	bool is_stmt_symbolic;
+	bool sets_vex_cc_reg;
 
 	auto &taint_sink = vex_stmt_taint_entry.sink;
 	auto &taint_srcs = vex_stmt_taint_entry.sources;
+	if ((taint_sink.entity_type == TAINT_ENTITY_REG) && (vex_cc_regs.find(taint_sink.reg_offset) != vex_cc_regs.end())) {
+		sets_vex_cc_reg = true;
+	}
+	else {
+		sets_vex_cc_reg = false;
+	}
 	is_stmt_symbolic = false;
 	vex_stmt_details = compute_vex_stmt_details(vex_stmt_taint_entry);
 	if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
@@ -1929,7 +1939,35 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	if (ite_cond_taint_status != TAINT_STATUS_CONCRETE) {
 		is_stmt_symbolic = true;
 	}
-	if (is_stmt_symbolic) {
+	if (sets_vex_cc_reg) {
+		if (curr_block_details.marks_vex_cc_reg_symbolic) {
+			// Some previous statement sets a VEX CC register to symbolic. Add this statement to list of statements that
+			// need to be re-executed
+			curr_block_details.symbolic_stmts.emplace_back(vex_stmt_details);
+		}
+		else if (!is_stmt_symbolic) {
+			// This statement sets a VEX CC register but is not symbolic. Save its details in case needed later.
+			curr_block_details.vex_cc_reg_setter_details.emplace_back(vex_stmt_details);
+		}
+		// This is the first state that sets a VEX CC register to a symbolic value. Mark previous statements that
+		// touch a VEX CC register as symbolic for correct re-execution
+		else {
+			curr_block_details.marks_vex_cc_reg_symbolic = true;
+			for (auto &stmt_detail: curr_block_details.vex_cc_reg_setter_details) {
+				auto sym_stmt_it = curr_block_details.symbolic_stmts.begin();
+				auto sym_stmt_it_end = curr_block_details.symbolic_stmts.end();
+				for (; sym_stmt_it != sym_stmt_it_end; sym_stmt_it++) {
+					if (stmt_detail.stmt_idx < sym_stmt_it->stmt_idx) {
+						curr_block_details.symbolic_stmts.insert(sym_stmt_it - 1, stmt_detail);
+						break;
+					}
+				}
+			}
+			curr_block_details.symbolic_stmts.emplace_back(vex_stmt_details);
+			curr_block_details.vex_cc_reg_setter_details.clear();
+		}
+	}
+	else if (is_stmt_symbolic) {
 		if (vex_stmt_details.has_symbolic_memory_dep) {
 			for (auto &mem_value: block_mem_reads_map.at(taint_sink.instr_addr).memory_values) {
 				if (mem_value.is_value_symbolic) {
@@ -2824,6 +2862,15 @@ void simunicorn_set_register_blacklist(State *state, uint64_t *reg_list, uint64_
 	state->blacklisted_registers.clear();
 	for (auto i = 0; i < count; i++) {
 		state->blacklisted_registers.emplace(reg_list[i]);
+	}
+	return;
+}
+
+extern "C"
+void simunicorn_set_vex_cc_reg_data(State *state, uint64_t *reg_offsets, uint64_t *reg_sizes, uint64_t count) {
+	state->vex_cc_regs.clear();
+	for (auto i = 0; i < count; i++) {
+		state->vex_cc_regs.emplace(reg_offsets[i], reg_sizes[i]);
 	}
 	return;
 }
