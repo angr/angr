@@ -273,6 +273,7 @@ class Project:
                 # ref: https://github.com/angr/angr/issues/1782
                 # (I also don't know why the TYPE_NONE check in the previous clause is there but I can't find a ref for
                 # that. they are probably related.)
+                # (I believe the TYPE_NONE check is to support ELF object files)
                 continue
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
