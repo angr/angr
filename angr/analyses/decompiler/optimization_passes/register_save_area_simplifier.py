@@ -6,7 +6,6 @@ import ailment
 
 from ....calling_conventions import SimRegArg
 from ....code_location import CodeLocation
-from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -194,6 +193,3 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 continue
 
         return result
-
-
-AnalysesHub.register_default("RegisterSaveAreaSimplifier", RegisterSaveAreaSimplifier)

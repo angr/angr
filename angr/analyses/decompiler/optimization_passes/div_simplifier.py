@@ -3,7 +3,6 @@ import math
 
 from ailment import Expr
 
-from ... import AnalysesHub
 from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -304,5 +303,3 @@ class DivSimplifier(OptimizationPass):
                 _l.debug("new block: %s", new_block.statements)
 
             self._update_block(block, new_block)
-
-AnalysesHub.register_default("DivSimplifier", DivSimplifier)

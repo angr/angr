@@ -4,7 +4,6 @@ import logging
 import ailment
 
 from ....calling_conventions import SimRegArg, DEFAULT_CC
-from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -160,6 +159,3 @@ class RetAddrSaveSimplifier(OptimizationPass):
                                  )
 
         return retaddr_restore_stmts
-
-
-AnalysesHub.register_default('RetAddrSaveSimplifier', RetAddrSaveSimplifier)

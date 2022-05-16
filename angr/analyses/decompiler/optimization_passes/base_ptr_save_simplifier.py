@@ -2,7 +2,6 @@ import logging
 
 import ailment
 
-from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -140,6 +139,3 @@ class BasePointerSaveSimplifier(OptimizationPass):
                                  )
 
         return baseptr_restore_stmts
-
-
-AnalysesHub.register_default('BasePointerSaveSimplifier', BasePointerSaveSimplifier)

@@ -5,7 +5,6 @@ import inspect
 
 import networkx
 
-from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -228,6 +227,3 @@ class EagerReturnsSimplifier(OptimizationPass):
             region_head = pred_node
 
         return region, region_head
-
-
-AnalysesHub.register_default("EagerReturnsSimplifier", EagerReturnsSimplifier)

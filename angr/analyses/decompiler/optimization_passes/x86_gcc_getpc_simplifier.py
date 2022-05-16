@@ -3,7 +3,6 @@ import logging
 
 import ailment
 
-from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -84,6 +83,3 @@ class X86GccGetPcSimplifier(OptimizationPass):
                         (key, len(block.statements) - 1, call_func.info['get_pc'], block.addr + block.original_size),
                     )
         return results
-
-
-AnalysesHub.register_default('X86GccGetPcSimplifier', X86GccGetPcSimplifier)

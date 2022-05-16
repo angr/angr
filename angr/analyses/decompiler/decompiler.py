@@ -186,8 +186,7 @@ class Decompiler(Analysis):
             if pass_.STAGE != OptimizationPassStage.DURING_REGION_IDENTIFICATION:
                 continue
 
-            analysis = getattr(self.project.analyses, pass_.__name__)
-            a = analysis(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
+            a = pass_(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                          graph=ail_graph, region_identifier=ri, reaching_definitions=reaching_definitions)
 
             # should be None if no changes
