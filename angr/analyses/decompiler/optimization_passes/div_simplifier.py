@@ -10,12 +10,16 @@ _l = logging.getLogger(name=__name__)
 
 
 class DivSimplifierAILEngine(SimplifierAILEngine):
+    """
+    An AIL pass for the div simplifier
+    """
 
     def _check_divisor(self, a, b, ndigits=6): #pylint: disable=no-self-use
         divisor_1 = 1 + (a//b)
         divisor_2 = int(round(a/float(b), ndigits))
         return divisor_1 if divisor_1 == divisor_2 else None
 
+    # pylint: disable=too-many-boolean-expressions
     def _ail_handle_Convert(self, expr):
         if expr.from_bits == 128 and expr.to_bits == 64:
             operand_expr = self._expr(expr.operand)

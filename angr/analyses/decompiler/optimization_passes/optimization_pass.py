@@ -45,6 +45,10 @@ class OptimizationPass:
         return self._func.project
 
     @property
+    def kb(self):
+        return self.project.kb
+
+    @property
     def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:
         return self._blocks_by_addr
 
