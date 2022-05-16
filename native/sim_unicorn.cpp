@@ -690,7 +690,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	if (is_dst_symbolic && !is_interrupt) {
 		// Save the details of memory location written to in the statement details
 		for (auto &symbolic_stmt: curr_block_details.symbolic_stmts) {
-			if (symbolic_stmt.instr_addr == curr_instr_addr) {
+			if ((symbolic_stmt.instr_addr == curr_instr_addr) && symbolic_stmt.has_memory_write) {
 				symbolic_stmt.mem_write_addr = address;
 				symbolic_stmt.mem_write_size = size;
 				break;
@@ -1866,6 +1866,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	is_stmt_symbolic = false;
 	vex_stmt_details = compute_vex_stmt_details(vex_stmt_taint_entry);
 	if (taint_sink.entity_type == TAINT_ENTITY_MEM) {
+		vex_stmt_details.has_memory_write = true;
 		auto addr_taint_status = get_final_taint_status(taint_sink.mem_ref_entity_list);
 		// Check if address written to is symbolic or is read from memory
 		if (addr_taint_status != TAINT_STATUS_CONCRETE) {

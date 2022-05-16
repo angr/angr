@@ -202,6 +202,7 @@ struct vex_stmt_details_t {
 	bool has_concrete_memory_dep;
 	bool has_symbolic_memory_dep;
 	bool has_read_from_symbolic_addr;
+	bool has_memory_write;
 	// Mark fields as mutable so that they can be updated after inserting into std::set
 	mutable memory_value_t *memory_values;
 	mutable uint64_t memory_values_count;
@@ -213,6 +214,7 @@ struct vex_stmt_details_t {
 		has_concrete_memory_dep = false;
 		has_symbolic_memory_dep = false;
 		has_read_from_symbolic_addr = false;
+		has_memory_write = false;
 		stmt_deps.clear();
 		mem_write_addr = -1;
 		mem_write_size = -1;
