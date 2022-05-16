@@ -115,6 +115,7 @@ class DbStructuredCode(Base):
     expr_comments = Column(BLOB, nullable=True)
     stmt_comments = Column(BLOB, nullable=True)
     configuration = Column(BLOB, nullable=True)
+    const_formats = Column(BLOB, nullable=True)
 
 
 class DbXRefs(Base):

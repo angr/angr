@@ -285,6 +285,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
             state.stack_region.store(state.stack_addr_from_offset(ret_addr_offset),
                                      ret_addr,
                                      endness=self.project.arch.memory_endness)
+            internal_manager.add_variable('stack', ret_addr_offset, ret_addr_var)
 
         if self.project.arch.name.startswith("MIPS"):
             t9_offset, t9_size = self.project.arch.registers["t9"]

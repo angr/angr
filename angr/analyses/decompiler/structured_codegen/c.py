@@ -1586,7 +1586,7 @@ class CTypeCast(CExpression):
 
 class CConstant(CExpression):
 
-    __slots__ = ('value', 'reference_values', 'reference_variable', 'tags', 'fmt_hex', 'fmt_neg', )
+    __slots__ = ('value', 'reference_values', 'reference_variable', 'tags', )
 
     def __init__(self, value, type_, reference_values=None, reference_variable=None, tags: Optional[Dict]=None, **kwargs):
 
@@ -1598,18 +1598,56 @@ class CConstant(CExpression):
         self.reference_variable = reference_variable
         self.tags = tags
 
-        if isinstance(self.value, int):
-            if self.value <= 0xffff_ffff and self.value >= 0xf000_0000:
-                self.fmt_neg = True
-            elif self.value <= 0xffff_ffff_ffff_ffff and self.value >= 0xf000_0000_0000_0000:
-                self.fmt_neg = True
-            else:
-                self.fmt_neg = False
-
-            self.fmt_hex = hex(self.value).endswith('00') or is_alignment_mask(self.value)
+    @property
+    def _ident(self):
+        ident = (self.tags or {}).get('ins_addr', None)
+        if ident is not None:
+            return ('inst', ident)
         else:
-            self.fmt_neg = False
-            self.fmt_hex = False
+            return ('val', self.value)
+
+    @property
+    def fmt(self):
+        return self.codegen.const_formats.get(self._ident, {})
+
+    @property
+    def _fmt_setter(self):
+        result = self.codegen.const_formats.get(self._ident, None)
+        if result is None:
+            result = {}
+            self.codegen.const_formats[self._ident] = result
+
+        return result
+
+    @property
+    def fmt_hex(self):
+        result = self.fmt.get('hex', None)
+        if result is None:
+            result = False
+            if isinstance(self.value, int):
+                result = hex(self.value).endswith('00') or is_alignment_mask(self.value)
+        return result
+
+    @fmt_hex.setter
+    def fmt_hex(self, v):
+        self._fmt_setter['hex'] = v
+
+    @property
+    def fmt_neg(self):
+        result = self.fmt.get('neg', None)
+        if result is None:
+            result = False
+            if isinstance(self.value, int):
+                if self.value <= 0xffff_ffff and self.value >= 0xf000_0000:
+                    result = True
+                elif self.value <= 0xffff_ffff_ffff_ffff and self.value >= 0xf000_0000_0000_0000:
+                    result = True
+
+        return result
+
+    @fmt_neg.setter
+    def fmt_neg(self, v):
+        self._fmt_setter['neg'] = v
 
     @property
     def type(self):
@@ -1763,7 +1801,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def __init__(self, func, sequence, indent=0, cfg=None, variable_kb=None,
                  func_args: Optional[List[SimVariable]]=None, binop_depth_cutoff: int=10,
                  show_casts=True, braces_on_own_lines=True, use_compound_assignments=True, show_local_types=True,
-                 flavor=None, stmt_comments=None, expr_comments=None, show_externs=True, externs=None):
+                 flavor=None, stmt_comments=None, expr_comments=None, show_externs=True, externs=None,
+                 const_formats=None):
         super().__init__(flavor=flavor)
 
         self._handlers = {
@@ -1819,6 +1858,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.show_local_types = show_local_types
         self.expr_comments: Dict[int,str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: Dict[int,str] = stmt_comments if stmt_comments is not None else {}
+        self.const_formats: Dict[Any, Dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
 
