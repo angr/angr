@@ -2509,7 +2509,7 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
         """
 
         # Make sure data_addr is within a valid memory range
-        if not self.project.loader.find_segment_containing(data_addr):
+        if not self.project.loader.find_loadable_containing(data_addr):
 
             # data might be at the end of some section or segment...
             # let's take a look
