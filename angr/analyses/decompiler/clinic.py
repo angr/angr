@@ -476,9 +476,7 @@ class Clinic(Analysis):
             if pass_.STAGE != stage:
                 continue
 
-            analysis = getattr(self.project.analyses, pass_.__name__)
-
-            a = analysis(self.function, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
+            a = pass_(self.function, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                          graph=ail_graph)
             if a.out_graph:
                 # use the new graph

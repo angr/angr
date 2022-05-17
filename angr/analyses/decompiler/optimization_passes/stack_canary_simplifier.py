@@ -4,7 +4,6 @@ import logging
 
 import ailment
 
-from ... import AnalysesHub
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 
@@ -262,6 +261,3 @@ class StackCanarySimplifier(OptimizationPass):
                 and expr.addr.operands[0].value == 0x28
                 and isinstance(expr.addr.operands[1], ailment.Expr.Register)
                 and expr.addr.operands[1].reg_offset == fs_reg_offset)
-
-
-AnalysesHub.register_default("StackCanarySimplifier", StackCanarySimplifier)

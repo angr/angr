@@ -21,14 +21,16 @@ class OptimizationPassStage:
     DURING_REGION_IDENTIFICATION = 3
 
 
-class OptimizationPass(Analysis):
+class OptimizationPass:
+    """
+    The base class for any function-level graph optimization pass.
+    """
 
     ARCHES = [ ]  # strings of supported architectures
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
 
     def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None):
-
         self._func: 'Function' = func
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
@@ -37,6 +39,14 @@ class OptimizationPass(Analysis):
 
         # output
         self.out_graph = None  # type: Optional[networkx.DiGraph]
+
+    @property
+    def project(self):
+        return self._func.project
+
+    @property
+    def kb(self):
+        return self.project.kb
 
     @property
     def blocks_by_addr(self) -> Dict[int,Set[ailment.Block]]:
