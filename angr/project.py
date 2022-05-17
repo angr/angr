@@ -278,9 +278,7 @@ class Project:
             if not reloc.resolved:
                 # This is a hack, effectively to support Binary Ninja, which doesn't provide access to dependency
                 # library names. The backend creates the Relocation objects, but leaves them unresolved so that
-                # we can try to guess them here. Once the Binary Ninja API starts supplying the dependencies,
-                # The if/else, along with Project._guess_simprocedure() can be removed if it has no other utility,
-                # just leave behind the 'unresolved' debug statement from the else clause.
+                # we can try to guess them here.
                 if reloc.owner.guess_simprocs:
                     l.debug("Looking for matching SimProcedure for unresolved %s from %s with hint %s",
                             func.name, reloc.owner, reloc.owner.guess_simprocs_hint)
@@ -358,7 +356,11 @@ class Project:
 
                         self.hook_symbol(export.rebased_addr, the_lib.get(export.name, sim_proc_arch))
 
-            # Step 2.5: If 2.4 didn't work (we have NO SimLibraries to work with), just
+            # Step 2.5: If the requesting object wants us to guess simprocedures, do the guessing
+            if reloc.owner.guess_simprocs and self._guess_simprocedure(func, reloc.owner.guess_simprocs_hint):
+                continue
+
+            # Step 2.6: If 2.4/2.5 didn't work (we have NO SimLibraries to work with), just
             # use the vanilla ReturnUnconstrained, assuming that this isn't a weak func
             elif not func.is_weak:
                 l.info("Using stub SimProcedure for unresolved %s", export.name)
@@ -368,10 +370,8 @@ class Project:
         """
         Does symbol name `f` exist as a SIM_PROCEDURE? If so, return it, else return None.
         Narrows down the set of libraries to search based on hint.
-        Part of the hack to enable Binary Ninja support. Remove if _register_objects() stops using it.
         """
         # First, filter the SIM_LIBRARIES to a reasonable subset based on the hint
-        hinted_libs = []
         if hint == "win":
             hinted_libs = filter(lambda lib: lib if lib.endswith(".dll") else None, SIM_LIBRARIES)
         else:
@@ -380,10 +380,16 @@ class Project:
         for lib in hinted_libs:
             if SIM_LIBRARIES[lib].has_implementation(f.name):
                 l.debug("Found implementation for %s in %s", f, lib)
-                self.hook_symbol(f.relative_addr, (SIM_LIBRARIES[lib].get(f.name, self.arch)))
-                break
-        else:
-            l.debug("Could not find matching SimProcedure for %s, ignoring.", f.name)
+                if f.resolvedby:
+                    hook_at = f.resolvedby.rebased_addr
+                else:
+                    # ????
+                    hook_at = f.relative_addr
+                self.hook_symbol(hook_at, (SIM_LIBRARIES[lib].get(f.name, self.arch)))
+                return True
+
+        l.debug("Could not find matching SimProcedure for %s, ignoring.", f.name)
+        return False
 
     def _check_user_blacklists(self, f):
         """
