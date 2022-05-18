@@ -115,8 +115,11 @@ class TestVault(unittest.TestCase):
 
     def test_vault_identity_VaultDict(self):
         self._do_vault_identity(angr.vaults.VaultDict)
+
+    @unittest.expectedFailure
+    def test_vault_identity_VaultDirShelf(self):
         # VaultDirShelf does not guarantee identity equivalence due to the absence of caching
-        # yield do_vault_identity, angr.vaults.VaultDirShelf
+        self._do_vault_identity(angr.vaults.VaultDirShelf)
 
     def test_ast_vault_do_ast_vault_VaultDir(self):
         self._do_ast_vault(angr.vaults.VaultDir)
@@ -126,9 +129,11 @@ class TestVault(unittest.TestCase):
 
     def test_ast_vault_do_ast_vault_VaultDict(self):
         self._do_ast_vault(angr.vaults.VaultDict)
-    #     # VaultDirShelf does not guarantee identity equivalence due to the absence of caching
-    #     # yield do_ast_vault, angr.vaults.VaultDirShelf
 
+    @unittest.expectedFailure
+    def test_ast_vault_VaultDirShelf(self):
+        # VaultDirShelf does not guarantee identity equivalence due to the absence of caching
+        self._do_ast_vault(angr.vaults.VaultDirShelf)
 
     def test_project(self):
         v = angr.vaults.VaultDir()
@@ -154,7 +159,6 @@ class TestVault(unittest.TestCase):
         p = v.load(ps)
         #assert not hasattr(p, '_asdf')
         assert sum(1 for k in v.keys() if k.startswith('Project')) == 1
-
 
 
 if __name__ == '__main__':
