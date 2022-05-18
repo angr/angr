@@ -975,6 +975,11 @@ class TestCfgfast(unittest.TestCase):
         # Check the number of basic blocks
         assert len(list(cfg.functions[0xa0013d].blocks)) == 7
 
+    def test_large_cfg_generation_jdi2_dll(self):
+        path = "C:\\Users\\Fish\\Desktop\\Temp\\JDI2.dll"
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(show_progressbar=True)
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
@@ -1083,4 +1088,5 @@ class TestCfgfastDataReferences(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    TestCfgfast().test_large_cfg_generation_jdi2_dll()
+    # unittest.main()

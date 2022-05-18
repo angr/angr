@@ -223,7 +223,8 @@ class Clinic(Analysis):
 
         # Run simplification passes
         self._update_progress(90., text="Running simplifications 3")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
+                                                    variable_kb=variable_kb)
 
         self.graph = ail_graph
         self.arg_list = arg_list
@@ -458,7 +459,8 @@ class Clinic(Analysis):
         return simp.simplified
 
     @timethis
-    def _run_simplification_passes(self, ail_graph, stage: int = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
+    def _run_simplification_passes(self, ail_graph, stage: int = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
+                                   variable_kb=None):
 
         addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
         addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
@@ -477,7 +479,7 @@ class Clinic(Analysis):
                 continue
 
             a = pass_(self.function, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
-                         graph=ail_graph)
+                         graph=ail_graph, variable_kb=variable_kb)
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph

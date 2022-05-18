@@ -114,6 +114,7 @@ class Decompiler(Analysis):
                                               )
         self.clinic = clinic
         self.cache = cache
+        self._variable_kb = clinic.variable_kb
         self._update_progress(70., text='Identifying regions')
 
         if clinic.graph is None:
@@ -187,7 +188,8 @@ class Decompiler(Analysis):
                 continue
 
             a = pass_(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
-                         graph=ail_graph, region_identifier=ri, reaching_definitions=reaching_definitions)
+                      graph=ail_graph, variable_kb=self._variable_kb, region_identifier=ri,
+                      reaching_definitions=reaching_definitions)
 
             # should be None if no changes
             if a.out_graph:

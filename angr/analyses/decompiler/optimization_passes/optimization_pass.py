@@ -30,12 +30,15 @@ class OptimizationPass:
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
 
-    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None):
+    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, variable_kb=None,
+                 region_identifier=None):
         self._func: 'Function' = func
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
         self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
         self._graph = graph  # type: Optional[networkx.DiGraph]
+        self._variable_kb = variable_kb
+        self._ri = region_identifier
 
         # output
         self.out_graph = None  # type: Optional[networkx.DiGraph]
