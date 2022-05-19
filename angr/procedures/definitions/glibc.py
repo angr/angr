@@ -1064,19 +1064,19 @@ _libc_decls = \
         # void if_freenameindex (struct if_nameindex *PTR);
         "if_freenameindex": SimTypeFunction([SimTypePointer(SimStruct({}, name="if_nameindex", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["ptr"]),
         # int inet_aton (const char *NAME, struct in_addr *ADDR);
-        "inet_aton": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="in_addr", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["name", "addr"]),
+        "inet_aton": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({"s_addr": SimTypeInt(signed=False, label="UInt32")}, name="in_addr", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["name", "addr"]),
         # uint32_t inet_addr (const char *NAME);
         "inet_addr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["name"]),
         # uint32_t inet_network (const char *NAME);
         "inet_network": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["name"]),
         # char * inet_ntoa (struct in_addr ADDR);
-        "inet_ntoa": SimTypeFunction([SimStruct({}, name="in_addr", pack=False, align=None)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["addr"]),
+        "inet_ntoa": SimTypeFunction([SimStruct({"s_addr": SimTypeInt(signed=False, label="UInt32")}, name="in_addr", pack=False, align=None)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["addr"]),
         # struct in_addr inet_makeaddr (uint32_t NET, uint32_t LOCAL);
-        "inet_makeaddr": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t"), SimTypeInt(signed=False, label="uint32_t")], SimStruct({}, name="in_addr", pack=False, align=None), arg_names=["net", "local"]),
+        "inet_makeaddr": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t"), SimTypeInt(signed=False, label="uint32_t")], SimStruct({"s_addr": SimTypeInt(signed=False, label="UInt32")}, name="in_addr", pack=False, align=None), arg_names=["net", "local"]),
         # uint32_t inet_lnaof (struct in_addr ADDR);
-        "inet_lnaof": SimTypeFunction([SimStruct({}, name="in_addr", pack=False, align=None)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
+        "inet_lnaof": SimTypeFunction([SimStruct({"s_addr": SimTypeInt(signed=False, label="UInt32")}, name="in_addr", pack=False, align=None)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
         # uint32_t inet_netof (struct in_addr ADDR);
-        "inet_netof": SimTypeFunction([SimStruct({}, name="in_addr", pack=False, align=None)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
+        "inet_netof": SimTypeFunction([SimStruct({"s_addr": SimTypeInt(signed=False, label="UInt32")}, name="in_addr", pack=False, align=None)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
         # int inet_pton (int AF, const char *CP, void *BUF);
         "inet_pton": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeInt(signed=True), arg_names=["af", "cp", "buf"]),
         # const char * inet_ntop (int AF, const void *CP, char *BUF, socklen_t LEN);

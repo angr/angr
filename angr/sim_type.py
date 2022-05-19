@@ -1518,90 +1518,1095 @@ class SimTypeNumOffset(SimTypeNum):
     def copy(self):
         return SimTypeNumOffset(self.size, signed=self.signed, label=self.label, offset=self.offset)
 
-
+ALL_TYPES = {}
 BASIC_TYPES = {
-    'char': SimTypeChar(),
-    'signed char': SimTypeChar(),
-    'unsigned char': SimTypeChar(signed=False),
-
-    'short': SimTypeShort(True),
-    'signed short': SimTypeShort(True),
-    'unsigned short': SimTypeShort(False),
-    'short int': SimTypeShort(True),
-    'signed short int': SimTypeShort(True),
-    'unsigned short int': SimTypeShort(False),
-
-    'int': SimTypeInt(True),
-    'signed': SimTypeInt(True),
-    'unsigned': SimTypeInt(False),
-    'signed int': SimTypeInt(True),
-    'unsigned int': SimTypeInt(False),
-
-    'long': SimTypeLong(True),
-    'signed long': SimTypeLong(True),
-    'long signed': SimTypeLong(True),
-    'unsigned long': SimTypeLong(False),
-    'long int': SimTypeLong(True),
-    'signed long int': SimTypeLong(True),
-    'unsigned long int': SimTypeLong(False),
-    'long unsigned int': SimTypeLong(False),
-
-    'long long': SimTypeLongLong(True),
-    'signed long long': SimTypeLongLong(True),
-    'unsigned long long': SimTypeLongLong(False),
-    'long long int': SimTypeLongLong(True),
-    'signed long long int': SimTypeLongLong(True),
-    'unsigned long long int': SimTypeLongLong(False),
-
-    '__int128': SimTypeNum(128, True),
-    'unsigned __int128': SimTypeNum(128, False),
-    '__int256': SimTypeNum(256, True),
-    'unsigned __int256': SimTypeNum(256, False),
-
-    'bool': SimTypeBool(),
-    '_Bool': SimTypeBool(),
-
-    'float': SimTypeFloat(),
-    'double': SimTypeDouble(),
-    'long double': SimTypeDouble(),
-    'void': SimTypeBottom(label="void"),
+    "char": SimTypeChar(),
+    "signed char": SimTypeChar(),
+    "unsigned char": SimTypeChar(signed=False),
+    "short": SimTypeShort(True),
+    "signed short": SimTypeShort(True),
+    "unsigned short": SimTypeShort(False),
+    "short int": SimTypeShort(True),
+    "signed short int": SimTypeShort(True),
+    "unsigned short int": SimTypeShort(False),
+    "int": SimTypeInt(True),
+    "signed": SimTypeInt(True),
+    "unsigned": SimTypeInt(False),
+    "signed int": SimTypeInt(True),
+    "unsigned int": SimTypeInt(False),
+    "long": SimTypeLong(True),
+    "signed long": SimTypeLong(True),
+    "long signed": SimTypeLong(True),
+    "unsigned long": SimTypeLong(False),
+    "long int": SimTypeLong(True),
+    "signed long int": SimTypeLong(True),
+    "unsigned long int": SimTypeLong(False),
+    "long unsigned int": SimTypeLong(False),
+    "long long": SimTypeLongLong(True),
+    "signed long long": SimTypeLongLong(True),
+    "unsigned long long": SimTypeLongLong(False),
+    "long long int": SimTypeLongLong(True),
+    "signed long long int": SimTypeLongLong(True),
+    "unsigned long long int": SimTypeLongLong(False),
+    "__int128": SimTypeNum(128, True),
+    "unsigned __int128": SimTypeNum(128, False),
+    "__int256": SimTypeNum(256, True),
+    "unsigned __int256": SimTypeNum(256, False),
+    "bool": SimTypeBool(),
+    "_Bool": SimTypeBool(),
+    "float": SimTypeFloat(),
+    "double": SimTypeDouble(),
+    "long double": SimTypeDouble(),
+    "void": SimTypeBottom(label="void"),
 }
-
-ALL_TYPES = {
-    'int8_t': SimTypeNum(8, True),
-    'uint8_t': SimTypeNum(8, False),
-    'byte': SimTypeNum(8, False),
-
-    'int16_t': SimTypeNum(16, True),
-    'uint16_t': SimTypeNum(16, False),
-    'word': SimTypeNum(16, False),
-
-    'int32_t': SimTypeNum(32, True),
-    'uint32_t': SimTypeNum(32, False),
-    'dword': SimTypeNum(32, False),
-
-    'int64_t': SimTypeNum(64, True),
-    'uint64_t': SimTypeNum(64, False),
-    'qword': SimTypeNum(64, False),
-
-    'ptrdiff_t': SimTypeLong(True),
-    'size_t': SimTypeLength(False),
-    'ssize_t': SimTypeLength(True),
-    'ssize': SimTypeLength(False),
-    'uintptr_t': SimTypeLong(False),
-
-    'string': SimTypeString(),
-    'wstring': SimTypeWString(),
-
-    'va_list': SimStruct({}, name='va_list'),
-
-    # C++-specific
-    'basic_string': SimTypeString(),
-    'CharT': SimTypeChar(),
-}
-
-
 ALL_TYPES.update(BASIC_TYPES)
+
+STDINT_TYPES = {
+    "int8_t": SimTypeNum(8, True),
+    "uint8_t": SimTypeNum(8, False),
+    "byte": SimTypeNum(8, False),
+    "int16_t": SimTypeNum(16, True),
+    "uint16_t": SimTypeNum(16, False),
+    "word": SimTypeNum(16, False),
+    "int32_t": SimTypeNum(32, True),
+    "uint32_t": SimTypeNum(32, False),
+    "dword": SimTypeNum(32, False),
+    "int64_t": SimTypeNum(64, True),
+    "uint64_t": SimTypeNum(64, False),
+    "qword": SimTypeNum(64, False),
+    "ptrdiff_t": SimTypeLong(True),
+    "size_t": SimTypeLength(False),
+    "ssize_t": SimTypeLength(True),
+    "ssize": SimTypeLength(False),
+    "uintptr_t": SimTypeLong(False),
+    "wchar_t": SimTypeShort(True),
+}
+ALL_TYPES.update(STDINT_TYPES)
+
+# Most glibc internal basic types are defined in the following two files:
+# https://github.com/bminor/glibc/blob/master/bits/typesizes.h
+# https://github.com/bminor/glibc/blob/master/posix/bits/types.h
+# Anything that is defined in a different file should probably have a permalink
+
+GLIBC_INTERNAL_BASIC_TYPES = {
+    "__off_t": ALL_TYPES["long int"],
+    "__off64_t": ALL_TYPES["long long int"],
+    "__pid_t": ALL_TYPES["int"],
+    "__ino_t": ALL_TYPES["unsigned long int"],
+    "__ino64_t": ALL_TYPES["unsigned long long int"],
+    "__mode_t": ALL_TYPES["unsigned int"],
+    "__dev_t": ALL_TYPES["uint64_t"],
+    "__nlink_t": ALL_TYPES["unsigned int"],
+    "__uid_t": ALL_TYPES["unsigned int"],
+    "__gid_t": ALL_TYPES["unsigned int"],
+    "__time_t": ALL_TYPES["long int"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/sysdeps/unix/sysv/linux/x86/bits/siginfo-arch.h#L12
+    "__clock_t": ALL_TYPES["uint32_t"],
+    "__suseconds_t": ALL_TYPES["int64_t"],
+}
+ALL_TYPES.update(GLIBC_INTERNAL_BASIC_TYPES)
+
+GLIBC_EXTERNAL_BASIC_TYPES = {
+    "off_t": ALL_TYPES["__off_t"],
+    "off64_t": ALL_TYPES["__off64_t"],
+    "pid_t": ALL_TYPES["__pid_t"],
+    # https://www.gnu.org/software/libc/manual/html_node/Attribute-Meanings.html
+    # This is "no narrower than unsigned int" but may be wider...
+    # TODO: This should be defined based on the architecture
+    "ino_t": ALL_TYPES["__ino_t"],
+    "ino64_t": ALL_TYPES["__ino64_t"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/sockaddr.h#L28
+    "sa_family_t": ALL_TYPES["unsigned short int"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/inet/netinet/in.h#L123
+    "in_port_t": ALL_TYPES["uint16_t"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/termios.h#L102
+    "tcflag_t": ALL_TYPES["unsigned long int"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/termios.h#L105
+    "cc_t": ALL_TYPES["unsigned char"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/termios.h#L108
+    "speed_t": ALL_TYPES["long int"],
+    "clock_t": ALL_TYPES["__clock_t"],
+    "rlim_t": ALL_TYPES["unsigned long int"],
+    "rlim64_t": ALL_TYPES["uint64_t"],
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/types/error_t.h#L22
+    "error_t": ALL_TYPES["int"],
+}
+ALL_TYPES.update(GLIBC_EXTERNAL_BASIC_TYPES)
+
+
+CXX_TYPES = {
+    "string": SimTypeString(),
+    "wstring": SimTypeWString(),
+    "basic_string": SimTypeString(),
+    "CharT": SimTypeChar(),
+}
+ALL_TYPES.update(CXX_TYPES)
+
+
+# Note about structs with self/next pointers -- they will be defined as memberless
+# name-only structs the same way they would be in C as a forward declaration
+
+# This dictionary is defined in two steps to allow structs that are members of other
+# structs to be defined first
+GLIBC_INTERNAL_TYPES = {
+    "sigval": SimUnion(
+        {
+            "sival_int": ALL_TYPES["int"],
+            "sival_ptr": SimTypePointer(ALL_TYPES["void"], label="void *"),
+        },
+        name="sigval",
+    ),
+    "__mbstate_t": SimStruct(
+        {
+            "__count": ALL_TYPES["int"],
+            "__value": SimUnion(
+                {
+                    "__wch": ALL_TYPES["unsigned int"],
+                    "__wchb": SimTypeArray(ALL_TYPES["char"], length=4),
+                }
+            ),
+        },
+        name="__mbstate_t",
+    ),
+    "_IO_codecvt": SimStruct(
+        {
+            "__cd_in": SimStruct({}, name="_IO_iconv_t"),
+            "__cd_out": SimStruct({}, name="_IO_iconv_t"),
+        },
+        name="_IO_codecvt",
+    ),
+    "argp_option": SimStruct(
+        {
+            "name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "key": ALL_TYPES["int"],
+            "arg": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "flags": ALL_TYPES["int"],
+            "doc": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "group": ALL_TYPES["int"],
+        },
+        name="argp_option",
+    ),
+    "argp_child": SimStruct(
+        {
+            "argp": SimStruct({}, name="argp"),
+            "flags": ALL_TYPES["int"],
+            "header": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "group": ALL_TYPES["int"],
+        },
+        name="argp_child",
+    ),
+    "argp_parser_t": SimTypeFunction(
+        (
+            ALL_TYPES["int"],
+            SimTypePointer(ALL_TYPES["char"], label="char *"),
+            SimTypePointer(SimStruct({}, name="argp_state")),
+        ),
+        ALL_TYPES["error_t"],
+        arg_names=("__key", "__arg", "__state"),
+    ),
+}
+
+
+GLIBC_INTERNAL_TYPES.update(
+    {
+        "_obstack_chunk": SimStruct(
+            {
+                "limit": SimTypePointer(ALL_TYPES["char"], label="char *"),
+                "prev": SimTypePointer(
+                    SimStruct({}, name="_obstack_chunk", pack=False, align=None)
+                ),
+                "contents": SimTypeArray(ALL_TYPES["char"], length=4, label="char"),
+            },
+            name="_obstack_chunk",
+        ),
+        # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/misc/search.h#L69
+        "_ENTRY": SimStruct(
+            {
+                "key": SimTypePointer(ALL_TYPES["char"], label="char *"),
+                "data": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            },
+            name="_ENTRY",
+        ),
+        # https://man7.org/linux/man-pages/man7/sigevent.7.html
+        "sigevent": SimStruct(
+            {
+                "sigev_notify": ALL_TYPES["int"],
+                "sigev_signo": ALL_TYPES["int"],
+                "sigev_value": GLIBC_INTERNAL_TYPES["sigval"],
+                "sigev_notify_function": SimTypeFunction(
+                    (GLIBC_INTERNAL_TYPES["sigval"],),
+                    SimTypePointer(ALL_TYPES["void"], label="void *"),
+                ),
+                "sigev_notify_attributes": SimTypePointer(
+                    ALL_TYPES["void"], label="void *"
+                ),
+                "sigev_notify_thread_id": ALL_TYPES["pid_t"],
+            },
+            name="sigevent",
+        ),
+        "in_addr": SimStruct({"s_addr": ALL_TYPES["uint32_t"]}, name="in_addr"),
+        "_IO_marker": SimStruct(
+            {
+                "_next": SimTypePointer(
+                    SimStruct({}, name="_IO_marker"), label="struct _IO_marker *"
+                ),
+                "_sbuf": SimTypePointer(SimStruct({}, name="FILE"), label="FILE *"),
+                "_pos": ALL_TYPES["int"],
+            },
+            name="_IO_marker",
+        ),
+        "_IO_iconv_t": SimStruct(
+            {
+                # TODO: Define __gconv structs
+                "step": SimTypePointer(
+                    SimStruct({}, name="__gconv_step"), label="struct __gconv_step *"
+                ),
+                "step_data": SimStruct({}, name="__gconv_step_data"),
+            },
+            name="_IO_iconv_t",
+        ),
+        "_IO_codecvt": GLIBC_INTERNAL_TYPES["_IO_codecvt"],
+        "_IO_lock_t": SimStruct({}, name="pthread_mutex_t"),
+        "__mbstate_t": GLIBC_INTERNAL_TYPES["__mbstate_t"],
+        "_IO_wide_data": SimStruct(
+            {
+                "_IO_read_ptr": SimTypePointer(ALL_TYPES["wchar_t"], label="wchar_t *"),
+                "_IO_read_end": SimTypePointer(ALL_TYPES["wchar_t"], label="wchar_t *"),
+                "_IO_read_base": SimTypePointer(
+                    ALL_TYPES["wchar_t"], label="wchar_t *"
+                ),
+                "_IO_write_base": SimTypePointer(
+                    ALL_TYPES["wchar_t"], label="wchar_t *"
+                ),
+                "_IO_write_ptr": SimTypePointer(
+                    ALL_TYPES["wchar_t"], label="wchar_t *"
+                ),
+                "_IO_write_end": SimTypePointer(
+                    ALL_TYPES["wchar_t"], label="wchar_t *"
+                ),
+                "_IO_buf_base": SimTypePointer(ALL_TYPES["wchar_t"], label="wchar_t *"),
+                "_IO_buf_end": SimTypePointer(ALL_TYPES["wchar_t"], label="wchar_t *"),
+                "_IO_save_base": SimTypePointer(
+                    ALL_TYPES["wchar_t"], label="wchar_t *"
+                ),
+                "_IO_backup_base": SimTypePointer(
+                    ALL_TYPES["wchar_t"], label="wchar_t *"
+                ),
+                "_IO_save_end": SimTypePointer(ALL_TYPES["wchar_t"], label="wchar_t *"),
+                "_IO_state": GLIBC_INTERNAL_TYPES["__mbstate_t"],
+                "_IO_last_state": GLIBC_INTERNAL_TYPES["__mbstate_t"],
+                "_codecvt": GLIBC_INTERNAL_TYPES["_IO_codecvt"],
+                "_shortbuf": SimTypeArray(
+                    ALL_TYPES["wchar_t"], length=1, label="wchar_t[1]"
+                ),
+                # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/libio/libioP.h#L293
+                "_wide_vtable": SimStruct({}, name="_IO_jump_t"),
+            },
+            name="_IO_wide_data",
+        ),
+        "argp": SimStruct(
+            {
+                "options": SimTypePointer(
+                    GLIBC_INTERNAL_TYPES["argp_option"], label="struct argp_option *"
+                ),
+                "parser": GLIBC_INTERNAL_TYPES["argp_parser_t"],
+                "args_doc": SimTypePointer(ALL_TYPES["char"], label="char *"),
+                "doc": SimTypePointer(ALL_TYPES["char"], label="char *"),
+                "children": SimTypePointer(
+                    GLIBC_INTERNAL_TYPES["argp_child"], label="struct argp_child *"
+                ),
+                "help_filter": SimTypeFunction(
+                    (
+                        ALL_TYPES["int"],
+                        SimTypePointer(ALL_TYPES["char"], label="char *"),
+                        SimTypePointer(ALL_TYPES["void"], label="void *"),
+                    ),
+                    SimTypePointer(ALL_TYPES["char"], label="char *"),
+                    arg_names=("__key", "__text", "__input"),
+                ),
+                "argp_domain": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            },
+            name="argp",
+        ),
+        "timeval": SimStruct(
+            {
+                # TODO: This should be architecture dependent
+                "tv_sec": ALL_TYPES["__time_t"],
+                "tv_usec": ALL_TYPES["__suseconds_t"],
+            },
+            name="timeval",
+        ),
+        # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/utmp.h#L50
+        "exit_status": SimStruct(
+            {
+                "e_termination": ALL_TYPES["short int"],
+                "e_exit": ALL_TYPES["short int"],
+            },
+            name="exit_status",
+        ),
+    }
+)
+ALL_TYPES.update(GLIBC_INTERNAL_TYPES)
+
+GLIBC_TYPES = {
+    # DO NOT use the glibc manual to define these structs! It is not accurate and does
+    # not contain all fields or even the fields in the correct order!. Instead, you
+    # need to use the glibc source and actually find the struct. In most cases,
+    # a link to the struct is provided.
+    # ABI-defined, for x86_64 it can be found here in sec 3.34:
+    # https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf
+    # TODO: This should be architecture dependent
+    "va_list": SimTypeArray(
+        SimStruct(
+            {
+                "gp_offset": ALL_TYPES["unsigned int"],
+                "fp_offset": ALL_TYPES["unsigned int"],
+                "overflow_arg_area": SimTypePointer(ALL_TYPES["void"], label="void *"),
+                "reg_save_area": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            },
+            name="va_list",
+        ),
+        length=1,
+        label="va_list[1]",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/malloc/malloc.h#L82
+    "mallinfo": SimStruct(
+        {
+            "arena": ALL_TYPES["int"],
+            "ordblks": ALL_TYPES["int"],
+            "smblks": ALL_TYPES["int"],
+            "hblks": ALL_TYPES["int"],
+            "hblkhd": ALL_TYPES["int"],
+            "usmblks": ALL_TYPES["int"],
+            "fsmblks": ALL_TYPES["int"],
+            "uordblks": ALL_TYPES["int"],
+            "fordblks": ALL_TYPES["int"],
+            "keepcost": ALL_TYPES["int"],
+        },
+        name="mallinfo",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/malloc/malloc.h#L99
+    "mallinfo2": SimStruct(
+        {
+            "arena": ALL_TYPES["size_t"],
+            "ordblks": ALL_TYPES["size_t"],
+            "smblks": ALL_TYPES["size_t"],
+            "hblks": ALL_TYPES["size_t"],
+            "hblkhd": ALL_TYPES["size_t"],
+            "usmblks": ALL_TYPES["size_t"],
+            "fsmblks": ALL_TYPES["size_t"],
+            "uordblks": ALL_TYPES["size_t"],
+            "fordblks": ALL_TYPES["size_t"],
+            "keepcost": ALL_TYPES["size_t"],
+        },
+        name="mallinfo2",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/malloc/obstack.h#L153
+    "obstack": SimStruct(
+        {
+            "chunk_size": SimTypeLong(signed=True, label="long"),
+            "chunk": GLIBC_INTERNAL_TYPES["_obstack_chunk"],
+            "object_base": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "next_free": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "chunk_limit": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "temp": SimUnion(
+                {
+                    "tempint": ALL_TYPES["ptrdiff_t"],
+                    "tempptr": SimTypePointer(ALL_TYPES["void"], label="void *"),
+                }
+            ),
+            "alignment_mask": ALL_TYPES["int"],
+            "chunkfun": SimTypeFunction(
+                (SimTypePointer(ALL_TYPES["void"], label="void *"), ALL_TYPES["long"]),
+                SimTypePointer(
+                    ALL_TYPES["_obstack_chunk"], label="struct _obstack_chunk *"
+                ),
+            ),
+            "freefun": SimTypeFunction(
+                (
+                    SimTypePointer(ALL_TYPES["void"], label="void *"),
+                    SimTypePointer(
+                        ALL_TYPES["_obstack_chunk"], label="_obstack_chunk *"
+                    ),
+                ),
+                ALL_TYPES["void"],
+            ),
+            "extra_arg": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "use_extra_arg": SimTypeNumOffset(1, signed=False, label="unsigned"),
+            "maybe_extra_object": SimTypeNumOffset(1, signed=False, label="unsigned"),
+            "alloc_failed": SimTypeNumOffset(1, signed=False, label="unsigned"),
+        },
+        name="obstack",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/locale/locale.h#L51
+    "lconv": SimStruct(
+        {
+            "decimal_point": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "thousands_sep": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "grouping": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "int_curr_symbol": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "currency_symbol": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mon_decimal_point": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mon_thousands_sep": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mon_grouping": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "positive_sign": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "negative_sign": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "int_frac_digits": ALL_TYPES["char"],
+            "frac_digits": ALL_TYPES["char"],
+            "p_cs_precedes": ALL_TYPES["char"],
+            "p_sep_by_space": ALL_TYPES["char"],
+            "n_cs_precedes": ALL_TYPES["char"],
+            "n_sep_by_space": ALL_TYPES["char"],
+            "p_sign_posn": ALL_TYPES["char"],
+            "n_sign_posn": ALL_TYPES["char"],
+            "int_p_cs_precedes": ALL_TYPES["char"],
+            "int_p_sep_by_space": ALL_TYPES["char"],
+            "int_n_cs_precedes": ALL_TYPES["char"],
+            "int_n_sep_by_space": ALL_TYPES["char"],
+            "int_p_sign_posn": ALL_TYPES["char"],
+            "int_n_sign_posn": ALL_TYPES["char"],
+        },
+        name="lconv",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/misc/search.h#L97
+    "hsearch_data": SimStruct(
+        {
+            "table": SimTypePointer(ALL_TYPES["_ENTRY"], label="struct _ENTRY *"),
+            "size": ALL_TYPES["unsigned int"],
+            "filled": ALL_TYPES["unsigned int"],
+        },
+        name="hsearch_data",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/libio/bits/types/struct_FILE.h#L49
+    "FILE_t": SimStruct(
+        {
+            "_flags": ALL_TYPES["int"],
+            "_IO_read_ptr": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_read_end": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_read_base": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_write_base": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_write_ptr": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_write_end": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_buf_base": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_buf_end": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_save_base": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_backup_base": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_IO_save_end": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "_markers": SimTypePointer(ALL_TYPES["_IO_marker"]),
+            "_chain": SimTypePointer(
+                SimStruct({}, name="_IO_FILE"), label="struct _IO_FILE *"
+            ),
+            "_fileno": ALL_TYPES["int"],
+            "_flags2": ALL_TYPES["int"],
+            "_old_offset": ALL_TYPES["__off_t"],
+            "_cur_column": ALL_TYPES["unsigned short"],
+            "_vtable_offset": ALL_TYPES["signed char"],
+            "_shortbuf": SimTypeArray(ALL_TYPES["char"], length=1, label="char[1]"),
+            "_lock": SimTypePointer(ALL_TYPES["_IO_lock_t"]),
+            "_offset": ALL_TYPES["__off64_t"],
+            "_codecvt": SimTypePointer(
+                ALL_TYPES["_IO_codecvt"], label="struct _IO_codecvt *"
+            ),
+            "_wide_data": SimTypePointer(
+                ALL_TYPES["_IO_wide_data"], label="struct _IO_wide_data *"
+            ),
+            "_freeres_list": SimTypePointer(
+                SimStruct({}, name="_IO_FILE"), label="struct _IO_FILE *"
+            ),
+            "__pad5": ALL_TYPES["size_t"],
+            "_mode": ALL_TYPES["int"],
+            "_unused2": SimTypeArray(
+                ALL_TYPES["char"],
+                length=20,
+                label="char[15 * sizeof (int) - 4 * sizeof (void *) - sizeof (size_t)]",
+            ),
+        },
+        name="FILE_t",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/stdio-common/printf.h#L34
+    "printf_info": SimStruct(
+        {
+            "prec": ALL_TYPES["int"],
+            "width": ALL_TYPES["int"],
+            "spec": ALL_TYPES["wchar_t"],
+            "is_long_double": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "is_short": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "is_long": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "alt": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "space": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "left": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "showsign": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "group": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "extra": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "is_char": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "wide": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "i18n": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "is_binary128": SimTypeNumOffset(1, signed=False, label="unsigned int"),
+            "__pad": SimTypeNumOffset(3, signed=False, label="unsigned int"),
+            "user": ALL_TYPES["unsigned short int"],
+            "pad": ALL_TYPES["wchar_t"],
+        },
+        name="printf_info",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/rt/aio.h#L34
+    "aiocb": SimStruct(
+        {
+            "aio_filedes": ALL_TYPES["int"],
+            "aio_lio_opcode": ALL_TYPES["int"],
+            "aio_reqprio": ALL_TYPES["int"],
+            "aio_buf": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "aio_nbytes": ALL_TYPES["size_t"],
+            "aio_sigevent": ALL_TYPES["sigevent"],
+            "__next_prio": SimTypePointer(
+                SimStruct({}, name="aiocb"), label="struct aiocb *"
+            ),
+            "__abs_prio": ALL_TYPES["int"],
+            "__policy": ALL_TYPES["int"],
+            "__error_code": ALL_TYPES["int"],
+            "__return_value": ALL_TYPES["ssize_t"],
+            # TODO: This should be architecture dependent
+            "aio_offset": ALL_TYPES["off_t"],
+            "__glibc_reserved": SimTypeArray(
+                ALL_TYPES["char"], length=32, label="char[32]"
+            ),
+        },
+        name="aiocb",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/rt/aio.h#L62
+    "aiocb64": SimStruct(
+        {
+            "aio_filedes": ALL_TYPES["int"],
+            "aio_lio_opcode": ALL_TYPES["int"],
+            "aio_reqprio": ALL_TYPES["int"],
+            "aio_buf": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "aio_nbytes": ALL_TYPES["size_t"],
+            "aio_sigevent": ALL_TYPES["sigevent"],
+            "__next_prio": SimTypePointer(
+                SimStruct({}, name="aiocb"), label="struct aiocb *"
+            ),
+            "__abs_prio": ALL_TYPES["int"],
+            "__policy": ALL_TYPES["int"],
+            "__error_code": ALL_TYPES["int"],
+            "__return_value": ALL_TYPES["ssize_t"],
+            "aio_offset": ALL_TYPES["off64_t"],
+            "__glibc_reserved": SimTypeArray(
+                ALL_TYPES["char"], length=32, label="char[32]"
+            ),
+        },
+        name="aiocb64",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/rt/aio.h#L86
+    "aioinit": SimStruct(
+        {
+            "aio_threads": ALL_TYPES["int"],
+            "aio_num": ALL_TYPES["int"],
+            "aio_locks": ALL_TYPES["int"],
+            "aio_debug": ALL_TYPES["int"],
+            "aio_numusers": ALL_TYPES["int"],
+            "aio_idle_time": ALL_TYPES["int"],
+            "aio_reserved": ALL_TYPES["int"],
+        },
+        name="aioinit",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/dirent.h#L23
+    "dirent": SimStruct(
+        {
+            "d_ino": ALL_TYPES["ino_t"],
+            "d_reclen": ALL_TYPES["unsigned short int"],
+            "d_type": ALL_TYPES["unsigned char"],
+            "d_namelen": ALL_TYPES["unsigned char"],
+            "d_name": SimTypeArray(ALL_TYPES["char"], length=1, label="char[1]"),
+        },
+        name="dirent",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/dirent.h#L39
+    "dirent64": SimStruct(
+        {
+            "d_ino": ALL_TYPES["ino64_t"],
+            "d_reclen": ALL_TYPES["unsigned short int"],
+            "d_type": ALL_TYPES["unsigned char"],
+            "d_namelen": ALL_TYPES["unsigned char"],
+            "d_name": SimTypeArray(ALL_TYPES["char"], length=1, label="char[1]"),
+        },
+        name="dirent64",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
+    "stat": SimStruct(
+        {
+            "st_mode": ALL_TYPES["__mode_t"],
+            # TODO: This should be architecture dependent
+            "st_ino": ALL_TYPES["__ino_t"],
+            "st_dev": ALL_TYPES["__dev_t"],
+            "st_nlink": ALL_TYPES["__nlink_t"],
+            "st_uid": ALL_TYPES["__uid_t"],
+            "st_gid": ALL_TYPES["__gid_t"],
+            # TODO: This should be architecture dependent
+            "st_size": ALL_TYPES["__off_t"],
+            "st_atime": ALL_TYPES["__time_t"],
+            "st_mtime": ALL_TYPES["__time_t"],
+            "st_ctime": ALL_TYPES["__time_t"],
+        },
+        name="stat",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L86
+    "stat64": SimStruct(
+        {
+            "st_mode": ALL_TYPES["__mode_t"],
+            # TODO: This should be architecture dependent
+            "st_ino": ALL_TYPES["__ino64_t"],
+            "st_dev": ALL_TYPES["__dev_t"],
+            "st_nlink": ALL_TYPES["__nlink_t"],
+            "st_uid": ALL_TYPES["__uid_t"],
+            "st_gid": ALL_TYPES["__gid_t"],
+            # TODO: This should be architecture dependent
+            "st_size": ALL_TYPES["__off64_t"],
+            "st_atime": ALL_TYPES["__time_t"],
+            "st_mtime": ALL_TYPES["__time_t"],
+            "st_ctime": ALL_TYPES["__time_t"],
+        },
+        name="stat64",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/io/utime.h#L36
+    "utimbuf": SimStruct(
+        {
+            # TODO: This should be architecture dependent
+            "actime": ALL_TYPES["__time_t"],
+            "modtime": ALL_TYPES["__time_t"],
+        },
+        name="utimbuf",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/socket.h#L152
+    "sockaddr": SimStruct(
+        {
+            "sin_family": ALL_TYPES["sa_family_t"],
+            "sa_data": SimTypeArray(ALL_TYPES["char"], length=14, label="char[14]"),
+        },
+        name="sockaddr",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/inet/netinet/in.h#L245
+    "sockaddr_in": SimStruct(
+        {
+            "sin_family": ALL_TYPES["sa_family_t"],
+            "sin_port": ALL_TYPES["in_port_t"],
+            "sin_addr": ALL_TYPES["in_addr"],
+            "sin_zero": SimTypeArray(
+                ALL_TYPES["unsigned char"],
+                length=8,
+                label="unsigned char[sizeof (struct sockaddr) - __SOCKADDR_COMMON_SIZE - sizeof (in_port_t) - sizeof (struct in_addr)]",
+            ),
+        },
+        name="sockaddr_in",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/sysdeps/gnu/net/if.h#L33
+    "if_nameindex": SimStruct(
+        {
+            "if_index": ALL_TYPES["unsigned int"],
+            "if_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+        },
+        name="if_nameindex",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/resolv/netdb.h#L98
+    "hostent": SimStruct(
+        {
+            "h_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "h_aliases": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+            "h_addrtype": ALL_TYPES["int"],
+            "h_length": ALL_TYPES["int"],
+            "h_addr_list": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+        },
+        name="hostent",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/resolv/netdb.h#L255
+    "servent": SimStruct(
+        {
+            "s_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "s_aliases": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+            "s_port": ALL_TYPES["int"],
+            "s_proto": SimTypePointer(ALL_TYPES["char"], label="char *"),
+        },
+        name="servent",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/resolv/netdb.h#L324
+    "protoent": SimStruct(
+        {
+            "p_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "p_aliases": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+            "p_proto": ALL_TYPES["int"],
+        },
+        name="protoent",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/netdb.h#L26
+    "netent": SimStruct(
+        {
+            "n_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "n_aliases": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+            "n_addrtype": ALL_TYPES["int"],
+            "n_net": ALL_TYPES["uint32_t"],
+        },
+        name="netent",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/termios.h#L111
+    "termios": SimStruct(
+        {
+            "c_iflag": ALL_TYPES["tcflag_t"],
+            "c_oflag": ALL_TYPES["tcflag_t"],
+            "c_cflag": ALL_TYPES["tcflag_t"],
+            "c_lflag": ALL_TYPES["tcflag_t"],
+            "c_cc": SimTypeArray(ALL_TYPES["cc_t"], length=20, label="cc_t[20]"),
+            "__ispeed": ALL_TYPES["speed_t"],
+            "__ospeed": ALL_TYPES["speed_t"],
+        },
+        name="termios",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/ioctl-types.h#L56
+    "sgttyb": SimStruct(
+        {
+            "sg_ispeed": ALL_TYPES["char"],
+            "sg_ospeed": ALL_TYPES["char"],
+            "sg_erase": ALL_TYPES["char"],
+            "sg_kill": ALL_TYPES["char"],
+            "sg_flags": ALL_TYPES["short int"],
+        },
+        name="sgttyb",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/ioctl-types.h#L70
+    "winsize": SimStruct(
+        {
+            "ws_row": ALL_TYPES["unsigned short int"],
+            "ws_col": ALL_TYPES["unsigned short int"],
+            "ws_xpixel": ALL_TYPES["unsigned short int"],
+            "ws_ypixel": ALL_TYPES["unsigned short int"],
+        },
+        name="winsize",
+    ),
+    # This type is legitimately opaque
+    "random_data": None,
+    # This type is also legitimately opaque
+    "drand48_data": None,
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/posix/sys/times.h#L32
+    "tms": SimStruct(
+        {
+            "tms_utime": ALL_TYPES["clock_t"],
+            "tms_stime": ALL_TYPES["clock_t"],
+            "tms_cutime": ALL_TYPES["clock_t"],
+            "tms_cstime": ALL_TYPES["clock_t"],
+        },
+        name="tms",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/time/sys/time.h#L52
+    "timezone": SimStruct(
+        {
+            "tz_minuteswest": ALL_TYPES["int"],
+            "tz_dsttime": ALL_TYPES["int"],
+        },
+        name="timezone",
+    ),
+    "timeval": ALL_TYPES["timeval"],
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/sysdeps/unix/sysv/linux/bits/timex.h#L26
+    "timex": SimStruct(
+        # TODO: This should be architecture dependent
+        {
+            "modes": ALL_TYPES["unsigned int"],
+            "_pad0": ALL_TYPES["uint32_t"],
+            "offset": ALL_TYPES["long long"],
+            "freq": ALL_TYPES["long long"],
+            "maxerror": ALL_TYPES["long long"],
+            "esterror": ALL_TYPES["long long"],
+            "status": ALL_TYPES["int"],
+            "_pad1": ALL_TYPES["uint32_t"],
+            "constant": ALL_TYPES["long long"],
+            "precision": ALL_TYPES["long long"],
+            "tolerance": ALL_TYPES["long long"],
+            "time": ALL_TYPES["timeval"],
+            "tick": ALL_TYPES["long long"],
+            "ppsfreq": ALL_TYPES["long long"],
+            "jitter": ALL_TYPES["long long"],
+            "shift": ALL_TYPES["int"],
+            "_pad2": ALL_TYPES["uint32_t"],
+            "stabil": ALL_TYPES["long long"],
+            "jitcnt": ALL_TYPES["long long"],
+            "calcnt": ALL_TYPES["long long"],
+            "errcnt": ALL_TYPES["long long"],
+            "stbcnt": ALL_TYPES["long long"],
+            "tai": ALL_TYPES["int"],
+            "_pad3": SimTypeArray(
+                ALL_TYPES["uint32_t"], length=11, label="int :32[11]"
+            ),
+        },
+        name="timex",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/time/bits/types/struct_tm.h#L7
+    "tm": SimStruct(
+        {
+            "tm_sec": ALL_TYPES["int"],
+            "tm_min": ALL_TYPES["int"],
+            "tm_hour": ALL_TYPES["int"],
+            "tm_mday": ALL_TYPES["int"],
+            "tm_mon": ALL_TYPES["int"],
+            "tm_year": ALL_TYPES["int"],
+            "tm_wday": ALL_TYPES["int"],
+            "tm_yday": ALL_TYPES["int"],
+            "tm_isdst": ALL_TYPES["int"],
+            "tm_gmtoff": ALL_TYPES["long int"],
+            "tm_zone": SimTypePointer(ALL_TYPES["char"], label="char *"),
+        },
+        name="tm",
+    ),
+    # This type seems to be deprecated (?) it is not found in glibc
+    "nptimeval": None,
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/time/sys/time.h#L130
+    "itimerval": SimStruct(
+        {
+            "it_interval": ALL_TYPES["timeval"],
+            "it_value": ALL_TYPES["timeval"],
+        },
+        name="itimerval",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/resource/bits/types/struct_rusage.h#L33
+    "rusage": SimStruct(
+        {
+            "ru_utime": ALL_TYPES["timeval"],
+            "ru_stime": ALL_TYPES["timeval"],
+            "ru_maxrss": ALL_TYPES["long int"],
+            "ru_ixrss": ALL_TYPES["long int"],
+            "ru_idrss": ALL_TYPES["long int"],
+            "ru_isrss": ALL_TYPES["long int"],
+            "ru_minflt": ALL_TYPES["long int"],
+            "ru_majflt": ALL_TYPES["long int"],
+            "ru_nswap": ALL_TYPES["long int"],
+            "ru_inblock": ALL_TYPES["long int"],
+            "ru_oublock": ALL_TYPES["long int"],
+            "ru_msgsnd": ALL_TYPES["long int"],
+            "ru_msgrcv": ALL_TYPES["long int"],
+            "ru_nsignals": ALL_TYPES["long int"],
+            "ru_nvcsw": ALL_TYPES["long int"],
+            "ru_nivcsw": ALL_TYPES["long int"],
+        },
+        name="rusage",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/resource/vtimes.c#L28
+    "vtimes": SimStruct(
+        {
+            "vm_utime": ALL_TYPES["int"],
+            "vm_stime": ALL_TYPES["int"],
+            "vm_idsrss": ALL_TYPES["unsigned int"],
+            "vm_ixrss": ALL_TYPES["unsigned int"],
+            "vm_maxrss": ALL_TYPES["int"],
+            "vm_maxflt": ALL_TYPES["int"],
+            "vm_minflt": ALL_TYPES["int"],
+            "vm_nswap": ALL_TYPES["int"],
+            "vm_inblk": ALL_TYPES["int"],
+            "vm_outblk": ALL_TYPES["int"],
+        },
+        name="vtimes",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/sysdeps/unix/sysv/linux/bits/resource.h#L139
+    "rlimit": SimStruct(
+        {
+            "rlim_cur": ALL_TYPES["rlim_t"],
+            "rlim_max": ALL_TYPES["rlim_t"],
+        },
+        name="rlimit",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/sysdeps/unix/sysv/linux/bits/resource.h#L148
+    "rlimit64": SimStruct(
+        {
+            "rlim_cur": ALL_TYPES["rlim64_t"],
+            "rlim_max": ALL_TYPES["rlim64_t"],
+        },
+        name="rlimit64",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/types/struct_sched_param.h#L23
+    "sched_param": SimStruct(
+        {"sched_priority": ALL_TYPES["int"]},
+        name="sched_param",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/signal/bits/types/struct_sigstack.h#L23
+    "sigstack": SimStruct(
+        {
+            "ss_sp": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "ss_onstack": ALL_TYPES["int"],
+        },
+        name="sigstack",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/posix/bits/getopt_ext.h#L50
+    "option": SimStruct(
+        {
+            "name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "has_arg": ALL_TYPES["int"],
+            "flag": SimTypePointer(ALL_TYPES["int"], label="int *"),
+            "val": ALL_TYPES["int"],
+        },
+        name="option",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/argp/argp.h#L273
+    "argp_state": SimStruct(
+        {
+            "root_argp": ALL_TYPES["argp"],
+            "argc": ALL_TYPES["int"],
+            "argv": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+            "next": ALL_TYPES["int"],
+            "flags": ALL_TYPES["unsigned"],
+            "arg_num": ALL_TYPES["unsigned"],
+            "quoted": ALL_TYPES["int"],
+            "input": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "child_inputs": SimTypePointer(
+                SimTypePointer(ALL_TYPES["void"], label="void *"), label="void **"
+            ),
+            "hook": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "err_stream": SimStruct({}, name="FILE"),
+            "pstate": SimTypePointer(ALL_TYPES["void"], label="void *"),
+        },
+        name="argp_state",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/sysvipc/sys/sem.h#L40
+    "sembuf": SimStruct(
+        {
+            "sem_num": ALL_TYPES["unsigned short int"],
+            "sem_op": ALL_TYPES["short int"],
+            "sem_flg": ALL_TYPES["short int"],
+        },
+        name="sembuf",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/utmp.h#L58
+    "utmp": SimStruct(
+        {
+            "ut_type": ALL_TYPES["short int"],
+            "ut_pid": ALL_TYPES["pid_t"],
+            "ut_line": SimTypeArray(ALL_TYPES["char"], length=32, label="char[32]"),
+            "ut_id": SimTypeArray(ALL_TYPES["char"], length=4, label="char[32]"),
+            "ut_user": SimTypeArray(ALL_TYPES["char"], length=32, label="char[32]"),
+            "ut_host": SimTypeArray(ALL_TYPES["char"], length=256, label="char[32]"),
+            "ut_exit": ALL_TYPES["exit_status"],
+            "ut_session": ALL_TYPES["long int"],
+            "ut_tv": ALL_TYPES["timeval"],
+            "ut_addr_v6": SimTypeArray(
+                ALL_TYPES["int32_t"], length=4, label="int32_t[4]"
+            ),
+            "__glibc_reserved": SimTypeArray(
+                ALL_TYPES["char"], length=20, label="char[20]"
+            ),
+        },
+        name="utmp",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/sysdeps/gnu/bits/utmpx.h#L55
+    "utmpx": SimStruct(
+        {
+            "ut_type": ALL_TYPES["short int"],
+            "ut_pid": ALL_TYPES["pid_t"],
+            "ut_line": SimTypeArray(ALL_TYPES["char"], length=32, label="char[32]"),
+            "ut_id": SimTypeArray(ALL_TYPES["char"], length=4, label="char[32]"),
+            "ut_user": SimTypeArray(ALL_TYPES["char"], length=32, label="char[32]"),
+            "ut_host": SimTypeArray(ALL_TYPES["char"], length=256, label="char[32]"),
+            "ut_exit": ALL_TYPES["exit_status"],
+            "ut_session": ALL_TYPES["long int"],
+            "ut_tv": ALL_TYPES["timeval"],
+            "ut_addr_v6": SimTypeArray(
+                ALL_TYPES["int32_t"], length=4, label="int32_t[4]"
+            ),
+            "__glibc_reserved": SimTypeArray(
+                ALL_TYPES["char"], length=20, label="char[20]"
+            ),
+        },
+        name="utmx",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/pwd/pwd.h#L49
+    "passwd": SimStruct(
+        {
+            "pw_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "pw_passwd": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "pw_uid": ALL_TYPES["__uid_t"],
+            "pw_gid": ALL_TYPES["__gid_t"],
+            "pw_gecos": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "pw_dir": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "pw_shell": SimTypePointer(ALL_TYPES["char"], label="char *"),
+        },
+        name="passwd",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/grp/grp.h#L42
+    "group": SimStruct(
+        {
+            "gr_name": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "gr_passwd": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "gr_gid": ALL_TYPES["__gid_t"],
+            "gr_mem": SimTypePointer(
+                SimTypePointer(ALL_TYPES["char"], label="char *"), label="char **"
+            ),
+        },
+        name="group",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/posix/sys/utsname.h#L48
+    "utsname": SimStruct(
+        {
+            "sysname": SimTypeArray(ALL_TYPES["char"], length=1024, label="char[1024]"),
+            "nodename": SimTypeArray(
+                ALL_TYPES["char"], length=1024, label="char[1024]"
+            ),
+            "release": SimTypeArray(ALL_TYPES["char"], length=1024, label="char[1024]"),
+            "version": SimTypeArray(ALL_TYPES["char"], length=1024, label="char[1024]"),
+            "machine": SimTypeArray(ALL_TYPES["char"], length=1024, label="char[1024]"),
+            "domain": SimTypeArray(ALL_TYPES["char"], length=1024, label="char[1024]"),
+        },
+        name="utsname",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/misc/fstab.h#L57
+    "fstab": SimStruct(
+        {
+            "fs_spec": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "fs_file": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "fs_vfstype": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "fs_mntops": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "fs_type": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "fs_freq": ALL_TYPES["int"],
+            "fs_passno": ALL_TYPES["int"],
+        },
+        name="fstab",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/misc/mntent.h#L51
+    "mntent": SimStruct(
+        {
+            "mnt_fsname": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mnt_dir": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mnt_type": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mnt_opts": SimTypePointer(ALL_TYPES["char"], label="char *"),
+            "mnt_freq": ALL_TYPES["int"],
+            "mnt_passno": ALL_TYPES["int"],
+        },
+        name="mntent",
+    ),
+    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/crypt/crypt.h#L43
+    "crypt_data": SimStruct(
+        {
+            "keysched": SimTypeArray(
+                ALL_TYPES["char"], length=16 * 8, label="char[16 * 8]"
+            ),
+            "sb0": SimTypeArray(ALL_TYPES["char"], length=32768, label="char[32768]"),
+            "sb1": SimTypeArray(ALL_TYPES["char"], length=32768, label="char[32768]"),
+            "sb2": SimTypeArray(ALL_TYPES["char"], length=32768, label="char[32768]"),
+            "sb3": SimTypeArray(ALL_TYPES["char"], length=32768, label="char[32768]"),
+            "crypt_3_buf": SimTypeArray(ALL_TYPES["char"], length=14, label="char[14]"),
+            "current_salt": SimTypeArray(ALL_TYPES["char"], length=2, label="char[2]"),
+            "current_saltbits": ALL_TYPES["long int"],
+            "direction": ALL_TYPES["int"],
+            "initialized": ALL_TYPES["int"],
+        },
+        name="crypt_data",
+    ),
+}
+ALL_TYPES.update(GLIBC_TYPES)
 
 
 def _make_scope(predefined_types=None):
