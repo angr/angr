@@ -300,7 +300,7 @@ void State::commit() {
 	// Clear all block level taint status trackers and symbolic instruction list
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
-	block_instr_concrete_regs.clear();
+	block_stmt_concrete_regs.clear();
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
@@ -781,39 +781,52 @@ void State::compute_slice_of_stmt(vex_stmt_details_t &stmt) {
 	auto &block_taint_entry = block_taint_cache.at(curr_block_details.block_addr);
 
 	auto &stmt_taint_entry = block_taint_entry.block_stmts_taint_data.at(stmt.stmt_idx);
+	auto stmt_concrete_regs_it = block_stmt_concrete_regs.find(stmt.stmt_idx);
+	if (stmt_concrete_regs_it == block_stmt_concrete_regs.end()) {
+		// No entry was added for this statement because no symbolic values existed when the statement was
+		// processed
+		all_dep_regs_concrete = true;
+	}
 	for (auto &source: stmt_taint_entry.sources) {
 		if (source.entity_type == TAINT_ENTITY_TMP) {
 			stmts_to_process.emplace_back(source.stmt_idx);
 		}
-		else if ((source.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(source.reg_offset) &&
-		  !is_symbolic_register(source.reg_offset, source.value_size)) {
-			// Source is a register dependency that is not modified from start of block till this instruction.
-			register_value_t dep_reg_val;
-			dep_reg_val.offset = source.reg_offset;
-			dep_reg_val.size = source.value_size;
-			auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_val.offset);
-			if (dep_reg_val.offset == saved_reg_val->first) {
-				// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
-				// be computed when re-executing instruction
-				memcpy(dep_reg_val.value, saved_reg_val->second.value, MAX_REGISTER_BYTE_SIZE);
-				stmt.reg_deps.insert(dep_reg_val);
-			}
-			else {
-				// Check if dependency register is a sub-register
-				// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
-				// the register whose byte 0 has VEX offset less than the dependency register.
-				saved_reg_val--;
-				if (dep_reg_val.offset + dep_reg_val.size <= saved_reg_val->first + saved_reg_val->second.size) {
-					// Dependency is a sub-register that starts in middle of larger register.
-					// Save value of dependency register starting at offset 0 so that value is computed correctly when
-					// re-executing
-					uint32_t val_offset = dep_reg_val.offset - saved_reg_val->first;
-					memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
+		else if ((source.entity_type == TAINT_ENTITY_REG) && (all_dep_regs_concrete || (stmt_concrete_regs_it->second.count(source.reg_offset)) > 0)) {
+			// Source is a concrete register.
+			if (source.stmt_idx == -1) {
+				// Source is a register dependency that is not modified from start of block till this statement. Save
+				// its value.
+				register_value_t dep_reg_val;
+				dep_reg_val.offset = source.reg_offset;
+				dep_reg_val.size = source.value_size;
+				auto saved_reg_val = block_start_reg_values.lower_bound(dep_reg_val.offset);
+				if (dep_reg_val.offset == saved_reg_val->first) {
+					// Dependency register contains byte 0 of the register. Save entire value: correct-sized value will
+					// be computed when re-executing instruction
+					memcpy(dep_reg_val.value, saved_reg_val->second.value, MAX_REGISTER_BYTE_SIZE);
 					stmt.reg_deps.insert(dep_reg_val);
 				}
 				else {
-					assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
+					// Check if dependency register is a sub-register
+					// lower_bound returns the first entry greater than or equal to given register offset but we have to check with
+					// the register whose byte 0 has VEX offset less than the dependency register.
+					saved_reg_val--;
+					if (dep_reg_val.offset + dep_reg_val.size <= saved_reg_val->first + saved_reg_val->second.size) {
+						// Dependency is a sub-register that starts in middle of larger register.
+						// Save value of dependency register starting at offset 0 so that value is computed correctly when
+						// re-executing
+						uint32_t val_offset = dep_reg_val.offset - saved_reg_val->first;
+						memcpy(dep_reg_val.value, saved_reg_val->second.value + val_offset, MAX_REGISTER_BYTE_SIZE - val_offset);
+						stmt.reg_deps.insert(dep_reg_val);
+					}
+					else {
+						assert(false && "[sim_unicorn] Dependency register not saved at block start. Please report a bug with repro instructions.");
+					}
 				}
+			}
+			else {
+				// Source was modified by some previous statement. Compute its slice.
+				stmts_to_process.emplace_back(source.stmt_idx);
 			}
 		}
 		else if (source.entity_type == TAINT_ENTITY_MEM) {
@@ -1609,6 +1622,16 @@ void State::propagate_taints() {
 		auto curr_stmt_idx = stmt_taint_data_entries_it->first;
 		auto &curr_stmt_taint_data = stmt_taint_data_entries_it->second;
 		address_t curr_instr_addr = curr_stmt_taint_data.sink.instr_addr;
+		std::unordered_map<vex_reg_offset_t, int64_t> concrete_reg_deps;
+
+		// Save list of register dependencies of current instruction which are concrete for slice computation later
+		for (auto &dep: curr_stmt_taint_data.sources) {
+			if ((dep.entity_type == TAINT_ENTITY_REG) && is_valid_dependency_register(dep.reg_offset)
+			  && !is_symbolic_register(dep.reg_offset, dep.value_size)) {
+				concrete_reg_deps.emplace(std::make_pair(dep.reg_offset, dep.value_size));
+			}
+		}
+		block_stmt_concrete_regs.emplace(curr_stmt_idx, concrete_reg_deps);
 		if (curr_stmt_taint_data.has_memory_read) {
 			// Pause taint propagation to process the memory read and continue from instruction
 			// after the memory read.

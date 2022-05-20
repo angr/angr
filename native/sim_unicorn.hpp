@@ -554,8 +554,8 @@ class State {
 	RegisterSet block_symbolic_registers, block_concrete_registers;
 	TempSet block_symbolic_temps;
 
-	// Set of register dependencies that were concrete before an instruction was executed
-	std::unordered_map<address_t, std::unordered_map<vex_reg_offset_t, int64_t>> block_instr_concrete_regs;
+	// Set of register dependencies that were concrete before a VEX statement was executed
+	std::unordered_map<int64_t, std::unordered_map<vex_reg_offset_t, int64_t>> block_stmt_concrete_regs;
 
 	// List of instructions that should be executed symbolically
 	std::vector<block_details_t> blocks_with_symbolic_stmts;
