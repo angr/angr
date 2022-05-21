@@ -357,7 +357,7 @@ class Project:
                         self.hook_symbol(export.rebased_addr, the_lib.get(export.name, sim_proc_arch))
 
             # Step 2.5: If the requesting object wants us to guess simprocedures, do the guessing
-            if reloc.owner.guess_simprocs and self._guess_simprocedure(func, reloc.owner.guess_simprocs_hint):
+            elif reloc.owner.guess_simprocs and self._guess_simprocedure(func, reloc.owner.guess_simprocs_hint):
                 continue
 
             # Step 2.6: If 2.4/2.5 didn't work (we have NO SimLibraries to work with), just
