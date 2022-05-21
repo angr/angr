@@ -1403,7 +1403,7 @@ taint_status_result_t State::get_final_taint_status(const std::unordered_set<tai
 				// Address is concrete so we check result of the memory read
 				mem_read_result_t mem_read_result;
 				try {
-					mem_read_result = block_mem_reads_map.at(taint_source.instr_addr);
+					mem_read_result = block_mem_reads_map.at(taint_source.stmt_idx);
 				}
 				catch (std::out_of_range const&) {
 					assert(false && "[sim_unicorn] Taint sink depends on a read not executed yet! This should not happen!");
@@ -1755,18 +1755,18 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 						mem_read_result.read_size += next_mem_read.size;
 						block_mem_reads_data.erase(block_mem_reads_data.begin());
 						if (mem_read_result.read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
-							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.instr_addr, mem_read_result);
+							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
 							break;
 						}
 						else if (block_mem_reads_data.size() == 0) {
 							// This entry is of a partial memory read for the instruction being processed.
-							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.instr_addr, mem_read_result);
+							block_mem_reads_map.emplace(vex_stmt_taint_entry_it->second.sink.stmt_idx, mem_read_result);
 							break;
 						}
 					}
 					if (block_mem_reads_data.size() == 0) {
 						// All pending reads have been processed and inserted into the map
-						if (block_mem_reads_map.at(vex_stmt_taint_entry_it->second.sink.instr_addr).read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
+						if (block_mem_reads_map.at(vex_stmt_taint_entry_it->second.sink.stmt_idx).read_size == vex_stmt_taint_entry_it->second.mem_read_size) {
 							// Update iterator since all reads for current instruction have been processed. We should
 							// start searching for next instruction with memory read from successor of this instruction.
 							vex_stmt_taint_entry_it++;
@@ -1794,23 +1794,23 @@ void State::propagate_taint_of_mem_read_instr_and_continue(address_t read_addres
 		curr_stmt_idx = vex_stmt_taint_entry_it->first;
 		taint_engine_stop_mem_read_size = vex_stmt_taint_entry_it->second.mem_read_size;
 	}
-	auto mem_reads_map_entry = block_mem_reads_map.find(curr_instr_addr);
+	auto mem_reads_map_entry = block_mem_reads_map.find(curr_stmt_idx);
 	if (mem_reads_map_entry == block_mem_reads_map.end()) {
 		mem_read_result_t mem_read_result;
 		mem_read_result.memory_values.emplace_back(memory_read_value);
 		mem_read_result.is_mem_read_symbolic = memory_read_value.is_value_symbolic;
 		mem_read_result.read_size = read_size;
-		block_mem_reads_map.emplace(curr_instr_addr, mem_read_result);
+		block_mem_reads_map.emplace(curr_stmt_idx, mem_read_result);
 	}
 	else {
-		auto &mem_read_entry = block_mem_reads_map.at(curr_instr_addr);
+		auto &mem_read_entry = block_mem_reads_map.at(curr_stmt_idx);
 		mem_read_entry.memory_values.emplace_back(memory_read_value);
 		mem_read_entry.is_mem_read_symbolic |= memory_read_value.is_value_symbolic;
 		mem_read_entry.read_size += read_size;
 	}
 
 	// At this point the block's memory reads map has been rebuilt and we can propagate taint as before
-	auto &mem_read_result = block_mem_reads_map.at(curr_instr_addr);
+	auto &mem_read_result = block_mem_reads_map.at(curr_stmt_idx);
 	if (curr_block_details.vex_lift_failed) {
 		if (mem_read_result.is_mem_read_symbolic || (symbolic_registers.size() > 0)
 			|| (block_symbolic_registers.size() > 0) || (block_symbolic_temps.size() > 0)) {
@@ -1987,7 +1987,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 	}
 	else if (is_stmt_symbolic) {
 		if (vex_stmt_details.has_symbolic_memory_dep) {
-			for (auto &mem_value: block_mem_reads_map.at(taint_sink.instr_addr).memory_values) {
+			for (auto &mem_value: block_mem_reads_map.at(taint_sink.stmt_idx).memory_values) {
 				if (mem_value.is_value_symbolic) {
 					auto elem = symbolic_mem_deps.find(mem_value.address);
 					if (elem == symbolic_mem_deps.end()) {
@@ -2009,7 +2009,7 @@ vex_stmt_details_t State::compute_vex_stmt_details(const vex_stmt_taint_entry_t 
 	stmt_details.instr_addr = vex_stmt_taint_entry.sink.instr_addr;
 	stmt_details.stmt_idx = vex_stmt_taint_entry.sink.stmt_idx;
 	if (vex_stmt_taint_entry.has_memory_read) {
-		auto mem_read_result = block_mem_reads_map.at(stmt_details.instr_addr);
+		auto mem_read_result = block_mem_reads_map.at(stmt_details.stmt_idx);
 		if (!mem_read_result.is_mem_read_symbolic) {
 			stmt_details.has_concrete_memory_dep = true;
 			stmt_details.has_symbolic_memory_dep = false;
@@ -2122,7 +2122,7 @@ void State::continue_propagating_taint() {
 
 void State::save_concrete_memory_deps(vex_stmt_details_t &instr) {
 	if (instr.has_concrete_memory_dep || (instr.has_symbolic_memory_dep && !instr.has_read_from_symbolic_addr)) {
-		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.instr_addr).memory_values);
+		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.stmt_idx).memory_values);
 		instr.memory_values = &(archived_memory_values.back()[0]);
 		instr.memory_values_count = archived_memory_values.back().size();
 	}
@@ -2131,14 +2131,14 @@ void State::save_concrete_memory_deps(vex_stmt_details_t &instr) {
 		instrs_to_process.push(it);
 	}
 	while (!instrs_to_process.empty()) {
-		auto &curr_instr = instrs_to_process.front();
-		if (curr_instr->has_concrete_memory_dep) {
-			archived_memory_values.emplace_back(block_mem_reads_map.at(curr_instr->instr_addr).memory_values);
-			curr_instr->memory_values = &(archived_memory_values.back()[0]);
-			curr_instr->memory_values_count = archived_memory_values.back().size();
+		auto &curr_stmt = instrs_to_process.front();
+		if (curr_stmt->has_concrete_memory_dep) {
+			archived_memory_values.emplace_back(block_mem_reads_map.at(curr_stmt->stmt_idx).memory_values);
+			curr_stmt->memory_values = &(archived_memory_values.back()[0]);
+			curr_stmt->memory_values_count = archived_memory_values.back().size();
 		}
 		instrs_to_process.pop();
-		for (auto it = curr_instr->stmt_deps.begin(); it != curr_instr->stmt_deps.end(); *it++) {
+		for (auto it = curr_stmt->stmt_deps.begin(); it != curr_stmt->stmt_deps.end(); *it++) {
 			instrs_to_process.push(it);
 		}
 	}
