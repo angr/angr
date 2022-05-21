@@ -2120,26 +2120,26 @@ void State::continue_propagating_taint() {
 	return;
 }
 
-void State::save_concrete_memory_deps(vex_stmt_details_t &instr) {
-	if (instr.has_concrete_memory_dep || (instr.has_symbolic_memory_dep && !instr.has_read_from_symbolic_addr)) {
-		archived_memory_values.emplace_back(block_mem_reads_map.at(instr.stmt_idx).memory_values);
-		instr.memory_values = &(archived_memory_values.back()[0]);
-		instr.memory_values_count = archived_memory_values.back().size();
+void State::save_concrete_memory_deps(vex_stmt_details_t &vex_stmt_det) {
+	if (vex_stmt_det.has_concrete_memory_dep || (vex_stmt_det.has_symbolic_memory_dep && !vex_stmt_det.has_read_from_symbolic_addr)) {
+		archived_memory_values.emplace_back(block_mem_reads_map.at(vex_stmt_det.stmt_idx).memory_values);
+		vex_stmt_det.memory_values = &(archived_memory_values.back()[0]);
+		vex_stmt_det.memory_values_count = archived_memory_values.back().size();
 	}
-	std::queue<std::set<vex_stmt_details_t>::iterator> instrs_to_process;
-	for (auto it = instr.stmt_deps.begin(); it != instr.stmt_deps.end(); it++) {
-		instrs_to_process.push(it);
+	std::queue<std::set<vex_stmt_details_t>::iterator> vex_stmts_to_process;
+	for (auto it = vex_stmt_det.stmt_deps.begin(); it != vex_stmt_det.stmt_deps.end(); it++) {
+		vex_stmts_to_process.push(it);
 	}
-	while (!instrs_to_process.empty()) {
-		auto &curr_stmt = instrs_to_process.front();
+	while (!vex_stmts_to_process.empty()) {
+		auto &curr_stmt = vex_stmts_to_process.front();
 		if (curr_stmt->has_concrete_memory_dep) {
 			archived_memory_values.emplace_back(block_mem_reads_map.at(curr_stmt->stmt_idx).memory_values);
 			curr_stmt->memory_values = &(archived_memory_values.back()[0]);
 			curr_stmt->memory_values_count = archived_memory_values.back().size();
 		}
-		instrs_to_process.pop();
+		vex_stmts_to_process.pop();
 		for (auto it = curr_stmt->stmt_deps.begin(); it != curr_stmt->stmt_deps.end(); *it++) {
-			instrs_to_process.push(it);
+			vex_stmts_to_process.push(it);
 		}
 	}
 	return;
