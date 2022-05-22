@@ -260,13 +260,25 @@ void State::commit() {
 	std::vector<std::vector<block_details_t>::iterator> blocks_to_erase_it;
 	for (auto &stmts_to_erase_entry: symbolic_stmts_to_erase) {
 		std::vector<std::vector<vex_stmt_details_t>::iterator> stmts_to_erase_it;
+		std::vector<std::unordered_map<address_t, std::pair<uint64_t, uint64_t>>::iterator> sym_mem_deps_to_erase;
 		auto block_it = blocks_with_symbolic_stmts.begin() + stmts_to_erase_entry.first;
 		auto first_stmt_it = block_it->symbolic_stmts.begin();
 		for (auto &stmt_offset: stmts_to_erase_entry.second) {
 			stmts_to_erase_it.push_back(first_stmt_it + stmt_offset);
 		}
 		for (auto &stmt_to_erase_it: stmts_to_erase_it) {
+			for (auto &sym_mem_dep: stmt_to_erase_it->symbolic_mem_deps) {
+				auto elem = symbolic_mem_deps.find(sym_mem_dep.first);
+				assert(elem->second.first == sym_mem_dep.second);
+				elem->second.second--;
+				if (elem->second.second == 0) {
+					sym_mem_deps_to_erase.push_back(elem);
+				}
+			}
 			block_it->symbolic_stmts.erase(stmt_to_erase_it);
+		}
+		for (auto &sym_mem_dep: sym_mem_deps_to_erase) {
+			symbolic_mem_deps.erase(sym_mem_dep);
 		}
 		if (block_it->symbolic_stmts.size() == 0) {
 			// There are no more instructions to re-execute in this block and thus it can be removed from list of blocks
@@ -281,6 +293,45 @@ void State::commit() {
 	if (curr_block_details.symbolic_stmts.size() > 0) {
 		for (auto &symbolic_stmt: curr_block_details.symbolic_stmts) {
 			compute_slice_of_stmt(symbolic_stmt);
+			// Update info of symbolic memory dependencies of this statement or any of its dependencies
+			if (symbolic_stmt.has_symbolic_memory_dep) {
+				for (auto &mem_value: block_mem_reads_map.at(symbolic_stmt.stmt_idx).memory_values) {
+					if (mem_value.is_value_symbolic) {
+						auto elem = symbolic_mem_deps.find(mem_value.address);
+						if (elem == symbolic_mem_deps.end()) {
+							symbolic_mem_deps.emplace(mem_value.address, std::make_pair(mem_value.size, 1));
+							symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
+						}
+						else {
+							if (elem->second.first < mem_value.size) {
+								elem->second.first = mem_value.size;
+							}
+							symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, elem->second.first);
+							elem->second.second++;
+						}
+					}
+				}
+			}
+			for (auto &dep_stmt: symbolic_stmt.stmt_deps) {
+				if (dep_stmt.has_symbolic_memory_dep) {
+					for (auto &mem_value: block_mem_reads_map.at(dep_stmt.stmt_idx).memory_values) {
+						if (mem_value.is_value_symbolic) {
+							auto elem = symbolic_mem_deps.find(mem_value.address);
+							if (elem == symbolic_mem_deps.end()) {
+								symbolic_mem_deps.emplace(mem_value.address, std::make_pair(mem_value.size, 1));
+								symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
+							}
+							else {
+								if (elem->second.first < mem_value.size) {
+									elem->second.first = mem_value.size;
+								}
+								symbolic_stmt.symbolic_mem_deps.emplace(mem_value.address, elem->second.first);
+								elem->second.second++;
+							}
+						}
+					}
+				}
+			}
 			// Save all concrete memory dependencies of the block
 			save_concrete_memory_deps(symbolic_stmt);
 		}
@@ -301,6 +352,7 @@ void State::commit() {
 	block_symbolic_registers.clear();
 	block_concrete_registers.clear();
 	block_stmt_concrete_regs.clear();
+	block_symbolic_mem_deps.clear();
 	curr_block_details.reset();
 	block_mem_reads_data.clear();
 	block_mem_reads_map.clear();
@@ -704,11 +756,21 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		auto write_end_addr = address + size;
 		for (auto &symbolic_mem_dep: symbolic_mem_deps) {
 			auto symbolic_start_addr = symbolic_mem_dep.first;
-			auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+			auto symbolic_end_addr = symbolic_start_addr + symbolic_mem_dep.second.first;
 			if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
 				// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
 				// will be lost. Stop execution.
 				stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE);
+				return;
+			}
+		}
+		for (auto &symbolic_mem_dep: block_symbolic_mem_deps) {
+			auto symbolic_start_addr = symbolic_mem_dep.first;
+			auto symbolic_end_addr = symbolic_mem_dep.first + symbolic_mem_dep.second;
+			if (!((symbolic_end_addr < write_start_addr) || (write_end_addr < symbolic_start_addr))) {
+				// No overlap condition test failed => there is some overlap. Thus, some symbolic memory dependency
+				// will be lost. Stop execution.
+				stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE_CURR_BLOCK);
 				return;
 			}
 		}
@@ -1991,9 +2053,9 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 		if (vex_stmt_details.has_symbolic_memory_dep) {
 			for (auto &mem_value: block_mem_reads_map.at(taint_sink.stmt_idx).memory_values) {
 				if (mem_value.is_value_symbolic) {
-					auto elem = symbolic_mem_deps.find(mem_value.address);
-					if (elem == symbolic_mem_deps.end()) {
-						symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
+					auto elem = block_symbolic_mem_deps.find(mem_value.address);
+					if (elem == block_symbolic_mem_deps.end()) {
+						block_symbolic_mem_deps.emplace(mem_value.address, mem_value.size);
 					}
 					else if (elem->second < mem_value.size) {
 						elem->second = mem_value.size;
@@ -2004,6 +2066,7 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 		if ((taint_sink.entity_type == TAINT_ENTITY_REG) || (taint_sink.entity_type == TAINT_ENTITY_MEM)) {
 			curr_block_details.symbolic_stmts.emplace_back(vex_stmt_details);
 		}
+	}
 	return;
 }
 
@@ -2170,6 +2233,13 @@ bool State::check_symbolic_stack_mem_dependencies_liveness() const {
 		return true;
 	}
 	for (auto &symbolic_mem_dep: symbolic_mem_deps) {
+		if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
+			// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
+			// and could be overwritten by future code. We stop concrete execution here to avoid that.
+			return false;
+		}
+	}
+	for (auto &symbolic_mem_dep: block_symbolic_mem_deps) {
 		if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
 			// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
 			// and could be overwritten by future code. We stop concrete execution here to avoid that.

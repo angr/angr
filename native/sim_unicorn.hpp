@@ -210,6 +210,7 @@ struct vex_stmt_details_t {
 	// Mark fields as mutable so that they can be updated after inserting into std::set
 	mutable memory_value_t *memory_values;
 	mutable uint64_t memory_values_count;
+	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
 	std::set<vex_stmt_details_t> stmt_deps;
 	std::unordered_set<register_value_t> reg_deps;
 
@@ -606,7 +607,12 @@ class State {
 	// Count of blocks executed in native interface
 	int64_t executed_blocks_count;
 
-	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
+	// Details of symbolic memory dependencies of all VEX statements to be re-executed. Stores address and size of
+	// memory location and number of VEX statements the location is a dependency of. Only dependencies of statements
+	// that will be re-executed are tracked.
+	std::unordered_map<address_t, std::pair<uint64_t, uint64_t>> symbolic_mem_deps;
+	// Symbolic memory dependencies of all symbolic VEX statements in current block.
+	std::unordered_map<address_t, uint64_t> block_symbolic_mem_deps;
 
 	// Private functions
 
