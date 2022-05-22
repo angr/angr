@@ -178,7 +178,7 @@ void State::stop(stop_t reason, bool do_commit) {
 			sym_stmt.stmt_idx = stmt.stmt_idx;
 			sym_stmt.memory_values = stmt.memory_values;
 			sym_stmt.memory_values_count = stmt.memory_values_count;
-			sym_stmt.has_memory_dep = stmt.has_concrete_memory_dep || (stmt.has_symbolic_memory_dep && !stmt.has_read_from_symbolic_addr);
+			sym_stmt.has_memory_dep = stmt.has_concrete_memory_dep;
 			sym_block.symbolic_stmts.emplace_back(sym_stmt);
 		}
 		block_details_to_return.emplace_back(sym_block);
