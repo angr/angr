@@ -63,6 +63,9 @@ struct taint_entity_t {
 	address_t instr_addr;
 	// Index of VEX statement that last modified this entity.
 	int64_t stmt_idx;
+	// Index of statement where entity is used. Valid only for memory reads to find info of value read. Ignored in other
+	// cases.
+	int64_t sink_stmt_idx;
 	int64_t value_size;
 
 	taint_entity_t() {
@@ -75,6 +78,7 @@ struct taint_entity_t {
 		mem_ref_entity_list.clear();
 		instr_addr = 0;
 		stmt_idx = -1;
+		sink_stmt_idx = -1;
 		value_size = -1;
 	}
 
@@ -615,7 +619,9 @@ class State {
 	std::set<vex_stmt_details_t> get_list_of_dep_stmts(const vex_stmt_details_t &instr) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr, const std::unordered_map<taint_entity_t, int> &entity_setter, bool is_exit_stmt);
+	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr,
+										  int64_t curr_stmt_idx, const std::unordered_map<taint_entity_t, int> &entity_setter,
+										  bool is_exit_stmt);
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
@@ -755,8 +761,8 @@ class State {
 		// List of all values read from memory in current block
 		std::vector<memory_value_t> block_mem_reads_data;
 
-		// Result of all memory reads executed. Instruction address -> memory read result
-		std::unordered_map<address_t, mem_read_result_t> block_mem_reads_map;
+		// Result of all memory reads executed. VEX statement ID -> memory read result
+		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
 
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;
