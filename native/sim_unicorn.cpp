@@ -2001,8 +2001,9 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 				}
 			}
 		}
-		curr_block_details.symbolic_stmts.emplace_back(vex_stmt_details);
-	}
+		if ((taint_sink.entity_type == TAINT_ENTITY_REG) || (taint_sink.entity_type == TAINT_ENTITY_MEM)) {
+			curr_block_details.symbolic_stmts.emplace_back(vex_stmt_details);
+		}
 	return;
 }
 
