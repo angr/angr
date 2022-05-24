@@ -17,8 +17,6 @@ class inet_ntoa(angr.SimProcedure):
 
     # inet_ntoa is for ipv4 addresses, so we do not need 4(6|8) bytes to store it
     INET_INADDRSTRLEN = 16
-    # inet_ntoa internal static buffer
-    static_buffer: Optional[BV] = None
 
     def run(  # type: ignore # pylint:disable=arguments-differ,unused-argument
         self, addr_in: SimStructValue
@@ -29,21 +27,9 @@ class inet_ntoa(angr.SimProcedure):
         :param addr_in: inet_addr struct (which is just a 32-bit int)
         """
 
-        mmap: angr.SimProcedure = angr.SIM_PROCEDURES["posix"]["mmap"]
-
-        if self.static_buffer is None:
-            # inet_ntoa uses an internal static buffer for its return value
-            # that is overwritten on subsequent calls -- I think this is an
-            # okay way to emulate that behavior
-            self.static_buffer = self.inline_call(
-                mmap,
-                0,
-                self.INET_INADDRSTRLEN,
-                PROT_READ | PROT_WRITE,
-                MAP_ANONYMOUS | MAP_PRIVATE,
-                -1,
-                0,
-            ).ret_expr
+        static_buffer = self.project.loader.extern_object.make_extern(
+                "angr##inet_ntoa_static_buffer"
+        ).rebased_addr
 
         rv_exprs: List[BV] = []
         addr_s_in = addr_in["s_addr"]
@@ -74,8 +60,8 @@ class inet_ntoa(angr.SimProcedure):
 
         self.state.memory.store(
             # No endness here -- would store it backward (nul-first)
-            self.static_buffer,
+            static_buffer,
             buf_data,
         )
 
-        return self.static_buffer
+        return static_buffer
