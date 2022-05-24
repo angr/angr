@@ -2373,8 +2373,21 @@ GLIBC_TYPES = {
         },
         name="tm",
     ),
-    # This type seems to be deprecated (?) it is not found in glibc
-    "nptimeval": None,
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/sysdeps/unix/sysv/linux/sys/timex.h#L30
+    "ntptimeval": SimStruct(
+        {
+            "time": ALL_TYPES["timeval"],
+            "maxerror": ALL_TYPES["long int"],
+            "esterror": ALL_TYPES["long int"],
+            "tai": ALL_TYPES["long int"],
+            "__glibc_reserved1": ALL_TYPES["long int"],
+            "__glibc_reserved2": ALL_TYPES["long int"],
+            "__glibc_reserved3": ALL_TYPES["long int"],
+            "__glibc_reserved4": ALL_TYPES["long int"],
+
+        },
+        name="ntptimeval"
+    ),
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/misc/bits/types/struct_iovec.h#L26
     "iovec": SimStruct(
         {
