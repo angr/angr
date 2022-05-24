@@ -28,7 +28,8 @@ class inet_ntoa(angr.SimProcedure):
         """
 
         static_buffer = self.project.loader.extern_object.make_extern(
-                "angr##inet_ntoa_static_buffer"
+                "angr##inet_ntoa_static_buffer",
+                size=self.INET_ADDRSTRLEN,
         ).rebased_addr
 
         rv_exprs: List[BV] = []
