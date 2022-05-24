@@ -2364,6 +2364,13 @@ GLIBC_TYPES = {
     ),
     # This type seems to be deprecated (?) it is not found in glibc
     "nptimeval": None,
+    # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/misc/bits/types/struct_iovec.h#L26
+    "iovec": SimStruct(
+        {
+            "iov_base": SimTypePointer(ALL_TYPES["void"], label="void *"),
+            "iov_len": ALL_TYPES["size_t"],
+        }
+    ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/time/sys/time.h#L130
     "itimerval": SimStruct(
         {
