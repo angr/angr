@@ -108,7 +108,7 @@ class AnalysisFactory(Generic[A]):
         @functools.wraps(self._analysis_cls.__init__)
         def wrapper(*args, **kwargs):
             oself = object.__new__(self._analysis_cls)
-            oself.named_errors = {}
+            oself.named_errors = defaultdict(list)
             oself.errors = []
             oself.log = []
 
