@@ -1836,6 +1836,17 @@ GLIBC_INTERNAL_TYPES.update(
             },
             name="timeval",
         ),
+        # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/time/bits/types/struct_timespec.h#L11
+        "timespec": SimStruct(
+            {
+                # TODO: This should be architecture dependent
+                "tv_sec": ALL_TYPES["__time_t"],
+                "tv_nsec": ALL_TYPES["long int"],
+                # TODO: This should be architecture dependent (byte order)
+                "_pad0": ALL_TYPES["uint32_t"],
+            },
+            name="timeval",
+        ),
         # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/utmp.h#L50
         "exit_status": SimStruct(
             {
