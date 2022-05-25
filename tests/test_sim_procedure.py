@@ -93,7 +93,18 @@ def test_syscall_and_simprocedure():
     assert func.is_simprocedure
     assert type(proj.factory.snippet(node.addr)) == HookNode
 
+def test_inet_ntoa() -> None:
+    """
+    Test the inet_ntoa simprocedure for functionality
+    """
+    bin_path = os.path.join(BIN_PATH, "tests", "x86_64", "inet_ntoa")
+    proj = angr.Project(bin_path, auto_load_libs=False, use_sim_procedures=True)
+    initial_state = proj.factory.entry_state()
+    simgr = proj.factory.simgr(initial_state)
+    after = simgr.run()
+    assert after.deadended[0].posix.dumps(1) == b"192.168.192.168\n"
 
 if __name__ == '__main__':
     test_ret_float()
     test_syscall_and_simprocedure()
+    test_inet_ntoa()

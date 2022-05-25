@@ -5,9 +5,9 @@ from ...sim_type import SimTypeFunction, \
     SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, \
     SimTypePointer, \
     SimTypeChar, \
-    SimStruct, \
     SimTypeFixedSizeArray, \
-    SimTypeBottom
+    SimTypeBottom, \
+    ALL_TYPES
 from .. import SIM_PROCEDURES as P
 from . import SimLibrary
 
@@ -44,19 +44,19 @@ _libc_decls = \
         # void warn (const char *FORMAT, ...);
         "warn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["format"], variadic=True),
         # void vwarn (const char *FORMAT, va_list AP);
-        "vwarn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
+        "vwarn": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
         # void warnx (const char *FORMAT, ...);
         "warnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["format"], variadic=True),
         # void vwarnx (const char *FORMAT, va_list AP);
-        "vwarnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
+        "vwarnx": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeBottom(label="void"), arg_names=["format", "ap"]),
         # void err (int STATUS, const char *FORMAT, ...);
         "err": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "format"], variadic=True),
         # void verr (int STATUS, const char *FORMAT, va_list AP);
-        "verr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
+        "verr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
         # void errx (int STATUS, const char *FORMAT, ...);
         "errx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["status", "format"], variadic=True),
         # void verrx (int STATUS, const char *FORMAT, va_list AP);
-        "verrx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
+        "verrx": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeBottom(label="void"), arg_names=["status", "format", "ap"]),
         # void * malloc (size_t SIZE);
         "malloc": SimTypeFunction([SimTypeLong(signed=False, label="size_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["size"]),
         # void free (void *PTR);
@@ -82,49 +82,49 @@ _libc_decls = \
         # enum mcheck_status mprobe (void *POINTER);
         "mprobe": None,
         # struct mallinfo mallinfo (void);
-        "mallinfo": SimTypeFunction([], SimStruct({}, name="mallinfo", pack=False, align=None)),
+        "mallinfo": SimTypeFunction([], ALL_TYPES["mallinfo"]),
         # void mtrace (void);
         "mtrace": SimTypeFunction([], SimTypeBottom(label="void")),
         # void muntrace (void);
         "muntrace": SimTypeFunction([], SimTypeBottom(label="void")),
         # int obstack_init (struct obstack *OBSTACK_PTR);
-        "obstack_init": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
+        "obstack_init": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
         # void * obstack_alloc (struct obstack *OBSTACK_PTR, int SIZE);
-        "obstack_alloc": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr", "size"]),
+        "obstack_alloc": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr", "size"]),
         # void * obstack_copy (struct obstack *OBSTACK_PTR, void *ADDRESS, int SIZE);
-        "obstack_copy": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr", "address", "size"]),
+        "obstack_copy": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr", "address", "size"]),
         # void * obstack_copy0 (struct obstack *OBSTACK_PTR, void *ADDRESS, int SIZE);
-        "obstack_copy0": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr", "address", "size"]),
+        "obstack_copy0": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr", "address", "size"]),
         # void obstack_free (struct obstack *OBSTACK_PTR, void *OBJECT);
-        "obstack_free": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "object"]),
+        "obstack_free": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "object"]),
         # void obstack_blank (struct obstack *OBSTACK_PTR, int SIZE);
-        "obstack_blank": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "size"]),
+        "obstack_blank": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "size"]),
         # void obstack_grow (struct obstack *OBSTACK_PTR, void *DATA, int SIZE);
-        "obstack_grow": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data", "size"]),
+        "obstack_grow": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data", "size"]),
         # void obstack_grow0 (struct obstack *OBSTACK_PTR, void *DATA, int SIZE);
-        "obstack_grow0": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data", "size"]),
+        "obstack_grow0": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data", "size"]),
         # void obstack_1grow (struct obstack *OBSTACK_PTR, char C);
-        "obstack_1grow": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeChar()], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "c"]),
+        "obstack_1grow": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeChar()], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "c"]),
         # void obstack_ptr_grow (struct obstack *OBSTACK_PTR, void *DATA);
-        "obstack_ptr_grow": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
+        "obstack_ptr_grow": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
         # void obstack_int_grow (struct obstack *OBSTACK_PTR, int DATA);
-        "obstack_int_grow": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
+        "obstack_int_grow": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
         # void * obstack_finish (struct obstack *OBSTACK_PTR);
-        "obstack_finish": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr"]),
+        "obstack_finish": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr"]),
         # int obstack_object_size (struct obstack *OBSTACK_PTR);
-        "obstack_object_size": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
+        "obstack_object_size": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
         # int obstack_room (struct obstack *OBSTACK_PTR);
-        "obstack_room": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
+        "obstack_room": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0)], SimTypeInt(signed=True), arg_names=["obstack_ptr"]),
         # void obstack_1grow_fast (struct obstack *OBSTACK_PTR, char C);
-        "obstack_1grow_fast": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeChar()], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "c"]),
+        "obstack_1grow_fast": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeChar()], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "c"]),
         # void obstack_ptr_grow_fast (struct obstack *OBSTACK_PTR, void *DATA);
-        "obstack_ptr_grow_fast": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
+        "obstack_ptr_grow_fast": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
         # void obstack_int_grow_fast (struct obstack *OBSTACK_PTR, int DATA);
-        "obstack_int_grow_fast": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
+        "obstack_int_grow_fast": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "data"]),
         # void obstack_blank_fast (struct obstack *OBSTACK_PTR, int SIZE);
-        "obstack_blank_fast": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "size"]),
+        "obstack_blank_fast": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["obstack_ptr", "size"]),
         # void * obstack_base (struct obstack *OBSTACK_PTR);
-        "obstack_base": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr"]),
+        "obstack_base": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0)], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["obstack_ptr"]),
         # void * alloca (size_t SIZE);
         "alloca": SimTypeFunction([SimTypeLong(signed=False, label="size_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["size"]),
         # int brk (void *ADDR);
@@ -446,7 +446,7 @@ _libc_decls = \
         # char * setlocale (int CATEGORY, const char *LOCALE);
         "setlocale": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["category", "locale"]),
         # struct lconv * localeconv (void);
-        "localeconv": SimTypeFunction([], SimTypePointer(SimStruct({}, name="lconv", pack=False, align=None), offset=0)),
+        "localeconv": SimTypeFunction([], SimTypePointer(ALL_TYPES["lconv"], offset=0)),
         # char * nl_langinfo (nl_item ITEM);
         "nl_langinfo": None,
         # ssize_t strfmon (char *S, size_t MAXSIZE, const char *FORMAT, ...);
@@ -492,9 +492,9 @@ _libc_decls = \
         # ENTRY * hsearch (ENTRY ITEM, ACTION ACTION);
         "hsearch": None,
         # int hcreate_r (size_t NEL, struct hsearch_data *HTAB);
-        "hcreate_r": SimTypeFunction([SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="hsearch_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["nel", "htab"]),
+        "hcreate_r": SimTypeFunction([SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["hsearch_data"], offset=0)], SimTypeInt(signed=True), arg_names=["nel", "htab"]),
         # void hdestroy_r (struct hsearch_data *HTAB);
-        "hdestroy_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="hsearch_data", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["htab"]),
+        "hdestroy_r": SimTypeFunction([SimTypePointer(ALL_TYPES["hsearch_data"], offset=0)], SimTypeBottom(label="void"), arg_names=["htab"]),
         # int hsearch_r (ENTRY ITEM, ACTION ACTION, ENTRY **RETVAL, struct hsearch_data *HTAB);
         "hsearch_r": None,
         # void * tsearch (const void *KEY, void **ROOTP, comparison_fn_t COMPAR);
@@ -530,51 +530,51 @@ _libc_decls = \
         # void wordfree (wordexp_t *WORD_VECTOR_PTR);
         "wordfree": None,
         # FILE * fopen (const char *FILENAME, const char *OPENTYPE);
-        "fopen": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["filename", "opentype"]),
+        "fopen": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["filename", "opentype"]),
         # FILE * fopen64 (const char *FILENAME, const char *OPENTYPE);
-        "fopen64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["filename", "opentype"]),
+        "fopen64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["filename", "opentype"]),
         # FILE * freopen (const char *FILENAME, const char *OPENTYPE, FILE *STREAM);
-        "freopen": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["filename", "opentype", "stream"]),
+        "freopen": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["filename", "opentype", "stream"]),
         # FILE * freopen64 (const char *FILENAME, const char *OPENTYPE, FILE *STREAM);
-        "freopen64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["filename", "opentype", "stream"]),
+        "freopen64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["filename", "opentype", "stream"]),
         # int __freadable (FILE *STREAM);
-        "__freadable": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "__freadable": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int __fwritable (FILE *STREAM);
-        "__fwritable": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "__fwritable": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int __freading (FILE *STREAM);
-        "__freading": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "__freading": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int __fwriting (FILE *STREAM);
-        "__fwriting": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "__fwriting": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int fclose (FILE *STREAM);
-        "fclose": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fclose": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int fcloseall (void);
         "fcloseall": SimTypeFunction([], SimTypeInt(signed=True)),
         # void flockfile (FILE *STREAM);
-        "flockfile": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "flockfile": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # int ftrylockfile (FILE *STREAM);
-        "ftrylockfile": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "ftrylockfile": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # void funlockfile (FILE *STREAM);
-        "funlockfile": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "funlockfile": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # int __fsetlocking (FILE *STREAM, int TYPE);
-        "__fsetlocking": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "type"]),
+        "__fsetlocking": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "type"]),
         # int fwide (FILE *STREAM, int MODE);
-        "fwide": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "mode"]),
+        "fwide": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "mode"]),
         # int fputc (int C, FILE *STREAM);
-        "fputc": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
+        "fputc": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
         # wint_t fputwc (wchar_t WC, FILE *STREAM);
-        "fputwc": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
+        "fputwc": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
         # int fputc_unlocked (int C, FILE *STREAM);
-        "fputc_unlocked": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
+        "fputc_unlocked": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
         # wint_t fputwc_unlocked (wchar_t WC, FILE *STREAM);
-        "fputwc_unlocked": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
+        "fputwc_unlocked": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
         # int putc (int C, FILE *STREAM);
-        "putc": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
+        "putc": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
         # wint_t putwc (wchar_t WC, FILE *STREAM);
-        "putwc": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
+        "putwc": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
         # int putc_unlocked (int C, FILE *STREAM);
-        "putc_unlocked": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
+        "putc_unlocked": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
         # wint_t putwc_unlocked (wchar_t WC, FILE *STREAM);
-        "putwc_unlocked": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
+        "putwc_unlocked": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
         # int putchar (int C);
         "putchar": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["c"]),
         # wint_t putwchar (wchar_t WC);
@@ -584,33 +584,33 @@ _libc_decls = \
         # wint_t putwchar_unlocked (wchar_t WC);
         "putwchar_unlocked": SimTypeFunction([SimTypeShort(signed=False, label="wchar_t")], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc"]),
         # int fputs (const char *S, FILE *STREAM);
-        "fputs": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["s", "stream"]),
+        "fputs": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["s", "stream"]),
         # int fputws (const wchar_t *WS, FILE *STREAM);
-        "fputws": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["ws", "stream"]),
+        "fputws": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["ws", "stream"]),
         # int fputs_unlocked (const char *S, FILE *STREAM);
-        "fputs_unlocked": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["s", "stream"]),
+        "fputs_unlocked": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["s", "stream"]),
         # int fputws_unlocked (const wchar_t *WS, FILE *STREAM);
-        "fputws_unlocked": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["ws", "stream"]),
+        "fputws_unlocked": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["ws", "stream"]),
         # int puts (const char *S);
         "puts": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s"]),
         # int putw (int W, FILE *STREAM);
-        "putw": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["w", "stream"]),
+        "putw": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["w", "stream"]),
         # int fgetc (FILE *STREAM);
-        "fgetc": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fgetc": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # wint_t fgetwc (FILE *STREAM);
-        "fgetwc": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
+        "fgetwc": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
         # int fgetc_unlocked (FILE *STREAM);
-        "fgetc_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fgetc_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # wint_t fgetwc_unlocked (FILE *STREAM);
-        "fgetwc_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
+        "fgetwc_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
         # int getc (FILE *STREAM);
-        "getc": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "getc": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # wint_t getwc (FILE *STREAM);
-        "getwc": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
+        "getwc": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
         # int getc_unlocked (FILE *STREAM);
-        "getc_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "getc_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # wint_t getwc_unlocked (FILE *STREAM);
-        "getwc_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
+        "getwc_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["stream"]),
         # int getchar (void);
         "getchar": SimTypeFunction([], SimTypeInt(signed=True)),
         # wint_t getwchar (void);
@@ -620,33 +620,33 @@ _libc_decls = \
         # wint_t getwchar_unlocked (void);
         "getwchar_unlocked": SimTypeFunction([], SimTypeInt(signed=False, label="wint_t")),
         # int getw (FILE *STREAM);
-        "getw": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "getw": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # ssize_t getline (char **LINEPTR, size_t *N, FILE *STREAM);
-        "getline": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["lineptr", "n", "stream"]),
+        "getline": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["lineptr", "n", "stream"]),
         # ssize_t getdelim (char **LINEPTR, size_t *N, int DELIMITER, FILE *STREAM);
-        "getdelim": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["lineptr", "n", "delimiter", "stream"]),
+        "getdelim": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["lineptr", "n", "delimiter", "stream"]),
         # char * gets (char *S);
         "gets": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s"]),
         # char * fgets (char *S, int COUNT, FILE *STREAM);
-        "fgets": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "count", "stream"]),
+        "fgets": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "count", "stream"]),
         # wchar_t * fgetws (wchar_t *WS, int COUNT, FILE *STREAM);
-        "fgetws": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), arg_names=["ws", "count", "stream"]),
+        "fgetws": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), arg_names=["ws", "count", "stream"]),
         # char * fgets_unlocked (char *S, int COUNT, FILE *STREAM);
-        "fgets_unlocked": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "count", "stream"]),
+        "fgets_unlocked": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "count", "stream"]),
         # wchar_t * fgetws_unlocked (wchar_t *WS, int COUNT, FILE *STREAM);
-        "fgetws_unlocked": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), arg_names=["ws", "count", "stream"]),
+        "fgetws_unlocked": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), arg_names=["ws", "count", "stream"]),
         # int ungetc (int C, FILE *STREAM);
-        "ungetc": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
+        "ungetc": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["c", "stream"]),
         # wint_t ungetwc (wint_t WC, FILE *STREAM);
-        "ungetwc": SimTypeFunction([SimTypeInt(signed=False, label="wint_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
+        "ungetwc": SimTypeFunction([SimTypeInt(signed=False, label="wint_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=False, label="wint_t"), arg_names=["wc", "stream"]),
         # size_t fread (void *DATA, size_t SIZE, size_t COUNT, FILE *STREAM);
-        "fread": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
+        "fread": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
         # size_t fread_unlocked (void *DATA, size_t SIZE, size_t COUNT, FILE *STREAM);
-        "fread_unlocked": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
+        "fread_unlocked": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
         # size_t fwrite (const void *DATA, size_t SIZE, size_t COUNT, FILE *STREAM);
-        "fwrite": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
+        "fwrite": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
         # size_t fwrite_unlocked (const void *DATA, size_t SIZE, size_t COUNT, FILE *STREAM);
-        "fwrite_unlocked": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
+        "fwrite_unlocked": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["data", "size", "count", "stream"]),
         # int printf (const char *TEMPLATE, ...);
         "printf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int __printf_chk (int flag, const char *TEMPLATE, ...);
@@ -654,11 +654,11 @@ _libc_decls = \
         # int wprintf (const wchar_t *TEMPLATE, ...);
         "wprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int fprintf (FILE *STREAM, const char *TEMPLATE, ...);
-        "fprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        "fprintf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int __fprintf_chk (int flag, FILE *STREAM, const char *TEMPLATE, ...);
-        "__fprintf_chk": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["flag", "stream", "template"], variadic=True),
+        "__fprintf_chk": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["flag", "stream", "template"], variadic=True),
         # int fwprintf (FILE *STREAM, const wchar_t *TEMPLATE, ...);
-        "fwprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        "fwprintf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int sprintf (char *S, const char *TEMPLATE, ...);
         "sprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "template"], variadic=True),
         # int swprintf (wchar_t *WS, size_t SIZE, const wchar_t *TEMPLATE, ...);
@@ -668,33 +668,33 @@ _libc_decls = \
         # int asprintf (char **PTR, const char *TEMPLATE, ...);
         "asprintf": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["ptr", "template"], variadic=True),
         # int obstack_printf (struct obstack *OBSTACK, const char *TEMPLATE, ...);
-        "obstack_printf": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["obstack", "template"], variadic=True),
+        "obstack_printf": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["obstack", "template"], variadic=True),
         # int vprintf (const char *TEMPLATE, va_list AP);
-        "vprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
+        "vprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vwprintf (const wchar_t *TEMPLATE, va_list AP);
-        "vwprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
+        "vwprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vfprintf (FILE *STREAM, const char *TEMPLATE, va_list AP);
-        "vfprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
+        "vfprintf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vfwprintf (FILE *STREAM, const wchar_t *TEMPLATE, va_list AP);
-        "vfwprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
+        "vfwprintf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vsprintf (char *S, const char *TEMPLATE, va_list AP);
-        "vsprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
+        "vsprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int vswprintf (wchar_t *WS, size_t SIZE, const wchar_t *TEMPLATE, va_list AP);
-        "vswprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["ws", "size", "template", "ap"]),
+        "vswprintf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["ws", "size", "template", "ap"]),
         # int vsnprintf (char *S, size_t SIZE, const char *TEMPLATE, va_list AP);
-        "vsnprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "size", "template", "ap"]),
+        "vsnprintf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["s", "size", "template", "ap"]),
         # int vasprintf (char **PTR, const char *TEMPLATE, va_list AP);
-        "vasprintf": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["ptr", "template", "ap"]),
+        "vasprintf": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["ptr", "template", "ap"]),
         # int obstack_vprintf (struct obstack *OBSTACK, const char *TEMPLATE, va_list AP);
-        "obstack_vprintf": SimTypeFunction([SimTypePointer(SimStruct({}, name="obstack", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["obstack", "template", "ap"]),
+        "obstack_vprintf": SimTypeFunction([SimTypePointer(ALL_TYPES["obstack"], offset=0), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["obstack", "template", "ap"]),
         # size_t parse_printf_format (const char *TEMPLATE, size_t N, int *ARGTYPES);
         "parse_printf_format": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["template", "n", "argtypes"]),
         # int register_printf_function (int SPEC, printf_function HANDLER_FUNCTION, printf_arginfo_function ARGINFO_FUNCTION);
         "register_printf_function": None,
         # int printf_size (FILE *FP, const struct printf_info *INFO, const void *const *ARGS);
-        "printf_size": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="printf_info", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="void"), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["fp", "info", "args"]),
+        "printf_size": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(ALL_TYPES["printf_info"], offset=0), SimTypePointer(SimTypePointer(SimTypeBottom(label="void"), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["fp", "info", "args"]),
         # int printf_size_info (const struct printf_info *INFO, size_t N, int *ARGTYPES);
-        "printf_size_info": SimTypeFunction([SimTypePointer(SimStruct({}, name="printf_info", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["info", "n", "argtypes"]),
+        "printf_size_info": SimTypeFunction([SimTypePointer(ALL_TYPES["printf_info"], offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["info", "n", "argtypes"]),
         # int __isoc99_scanf (const char *TEMPLATE, ...);
         "__isoc99_scanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int scanf (const char *TEMPLATE, ...);
@@ -702,11 +702,11 @@ _libc_decls = \
         # int wscanf (const wchar_t *TEMPLATE, ...);
         "wscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["template"], variadic=True),
         # int __isoc99_fscanf (FILE *STREAM, const char *TEMPLATE, ...);
-        "__isoc99_fscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        "__isoc99_fscanf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int fscanf (FILE *STREAM, const char *TEMPLATE, ...);
-        "fscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        "fscanf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int fwscanf (FILE *STREAM, const wchar_t *TEMPLATE, ...);
-        "fwscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
+        "fwscanf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "template"], variadic=True),
         # int __isoc99_sscanf (const char *S, const char *TEMPLATE, ...);
         "__isoc99_sscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["s", "template"], variadic=True),
         # int sscanf (const char *S, const char *TEMPLATE, ...);
@@ -714,43 +714,43 @@ _libc_decls = \
         # int swscanf (const wchar_t *WS, const wchar_t *TEMPLATE, ...);
         "swscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0)], SimTypeInt(signed=True), arg_names=["ws", "template"], variadic=True),
         # int vscanf (const char *TEMPLATE, va_list AP);
-        "vscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
+        "vscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vwscanf (const wchar_t *TEMPLATE, va_list AP);
-        "vwscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["template", "ap"]),
+        "vwscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["template", "ap"]),
         # int vfscanf (FILE *STREAM, const char *TEMPLATE, va_list AP);
-        "vfscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
+        "vfscanf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vfwscanf (FILE *STREAM, const wchar_t *TEMPLATE, va_list AP);
-        "vfwscanf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
+        "vfwscanf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["stream", "template", "ap"]),
         # int vsscanf (const char *S, const char *TEMPLATE, va_list AP);
-        "vsscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
+        "vsscanf": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int vswscanf (const wchar_t *S, const wchar_t *TEMPLATE, va_list AP);
-        "vswscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
+        "vswscanf": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), ALL_TYPES["va_list"]], SimTypeInt(signed=True), arg_names=["s", "template", "ap"]),
         # int feof (FILE *STREAM);
-        "feof": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "feof": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int feof_unlocked (FILE *STREAM);
-        "feof_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "feof_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int ferror (FILE *STREAM);
-        "ferror": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "ferror": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int ferror_unlocked (FILE *STREAM);
-        "ferror_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "ferror_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # void clearerr (FILE *STREAM);
-        "clearerr": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "clearerr": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # void clearerr_unlocked (FILE *STREAM);
-        "clearerr_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "clearerr_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # long int ftell (FILE *STREAM);
-        "ftell": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=True), arg_names=["stream"]),
+        "ftell": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=True), arg_names=["stream"]),
         # off_t ftello (FILE *STREAM);
-        "ftello": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="off_t"), arg_names=["stream"]),
+        "ftello": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="off_t"), arg_names=["stream"]),
         # off64_t ftello64 (FILE *STREAM);
         "ftello64": None,
         # int fseek (FILE *STREAM, long int OFFSET, int WHENCE);
-        "fseek": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypeLong(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "offset", "whence"]),
+        "fseek": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypeLong(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "offset", "whence"]),
         # int fseeko (FILE *STREAM, off_t OFFSET, int WHENCE);
-        "fseeko": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "offset", "whence"]),
+        "fseeko": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["stream", "offset", "whence"]),
         # int fseeko64 (FILE *STREAM, off64_t OFFSET, int WHENCE);
         "fseeko64": None,
         # void rewind (FILE *STREAM);
-        "rewind": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "rewind": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # int fgetpos (FILE *STREAM, fpos_t *POSITION);
         "fgetpos": None,
         # int fgetpos64 (FILE *STREAM, fpos64_t *POSITION);
@@ -760,31 +760,31 @@ _libc_decls = \
         # int fsetpos64 (FILE *STREAM, const fpos64_t *POSITION);
         "fsetpos64": None,
         # int fflush (FILE *STREAM);
-        "fflush": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fflush": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int fflush_unlocked (FILE *STREAM);
-        "fflush_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fflush_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # void _flushlbf (void);
         "_flushlbf": SimTypeFunction([], SimTypeBottom(label="void")),
         # void __fpurge (FILE *STREAM);
-        "__fpurge": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "__fpurge": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # int setvbuf (FILE *STREAM, char *BUF, int MODE, size_t SIZE);
-        "setvbuf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["stream", "buf", "mode", "size"]),
+        "setvbuf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["stream", "buf", "mode", "size"]),
         # void setbuf (FILE *STREAM, char *BUF);
-        "setbuf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["stream", "buf"]),
+        "setbuf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["stream", "buf"]),
         # void setbuffer (FILE *STREAM, char *BUF, size_t SIZE);
-        "setbuffer": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeBottom(label="void"), arg_names=["stream", "buf", "size"]),
+        "setbuffer": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeBottom(label="void"), arg_names=["stream", "buf", "size"]),
         # void setlinebuf (FILE *STREAM);
-        "setlinebuf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
+        "setlinebuf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeBottom(label="void"), arg_names=["stream"]),
         # int __flbf (FILE *STREAM);
-        "__flbf": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "__flbf": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # size_t __fbufsize (FILE *STREAM);
-        "__fbufsize": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["stream"]),
+        "__fbufsize": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["stream"]),
         # size_t __fpending (FILE *STREAM);
-        "__fpending": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["stream"]),
+        "__fpending": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["stream"]),
         # FILE * fmemopen (void *BUF, size_t SIZE, const char *OPENTYPE);
-        "fmemopen": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["buf", "size", "opentype"]),
+        "fmemopen": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["buf", "size", "opentype"]),
         # FILE * open_memstream (char **PTR, size_t *SIZELOC);
-        "open_memstream": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["ptr", "sizeloc"]),
+        "open_memstream": SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeLong(signed=False, label="size_t"), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["ptr", "sizeloc"]),
         # FILE * fopencookie (void *COOKIE, const char *OPENTYPE, cookie_io_functions_t IO-FUNCTIONS);
         "fopencookie": None,
         # int fmtmsg (long int CLASSIFICATION, const char *LABEL, int SEVERITY, const char *TEXT, const char *ACTION, const char *TAG);
@@ -810,19 +810,19 @@ _libc_decls = \
         # ssize_t pwrite64 (int FILEDES, const void *BUFFER, size_t SIZE, off64_t OFFSET);
         "pwrite64": None,
         # ssize_t preadv (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET);
-        "preadv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset"]),
+        "preadv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["iovec"], offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset"]),
         # ssize_t preadv64 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET);
         "preadv64": None,
         # ssize_t pwritev (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET);
-        "pwritev": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset"]),
+        "pwritev": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["iovec"], offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset"]),
         # ssize_t pwritev64 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET);
         "pwritev64": None,
         # ssize_t preadv2 (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET, int FLAGS);
-        "preadv2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset", "flags"]),
+        "preadv2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["iovec"], offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset", "flags"]),
         # ssize_t preadv64v2 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET, int FLAGS);
         "preadv64v2": None,
         # ssize_t pwritev2 (int FD, const struct iovec *IOV, int IOVCNT, off_t OFFSET, int FLAGS);
-        "pwritev2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset", "flags"]),
+        "pwritev2": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["iovec"], offset=0), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["fd", "iov", "iovcnt", "offset", "flags"]),
         # ssize_t pwritev64v2 (int FD, const struct iovec *IOV, int IOVCNT, off64_t OFFSET, int FLAGS);
         "pwritev64v2": None,
         # off_t lseek (int FILEDES, off_t OFFSET, int WHENCE);
@@ -830,15 +830,15 @@ _libc_decls = \
         # off64_t lseek64 (int FILEDES, off64_t OFFSET, int WHENCE);
         "lseek64": None,
         # FILE * fdopen (int FILEDES, const char *OPENTYPE);
-        "fdopen": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["filedes", "opentype"]),
+        "fdopen": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["filedes", "opentype"]),
         # int fileno (FILE *STREAM);
-        "fileno": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fileno": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int fileno_unlocked (FILE *STREAM);
-        "fileno_unlocked": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "fileno_unlocked": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # ssize_t readv (int FILEDES, const struct iovec *VECTOR, int COUNT);
-        "readv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["filedes", "vector", "count"]),
+        "readv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["iovec"], offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["filedes", "vector", "count"]),
         # ssize_t writev (int FILEDES, const struct iovec *VECTOR, int COUNT);
-        "writev": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({"iov_base": SimTypePointer(SimTypeBottom(label="void"), offset=0), "iov_len": SimTypeLong(signed=False, label="size_t")}, name="iovec", pack=False, align=None), offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["filedes", "vector", "count"]),
+        "writev": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["iovec"], offset=0), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["filedes", "vector", "count"]),
         # void * mmap (void *ADDRESS, size_t LENGTH, int PROTECT, int FLAGS, int FILEDES, off_t OFFSET);
         "mmap": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeLong(signed=False, label="off_t")], SimTypePointer(SimTypeBottom(label="void"), offset=0), arg_names=["address", "length", "protect", "flags", "filedes", "offset"]),
         # void * mmap64 (void *ADDRESS, size_t LENGTH, int PROTECT, int FLAGS, int FILEDES, off64_t OFFSET);
@@ -864,39 +864,39 @@ _libc_decls = \
         # int fdatasync (int FILDES);
         "fdatasync": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["fildes"]),
         # int aio_read (struct aiocb *AIOCBP);
-        "aio_read": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
+        "aio_read": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb"], offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
         # int aio_read64 (struct aiocb64 *AIOCBP);
-        "aio_read64": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
+        "aio_read64": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb64"], offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
         # int aio_write (struct aiocb *AIOCBP);
-        "aio_write": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
+        "aio_write": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb"], offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
         # int aio_write64 (struct aiocb64 *AIOCBP);
-        "aio_write64": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
+        "aio_write64": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb64"], offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
         # int lio_listio (int MODE, struct aiocb *const LIST[], int NENT, struct sigevent *SIG);
-        "lio_listio": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0), 0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sigevent", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["mode", "list", "nent", "sig"]),
+        "lio_listio": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(SimTypePointer(ALL_TYPES["aiocb"], offset=0), 0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sigevent"], offset=0)], SimTypeInt(signed=True), arg_names=["mode", "list", "nent", "sig"]),
         # int lio_listio64 (int MODE, struct aiocb64 *const LIST[], int NENT, struct sigevent *SIG);
-        "lio_listio64": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0), 0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sigevent", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["mode", "list", "nent", "sig"]),
+        "lio_listio64": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(SimTypePointer(ALL_TYPES["aiocb64"], offset=0), 0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sigevent"], offset=0)], SimTypeInt(signed=True), arg_names=["mode", "list", "nent", "sig"]),
         # int aio_error (const struct aiocb *AIOCBP);
-        "aio_error": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
+        "aio_error": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb"], offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
         # int aio_error64 (const struct aiocb64 *AIOCBP);
-        "aio_error64": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
+        "aio_error64": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb64"], offset=0)], SimTypeInt(signed=True), arg_names=["aiocbp"]),
         # ssize_t aio_return (struct aiocb *AIOCBP);
-        "aio_return": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["aiocbp"]),
+        "aio_return": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb"], offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["aiocbp"]),
         # ssize_t aio_return64 (struct aiocb64 *AIOCBP);
-        "aio_return64": SimTypeFunction([SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["aiocbp"]),
+        "aio_return64": SimTypeFunction([SimTypePointer(ALL_TYPES["aiocb64"], offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["aiocbp"]),
         # int aio_fsync (int OP, struct aiocb *AIOCBP);
-        "aio_fsync": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["op", "aiocbp"]),
+        "aio_fsync": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["aiocb"], offset=0)], SimTypeInt(signed=True), arg_names=["op", "aiocbp"]),
         # int aio_fsync64 (int OP, struct aiocb64 *AIOCBP);
-        "aio_fsync64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["op", "aiocbp"]),
+        "aio_fsync64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["aiocb64"], offset=0)], SimTypeInt(signed=True), arg_names=["op", "aiocbp"]),
         # int aio_suspend (const struct aiocb *const LIST[], int NENT, const struct timespec *TIMEOUT);
-        "aio_suspend": SimTypeFunction([SimTypeFixedSizeArray(SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0), 0), SimTypeInt(signed=True), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["list", "nent", "timeout"]),
+        "aio_suspend": SimTypeFunction([SimTypeFixedSizeArray(SimTypePointer(ALL_TYPES["aiocb"], offset=0), 0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["timespec"], offset=0)], SimTypeInt(signed=True), arg_names=["list", "nent", "timeout"]),
         # int aio_suspend64 (const struct aiocb64 *const LIST[], int NENT, const struct timespec *TIMEOUT);
-        "aio_suspend64": SimTypeFunction([SimTypeFixedSizeArray(SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0), 0), SimTypeInt(signed=True), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["list", "nent", "timeout"]),
+        "aio_suspend64": SimTypeFunction([SimTypeFixedSizeArray(SimTypePointer(ALL_TYPES["aiocb64"], offset=0), 0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["timespec"], offset=0)], SimTypeInt(signed=True), arg_names=["list", "nent", "timeout"]),
         # int aio_cancel (int FILDES, struct aiocb *AIOCBP);
-        "aio_cancel": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="aiocb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["fildes", "aiocbp"]),
+        "aio_cancel": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["aiocb"], offset=0)], SimTypeInt(signed=True), arg_names=["fildes", "aiocbp"]),
         # int aio_cancel64 (int FILDES, struct aiocb64 *AIOCBP);
-        "aio_cancel64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="aiocb64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["fildes", "aiocbp"]),
+        "aio_cancel64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["aiocb64"], offset=0)], SimTypeInt(signed=True), arg_names=["fildes", "aiocbp"]),
         # void aio_init (const struct aioinit *INIT);
-        "aio_init": SimTypeFunction([SimTypePointer(SimStruct({}, name="aioinit", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["init"]),
+        "aio_init": SimTypeFunction([SimTypePointer(ALL_TYPES["aioinit"], offset=0)], SimTypeBottom(label="void"), arg_names=["init"]),
         # int fcntl (int FILEDES, int COMMAND, ...);
         "fcntl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["filedes", "command"], variadic=True),
         # int dup (int OLD);
@@ -942,15 +942,15 @@ _libc_decls = \
         # int scandir (const char *DIR, struct dirent ***NAMELIST, int (*SELECTOR);
         "scandir": None,
         # int alphasort (const struct dirent **A, const struct dirent **B);
-        "alphasort": SimTypeFunction([SimTypePointer(SimTypePointer(SimStruct({}, name="dirent", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="dirent", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
+        "alphasort": SimTypeFunction([SimTypePointer(SimTypePointer(ALL_TYPES["dirent"], offset=0), offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["dirent"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
         # int versionsort (const struct dirent **A, const struct dirent **B);
-        "versionsort": SimTypeFunction([SimTypePointer(SimTypePointer(SimStruct({}, name="dirent", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="dirent", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
+        "versionsort": SimTypeFunction([SimTypePointer(SimTypePointer(ALL_TYPES["dirent"], offset=0), offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["dirent"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
         # int scandir64 (const char *DIR, struct dirent64 ***NAMELIST, int (*SELECTOR);
         "scandir64": None,
         # int alphasort64 (const struct dirent64 **A, const struct dirent **B);
-        "alphasort64": SimTypeFunction([SimTypePointer(SimTypePointer(SimStruct({}, name="dirent64", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="dirent", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
+        "alphasort64": SimTypeFunction([SimTypePointer(SimTypePointer(ALL_TYPES["dirent64"], offset=0), offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["dirent"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
         # int versionsort64 (const struct dirent64 **A, const struct dirent64 **B);
-        "versionsort64": SimTypeFunction([SimTypePointer(SimTypePointer(SimStruct({}, name="dirent64", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="dirent64", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
+        "versionsort64": SimTypeFunction([SimTypePointer(SimTypePointer(ALL_TYPES["dirent64"], offset=0), offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["dirent64"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["a", "b"]),
         # int ftw (const char *FILENAME, __ftw_func_t FUNC, int DESCRIPTORS);
         "ftw": None,
         # int ftw64 (const char *FILENAME, __ftw64_func_t FUNC, int DESCRIPTORS);
@@ -980,17 +980,17 @@ _libc_decls = \
         # int mkdir (const char *FILENAME, mode_t MODE);
         "mkdir": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeShort(signed=False, label="mode_t")], SimTypeInt(signed=True), arg_names=["filename", "mode"]),
         # int stat (const char *FILENAME, struct stat *BUF);
-        "stat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
+        "stat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["stat"], offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
         # int stat64 (const char *FILENAME, struct stat64 *BUF);
-        "stat64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
+        "stat64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["stat64"], offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
         # int fstat (int FILEDES, struct stat *BUF);
-        "fstat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "buf"]),
+        "fstat": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["stat"], offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "buf"]),
         # int fstat64 (int FILEDES, struct stat64 *BUF);
-        "fstat64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "buf"]),
+        "fstat64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["stat64"], offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "buf"]),
         # int lstat (const char *FILENAME, struct stat *BUF);
-        "lstat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
+        "lstat": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["stat"], offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
         # int lstat64 (const char *FILENAME, struct stat64 *BUF);
-        "lstat64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="stat64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
+        "lstat64": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["stat64"], offset=0)], SimTypeInt(signed=True), arg_names=["filename", "buf"]),
         # int chown (const char *FILENAME, uid_t OWNER, gid_t GROUP);
         "chown": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False, label="uid_t"), SimTypeInt(signed=False, label="gid_t")], SimTypeInt(signed=True), arg_names=["filename", "owner", "group"]),
         # int fchown (int FILEDES, uid_t OWNER, gid_t GROUP);
@@ -1006,13 +1006,13 @@ _libc_decls = \
         # int access (const char *FILENAME, int HOW);
         "access": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["filename", "how"]),
         # int utime (const char *FILENAME, const struct utimbuf *TIMES);
-        "utime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="utimbuf", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "times"]),
+        "utime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["utimbuf"], offset=0)], SimTypeInt(signed=True), arg_names=["filename", "times"]),
         # int utimes (const char *FILENAME, const struct timeval TVP[2]);
-        "utimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), 2)], SimTypeInt(signed=True), arg_names=["filename", "tvp"]),
+        "utimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(ALL_TYPES["timeval"], 2)], SimTypeInt(signed=True), arg_names=["filename", "tvp"]),
         # int lutimes (const char *FILENAME, const struct timeval TVP[2]);
-        "lutimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), 2)], SimTypeInt(signed=True), arg_names=["filename", "tvp"]),
+        "lutimes": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(ALL_TYPES["timeval"], 2)], SimTypeInt(signed=True), arg_names=["filename", "tvp"]),
         # int futimes (int FD, const struct timeval TVP[2]);
-        "futimes": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), 2)], SimTypeInt(signed=True), arg_names=["fd", "tvp"]),
+        "futimes": SimTypeFunction([SimTypeInt(signed=True), SimTypeFixedSizeArray(ALL_TYPES["timeval"], 2)], SimTypeInt(signed=True), arg_names=["fd", "tvp"]),
         # int truncate (const char *FILENAME, off_t LENGTH);
         "truncate": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="off_t")], SimTypeInt(signed=True), arg_names=["filename", "length"]),
         # int truncate64 (const char *NAME, off64_t LENGTH);
@@ -1028,9 +1028,9 @@ _libc_decls = \
         # int mknod (const char *FILENAME, mode_t MODE, dev_t DEV);
         "mknod": None,
         # FILE * tmpfile (void);
-        "tmpfile": SimTypeFunction([], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)),
+        "tmpfile": SimTypeFunction([], SimTypePointer(ALL_TYPES["FILE_t"], offset=0)),
         # FILE * tmpfile64 (void);
-        "tmpfile64": SimTypeFunction([], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)),
+        "tmpfile64": SimTypeFunction([], SimTypePointer(ALL_TYPES["FILE_t"], offset=0)),
         # char * tmpnam (char *RESULT);
         "tmpnam": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["result"]),
         # char * tmpnam_r (char *RESULT);
@@ -1046,67 +1046,67 @@ _libc_decls = \
         # int pipe (int FILEDES[2]);
         "pipe": SimTypeFunction([SimTypeFixedSizeArray(SimTypeInt(signed=True), 2)], SimTypeInt(signed=True), arg_names=["filedes"]),
         # FILE * popen (const char *COMMAND, const char *MODE);
-        "popen": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["command", "mode"]),
+        "popen": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["command", "mode"]),
         # int pclose (FILE *STREAM);
-        "pclose": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "pclose": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # int mkfifo (const char *FILENAME, mode_t MODE);
         "mkfifo": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeShort(signed=False, label="mode_t")], SimTypeInt(signed=True), arg_names=["filename", "mode"]),
         # int bind (int SOCKET, struct sockaddr *ADDR, socklen_t LENGTH);
-        "bind": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeInt(signed=True), arg_names=["socket", "addr", "length"]),
+        "bind": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeInt(signed=True), arg_names=["socket", "addr", "length"]),
         # int getsockname (int SOCKET, struct sockaddr *ADDR, socklen_t *LENGTH_PTR);
-        "getsockname": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "addr", "length_ptr"]),
+        "getsockname": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "addr", "length_ptr"]),
         # unsigned int if_nametoindex (const char *IFNAME);
         "if_nametoindex": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=False), arg_names=["ifname"]),
         # char * if_indextoname (unsigned int IFINDEX, char *IFNAME);
         "if_indextoname": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["ifindex", "ifname"]),
         # struct if_nameindex * if_nameindex (void);
-        "if_nameindex": SimTypeFunction([], SimTypePointer(SimStruct({}, name="if_nameindex", pack=False, align=None), offset=0)),
+        "if_nameindex": SimTypeFunction([], SimTypePointer(ALL_TYPES["if_nameindex"], offset=0)),
         # void if_freenameindex (struct if_nameindex *PTR);
-        "if_freenameindex": SimTypeFunction([SimTypePointer(SimStruct({}, name="if_nameindex", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["ptr"]),
+        "if_freenameindex": SimTypeFunction([SimTypePointer(ALL_TYPES["if_nameindex"], offset=0)], SimTypeBottom(label="void"), arg_names=["ptr"]),
         # int inet_aton (const char *NAME, struct in_addr *ADDR);
-        "inet_aton": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="in_addr", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["name", "addr"]),
+        "inet_aton": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["in_addr"], offset=0)], SimTypeInt(signed=True), arg_names=["name", "addr"]),
         # uint32_t inet_addr (const char *NAME);
         "inet_addr": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["name"]),
         # uint32_t inet_network (const char *NAME);
         "inet_network": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["name"]),
         # char * inet_ntoa (struct in_addr ADDR);
-        "inet_ntoa": SimTypeFunction([SimStruct({}, name="in_addr", pack=False, align=None)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["addr"]),
+        "inet_ntoa": SimTypeFunction([ALL_TYPES["in_addr"]], SimTypePointer(SimTypeChar(), offset=0), arg_names=["addr"]),
         # struct in_addr inet_makeaddr (uint32_t NET, uint32_t LOCAL);
-        "inet_makeaddr": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t"), SimTypeInt(signed=False, label="uint32_t")], SimStruct({}, name="in_addr", pack=False, align=None), arg_names=["net", "local"]),
+        "inet_makeaddr": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t"), SimTypeInt(signed=False, label="uint32_t")], ALL_TYPES["in_addr"], arg_names=["net", "local"]),
         # uint32_t inet_lnaof (struct in_addr ADDR);
-        "inet_lnaof": SimTypeFunction([SimStruct({}, name="in_addr", pack=False, align=None)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
+        "inet_lnaof": SimTypeFunction([ALL_TYPES["in_addr"]], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
         # uint32_t inet_netof (struct in_addr ADDR);
-        "inet_netof": SimTypeFunction([SimStruct({}, name="in_addr", pack=False, align=None)], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
+        "inet_netof": SimTypeFunction([ALL_TYPES["in_addr"]], SimTypeInt(signed=False, label="uint32_t"), arg_names=["addr"]),
         # int inet_pton (int AF, const char *CP, void *BUF);
         "inet_pton": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeInt(signed=True), arg_names=["af", "cp", "buf"]),
         # const char * inet_ntop (int AF, const void *CP, char *BUF, socklen_t LEN);
         "inet_ntop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypePointer(SimTypeChar(), offset=0), arg_names=["af", "cp", "buf", "len"]),
         # struct hostent * gethostbyname (const char *NAME);
-        "gethostbyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), arg_names=["name"]),
+        "gethostbyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["hostent"], offset=0), arg_names=["name"]),
         # struct hostent * gethostbyname2 (const char *NAME, int AF);
-        "gethostbyname2": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), arg_names=["name", "af"]),
+        "gethostbyname2": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypePointer(ALL_TYPES["hostent"], offset=0), arg_names=["name", "af"]),
         # struct hostent * gethostbyaddr (const void *ADDR, socklen_t LENGTH, int FORMAT);
-        "gethostbyaddr": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True, label="socklen_t"), SimTypeInt(signed=True)], SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), arg_names=["addr", "length", "format"]),
+        "gethostbyaddr": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True, label="socklen_t"), SimTypeInt(signed=True)], SimTypePointer(ALL_TYPES["hostent"], offset=0), arg_names=["addr", "length", "format"]),
         # int gethostbyname_r (const char *restrict NAME, struct hostent *restrict RESULT_BUF, char *restrict BUF, size_t BUFLEN, struct hostent **restrict RESULT, int * restrict H_ERRNOP);
-        "gethostbyname_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["name", "result_buf", "buf", "buflen", "result", "h_errnop"]),
+        "gethostbyname_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["hostent"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["hostent"], offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["name", "result_buf", "buf", "buflen", "result", "h_errnop"]),
         # int gethostbyname2_r (const char *NAME, int AF, struct hostent *restrict RESULT_BUF, char *restrict BUF, size_t BUFLEN, struct hostent **restrict RESULT, int * restrict H_ERRNOP);
-        "gethostbyname2_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["name", "af", "result_buf", "buf", "buflen", "result", "h_errnop"]),
+        "gethostbyname2_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["hostent"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["hostent"], offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["name", "af", "result_buf", "buf", "buflen", "result", "h_errnop"]),
         # int gethostbyaddr_r (const void *ADDR, socklen_t LENGTH, int FORMAT, struct hostent *restrict RESULT_BUF, char *restrict BUF, size_t BUFLEN, struct hostent ** restrict RESULT, int * restrict H_ERRNOP);
-        "gethostbyaddr_r": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True, label="socklen_t"), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["addr", "length", "format", "result_buf", "buf", "buflen", "result", "h_errnop"]),
+        "gethostbyaddr_r": SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True, label="socklen_t"), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["hostent"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["hostent"], offset=0), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["addr", "length", "format", "result_buf", "buf", "buflen", "result", "h_errnop"]),
         # void sethostent (int STAYOPEN);
         "sethostent": SimTypeFunction([SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["stayopen"]),
         # struct hostent * gethostent (void);
-        "gethostent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="hostent", pack=False, align=None), offset=0)),
+        "gethostent": SimTypeFunction([], SimTypePointer(ALL_TYPES["hostent"], offset=0)),
         # void endhostent (void);
         "endhostent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct servent * getservbyname (const char *NAME, const char *PROTO);
-        "getservbyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="servent", pack=False, align=None), offset=0), arg_names=["name", "proto"]),
+        "getservbyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["servent"], offset=0), arg_names=["name", "proto"]),
         # struct servent * getservbyport (int PORT, const char *PROTO);
-        "getservbyport": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="servent", pack=False, align=None), offset=0), arg_names=["port", "proto"]),
+        "getservbyport": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["servent"], offset=0), arg_names=["port", "proto"]),
         # void setservent (int STAYOPEN);
         "setservent": SimTypeFunction([SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["stayopen"]),
         # struct servent * getservent (void);
-        "getservent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="servent", pack=False, align=None), offset=0)),
+        "getservent": SimTypeFunction([], SimTypePointer(ALL_TYPES["servent"], offset=0)),
         # void endservent (void);
         "endservent": SimTypeFunction([], SimTypeBottom(label="void")),
         # uint16_t htons (uint16_t HOSTSHORT);
@@ -1118,13 +1118,13 @@ _libc_decls = \
         # uint32_t ntohl (uint32_t NETLONG);
         "ntohl": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t")], SimTypeInt(signed=False, label="uint32_t"), arg_names=["netlong"]),
         # struct protoent * getprotobyname (const char *NAME);
-        "getprotobyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="protoent", pack=False, align=None), offset=0), arg_names=["name"]),
+        "getprotobyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["protoent"], offset=0), arg_names=["name"]),
         # struct protoent * getprotobynumber (int PROTOCOL);
-        "getprotobynumber": SimTypeFunction([SimTypeInt(signed=True)], SimTypePointer(SimStruct({}, name="protoent", pack=False, align=None), offset=0), arg_names=["protocol"]),
+        "getprotobynumber": SimTypeFunction([SimTypeInt(signed=True)], SimTypePointer(ALL_TYPES["protoent"], offset=0), arg_names=["protocol"]),
         # void setprotoent (int STAYOPEN);
         "setprotoent": SimTypeFunction([SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["stayopen"]),
         # struct protoent * getprotoent (void);
-        "getprotoent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="protoent", pack=False, align=None), offset=0)),
+        "getprotoent": SimTypeFunction([], SimTypePointer(ALL_TYPES["protoent"], offset=0)),
         # void endprotoent (void);
         "endprotoent": SimTypeFunction([], SimTypeBottom(label="void")),
         # int socket (int NAMESPACE, int STYLE, int PROTOCOL);
@@ -1134,33 +1134,33 @@ _libc_decls = \
         # int socketpair (int NAMESPACE, int STYLE, int PROTOCOL, int FILEDES[2]);
         "socketpair": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeFixedSizeArray(SimTypeInt(signed=True), 2)], SimTypeInt(signed=True), arg_names=["namespace", "style", "protocol", "filedes"]),
         # int connect (int SOCKET, struct sockaddr *ADDR, socklen_t LENGTH);
-        "connect": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeInt(signed=True), arg_names=["socket", "addr", "length"]),
+        "connect": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeInt(signed=True), arg_names=["socket", "addr", "length"]),
         # int listen (int SOCKET, int N);
         "listen": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["socket", "n"]),
         # int accept (int SOCKET, struct sockaddr *ADDR, socklen_t *LENGTH_PTR);
-        "accept": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "addr", "length_ptr"]),
+        "accept": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "addr", "length_ptr"]),
         # int getpeername (int SOCKET, struct sockaddr *ADDR, socklen_t *LENGTH_PTR);
-        "getpeername": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "addr", "length_ptr"]),
+        "getpeername": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "addr", "length_ptr"]),
         # ssize_t send (int SOCKET, const void *BUFFER, size_t SIZE, int FLAGS);
         "send": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["socket", "buffer", "size", "flags"]),
         # ssize_t recv (int SOCKET, void *BUFFER, size_t SIZE, int FLAGS);
         "recv": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["socket", "buffer", "size", "flags"]),
         # ssize_t sendto (int SOCKET, const void *BUFFER, size_t SIZE, int FLAGS, struct sockaddr *ADDR, socklen_t LENGTH);
-        "sendto": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["socket", "buffer", "size", "flags", "addr", "length"]),
+        "sendto": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeLong(signed=True, label="ssize_t"), arg_names=["socket", "buffer", "size", "flags", "addr", "length"]),
         # ssize_t recvfrom (int SOCKET, void *BUFFER, size_t SIZE, int FLAGS, struct sockaddr *ADDR, socklen_t *LENGTH_PTR);
-        "recvfrom": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sockaddr", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["socket", "buffer", "size", "flags", "addr", "length_ptr"]),
+        "recvfrom": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sockaddr"], offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeLong(signed=True, label="ssize_t"), arg_names=["socket", "buffer", "size", "flags", "addr", "length_ptr"]),
         # int getsockopt (int SOCKET, int LEVEL, int OPTNAME, void *OPTVAL, socklen_t *OPTLEN_PTR);
         "getsockopt": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypePointer(SimTypeInt(signed=True, label="socklen_t"), offset=0)], SimTypeInt(signed=True), arg_names=["socket", "level", "optname", "optval", "optlen_ptr"]),
         # int setsockopt (int SOCKET, int LEVEL, int OPTNAME, const void *OPTVAL, socklen_t OPTLEN);
         "setsockopt": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeBottom(label="void"), offset=0), SimTypeInt(signed=True, label="socklen_t")], SimTypeInt(signed=True), arg_names=["socket", "level", "optname", "optval", "optlen"]),
         # struct netent * getnetbyname (const char *NAME);
-        "getnetbyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="netent", pack=False, align=None), offset=0), arg_names=["name"]),
+        "getnetbyname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["netent"], offset=0), arg_names=["name"]),
         # struct netent * getnetbyaddr (uint32_t NET, int TYPE);
-        "getnetbyaddr": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t"), SimTypeInt(signed=True)], SimTypePointer(SimStruct({}, name="netent", pack=False, align=None), offset=0), arg_names=["net", "type"]),
+        "getnetbyaddr": SimTypeFunction([SimTypeInt(signed=False, label="uint32_t"), SimTypeInt(signed=True)], SimTypePointer(ALL_TYPES["netent"], offset=0), arg_names=["net", "type"]),
         # void setnetent (int STAYOPEN);
         "setnetent": SimTypeFunction([SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["stayopen"]),
         # struct netent * getnetent (void);
-        "getnetent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="netent", pack=False, align=None), offset=0)),
+        "getnetent": SimTypeFunction([], SimTypePointer(ALL_TYPES["netent"], offset=0)),
         # void endnetent (void);
         "endnetent": SimTypeFunction([], SimTypeBottom(label="void")),
         # int isatty (int FILEDES);
@@ -1170,25 +1170,25 @@ _libc_decls = \
         # int ttyname_r (int FILEDES, char *BUF, size_t LEN);
         "ttyname_r": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["filedes", "buf", "len"]),
         # int tcgetattr (int FILEDES, struct termios *TERMIOS_P);
-        "tcgetattr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "termios_p"]),
+        "tcgetattr": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["termios"], offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "termios_p"]),
         # int tcsetattr (int FILEDES, int WHEN, const struct termios *TERMIOS_P);
-        "tcsetattr": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "when", "termios_p"]),
+        "tcsetattr": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["termios"], offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "when", "termios_p"]),
         # speed_t cfgetospeed (const struct termios *TERMIOS_P);
-        "cfgetospeed": SimTypeFunction([SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="speed_t"), arg_names=["termios_p"]),
+        "cfgetospeed": SimTypeFunction([SimTypePointer(ALL_TYPES["termios"], offset=0)], SimTypeInt(signed=False, label="speed_t"), arg_names=["termios_p"]),
         # speed_t cfgetispeed (const struct termios *TERMIOS_P);
-        "cfgetispeed": SimTypeFunction([SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0)], SimTypeInt(signed=False, label="speed_t"), arg_names=["termios_p"]),
+        "cfgetispeed": SimTypeFunction([SimTypePointer(ALL_TYPES["termios"], offset=0)], SimTypeInt(signed=False, label="speed_t"), arg_names=["termios_p"]),
         # int cfsetospeed (struct termios *TERMIOS_P, speed_t SPEED);
-        "cfsetospeed": SimTypeFunction([SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="speed_t")], SimTypeInt(signed=True), arg_names=["termios_p", "speed"]),
+        "cfsetospeed": SimTypeFunction([SimTypePointer(ALL_TYPES["termios"], offset=0), SimTypeInt(signed=False, label="speed_t")], SimTypeInt(signed=True), arg_names=["termios_p", "speed"]),
         # int cfsetispeed (struct termios *TERMIOS_P, speed_t SPEED);
-        "cfsetispeed": SimTypeFunction([SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="speed_t")], SimTypeInt(signed=True), arg_names=["termios_p", "speed"]),
+        "cfsetispeed": SimTypeFunction([SimTypePointer(ALL_TYPES["termios"], offset=0), SimTypeInt(signed=False, label="speed_t")], SimTypeInt(signed=True), arg_names=["termios_p", "speed"]),
         # int cfsetspeed (struct termios *TERMIOS_P, speed_t SPEED);
-        "cfsetspeed": SimTypeFunction([SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0), SimTypeInt(signed=False, label="speed_t")], SimTypeInt(signed=True), arg_names=["termios_p", "speed"]),
+        "cfsetspeed": SimTypeFunction([SimTypePointer(ALL_TYPES["termios"], offset=0), SimTypeInt(signed=False, label="speed_t")], SimTypeInt(signed=True), arg_names=["termios_p", "speed"]),
         # void cfmakeraw (struct termios *TERMIOS_P);
-        "cfmakeraw": SimTypeFunction([SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["termios_p"]),
+        "cfmakeraw": SimTypeFunction([SimTypePointer(ALL_TYPES["termios"], offset=0)], SimTypeBottom(label="void"), arg_names=["termios_p"]),
         # int gtty (int FILEDES, struct sgttyb *ATTRIBUTES);
-        "gtty": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sgttyb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "attributes"]),
+        "gtty": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sgttyb"], offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "attributes"]),
         # int stty (int FILEDES, const struct sgttyb *ATTRIBUTES);
-        "stty": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sgttyb", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "attributes"]),
+        "stty": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sgttyb"], offset=0)], SimTypeInt(signed=True), arg_names=["filedes", "attributes"]),
         # int tcsendbreak (int FILEDES, int DURATION);
         "tcsendbreak": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["filedes", "duration"]),
         # int tcdrain (int FILEDES);
@@ -1208,15 +1208,15 @@ _libc_decls = \
         # int ptsname_r (int FILEDES, char *BUF, size_t LEN);
         "ptsname_r": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["filedes", "buf", "len"]),
         # int openpty (int *AMASTER, int *ASLAVE, char *NAME, const struct termios *TERMP, const struct winsize *WINP);
-        "openpty": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="winsize", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["amaster", "aslave", "name", "termp", "winp"]),
+        "openpty": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["termios"], offset=0), SimTypePointer(ALL_TYPES["winsize"], offset=0)], SimTypeInt(signed=True), arg_names=["amaster", "aslave", "name", "termp", "winp"]),
         # int forkpty (int *AMASTER, char *NAME, const struct termios *TERMP, const struct winsize *WINP);
-        "forkpty": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="termios", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="winsize", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["amaster", "name", "termp", "winp"]),
+        "forkpty": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["termios"], offset=0), SimTypePointer(ALL_TYPES["winsize"], offset=0)], SimTypeInt(signed=True), arg_names=["amaster", "name", "termp", "winp"]),
         # void openlog (const char *IDENT, int OPTION, int FACILITY);
         "openlog": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["ident", "option", "facility"]),
         # void syslog (int FACILITY_PRIORITY, const char *FORMAT, ...);
         "syslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["facility_priority", "format"], variadic=True),
         # void vsyslog (int FACILITY_PRIORITY, const char *FORMAT, va_list ARGLIST);
-        "vsyslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), SimStruct({}, name="va_list", pack=False, align=None)], SimTypeBottom(label="void"), arg_names=["facility_priority", "format", "arglist"]),
+        "vsyslog": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0), ALL_TYPES["va_list"]], SimTypeBottom(label="void"), arg_names=["facility_priority", "format", "arglist"]),
         # void closelog (void);
         "closelog": SimTypeFunction([], SimTypeBottom(label="void")),
         # int setlogmask (int MASK);
@@ -1818,13 +1818,13 @@ _libc_decls = \
         # char * setstate (char *STATE);
         "setstate": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["state"]),
         # int random_r (struct random_data *restrict BUF, int32_t *restrict RESULT);
-        "random_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="random_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True, label="int32_t"), offset=0)], SimTypeInt(signed=True), arg_names=["buf", "result"]),
+        "random_r": SimTypeFunction([SimTypePointer(ALL_TYPES["random_data"], offset=0), SimTypePointer(SimTypeInt(signed=True, label="int32_t"), offset=0)], SimTypeInt(signed=True), arg_names=["buf", "result"]),
         # int srandom_r (unsigned int SEED, struct random_data *BUF);
-        "srandom_r": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimStruct({}, name="random_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["seed", "buf"]),
+        "srandom_r": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(ALL_TYPES["random_data"], offset=0)], SimTypeInt(signed=True), arg_names=["seed", "buf"]),
         # int initstate_r (unsigned int SEED, char *restrict STATEBUF, size_t STATELEN, struct random_data *restrict BUF);
-        "initstate_r": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({}, name="random_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["seed", "statebuf", "statelen", "buf"]),
+        "initstate_r": SimTypeFunction([SimTypeInt(signed=False), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["random_data"], offset=0)], SimTypeInt(signed=True), arg_names=["seed", "statebuf", "statelen", "buf"]),
         # int setstate_r (char *restrict STATEBUF, struct random_data *restrict BUF);
-        "setstate_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="random_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["statebuf", "buf"]),
+        "setstate_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["random_data"], offset=0)], SimTypeInt(signed=True), arg_names=["statebuf", "buf"]),
         # double drand48 (void);
         "drand48": SimTypeFunction([], SimTypeDouble(align_double=True)),
         # double erand48 (unsigned short int XSUBI[3]);
@@ -1844,23 +1844,23 @@ _libc_decls = \
         # void lcong48 (unsigned short int PARAM[7]);
         "lcong48": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 7)], SimTypeBottom(label="void"), arg_names=["param"]),
         # int drand48_r (struct drand48_data *BUFFER, double *RESULT);
-        "drand48_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
+        "drand48_r": SimTypeFunction([SimTypePointer(ALL_TYPES["drand48_data"], offset=0), SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
         # int erand48_r (unsigned short int XSUBI[3], struct drand48_data *BUFFER, double *RESULT);
-        "erand48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeInt(signed=True), arg_names=["xsubi", "buffer", "result"]),
+        "erand48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(ALL_TYPES["drand48_data"], offset=0), SimTypePointer(SimTypeDouble(align_double=True), offset=0)], SimTypeInt(signed=True), arg_names=["xsubi", "buffer", "result"]),
         # int lrand48_r (struct drand48_data *BUFFER, long int *RESULT);
-        "lrand48_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
+        "lrand48_r": SimTypeFunction([SimTypePointer(ALL_TYPES["drand48_data"], offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
         # int nrand48_r (unsigned short int XSUBI[3], struct drand48_data *BUFFER, long int *RESULT);
-        "nrand48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["xsubi", "buffer", "result"]),
+        "nrand48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(ALL_TYPES["drand48_data"], offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["xsubi", "buffer", "result"]),
         # int mrand48_r (struct drand48_data *BUFFER, long int *RESULT);
-        "mrand48_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
+        "mrand48_r": SimTypeFunction([SimTypePointer(ALL_TYPES["drand48_data"], offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
         # int jrand48_r (unsigned short int XSUBI[3], struct drand48_data *BUFFER, long int *RESULT);
-        "jrand48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["xsubi", "buffer", "result"]),
+        "jrand48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(ALL_TYPES["drand48_data"], offset=0), SimTypePointer(SimTypeLong(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["xsubi", "buffer", "result"]),
         # int srand48_r (long int SEEDVAL, struct drand48_data *BUFFER);
-        "srand48_r": SimTypeFunction([SimTypeLong(signed=True), SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["seedval", "buffer"]),
+        "srand48_r": SimTypeFunction([SimTypeLong(signed=True), SimTypePointer(ALL_TYPES["drand48_data"], offset=0)], SimTypeInt(signed=True), arg_names=["seedval", "buffer"]),
         # int seed48_r (unsigned short int SEED16V[3], struct drand48_data *BUFFER);
-        "seed48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["seed16v", "buffer"]),
+        "seed48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 3), SimTypePointer(ALL_TYPES["drand48_data"], offset=0)], SimTypeInt(signed=True), arg_names=["seed16v", "buffer"]),
         # int lcong48_r (unsigned short int PARAM[7], struct drand48_data *BUFFER);
-        "lcong48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 7), SimTypePointer(SimStruct({}, name="drand48_data", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["param", "buffer"]),
+        "lcong48_r": SimTypeFunction([SimTypeFixedSizeArray(SimTypeShort(signed=False), 7), SimTypePointer(ALL_TYPES["drand48_data"], offset=0)], SimTypeInt(signed=True), arg_names=["param", "buffer"]),
         # div_t div (int NUMERATOR, int DENOMINATOR);
         "div": None,
         # ldiv_t ldiv (long int NUMERATOR, long int DENOMINATOR);
@@ -2512,97 +2512,97 @@ _libc_decls = \
         # clock_t clock (void);
         "clock": SimTypeFunction([], SimTypeLong(signed=True, label="clock_t")),
         # clock_t times (struct tms *BUFFER);
-        "times": SimTypeFunction([SimTypePointer(SimStruct({}, name="tms", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="clock_t"), arg_names=["buffer"]),
+        "times": SimTypeFunction([SimTypePointer(ALL_TYPES["tms"], offset=0)], SimTypeLong(signed=True, label="clock_t"), arg_names=["buffer"]),
         # time_t time (time_t *RESULT);
         "time": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["result"]),
         # int stime (const time_t *NEWTIME);
         "stime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypeInt(signed=True), arg_names=["newtime"]),
         # int gettimeofday (struct timeval *TP, struct timezone *TZP);
-        "gettimeofday": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="timezone", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["tp", "tzp"]),
+        "gettimeofday": SimTypeFunction([SimTypePointer(ALL_TYPES["timeval"], offset=0), SimTypePointer(ALL_TYPES["timezone"], offset=0)], SimTypeInt(signed=True), arg_names=["tp", "tzp"]),
         # int settimeofday (const struct timeval *TP, const struct timezone *TZP);
-        "settimeofday": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="timezone", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["tp", "tzp"]),
+        "settimeofday": SimTypeFunction([SimTypePointer(ALL_TYPES["timeval"], offset=0), SimTypePointer(ALL_TYPES["timezone"], offset=0)], SimTypeInt(signed=True), arg_names=["tp", "tzp"]),
         # int adjtime (const struct timeval *DELTA, struct timeval *OLDDELTA);
-        "adjtime": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_usec": SimTypeLong(signed=True)}, name="timeval", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["delta", "olddelta"]),
+        "adjtime": SimTypeFunction([SimTypePointer(ALL_TYPES["timeval"], offset=0), SimTypePointer(ALL_TYPES["timeval"], offset=0)], SimTypeInt(signed=True), arg_names=["delta", "olddelta"]),
         # int adjtimex (struct timex *TIMEX);
-        "adjtimex": SimTypeFunction([SimTypePointer(SimStruct({}, name="timex", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["timex"]),
+        "adjtimex": SimTypeFunction([SimTypePointer(ALL_TYPES["timex"], offset=0)], SimTypeInt(signed=True), arg_names=["timex"]),
         # struct tm * localtime (const time_t *TIME);
-        "localtime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0), arg_names=["time"]),
+        "localtime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypePointer(ALL_TYPES["tm"], offset=0), arg_names=["time"]),
         # struct tm * localtime_r (const time_t *TIME, struct tm *RESULTP);
-        "localtime_r": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0), SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0), arg_names=["time", "resultp"]),
+        "localtime_r": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0), SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypePointer(ALL_TYPES["tm"], offset=0), arg_names=["time", "resultp"]),
         # struct tm * gmtime (const time_t *TIME);
-        "gmtime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0), arg_names=["time"]),
+        "gmtime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypePointer(ALL_TYPES["tm"], offset=0), arg_names=["time"]),
         # struct tm * gmtime_r (const time_t *TIME, struct tm *RESULTP);
-        "gmtime_r": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0), SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0), arg_names=["time", "resultp"]),
+        "gmtime_r": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0), SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypePointer(ALL_TYPES["tm"], offset=0), arg_names=["time", "resultp"]),
         # time_t mktime (struct tm *BROKENTIME);
-        "mktime": SimTypeFunction([SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["brokentime"]),
+        "mktime": SimTypeFunction([SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["brokentime"]),
         # time_t timelocal (struct tm *BROKENTIME);
-        "timelocal": SimTypeFunction([SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["brokentime"]),
+        "timelocal": SimTypeFunction([SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["brokentime"]),
         # time_t timegm (struct tm *BROKENTIME);
-        "timegm": SimTypeFunction([SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["brokentime"]),
+        "timegm": SimTypeFunction([SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypeLong(signed=True, label="time_t"), arg_names=["brokentime"]),
         # int ntp_gettime (struct ntptimeval *TPTR);
-        "ntp_gettime": SimTypeFunction([SimTypePointer(SimStruct({}, name="ntptimeval", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["tptr"]),
+        "ntp_gettime": SimTypeFunction([SimTypePointer(ALL_TYPES["ntptimeval"], offset=0)], SimTypeInt(signed=True), arg_names=["tptr"]),
         # int ntp_adjtime (struct timex *TPTR);
-        "ntp_adjtime": SimTypeFunction([SimTypePointer(SimStruct({}, name="timex", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["tptr"]),
+        "ntp_adjtime": SimTypeFunction([SimTypePointer(ALL_TYPES["timex"], offset=0)], SimTypeInt(signed=True), arg_names=["tptr"]),
         # char * asctime (const struct tm *BROKENTIME);
-        "asctime": SimTypeFunction([SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["brokentime"]),
+        "asctime": SimTypeFunction([SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["brokentime"]),
         # char * asctime_r (const struct tm *BROKENTIME, char *BUFFER);
-        "asctime_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["brokentime", "buffer"]),
+        "asctime_r": SimTypeFunction([SimTypePointer(ALL_TYPES["tm"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["brokentime", "buffer"]),
         # char * ctime (const time_t *TIME);
         "ctime": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["time"]),
         # char * ctime_r (const time_t *TIME, char *BUFFER);
         "ctime_r": SimTypeFunction([SimTypePointer(SimTypeLong(signed=True, label="time_t"), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["time", "buffer"]),
         # size_t strftime (char *S, size_t SIZE, const char *TEMPLATE, const struct tm *BROKENTIME);
-        "strftime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["s", "size", "template", "brokentime"]),
+        "strftime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["s", "size", "template", "brokentime"]),
         # size_t wcsftime (wchar_t *S, size_t SIZE, const wchar_t *TEMPLATE, const struct tm *BROKENTIME);
-        "wcsftime": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["s", "size", "template", "brokentime"]),
+        "wcsftime": SimTypeFunction([SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypeShort(signed=False, label="wchar_t"), offset=0), SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypeLong(signed=False, label="size_t"), arg_names=["s", "size", "template", "brokentime"]),
         # char * strptime (const char *S, const char *FMT, struct tm *TP);
-        "strptime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "fmt", "tp"]),
+        "strptime": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["s", "fmt", "tp"]),
         # struct tm * getdate (const char *STRING);
-        "getdate": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0), arg_names=["string"]),
+        "getdate": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["tm"], offset=0), arg_names=["string"]),
         # int getdate_r (const char *STRING, struct tm *TP);
-        "getdate_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="tm", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["string", "tp"]),
+        "getdate_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["tm"], offset=0)], SimTypeInt(signed=True), arg_names=["string", "tp"]),
         # void tzset (void);
         "tzset": SimTypeFunction([], SimTypeBottom(label="void")),
         # int setitimer (int WHICH, const struct itimerval *NEW, struct itimerval *OLD);
-        "setitimer": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="itimerval", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="itimerval", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["which", "new", "old"]),
+        "setitimer": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["itimerval"], offset=0), SimTypePointer(ALL_TYPES["itimerval"], offset=0)], SimTypeInt(signed=True), arg_names=["which", "new", "old"]),
         # int getitimer (int WHICH, struct itimerval *OLD);
-        "getitimer": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="itimerval", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["which", "old"]),
+        "getitimer": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["itimerval"], offset=0)], SimTypeInt(signed=True), arg_names=["which", "old"]),
         # unsigned int alarm (unsigned int SECONDS);
         "alarm": SimTypeFunction([SimTypeInt(signed=False)], SimTypeInt(signed=False), arg_names=["seconds"]),
         # unsigned int sleep (unsigned int SECONDS);
         "sleep": SimTypeFunction([SimTypeInt(signed=False)], SimTypeInt(signed=False), arg_names=["seconds"]),
         # int nanosleep (const struct timespec *REQUESTED_TIME, struct timespec *REMAINING);
-        "nanosleep": SimTypeFunction([SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["requested_time", "remaining"]),
+        "nanosleep": SimTypeFunction([SimTypePointer(ALL_TYPES["timespec"], offset=0), SimTypePointer(ALL_TYPES["timespec"], offset=0)], SimTypeInt(signed=True), arg_names=["requested_time", "remaining"]),
         # int getrusage (int PROCESSES, struct rusage *RUSAGE);
-        "getrusage": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["processes", "rusage"]),
+        "getrusage": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rusage"], offset=0)], SimTypeInt(signed=True), arg_names=["processes", "rusage"]),
         # int vtimes (struct vtimes *CURRENT, struct vtimes *CHILD);
-        "vtimes": SimTypeFunction([SimTypePointer(SimStruct({}, name="vtimes", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="vtimes", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["current", "child"]),
+        "vtimes": SimTypeFunction([SimTypePointer(ALL_TYPES["vtimes"], offset=0), SimTypePointer(ALL_TYPES["vtimes"], offset=0)], SimTypeInt(signed=True), arg_names=["current", "child"]),
         # int getrlimit (int RESOURCE, struct rlimit *RLP);
-        "getrlimit": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rlimit", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
+        "getrlimit": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rlimit"], offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
         # int getrlimit64 (int RESOURCE, struct rlimit64 *RLP);
-        "getrlimit64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rlimit64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
+        "getrlimit64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rlimit64"], offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
         # int setrlimit (int RESOURCE, const struct rlimit *RLP);
-        "setrlimit": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rlimit", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
+        "setrlimit": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rlimit"], offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
         # int setrlimit64 (int RESOURCE, const struct rlimit64 *RLP);
-        "setrlimit64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rlimit64", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
+        "setrlimit64": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rlimit64"], offset=0)], SimTypeInt(signed=True), arg_names=["resource", "rlp"]),
         # long int ulimit (int CMD, ...);
         "ulimit": SimTypeFunction([SimTypeInt(signed=True)], SimTypeLong(signed=True), arg_names=["cmd"], variadic=True),
         # int vlimit (int RESOURCE, int LIMIT);
         "vlimit": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["resource", "limit"]),
         # int sched_setscheduler (pid_t PID, int POLICY, const struct sched_param *PARAM);
-        "sched_setscheduler": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sched_param", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["pid", "policy", "param"]),
+        "sched_setscheduler": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sched_param"], offset=0)], SimTypeInt(signed=True), arg_names=["pid", "policy", "param"]),
         # int sched_getscheduler (pid_t PID);
         "sched_getscheduler": SimTypeFunction([SimTypeInt(signed=True, label="pid_t")], SimTypeInt(signed=True), arg_names=["pid"]),
         # int sched_setparam (pid_t PID, const struct sched_param *PARAM);
-        "sched_setparam": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="sched_param", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["pid", "param"]),
+        "sched_setparam": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(ALL_TYPES["sched_param"], offset=0)], SimTypeInt(signed=True), arg_names=["pid", "param"]),
         # int sched_getparam (pid_t PID, struct sched_param *PARAM);
-        "sched_getparam": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({}, name="sched_param", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["pid", "param"]),
+        "sched_getparam": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(ALL_TYPES["sched_param"], offset=0)], SimTypeInt(signed=True), arg_names=["pid", "param"]),
         # int sched_get_priority_min (int POLICY);
         "sched_get_priority_min": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["policy"]),
         # int sched_get_priority_max (int POLICY);
         "sched_get_priority_max": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["policy"]),
         # int sched_rr_get_interval (pid_t PID, struct timespec *INTERVAL);
-        "sched_rr_get_interval": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["pid", "interval"]),
+        "sched_rr_get_interval": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(ALL_TYPES["timespec"], offset=0)], SimTypeInt(signed=True), arg_names=["pid", "interval"]),
         # int sched_yield (void);
         "sched_yield": SimTypeFunction([], SimTypeInt(signed=True)),
         # int getpriority (int CLASS, int ID);
@@ -2682,7 +2682,7 @@ _libc_decls = \
         # int sigaltstack (const stack_t *restrict STACK, stack_t *restrict OLDSTACK);
         "sigaltstack": None,
         # int sigstack (struct sigstack *STACK, struct sigstack *OLDSTACK);
-        "sigstack": SimTypeFunction([SimTypePointer(SimStruct({}, name="sigstack", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="sigstack", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stack", "oldstack"]),
+        "sigstack": SimTypeFunction([SimTypePointer(ALL_TYPES["sigstack"], offset=0), SimTypePointer(ALL_TYPES["sigstack"], offset=0)], SimTypeInt(signed=True), arg_names=["stack", "oldstack"]),
         # int siginterrupt (int SIGNUM, int FAILFLAG);
         "siginterrupt": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["signum", "failflag"]),
         # int sigblock (int MASK);
@@ -2694,17 +2694,17 @@ _libc_decls = \
         # int getopt (int ARGC, char *const *ARGV, const char *OPTIONS);
         "getopt": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv", "options"]),
         # int getopt_long (int ARGC, char *const *ARGV, const char *SHORTOPTS, const struct option *LONGOPTS, int *INDEXPTR);
-        "getopt_long": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="option", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv", "shortopts", "longopts", "indexptr"]),
+        "getopt_long": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["option"], offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv", "shortopts", "longopts", "indexptr"]),
         # int getopt_long_only (int ARGC, char *const *ARGV, const char *SHORTOPTS, const struct option *LONGOPTS, int *INDEXPTR);
-        "getopt_long_only": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="option", pack=False, align=None), offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv", "shortopts", "longopts", "indexptr"]),
+        "getopt_long_only": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimTypePointer(SimTypeChar(), offset=0), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["option"], offset=0), SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True), arg_names=["argc", "argv", "shortopts", "longopts", "indexptr"]),
         # error_t argp_parse (const struct argp *ARGP, int ARGC, char **ARGV, unsigned FLAGS, int *ARG_INDEX, void *INPUT);
         "argp_parse": None,
         # void argp_usage (const struct argp_state *STATE);
-        "argp_usage": SimTypeFunction([SimTypePointer(SimStruct({}, name="argp_state", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["state"]),
+        "argp_usage": SimTypeFunction([SimTypePointer(ALL_TYPES["argp_state"], offset=0)], SimTypeBottom(label="void"), arg_names=["state"]),
         # void argp_error (const struct argp_state *STATE, const char *FMT, ...);
-        "argp_error": SimTypeFunction([SimTypePointer(SimStruct({}, name="argp_state", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["state", "fmt"], variadic=True),
+        "argp_error": SimTypeFunction([SimTypePointer(ALL_TYPES["argp_state"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["state", "fmt"], variadic=True),
         # void argp_failure (const struct argp_state *STATE, int STATUS, int ERRNUM, const char *FMT, ...);
-        "argp_failure": SimTypeFunction([SimTypePointer(SimStruct({}, name="argp_state", pack=False, align=None), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["state", "status", "errnum", "fmt"], variadic=True),
+        "argp_failure": SimTypeFunction([SimTypePointer(ALL_TYPES["argp_state"], offset=0), SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["state", "status", "errnum", "fmt"], variadic=True),
         # void argp_state_help (const struct argp_state *STATE, FILE *STREAM, unsigned FLAGS);
         "argp_state_help": None,
         # void argp_help (const struct argp *ARGP, FILE *STREAM, unsigned FLAGS, char *NAME);
@@ -2768,17 +2768,17 @@ _libc_decls = \
         # pid_t wait (int *STATUS_PTR);
         "wait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0)], SimTypeInt(signed=True, label="pid_t"), arg_names=["status_ptr"]),
         # pid_t wait4 (pid_t PID, int *STATUS_PTR, int OPTIONS, struct rusage *USAGE);
-        "wait4": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="pid_t"), arg_names=["pid", "status_ptr", "options", "usage"]),
+        "wait4": SimTypeFunction([SimTypeInt(signed=True, label="pid_t"), SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rusage"], offset=0)], SimTypeInt(signed=True, label="pid_t"), arg_names=["pid", "status_ptr", "options", "usage"]),
         # pid_t wait3 (int *STATUS_PTR, int OPTIONS, struct rusage *USAGE);
-        "wait3": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="rusage", pack=False, align=None), offset=0)], SimTypeInt(signed=True, label="pid_t"), arg_names=["status_ptr", "options", "usage"]),
+        "wait3": SimTypeFunction([SimTypePointer(SimTypeInt(signed=True), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["rusage"], offset=0)], SimTypeInt(signed=True, label="pid_t"), arg_names=["status_ptr", "options", "usage"]),
         # int semctl (int SEMID, int SEMNUM, int CMD);
         "semctl": SimTypeFunction([SimTypeInt(signed=True), SimTypeInt(signed=True), SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["semid", "semnum", "cmd"]),
         # int semget (key_t KEY, int NSEMS, int SEMFLG);
         "semget": None,
         # int semop (int SEMID, struct sembuf *SOPS, size_t NSOPS);
-        "semop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sembuf", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["semid", "sops", "nsops"]),
+        "semop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sembuf"], offset=0), SimTypeLong(signed=False, label="size_t")], SimTypeInt(signed=True), arg_names=["semid", "sops", "nsops"]),
         # int semtimedop (int SEMID, struct sembuf *SOPS, size_t NSOPS, const struct timespec *TIMEOUT);
-        "semtimedop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="sembuf", pack=False, align=None), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["semid", "sops", "nsops", "timeout"]),
+        "semtimedop": SimTypeFunction([SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["sembuf"], offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(ALL_TYPES["timespec"], offset=0)], SimTypeInt(signed=True), arg_names=["semid", "sops", "nsops", "timeout"]),
         # int sem_init (sem_t *SEM, int PSHARED, unsigned int VALUE);
         "sem_init": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0), SimTypeInt(signed=True), SimTypeInt(signed=False)], SimTypeInt(signed=True), arg_names=["sem", "pshared", "value"]),
         # int sem_destroy (sem_t *SEM);
@@ -2792,7 +2792,7 @@ _libc_decls = \
         # int sem_wait (sem_t *SEM);
         "sem_wait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0)], SimTypeInt(signed=True), arg_names=["sem"]),
         # int sem_timedwait (sem_t *SEM, const struct timespec *ABSTIME);
-        "sem_timedwait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0), SimTypePointer(SimStruct({"tv_sec": SimTypeLong(signed=True, label="time_t"), "tv_nsec": SimTypeLong(signed=True)}, name="timespec", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["sem", "abstime"]),
+        "sem_timedwait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0), SimTypePointer(ALL_TYPES["timespec"], offset=0)], SimTypeInt(signed=True), arg_names=["sem", "abstime"]),
         # int sem_trywait (sem_t *SEM);
         "sem_trywait": SimTypeFunction([SimTypePointer(SimTypeInt(signed=False, label="sem_t"), offset=0)], SimTypeInt(signed=True), arg_names=["sem"]),
         # int sem_post (sem_t *SEM);
@@ -2854,91 +2854,91 @@ _libc_decls = \
         # void setutent (void);
         "setutent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct utmp * getutent (void);
-        "getutent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)),
+        "getutent": SimTypeFunction([], SimTypePointer(ALL_TYPES["utmp"], offset=0)),
         # void endutent (void);
         "endutent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct utmp * getutid (const struct utmp *ID);
-        "getutid": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), arg_names=["id"]),
+        "getutid": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0)], SimTypePointer(ALL_TYPES["utmp"], offset=0), arg_names=["id"]),
         # struct utmp * getutline (const struct utmp *LINE);
-        "getutline": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), arg_names=["line"]),
+        "getutline": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0)], SimTypePointer(ALL_TYPES["utmp"], offset=0), arg_names=["line"]),
         # struct utmp * pututline (const struct utmp *UTMP);
-        "pututline": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), arg_names=["utmp"]),
+        "pututline": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0)], SimTypePointer(ALL_TYPES["utmp"], offset=0), arg_names=["utmp"]),
         # int getutent_r (struct utmp *BUFFER, struct utmp **RESULT);
-        "getutent_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
+        "getutent_r": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["utmp"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["buffer", "result"]),
         # int getutid_r (const struct utmp *ID, struct utmp *BUFFER, struct utmp **RESULT);
-        "getutid_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["id", "buffer", "result"]),
+        "getutid_r": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0), SimTypePointer(ALL_TYPES["utmp"], offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["utmp"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["id", "buffer", "result"]),
         # int getutline_r (const struct utmp *LINE, struct utmp *BUFFER, struct utmp **RESULT);
-        "getutline_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), SimTypePointer(SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["line", "buffer", "result"]),
+        "getutline_r": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0), SimTypePointer(ALL_TYPES["utmp"], offset=0), SimTypePointer(SimTypePointer(ALL_TYPES["utmp"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["line", "buffer", "result"]),
         # int utmpname (const char *FILE);
         "utmpname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["file"]),
         # void updwtmp (const char *WTMP_FILE, const struct utmp *UTMP);
-        "updwtmp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["wtmp_file", "utmp"]),
+        "updwtmp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["utmp"], offset=0)], SimTypeBottom(label="void"), arg_names=["wtmp_file", "utmp"]),
         # void setutxent (void);
         "setutxent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct utmpx * getutxent (void);
-        "getutxent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0)),
+        "getutxent": SimTypeFunction([], SimTypePointer(ALL_TYPES["utmpx"], offset=0)),
         # void endutxent (void);
         "endutxent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct utmpx * getutxid (const struct utmpx *ID);
-        "getutxid": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0), arg_names=["id"]),
+        "getutxid": SimTypeFunction([SimTypePointer(ALL_TYPES["utmpx"], offset=0)], SimTypePointer(ALL_TYPES["utmpx"], offset=0), arg_names=["id"]),
         # struct utmpx * getutxline (const struct utmpx *LINE);
-        "getutxline": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0), arg_names=["line"]),
+        "getutxline": SimTypeFunction([SimTypePointer(ALL_TYPES["utmpx"], offset=0)], SimTypePointer(ALL_TYPES["utmpx"], offset=0), arg_names=["line"]),
         # struct utmpx * pututxline (const struct utmpx *UTMP);
-        "pututxline": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0), arg_names=["utmp"]),
+        "pututxline": SimTypeFunction([SimTypePointer(ALL_TYPES["utmpx"], offset=0)], SimTypePointer(ALL_TYPES["utmpx"], offset=0), arg_names=["utmp"]),
         # int utmpxname (const char *FILE);
         "utmpxname": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["file"]),
         # int getutmp (const struct utmpx *UTMPX, struct utmp *UTMP);
-        "getutmp": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["utmpx", "utmp"]),
+        "getutmp": SimTypeFunction([SimTypePointer(ALL_TYPES["utmpx"], offset=0), SimTypePointer(ALL_TYPES["utmp"], offset=0)], SimTypeInt(signed=True), arg_names=["utmpx", "utmp"]),
         # int getutmpx (const struct utmp *UTMP, struct utmpx *UTMPX);
-        "getutmpx": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="utmpx", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["utmp", "utmpx"]),
+        "getutmpx": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0), SimTypePointer(ALL_TYPES["utmpx"], offset=0)], SimTypeInt(signed=True), arg_names=["utmp", "utmpx"]),
         # int login_tty (int FILEDES);
         "login_tty": SimTypeFunction([SimTypeInt(signed=True)], SimTypeInt(signed=True), arg_names=["filedes"]),
         # void login (const struct utmp *ENTRY);
-        "login": SimTypeFunction([SimTypePointer(SimStruct({}, name="utmp", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["entry"]),
+        "login": SimTypeFunction([SimTypePointer(ALL_TYPES["utmp"], offset=0)], SimTypeBottom(label="void"), arg_names=["entry"]),
         # int logout (const char *UT_LINE);
         "logout": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["ut_line"]),
         # void logwtmp (const char *UT_LINE, const char *UT_NAME, const char *UT_HOST);
         "logwtmp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["ut_line", "ut_name", "ut_host"]),
         # struct passwd * getpwuid (uid_t UID);
-        "getpwuid": SimTypeFunction([SimTypeInt(signed=False, label="uid_t")], SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), arg_names=["uid"]),
+        "getpwuid": SimTypeFunction([SimTypeInt(signed=False, label="uid_t")], SimTypePointer(ALL_TYPES["passwd"], offset=0), arg_names=["uid"]),
         # int getpwuid_r (uid_t UID, struct passwd *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct passwd **RESULT);
-        "getpwuid_r": SimTypeFunction([SimTypeInt(signed=False, label="uid_t"), SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["uid", "result_buf", "buffer", "buflen", "result"]),
+        "getpwuid_r": SimTypeFunction([SimTypeInt(signed=False, label="uid_t"), SimTypePointer(ALL_TYPES["passwd"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["passwd"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["uid", "result_buf", "buffer", "buflen", "result"]),
         # struct passwd * getpwnam (const char *NAME);
-        "getpwnam": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), arg_names=["name"]),
+        "getpwnam": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["passwd"], offset=0), arg_names=["name"]),
         # int getpwnam_r (const char *NAME, struct passwd *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct passwd **RESULT);
-        "getpwnam_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["name", "result_buf", "buffer", "buflen", "result"]),
+        "getpwnam_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["passwd"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["passwd"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["name", "result_buf", "buffer", "buflen", "result"]),
         # struct passwd * fgetpwent (FILE *STREAM);
-        "fgetpwent": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), arg_names=["stream"]),
+        "fgetpwent": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(ALL_TYPES["passwd"], offset=0), arg_names=["stream"]),
         # int fgetpwent_r (FILE *STREAM, struct passwd *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct passwd **RESULT);
-        "fgetpwent_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "result_buf", "buffer", "buflen", "result"]),
+        "fgetpwent_r": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(ALL_TYPES["passwd"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["passwd"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "result_buf", "buffer", "buflen", "result"]),
         # void setpwent (void);
         "setpwent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct passwd * getpwent (void);
-        "getpwent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0)),
+        "getpwent": SimTypeFunction([], SimTypePointer(ALL_TYPES["passwd"], offset=0)),
         # int getpwent_r (struct passwd *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct passwd **RESULT);
-        "getpwent_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["result_buf", "buffer", "buflen", "result"]),
+        "getpwent_r": SimTypeFunction([SimTypePointer(ALL_TYPES["passwd"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["passwd"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["result_buf", "buffer", "buflen", "result"]),
         # void endpwent (void);
         "endpwent": SimTypeFunction([], SimTypeBottom(label="void")),
         # int putpwent (const struct passwd *P, FILE *STREAM);
-        "putpwent": SimTypeFunction([SimTypePointer(SimStruct({}, name="passwd", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["p", "stream"]),
+        "putpwent": SimTypeFunction([SimTypePointer(ALL_TYPES["passwd"], offset=0), SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["p", "stream"]),
         # struct group * getgrgid (gid_t GID);
-        "getgrgid": SimTypeFunction([SimTypeInt(signed=False, label="gid_t")], SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), arg_names=["gid"]),
+        "getgrgid": SimTypeFunction([SimTypeInt(signed=False, label="gid_t")], SimTypePointer(ALL_TYPES["group"], offset=0), arg_names=["gid"]),
         # int getgrgid_r (gid_t GID, struct group *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct group **RESULT);
-        "getgrgid_r": SimTypeFunction([SimTypeInt(signed=False, label="gid_t"), SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["gid", "result_buf", "buffer", "buflen", "result"]),
+        "getgrgid_r": SimTypeFunction([SimTypeInt(signed=False, label="gid_t"), SimTypePointer(ALL_TYPES["group"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["group"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["gid", "result_buf", "buffer", "buflen", "result"]),
         # struct group * getgrnam (const char *NAME);
-        "getgrnam": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), arg_names=["name"]),
+        "getgrnam": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["group"], offset=0), arg_names=["name"]),
         # int getgrnam_r (const char *NAME, struct group *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct group **RESULT);
-        "getgrnam_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["name", "result_buf", "buffer", "buflen", "result"]),
+        "getgrnam_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["group"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["group"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["name", "result_buf", "buffer", "buflen", "result"]),
         # struct group * fgetgrent (FILE *STREAM);
-        "fgetgrent": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), arg_names=["stream"]),
+        "fgetgrent": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(ALL_TYPES["group"], offset=0), arg_names=["stream"]),
         # int fgetgrent_r (FILE *STREAM, struct group *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct group **RESULT);
-        "fgetgrent_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "result_buf", "buffer", "buflen", "result"]),
+        "fgetgrent_r": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(ALL_TYPES["group"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["group"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "result_buf", "buffer", "buflen", "result"]),
         # void setgrent (void);
         "setgrent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct group * getgrent (void);
-        "getgrent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0)),
+        "getgrent": SimTypeFunction([], SimTypePointer(ALL_TYPES["group"], offset=0)),
         # int getgrent_r (struct group *RESULT_BUF, char *BUFFER, size_t BUFLEN, struct group **RESULT);
-        "getgrent_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(SimStruct({}, name="group", pack=False, align=None), offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["result_buf", "buffer", "buflen", "result"]),
+        "getgrent_r": SimTypeFunction([SimTypePointer(ALL_TYPES["group"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False, label="size_t"), SimTypePointer(SimTypePointer(ALL_TYPES["group"], offset=0), offset=0)], SimTypeInt(signed=True), arg_names=["result_buf", "buffer", "buflen", "result"]),
         # void endgrent (void);
         "endgrent": SimTypeFunction([], SimTypeBottom(label="void")),
         # int setnetgrent (const char *NETGROUP);
@@ -2964,29 +2964,29 @@ _libc_decls = \
         # int sethostid (long int ID);
         "sethostid": SimTypeFunction([SimTypeLong(signed=True)], SimTypeInt(signed=True), arg_names=["id"]),
         # int uname (struct utsname *INFO);
-        "uname": SimTypeFunction([SimTypePointer(SimStruct({}, name="utsname", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["info"]),
+        "uname": SimTypeFunction([SimTypePointer(ALL_TYPES["utsname"], offset=0)], SimTypeInt(signed=True), arg_names=["info"]),
         # int setfsent (void);
         "setfsent": SimTypeFunction([], SimTypeInt(signed=True)),
         # void endfsent (void);
         "endfsent": SimTypeFunction([], SimTypeBottom(label="void")),
         # struct fstab * getfsent (void);
-        "getfsent": SimTypeFunction([], SimTypePointer(SimStruct({}, name="fstab", pack=False, align=None), offset=0)),
+        "getfsent": SimTypeFunction([], SimTypePointer(ALL_TYPES["fstab"], offset=0)),
         # struct fstab * getfsspec (const char *NAME);
-        "getfsspec": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="fstab", pack=False, align=None), offset=0), arg_names=["name"]),
+        "getfsspec": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["fstab"], offset=0), arg_names=["name"]),
         # struct fstab * getfsfile (const char *NAME);
-        "getfsfile": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="fstab", pack=False, align=None), offset=0), arg_names=["name"]),
+        "getfsfile": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["fstab"], offset=0), arg_names=["name"]),
         # FILE * setmntent (const char *FILE, const char *MODE);
-        "setmntent": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), arg_names=["file", "mode"]),
+        "setmntent": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(ALL_TYPES["FILE_t"], offset=0), arg_names=["file", "mode"]),
         # int endmntent (FILE *STREAM);
-        "endmntent": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
+        "endmntent": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypeInt(signed=True), arg_names=["stream"]),
         # struct mntent * getmntent (FILE *STREAM);
-        "getmntent": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0)], SimTypePointer(SimStruct({}, name="mntent", pack=False, align=None), offset=0), arg_names=["stream"]),
+        "getmntent": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0)], SimTypePointer(ALL_TYPES["mntent"], offset=0), arg_names=["stream"]),
         # struct mntent * getmntent_r (FILE *STREAM, struct mntent *RESULT, char *BUFFER, int BUFSIZE);
-        "getmntent_r": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="mntent", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypePointer(SimStruct({}, name="mntent", pack=False, align=None), offset=0), arg_names=["stream", "result", "buffer", "bufsize"]),
+        "getmntent_r": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(ALL_TYPES["mntent"], offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypePointer(ALL_TYPES["mntent"], offset=0), arg_names=["stream", "result", "buffer", "bufsize"]),
         # int addmntent (FILE *STREAM, const struct mntent *MNT);
-        "addmntent": SimTypeFunction([SimTypePointer(SimStruct({}, name="FILE_t", pack=False, align=None), offset=0), SimTypePointer(SimStruct({}, name="mntent", pack=False, align=None), offset=0)], SimTypeInt(signed=True), arg_names=["stream", "mnt"]),
+        "addmntent": SimTypeFunction([SimTypePointer(ALL_TYPES["FILE_t"], offset=0), SimTypePointer(ALL_TYPES["mntent"], offset=0)], SimTypeInt(signed=True), arg_names=["stream", "mnt"]),
         # char * hasmntopt (const struct mntent *MNT, const char *OPT);
-        "hasmntopt": SimTypeFunction([SimTypePointer(SimStruct({}, name="mntent", pack=False, align=None), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["mnt", "opt"]),
+        "hasmntopt": SimTypeFunction([SimTypePointer(ALL_TYPES["mntent"], offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["mnt", "opt"]),
         # int mount (const char *SPECIAL_FILE, const char *DIR, const char *FSTYPE, unsigned long int OPTIONS, const void *DATA);
         "mount": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeLong(signed=False), SimTypePointer(SimTypeBottom(label="void"), offset=0)], SimTypeInt(signed=True), arg_names=["special_file", "dir", "fstype", "options", "data"]),
         # int umount2 (const char *FILE, int FLAGS);
@@ -3008,15 +3008,15 @@ _libc_decls = \
         # char * crypt (const char *KEY, const char *SALT);
         "crypt": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["key", "salt"]),
         # char * crypt_r (const char *KEY, const char *SALT, struct crypt_data * DATA);
-        "crypt_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="crypt_data", pack=False, align=None), offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["key", "salt", "data"]),
+        "crypt_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["crypt_data"], offset=0)], SimTypePointer(SimTypeChar(), offset=0), arg_names=["key", "salt", "data"]),
         # void setkey (const char *KEY);
         "setkey": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0)], SimTypeBottom(label="void"), arg_names=["key"]),
         # void encrypt (char *BLOCK, int EDFLAG);
         "encrypt": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True)], SimTypeBottom(label="void"), arg_names=["block", "edflag"]),
         # void setkey_r (const char *KEY, struct crypt_data * DATA);
-        "setkey_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimStruct({}, name="crypt_data", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["key", "data"]),
+        "setkey_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(ALL_TYPES["crypt_data"], offset=0)], SimTypeBottom(label="void"), arg_names=["key", "data"]),
         # void encrypt_r (char *BLOCK, int EDFLAG, struct crypt_data * DATA);
-        "encrypt_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(SimStruct({}, name="crypt_data", pack=False, align=None), offset=0)], SimTypeBottom(label="void"), arg_names=["block", "edflag", "data"]),
+        "encrypt_r": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=True), SimTypePointer(ALL_TYPES["crypt_data"], offset=0)], SimTypeBottom(label="void"), arg_names=["block", "edflag", "data"]),
         # int ecb_crypt (char *KEY, char *BLOCKS, unsigned int LEN, unsigned int MODE);
         "ecb_crypt": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0), SimTypeInt(signed=False), SimTypeInt(signed=False)], SimTypeInt(signed=True), arg_names=["key", "blocks", "len", "mode"]),
         # int DES_FAILED (int ERR);
