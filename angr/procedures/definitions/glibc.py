@@ -4628,4 +4628,3 @@ _libc_c_decls = \
         "void __ppc_set_ppr_med_high (void);",
         "void __stack_chk_fail (void);",
     ]
-

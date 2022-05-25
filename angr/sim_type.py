@@ -2203,7 +2203,10 @@ GLIBC_TYPES = {
             "sin_zero": SimTypeArray(
                 ALL_TYPES["unsigned char"],
                 length=8,
-                label="unsigned char[sizeof (struct sockaddr) - __SOCKADDR_COMMON_SIZE - sizeof (in_port_t) - sizeof (struct in_addr)]",
+                label=(
+                    "unsigned char[sizeof (struct sockaddr) - __SOCKADDR_COMMON_SIZE - "
+                    "sizeof (in_port_t) - sizeof (struct in_addr)]"
+                )
             ),
         },
         name="sockaddr_in",

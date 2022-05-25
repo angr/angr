@@ -1,12 +1,10 @@
 from socket import inet_ntoa as _inet_ntoa
-from typing import List, Optional
+from typing import List
 
 from claripy import BVS, BVV, Concat
 from claripy.ast import BV
 
 import angr
-from angr.procedures.posix.mmap import (MAP_ANONYMOUS, MAP_PRIVATE, PROT_READ,
-                                        PROT_WRITE)
 from angr.sim_type import SimStructValue
 
 
@@ -28,8 +26,8 @@ class inet_ntoa(angr.SimProcedure):
         """
 
         static_buffer = self.project.loader.extern_object.make_extern(
-                "angr##inet_ntoa_static_buffer",
-                size=self.INET_INADDRSTRLEN,
+            "angr##inet_ntoa_static_buffer",
+            size=self.INET_INADDRSTRLEN,
         ).rebased_addr
 
         rv_exprs: List[BV] = []
