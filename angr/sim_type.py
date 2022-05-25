@@ -2304,9 +2304,9 @@ GLIBC_TYPES = {
         name="winsize",
     ),
     # This type is legitimately opaque
-    "random_data": None,
+    "random_data": SimStruct({}),
     # This type is also legitimately opaque
-    "drand48_data": None,
+    "drand48_data": SimStruct({}),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/posix/sys/times.h#L32
     "tms": SimStruct(
         {
