@@ -45,7 +45,7 @@ class TestRunEcho(unittest.TestCase):
 
         bingo_count = 0
         for s in simgr.deadended:
-            bingo_count += int("Bingo" in s.posix.dumps(1).decode())
+            bingo_count += int(b"Bingo" in s.posix.dumps(1))
 
         assert bingo_count == 1
 
