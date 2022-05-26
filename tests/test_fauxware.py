@@ -34,7 +34,7 @@ avoid_addrs = {
 
 corrupt_addrs = {
     "i386": [0x80486B6, b"bO\xcc", lambda s: s.memory.store(s.regs.esp, s.regs.eax)],
-    "x86_64": [0x400742, b"\xd4&\xb0[\x41", lambda s: s.registers.store("rdx", 8)],
+    "x86_64": [0x400742, b"\x0f\x0b\xb0[\x41", lambda s: s.registers.store("rdx", 8)],
     "ppc": [0x100006B8, b"\x05\xad\xc2\xea", lambda s: s.registers.store("r5", 8)],
     "armel": [0x8678, b"\xbdM\xec3", lambda s: s.registers.store("r2", 8)],
     "mips": [0x400918, b"[\xf8\x96@"[::-1], lambda s: s.registers.store("a2", 8)],
