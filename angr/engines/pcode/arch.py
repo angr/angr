@@ -1,8 +1,12 @@
 from typing import Union, Type
+import logging
 
 import pypcode
 from archinfo.arch import register_arch, Endness, Register, Arch
 from archinfo.tls import TLSArchInfo
+
+
+l = logging.getLogger(__name__)
 
 
 class ArchPcode(Arch):
