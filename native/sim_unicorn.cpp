@@ -158,6 +158,9 @@ void State::stop(stop_t reason, bool do_commit) {
 	uc_emu_stop(uc);
 	// Prepare details of blocks with symbolic instructions to re-execute for returning to state plugin
 	for (auto &block: blocks_with_symbolic_stmts) {
+		if (block.symbolic_stmts.size() == 0) {
+			continue;
+		}
 		sym_block_details_t sym_block;
 		sym_block.reset();
 		sym_block.block_addr = block.block_addr;
@@ -257,7 +260,6 @@ void State::commit() {
 	cur_steps++;
 
 	// Remove instructions whose effects are overwritten by subsequent instructions from the re-execute list
-	std::vector<std::vector<block_details_t>::iterator> blocks_to_erase_it;
 	for (auto &stmts_to_erase_entry: symbolic_stmts_to_erase) {
 		std::vector<std::vector<vex_stmt_details_t>::iterator> stmts_to_erase_it;
 		std::vector<std::unordered_map<address_t, std::pair<uint64_t, uint64_t>>::iterator> sym_mem_deps_to_erase;
@@ -280,14 +282,6 @@ void State::commit() {
 		for (auto &sym_mem_dep: sym_mem_deps_to_erase) {
 			symbolic_mem_deps.erase(sym_mem_dep);
 		}
-		if (block_it->symbolic_stmts.size() == 0) {
-			// There are no more instructions to re-execute in this block and thus it can be removed from list of blocks
-			// with instructions that need to be re-executed
-			blocks_to_erase_it.push_back(block_it);
-		}
-	}
-	for (auto &block_to_erase_it: blocks_to_erase_it) {
-		blocks_with_symbolic_stmts.erase(block_to_erase_it);
 	}
 	// Save details of symbolic instructions in current block
 	if (curr_block_details.symbolic_stmts.size() > 0) {
