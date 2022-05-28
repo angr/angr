@@ -67,8 +67,9 @@ class ArchPcode(Arch):
                     sp_offset = ctx.registers[sp_reg].offset
 
                 if sp_reg.lower() != 'sp' and 'sp' in archinfo_regs:
+                    l.warning('Unexpected SP conflict')
                     del archinfo_regs['sp']
-                    archinfo_regs[sp_reg.lower()].alias_names += ('sp',)
+                archinfo_regs[sp_reg.lower()].alias_names += ('sp',)
 
         if sp_offset is None:
             l.warning('Unknown stack pointer register offset?')
