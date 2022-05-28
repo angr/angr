@@ -187,7 +187,7 @@ class SimSuccessors:
                     ret_addr = state.mem[state.regs._sp].long.concrete
                 else:
                     ret_addr = state.solver.eval(state.regs._lr)
-            except (SimSolverModeError, SimUnsatError):
+            except (SimSolverModeError, SimUnsatError, AttributeError, KeyError, __import__('executing').executing.NotOneValueFound):
                 # Use the address for UnresolvableCallTarget instead.
                 ret_addr = state.project.simos.unresolvable_call_target
 
