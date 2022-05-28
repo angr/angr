@@ -2029,13 +2029,22 @@ void State::propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &vex_stmt_t
 		// touch a VEX CC register as symbolic for correct re-execution
 		else {
 			curr_block_details.marks_vex_cc_reg_symbolic = true;
-			for (auto &stmt_detail: curr_block_details.vex_cc_reg_setter_details) {
-				auto sym_stmt_it = curr_block_details.symbolic_stmts.begin();
-				auto sym_stmt_it_end = curr_block_details.symbolic_stmts.end();
-				for (; sym_stmt_it != sym_stmt_it_end; sym_stmt_it++) {
-					if (stmt_detail.stmt_idx < sym_stmt_it->stmt_idx) {
-						curr_block_details.symbolic_stmts.insert(sym_stmt_it - 1, stmt_detail);
-						break;
+			if (curr_block_details.symbolic_stmts.size() == 0) {
+				// There are no symbolic statements. Simply insert all VEX CC register setters into list of symbolic
+				// statements.
+				curr_block_details.symbolic_stmts.insert(curr_block_details.symbolic_stmts.end(),
+					curr_block_details.vex_cc_reg_setter_details.begin(),
+					curr_block_details.vex_cc_reg_setter_details.end());
+			}
+			else {
+				for (auto &stmt_detail: curr_block_details.vex_cc_reg_setter_details) {
+					auto sym_stmt_it = curr_block_details.symbolic_stmts.begin();
+					auto sym_stmt_it_end = curr_block_details.symbolic_stmts.end();
+					for (; sym_stmt_it != sym_stmt_it_end; sym_stmt_it++) {
+						if (stmt_detail.stmt_idx < sym_stmt_it->stmt_idx) {
+							curr_block_details.symbolic_stmts.insert(sym_stmt_it - 1, stmt_detail);
+							break;
+						}
 					}
 				}
 			}
