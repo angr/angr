@@ -47,18 +47,18 @@ def _build_native():
         except KeyError:
             pass
 
-    cmd1 = ["nmake", "/f", "Makefile-win"]
-    cmd2 = ["gmake"]
-    cmd3 = ["make"]
-    for cmd in (cmd1, cmd2, cmd3):
-        try:
-            if subprocess.call(cmd, cwd="native", env=env) != 0:
-                raise LibError("Unable to build angr_native")
-            break
-        except OSError:
-            continue
+    if sys.platform == "win32":
+        cmd = ["nmake", "/f", "Makefile-win"]
+    elif shutil.which("gmake") is not None:
+        cmd = ["gmake"]
     else:
-        raise LibError("Unable to build angr_native")
+        cmd = ["make"]
+    try:
+        subprocess.run(cmd, cwd="native", env=env, check=True)
+    except FileNotFoundError:
+        raise LibError("Couldn't find " + cmd[0] + " in PATH")
+    except subprocess.CalledProcessError as err:
+        raise LibError("Error while building angr_native: " + str(err))
 
     shutil.rmtree("angr/lib", ignore_errors=True)
     os.mkdir("angr/lib")
