@@ -233,10 +233,14 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute a p-code load operation.
         """
         spc = self._current_op.inputs[0].get_space_from_const()
-        assert spc.name in ("ram", "mem")
         off = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
+        if spc.name in ("ram", "mem"):
+            res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
+        elif spc.name in "register":
+            res = self.state.registers.load(off, size=out.size, endness=self.project.arch.memory_endness)
+        else:
+            raise NotImplementedError("Load from unhandled address space")
         l.debug("Loaded %s from offset %s", res, off)
         self._set_value(out, res)
 
@@ -245,11 +249,15 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute a p-code store operation.
         """
         spc = self._current_op.inputs[0].get_space_from_const()
-        assert spc.name in ("ram", "mem")
         off = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
         l.debug("Storing %s at offset %s", data, off)
-        self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
+        if spc.name in ("ram", "mem"):
+            self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
+        elif spc.name == "register":
+            self.state.registers.store(off, data, endness=self.project.arch.memory_endness)
+        else:
+            raise NotImplementedError("Store to unhandled address space")
 
     def _execute_branch(self) -> None:
         """
@@ -257,7 +265,9 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         dest_addr = self._current_op.inputs[0].get_addr()
         if dest_addr.is_constant:
-            raise NotImplementedError("p-code relative branch not supported yet")
+            # raise NotImplementedError("p-code relative branch not supported yet")
+            l.warning("p-code relative branch not supported yet")
+            return
 
         self.state.scratch.exit_handled = True
         expr = dest_addr.offset
@@ -277,7 +287,10 @@ class PcodeEmulatorMixin(SimEngineBase):
         cond = self._get_value(self._current_op.inputs[1])
         dest_addr = self._current_op.inputs[0].get_addr()
         if dest_addr.is_constant:
-            raise NotImplementedError("p-code relative branch not supported yet")
+            # raise NotImplementedError("p-code relative branch not supported yet")
+            l.warning("p-code relative branch not supported yet")
+            return
+
 
         exit_state = self.state.copy()
         self.successors.add_successor(
