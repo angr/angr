@@ -1212,7 +1212,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
                     if start <= addr:
                         offset = addr - start
                         if isinstance(backer, (bytes, bytearray)):
-                            buff = pyvex.ffi.from_buffer(backer)
+                            buff = backer[offset:]
                             size = len(backer) - offset
                         elif isinstance(backer, list):
                             raise SimTranslationError("Cannot lift block for arch with strange byte width. If you "
