@@ -11,7 +11,7 @@ class Timeout(ExplorationTechnique):
     """
 
     def __init__(self, timeout=None):
-        super(Timeout, self).__init__()
+        super().__init__()
         self.start_time = None
         self.timeout = timeout
 
@@ -24,7 +24,7 @@ class Timeout(ExplorationTechnique):
         if self.timeout is not None and time.time() - self.start_time > self.timeout:
             self.start_time = None
             simgr.move(stash, 'timeout')
-            l.warning(f"exploration timeout in {self.timeout} seconds!")
+            l.warning("exploration timeout in %s seconds!", self.timeout)
         else:
             simgr = simgr.step(stash=stash, **kwargs)
         return simgr
