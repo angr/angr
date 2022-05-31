@@ -77,7 +77,6 @@ class ExplorationTechnique:
 
         :param angr.SimulationManager simgr:    The simulation manager to which you have just been added
         """
-        pass
 
     def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
         """
