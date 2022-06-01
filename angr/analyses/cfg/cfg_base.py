@@ -677,10 +677,41 @@ class CFGBase(Analysis):
             # test if addr_b also does not belong to any section
             dst_section = obj.find_section_containing(addr_b)
             if dst_section is None:
-                return True
+                return self._addrs_belong_to_same_segment(addr_a, addr_b)
             return False
 
         return src_section.contains_addr(addr_b)
+
+    def _addrs_belong_to_same_segment(self, addr_a, addr_b):
+        """
+        Test if two addresses belong to the same segment.
+
+        :param int addr_a:  The first address to test.
+        :param int addr_b:  The second address to test.
+        :return:            True if the two addresses belong to the same segment or both of them do not belong to any
+                            section, False otherwise.
+        :rtype:             bool
+        """
+
+        obj = self.project.loader.find_object_containing(addr_a, membership_check=False)
+
+        if obj is None:
+            # test if addr_b also does not belong to any object
+            obj_b = self.project.loader.find_object_containing(addr_b, membership_check=False)
+            if obj_b is None:
+                return True
+            return False
+
+        src_segment = obj.find_segment_containing(addr_a)
+        if src_segment is None:
+            # test if addr_b also does not belong to any section
+            dst_segment = obj.find_segment_containing(addr_b)
+            if dst_segment is None:
+                return True
+            return False
+
+        return src_segment.contains_addr(addr_b)
+
 
     def _object_has_executable_sections(self, obj):
         """
