@@ -338,7 +338,7 @@ def pc_actions_DEC(state, nbits, res, _, cc_ndep, platform=None):
     af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(res)
     sf = res[nbits-1]
-    of = claripy.If(sf == arg_l[nbits-1], claripy.BVV(0, 1), claripy.BVV(1, 1))
+    of = claripy.If(arg_l == (1 << (nbits - 1)), claripy.BVV(1, 1), claripy.BVV(0, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_ADC(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
@@ -448,7 +448,7 @@ def pc_actions_INC(state, nbits, res, _, cc_ndep, platform=None):
     af = (res ^ arg_l ^ 1)[data[platform]['CondBitOffsets']['G_CC_SHIFT_A']]
     zf = calc_zerobit(res)
     sf = res[nbits-1]
-    of = claripy.If(sf == arg_l[nbits-1], claripy.BVV(0, 1), claripy.BVV(1, 1))
+    of = claripy.If(res == (1 << (nbits - 1)), claripy.BVV(1, 1), claripy.BVV(0, 1))
     return pc_make_rdata(data[platform]['size'], cf, pf, af, zf, sf, of, platform=platform)
 
 def pc_actions_SHL(state, nbits, remaining, shifted, cc_ndep, platform=None):
