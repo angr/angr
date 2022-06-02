@@ -1,16 +1,21 @@
 import logging
 import weakref
-import networkx
 import itertools
 from contextlib import contextmanager
 import gc
+import networkx
 
 import claripy
 
 l = logging.getLogger(name=__name__)
 
 
-class StateHierarchy(object):
+class StateHierarchy:
+    """
+    The state hierarchy holds weak references to SimStateHistory objects in a directed acyclic graph. It is useful
+    for queries about a state's ancestry, notably "what is the best ancestor state for a merge among these states" and
+    "what is the most recent unsatisfiable state while using LAZY_SOLVES"
+    """
     def __init__(self):
 
         # The New Order
@@ -179,7 +184,7 @@ class StateHierarchy(object):
             l.debug("... looking between %d and %d in %d states", good, bad, len(lineage))
             cur = (bad+good)//2
 
-            if cur == good or cur == bad:
+            if cur in (good, bad):
                 if lineage[bad]().reachable():
                     bad += 1
 
@@ -230,7 +235,7 @@ class StateHierarchy(object):
         Find the "most mergeable" set of states from those provided.
 
         :param states: a list of states
-        :returns: a tuple of: (a list of states to merge, those states' common history, a list of states to not merge yet)
+        :returns: a tuple of: (list of states to merge, those states' common history, list of states to not merge yet)
         """
 
         with self.defer_cleanup():
