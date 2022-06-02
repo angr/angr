@@ -77,7 +77,6 @@ class ExplorationTechnique:
 
         :param angr.SimulationManager simgr:    The simulation manager to which you have just been added
         """
-        pass
 
     def step(self, simgr, stash='active', **kwargs):  # pylint:disable=no-self-use
         """
@@ -190,3 +189,4 @@ from ..errors import AngrError, AngrExplorationTechniqueError
 from .memory_watcher import MemoryWatcher
 from .bucketizer import Bucketizer
 from .local_loop_seer import LocalLoopSeer
+from .timeout import Timeout
