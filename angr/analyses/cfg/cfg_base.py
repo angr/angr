@@ -17,6 +17,7 @@ from ...knowledge_plugins.functions.function_manager import FunctionManager
 from ...knowledge_plugins.functions.function import Function
 from ...knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from ...misc.ux import deprecated
+from ...procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from ...utils.constants import DEFAULT_STATEMENT
 from ...procedures.procedure_dict import SIM_PROCEDURES
 from ...errors import SimTranslationError, SimMemoryError, SimIRSBError, SimEngineError, AngrUnsupportedSyscallError, \
@@ -880,7 +881,12 @@ class CFGBase(Analysis):
 
             # determine where it jumps/returns to
             goout_site_successors = goout_site.successors()
-            if not goout_site_successors:
+            # Filter out UnresolvableJumpTarget because those don't mean that we actually know where it jumps to
+            known_successors = list(
+                filter(lambda n: not (isinstance(n, HookNode) and n.sim_procedure == UnresolvableJumpTarget),
+                       goout_site_successors))
+
+            if not known_successors:
                 # not sure where it jumps to. bail out
                 bail_out = True
                 continue

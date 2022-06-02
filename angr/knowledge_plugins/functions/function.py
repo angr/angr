@@ -68,13 +68,13 @@ class Function(Serializable):
         self.normalized = False
 
         # block nodes at whose ends the function returns
-        self._ret_sites = set()
+        self._ret_sites: Set[BlockNode] = set()
         # block nodes at whose ends the function jumps out to another function (jumps outside)
-        self._jumpout_sites = set()
+        self._jumpout_sites: Set[BlockNode] = set()
         # block nodes at whose ends the function calls out to another non-returning function
-        self._callout_sites = set()
+        self._callout_sites: Set[BlockNode] = set()
         # block nodes that ends the function by returning out to another function (returns outside). This is rare.
-        self._retout_sites = set()
+        self._retout_sites: Set[BlockNode] = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
         self._endpoints = defaultdict(set)
