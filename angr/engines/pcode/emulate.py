@@ -10,8 +10,11 @@ from ...utils.constants import DEFAULT_STATEMENT
 from .lifter import IRSB
 from .behavior import OpBehavior
 from ...errors import AngrError
+from ...state_plugins.inspect import BP_BEFORE, BP_AFTER
+
 
 l = logging.getLogger(__name__)
+
 
 class PcodeEmulatorMixin(SimEngineBase):
     """
@@ -67,6 +70,7 @@ class PcodeEmulatorMixin(SimEngineBase):
             # FIXME: Hacking this on here but ideally should use "scratch".
             self._pcode_tmps = {}  # FIXME: Consider alignment requirements
 
+            self.state._inspect('instruction', BP_BEFORE, instruction=self._current_ins.address.offset)
             offset = self.state.scratch.statement_offset
             self.state.scratch.statement_offset = 0
             for op in self._current_ins.ops[offset:]:
@@ -74,6 +78,7 @@ class PcodeEmulatorMixin(SimEngineBase):
                 self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 l.debug("Executing p-code op: %s", self._current_op)
                 self._execute_current_op()
+            self.state._inspect('instruction', BP_AFTER)
 
             self._current_op = None
             self._current_behavior = None
