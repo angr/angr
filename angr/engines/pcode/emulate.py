@@ -318,10 +318,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code return operation.
         """
+        ret_addr = self._get_value(self._current_op.inputs[0])
+
         self.state.scratch.exit_handled = True
         self.successors.add_successor(
             self.state,
-            self.state.regs.ip,
+            ret_addr,
             self.state.scratch.guard,
             "Ijk_Ret",
             exit_stmt_idx=DEFAULT_STATEMENT,
