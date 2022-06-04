@@ -5,6 +5,8 @@ from pypcode import OpCode
 import claripy
 from claripy.ast.bv import BV
 
+from ...errors import AngrError
+
 # pylint:disable=abstract-method
 
 
@@ -40,10 +42,10 @@ class OpBehavior:
         self.is_special = is_special
 
     def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
-        raise NotImplementedError("Not implemented!")
+        raise AngrError("Not implemented!")
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        raise NotImplementedError("Not implemented!")
+        raise AngrError("Not implemented!")
 
     @staticmethod
     def generic_compare(args: Iterable[BV], comparison: Callable[[BV, BV], BV]) -> BV:
