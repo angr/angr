@@ -1,10 +1,11 @@
 import logging
 
-l = logging.getLogger(name=__name__)
-
 import claripy
 
 from .plugin import SimStatePlugin
+
+
+l = logging.getLogger(name=__name__)
 
 
 class SimStateScratch(SimStatePlugin):
@@ -113,6 +114,7 @@ class SimStateScratch(SimStatePlugin):
         self.state._inspect("tmp_read", BP_AFTER, tmp_read_expr=v)
         return v
 
+    # pylint:disable=unused-argument
     def store_tmp(self, tmp, content, reg_deps=None, tmp_deps=None, deps=None, **kwargs):
         """
         Stores a Claripy expression in a VEX temp value.
@@ -162,11 +164,12 @@ class SimStateScratch(SimStatePlugin):
         self.jumpkind = j  # preserve jumpkind - "what is the previous jumpkind" is an important question sometimes
 
 
+
+# pylint:disable=wrong-import-position
 from .sim_action import SimActionObject, SimActionData
 from ..errors import SimValueError, SimMissingTempError
 from .. import sim_options as o
 from .inspect import BP_AFTER, BP_BEFORE
 
-from angr.sim_state import SimState
-
-SimState.register_default("scratch", SimStateScratch)
+from ..sim_state import SimState
+SimState.register_default('scratch', SimStateScratch)

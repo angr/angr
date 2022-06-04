@@ -389,21 +389,20 @@ class PcodeEmulatorMixin(SimEngineBase):
 
         self.state.scratch.exit_handled = True
 
-    # pylint: disable=no-self-use
-    def _execute_callother(self) -> None:
+    def _execute_callother(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("CALLOTHER emulation not currently supported")
 
-    def _execute_multiequal(self) -> None:
+    def _execute_multiequal(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("MULTIEQUAL appearing in unheritaged code?")
 
-    def _execute_indirect(self) -> None:
+    def _execute_indirect(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("INDIRECT appearing in unheritaged code?")
 
-    def _execute_segment_op(self) -> None:
+    def _execute_segment_op(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("SEGMENTOP emulation not currently supported")
 
-    def _execute_cpool_ref(self) -> None:
+    def _execute_cpool_ref(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("Cannot currently emulate cpool operator")
 
-    def _execute_new(self) -> None:
+    def _execute_new(self) -> None:  # pylint:disable=no-self-use
         raise AngrError("Cannot currently emulate new operator")

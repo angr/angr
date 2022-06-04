@@ -1,8 +1,8 @@
-from typing import Union, Type
+from typing import Type
 import logging
 
 import pypcode
-from archinfo.arch import register_arch, Endness, Register, Arch
+from archinfo.arch import Endness, Register, Arch
 from archinfo.tls import TLSArchInfo
 
 
@@ -19,6 +19,7 @@ class ArchPcode(Arch):
     elf_tls = TLSArchInfo(1, 8, [], [0], [], 0, 0)
     pcode_arch = None
 
+    # pylint: disable=unused-argument,no-member
     def __init__(self, *vargs, **kwargs):
         lang = self._lang_id_to_lang(self.pcode_arch)
         ctx = pypcode.Context(lang)
