@@ -39,10 +39,10 @@ class OpBehavior:
         self.is_unary = is_unary
         self.is_special = is_special
 
-    def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
+    def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:  # pylint:disable=no-self-use
         raise AngrError("Not implemented!")
 
-    def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
+    def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:  # pylint:disable=no-self-use
         raise AngrError("Not implemented!")
 
     @staticmethod
