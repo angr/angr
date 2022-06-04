@@ -187,7 +187,7 @@ class SimSuccessors:
                     ret_addr = state.mem[state.regs._sp].long.concrete
                 else:
                     ret_addr = state.solver.eval(state.regs._lr)
-            except (SimSolverModeError, SimUnsatError):
+            except (SimSolverModeError, SimUnsatError, AttributeError, KeyError):
                 # Use the address for UnresolvableCallTarget instead.
                 ret_addr = state.project.simos.unresolvable_call_target
 
@@ -514,7 +514,7 @@ class SimSuccessors:
 
         return [ (ip == addr, addr) for addr in addrs ]
 
-
+# pylint: disable=wrong-import-position
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER
 from ..errors import SimSolverModeError, AngrUnsupportedSyscallError, AngrSyscallError, SimValueError, SimUnsatError
 from ..calling_conventions import SYSCALL_CC
