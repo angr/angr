@@ -1741,7 +1741,7 @@ class SimCCO32(SimCC):
                 if cls == 'DOUBLEP':
                     mapped_classes.append(next(session.fp_iter))
                     mapped_classes.append(next(session.fp_iter))
-                    if isinstance(arg_type, SimStruct) and idx < 4 and can_use_fp:
+                    if isinstance(arg_type, SimStruct) and idx < 2 and can_use_fp:
                         next(session.fp_iter)  # consume next two fp regs since it's double precision
                         next(session.fp_iter)
                 elif cls == 'NO_CLASS':
