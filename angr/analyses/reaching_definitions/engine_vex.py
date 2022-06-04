@@ -1090,12 +1090,15 @@ class SimEngineRDVEX(
                 elif isinstance(arg, SimStructArg):
                     min_stack_offset = None
                     for subargfield, subargloc in arg.locs.items():
-                        if not isinstance(subargloc, SimStackArg):
-                            raise TypeError(f"Unexpected: Field {subargfield} in {arg} is not a stack location.")
-                        if min_stack_offset is None:
-                            min_stack_offset = subargloc.stack_offset
-                        elif min_stack_offset > subargloc.stack_offset:
-                            min_stack_offset = subargloc.stack_offset
+                        if isinstance(subargloc, SimStackArg):
+                            if min_stack_offset is None:
+                                min_stack_offset = subargloc.stack_offset
+                            elif min_stack_offset > subargloc.stack_offset:
+                                min_stack_offset = subargloc.stack_offset
+                        elif isinstance(subargloc, SimRegArg):
+                            atom = Register(subargloc.reg_offset, subargloc.size)
+                            self.state.add_use(atom, code_loc)
+                            self._tag_definitions_of_atom(atom, func_addr_int)
 
                     if min_stack_offset is not None:
                         atom = MemoryLocation(SpOffset(self.arch.bits,
