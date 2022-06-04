@@ -110,7 +110,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         :return:        Register file offset.
         """
         # FIXME: Will need performance optimization
-        # FIXME: Should not get trans object this way. Moreover, should have a faster mapping method than going through trans
+        # FIXME: Should not get trans object this way. There should be a faster mapping method than going through trans
         reg_name = varnode.get_register_name()
         try:
             reg_offset = self.state.project.arch.get_register_offset(reg_name.lower())
