@@ -46,6 +46,9 @@ class SimStateScratch(SimStatePlugin):
         self.dirty_addrs = set()
         self.num_insns = 0
 
+        # pcode IR-relative jumps
+        self.statement_offset = 0
+
         if scratch is not None:
             self.temps = list(scratch.temps)
             self.tyenv = scratch.tyenv
@@ -68,6 +71,8 @@ class SimStateScratch(SimStatePlugin):
             self.sim_procedure = scratch.sim_procedure
             self.bbl_addr_list = scratch.bbl_addr_list
             self.stack_pointer_list = scratch.stack_pointer_list
+
+            self.statement_offset = scratch.statement_offset
 
         # priveleges
         self._priv_stack = [False]

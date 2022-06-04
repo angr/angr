@@ -70,7 +70,9 @@ class PcodeEmulatorMixin(SimEngineBase):
             # FIXME: Hacking this on here but ideally should use "scratch".
             self._pcode_tmps = {}  # FIXME: Consider alignment requirements
 
-            for op in self._current_ins.ops:
+            offset = self.state.scratch.statement_offset
+            self.state.scratch.statement_offset = 0
+            for op in self._current_ins.ops[offset:]:
                 self._current_op = op
                 self._current_behavior = irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 l.debug("Executing p-code op: %s", self._current_op)
@@ -249,10 +251,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         dest_addr = self._current_op.inputs[0].get_addr()
         if dest_addr.is_constant:
-            raise NotImplementedError("p-code relative branch not supported yet")
+            expr = self.state.scratch.ins_addr
+            self.state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+        else:
+            expr = dest_addr.offset
 
         self.state.scratch.exit_handled = True
-        expr = dest_addr.offset
         self.successors.add_successor(
             self.state,
             expr,
@@ -266,15 +270,20 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         Execute a p-code conditional branch operation.
         """
+        exit_state = self.state.copy()
         cond = self._get_value(self._current_op.inputs[1])
         dest_addr = self._current_op.inputs[0].get_addr()
-        if dest_addr.is_constant:
-            raise NotImplementedError("p-code relative branch not supported yet")
 
-        exit_state = self.state.copy()
+        if dest_addr.is_constant:
+            expr = exit_state.scratch.ins_addr
+            exit_state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
+        else:
+            expr = dest_addr.offset
+
+
         self.successors.add_successor(
             exit_state,
-            dest_addr.offset,
+            expr,
             cond != 0,
             "Ijk_Boring",
             exit_stmt_idx=DEFAULT_STATEMENT,
