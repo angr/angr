@@ -157,7 +157,9 @@ class PcodeEmulatorMixin(SimEngineBase):
 
         l.debug("Storing %s %x %s %d", space_name, varnode.offset, value, varnode.size)
         if space_name == "register":
-            self.state.registers.store(self._map_register_name(varnode), value, size=varnode.size)
+            self.state.registers.store(
+                self._map_register_name(varnode), value, size=varnode.size, endness=self.project.arch.register_endness
+            )
 
         elif space_name == "unique":
             self._pcode_tmps[varnode.offset] = value
@@ -185,7 +187,11 @@ class PcodeEmulatorMixin(SimEngineBase):
         if space_name == "const":
             return claripy.BVV(varnode.offset, size * 8)
         elif space_name == "register":
-            return self.state.registers.load(self._map_register_name(varnode), size=size)
+            return self.state.registers.load(
+                self._map_register_name(varnode),
+                size=size,
+                endness=self.project.arch.register_endness
+            )
         elif space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
@@ -227,10 +233,14 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute a p-code load operation.
         """
         spc = self._current_op.inputs[0].get_space_from_const()
-        assert spc.name in ("ram", "mem")
         off = self._get_value(self._current_op.inputs[1])
         out = self._current_op.output
-        res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
+        if spc.name in ("ram", "mem"):
+            res = self.state.memory.load(off, out.size, endness=self.project.arch.memory_endness)
+        elif spc.name in "register":
+            res = self.state.registers.load(off, size=out.size, endness=self.project.arch.register_endness)
+        else:
+            raise NotImplementedError("Load from unhandled address space")
         l.debug("Loaded %s from offset %s", res, off)
         self._set_value(out, res)
 
@@ -239,11 +249,15 @@ class PcodeEmulatorMixin(SimEngineBase):
         Execute a p-code store operation.
         """
         spc = self._current_op.inputs[0].get_space_from_const()
-        assert spc.name in ("ram", "mem")
         off = self._get_value(self._current_op.inputs[1])
         data = self._get_value(self._current_op.inputs[2])
         l.debug("Storing %s at offset %s", data, off)
-        self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
+        if spc.name in ("ram", "mem"):
+            self.state.memory.store(off, data, endness=self.project.arch.memory_endness)
+        elif spc.name == "register":
+            self.state.registers.store(off, data, endness=self.project.arch.register_endness)
+        else:
+            raise NotImplementedError("Store to unhandled address space")
 
     def _execute_branch(self) -> None:
         """
