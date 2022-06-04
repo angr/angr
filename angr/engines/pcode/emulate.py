@@ -352,7 +352,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         self.state.scratch.exit_handled = True
         expr = self._current_op.inputs[0].get_addr().offset
         self.successors.add_successor(
-            self.state,
+            self.state.copy(),
             expr,
             self.state.scratch.guard,
             "Ijk_Call",
