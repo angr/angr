@@ -179,7 +179,7 @@ class PcodeEmulatorMixin(SimEngineBase):
             self.state.memory.store(varnode.offset, value, endness=self.project.arch.memory_endness)
 
         else:
-            raise NotImplementedError()
+            raise AngrError(f"Attempted write to unhandled address space '{space_name}'")
 
     def _get_value(self, varnode: Varnode) -> BV:
         """
@@ -196,12 +196,14 @@ class PcodeEmulatorMixin(SimEngineBase):
         l.debug("Loading %s - %x x %d", space_name, varnode.offset, size)
         if space_name == "const":
             return claripy.BVV(varnode.offset, size*8)
+
         elif space_name == "register":
             return self.state.registers.load(
                 self._map_register_name(varnode),
                 size=size,
                 endness=self.project.arch.register_endness
             )
+
         elif space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
@@ -212,12 +214,14 @@ class PcodeEmulatorMixin(SimEngineBase):
                 l.warning('Uninitialized read from unique space offset %x', varnode.offset)
                 self._pcode_tmps[varnode.offset] = claripy.BVV(0, size*8)
             return self._pcode_tmps[varnode.offset]
+
         elif space_name in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
             l.debug("Loaded %s from offset %s", val, varnode.offset)
             return val
+
         else:
-            raise NotImplementedError()
+            raise AngrError(f"Attempted read from unhandled address space '{space_name}'")
 
     def _execute_unary(self) -> None:
         """
@@ -257,7 +261,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         elif spc.name in "register":
             res = self.state.registers.load(off, size=out.size, endness=self.project.arch.register_endness)
         else:
-            raise NotImplementedError("Load from unhandled address space")
+            raise AngrError("Load from unhandled address space")
         l.debug("Loaded %s from offset %s", res, off)
         self._set_value(out, res)
 
@@ -274,7 +278,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         elif spc.name == "register":
             self.state.registers.store(off, data, endness=self.project.arch.register_endness)
         else:
-            raise NotImplementedError("Store to unhandled address space")
+            raise AngrError("Store to unhandled address space")
 
     def _execute_branch(self) -> None:
         """
@@ -394,16 +398,16 @@ class PcodeEmulatorMixin(SimEngineBase):
         raise AngrError("CALLOTHER emulation not currently supported")
 
     def _execute_multiequal(self) -> None:
-        raise NotImplementedError("MULTIEQUAL appearing in unheritaged code?")
+        raise AngrError("MULTIEQUAL appearing in unheritaged code?")
 
     def _execute_indirect(self) -> None:
-        raise NotImplementedError("INDIRECT appearing in unheritaged code?")
+        raise AngrError("INDIRECT appearing in unheritaged code?")
 
     def _execute_segment_op(self) -> None:
-        raise NotImplementedError("SEGMENTOP emulation not currently supported")
+        raise AngrError("SEGMENTOP emulation not currently supported")
 
     def _execute_cpool_ref(self) -> None:
-        raise NotImplementedError("Cannot currently emulate cpool operator")
+        raise AngrError("Cannot currently emulate cpool operator")
 
     def _execute_new(self) -> None:
-        raise NotImplementedError("Cannot currently emulate new operator")
+        raise AngrError("Cannot currently emulate new operator")
