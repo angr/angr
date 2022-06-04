@@ -9,6 +9,7 @@ from ..engine import SimEngineBase
 from ...utils.constants import DEFAULT_STATEMENT
 from .lifter import IRSB
 from .behavior import OpBehavior
+from ...errors import AngrError
 
 l = logging.getLogger(__name__)
 
@@ -355,8 +356,9 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_ins_addr=self.state.scratch.ins_addr,
         )
 
+    # pylint: disable=no-self-use
     def _execute_callother(self) -> None:
-        raise NotImplementedError("CALLOTHER emulation not currently supported")
+        raise AngrError("CALLOTHER emulation not currently supported")
 
     def _execute_multiequal(self) -> None:
         raise NotImplementedError("MULTIEQUAL appearing in unheritaged code?")
