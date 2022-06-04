@@ -1120,7 +1120,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
         if insn_bytes is not None:
             buff, size = insn_bytes, len(insn_bytes)
         else:
-            buff, size = self._load_bytes(addr, size, state, clemory)
+            buff, size, _ = self._load_bytes(addr, size, state, clemory)
 
         if not buff or size == 0:
             raise SimEngineError("No bytes in memory for block starting at %#x." % addr)
@@ -1173,11 +1173,11 @@ class PcodeLifterEngineMixin(SimEngineBase):
 
     def _load_bytes(
         self, addr: int, max_size: int, state: Optional[SimState] = None, clemory: Optional[cle.Clemory] = None
-    ) -> Tuple[bytes, int]:
+    ) -> Tuple[bytes, int, int]:
         if clemory is None and state is None:
             raise SimEngineError("state and clemory cannot both be None in _load_bytes().")
 
-        buff, size = b"", 0
+        buff, size, offset = b"", 0, 0
 
         # Load from the clemory if we can
         smc = self.selfmodifying_code
@@ -1199,19 +1199,12 @@ class PcodeLifterEngineMixin(SimEngineBase):
                     if start <= addr:
                         offset = addr - start
                         if isinstance(backer, (bytes, bytearray)):
-                            # buff = pyvex.ffi.from_buffer(backer) + offset
                             buff = backer[offset:]
                             size = len(backer) - offset
                         elif isinstance(backer, list):
                             raise SimTranslationError(
                                 "Cannot lift block for arch with strange byte width. If you think you ought to be able to, open an issue."
                             )
-                            # buff_lst = backer[offset:offset+max_size]
-                            # if self.project is None:
-                            #    raise ValueError("You must set self.project if a list of integers are used as backers.")
-                            # byte_width = self.project.arch.byte_width
-                            # buff = claripy.Concat(*map(lambda v: claripy.BVV(v, byte_width), buff_lst))
-                            # size = len(buff_lst)
                         else:
                             raise TypeError("Unsupported backer type %s." % type(backer))
             elif state:
@@ -1246,7 +1239,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
                 size = len(buff)
 
         size = min(max_size, size)
-        return buff, size
+        return buff, size, offset
 
     def _first_stoppoint(self, irsb: IRSB, extra_stop_points: Optional[Sequence[int]] = None) -> Optional[int]:
         """
