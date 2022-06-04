@@ -282,7 +282,6 @@ class PcodeEmulatorMixin(SimEngineBase):
         else:
             expr = dest_addr.offset
 
-        self.state.scratch.exit_handled = True
         self.successors.add_successor(
             self.state,
             expr,
@@ -291,6 +290,8 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_stmt_idx=DEFAULT_STATEMENT,
             exit_ins_addr=self.state.scratch.ins_addr,
         )
+
+        self.state.scratch.exit_handled = True
 
     def _execute_cbranch(self) -> None:
         """
@@ -305,7 +306,6 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_state.scratch.statement_offset = dest_addr.offset + self._current_op.seq.uniq
         else:
             expr = dest_addr.offset
-
 
         self.successors.add_successor(
             exit_state,
@@ -327,7 +327,6 @@ class PcodeEmulatorMixin(SimEngineBase):
         """
         ret_addr = self._get_value(self._current_op.inputs[0])
 
-        self.state.scratch.exit_handled = True
         self.successors.add_successor(
             self.state,
             ret_addr,
@@ -337,12 +336,14 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_ins_addr=self.state.scratch.ins_addr,
         )
 
+        self.state.scratch.exit_handled = True
+
     def _execute_branchind(self) -> None:
         """
         Execute a p-code indirect branch operation.
         """
-        self.state.scratch.exit_handled = True
         expr = self._get_value(self._current_op.inputs[0])
+
         self.successors.add_successor(
             self.state,
             expr,
@@ -352,12 +353,14 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_ins_addr=self.state.scratch.ins_addr,
         )
 
+        self.state.scratch.exit_handled = True
+
     def _execute_call(self) -> None:
         """
         Execute a p-code call operation.
         """
-        self.state.scratch.exit_handled = True
         expr = self._current_op.inputs[0].get_addr().offset
+
         self.successors.add_successor(
             self.state.copy(),
             expr,
@@ -367,12 +370,14 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_ins_addr=self.state.scratch.ins_addr,
         )
 
+        self.state.scratch.exit_handled = True
+
     def _execute_callind(self) -> None:
         """
         Execute a p-code indirect call operation.
         """
-        self.state.scratch.exit_handled = True
         expr = self._get_value(self._current_op.inputs[0])
+
         self.successors.add_successor(
             self.state,
             expr,
@@ -381,6 +386,8 @@ class PcodeEmulatorMixin(SimEngineBase):
             exit_stmt_idx=DEFAULT_STATEMENT,
             exit_ins_addr=self.state.scratch.ins_addr,
         )
+
+        self.state.scratch.exit_handled = True
 
     # pylint: disable=no-self-use
     def _execute_callother(self) -> None:
