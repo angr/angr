@@ -362,7 +362,7 @@ class PcodeEmulatorMixin(SimEngineBase):
         expr = self._current_op.inputs[0].get_addr().offset
 
         self.successors.add_successor(
-            self.state.copy(),
+            self.state.copy(),  # FIXME: Check extra processing after call
             expr,
             self.state.scratch.guard,
             "Ijk_Call",
