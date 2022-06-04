@@ -2,6 +2,7 @@ import logging
 
 from .paged_memory_mixin import PagedMemoryMixin
 from ....errors import SimSegfaultException, SimMemoryError
+from ....sim_options import STRICT_PAGE_ACCESS
 
 l = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class StackAllocationMixin(PagedMemoryMixin):
         return result
 
     def _initialize_page(self, pageno: int, **kwargs):
-        if pageno != self._red_pageno:
+        if pageno != self._red_pageno or STRICT_PAGE_ACCESS not in self.state.options:
             return super()._initialize_page(pageno, **kwargs)
 
         return self.allocate_stack_pages((pageno + 1) * self.page_size - 1, self.page_size)[0]
