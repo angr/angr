@@ -200,7 +200,12 @@ class PcodeEmulatorMixin(SimEngineBase):
         elif space_name == "unique":
             # FIXME: Support loading data of different sizes. For now, assume
             # size of values read are same as size written.
-            assert self._pcode_tmps[varnode.offset].size() == size*8
+            try:
+                assert self._pcode_tmps[varnode.offset].size() == size*8
+            except KeyError:
+                # FIXME: Add unique space to state tracking?
+                l.warning('Uninitialized read from unique space offset %x', varnode.offset)
+                self._pcode_tmps[varnode.offset] = claripy.BVV(0, size*8)
             return self._pcode_tmps[varnode.offset]
         elif space_name in ("ram", "mem"):
             val = self.state.memory.load(varnode.offset, endness=self.project.arch.memory_endness, size=size)
