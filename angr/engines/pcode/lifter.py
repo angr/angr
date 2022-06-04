@@ -1255,7 +1255,7 @@ class PcodeLifterEngineMixin(SimEngineBase):
                 if self.__is_stop_point(addr, extra_stop_points):
                     # could this part be moved by pyvex?
                     return addr
-                first_imark = False
+            first_imark = False
         return None
 
     def __is_stop_point(self, addr: int, extra_stop_points: Optional[Sequence[int]] = None) -> bool:
