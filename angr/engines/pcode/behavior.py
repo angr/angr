@@ -241,6 +241,9 @@ class OpBehaviorInt2Comp(OpBehavior):
     def __init__(self):
         super().__init__(OpCode.INT_2COMP, True)
 
+    def evaluate_unary(self, size_out: int, size_in: int, in1: BV) -> BV:
+        return -in1
+
     # uintb OpBehaviorInt2Comp::evaluateUnary(int4 size_out,int4 size_in,uintb in1) const
     #
     # {
@@ -337,7 +340,7 @@ class OpBehaviorIntMult(OpBehavior):
         super().__init__(OpCode.INT_MULT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        return in1 * in2
+        return in1.zero_extend(size_out-size_in) * in2.zero_extend(size_out-size_in)
 
 
 class OpBehaviorIntDiv(OpBehavior):
@@ -357,6 +360,9 @@ class OpBehaviorIntSdiv(OpBehavior):
     """
     def __init__(self):
         super().__init__(OpCode.INT_SDIV, False)
+
+    def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
+        return in1 / in2
 
     # uintb OpBehaviorIntSdiv::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
@@ -390,6 +396,9 @@ class OpBehaviorIntSrem(OpBehavior):
     """
     def __init__(self):
         super().__init__(OpCode.INT_SREM, False)
+
+    def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
+        return in1 % in2
 
     # uintb OpBehaviorIntSrem::evaluateBinary(int4 size_out,int4 size_in,uintb in1,uintb in2) const
     #
