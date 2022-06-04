@@ -1,9 +1,12 @@
+import logging
+
 import claripy
 
 from archinfo.arch_soot import ArchSoot
 
-import logging
+
 l = logging.getLogger(name=__name__)
+
 
 class SimSuccessors:
     """
@@ -513,6 +516,7 @@ class SimSuccessors:
         addrs = state.solver.eval_upto(ip, limit)
 
         return [ (ip == addr, addr) for addr in addrs ]
+
 
 # pylint: disable=wrong-import-position
 from ..state_plugins.inspect import BP_BEFORE, BP_AFTER

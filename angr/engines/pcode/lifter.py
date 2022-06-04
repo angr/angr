@@ -5,7 +5,6 @@
 #     - Fix default_exit_target
 #     - Fix/remove NotImplementedError's
 
-from collections import defaultdict
 import logging
 from typing import Union, Optional, Iterable, Sequence, Tuple
 
@@ -16,7 +15,7 @@ import cle
 from cachetools import LRUCache
 # FIXME: Reusing these errors from pyvex for compatibility. Eventually these
 # should be refactored to use common error classes.
-from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException, NeedStatementsNotification
+from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 
 from .arch import ArchPcode
 from .behavior import BehaviorFactory
@@ -35,9 +34,12 @@ IRSB_MAX_INST = 99
 MAX_INSTRUCTIONS = 99999
 MAX_BYTES = 5000
 
-# This class exists to ease compatibility with CFGFast's processing of
-# exit_statements. See _scan_irsb method.
+
 class ExitStatement:
+    """
+    This class exists to ease compatibility with CFGFast's processing of
+    exit_statements. See _scan_irsb method.
+    """
     __slots__ = (
         "dst",
         "jumpkind"
@@ -161,8 +163,10 @@ class IRSB:
         :param arch:                The architecture to lift the data as.
         :param max_inst:            The maximum number of instructions to lift. (See note below)
         :param max_bytes:           The maximum number of bytes to use.
-        :param num_inst:            Replaces max_inst if max_inst is None. If set to None as well, no instruction limit is used.
-        :param num_bytes:           Replaces max_bytes if max_bytes is None. If set to None as well, no  byte limit is used.
+        :param num_inst:            Replaces max_inst if max_inst is None. If set to None as well, no instruction limit
+                                    is used.
+        :param num_bytes:           Replaces max_bytes if max_bytes is None. If set to None as well, no  byte limit is
+                                    used.
         :param bytes_offset:        The offset into `data` to start lifting at. Note that for ARM THUMB mode, both
                                     `mem_addr` and `bytes_offset` must be odd (typically `bytes_offset` is set to 1).
         :param traceflags:          Unused by P-Code lifter
@@ -319,7 +323,7 @@ class IRSB:
         """
         The size of this block, in bytes
         """
-        return sum([ins.length for ins in self._instructions])
+        return sum(ins.length for ins in self._instructions)
 
     @property
     def operations(self):
@@ -331,7 +335,8 @@ class IRSB:
     @property
     def all_constants(self):
         """
-        Returns all constants in the block (including incrementing of the program counter) as :class:`pyvex.const.IRConst`.
+        Returns all constants in the block (including incrementing of the program counter) as
+        :class:`pyvex.const.IRConst`.
         """
         raise NotImplementedError()
 
@@ -386,15 +391,9 @@ class IRSB:
         """
         Checks if the default of this IRSB a direct jump or not.
         """
-        if not (
-            self.jumpkind == "Ijk_InvalICache"
-            or self.jumpkind == "Ijk_Boring"
-            or self.jumpkind == "Ijk_Call"
-        ):
+        if self.jumpkind not in ("Ijk_InvalICache", "Ijk_Boring", "Ijk_Call"):
             return False
-
-        target = self.default_exit_target
-        return target is not None
+        return self.default_exit_target is not None
 
     def _set_attributes(
         self,
@@ -532,7 +531,8 @@ class Lifter:
         :param data:                The bytes to lift as either a python string of bytes or a cffi buffer object.
         :param bytes_offset:        The offset into `data` to start lifting at.
         :param max_bytes:           The maximum number of bytes to lift. If set to None, no byte limit is used.
-        :param max_inst:            The maximum number of instructions to lift. If set to None, no instruction limit is used.
+        :param max_inst:            The maximum number of instructions to lift. If set to None, no instruction limit is
+                                    used.
         :param opt_level:           Unused by P-Code lifter
         :param traceflags:          Unused by P-Code lifter
         :param allow_arch_optimizations: Unused by P-Code lifter
@@ -568,6 +568,7 @@ class Lifter:
         """
         raise NotImplementedError()
 
+# pylint:disable=unused-argument
 def lift(
     data: Union[str, bytes, None],
     addr: int,
@@ -757,6 +758,9 @@ def lift(
 
 
 class PcodeBasicBlockLifter:
+    """
+    Lifts basic blocks to P-code
+    """
 
     context: pypcode.Context
     behaviors: BehaviorFactory
@@ -810,9 +814,9 @@ class PcodeBasicBlockLifter:
             for op in insn.ops:
                 if (op.opcode in [pypcode.OpCode.BRANCH, pypcode.OpCode.CBRANCH]
                     and op.inputs[0].get_addr().is_constant):
-                        l.warning('Block contains relative p-code jump at '
-                                  'instruction %#x:%d, which is not emulated '
-                                  'yet.', op.seq.pc.offset, op.seq.uniq)
+                    l.warning('Block contains relative p-code jump at '
+                             'instruction %#x:%d, which is not emulated '
+                             'yet.', op.seq.pc.offset, op.seq.uniq)
                 if op.opcode == pypcode.OpCode.CBRANCH:
                     irsb._exit_statements.append((
                         op.seq.pc.offset, op.seq.uniq,
