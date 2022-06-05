@@ -254,6 +254,9 @@ class SimProcedure:
         state._inspect(
             'simprocedure',
             BP_AFTER,
+            simprocedure_name=inst.display_name,
+            simprocedure_addr=self.addr,
+            simprocedure=inst,
             simprocedure_result=r
         )
         r = state._inspect_getattr('simprocedure_result', r)
