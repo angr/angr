@@ -1532,12 +1532,134 @@ class SimCCAMD64WindowsSyscall(SimCCSyscall):
 
 class SimCCARM(SimCC):
     ARG_REGS = [ 'r0', 'r1', 'r2', 'r3' ]
-    FP_ARG_REGS = []    # TODO: ???
+    FP_ARG_REGS = []    # regular arg regs are used as fp arg regs
     CALLER_SAVED_REGS = []
     RETURN_ADDR = SimRegArg('lr', 4)
-    RETURN_VAL = SimRegArg('r0', 4)
+    RETURN_VAL = SimRegArg('r0', 4) #TODO Return val can also include reg r1
     ARCH = archinfo.ArchARM
 
+    # https://github.com/ARM-software/abi-aa/blob/60a8eb8c55e999d74dac5e368fc9d7e36e38dda4/aapcs32/aapcs32.rst#parameter-passing
+    def next_arg(self, session, arg_type):
+        if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
+            arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
+        state = session.getstate()
+        classification = self._classify(arg_type)
+        try:
+            mapped_classes = []
+            for idx, cls in enumerate(classification):
+                if cls == 'DOUBLEP':
+                    if session.getstate()[1] % 2 == 1: #doubles must start on an even register
+                        next(session.int_iter)
+
+                    if session.getstate()[1] == len(self.ARG_REGS) - 2:
+                        mapped_classes.append(next(session.int_iter))
+                        mapped_classes.append(next(session.both_iter))
+                    else:
+                        try:
+                            mapped_classes.append(next(session.int_iter))
+                            mapped_classes.append(next(session.int_iter))
+                        except StopIteration:
+                            mapped_classes.append(next(session.both_iter))
+                            mapped_classes.append(next(session.both_iter))
+                elif cls == 'NO_CLASS':
+                    raise NotImplementedError("Bug. Report to @rhelmot")
+                elif cls == 'MEMORY':
+                    mapped_classes.append(next(session.both_iter))
+                elif cls == 'INTEGER':
+                    try:
+                        mapped_classes.append(next(session.int_iter))
+                    except StopIteration:
+                        mapped_classes.append(next(session.both_iter))
+                elif cls == 'SINGLEP':
+                    try:
+                        mapped_classes.append(next(session.int_iter))
+                    except StopIteration:
+                        mapped_classes.append(next(session.both_iter))
+                else:
+                    raise NotImplementedError("Bug. Report to @rhelmot")
+        except StopIteration:
+            session.setstate(state)
+            mapped_classes = [next(session.both_iter) for _ in classification]
+
+        return refine_locs_with_struct_type(self.arch, mapped_classes, arg_type)
+
+    def _classify(self, ty, chunksize=None):
+        if chunksize is None:
+            chunksize = self.arch.bytes
+        # treat BOT as INTEGER
+        if isinstance(ty, SimTypeBottom):
+            nchunks = 1
+        else:
+            nchunks = (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
+            return ['INTEGER'] * nchunks
+        elif isinstance(ty, (SimTypeFloat,)):
+            if ty.size == 64:
+                return ['DOUBLEP']
+            elif ty.size == 32:
+                return ['SINGLEP']
+            return ['NO_CLASS']
+        elif isinstance(ty, (SimStruct, SimTypeFixedSizeArray, SimUnion)):
+            flattened = self._flatten(ty)
+            if flattened is None:
+                return ['MEMORY'] * nchunks
+            result = ['NO_CLASS'] * nchunks
+            for offset, subty_list in flattened.items():
+                for subty in subty_list:
+                    # is the smaller chunk size necessary? Genuinely unsure
+                    subresult = self._classify(subty, chunksize=1)
+                    idx_start = offset // chunksize
+                    idx_end = (offset + (subty.size // self.arch.byte_width) - 1) // chunksize
+                    for i, idx in enumerate(range(idx_start, idx_end + 1)):
+                        subclass = subresult[i * chunksize]
+                        result[idx] = self._combine_classes(result[idx], subclass)
+            return result
+        else:
+            raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+
+    def _combine_classes(self, cls1, cls2):
+        if cls1 == cls2:
+            return cls1
+        if cls1 == 'NO_CLASS':
+            return cls2
+        if cls2 == 'NO_CLASS':
+            return cls1
+        if cls1 == 'MEMORY' or cls2 == 'MEMORY':
+            return 'MEMORY'
+        if cls1 == 'INTEGER' or cls2 == 'INTEGER':
+            return 'INTEGER'
+        return 'SSE'
+
+    def _flatten(self, ty) -> Optional[Dict[int, List[SimType]]]:
+        result: Dict[int, List[SimType]] = defaultdict(list)
+        if isinstance(ty, SimStruct):
+            if ty.packed:
+                return None
+            for field, subty in ty.fields.items():
+                offset = ty.offsets[field]
+                subresult = self._flatten(subty)
+                if subresult is None:
+                    return None
+                for suboffset, subsubty_list in subresult.items():
+                    result[offset + suboffset] += subsubty_list
+        elif isinstance(ty, SimTypeFixedSizeArray):
+            subresult = self._flatten(ty.elem_type)
+            if subresult is None:
+                return None
+            for suboffset, subsubty_list in subresult.items():
+                for idx in range(ty.length):
+                    # TODO I think we need an explicit stride field on array types
+                    result[idx * ty.elem_type.size // self.arch.byte_width + suboffset] += subsubty_list
+        elif isinstance(ty, SimUnion):
+            for field, subty in ty.members.items():
+                subresult = self._flatten(subty)
+                if subresult is None:
+                    return None
+                for suboffset, subsubty_list in subresult.items():
+                    result[suboffset] += subsubty_list
+        else:
+            result[0].append(ty)
+        return result
 
 class SimCCARMLinuxSyscall(SimCCSyscall):
     # TODO: Make sure all the information is correct
