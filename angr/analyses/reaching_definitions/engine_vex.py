@@ -1024,7 +1024,9 @@ class SimEngineRDVEX(
         executed_rda = False
         if symbol is not None:
             codeloc = CodeLocation(func_addr_int, 0, None, func_addr_int, context=self._context)
-            executed_rda, state = self._function_handler.handle_external_function_symbol(self.state, symbol=symbol, src_codeloc=codeloc)
+            executed_rda, state = self._function_handler.handle_external_function_symbol(self.state,
+                                                                                         symbol=symbol,
+                                                                                         src_codeloc=codeloc)
             self.state = state
 
         elif is_internal is True:
@@ -1089,7 +1091,7 @@ class SimEngineRDVEX(
                     self._tag_definitions_of_atom(atom, func_addr_int)
                 elif isinstance(arg, SimStructArg):
                     min_stack_offset = None
-                    for subargfield, subargloc in arg.locs.items():
+                    for _, subargloc in arg.locs.items():
                         if isinstance(subargloc, SimStackArg):
                             if min_stack_offset is None:
                                 min_stack_offset = subargloc.stack_offset
