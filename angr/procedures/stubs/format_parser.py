@@ -223,7 +223,7 @@ class FormatString:
             region = self.parser.state.memory
 
         bits = self.parser.state.arch.bits
-        failed = self.parser.state.solver.BVV(0, 32)
+        failed = self.parser.state.solver.BVV(0, self.parser.state.arch.bits)
         position = addr
         for component in self.components:
             if isinstance(component, bytes):
