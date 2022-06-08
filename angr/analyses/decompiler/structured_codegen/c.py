@@ -19,7 +19,8 @@ from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBrea
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
-    import ailment
+    from ailment import Expression
+
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions import Function
 
