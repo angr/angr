@@ -156,10 +156,10 @@ class SuccessorsMixin(SimEngine):
         self.successors = new_state._inspect_getattr('sim_successors', self.successors)
         try:
             self.process_successors(self.successors, **kwargs)
-        except SimException:
+        except SimException as e:
             if o.EXCEPTION_HANDLING not in old_state.options:
                 raise
-            old_state.project.simos.handle_exception(self, *sys.exc_info())
+            old_state.project.simos.handle_exception(self.successors, self, e)
 
         new_state._inspect('engine_process', when=BP_AFTER, sim_successors=self.successors, address=addr)
         self.successors = new_state._inspect_getattr('sim_successors', self.successors)
