@@ -19,6 +19,7 @@ from ..structurer import (SequenceNode, CodeNode, ConditionNode, ConditionalBrea
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
 
 if TYPE_CHECKING:
+    import ailment
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
     from angr.knowledge_plugins.functions import Function
 
@@ -1852,7 +1853,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._variables_in_use: Optional[Dict] = None
         self._inlined_strings: Set[SimMemoryVariable] = set()
         self.ailexpr2cnode: Optional[Dict[Tuple[Expr.Expression, bool], CExpression]] = None
-        self.cnode2ailexpr: Optional[Dict[CExpression,Expr.Expression]] = None
+        self.cnode2ailexpr: Optional[Dict[CExpression, Expr.Expression]] = None
         self._indent = indent
         self.show_casts = show_casts
         self.comment_gotos = comment_gotos

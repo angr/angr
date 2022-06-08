@@ -2,9 +2,17 @@ from typing import Optional, Any, TYPE_CHECKING
 from .ailblock_walker import AILBlockWalkerBase
 
 if TYPE_CHECKING:
-    from ailment.expression import Expression, BinaryOp, Load, Call, UnaryOp, Convert, ITE, DirtyExpression, \
-        VEXCCallExpression
-    from ailment.statement import Statement
+    from ailment.expression import (
+        Expression,
+        BinaryOp,
+        Load,
+        UnaryOp,
+        Convert,
+        ITE,
+        DirtyExpression,
+        VEXCCallExpression,
+    )
+    from ailment.statement import Call, Statement
     from ailment.block import Block
 
 
