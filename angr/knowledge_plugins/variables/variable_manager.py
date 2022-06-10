@@ -252,8 +252,14 @@ class VariableManagerInternal(Serializable):
             model._variables_to_unified_variables[variable] = unified
 
         for phi2var in cmsg.phi2var:
-            phi = variable_by_ident[phi2var.phi_ident]
-            var = variable_by_ident[phi2var.var_ident]
+            phi = variable_by_ident.get(phi2var.phi_ident, None)
+            if phi is None:
+                l.warning("Phi variable %s is not found in variable_by_ident.", phi2var.phi_ident)
+                continue
+            var = variable_by_ident.get(phi2var.var_ident, None)
+            if var is None:
+                l.warning("Variable %s is not found in variable_by_ident.", phi2var.var_ident)
+                continue
             model._phi_variables[phi].add(var)
 
         # TODO: Types
