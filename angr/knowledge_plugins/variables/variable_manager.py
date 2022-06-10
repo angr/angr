@@ -184,7 +184,8 @@ class VariableManagerInternal(Serializable):
         for phi, vars_ in self._phi_variables.items():
             for var in vars_:
                 if var not in self._variables and var not in self._phi_variables:
-                    l.error("Saving a variable which is not in the registered list. The database is likely corrupted.")
+                    l.error("Ignore variable %s because it is not in the registered list.", var.ident)
+                    continue
                 relation = variables_pb2.Phi2Var()
                 relation.phi_ident = phi.ident
                 relation.var_ident = var.ident
@@ -252,8 +253,14 @@ class VariableManagerInternal(Serializable):
             model._variables_to_unified_variables[variable] = unified
 
         for phi2var in cmsg.phi2var:
-            phi = variable_by_ident[phi2var.phi_ident]
-            var = variable_by_ident[phi2var.var_ident]
+            phi = variable_by_ident.get(phi2var.phi_ident, None)
+            if phi is None:
+                l.warning("Phi variable %s is not found in variable_by_ident.", phi2var.phi_ident)
+                continue
+            var = variable_by_ident.get(phi2var.var_ident, None)
+            if var is None:
+                l.warning("Variable %s is not found in variable_by_ident.", phi2var.var_ident)
+                continue
             model._phi_variables[phi].add(var)
 
         # TODO: Types
