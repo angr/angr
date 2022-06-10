@@ -267,23 +267,21 @@ class SimInspector(SimStatePlugin):
 
     def action(self, event_type, when, **kwargs):
         """
-        Called from within SimuVEX when events happens. This function checks all breakpoints registered for that event
-        and fires the ones whose conditions match.
+        Called from within the engine when events happens. This function checks all breakpoints registered for that
+        event and fires the ones whose conditions match.
         """
-        # l.debug("Event %s (%s) firing...", event_type, when)
-        self.action_attrs_set = False
+
+        self._set_inspect_attrs(**kwargs)
+        self.action_attrs_set = True
 
         for bp in self._breakpoints[event_type]:
-            # l.debug("... checking bp %r", bp)
             if not self.action_attrs_set:
-                # setup attributes upon the first use
                 self._set_inspect_attrs(**kwargs)
                 self.action_attrs_set = True
             if bp.check(self.state, when):
-                # l.debug("... FIRE")
-                saved_set = self.action_attrs_set
                 bp.fire(self.state)
-                self.action_attrs_set = saved_set  # restore attrs-set status in case bp triggers more bps
+
+        self.action_attrs_set = False
 
     def make_breakpoint(self, event_type, *args, **kwargs):
         """

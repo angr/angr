@@ -45,8 +45,22 @@ class InspectMixinHigh(MemoryMixin):
             inspect=inspect,
             **kwargs)
 
-        if self.category == 'reg': self.state._inspect('reg_write', BP_AFTER)
-        elif self.category == 'mem': self.state._inspect('mem_write', BP_AFTER)
+        if self.category == 'reg':
+            self.state._inspect('reg_write', BP_AFTER,
+                reg_write_offset=addr,
+                reg_write_length=size,
+                reg_write_expr=data,
+                reg_write_condition=condition,
+                reg_write_endness=endness,
+            )
+        elif self.category == 'mem':
+            self.state._inspect('mem_write', BP_AFTER,
+                mem_write_address=addr,
+                mem_write_length=size,
+                mem_write_expr=data,
+                mem_write_condition=condition,
+                mem_write_endness=endness,
+            )
 
     def load(self, addr, size=None, condition=None, endness=None, inspect=True, **kwargs):
         if not inspect or not self.state.supports_inspect:
@@ -86,11 +100,19 @@ class InspectMixinHigh(MemoryMixin):
             **kwargs)
 
         if self.category == 'mem':
-            self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r)
+            self.state._inspect('mem_read', BP_AFTER, mem_read_expr=r,
+                mem_read_address = addr,
+                mem_read_length = size,
+                mem_read_condition = condition,
+                mem_read_endness = endness)
             r = self.state._inspect_getattr("mem_read_expr", r)
 
         elif self.category == 'reg':
-            self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r)
+            self.state._inspect('reg_read', BP_AFTER, reg_read_expr=r,
+                reg_read_offset = addr,
+                reg_read_length = size,
+                reg_read_condition = condition,
+                reg_read_endness = endness)
             r = self.state._inspect_getattr("reg_read_expr", r)
 
         return r
