@@ -61,16 +61,25 @@ struct taint_entity_t {
 	std::vector<taint_entity_t> mem_ref_entity_list;
 	// Instruction in which the entity is used. Used for taint sinks; ignored for taint sources.
 	address_t instr_addr;
+	// Index of VEX statement that last modified this entity.
+	int64_t stmt_idx;
+	// Index of statement where entity is used. Valid only for memory reads to find info of value read. Ignored in other
+	// cases.
+	int64_t sink_stmt_idx;
 	int64_t value_size;
-	mutable bool used_in_mem_addr;
 
 	taint_entity_t() {
+		reset();
+	}
+
+	void reset() {
 		reg_offset = -1;
 		tmp_id = -1;
 		mem_ref_entity_list.clear();
 		instr_addr = 0;
+		stmt_idx = -1;
+		sink_stmt_idx = -1;
 		value_size = -1;
-		used_in_mem_addr = false;
 	}
 
 	bool operator==(const taint_entity_t &other_entity) const {
@@ -134,6 +143,10 @@ struct memory_value_t {
 		return (memcmp(value, other_mem_value.value, size) == 0);
 	}
 
+	memory_value_t() {
+		reset();
+	}
+
 	void reset() {
 		address = 0;
 		size = 0;
@@ -185,40 +198,45 @@ namespace std {
 	};
 }
 
-struct instr_details_t {
+struct vex_stmt_details_t {
 	address_t instr_addr;
+	int64_t stmt_idx;
 	int64_t mem_write_addr;
 	int64_t mem_write_size;
 	bool has_concrete_memory_dep;
 	bool has_symbolic_memory_dep;
 	bool has_read_from_symbolic_addr;
+	bool has_memory_write;
 	// Mark fields as mutable so that they can be updated after inserting into std::set
 	mutable memory_value_t *memory_values;
 	mutable uint64_t memory_values_count;
-	std::set<instr_details_t> instr_deps;
+	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
+	std::set<vex_stmt_details_t> stmt_deps;
 	std::unordered_set<register_value_t> reg_deps;
 
-	instr_details_t() {
+	vex_stmt_details_t() {
+		stmt_idx = -1;
 		has_concrete_memory_dep = false;
 		has_symbolic_memory_dep = false;
 		has_read_from_symbolic_addr = false;
-		instr_deps.clear();
+		has_memory_write = false;
+		stmt_deps.clear();
 		mem_write_addr = -1;
 		mem_write_size = -1;
 		reg_deps.clear();
 	}
 
-	bool operator==(const instr_details_t &other_instr) const {
-		if ((instr_addr != other_instr.instr_addr) || (has_concrete_memory_dep != other_instr.has_concrete_memory_dep) ||
-			(has_symbolic_memory_dep != other_instr.has_symbolic_memory_dep) || (instr_deps != other_instr.instr_deps) ||
-			(reg_deps != other_instr.reg_deps)) {
+	bool operator==(const vex_stmt_details_t &other_stmt) const {
+		if ((instr_addr != other_stmt.instr_addr) || (stmt_idx != other_stmt.stmt_idx) ||
+			(has_concrete_memory_dep != other_stmt.has_concrete_memory_dep) || (reg_deps != other_stmt.reg_deps) ||
+			(has_symbolic_memory_dep != other_stmt.has_symbolic_memory_dep) || (stmt_deps != other_stmt.stmt_deps)) {
 				return false;
 		}
 		return true;
 	}
 
-	bool operator<(const instr_details_t &other_instr) const {
-		return (instr_addr < other_instr.instr_addr);
+	bool operator<(const vex_stmt_details_t &other_stmt) const {
+		return (instr_addr < other_stmt.instr_addr) || (stmt_idx < other_stmt.stmt_idx);
 	}
 };
 
@@ -227,32 +245,40 @@ struct block_details_t {
 	uint64_t block_size;
 	int64_t block_trace_ind;
 	bool has_symbolic_exit;
-	std::vector<instr_details_t> symbolic_instrs;
+	bool marks_vex_cc_reg_symbolic;
+	std::vector<vex_stmt_details_t> symbolic_stmts;
+	std::vector<vex_stmt_details_t> vex_cc_reg_setter_details;
 	bool vex_lift_failed;
 	// A pointer to VEX lift result is stored only to avoid lifting twice on ARM. All blocks are lifted on ARM to check
 	// if they end in syscall. Remove it after syscalls are correctly setup on ARM in native interface itself.
 	VEXLiftResult *vex_lift_result;
+
+	block_details_t() {
+		reset();
+	}
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
 		block_trace_ind = -1;
 		has_symbolic_exit = false;
-		symbolic_instrs.clear();
+		marks_vex_cc_reg_symbolic = false;
+		symbolic_stmts.clear();
+		vex_cc_reg_setter_details.clear();
 		vex_lift_failed = false;
 		vex_lift_result = NULL;
 	}
 };
 
-// sym_block_details_t and sym_instr_details_t are used to store data, references to which are returned to state plugin
-struct sym_instr_details_t {
-	address_t instr_addr;
+// sym_block_details_t and sym_vex_stmt_details_t are used to store data, references to which are returned to state plugin
+struct sym_vex_stmt_details_t {
+	int64_t stmt_idx;
 	bool has_memory_dep;
 	memory_value_t *memory_values;
 	uint64_t memory_values_count;
 
-	bool operator==(const sym_instr_details_t &other_instr) const {
-		if ((instr_addr != other_instr.instr_addr) || (has_memory_dep != other_instr.has_memory_dep) ||
+	bool operator==(const sym_vex_stmt_details_t &other_instr) const {
+		if ((stmt_idx != other_instr.stmt_idx) || (has_memory_dep != other_instr.has_memory_dep) ||
 			(memory_values_count != other_instr.memory_values_count)) {
 				return false;
 		}
@@ -264,8 +290,8 @@ struct sym_instr_details_t {
 		return true;
 	}
 
-	bool operator<(const sym_instr_details_t &other_instr) const {
-		return (instr_addr < other_instr.instr_addr);
+	bool operator<(const sym_vex_stmt_details_t &other_instr) const {
+		return (stmt_idx < other_instr.stmt_idx);
 	}
 };
 
@@ -274,15 +300,19 @@ struct sym_block_details_t {
 	uint64_t block_size;
 	int64_t block_trace_ind;
 	bool has_symbolic_exit;
-	std::vector<sym_instr_details_t> symbolic_instrs;
+	std::vector<sym_vex_stmt_details_t> symbolic_stmts;
 	std::vector<register_value_t> register_values;
+
+	sym_block_details_t() {
+		reset();
+	}
 
 	void reset() {
 		block_addr = 0;
 		block_size = 0;
 		block_trace_ind = -1;
 		has_symbolic_exit = false;
-		symbolic_instrs.clear();
+		symbolic_stmts.clear();
 		register_values.clear();
 	}
 };
@@ -294,8 +324,8 @@ struct sym_block_details_ret_t {
 	uint64_t block_size;
 	int64_t block_trace_ind;
 	bool has_symbolic_exit;
-    sym_instr_details_t *symbolic_instrs;
-    uint64_t symbolic_instrs_count;
+    sym_vex_stmt_details_t *symbolic_stmts;
+    uint64_t symbolic_stmts_count;
     register_value_t *register_values;
     uint64_t register_values_count;
 };
@@ -337,19 +367,9 @@ enum stop_t {
 
 typedef std::vector<std::pair<taint_entity_t, std::unordered_set<taint_entity_t>>> taint_vector_t;
 
-struct instruction_taint_entry_t {
-	// List of direct taint sources for a taint sink
-	taint_vector_t taint_sink_src_map;
-
-	// List of dependencies a taint sink depends on
-	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> dependencies;
-
-	// Address of last instruction that modified a register dependency prior to this instruction. Used for computing
-	// block slice needed to setup concrete registers needed by the instruction
-	std::unordered_map<vex_reg_offset_t, address_t> dep_reg_modifier_addr;
-
-	// List of registers not modified after start of current basic block till current instruction
-	std::unordered_map<vex_reg_offset_t, int64_t> unmodified_dep_regs;
+struct vex_stmt_taint_entry_t {
+	taint_entity_t sink;
+	std::unordered_set<taint_entity_t> sources;
 
 	// List of taint entities in ITE expression's condition, if any
 	std::unordered_set<taint_entity_t> ite_cond_entity_list;
@@ -362,55 +382,52 @@ struct instruction_taint_entry_t {
 	// Count number of bytes written to memory by the instruction
 	uint32_t mem_write_size;
 
-	bool operator==(const instruction_taint_entry_t &other_instr_deps) const {
-		return (taint_sink_src_map == other_instr_deps.taint_sink_src_map) &&
-			   (dependencies == other_instr_deps.dependencies) &&
-			   (has_memory_read == other_instr_deps.has_memory_read) &&
-			   (mem_write_size == other_instr_deps.mem_write_size);
+	bool operator==(const vex_stmt_taint_entry_t &other_stmt) const {
+		return (sink == other_stmt.sink) && (sources == other_stmt.sources) &&
+			   (ite_cond_entity_list == other_stmt.ite_cond_entity_list) &&
+			   (has_memory_read == other_stmt.has_memory_read) &&
+			   (mem_read_size == other_stmt.mem_read_size) &&
+			   (mem_write_size == other_stmt.mem_write_size);
+	}
+
+	vex_stmt_taint_entry_t() {
+		reset();
 	}
 
 	void reset() {
-		dependencies.clear();
-		dependencies.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
-		dependencies.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
-		dependencies.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
-		dep_reg_modifier_addr.clear();
+		sink.reset();
+		sources.clear();
 		ite_cond_entity_list.clear();
-		taint_sink_src_map.clear();
 		has_memory_read = false;
 		mem_read_size = 0;
 		mem_write_size = 0;
-		unmodified_dep_regs.clear();
 		return;
 	}
 };
 
 struct block_taint_entry_t {
-	std::map<address_t, instruction_taint_entry_t> block_instrs_taint_data_map;
+	std::map<int64_t, vex_stmt_taint_entry_t> block_stmts_taint_data;
 	std::unordered_set<taint_entity_t> exit_stmt_guard_expr_deps;
-	// Track instruction that sets a VEX temp and list of VEX temps on which its value depends on
-	std::unordered_map<taint_entity_t, std::pair<address_t, std::unordered_set<taint_entity_t>>> vex_temp_deps;
-	address_t exit_stmt_instr_addr;
 	bool has_cpuid_instr;
 	bool has_unsupported_stmt_or_expr_type;
 	stop_t unsupported_stmt_stop_reason;
 	std::unordered_set<taint_entity_t> block_next_entities;
+	std::unordered_set<int64_t> vex_cc_setter_stmts;
 
 	block_taint_entry_t() {
-		block_instrs_taint_data_map.clear();
+		block_stmts_taint_data.clear();
 		exit_stmt_guard_expr_deps.clear();
-		exit_stmt_instr_addr = 0;
-		vex_temp_deps.clear();
 		has_cpuid_instr = false;
 		has_unsupported_stmt_or_expr_type = false;
 		block_next_entities.clear();
+		vex_cc_setter_stmts.clear();
 	}
 
 	bool operator==(const block_taint_entry_t &other_entry) const {
-		return (block_instrs_taint_data_map == other_entry.block_instrs_taint_data_map) &&
-			   (vex_temp_deps == other_entry.vex_temp_deps) && (has_cpuid_instr == other_entry.has_cpuid_instr) &&
-			   (exit_stmt_instr_addr == other_entry.exit_stmt_instr_addr) &&
+		return (block_stmts_taint_data == other_entry.block_stmts_taint_data) &&
+			   (has_cpuid_instr == other_entry.has_cpuid_instr) &&
 			   (exit_stmt_guard_expr_deps == other_entry.exit_stmt_guard_expr_deps) &&
+			   (vex_cc_setter_stmts == other_entry.vex_cc_setter_stmts) &&
 			   (block_next_entities == other_entry.block_next_entities);
 	}
 };
@@ -422,22 +439,20 @@ struct stop_details_t {
 };
 
 struct processed_vex_expr_t {
-	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> taint_sources;
-	std::unordered_map<taint_entity_enum_t, std::unordered_set<taint_entity_t>, std::hash<uint8_t>> ite_cond_entities;
+	std::unordered_set<taint_entity_t> taint_sources;
+	std::unordered_set<taint_entity_t> ite_cond_entities;
 	bool has_unsupported_expr;
 	stop_t unsupported_expr_stop_reason;
 	uint32_t mem_read_size;
 	int64_t value_size;
 
+	processed_vex_expr_t() {
+		reset();
+	}
+
 	void reset() {
 		taint_sources.clear();
-		taint_sources.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
-		taint_sources.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
-		taint_sources.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
 		ite_cond_entities.clear();
-		ite_cond_entities.emplace(TAINT_ENTITY_MEM, std::unordered_set<taint_entity_t>());
-		ite_cond_entities.emplace(TAINT_ENTITY_REG, std::unordered_set<taint_entity_t>());
-		ite_cond_entities.emplace(TAINT_ENTITY_TMP, std::unordered_set<taint_entity_t>());
 		has_unsupported_expr = false;
 		mem_read_size = 0;
 		value_size = -1;
@@ -532,8 +547,8 @@ class State {
 	// separately for easy rollback in case of errors.
 	block_details_t curr_block_details;
 
-	// List of symbolic instructions in processed basic blocks that need not be re-executed. Will be removed on commit.
-	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_instrs_to_erase;
+	// List of symbolic statements in processed basic blocks that need not be re-executed. Will be removed on commit.
+	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> symbolic_stmts_to_erase;
 
 	// List of register values at start of block
 	std::map<vex_reg_offset_t, register_value_t> block_start_reg_values;
@@ -544,11 +559,11 @@ class State {
 	RegisterSet block_symbolic_registers, block_concrete_registers;
 	TempSet block_symbolic_temps;
 
-	// Set of register dependencies that were concrete before an instruction was executed
-	std::unordered_map<address_t, std::unordered_map<vex_reg_offset_t, int64_t>> block_instr_concrete_regs;
+	// Set of register dependencies that were concrete before a VEX statement was executed
+	std::unordered_map<int64_t, std::unordered_map<vex_reg_offset_t, int64_t>> block_stmt_concrete_regs;
 
 	// List of instructions that should be executed symbolically
-	std::vector<block_details_t> blocks_with_symbolic_instrs;
+	std::vector<block_details_t> blocks_with_symbolic_stmts;
 
 	// the latter part of the pair is a pointer to the page data if the page is direct-mapped, otherwise NULL
 	std::map<address_t, std::pair<taint_t *, uint8_t *>> active_pages;
@@ -559,7 +574,8 @@ class State {
 	int64_t trace_last_block_curr_count;
 	int64_t trace_last_block_tot_count;
 
-	address_t taint_engine_next_instr_address, taint_engine_stop_mem_read_instruction;
+	address_t taint_engine_stop_mem_read_instruction;
+	int64_t taint_engine_next_stmt_idx;
 	uint32_t taint_engine_stop_mem_read_size;
 	bool symbolic_read_in_progress;
 
@@ -591,20 +607,27 @@ class State {
 	// Count of blocks executed in native interface
 	int64_t executed_blocks_count;
 
-	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
+	// Details of symbolic memory dependencies of all VEX statements to be re-executed. Stores address and size of
+	// memory location and number of VEX statements the location is a dependency of. Only dependencies of statements
+	// that will be re-executed are tracked.
+	std::unordered_map<address_t, std::pair<uint64_t, uint64_t>> symbolic_mem_deps;
+	// Symbolic memory dependencies of all symbolic VEX statements in current block.
+	std::unordered_map<address_t, uint64_t> block_symbolic_mem_deps;
 
 	// Private functions
 
 	std::pair<taint_t *, uint8_t *> page_lookup(address_t address) const;
 
-	void compute_slice_of_instr(instr_details_t &instr);
-	instr_details_t compute_instr_details(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
+	void compute_slice_of_stmt(vex_stmt_details_t &instr);
+	vex_stmt_details_t compute_vex_stmt_details(const vex_stmt_taint_entry_t &vex_stmt_taint_entry);
 	void get_register_value(uint64_t vex_reg_offset, uint8_t *out_reg_value) const;
 	// Return list of all dependent instructions including dependencies of those dependent instructions
-	std::set<instr_details_t> get_list_of_dep_instrs(const instr_details_t &instr) const;
+	std::set<vex_stmt_details_t> get_list_of_dep_stmts(const vex_stmt_details_t &instr) const;
 
 	// Returns a pair (taint sources, list of taint entities in ITE condition expression)
-	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr, bool is_exit_stmt);
+	processed_vex_expr_t process_vex_expr(IRExpr *expr, IRTypeEnv *vex_block_tyenv, address_t instr_addr,
+										  int64_t curr_stmt_idx, const std::unordered_map<taint_entity_t, int> &entity_setter,
+										  bool is_exit_stmt);
 
 	// Determine cumulative result of taint statuses of a set of taint entities
 	// EG: This is useful to determine the taint status of a taint sink given it's taint sources
@@ -630,14 +653,14 @@ class State {
 
 	void process_vex_block(IRSB *vex_block, address_t address);
 
-	void set_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry);
-	void update_deps_mem_addr_status(const taint_entity_t &entity, instruction_taint_entry_t &instr_taint_entry);
+	void set_deps_mem_addr_status(const taint_entity_t &entity, vex_stmt_taint_entry_t &instr_taint_entry);
+	void update_deps_mem_addr_status(const taint_entity_t &entity, vex_stmt_taint_entry_t &instr_taint_entry);
 
 	void propagate_taints();
-	void propagate_taint_of_one_instr(address_t instr_addr, const instruction_taint_entry_t &instr_taint_entry);
+	void propagate_taint_of_one_stmt(const vex_stmt_taint_entry_t &instr_taint_entry);
 
 	// Save values of concrete memory reads performed by an instruction and it's dependencies
-	void save_concrete_memory_deps(instr_details_t &instr);
+	void save_concrete_memory_deps(vex_stmt_details_t &instr);
 
 	// Inline functions
 
@@ -734,6 +757,8 @@ class State {
 		RegisterSet blacklisted_registers;  // Registers which shouldn't be saved as a concrete dependency
 		// Mapping of VEX offsets to unicorn register IDs and register sizes
 		std::unordered_map<vex_reg_offset_t, std::pair<unicorn_reg_id_t, uint64_t>> vex_to_unicorn_map;
+		// VEX CC registers
+		std::unordered_map<vex_reg_offset_t, uint64_t> vex_cc_regs;
 		RegisterSet artificial_vex_registers; // Artificial VEX registers
 		// VEX flag register offset, corresponding unicorn register ID and bitmask for CPU flags
 		std::unordered_map<vex_reg_offset_t, std::pair<uint64_t, uint64_t>> cpu_flags;
@@ -742,8 +767,8 @@ class State {
 		// List of all values read from memory in current block
 		std::vector<memory_value_t> block_mem_reads_data;
 
-		// Result of all memory reads executed. Instruction address -> memory read result
-		std::unordered_map<address_t, mem_read_result_t> block_mem_reads_map;
+		// Result of all memory reads executed. VEX statement ID -> memory read result
+		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
 
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;

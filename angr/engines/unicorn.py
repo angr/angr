@@ -93,40 +93,32 @@ class SimEngineUnicorn(SuccessorsMixin):
 
     def _execute_block_instrs_in_vex(self, block_details):
         if block_details["block_addr"] not in self.block_details_cache:
-            vex_block_details = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
-            self.block_details_cache[block_details["block_addr"]] = vex_block_details
+            vex_block = self._get_vex_block_details(block_details["block_addr"], block_details["block_size"])
+            self.block_details_cache[block_details["block_addr"]] = vex_block
         else:
-            vex_block_details = self.block_details_cache[block_details["block_addr"]]
+            vex_block = self.block_details_cache[block_details["block_addr"]]
 
         # Save breakpoints for restoring later
         saved_mem_read_breakpoints = copy.copy(self.state.inspect._breakpoints["mem_read"])
-        vex_block = vex_block_details["block"]
         for reg_name, reg_value in block_details["registers"]:
             self.state.registers.store(reg_name, reg_value, inspect=False, disable_actions=True)
 
-        # VEX statements to ignore when re-executing instructions that touched symbolic data
-        ignored_statement_tags = ["Ist_AbiHint", "Ist_IMark", "Ist_MBE", "Ist_NoOP"]
         self.state.scratch.set_tyenv(vex_block.tyenv)
-        for instr_entry in block_details["instrs"]:
-            self._instr_mem_reads = list(instr_entry["mem_dep"])  # pylint:disable=attribute-defined-outside-init
+        for stmt_entry in block_details["stmts"]:
+            self._instr_mem_reads = list(stmt_entry["mem_dep"])  # pylint:disable=attribute-defined-outside-init
             if self._instr_mem_reads:
                 # Insert breakpoint to set the correct memory read address
                 self.state.inspect.b('mem_read', when=BP_BEFORE, action=self._set_correct_mem_read_addr)
 
-            instr_vex_stmt_indices = vex_block_details["stmt_indices"][instr_entry["instr_addr"]]
-            start_index = instr_vex_stmt_indices["start"]
-            end_index = instr_vex_stmt_indices["end"]
             execute_default_exit = True
-            for vex_stmt_idx in range(start_index, end_index + 1):
-                # Execute handler from HeavyVEXMixin for the statement
-                vex_stmt = vex_block.statements[vex_stmt_idx]
-                if vex_stmt.tag not in ignored_statement_tags:
-                    self.stmt_idx = vex_stmt_idx  # pylint:disable=attribute-defined-outside-init
-                    try:
-                        super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
-                    except VEXEarlyExit:
-                        # Only one path is satisfiable in this branch.
-                        execute_default_exit = False
+            # Execute handler from HeavyVEXMixin for the statement
+            vex_stmt = vex_block.statements[stmt_entry['stmt_idx']]
+            self.stmt_idx = stmt_entry['stmt_idx']  # pylint:disable=attribute-defined-outside-init
+            try:
+                super()._handle_vex_stmt(vex_stmt)  # pylint:disable=no-member
+            except VEXEarlyExit:
+                # Only one path is satisfiable in this branch.
+                execute_default_exit = False
 
             # Restore breakpoints
             self.state.inspect._breakpoints["mem_read"] = copy.copy(saved_mem_read_breakpoints)
@@ -147,7 +139,7 @@ class SimEngineUnicorn(SuccessorsMixin):
         recent_bbl_addrs = None
         stop_details = None
 
-        for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_instrs():
+        for block_details in self.state.unicorn._get_details_of_blocks_with_symbolic_vex_stmts():
             self.state.scratch.guard = self.state.solver.true
             try:
                 if self.state.os_name == "CGC" and \
@@ -238,7 +230,7 @@ class SimEngineUnicorn(SuccessorsMixin):
     def _get_vex_block_details(self, block_addr, block_size):
         # Mostly based on the lifting code in HeavyVEXMixin
         # pylint:disable=no-member
-        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size, cross_insn_opt=False)
+        irsb = super().lift_vex(addr=block_addr, state=self.state, size=block_size)
         if irsb.size == 0:
             if irsb.jumpkind == 'Ijk_NoDecode':
                 if not self.state.project.is_hooked(irsb.addr):
@@ -250,21 +242,7 @@ class SimEngineUnicorn(SuccessorsMixin):
 
             raise SimIRSBError(f"Empty IRSB found at 0x{irsb.addr:02x}.")
 
-        instrs_stmt_indices = {}
-        curr_instr_addr = None
-        curr_instr_stmts_start_idx = 0
-        for idx, statement in enumerate(irsb.statements):
-            if statement.tag == "Ist_IMark":
-                if curr_instr_addr is not None:
-                    instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": idx - 1}
-
-                curr_instr_addr = statement.addr
-                curr_instr_stmts_start_idx = idx
-
-        # Adding details of the last instruction
-        instrs_stmt_indices[curr_instr_addr] = {"start": curr_instr_stmts_start_idx, "end": len(irsb.statements) - 1}
-        block_details = {"block": irsb, "stmt_indices": instrs_stmt_indices}
-        return block_details
+        return irsb
 
     def _set_correct_mem_read_addr(self, state):
         assert len(self._instr_mem_reads) != 0
