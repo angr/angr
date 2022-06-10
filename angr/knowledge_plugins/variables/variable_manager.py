@@ -184,7 +184,8 @@ class VariableManagerInternal(Serializable):
         for phi, vars_ in self._phi_variables.items():
             for var in vars_:
                 if var not in self._variables and var not in self._phi_variables:
-                    l.error("Saving a variable which is not in the registered list. The database is likely corrupted.")
+                    l.error("Ignore variable %s because it is not in the registered list.", var.ident)
+                    continue
                 relation = variables_pb2.Phi2Var()
                 relation.phi_ident = phi.ident
                 relation.var_ident = var.ident
