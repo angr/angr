@@ -1,14 +1,21 @@
 import logging
 import weakref
-import networkx
 import itertools
+from contextlib import contextmanager
+import gc
+import networkx
 
 import claripy
 
 l = logging.getLogger(name=__name__)
 
 
-class StateHierarchy(object):
+class StateHierarchy:
+    """
+    The state hierarchy holds weak references to SimStateHistory objects in a directed acyclic graph. It is useful
+    for queries about a state's ancestry, notably "what is the best ancestor state for a merge among these states" and
+    "what is the most recent unsatisfiable state while using LAZY_SOLVES"
+    """
     def __init__(self):
 
         # The New Order
@@ -17,8 +24,11 @@ class StateHierarchy(object):
         self._twigs = set() # nodes with one child
         self._weakref_cache = {} # map from object id to weakref
         self._reverse_weakref_cache = {} # map from weakref to object id
+        self._pending_cleanup = set()
+        self._defer_cleanup = False
 
     def __getstate__(self):
+        gc.collect()
         histories = [ h() for h in networkx.algorithms.dfs_postorder_nodes(self._graph) ]
         return (histories,)
 
@@ -35,64 +45,82 @@ class StateHierarchy(object):
 
     def get_ref(self, obj):
         if id(obj) not in self._weakref_cache:
-            ref = weakref.ref(obj, self.clear_ref)
+            ref = weakref.ref(obj, self.dead_ref)
             self._weakref_cache[id(obj)] = ref
             self._reverse_weakref_cache[ref] = id(obj)
             return ref
         else:
             return self._weakref_cache[id(obj)]
 
-    def clear_ref(self, ref):
+    def dead_ref(self, ref):
+        if self._defer_cleanup:
+            self._pending_cleanup.add(ref)
+        else:
+            self._cleanup_ref(ref)
+
+    def _cleanup_ref(self, ref):
         if ref not in self._reverse_weakref_cache:
             l.error("Cleaning mystery weakref %s", ref)
             return
 
         self._remove_history(ref)
 
-        # TODO: this nonsense is very much not thread safe
         del self._weakref_cache[self._reverse_weakref_cache[ref]]
         del self._reverse_weakref_cache[ref]
+
+    @contextmanager
+    def defer_cleanup(self):
+        old_defer, self._defer_cleanup = self._defer_cleanup, True
+        yield
+        self._defer_cleanup = old_defer
+        if not self._defer_cleanup:
+            toclean = list(self._pending_cleanup)
+            self._pending_cleanup.clear()
+            for ref in toclean:
+                self._cleanup_ref(ref)
 
     #
     # Graph management
     #
 
     def _remove_history(self, h):
-        try:
-            predecessors = self._graph.predecessors(h)
-            successors = self._graph.successors(h)
+        with self.defer_cleanup():
+            try:
+                predecessors = self._graph.predecessors(h)
+                successors = self._graph.successors(h)
 
-            for p,s in itertools.product(predecessors, successors):
-                self._graph.add_edge(p, s)
+                for p,s in itertools.product(predecessors, successors):
+                    self._graph.add_edge(p, s)
 
-            self._graph.remove_node(h)
-        except networkx.NetworkXError:
-            pass
+                self._graph.remove_node(h)
+            except networkx.NetworkXError:
+                pass
 
-        self._leaves.discard(h)
-        self._twigs.discard(h)
-        hh = h()
-        if hh is not None:
-            hh.demote()
+            self._leaves.discard(h)
+            self._twigs.discard(h)
+            hh = h()
+            if hh is not None:
+                hh.demote()
 
     def add_state(self, s):
         h = s.history
         self.add_history(h)
 
     def add_history(self, h):
-        cur_node = self.get_ref(h)
-        self._graph.add_node(cur_node)
-        if h.parent is not None:
-            prev_node = self.get_ref(h.parent)
-            self._graph.add_edge(prev_node, cur_node)
+        with self.defer_cleanup():
+            cur_node = self.get_ref(h)
+            self._graph.add_node(cur_node)
+            if h.parent is not None:
+                prev_node = self.get_ref(h.parent)
+                self._graph.add_edge(prev_node, cur_node)
 
-            self._leaves.discard(prev_node)
-            if len(list(self._graph.successors(prev_node))) == 1:
-                self._twigs.add(prev_node)
-            else:
-                self._twigs.discard(prev_node)
+                self._leaves.discard(prev_node)
+                if len(list(self._graph.successors(prev_node))) == 1:
+                    self._twigs.add(prev_node)
+                else:
+                    self._twigs.discard(prev_node)
 
-        self._leaves.add(cur_node)
+            self._leaves.add(cur_node)
 
     def simplify(self):
         tw = self._twigs
@@ -101,38 +129,44 @@ class StateHierarchy(object):
             self._remove_history(h)
 
     def full_simplify(self):
-        for h in self._graph.nodes():
-            if self._graph.out_degree(h) == 1:
-                self._remove_history(h)
+        with self.defer_cleanup():
+            for h in self._graph.nodes():
+                if self._graph.out_degree(h) == 1:
+                    self._remove_history(h)
 
     def lineage(self, h):
         """
         Returns the lineage of histories leading up to `h`.
         """
 
-        lineage = [ ]
+        with self.defer_cleanup():
+            lineage = [ ]
 
-        predecessors = list(self._graph.predecessors(h))
-        while len(predecessors):
-            lineage.append(predecessors[0])
-            predecessors = list(self._graph.predecessors(predecessors[0]))
+            predecessors = list(self._graph.predecessors(h))
+            while len(predecessors):
+                lineage.append(predecessors[0])
+                predecessors = list(self._graph.predecessors(predecessors[0]))
 
-        lineage.reverse()
-        return lineage
+            lineage.reverse()
+            return lineage
 
     def all_successors(self, h):
-        nodes = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))[:-1]
-        nodes.reverse()
-        return nodes
+        with self.defer_cleanup():
+            nodes = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))[:-1]
+            nodes.reverse()
+            return nodes
 
     def history_successors(self, h):
-        return [ ref() for ref in self._graph.successors(self.get_ref(h)) ]
+        with self.defer_cleanup():
+            return [ ref() for ref in self._graph.successors(self.get_ref(h)) ]
 
     def history_predecessors(self, h):
-        return [ ref() for ref in self._graph.predecessors(self.get_ref(h)) ]
+        with self.defer_cleanup():
+            return [ ref() for ref in self._graph.predecessors(self.get_ref(h)) ]
 
     def history_contains(self, h):
-        return self.get_ref(h) in self._graph
+        with self.defer_cleanup():
+            return self.get_ref(h) in self._graph
 
     #
     # LAZY_SOLVES support
@@ -150,7 +184,7 @@ class StateHierarchy(object):
             l.debug("... looking between %d and %d in %d states", good, bad, len(lineage))
             cur = (bad+good)//2
 
-            if cur == good or cur == bad:
+            if cur in (good, bad):
                 if lineage[bad]().reachable():
                     bad += 1
 
@@ -165,16 +199,17 @@ class StateHierarchy(object):
                 bad = cur
 
     def _prune_subtree(self, h):
-        ph = list(self._graph.predecessors(h))
-        if len(ph) == 1 and len(list(self._graph.successors(ph[0]))) == 1:
-            self._twigs.add(ph[0])
+        with self.defer_cleanup():
+            ph = list(self._graph.predecessors(h))
+            if len(ph) == 1 and len(list(self._graph.successors(ph[0]))) == 1:
+                self._twigs.add(ph[0])
 
-        all_children = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))
-        for n in all_children:
-            n()._satisfiable = False
-            if n().state is not None:
-                n().state.add_constraints(claripy.false)
-        self._graph.remove_nodes_from(all_children)
+            all_children = list(networkx.algorithms.dfs_postorder_nodes(self._graph, h))
+            for n in all_children:
+                n()._satisfiable = False
+                if n().state is not None:
+                    n().state.add_constraints(claripy.false)
+            self._graph.remove_nodes_from(all_children)
 
     def unreachable_state(self, state):
         self.unreachable_history(state.history)
@@ -200,19 +235,20 @@ class StateHierarchy(object):
         Find the "most mergeable" set of states from those provided.
 
         :param states: a list of states
-        :returns: a tuple of: (a list of states to merge, those states' common history, a list of states to not merge yet)
+        :returns: a tuple of: (list of states to merge, those states' common history, list of states to not merge yet)
         """
 
-        histories = set(self.get_ref(s.history) for s in states)
+        with self.defer_cleanup():
+            histories = set(self.get_ref(s.history) for s in states)
 
-        for n in networkx.algorithms.dfs_postorder_nodes(self._graph):
-            intersection = histories.intersection(self.all_successors(n))
-            if len(intersection) > 1:
-                return (
-                    [ s for s in states if self.get_ref(s.history) in intersection ],
-                    n(),
-                    [ s for s in states if self.get_ref(s.history) not in intersection ]
-                )
+            for n in networkx.algorithms.dfs_postorder_nodes(self._graph):
+                intersection = histories.intersection(self.all_successors(n))
+                if len(intersection) > 1:
+                    return (
+                        [ s for s in states if self.get_ref(s.history) in intersection ],
+                        n(),
+                        [ s for s in states if self.get_ref(s.history) not in intersection ]
+                    )
 
-        # didn't find any?
-        return set(), None, states
+            # didn't find any?
+            return set(), None, states
