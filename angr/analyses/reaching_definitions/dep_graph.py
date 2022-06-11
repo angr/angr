@@ -96,13 +96,13 @@ class DepGraph:
             predecessors = list(graph.predecessors(def_))
 
             result.add_node(def_)
-            result.add_edges_from(list(map(
-                lambda e: (*e, graph.get_edge_data(*e)),
-                map(
-                    lambda p: (p, def_),
-                    predecessors
-                )
-            )))
+            edges_and_data = [ ]
+            for pred in predecessors:
+                edge_data = graph.get_edge_data(pred, def_)
+                if edge_data is None:
+                    result.add_edge(pred, def_)
+                else:
+                    result.add_edge(pred, def_, **edge_data)
 
             visited = visited or set()
             visited.add(def_)
