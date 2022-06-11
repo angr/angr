@@ -62,10 +62,10 @@ class PropagatorState:
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
         if mo_self.object.symbolic or mo_other.object.symbolic:
-            if isinstance(mo_self, SimMemoryObject) and isinstance(mo_other, SimMemoryObject):
-                return mo_self.object is mo_other.object
-            if isinstance(mo_self, SimLabeledMemoryObject) and isinstance(mo_other, SimLabeledMemoryObject):
+            if type(mo_self) is SimLabeledMemoryObject and type(mo_other) is SimLabeledMemoryObject:
                 return mo_self.label == mo_other.label and mo_self.object is mo_other.object
+            if type(mo_self) is SimMemoryObject and type(mo_other) is SimMemoryObject:
+                return mo_self.object is mo_other.object
             # SimMemoryObject vs SimLabeledMemoryObject -> the label must be different
             return False
         return None
