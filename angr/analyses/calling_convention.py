@@ -105,7 +105,9 @@ class CallingConventionAnalysis(Analysis):
         if self._function.is_simprocedure:
             if self._function.prototype is None:
                 # try our luck
-                self._function.find_declaration()
+                # we set ignore_binary_name to True because the binary name SimProcedures is "cle##externs" and does not
+                # match any library name
+                self._function.find_declaration(ignore_binary_name=True)
 
             self.cc = self._function.calling_convention
             self.prototype = self._function.prototype
