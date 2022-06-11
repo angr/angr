@@ -20,7 +20,7 @@ from .engine_ail import SimEnginePropagatorAIL
 from .prop_value import PropValue
 
 if TYPE_CHECKING:
-    from angr.storage import SimMemoryObject
+    from angr.storage.memory_object import SimLabeledMemoryObject
 
 
 _l = logging.getLogger(name=__name__)
@@ -57,12 +57,13 @@ class PropagatorState:
         return weakref.proxy(self)
 
     @staticmethod
-    def _mo_cmp(mo_self: 'SimMemoryObject', mo_other: 'SimMemoryObject', addr: int, size: int):  # pylint:disable=unused-argument
+    def _mo_cmp(mo_self: 'SimLabeledMemoryObject', mo_other: 'SimLabeledMemoryObject',
+                addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
         if mo_self.object.symbolic or mo_other.object.symbolic:
-            return mo_self.object is mo_other.object
+            return mo_self.label == mo_other.label and mo_self.object is mo_other.object
         return None
 
     @staticmethod
