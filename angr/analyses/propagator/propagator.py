@@ -1,6 +1,6 @@
 # pylint:disable=isinstance-second-argument-not-valid-type
 import weakref
-from typing import Set, Optional, Any, Tuple, Union, List, TYPE_CHECKING
+from typing import Set, Optional, Any, Tuple, Union, List
 from collections import defaultdict
 import logging
 

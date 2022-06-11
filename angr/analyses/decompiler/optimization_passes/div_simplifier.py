@@ -1,3 +1,4 @@
+# pylint:disable=line-too-long
 import logging
 import math
 
@@ -265,7 +266,7 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
 
         return super()._ail_handle_Add(expr)
 
-    def _match_signed_division_add_operands(self, op0, op1):  # pylint:disable=line-too-long
+    def _match_signed_division_add_operands(self, op0, op1):
         # From: Add((Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>) >> 0x20<8>)) >> 0x1f<8>),
         #            Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>) >> 0x20<8>)))
         # To: Load(addr=stack_base+4, size=4, endness=Iend_LE) /s 3
