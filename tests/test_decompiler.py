@@ -1077,5 +1077,32 @@ class TestDecompiler(unittest.TestCase):
         new_len = len(d.codegen.text)
         assert new_len > old_len, "un-collapsing node should expand decompilation output"
 
+    def test_decompiling_division3(self):
+        bin_path = os.path.join(test_location, "i386", "decompiler", "division3")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        proj.analyses.CFGFast(normalize=True)
+
+        # disable eager returns simplifier
+        all_optimization_passes = angr.analyses.decompiler.optimization_passes.get_default_optimization_passes("AMD64",
+                                                                                                               "linux")
+        all_optimization_passes = [ p for p in all_optimization_passes
+                                    if p is not angr.analyses.decompiler.optimization_passes.EagerReturnsSimplifier ]
+        d = proj.analyses.Decompiler(proj.kb.functions["division3"], optimization_passes=all_optimization_passes)
+        self._print_decompilation_result(d)
+
+        # get the returned expression from the return statement
+        # e.g., retexpr will be "v2" if the return statement is "  return v2;"
+        lines = d.codegen.text.split("\n")
+        retexpr = [ line for line in lines if "return " in line ][0].strip(" ;")[7:]
+
+        # find the statement "v2 = v0 / 3"
+        div3 = [ line for line in lines if re.match(retexpr + r" = v\d+ / 3;", line.strip(" ")) is not None]
+        assert len(div3) == 1, "Cannot find statement v2 = v0 / 3."
+        # find the statement "v2 = v0 * 7"
+        mul7 = [line for line in lines if re.match(retexpr + r" = v\d+ \* 7;", line.strip(" ")) is not None]
+        assert len(mul7) == 1, "Cannot find statement v2 = v0 * 7."
+
+
 if __name__ == "__main__":
     unittest.main()
