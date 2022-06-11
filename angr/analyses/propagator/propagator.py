@@ -12,15 +12,13 @@ from ... import sim_options
 from ...storage.memory_mixins import LabeledMemory
 from ...errors import SimMemoryMissingError
 from ...code_location import CodeLocation  # pylint:disable=unused-import
+from ...storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .. import register_analysis
 from ..analysis import Analysis
 from ..forward_analysis import ForwardAnalysis, FunctionGraphVisitor, SingleNodeGraphVisitor
 from .engine_vex import SimEnginePropagatorVEX
 from .engine_ail import SimEnginePropagatorAIL
 from .prop_value import PropValue
-
-if TYPE_CHECKING:
-    from angr.storage.memory_object import SimLabeledMemoryObject
 
 
 _l = logging.getLogger(name=__name__)
@@ -57,13 +55,19 @@ class PropagatorState:
         return weakref.proxy(self)
 
     @staticmethod
-    def _mo_cmp(mo_self: 'SimLabeledMemoryObject', mo_other: 'SimLabeledMemoryObject',
+    def _mo_cmp(mo_self: Union['SimMemoryObject','SimLabeledMemoryObject'],
+                mo_other: Union['SimMemoryObject','SimLabeledMemoryObject'],
                 addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 
         if mo_self.object.symbolic or mo_other.object.symbolic:
-            return mo_self.label == mo_other.label and mo_self.object is mo_other.object
+            if isinstance(mo_self, SimMemoryObject) and isinstance(mo_other, SimMemoryObject):
+                return mo_self.object is mo_other.object
+            if isinstance(mo_self, SimLabeledMemoryObject) and isinstance(mo_other, SimLabeledMemoryObject):
+                return mo_self.label == mo_other.label and mo_self.object is mo_other.object
+            # SimMemoryObject vs SimLabeledMemoryObject -> the label must be different
+            return False
         return None
 
     @staticmethod
