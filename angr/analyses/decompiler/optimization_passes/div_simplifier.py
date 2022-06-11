@@ -259,13 +259,13 @@ class DivSimplifierAILEngine(SimplifierAILEngine):
         matched, new_expr = self._match_signed_division_add_operands(op0, op1)
         if matched:
             return new_expr
-        matched, new_expr = self._match_signed_division_add_operands(op1, op0)
+        matched, new_expr = self._match_signed_division_add_operands(op1, op0)  # pylint:disable=arguments-out-of-order
         if matched:
             return new_expr
 
         return super()._ail_handle_Add(expr)
 
-    def _match_signed_division_add_operands(self, op0, op1):
+    def _match_signed_division_add_operands(self, op0, op1):  # pylint:disable=line-too-long
         # From: Add((Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>) >> 0x20<8>)) >> 0x1f<8>),
         #            Conv(64->32, ((Load(addr=stack_base+4, size=4, endness=Iend_LE) Mulls 0x55555556<32>) >> 0x20<8>)))
         # To: Load(addr=stack_base+4, size=4, endness=Iend_LE) /s 3
