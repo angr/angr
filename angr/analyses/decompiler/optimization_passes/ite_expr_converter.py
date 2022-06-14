@@ -5,6 +5,7 @@ from typing import Optional, Any, TYPE_CHECKING
 from ailment.statement import ConditionalJump, Assignment, Statement
 from ailment.expression import Const, ITE, Expression
 
+from ....analyses import ReachingDefinitionsAnalysis
 from ....code_location import CodeLocation
 from ..region_walker import RegionWalker
 from ..ail_simplifier import AILBlockWalker
@@ -93,7 +94,7 @@ class ITEExprConverter(OptimizationPass):
                         block_walker.walk(block)
 
     def _convert_expr(self, block_addr: int, atom: Expression) -> Optional[Expression]:
-        rda = self.project.analyses.ReachingDefinitions(subject=self._func, func_graph=self._graph)
+        rda = self.project.analyses[ReachingDefinitionsAnalysis].prep()(subject=self._func, func_graph=self._graph)
 
         # find the corresponding definition
         defs = [ ]
@@ -184,6 +185,14 @@ class ITEExprConverter(OptimizationPass):
         else:
             return None
 
+        # make sure the two assigned dst expressions are only used once
+        uses_0 = rda.all_uses.get_uses(defs[0])
+        if len(uses_0) != 1:
+            return None
+        uses_1 = rda.all_uses.get_uses(defs[1])
+        if len(uses_1) != 1:
+            return None
+
         new_expr = ITE(None, cond, expr_1, expr_0,
                        ins_addr=expr_0.ins_addr,
                        vex_block_addr=expr_0.vex_block_addr,
@@ -191,7 +200,6 @@ class ITEExprConverter(OptimizationPass):
                        )
 
         # remove the two assignments
-        # TODO: def-use analysis - make sure they are used elsewhere!
         block_0.statements = block_0.statements[0 : block_0_stmt_idx] + block_0.statements[block_0_stmt_idx + 1:]
         block_1.statements = block_1.statements[0 : block_1_stmt_idx] + block_1.statements[block_1_stmt_idx + 1:]
 
