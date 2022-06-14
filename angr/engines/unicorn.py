@@ -250,7 +250,6 @@ class SimEngineUnicorn(SuccessorsMixin):
         mem_read_size = 0
         mem_read_address = None
         mem_read_taint_map = []
-        mem_read_symbolic = True
         while mem_read_size != state.inspect.mem_read_length and self._instr_mem_reads:
             next_val = self._instr_mem_reads.pop(0)
             if not mem_read_address:
@@ -262,16 +261,14 @@ class SimEngineUnicorn(SuccessorsMixin):
                 mem_read_taint_map.extend([0] * next_val["size"])
 
             mem_read_size += next_val["size"]
-            mem_read_symbolic &= next_val["symbolic"]
             mem_read_val += next_val["value"]
 
         assert state.inspect.mem_read_length == mem_read_size
         state.inspect.mem_read_address = state.solver.BVV(mem_read_address, state.inspect.mem_read_address.size())
-        if not mem_read_symbolic:
-            # Since read is (partially) concrete, insert breakpoint to return the correct concrete value
-            self.state.inspect.b('mem_read', mem_read_address=mem_read_address, when=BP_AFTER,
-                                 action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
-                                 taint_map=mem_read_taint_map))
+        # Since read is (partially) concrete, insert breakpoint to return the correct concrete value
+        self.state.inspect.b('mem_read', mem_read_address=mem_read_address, when=BP_AFTER,
+                             action=functools.partial(self._set_correct_mem_read_val, value=mem_read_val,
+                             taint_map=mem_read_taint_map))
 
     def _set_correct_mem_read_val(self, state, value, taint_map):  # pylint: disable=no-self-use
         if taint_map.count(1) == 0:
@@ -284,11 +281,16 @@ class SimEngineUnicorn(SuccessorsMixin):
             # The value is partially concrete. Use the bitmap to read the symbolic bytes from memory and construct the
             # correct value
             actual_value = []
+            mem_read_address = state.inspect.mem_read_address
             for offset, taint in enumerate(taint_map):
                 if taint == 1:
-                    # Byte is symbolic. Read the value from memory
-                    actual_value.append(state.memory.load(state.inspect.mem_read_address + offset, 1, inspect=False,
+                    # Byte is symbolic. Read the value from memory after adjusting symbolic bitmap if needed
+                    page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
+                    saved_symbolic_bitmap_val = state.memory._pages[page_num].symbolic_bitmap[page_off]
+                    state.memory._pages[page_num].symbolic_bitmap[page_off] = 1
+                    actual_value.append(state.memory.load(mem_read_address + offset, 1, inspect=False,
                                                           disable_actions=True))
+                    state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_symbolic_bitmap_val
                 else:
                     actual_value.append(state.solver.BVV(value[offset], 8))
 

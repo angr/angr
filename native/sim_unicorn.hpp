@@ -770,6 +770,16 @@ class State {
 		// Result of all memory reads executed. VEX statement ID -> memory read result
 		std::unordered_map<int64_t, mem_read_result_t> block_mem_reads_map;
 
+		// Address and size of all symbolic memory writes performed in this run
+		std::unordered_map<uint64_t, uint64_t> symbolic_mem_writes;
+
+		// Address and size of concrete writes in block to re-execute. Value will be saved in commit by when write will
+		// be complete
+		std::unordered_map<uint64_t, uint64_t> block_concrete_writes_to_reexecute;
+
+		// Concrete writes to re-execute to avoid write-write conflicts
+		std::unordered_map<uint64_t, memory_value_t> concrete_writes_to_reexecute;
+
 		// List of instructions that should be executed symbolically; used to store data to return
 		std::vector<sym_block_details_t> block_details_to_return;
 
