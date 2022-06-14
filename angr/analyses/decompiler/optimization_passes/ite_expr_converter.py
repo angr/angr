@@ -1,3 +1,4 @@
+# pylint:disable=unnecessary-pass
 import logging
 from typing import Optional, Any, TYPE_CHECKING
 
