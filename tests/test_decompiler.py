@@ -1105,5 +1105,4 @@ class TestDecompiler(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    TestDecompiler().test_decompiling_amp_challenge03_arm()
-    # unittest.main()
+    unittest.main()
