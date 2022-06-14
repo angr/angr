@@ -1,7 +1,7 @@
 import logging
 from typing import Optional, Any, TYPE_CHECKING
 
-from ailment.statement import ConditionalJump, Assignment, Call, Statement
+from ailment.statement import ConditionalJump, Assignment, Statement
 from ailment.expression import Const, ITE, Expression
 
 from ....code_location import CodeLocation
@@ -19,10 +19,18 @@ _l = logging.getLogger(__name__)
 
 
 class NodeFoundNotification(Exception):
+    """
+    A notification that the target node has been found.
+    """
     pass
 
 
 class BlockLocator(RegionWalker):
+    """
+    Recursively locate block in a GraphRegion instance.
+
+    It might be reasonable to move this class into its own file.
+    """
     def __init__(self, block):
         super().__init__()
 
@@ -36,6 +44,9 @@ class BlockLocator(RegionWalker):
 
 
 class ExpressionReplacer(AILBlockWalker):
+    """
+    Replace expressions.
+    """
     def __init__(self, block_addr, target_expr, callback):
         super().__init__()
         self._block_addr = block_addr

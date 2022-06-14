@@ -185,7 +185,6 @@ class TestCfgfast(unittest.TestCase):
                 0x4006D4,  # frame_dummy
                 0x400708,
                 0x400710,  # authenticate
-                0x400814,
                 0x400814,  # accepted
                 0x400868,  # rejected
                 0x4008C0,  # main
@@ -978,7 +977,7 @@ class TestCfgfast(unittest.TestCase):
     def test_large_cfg_generation_jdi2_dll(self):
         path = "C:\\Users\\Fish\\Desktop\\Temp\\JDI2.dll"
         proj = angr.Project(path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast(show_progressbar=True)
+        cfg = proj.analyses.CFGFast(show_progressbar=True)  # pylint:disable=unused-variable
 
 
 class TestCfgfastDataReferences(unittest.TestCase):
