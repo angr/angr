@@ -658,9 +658,9 @@ class Clinic(Analysis):
         # run type inference
         if self._must_struct:
             must_struct = set()
-            for var, typevar in vr.var_to_typevars.items():
+            for var, typevars in vr.var_to_typevars.items():
                 if var.ident in self._must_struct:
-                    must_struct.add(typevar)
+                    must_struct |= typevars
         else:
             must_struct = None
         try:
