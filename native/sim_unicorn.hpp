@@ -580,7 +580,6 @@ class State {
 	bool symbolic_read_in_progress;
 
 	address_t unicorn_next_instr_addr;
-	address_t prev_stack_top_addr;
 
 	// Vector of values from previous memory reads. Serves as archival storage for pointers in details
 	// of symbolic instructions returned via ctypes to Python land.
@@ -874,8 +873,6 @@ class State {
 
 		void continue_propagating_taint();
 
-		bool check_symbolic_stack_mem_dependencies_liveness() const;
-
 		void set_curr_block_details(address_t block_address, int32_t block_size);
 
 		address_t get_instruction_pointer() const;
@@ -912,11 +909,6 @@ class State {
 
 		inline bool is_symbolic_taint_propagation_disabled() const {
 			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
-		}
-
-		inline void update_previous_stack_top() {
-			prev_stack_top_addr = get_stack_pointer();
-			return;
 		}
 };
 

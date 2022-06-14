@@ -2283,32 +2283,6 @@ bool State::is_block_next_target_symbolic() const {
 	return (block_next_target_taint_status != TAINT_STATUS_CONCRETE);
 }
 
-bool State::check_symbolic_stack_mem_dependencies_liveness() const {
-	// Stop concrete execution if a stack frame was deallocated and if any symbolic memory dependencies were present
-	// on that stack frame.
-	address_t curr_stack_top_addr = get_stack_pointer();
-	if (curr_stack_top_addr <= prev_stack_top_addr) {
-		// No change in stack frame and so no need to perform a liveness check.
-		// TODO: What is stack growth direction is different?
-		return true;
-	}
-	for (auto &symbolic_mem_dep: symbolic_mem_deps) {
-		if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
-			// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
-			// and could be overwritten by future code. We stop concrete execution here to avoid that.
-			return false;
-		}
-	}
-	for (auto &symbolic_mem_dep: block_symbolic_mem_deps) {
-		if ((curr_stack_top_addr > symbolic_mem_dep.first) && (symbolic_mem_dep.first > prev_stack_top_addr)) {
-			// A symbolic memory value that this symbolic instruction depends on is no longer on the stack
-			// and could be overwritten by future code. We stop concrete execution here to avoid that.
-			return false;
-		}
-	}
-	return true;
-}
-
 void State::set_curr_block_details(address_t block_address, int32_t block_size) {
 	curr_block_details.block_addr = block_address;
 	curr_block_details.block_size = block_size;
@@ -2674,12 +2648,7 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 		state->ignore_next_selfmod = true;
 		return;
 	}
-	if (!state->check_symbolic_stack_mem_dependencies_liveness()) {
-		state->stop(STOP_SYMBOLIC_MEM_DEP_NOT_LIVE, true);
-		return;
-	}
 	state->commit();
-	state->update_previous_stack_top();
 	state->set_curr_block_details(address, size);
 	state->step(address, size);
 
