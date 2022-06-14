@@ -1,20 +1,27 @@
-from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING  # pylint:disable=unused-import
+from typing import Optional, Dict, Set, Tuple, Generator, TYPE_CHECKING
+from enum import Enum
 
 import networkx  # pylint:disable=unused-import
 
 import ailment
 
-from ...analysis import Analysis
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 
 
 class MultipleBlocksException(Exception):
+    """
+    An exception that is raised in _get_block() where multiple blocks satisfy the criteria but only one block was
+    requested.
+    """
     pass
 
 
-class OptimizationPassStage:
+class OptimizationPassStage(Enum):
+    """
+    Enums about optimization pass stages.
+    """
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 0
     AFTER_GLOBAL_SIMPLIFICATION = 1
     AFTER_VARIABLE_RECOVERY = 2
@@ -30,12 +37,16 @@ class OptimizationPass:
     PLATFORMS = [ ]  # strings of supported platforms. Can be one of the following: "win32", "linux"
     STAGE: int = None  # Specifies when this optimization pass should be executed
 
-    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None):
+    def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, variable_kb=None,
+                 region_identifier=None, reaching_definitions=None, **kwargs):  # pylint:disable=unused-argument
         self._func: 'Function' = func
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
         self._blocks_by_addr_and_idx: Dict[Tuple[int,Optional[int]],ailment.Block] = blocks_by_addr_and_idx
         self._graph = graph  # type: Optional[networkx.DiGraph]
+        self._variable_kb = variable_kb
+        self._ri = region_identifier
+        self._rd = reaching_definitions
 
         # output
         self.out_graph = None  # type: Optional[networkx.DiGraph]

@@ -223,30 +223,36 @@ class Clinic(Analysis):
 
         # Run simplification passes
         self._update_progress(90., text="Running simplifications 3")
-        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY)
+        ail_graph = self._run_simplification_passes(ail_graph, stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
+                                                    variable_kb=variable_kb)
 
         self.graph = ail_graph
         self.arg_list = arg_list
         self.variable_kb = variable_kb
-        self.cc_graph = self._copy_graph()
+        self.cc_graph = self.copy_graph()
         self.externs = self._collect_externs(ail_graph, variable_kb)
 
-    def _copy_graph(self):
+    def copy_graph(self) -> networkx.DiGraph:
         """
         Copy AIL Graph.
 
-        :return: AILGraph copy
-        :rtype: networkx.DiGraph
+        :return: A copy of the AIl graph.
         """
         graph_copy = networkx.DiGraph()
-        for edge in self.graph.edges:
-            new_edge = ()
-            for block in edge:
-                new_block = copy.copy(block)
-                new_stmts = copy.copy(block.statements)
-                new_block.statements = new_stmts
-                new_edge += (new_block,)
-            graph_copy.add_edge(*new_edge)  # pylint: disable=no-value-for-parameter
+        block_mapping = { }
+        # copy all blocks
+        for block in self.graph.nodes():
+            new_block = copy.copy(block)
+            new_stmts = copy.copy(block.statements)
+            new_block.statements = new_stmts
+            block_mapping[block] = new_block
+            graph_copy.add_node(new_block)
+
+        # copy all edges
+        for src, dst, data in self.graph.edges(data=True):
+            new_src = block_mapping[src]
+            new_dst = block_mapping[dst]
+            graph_copy.add_edge(new_src, new_dst, **data)
         return graph_copy
 
     @timethis
@@ -458,7 +464,8 @@ class Clinic(Analysis):
         return simp.simplified
 
     @timethis
-    def _run_simplification_passes(self, ail_graph, stage: int = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION):
+    def _run_simplification_passes(self, ail_graph, stage: int = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
+                                   variable_kb=None):
 
         addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
         addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
@@ -477,7 +484,7 @@ class Clinic(Analysis):
                 continue
 
             a = pass_(self.function, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
-                         graph=ail_graph)
+                         graph=ail_graph, variable_kb=variable_kb)
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph

@@ -138,15 +138,6 @@ class ReachingDefinitionsAnalysis(ForwardAnalysis[ReachingDefinitionsState, Node
         if self._observation_points and any(not type(op) is tuple for op in self._observation_points):
             raise ValueError('"observation_points" must be tuples.')
 
-        if type(self) is ReachingDefinitionsAnalysis and \
-                not self._observe_all and \
-                not self._observation_points and \
-                not self._observe_callback and \
-                not self._dep_graph:
-            l.warning('No observation point is specified. '
-                      'You cannot get any analysis result from performing the analysis.'
-                      )
-
         self._node_iterations: DefaultDict[int, int] = defaultdict(int)
 
         self._engine_vex = SimEngineRDVEX(self.project, self._call_stack, self._maximum_local_call_depth,

@@ -1850,7 +1850,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         self._variables_in_use: Optional[Dict] = None
         self._inlined_strings: Set[SimMemoryVariable] = set()
-        self._memo: Optional[Dict[Tuple[Expr,bool],CExpression]] = None
+        self.ailexpr2cnode: Optional[Dict[Tuple[Expr.Expression, bool], CExpression]] = None
+        self.cnode2ailexpr: Optional[Dict[CExpression,Expr.Expression]] = None
         self._indent = indent
         self.show_casts = show_casts
         self.braces_on_own_lines = braces_on_own_lines
@@ -1893,7 +1894,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._variables_in_use = {}
 
         # memo
-        self._memo = {}
+        self.ailexpr2cnode = {}
 
         if self._func_args:
             arg_list = [self._handle(arg) for arg in self._func_args]
@@ -1902,7 +1903,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         obj = self._handle(self._sequence)
 
-        self._memo = None  # clear the memo since it's useless now
+        self.cnode2ailexpr = dict((v, k[0]) for k, v in self.ailexpr2cnode.items())
 
         self.cfunc = CFunction(self._func.addr, self._func.name, self._func.prototype, arg_list, obj,
                                self._variables_in_use, self._variable_kb.variables[self._func.addr],
@@ -2292,8 +2293,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle(self, node, is_expr: bool=True):
 
-        if (node, is_expr) in self._memo:
-            return self._memo[(node, is_expr)]
+        if (node, is_expr) in self.ailexpr2cnode:
+            return self.ailexpr2cnode[(node, is_expr)]
 
         handler: Optional[Callable] = self._handlers.get(node.__class__, None)
         if handler is not None:
@@ -2302,7 +2303,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 converted = handler(node, is_expr=is_expr)
             else:
                 converted = handler(node)
-            self._memo[(node, is_expr)] = converted
+            self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
         raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
 
