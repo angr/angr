@@ -39,7 +39,9 @@ class Decompiler(Analysis):
                  flavor='pseudocode',
                  expr_comments=None,
                  stmt_comments=None,
+                 ite_exprs=None,
                  decompile=True,
+                 regen_clinic=True,
                  ):
         self.func = func
         self._cfg = cfg
@@ -56,6 +58,8 @@ class Decompiler(Analysis):
         self._variable_kb = variable_kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
+        self._ite_exprs = ite_exprs
+        self._regen_clinic = regen_clinic
 
         self.clinic = None  # mostly for debugging purposes
         self.codegen = None
@@ -69,10 +73,16 @@ class Decompiler(Analysis):
         if self.func.is_simprocedure:
             return
 
+        # Load from cache
         try:
-            old_codegen = self.kb.structured_code[(self.func.addr, self._flavor)].codegen
+            cache = self.kb.structured_code[(self.func.addr, self._flavor)]
+            old_codegen = cache.codegen
+            old_clinic = cache.clinic
+            ite_exprs = cache.ite_exprs if self._ite_exprs is None else self._ite_exprs
         except KeyError:
+            ite_exprs = None
             old_codegen = None
+            old_clinic = None
 
         options_by_class = defaultdict(list)
 
@@ -96,22 +106,31 @@ class Decompiler(Analysis):
             reset_variable_names = self.func.addr not in variable_kb.variables.function_managers
 
         cache = DecompilationCache(self.func.addr)
+        cache.ite_exprs = ite_exprs
 
         # convert function blocks to AIL blocks
         progress_callback = lambda p, **kwargs: self._update_progress(p * (70 - 5) / 100. + 5, **kwargs)
-        clinic = self.project.analyses.Clinic(self.func,
-                                              kb=self.kb,
-                                              variable_kb=variable_kb,
-                                              reset_variable_names=reset_variable_names,
-                                              optimization_passes=self._optimization_passes,
-                                              sp_tracker_track_memory=self._sp_tracker_track_memory,
-                                              cfg=self._cfg,
-                                              peephole_optimizations=self._peephole_optimizations,
-                                              must_struct=self._vars_must_struct,
-                                              cache=cache,
-                                              progress_callback=progress_callback,
-                                              **self.options_to_params(options_by_class['clinic'])
-                                              )
+
+        if self._regen_clinic or old_clinic is None or self.func.prototype is None:
+            clinic = self.project.analyses.Clinic(self.func,
+                                                  kb=self.kb,
+                                                  variable_kb=variable_kb,
+                                                  reset_variable_names=reset_variable_names,
+                                                  optimization_passes=self._optimization_passes,
+                                                  sp_tracker_track_memory=self._sp_tracker_track_memory,
+                                                  cfg=self._cfg,
+                                                  peephole_optimizations=self._peephole_optimizations,
+                                                  must_struct=self._vars_must_struct,
+                                                  cache=cache,
+                                                  progress_callback=progress_callback,
+                                                  **self.options_to_params(options_by_class['clinic'])
+                                                  )
+        else:
+            clinic = old_clinic
+            # reuse the old, unaltered graph
+            clinic.graph = clinic.cc_graph
+            clinic.cc_graph = clinic.copy_graph()
+
         self.clinic = clinic
         self.cache = cache
         self._variable_kb = clinic.variable_kb
@@ -126,7 +145,8 @@ class Decompiler(Analysis):
         # recover regions
         ri = self.project.analyses.RegionIdentifier(self.func, graph=clinic.graph, cond_proc=cond_proc, kb=self.kb)
         # run optimizations that may require re-RegionIdentification
-        self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri, clinic.reaching_definitions)
+        self.clinic.graph, ri = self._run_region_simplification_passes(clinic.graph, ri, clinic.reaching_definitions,
+                                                                       ite_exprs=ite_exprs)
         self._update_progress(75., text='Structuring code')
 
         # structure it
@@ -156,7 +176,7 @@ class Decompiler(Analysis):
         self.cache.clinic = self.clinic
 
     @timethis
-    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions):
+    def _run_region_simplification_passes(self, ail_graph, ri, reaching_definitions, **kwargs):
         """
         Runs optimizations that should be executed after a single region identification. This function will return
         two items: the new RegionIdentifier object and the new AIL Graph, which should probably be written
@@ -165,10 +185,10 @@ class Decompiler(Analysis):
         Note: After each optimization run, if the optimization modifies the graph in any way then RegionIdentification
         will be run again.
 
-        @param ail_graph:   DiGraph with AIL Statements
-        @param ri:          RegionIdentifier
-        @param reaching_defenitions: ReachingDefenitionAnalysis
-        @return:            The possibly new AIL DiGraph and RegionIdentifier
+        :param ail_graph:   DiGraph with AIL Statements
+        :param ri:          RegionIdentifier
+        :param reaching_defenitions: ReachingDefenitionAnalysis
+        :return:            The possibly new AIL DiGraph and RegionIdentifier
         """
         addr_and_idx_to_blocks: Dict[Tuple[int, Optional[int]], ailment.Block] = {}
         addr_to_blocks: Dict[int, Set[ailment.Block]] = defaultdict(set)
@@ -189,7 +209,7 @@ class Decompiler(Analysis):
 
             a = pass_(self.func, blocks_by_addr=addr_to_blocks, blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                       graph=ail_graph, variable_kb=self._variable_kb, region_identifier=ri,
-                      reaching_definitions=reaching_definitions)
+                      reaching_definitions=reaching_definitions, **kwargs)
 
             # should be None if no changes
             if a.out_graph:

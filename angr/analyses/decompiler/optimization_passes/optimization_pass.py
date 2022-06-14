@@ -31,7 +31,7 @@ class OptimizationPass:
     STAGE: int = None  # Specifies when this optimization pass should be executed
 
     def __init__(self, func, blocks_by_addr=None, blocks_by_addr_and_idx=None, graph=None, variable_kb=None,
-                 region_identifier=None):
+                 region_identifier=None, reaching_definitions=None, **kwargs):
         self._func: 'Function' = func
         # self._blocks is just a cache
         self._blocks_by_addr: Dict[int,Set[ailment.Block]] = blocks_by_addr
@@ -39,6 +39,7 @@ class OptimizationPass:
         self._graph = graph  # type: Optional[networkx.DiGraph]
         self._variable_kb = variable_kb
         self._ri = region_identifier
+        self._rd = reaching_definitions
 
         # output
         self.out_graph = None  # type: Optional[networkx.DiGraph]

@@ -47,6 +47,10 @@ class StructuredCodeManagerSerializer:
             if cache.codegen.const_formats:
                 const_formats = pickle.dumps(cache.codegen.const_formats)
 
+            ite_exprs = None
+            if cache.ite_exprs:
+                ite_exprs = pickle.dumps(cache.ite_exprs)
+
             db_code = DbStructuredCode(
                 kb=db_kb,
                 func_addr=func_addr,
@@ -54,6 +58,7 @@ class StructuredCodeManagerSerializer:
                 expr_comments=expr_comments,
                 stmt_comments=stmt_comments,
                 const_formats=const_formats,
+                ite_exprs=ite_exprs,
                 # configuration=configuration,
             )
             session.add(db_code)
@@ -102,6 +107,11 @@ class StructuredCodeManagerSerializer:
             else:
                 const_formats = pickle.loads(db_code.const_formats)
 
+            if not db_code.ite_exprs:
+                ite_exprs = None
+            else:
+                ite_exprs = pickle.loads(db_code.ite_exprs)
+
             configuration = None
             dummy_codegen = DummyStructuredCodeGenerator(db_code.flavor,
                                                          expr_comments=expr_comments,
@@ -111,6 +121,7 @@ class StructuredCodeManagerSerializer:
                                                          )
             cache = DecompilationCache(db_code.func_addr)
             cache.codegen = dummy_codegen
+            cache.ite_exprs = ite_exprs
             manager[(db_code.func_addr, db_code.flavor)] = cache
 
         return manager

@@ -229,25 +229,30 @@ class Clinic(Analysis):
         self.graph = ail_graph
         self.arg_list = arg_list
         self.variable_kb = variable_kb
-        self.cc_graph = self._copy_graph()
+        self.cc_graph = self.copy_graph()
         self.externs = self._collect_externs(ail_graph, variable_kb)
 
-    def _copy_graph(self):
+    def copy_graph(self) -> networkx.DiGraph:
         """
         Copy AIL Graph.
 
-        :return: AILGraph copy
-        :rtype: networkx.DiGraph
+        :return: A copy of the AIl graph.
         """
         graph_copy = networkx.DiGraph()
-        for edge in self.graph.edges:
-            new_edge = ()
-            for block in edge:
-                new_block = copy.copy(block)
-                new_stmts = copy.copy(block.statements)
-                new_block.statements = new_stmts
-                new_edge += (new_block,)
-            graph_copy.add_edge(*new_edge)  # pylint: disable=no-value-for-parameter
+        block_mapping = { }
+        # copy all blocks
+        for block in self.graph.nodes():
+            new_block = copy.copy(block)
+            new_stmts = copy.copy(block.statements)
+            new_block.statements = new_stmts
+            block_mapping[block] = new_block
+            graph_copy.add_node(new_block)
+
+        # copy all edges
+        for src, dst, data in self.graph.edges(data=True):
+            new_src = block_mapping[src]
+            new_dst = block_mapping[dst]
+            graph_copy.add_edge(new_src, new_dst, **data)
         return graph_copy
 
     @timethis
