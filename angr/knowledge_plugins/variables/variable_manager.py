@@ -81,6 +81,7 @@ class VariableManagerInternal(Serializable):
         self._variables_to_unified_variables: Dict[SimVariable, SimVariable] = { }
 
         self._phi_variables = { }
+        self._variables_to_phivars = defaultdict(set)
         self._phi_variables_by_block = defaultdict(set)
 
         self.types = TypesStore(self.manager._kb)
@@ -262,6 +263,7 @@ class VariableManagerInternal(Serializable):
                 l.warning("Variable %s is not found in variable_by_ident.", phi2var.var_ident)
                 continue
             model._phi_variables[phi].add(var)
+            model._variables_to_phivars[var].add(phi)
 
         # TODO: Types
 
@@ -392,7 +394,11 @@ class VariableManagerInternal(Serializable):
                 existing_phis.add(var)
             else:
                 non_phis.add(var)
-        if len(existing_phis) == 1:
+            if var in self._variables_to_phivars:
+                for phivar in self._variables_to_phivars[var]:
+                    existing_phis.add(phivar)
+
+        if len(existing_phis) >= 1:
             existing_phi = next(iter(existing_phis))
             if block_addr in self._phi_variables_by_block and existing_phi in self._phi_variables_by_block[block_addr]:
                 if not non_phis.issubset(self.get_phi_subvariables(existing_phi)):
@@ -418,6 +424,8 @@ class VariableManagerInternal(Serializable):
         # Keep a record of all phi variables
         self._phi_variables[a] = set(variables)
         self._phi_variables_by_block[block_addr].add(a)
+        for var in variables:
+            self._variables_to_phivars[var].add(a)
 
         return a
 
