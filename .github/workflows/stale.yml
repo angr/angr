@@ -23,3 +23,5 @@ jobs:
           stale-pr-label: stale
           exempt-issue-labels: 'pinned'
           exempt-pr-labels: 'pinned'
+          exempt-all-issue-assignees: true
+          operations-per-run: 60
