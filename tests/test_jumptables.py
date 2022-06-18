@@ -8,6 +8,7 @@ import logging
 
 import angr
 from angr.knowledge_plugins.cfg import IndirectJumpType
+from angr.analyses.cfg import CFGFast
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump
@@ -305,6 +306,37 @@ def test_vtable_amd64_libc_ubuntu_2004():
             assert entry in cfg.functions
 
 
+def test_mips_jumptable0():
+
+    p = angr.Project(os.path.join(test_location, "mipsel", "jumptable_0"), auto_load_libs=False)
+    cfg = p.analyses[CFGFast].prep()()
+
+    assert 0x40d1a4 in cfg.model.jump_tables
+    jumptable = cfg.model.jump_tables[0x40d1a4]
+    assert len(jumptable.jumptable_entries) == 19
+    assert jumptable.jumptable_entries == [
+        0x40d1e0,
+        0x40d278,
+        0x40d200,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d1c8,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d278,
+        0x40d250,
+        0x40d270,
+        0x40d278,
+        0x40d1f8
+    ]
+
+
 if __name__ == "__main__":
     test_amd64_chmod_gcc_O1()
     test_amd64_dir_gcc_O0()
@@ -320,3 +352,4 @@ if __name__ == "__main__":
     test_arm_libsoap()
     test_jumptable_occupied_as_data()
     test_vtable_amd64_libc_ubuntu_2004()
+    test_mips_jumptable0()

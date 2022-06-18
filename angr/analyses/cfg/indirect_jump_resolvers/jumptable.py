@@ -755,7 +755,7 @@ class JumpTableResolver(IndirectJumpResolver):
         for src_irsb, _ in sources:
             # Use slicecutor to execute each one, and get the address
             # We simply give up if any exception occurs on the way
-            start_state = self._initial_state(src_irsb)
+            start_state = self._initial_state(src_irsb, cfg, func_addr)
             # Keep IP symbolic to avoid unnecessary concretization
             start_state.options.add(o.KEEP_IP_SYMBOLIC)
             start_state.options.add(o.NO_IP_CONCRETIZATION)
@@ -1635,7 +1635,7 @@ class JumpTableResolver(IndirectJumpResolver):
                                                       )
             print(s)
 
-    def _initial_state(self, src_irsb):
+    def _initial_state(self, src_irsb, cfg, func_addr: int):
 
         state = self.project.factory.blank_state(
             addr=src_irsb,
@@ -1650,6 +1650,14 @@ class JumpTableResolver(IndirectJumpResolver):
                                o.UNINITIALIZED_ACCESS_AWARENESS,
                            } | o.refs
         )
+
+        if self.project.arch.name == "MIPS32":
+            try:
+                func = cfg.kb.functions.get_by_addr(func_addr)
+                if func.info and "gp" in func.info:
+                    state.regs._gp = func.info["gp"]
+            except KeyError:
+                pass
 
         return state
 
