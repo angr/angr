@@ -754,12 +754,8 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	}
 	if (is_dst_symbolic && !is_interrupt) {
 		// Track details of symbolic memory write
-		auto sym_mem_write = symbolic_mem_writes.find(address);
-		if (sym_mem_write == symbolic_mem_writes.end()) {
-			symbolic_mem_writes.emplace(address, size);
-		}
-		else if (sym_mem_write->second < size) {
-			sym_mem_write->second = size;
+		for (auto byte_addr = address; byte_addr <= address + size; byte_addr++) {
+			symbolic_mem_writes.emplace(byte_addr);
 		}
 		// If some concrete write to the same location is marked for re-execution, remove it since this write overrides
 		// effects
@@ -793,9 +789,8 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// No overlap condition test failed => there is some overlap. Track details of concrete write for later
 				// re-execution
 				erase_previous_mem_write = false;
-				auto sym_mem_write = symbolic_mem_writes.find(address);
-				if (sym_mem_write != symbolic_mem_writes.end()) {
-					if ((size <= sym_mem_write->second)) {
+				for (auto byte_addr = address; byte_addr <= address + size; byte_addr++) {
+					if (symbolic_mem_writes.count(byte_addr) > 0) {
 						// This concrete write will be overwritten by a previous symbolic write during re-execution
 						// leading to a write-write conflict. Record details for re-executing concrete write later.
 						block_concrete_writes_to_reexecute.emplace(address, size);
@@ -810,9 +805,8 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// No overlap condition test failed => there is some overlap. Track details of concrete write for later
 				// re-execution
 				erase_previous_mem_write = false;
-				auto sym_mem_write = symbolic_mem_writes.find(address);
-				if (sym_mem_write != symbolic_mem_writes.end()) {
-					if ((size <= sym_mem_write->second)) {
+				for (auto byte_addr = address; byte_addr <= address + size; byte_addr++) {
+					if (symbolic_mem_writes.count(byte_addr) > 0) {
 						// This concrete write will be overwritten by a previous symbolic write during re-execution
 						// leading to a write-write conflict. Record details for re-executing concrete write later.
 						block_concrete_writes_to_reexecute.emplace(address, size);
