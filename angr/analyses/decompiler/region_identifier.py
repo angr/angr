@@ -1,15 +1,15 @@
 from itertools import count
 import logging
-from typing import List, Optional, Union
+from typing import List, Optional
 
 import networkx
 
 import ailment
 from ailment import Block
-from claripy.utils.orderedset import OrderedSet
 
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
+from ..cfg.cfg_utils import CFGUtils
 from .utils import replace_last_statement
 from .structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
@@ -35,7 +35,7 @@ class RegionIdentifier(Analysis):
 
         self.region = None
         self._start_node = None
-        self._loop_headers: Optional[Union[OrderedSet,set]] = None
+        self._loop_headers: Optional[List] = None
         self.regions_by_block_addrs = []
 
         self._analyze()
@@ -170,8 +170,10 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
-    def _find_loop_headers(self, graph: networkx.DiGraph):
-        return OrderedSet(sorted((t for _,t in dfs_back_edges(graph, self._start_node)), key=lambda x: x.addr))
+    def _find_loop_headers(self, graph: networkx.DiGraph) -> List:
+
+        heads = { t for _,t in dfs_back_edges(graph, self._start_node) }
+        return CFGUtils.quasi_topological_sort_nodes(graph, heads)
 
     def _find_initial_loop_nodes(self, graph: networkx.DiGraph, head):
         # TODO optimize
@@ -306,7 +308,7 @@ class RegionIdentifier(Analysis):
         initial_loop_nodes = self._find_initial_loop_nodes(graph, head)
         l.debug("Initial loop nodes %s", self._dbg_block_list(initial_loop_nodes))
 
-        # Make sure there is no other loop contained in the current loop
+        # Make sure no other loops are contained in the current loop
         if {n for n in initial_loop_nodes if n.addr != head.addr}.intersection(self._loop_headers):
             return None
 

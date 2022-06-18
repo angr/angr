@@ -417,7 +417,7 @@ class TestDecompiler(unittest.TestCase):
         ]
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
-        l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
         code = dec.codegen.text
         # with EagerReturnSimplifier applied, there should be no goto!

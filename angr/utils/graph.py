@@ -34,7 +34,7 @@ def dfs_back_edges(graph, start_node):
     name suggest it, but `dfs_labeled_edges` is doing something different.
 
     :param graph:       The graph to traverse.
-    :param node:        The node where to start the traversal
+    :param start_node:  The node where to start the traversal
     :returns:           An iterator of 'backward' edges
     """
 
@@ -48,8 +48,8 @@ def dfs_back_edges(graph, start_node):
                 if child in visited:
                     yield node, child
                 else:
-                    for s,t in _dfs_back_edges_core(child):
-                        yield s,t
+                    for s, t in _dfs_back_edges_core(child):
+                        yield s, t
         finished.add(node)
 
     for s,t in _dfs_back_edges_core(start_node):
