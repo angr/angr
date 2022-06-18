@@ -319,7 +319,7 @@ class TestDecompiler(unittest.TestCase):
         f = cfg.functions[0x404410]
         dec = p.analyses[Decompiler].prep()(f, cfg=cfg.model, optimization_passes=all_optimization_passes)
         assert dec.codegen is not None, "Failed to decompile function %s." % repr(f)
-        l.debug("Decompiled function %s\n%s", repr(f), dec.codegen.text)
+        self._print_decompilation_result(dec)
 
     def test_decompiling_true_1804_x86_64(self):
         # true in Ubuntu 18.04, with -O2, has special optimizations that

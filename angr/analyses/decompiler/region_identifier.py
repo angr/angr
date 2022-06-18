@@ -1,6 +1,6 @@
 from itertools import count
 import logging
-from typing import List
+from typing import List, Optional, Union
 
 import networkx
 
@@ -35,7 +35,7 @@ class RegionIdentifier(Analysis):
 
         self.region = None
         self._start_node = None
-        self._loop_headers = None
+        self._loop_headers: Optional[Union[OrderedSet,set]] = None
         self.regions_by_block_addrs = []
 
         self._analyze()
@@ -248,7 +248,7 @@ class RegionIdentifier(Analysis):
             self._start_node = self._get_start_node(graph)
 
             # Start from loops
-            for node in reversed(self._loop_headers):
+            for node in list(reversed(self._loop_headers)):
                 if node in structured_loop_headers:
                     continue
                 region = self._make_cyclic_region(node, graph)
@@ -258,6 +258,11 @@ class RegionIdentifier(Analysis):
                     structured_loop_headers.add(node)
                     restart = True
                     break
+                else:
+                    # failed to struct the loop region - remove the header node from loop headers
+                    l.debug("Failed to structure a loop region starting at %#x. Remove it from loop headers.",
+                            node.addr)
+                    self._loop_headers.remove(node)
 
             if restart:
                 continue
