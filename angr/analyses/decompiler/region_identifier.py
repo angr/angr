@@ -123,8 +123,8 @@ class RegionIdentifier(Analysis):
 
         try:
             return next(n for n in graph.nodes() if n.addr == self.function.addr)
-        except StopIteration:
-            raise RuntimeError("Cannot find the start node from the graph!")
+        except StopIteration as ex:
+            raise RuntimeError("Cannot find the start node from the graph!") from ex
 
     def _test_reducibility(self):
 
@@ -254,17 +254,17 @@ class RegionIdentifier(Analysis):
                 if node in structured_loop_headers:
                     continue
                 region = self._make_cyclic_region(node, graph)
-                if region is not None:
+                if region is None:
+                    # failed to struct the loop region - remove the header node from loop headers
+                    l.debug("Failed to structure a loop region starting at %#x. Remove it from loop headers.",
+                            node.addr)
+                    self._loop_headers.remove(node)
+                else:
                     l.debug("Structured a loop region %r.", region)
                     new_regions.append(region)
                     structured_loop_headers.add(node)
                     restart = True
                     break
-                else:
-                    # failed to struct the loop region - remove the header node from loop headers
-                    l.debug("Failed to structure a loop region starting at %#x. Remove it from loop headers.",
-                            node.addr)
-                    self._loop_headers.remove(node)
 
             if restart:
                 continue
