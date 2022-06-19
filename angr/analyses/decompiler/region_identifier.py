@@ -1,15 +1,15 @@
 from itertools import count
 import logging
-from typing import List
+from typing import List, Optional
 
 import networkx
 
 import ailment
 from ailment import Block
-from claripy.utils.orderedset import OrderedSet
 
 from ...utils.graph import dfs_back_edges, subgraph_between_nodes, dominates, shallow_reverse
 from .. import Analysis, register_analysis
+from ..cfg.cfg_utils import CFGUtils
 from .utils import replace_last_statement
 from .structurer_nodes import MultiNode, ConditionNode
 from .graph_region import GraphRegion
@@ -35,7 +35,7 @@ class RegionIdentifier(Analysis):
 
         self.region = None
         self._start_node = None
-        self._loop_headers = None
+        self._loop_headers: Optional[List] = None
         self.regions_by_block_addrs = []
 
         self._analyze()
@@ -123,8 +123,8 @@ class RegionIdentifier(Analysis):
 
         try:
             return next(n for n in graph.nodes() if n.addr == self.function.addr)
-        except StopIteration:
-            raise RuntimeError("Cannot find the start node from the graph!")
+        except StopIteration as ex:
+            raise RuntimeError("Cannot find the start node from the graph!") from ex
 
     def _test_reducibility(self):
 
@@ -170,8 +170,10 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
-    def _find_loop_headers(self, graph: networkx.DiGraph):
-        return OrderedSet(sorted((t for _,t in dfs_back_edges(graph, self._start_node)), key=lambda x: x.addr))
+    def _find_loop_headers(self, graph: networkx.DiGraph) -> List:
+
+        heads = { t for _,t in dfs_back_edges(graph, self._start_node) }
+        return CFGUtils.quasi_topological_sort_nodes(graph, heads)
 
     def _find_initial_loop_nodes(self, graph: networkx.DiGraph, head):
         # TODO optimize
@@ -248,11 +250,16 @@ class RegionIdentifier(Analysis):
             self._start_node = self._get_start_node(graph)
 
             # Start from loops
-            for node in reversed(self._loop_headers):
+            for node in list(reversed(self._loop_headers)):
                 if node in structured_loop_headers:
                     continue
                 region = self._make_cyclic_region(node, graph)
-                if region is not None:
+                if region is None:
+                    # failed to struct the loop region - remove the header node from loop headers
+                    l.debug("Failed to structure a loop region starting at %#x. Remove it from loop headers.",
+                            node.addr)
+                    self._loop_headers.remove(node)
+                else:
                     l.debug("Structured a loop region %r.", region)
                     new_regions.append(region)
                     structured_loop_headers.add(node)
@@ -301,7 +308,7 @@ class RegionIdentifier(Analysis):
         initial_loop_nodes = self._find_initial_loop_nodes(graph, head)
         l.debug("Initial loop nodes %s", self._dbg_block_list(initial_loop_nodes))
 
-        # Make sure there is no other loop contained in the current loop
+        # Make sure no other loops are contained in the current loop
         if {n for n in initial_loop_nodes if n.addr != head.addr}.intersection(self._loop_headers):
             return None
 
