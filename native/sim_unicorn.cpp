@@ -754,7 +754,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 	}
 	if (is_dst_symbolic && !is_interrupt) {
 		// Track details of symbolic memory write
-		for (auto byte_addr = address; byte_addr <= address + size; byte_addr++) {
+		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
 			symbolic_mem_writes.emplace(byte_addr);
 		}
 		// If some concrete write to the same location is marked for re-execution, remove it since this write overrides
