@@ -335,21 +335,17 @@ void State::commit() {
 		trace_last_block_curr_count += 1;
 	}
 	// Update details of concrete writes to re-execute
-	for (auto &write_det: block_concrete_writes_to_reexecute) {
-		auto reexec_write_entry = concrete_writes_to_reexecute.find(write_det.first);
+	for (auto &write_addr: block_concrete_writes_to_reexecute) {
+		uint8_t concrete_value;
+		uc_mem_read(uc, write_addr, &concrete_value, 1);
+		auto reexec_write_entry = concrete_writes_to_reexecute.find(write_addr);
 		if (reexec_write_entry == concrete_writes_to_reexecute.end()) {
 			// This is a new concrete write that needs to be re-executed
-			memory_value_t concrete_value;
-			concrete_value.address = write_det.first;
-			concrete_value.size = write_det.second;
-			concrete_value.is_value_symbolic = false;
-			read_memory_value(concrete_value.address, concrete_value.size, concrete_value.value, MAX_MEM_ACCESS_SIZE);
-			concrete_writes_to_reexecute.emplace(concrete_value.address, concrete_value);
+			concrete_writes_to_reexecute.emplace(write_addr, concrete_value);
 		}
 		else {
-			// The write to be re-executed overlaps with some existing write. Update existing write's value.
-			reexec_write_entry->second.size = write_det.second;
-			read_memory_value(write_det.first, write_det.second, reexec_write_entry->second.value, MAX_MEM_ACCESS_SIZE);
+			// A previous concrete write to same address is marked for re-execution. Update its value.
+			reexec_write_entry->second = concrete_value;
 		}
 	}
 	// Sync all block level taint statuses reads with state's taint statuses and block level
@@ -752,7 +748,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 			}
 		}
 	}
-	if (is_dst_symbolic && !is_interrupt) {
+	if (is_dst_symbolic) {
 		// Track details of symbolic memory write
 		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
 			symbolic_mem_writes.emplace(byte_addr);
@@ -767,12 +763,14 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		if (curr_block_write_reexec_entry != block_concrete_writes_to_reexecute.end()) {
 			block_concrete_writes_to_reexecute.erase(curr_block_write_reexec_entry);
 		}
-		// Save the details of memory location written to in the statement details
-		for (auto &symbolic_stmt: curr_block_details.symbolic_stmts) {
-			if ((symbolic_stmt.instr_addr == curr_instr_addr) && symbolic_stmt.has_memory_write) {
-				symbolic_stmt.mem_write_addr = address;
-				symbolic_stmt.mem_write_size = size;
-				break;
+		if (!is_interrupt) {
+			// Save the details of memory location written to in the statement details
+			for (auto &symbolic_stmt: curr_block_details.symbolic_stmts) {
+				if ((symbolic_stmt.instr_addr == curr_instr_addr) && symbolic_stmt.has_memory_write) {
+					symbolic_stmt.mem_write_addr = address;
+					symbolic_stmt.mem_write_size = size;
+					break;
+				}
 			}
 		}
 	}
@@ -789,11 +787,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// No overlap condition test failed => there is some overlap. Track details of concrete write for later
 				// re-execution
 				erase_previous_mem_write = false;
-				for (auto byte_addr = address; byte_addr <= address + size; byte_addr++) {
+				for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
 					if (symbolic_mem_writes.count(byte_addr) > 0) {
 						// This concrete write will be overwritten by a previous symbolic write during re-execution
-						// leading to a write-write conflict. Record details for re-executing concrete write later.
-						block_concrete_writes_to_reexecute.emplace(address, size);
+						// leading to a write-write conflict. Record address for re-executing concrete write later.
+						block_concrete_writes_to_reexecute.emplace(byte_addr);
 					}
 				}
 			}
@@ -805,11 +803,11 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 				// No overlap condition test failed => there is some overlap. Track details of concrete write for later
 				// re-execution
 				erase_previous_mem_write = false;
-				for (auto byte_addr = address; byte_addr <= address + size; byte_addr++) {
+				for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
 					if (symbolic_mem_writes.count(byte_addr) > 0) {
 						// This concrete write will be overwritten by a previous symbolic write during re-execution
-						// leading to a write-write conflict. Record details for re-executing concrete write later.
-						block_concrete_writes_to_reexecute.emplace(address, size);
+						// leading to a write-write conflict. Record address for re-executing concrete write later.
+						block_concrete_writes_to_reexecute.emplace(byte_addr);
 					}
 				}
 			}
@@ -842,10 +840,14 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 			}
 		}
 	}
-	if (!is_dst_symbolic && (concrete_writes_to_reexecute.find(address) != concrete_writes_to_reexecute.end())) {
-		// We are writing a concrete value to the same address as some concrete write to be reexecuted. Update value of
-		// write.
-		block_concrete_writes_to_reexecute.emplace(address, size);
+	if (!is_dst_symbolic) {
+		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
+			// We are writing a concrete value to the same address as some concrete write to be reexecuted. Record
+			// address to later update concrete value to write.
+			if (concrete_writes_to_reexecute.find(byte_addr) != concrete_writes_to_reexecute.end()) {
+				block_concrete_writes_to_reexecute.emplace(byte_addr);
+			}
+		}
 	}
 	if (data == NULL) {
 		for (auto i = start; i <= end; i++) {
@@ -3018,11 +3020,11 @@ uint64_t simunicorn_get_count_of_writes_to_reexecute(State *state) {
 }
 
 extern "C"
-void simunicorn_get_concrete_writes_to_reexecute(State *state, memory_value_t *values) {
+void simunicorn_get_concrete_writes_to_reexecute(State *state, uint64_t *addrs, uint8_t *values) {
 	uint64_t count = 0;
 	for (auto &entry: state->concrete_writes_to_reexecute) {
-		auto &mem_val = entry.second;
-		memcpy(values + count, &mem_val, sizeof(memory_value_t));
+		addrs[count] = entry.first;
+		values[count] = entry.second;
 		count++;
 	}
 	return;

@@ -456,7 +456,8 @@ def _load_native():
         _setup_prototype(h, 'set_vex_cc_reg_data', None, state_t, ctypes.POINTER(ctypes.c_uint64),
                          ctypes.POINTER(ctypes.c_uint64), ctypes.c_uint64)
         _setup_prototype(h, 'get_count_of_writes_to_reexecute', ctypes.c_uint64, state_t)
-        _setup_prototype(h, 'get_concrete_writes_to_reexecute', None, state_t, ctypes.POINTER(MemoryValue))
+        _setup_prototype(h, 'get_concrete_writes_to_reexecute', None, state_t, ctypes.POINTER(ctypes.c_uint64),
+                         ctypes.POINTER(ctypes.c_uint8))
 
         l.info('native plugin is enabled')
 
@@ -1327,13 +1328,11 @@ class Unicorn(SimStatePlugin):
         # Re-execute concrete writes
         count_of_writes_to_reexecute = _UC_NATIVE.get_count_of_writes_to_reexecute(self._uc_state)
         if count_of_writes_to_reexecute > 0:
-            writes_to_reexecute = (MemoryValue * count_of_writes_to_reexecute)()
-            _UC_NATIVE.get_concrete_writes_to_reexecute(self._uc_state, writes_to_reexecute)
-            for write_to_reexecute in writes_to_reexecute:
-                assert(not write_to_reexecute.is_value_symbolic)
-                address = write_to_reexecute.address
-                value = bytes(write_to_reexecute.value[:write_to_reexecute.size])
-                state.memory.store(address, value)
+            write_addrs = (ctypes.c_uint64 * count_of_writes_to_reexecute)()
+            write_values = (ctypes.c_uint8 * count_of_writes_to_reexecute)()
+            _UC_NATIVE.get_concrete_writes_to_reexecute(self._uc_state, write_addrs, write_values)
+            for address, value in zip(write_addrs, write_values):
+                state.memory.store(address, value, 1)
 
         if unicorn_obj.stop_reason in {STOP.STOP_NORMAL, STOP.STOP_SYSCALL, STOP.STOP_SYMBOLIC_MEM_DEP_NOT_LIVE}:
             unicorn_obj.countdown_nonunicorn_blocks = 0
