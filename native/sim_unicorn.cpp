@@ -749,19 +749,17 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		}
 	}
 	if (is_dst_symbolic) {
-		// Track details of symbolic memory write
+		// Track details of symbolic memory write. Remove any concrete writes to same location marked for re-execution.
 		for (auto byte_addr = address; byte_addr < address + size; byte_addr++) {
 			symbolic_mem_writes.emplace(byte_addr);
-		}
-		// If some concrete write to the same location is marked for re-execution, remove it since this write overrides
-		// effects
-		auto prev_write_reexec_entry = concrete_writes_to_reexecute.find(address);
-		if (prev_write_reexec_entry != concrete_writes_to_reexecute.end()) {
-			concrete_writes_to_reexecute.erase(prev_write_reexec_entry);
-		}
-		auto curr_block_write_reexec_entry = block_concrete_writes_to_reexecute.find(address);
-		if (curr_block_write_reexec_entry != block_concrete_writes_to_reexecute.end()) {
-			block_concrete_writes_to_reexecute.erase(curr_block_write_reexec_entry);
+			auto prev_write_reexec_entry = concrete_writes_to_reexecute.find(byte_addr);
+			if (prev_write_reexec_entry != concrete_writes_to_reexecute.end()) {
+				concrete_writes_to_reexecute.erase(prev_write_reexec_entry);
+			}
+			auto curr_block_write_reexec_entry = block_concrete_writes_to_reexecute.find(byte_addr);
+			if (curr_block_write_reexec_entry != block_concrete_writes_to_reexecute.end()) {
+				block_concrete_writes_to_reexecute.erase(curr_block_write_reexec_entry);
+			}
 		}
 		if (!is_interrupt) {
 			// Save the details of memory location written to in the statement details
