@@ -9,6 +9,7 @@ jobs:
     steps:
       - uses: actions/stale@v4
         with:
+          days-before-stale: 120
           stale-issue-message: >
             This issue has been marked as `stale` because it has no recent activity.
             Please comment or add the `pinned` tag to prevent this issue from being closed.
@@ -21,5 +22,7 @@ jobs:
             This issue has been closed due to inactivity.
           stale-issue-label: stale
           stale-pr-label: stale
-          exempt-issue-labels: 'pinned'
+          exempt-issue-labels: 'pinned,feature,enhancement,help wanted'
           exempt-pr-labels: 'pinned'
+          exempt-all-issue-assignees: true
+          operations-per-run: 60
