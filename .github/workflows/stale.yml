@@ -9,6 +9,7 @@ jobs:
     steps:
       - uses: actions/stale@v4
         with:
+          days-before-stale: 120
           stale-issue-message: >
             This issue has been marked as `stale` because it has no recent activity.
             Please comment or add the `pinned` tag to prevent this issue from being closed.
