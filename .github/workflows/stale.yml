@@ -21,7 +21,7 @@ jobs:
             This issue has been closed due to inactivity.
           stale-issue-label: stale
           stale-pr-label: stale
-          exempt-issue-labels: 'pinned'
+          exempt-issue-labels: 'pinned,feature,enhancement,help wanted'
           exempt-pr-labels: 'pinned'
           exempt-all-issue-assignees: true
           operations-per-run: 60
