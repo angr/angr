@@ -278,26 +278,25 @@ class SimEngineUnicorn(SuccessorsMixin):
             else:
                 state.inspect.mem_read_expr = state.solver.BVV(value)
         else:
-            # The value is partially concrete. Use the bitmap to read the symbolic bytes from memory and construct the
-            # correct value
-            actual_value = []
+            # The value may be partially concrete. Set the symbolic bitmap to read correct value and restore it
             mem_read_address = state.inspect.mem_read_address
+            mem_read_length = state.inspect.mem_read_length
+            saved_taints = []
+            # Save current symbolic taint bitmap and set it to what read expects
             for offset, taint in enumerate(taint_map):
-                if taint == 1:
-                    # Byte is symbolic. Read the value from memory after adjusting symbolic bitmap if needed
-                    page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
-                    saved_symbolic_bitmap_val = state.memory._pages[page_num].symbolic_bitmap[page_off]
-                    state.memory._pages[page_num].symbolic_bitmap[page_off] = 1
-                    actual_value.append(state.memory.load(mem_read_address + offset, 1, inspect=False,
-                                                          disable_actions=True))
-                    state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_symbolic_bitmap_val
-                else:
-                    actual_value.append(state.solver.BVV(value[offset], 8))
+                page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
+                saved_taints.append(state.memory._pages[page_num].symbolic_bitmap[page_off])
+                state.memory._pages[page_num].symbolic_bitmap[page_off] = taint
 
-            if state.arch.memory_endness == archinfo.Endness.LE:
-                actual_value = actual_value[::-1]
+            # Perform memory read
+            state.inspect.mem_read_expr = state.memory.load(mem_read_address, mem_read_length,
+                                                            endness=state.arch.memory_endness, inspect=False,
+                                                            disable_actions=True)
 
-            state.inspect.mem_read_expr = state.solver.Concat(*actual_value)
+            # Restore symbolic taint bitmap
+            for offset, saved_taint in enumerate(saved_taints):
+                page_num, page_off = state.memory._divide_addr(state.solver.eval(mem_read_address) + offset)
+                state.memory._pages[page_num].symbolic_bitmap[page_off] = saved_taint
 
     def process_successors(self, successors, **kwargs):
         state = self.state
