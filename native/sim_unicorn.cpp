@@ -768,7 +768,7 @@ void State::handle_write(address_t address, int size, bool is_interrupt = false,
 		// We are writing to a memory location that is currently symbolic. If the destination if a memory dependency
 		// of some instruction to be re-executed, we need to re-execute that instruction before continuing.
 		auto curr_write_start_addr = address;
-		auto curr_write_end_addr = address + size;
+		auto curr_write_end_addr = address + size - 1;
 		bool erase_previous_mem_write = true;
 		for (auto &symbolic_mem_dep: symbolic_mem_deps) {
 			if ((curr_write_start_addr <= symbolic_mem_dep.first) && (symbolic_mem_dep.first <= curr_write_end_addr)) {
