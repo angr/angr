@@ -71,8 +71,7 @@ class MemoryValue(ctypes.Structure):
 
     _fields_ = [
         ('address', ctypes.c_uint64),
-        ('value', ctypes.c_uint8 * _MAX_MEM_ACCESS_SIZE),
-        ('size', ctypes.c_uint64),
+        ('value', ctypes.c_uint8),
         ('is_value_symbolic', ctypes.c_bool)
     ]
 
@@ -1039,8 +1038,8 @@ class Unicorn(SimStatePlugin):
 
         def _get_memory_values(memory_values):
             for memory_value in memory_values:
-                yield {"address": memory_value.address, "value": bytes(memory_value.value[:memory_value.size]),
-                       "size": memory_value.size, "symbolic": memory_value.is_value_symbolic}
+                yield {"address": memory_value.address, "value": bytes([memory_value.value]),
+                       "symbolic": memory_value.is_value_symbolic}
 
         def _get_vex_stmt_details(symbolic_stmts):
             for instr in symbolic_stmts:

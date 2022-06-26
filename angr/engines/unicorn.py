@@ -256,11 +256,11 @@ class SimEngineUnicorn(SuccessorsMixin):
                 mem_read_address = next_val["address"]
 
             if next_val["symbolic"]:
-                mem_read_taint_map.extend([1] * next_val["size"])
+                mem_read_taint_map.append(1)
             else:
-                mem_read_taint_map.extend([0] * next_val["size"])
+                mem_read_taint_map.append(0)
 
-            mem_read_size += next_val["size"]
+            mem_read_size += 1
             mem_read_val += next_val["value"]
 
         assert state.inspect.mem_read_length == mem_read_size

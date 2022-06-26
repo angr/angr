@@ -131,26 +131,21 @@ namespace std {
 
 struct memory_value_t {
 	uint64_t address;
-    uint8_t value[MAX_MEM_ACCESS_SIZE];
-    uint64_t size;
+	uint8_t value;
 	bool is_value_symbolic;
 
 	bool operator==(const memory_value_t &other_mem_value) const {
-		if ((address != other_mem_value.address) || (size != other_mem_value.size) ||
+		if ((address != other_mem_value.address) || (value != other_mem_value.value) ||
 			(is_value_symbolic != other_mem_value.is_value_symbolic)) {
 			return false;
 		}
-		return (memcmp(value, other_mem_value.value, size) == 0);
+		return true;
 	}
 
 	memory_value_t() {
-		reset();
-	}
-
-	void reset() {
 		address = 0;
-		size = 0;
-		memset(value, 0, MAX_MEM_ACCESS_SIZE);
+		value = 0;
+		is_value_symbolic = false;
 	}
 };
 
@@ -210,7 +205,7 @@ struct vex_stmt_details_t {
 	// Mark fields as mutable so that they can be updated after inserting into std::set
 	mutable memory_value_t *memory_values;
 	mutable uint64_t memory_values_count;
-	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
+	std::unordered_set<address_t> symbolic_mem_deps;
 	std::set<vex_stmt_details_t> stmt_deps;
 	std::unordered_set<register_value_t> reg_deps;
 
@@ -606,12 +601,11 @@ class State {
 	// Count of blocks executed in native interface
 	int64_t executed_blocks_count;
 
-	// Details of symbolic memory dependencies of all VEX statements to be re-executed. Stores address and size of
-	// memory location and number of VEX statements the location is a dependency of. Only dependencies of statements
-	// that will be re-executed are tracked.
-	std::unordered_map<address_t, std::pair<uint64_t, uint64_t>> symbolic_mem_deps;
+	// Details of symbolic memory dependencies of all VEX statements to be re-executed. Stores address and number of VEX
+	// statements the location is a dependency of. Only dependencies of statements that will be re-executed are tracked.
+	std::unordered_map<address_t, uint64_t> symbolic_mem_deps;
 	// Symbolic memory dependencies of all symbolic VEX statements in current block.
-	std::unordered_map<address_t, uint64_t> block_symbolic_mem_deps;
+	std::unordered_set<address_t> block_symbolic_mem_deps;
 
 	// Private functions
 
@@ -866,8 +860,6 @@ class State {
 		void handle_write(address_t address, int size, bool is_interrupt, bool interrupt_value_symbolic);
 
 		void propagate_taint_of_mem_read_instr_and_continue(address_t read_address, int read_size);
-
-		void read_memory_value(address_t address, uint64_t size, uint8_t *result, size_t result_size) const;
 
 		void start_propagating_taint();
 
