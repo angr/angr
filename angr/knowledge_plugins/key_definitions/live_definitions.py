@@ -2,11 +2,11 @@ import weakref
 from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING
 import logging
 
+from collections import defaultdict
+
 import claripy
 from claripy.annotation import Annotation
 import archinfo
-
-from collections import defaultdict
 
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
@@ -224,11 +224,13 @@ class LiveDefinitions:
                 return 0
             elif addr.op == "__add__":
                 if len(addr.args) == 2:
-                    return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) + LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                    return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
+                           + LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
                 if len(addr.args) == 1:
                     return 0
             elif addr.op == "__sub__" and len(addr.args) == 2:
-                return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) - LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
+                return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
+                       - LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
         return None
 
     @staticmethod
