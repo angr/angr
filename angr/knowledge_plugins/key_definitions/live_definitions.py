@@ -224,7 +224,6 @@ class LiveDefinitions:
                 return 0
             elif addr.op == "__add__":
                 if len(addr.args) == 2:
-<<<<<<< HEAD
                     return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
                            + LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
                 if len(addr.args) == 1:
@@ -232,13 +231,6 @@ class LiveDefinitions:
             elif addr.op == "__sub__" and len(addr.args) == 2:
                 return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
                        - LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
-=======
-                    return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) + LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
-                if len(addr.args) == 1:
-                    return 0
-            elif addr.op == "__sub__" and len(addr.args) == 2:
-                return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) - LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
->>>>>>> Make stack offset resolve recursively in the case of multiple variables
         return None
 
     @staticmethod
