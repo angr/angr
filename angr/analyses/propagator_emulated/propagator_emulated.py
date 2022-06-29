@@ -3,6 +3,7 @@ from collections import defaultdict
 from functools import reduce
 
 import ailment
+import claripy
 
 from ...engines.successors import SimSuccessors
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
@@ -14,7 +15,7 @@ from ...engines.soot import SootMixin
 from ..cfg.cfg_utils import CFGUtils
 from .. import register_analysis
 from ..analysis import Analysis
-from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation
+from ..cfg.cfg_vm_deobfuscation import StackTouchedAnnotation, DataRegionAnnotation, VMStackVariableAnnotation
 from ..forward_analysis.visitors.graph import GraphVisitor
 from ..forward_analysis import ForwardAnalysis
 from .values import TOP
@@ -22,7 +23,56 @@ from .engines.engine_vex import PropagatorEmulatedHeavyVEXMixin
 
 
 class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimEngineUnicorn, SuperFastpathMixin, TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SootMixin, PropagatorEmulatedHeavyVEXMixin):
-    pass
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _perform_vex_expr_Load(self, addr, ty, endness, **kwargs):
+
+        simplified_addr = self.state.solver.simplify(addr[0])
+        result = super()._perform_vex_expr_Load((simplified_addr, addr[1]), ty, endness, **kwargs)
+
+        save = False
+        if isinstance(result[0].args[0], str) and result[0].args[0].startswith('symbolic_read_unconstrained_'):
+            for ast in simplified_addr.leaf_asts():
+                if isinstance(ast.args[0], str) and ast.args[0].startswith('scanf'):
+                    save = True
+                    break
+
+        if save:
+            # create a solver without any constraints and use that to solve. This is equivalent to simplifying it and should not have the same issues that regular symbolic execution/solving with contraints should have
+            no_constraints_solver = claripy.solvers.SolverComposite()
+            conc_addrs = no_constraints_solver.eval(simplified_addr, 5)
+
+            simp_addr = self.state.solver.simplify(simplified_addr)
+            vars = simp_addr.variables
+
+            if len(vars) > 1:
+                print("More than one user inputs? or variables?")
+                import ipdb;
+                ipdb.set_trace()
+
+            var_str = list(vars)[0]
+
+            for ast in simplified_addr.leaf_asts():
+                if isinstance(ast.args[0], str) and ast.args[0] == var_str:
+                    var_ast = ast
+
+            conc_addr_and_new_constraints = []
+            for conc_addr in conc_addrs:
+                no_constraints_solver = claripy.solvers.SolverComposite()
+                no_constraints_solver.add(simplified_addr == conc_addr)
+                conc_input_value = no_constraints_solver.eval(var_ast, 1)[0]
+                conc_addr_and_new_constraints.append((conc_addr, var_ast == conc_input_value))
+
+            if len(conc_addrs) == 1:
+                print("Hmmmm")
+                import ipdb;
+                ipdb.set_trace()
+            else:
+                self.state.globals['concretized_load_addr_dict'][result[0]] = (
+                conc_addr_and_new_constraints, self._ty_to_bytes(ty), simplified_addr)
+
+        return result
 
 
 class EmulatedCFGVisitor(GraphVisitor):
@@ -284,10 +334,11 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
     #     return successors_to_visit
 
     def _run_on_node(self, node, abstract_state):
+        print(node)
         concrete_state = abstract_state.get_concrete_state(node.block_id)
         node.input_state = concrete_state
         if concrete_state is None:
-            # didn't find any state going to here
+            # didn't find any state going here
             return False, abstract_state
 
         block_key = node.block_id
@@ -298,56 +349,172 @@ class PropagatorEmulatedAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=a
             abstract_state = PropagatorVEXState(arch=self.project.arch)
 
         node.input_state.globals['abstract_state'] = abstract_state
-        node.input_state.globals['block_id'] = block_key
+        node.input_state.globals['cur_block_id'] = block_key
         engine = self._engine
         sim_successors = engine.process(node.input_state, opt_level=self._iropt_level, irsb=node.irsb)
 
-        symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
-        symbolic_sim_successors.artifacts = sim_successors.artifacts
-        symbolic_sim_successors.engine = sim_successors.engine
-        symbolic_sim_successors.processed = sim_successors.processed
-        symbolic_sim_successors.description = sim_successors.description
-        symbolic_sim_successors.sort = sim_successors.sort
+        if node.is_simprocedure:
+            if len(list(self._graph.successors(node))) > 1 and len(sim_successors.unconstrained_successors) > 0:
+                # create successors for the sim procedure since it is unconstrained because we are not emulating the sim procedures for constant prop
+                new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                new_sim_successors.artifacts = sim_successors.artifacts
+                new_sim_successors.engine = sim_successors.engine
+                new_sim_successors.processed = sim_successors.processed
+                new_sim_successors.description = sim_successors.description
+                new_sim_successors.sort = sim_successors.sort
 
-        for successor in sim_successors.all_successors:
-            ## Only add those successors which have symbolic guard or which evaluates to True
-            # if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
-            #symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
-                                                      # successor.history.jumpkind, True,
-                                                      # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
-                                                      # successor.scratch.source)
-            is_stack_tainted = False
-            is_data_region_tainted = False
-            for annotation in successor.scratch.guard.annotations:
-                if isinstance(annotation, DataRegionAnnotation):
-                    is_data_region_tainted = True
-                    symbolic_sim_successors.add_successor(successor, successor.scratch.target,
-                                                          successor.scratch.guard,
-                                                          successor.history.jumpkind, True,
-                                                          successor.scratch.exit_stmt_idx,
-                                                          successor.scratch.exit_ins_addr,
-                                                          successor.scratch.source)
-                    break
-                elif isinstance(annotation, StackTouchedAnnotation):
-                    is_stack_tainted = True
+                for succ in self.graph.successors(node):
+                    new_state = sim_successors.unconstrained_successors[0].copy()
+                    new_state.regs.rip = claripy.BVV(succ.addr, new_state.arch.bits)
+                    new_sim_successors.add_successor(new_state, succ.addr,
+                                                     new_state.scratch.guard,
+                                                     new_state.history.jumpkind, True,
+                                                     new_state.scratch.exit_stmt_idx,
+                                                     new_state.scratch.exit_ins_addr,
+                                                     new_state.scratch.source)
+
+                sim_successors = new_sim_successors
+                sim_successors.artifacts['irsb_direct_next'] = True
+
+            for succ in sim_successors.all_successors:
+                for graph_succ in self._graph.successors(node):
+                    if succ.addr == graph_succ.addr:
+                        succ.globals['cur_block_id'] = graph_succ.block_id
+
+            symbolic_sim_successors = sim_successors
+
+        else:
+            if len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) == 1:
+
+                new_states = []
+                uncon_succ = sim_successors.unconstrained_successors[0]
+
+                poss_target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
+
+
+                if not uncon_succ.solver.symbolic(poss_target):
+                    #import ipdb;ipdb.set_trace()
+                    new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                    new_sim_successors.artifacts = sim_successors.artifacts
+                    new_sim_successors.engine = sim_successors.engine
+                    new_sim_successors.processed = sim_successors.processed
+                    new_sim_successors.description = sim_successors.description
+                    new_sim_successors.sort = sim_successors.sort
+
+                    new_sim_successors.add_successor(uncon_succ, uncon_succ.solver.eval(uncon_succ.scratch.target),
+                                                     uncon_succ.scratch.guard,
+                                                     uncon_succ.history.jumpkind, True,
+                                                     uncon_succ.scratch.exit_stmt_idx,
+                                                     uncon_succ.scratch.exit_ins_addr,
+                                                     uncon_succ.scratch.source)
+
+                    sim_successors = new_sim_successors
+                    sim_successors.artifacts['irsb_direct_next'] = True
+
+                else:
+                    for ast in sim_successors.unconstrained_successors[0].regs.rip.leaf_asts():
+                        if ast in sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict']:
+                            conc_addr_and_new_constraints = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][0]
+                            if len(conc_addr_and_new_constraints) > 2:
+                                print("More than two possible jumps? is this not a direct jump converted to an indirect jump?")
+                                import ipdb;ipdb.set_trace()
+                            for conc_addr, input_constraint in conc_addr_and_new_constraints:
+                                sym_addr = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][2]
+                                size = sim_successors.unconstrained_successors[0].globals['concretized_load_addr_dict'][ast][1]
+                                new_state = sim_successors.unconstrained_successors[0].copy()
+                                value = new_state.memory.load(conc_addr, size, endness=new_state.arch.memory_endness)
+                                #import ipdb;ipdb.set_trace()
+
+                                new_state.add_constraints(sym_addr == conc_addr)
+                                new_state.solver._solver.add_replacement(sym_addr, conc_addr, invalidate_cache=False)
+
+                                new_state.add_constraints(ast == value)
+                                new_state.solver._solver.add_replacement(ast, value, invalidate_cache=False)
+
+                                new_state.add_constraints(input_constraint)
+                                new_state.solver._solver.add_replacement(input_constraint.args[0], input_constraint.args[1], invalidate_cache=False)
+
+                                new_state.regs.rip = new_state.solver.simplify(new_state.regs.rip).replace_dict(new_state.solver._solver._replacement_cache)
+                                new_state.scratch.target = new_state.solver.simplify(new_state.scratch.target).replace_dict(new_state.solver._solver._replacement_cache)
+
+                                # Fill the block id
+                                for node_succ in self.graph.successors(node):
+                                    if node_succ.addr == new_state.regs.rip.args[0]:
+                                        new_state.globals['cur_block_id'] = node_succ.block_id
+                                new_states.append(new_state)
+
+                    if len(new_states) != 0:
+                        new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+                        new_sim_successors.artifacts = sim_successors.artifacts
+                        new_sim_successors.engine = sim_successors.engine
+                        new_sim_successors.processed = sim_successors.processed
+                        new_sim_successors.description = sim_successors.description
+                        new_sim_successors.sort = sim_successors.sort
+                        for new_state in new_states:
+                            new_sim_successors.add_successor(new_state, new_state.solver.eval(new_state.scratch.target), new_state.scratch.guard,
+                                                                      new_state.history.jumpkind, True,
+                                                                      new_state.scratch.exit_stmt_idx,
+                                                                      new_state.scratch.exit_ins_addr,
+                                                                      new_state.scratch.source)
+                        sim_successors=new_sim_successors
+                        sim_successors.artifacts['irsb_direct_next'] = True
+
+            elif (len(sim_successors.unconstrained_successors) == 1 and len(sim_successors.all_successors) != 1) or len(sim_successors.unconstrained_successors) > 1:
+                print("More than one unconstrained successor?!")
+                import ipdb;ipdb.set_trace()
+
+
+            symbolic_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+            symbolic_sim_successors.artifacts = sim_successors.artifacts
+            symbolic_sim_successors.engine = sim_successors.engine
+            symbolic_sim_successors.processed = sim_successors.processed
+            symbolic_sim_successors.description = sim_successors.description
+            symbolic_sim_successors.sort = sim_successors.sort
+
+            for successor in sim_successors.all_successors:
+                ## Only add those successors which have symbolic guard or which evaluates to True
+                # if successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(successor.scratch.guard):
+                #symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                                                          # successor.history.jumpkind, True,
+                                                          # successor.scratch.exit_stmt_idx, successor.scratch.exit_ins_addr,
+                                                          # successor.scratch.source)
+                is_stack_tainted = False
+                is_data_region_tainted = False
+                for annotation in successor.scratch.guard.annotations:
+                    if isinstance(annotation, DataRegionAnnotation):
+                        is_data_region_tainted = True
+                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                              successor.scratch.guard,
+                                                              successor.history.jumpkind, True,
+                                                              successor.scratch.exit_stmt_idx,
+                                                              successor.scratch.exit_ins_addr,
+                                                              successor.scratch.source)
+                        break
+                    # elif isinstance(annotation, StackTouchedAnnotation):
+                    #     is_stack_tainted = True
+                    #     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
+                    #                                           successor.history.jumpkind, True,
+                    #                                           successor.scratch.exit_stmt_idx,
+                    #                                           successor.scratch.exit_ins_addr,
+                    #                                           successor.scratch.source)
+                    #     break
+                    elif isinstance(annotation, VMStackVariableAnnotation):
+                        is_stack_tainted = True
+                        symbolic_sim_successors.add_successor(successor, successor.scratch.target,
+                                                              successor.scratch.guard,
+                                                              successor.history.jumpkind, True,
+                                                              successor.scratch.exit_stmt_idx,
+                                                              successor.scratch.exit_ins_addr,
+                                                              successor.scratch.source)
+                        break
+
+                if is_stack_tainted is False and is_data_region_tainted is False and (successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(
+                        successor.scratch.guard)):
                     symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
                                                           successor.history.jumpkind, True,
                                                           successor.scratch.exit_stmt_idx,
                                                           successor.scratch.exit_ins_addr,
                                                           successor.scratch.source)
-                    break
-            if is_stack_tainted is False and is_data_region_tainted is False and (successor.solver.symbolic(successor.scratch.guard) or successor.solver.eval(
-                    successor.scratch.guard)):
-                symbolic_sim_successors.add_successor(successor, successor.scratch.target, successor.scratch.guard,
-                                                      successor.history.jumpkind, True,
-                                                      successor.scratch.exit_stmt_idx,
-                                                      successor.scratch.exit_ins_addr,
-                                                      successor.scratch.source)
-        if node.is_simprocedure:
-            if len(symbolic_sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
-                raise Exception("Sim Procedure has more than one successor")
-            else:
-                symbolic_sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
 
         node.final_states = symbolic_sim_successors
         abstract_state.concrete_states = symbolic_sim_successors.all_successors

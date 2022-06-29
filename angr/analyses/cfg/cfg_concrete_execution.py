@@ -27,6 +27,7 @@ from ...knowledge_plugins.cfg import CFGENode, IndirectJump
 from ...utils.constants import DEFAULT_STATEMENT
 from ..forward_analysis import ForwardAnalysis
 from ..forward_analysis.visitors.graph import GraphVisitor
+from ...engines.successors import SimSuccessors
 from .cfg_base import CFGBase
 from .cfg_job_base import BlockID, CFGJobBase
 from .cfg_utils import CFGUtils
@@ -350,7 +351,7 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
         self._pending_edges = defaultdict(list)
 
         if not no_construct:
-            self._initialize_cfg()
+            #self._initialize_cfg() Removed this because we already have a cfg, also it was resetting the kb.functions which was causing issues with RDA's local function handling and manually inserted functions like scanf
             self._analyze()
 
     #
@@ -986,12 +987,41 @@ class CFGConcreteExecution(ForwardAnalysis, CFGBase):    # pylint: disable=abstr
             jumpkind=jumpkind,
             irsb=node.irsb)
 
-        if node.is_simprocedure:
-            if len(sim_successors.all_successors) > 1 or len(list(self._graph.successors(node))) > 1:
-                raise Exception("Sim Procedure has more than one successor")
-            else:
-                sim_successors.all_successors[0].globals['cur_block_id'] = list(self._graph.successors(node))[0].block_id
+        print(sim_successors)
+        print(sim_successors.all_successors)
+        # if len(sim_successors.unconstrained_successors) == 1 :
+        #     uncon_succ = sim_successors.unconstrained_successors[0]
+        #
+        #     uncon_succ.regs.rip = uncon_succ.solver.simplify(uncon_succ.regs.rip).replace_dict(
+        #         uncon_succ.solver._solver._replacement_cache)
+        #     uncon_succ.scratch.target = uncon_succ.solver.simplify(uncon_succ.scratch.target).replace_dict(uncon_succ.solver._solver._replacement_cache)
+        #
+        #     new_sim_successors = SimSuccessors(sim_successors.addr, sim_successors.initial_state)
+        #     new_sim_successors.artifacts = sim_successors.artifacts
+        #     new_sim_successors.engine = sim_successors.engine
+        #     new_sim_successors.processed = sim_successors.processed
+        #     new_sim_successors.description = sim_successors.description
+        #     new_sim_successors.sort = sim_successors.sort
+        #
+        #     new_sim_successors.add_successor(uncon_succ, uncon_succ.solver.eval(uncon_succ.scratch.target),
+        #                                      uncon_succ.scratch.guard,
+        #                                      uncon_succ.history.jumpkind, True,
+        #                                      uncon_succ.scratch.exit_stmt_idx,
+        #                                      uncon_succ.scratch.exit_ins_addr,
+        #                                      uncon_succ.scratch.source)
+        #
+        #     sim_successors = new_sim_successors
+        #     sim_successors.artifacts['irsb_direct_next'] = True
+        # elif len(sim_successors.unconstrained_successors) !=0:
+        #     print("More than one unconstrained successor")
+        #     import ipdb;ipdb.set_trace()
 
+        # assign block_id's cause indirect jump block id assignments are sometimes wrong by DataSensistive engine
+        for succ_node in self._graph.successors(node):
+            if succ_node.addr == sim_successors.all_successors[0].addr:
+                sim_successors.all_successors[0].globals['cur_block_id'] = succ_node.block_id
+
+        print(sim_successors.all_successors[0].globals['cur_block_id'])
 
         node.final_states = sim_successors.successors
         #self._node_iterations[block_key] += 1
