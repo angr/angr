@@ -81,12 +81,12 @@ class CodeLocation:
                 self.stmt_idx == other.stmt_idx and self.sim_procedure is other.sim_procedure and \
                 self.context == other.context and \
                 self.block_idx == other.block_idx and \
-                self.ins_addr
+                self.ins_addr == self.other.ins_addr
 
     def __lt__(self, other):
         if self.block_addr != other.block_addr:
             return self.block_addr < other.block_addr
-        if self.ins_addr != other.ins_addr:
+        if self.ins_addr is not None and other.ins_addr is not None and self.ins_addr != other.ins_addr:
             return self.ins_addr < other.ins_addr
         if self.stmt_idx != other.stmt_idx:
             return self.stmt_idx < other.stmt_idx
