@@ -2783,6 +2783,11 @@ class CFGFast(ForwardAnalysis, CFGBase):    # pylint: disable=abstract-method
                         if running_failures > 3:
                             break
 
+                if content_holder is not None:
+                    string_data = data[:last_success * 2]
+                    if string_data.endswith(b'\x00\x00'):
+                        string_data = string_data[:-2]
+                    content_holder.append(string_data)
                 return MemoryDataSort.UnicodeString, last_success
 
         if data:
