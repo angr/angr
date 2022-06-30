@@ -140,10 +140,21 @@ class SimEngineVRVEX(
     # Function handlers
 
     def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use,useless-return
-        if func_addr.data.op != 'BVV':
-            return None
+        if func_addr.data.op == 'BVV':
+            self._handle_function_concrete(func_addr.data.args[0])
 
-        func: Function = self.project.kb.functions[func_addr.data.args[0]]
+        if self.state.is_top(func_addr.data):
+            current_addr = self.state.block_addr
+            current_func: Function = self.kb.functions[self.func_addr]
+            node = current_func.get_node(current_addr)
+            for successor in node.successors():
+                if isinstance(successor, Function):
+                    self._handle_function_concrete(successor.addr)
+
+        return None
+
+    def _handle_function_concrete(self, func_addr: int):
+        func: Function = self.project.kb.functions[func_addr]
         if func.prototype is None or func.calling_convention is None:
             return None
 
