@@ -1085,7 +1085,7 @@ class TestCfgfastDataReferences(unittest.TestCase):
         proj = angr.Project(path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(data_references=True)
-        recovered_strings = [dat.content for dat in cfg.memory_data.values() if dat.sort == MemoryDataSort.UnicodeString]
+        recovered_strings = [d.content for d in cfg.memory_data.values() if d.sort == MemoryDataSort.UnicodeString]
 
         for testme in ('SOSNEAKY', 'Welcome to the admin console, trusted user!\n', 'Go away!\n', 'Username: \n'):
             assert testme.encode('utf-16-le') in recovered_strings
