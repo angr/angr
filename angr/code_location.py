@@ -86,8 +86,9 @@ class CodeLocation:
     def __lt__(self, other):
         if self.block_addr != other.block_addr:
             return self.block_addr < other.block_addr
-        if self.ins_addr is not None and other.ins_addr is not None and self.ins_addr != other.ins_addr:
-            return self.ins_addr < other.ins_addr
+        if self.ins_addr is not None and other.ins_addr is not None:
+            if self.ins_addr != other.ins_addr:
+                return self.ins_addr < other.ins_addr
         if self.stmt_idx != other.stmt_idx:
             return self.stmt_idx < other.stmt_idx
         return False
