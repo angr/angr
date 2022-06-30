@@ -2,11 +2,11 @@ import weakref
 from typing import Optional, Iterable, Dict, Set, Generator, Tuple, Union, Any, TYPE_CHECKING
 import logging
 
+from collections import defaultdict
+
 import claripy
 from claripy.annotation import Annotation
 import archinfo
-
-from collections import defaultdict
 
 from ...errors import SimMemoryMissingError, SimMemoryError
 from ...storage.memory_mixins import MultiValuedMemory
@@ -214,17 +214,23 @@ class LiveDefinitions:
         return "stack_base" in addr.variables
 
     @staticmethod
-    def get_stack_offset(addr: claripy.ast.Base) -> Optional[int]:
+    def get_stack_offset(addr: claripy.ast.Base, had_stack_base=False) -> Optional[int]:
+        if had_stack_base and addr.op == "BVV":
+            return addr._model_concrete.value
+        if "TOP" in addr.variables:
+            return None
         if "stack_base" in addr.variables:
             if addr.op == "BVS":
                 return 0
             elif addr.op == "__add__":
-                if len(addr.args) == 2 and addr.args[1].op == "BVV":
-                    return addr.args[1]._model_concrete.value
+                if len(addr.args) == 2:
+                    return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
+                           + LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
                 if len(addr.args) == 1:
                     return 0
-            elif addr.op == "__sub__" and len(addr.args) == 2 and addr.args[1].op == "BVV":
-                return -addr.args[1]._model_concrete.value
+            elif addr.op == "__sub__" and len(addr.args) == 2:
+                return LiveDefinitions.get_stack_offset(addr.args[0], had_stack_base=True) \
+                       - LiveDefinitions.get_stack_offset(addr.args[1], had_stack_base=True)
         return None
 
     @staticmethod
