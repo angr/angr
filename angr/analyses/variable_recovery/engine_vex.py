@@ -5,12 +5,14 @@ import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from ...errors import SimMemoryMissingError
 from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.light import SimEngineLightVEXMixin
 from ..typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
 from ...knowledge_plugins import Function
+from ...storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase
@@ -154,7 +156,10 @@ class SimEngineVRVEX(
         return None
 
     def _handle_function_concrete(self, func_addr: int):
-        func: Function = self.project.kb.functions[func_addr]
+        try:
+            func: Function = self.project.kb.functions[func_addr]
+        except KeyError:
+            return None
         if func.prototype is None or func.calling_convention is None:
             return None
 
@@ -163,9 +168,15 @@ class SimEngineVRVEX(
                 if isinstance(loc, SimRegArg):
                     self._read_from_register(self.arch.registers[loc.reg_name][0] + loc.reg_offset, loc.size)
                 elif isinstance(loc, SimStackArg):
-                    sp = self.state.register_region.load(self.arch.sp_offset, self.arch.bytes)
-                    addr = loc.stack_offset + sp
-                    self._load(addr, loc.size)
+                    try:
+                        sp: MultiValues = self.state.register_region.load(self.arch.sp_offset, self.arch.bytes)
+                    except SimMemoryMissingError:
+                        pass
+                    else:
+                        one_sp = sp.one_value()
+                        if one_sp is not None:
+                            addr = RichR(loc.stack_offset + one_sp)
+                            self._load(addr, loc.size)
 
         return None
 
