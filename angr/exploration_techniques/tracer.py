@@ -914,6 +914,10 @@ class Tracer(ExplorationTechnique):
         if not state.ip.symbolic and state.mem[state.ip].char.resolved.symbolic:
             l.debug("executing input-related code")
             return state, state
+        # second check: is this code mapped and executable?
+        section = state.project.loader.find_section_containing(state.addr)
+        if not section or not (section.flags & 0x4):
+            return state, state
         # in case we can't unwind, we return the state itself
         if state.addr == crash_addr:
             return state, state
