@@ -30,10 +30,17 @@ class TestVeritesting(unittest.TestCase):
         ex = proj.factory.simulation_manager(veritesting=True)
         ex.explore(find=addresses_veritesting_a[arch])
         assert len(ex.found) != 0
+
         # Make sure the input makes sense
         for f in ex.found:
             input_str = f.plugins['posix'].dumps(0)
             assert input_str.count(b'B') == 10
+
+        # make sure the solution is actually found by veritesting
+        assert len(ex.found) == 1
+        state = ex.found[0]
+        for var in state.solver._solver.variables:
+            assert "state_merge" not in var
 
     def _run_veritesting_b(self,arch):
         #logging.getLogger('angr.analyses.sse').setLevel(logging.DEBUG)
@@ -46,10 +53,17 @@ class TestVeritesting(unittest.TestCase):
         ex.use_technique(angr.exploration_techniques.Veritesting(enable_function_inlining=True))
         ex.explore(find=addresses_veritesting_b[arch])
         assert len(ex.found) != 0
+
         # Make sure the input makes sense
         for f in ex.found:
             input_str = f.plugins['posix'].dumps(0)
             assert input_str.count(b'B') == 35
+
+        # make sure the solution is actually found by veritesting
+        assert len(ex.found) == 1
+        state = ex.found[0]
+        for var in state.solver._solver.variables:
+            assert "state_merge" not in var
 
     def test_veritesting_a(self):
         # This is the most basic test

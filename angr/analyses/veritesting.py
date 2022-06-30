@@ -19,7 +19,7 @@ class VeritestingError(Exception):
     pass
 
 
-class CallTracingFilter(object):
+class CallTracingFilter:
     """
     Filter to apply during CFG creation on a given state and jumpkind to determine if it should be skipped at a certain
     depth
@@ -241,8 +241,7 @@ class Veritesting(Analysis):
         except (ClaripyError, SimError, AngrError):
             if not BYPASS_VERITESTING_EXCEPTIONS in s.options:
                 raise
-            else:
-                l.warning("Veritesting caught an exception.", exc_info=True)
+            l.warning("Veritesting caught an exception.", exc_info=True)
             return False, SimulationManager(self.project, stashes={'deviated': [s]})
 
         except VeritestingError as ex:
@@ -314,6 +313,8 @@ class Veritesting(Analysis):
             manager.step(successor_func=self._get_successors)
 
             if self._terminator is not None and self._terminator(manager):
+                for p in manager.stashes[stash]:
+                    self._unfuck(p)
                 break
 
             # Stash all paths that we do not see in our CFG

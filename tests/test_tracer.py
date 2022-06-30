@@ -22,7 +22,7 @@ def tracer_cgc(filename, test_name, stdin, copy_states=False, follow_unsat=False
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(
-        s, hierarchy=False, save_unconstrained=crash_mode
+        s, hierarchy=None, save_unconstrained=crash_mode
     )
     t = angr.exploration_techniques.Tracer(
         trace,
@@ -88,7 +88,7 @@ def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=No
     s.preconstrainer.preconstrain_file(stdin, s.posix.stdin, True)
 
     simgr = p.factory.simulation_manager(
-        s, hierarchy=False, save_unconstrained=crash_mode
+        s, hierarchy=None, save_unconstrained=crash_mode
     )
     t = angr.exploration_techniques.Tracer(trace, crash_addr=crash_addr)
     simgr.use_technique(t)
