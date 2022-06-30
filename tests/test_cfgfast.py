@@ -1080,6 +1080,16 @@ class TestCfgfastDataReferences(unittest.TestCase):
         assert len(refs) == 1
         assert set(x.ins_addr for x in refs) == {0x4011dd}
 
+    def test_data_references_wide_string(self):
+        path = os.path.join(test_location, 'x86_64', 'windows', 'fauxware-wide.exe')
+        proj = angr.Project(path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(data_references=True)
+        recovered_strings = [dat.content for dat in cfg.memory_data.values() if dat.sort == MemoryDataSort.UnicodeString]
+
+        for testme in ('SOSNEAKY', 'Welcome to the admin console, trusted user!\n', 'Go away!\n', 'Username: \n'):
+            assert testme.encode('utf-16-le') in recovered_strings
+
 
 if __name__ == "__main__":
     unittest.main()
