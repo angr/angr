@@ -65,6 +65,10 @@ class DefinitionAnnotation(Annotation):
 class RegisterMultiValuedMemory(MultiValuedMemory):
     def _default_value(self, addr, size, **kwargs):
         # TODO: Make _default_value() a separate Mixin
+        if kwargs.get("name", "").startswith("merge_uc_"):
+            # this is a hack. when this condition is satisfied, _default_value() is called inside Listpage.merge() to
+            # create temporary values. we simply return a TOP value here.
+            return self.state.top(size * self.state.arch.byte_width)
         reg_atom = Register(addr, size)
         top = self.state.top(size * self.state.arch.byte_width)
         top = self.state.annotate_with_def(top, Definition(reg_atom, angr.analyses.reaching_definitions.external_codeloc.ExternalCodeLocation()))
