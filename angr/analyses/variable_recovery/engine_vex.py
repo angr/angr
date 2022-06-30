@@ -5,10 +5,12 @@ import claripy
 import pyvex
 from archinfo.arch_arm import is_arm_arch
 
+from ...calling_conventions import SimRegArg, SimStackArg
 from ...engines.vex.claripy.datalayer import value as claripy_value
 from ...engines.light import SimEngineLightVEXMixin
 from ..typehoon import typevars, typeconsts
 from .engine_base import SimEngineVRBase, RichR
+from ...knowledge_plugins import Function
 
 if TYPE_CHECKING:
     from .variable_recovery_base import VariableRecoveryStateBase
@@ -138,6 +140,22 @@ class SimEngineVRVEX(
     # Function handlers
 
     def _handle_function(self, func_addr):  # pylint:disable=unused-argument,no-self-use,useless-return
+        if func_addr.data.op != 'BVV':
+            return None
+
+        func: Function = self.project.kb.functions[func_addr.data.args[0]]
+        if func.prototype is None or func.calling_convention is None:
+            return None
+
+        for arg_loc in func.calling_convention.arg_locs(func.prototype):
+            for loc in arg_loc.get_footprint():
+                if isinstance(loc, SimRegArg):
+                    self._read_from_register(self.arch.registers[loc.reg_name][0] + loc.reg_offset, loc.size)
+                elif isinstance(loc, SimStackArg):
+                    sp = self.state.register_region.load(self.arch.sp_offset, self.arch.bytes)
+                    addr = loc.stack_offset + sp
+                    self._load(addr, loc.size)
+
         return None
 
     def _handle_Const(self, expr):
