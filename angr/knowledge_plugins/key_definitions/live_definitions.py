@@ -5,6 +5,7 @@ import logging
 import claripy
 from claripy.annotation import Annotation
 import archinfo
+import angr
 
 from collections import defaultdict
 
