@@ -212,7 +212,10 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  #pylint:disa
         call_info = defaultdict(list)
         for node_from, node_to, data in func_graph_with_calls.edges(data=True):
             if data.get('type', None) == 'call' or data.get('outside', False):
-                call_info[node_from.addr].append(self.kb.functions.get_by_addr(node_to.addr))
+                try:
+                    call_info[node_from.addr].append(self.kb.functions.get_by_addr(node_to.addr))
+                except KeyError:
+                    pass
 
         function_graph_visitor = FunctionGraphVisitor(func, graph=func_graph)
 
