@@ -15,8 +15,7 @@ class JobInfo:
         return hash(self.key)
 
     def __eq__(self, o):
-        return type(self) == type(o) and \
-               self.key == o.key
+        return type(self) == type(o) and self.key == o.key and self.job == o.job
 
     def __repr__(self):
         s = "<JobInfo %s>" % (str(self.key))
