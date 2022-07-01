@@ -2755,8 +2755,8 @@ _libc_decls = \
         "execl": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypePointer(SimTypeChar(), offset=0)], SimTypeInt(signed=True), arg_names=["filename", "arg0"], variadic=True),
         # int execve (const char *FILENAME, char *const ARGV[], char *const ENV[]);
         "execve": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv", "env"]),
-        # int execle (const char *FILENAME, const char *ARG0, ..., char *const ENV[]);
-        "execle": None,
+        # int execle (const char *FILENAME, const char *ARG0, ...);
+        "execle": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv"]),
         # int execvp (const char *FILENAME, char *const ARGV[]);
         "execvp": SimTypeFunction([SimTypePointer(SimTypeChar(), offset=0), SimTypeFixedSizeArray(SimTypePointer(SimTypeChar(), offset=0), 0)], SimTypeInt(signed=True), arg_names=["filename", "argv"]),
         # int execvpe (const char *FILENAME, char *const ARGV[], char *const ENV[]);,
