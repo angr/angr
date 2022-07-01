@@ -12,11 +12,10 @@ class JobInfo:
         self.narrowing_count = 0  # not used
 
     def __hash__(self):
-        return hash(self.key)
+        return hash((self.key,) + tuple(self.jobs))
 
     def __eq__(self, o):
-        return type(self) == type(o) and \
-               self.key == o.key
+        return type(self) == type(o) and self.key == o.key and self.job == o.job
 
     def __repr__(self):
         s = "<JobInfo %s>" % (str(self.key))

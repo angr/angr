@@ -204,6 +204,13 @@ class CFGModel(Serializable):
                 self._node_addrs.insert(pos, node.addr)
 
     def remove_node(self, block_id: int, node: CFGNode) -> None:
+        """
+        Remove the given CFGNode instance. Note that this method *does not* remove the node from the graph.
+
+        :param block_id:    The Unique ID of the CFGNode.
+        :param node:        The CFGNode instance to remove.
+        :return:            None
+        """
         if block_id in self._nodes:
             del self._nodes[block_id]
 
